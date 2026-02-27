@@ -1,4 +1,4 @@
-# NetCloud App Planning Checklist
+# DotNetCloud App Planning Checklist
 
 ## Milestones
 - [X] Database Schema & Core Models: Design and implement tables for users, teams, roles, and settings
@@ -36,20 +36,20 @@ This document tracks planned and completed functionality for the NetCloud applic
 
 ## UI & Clients
 - [ ] Blazor UI enhancements
-- [ ] NetCloud.Server.Web (Blazor WebAssembly front-end for API)
-- [ ] NetCloud.Client.Avalonia (desktop client using Avalonia UI; sync directories with server)
+- [ ] DotNetCloud.Server.Web (Blazor WebAssembly front-end for API)
+- [ ] DotNetCloud.Client.Avalonia (desktop client using Avalonia UI; sync directories with server)
 
 ## Data & Services
-- [ ] NetCloud.Server.Data (database interactions and models)
-- [ ] NetCloud.Server.Services (business logic and services)
-- [ ] NetCloud.Core (shared models and utilities)
+- [ ] DotNetCloud.Server.Data (database interactions and models)
+- [ ] DotNetCloud.Server.Services (business logic and services)
+- [ ] DotNetCloud.Core (shared models and utilities)
 
 ## Testing
-- [ ] NetCloud.Server.Web.Tests (unit/integration tests for web app)
-- [ ] NetCloud.Server.Api.Tests (API endpoint tests)
-- [ ] NetCloud.Server.Services.Tests (services/business logic tests)
-- [ ] NetCloud.Server.Data.Tests (database interaction tests)
-- [ ] NetCloud.Core.Tests (shared models/utilities tests)
+- [ ] DotNetCloud.Server.Web.Tests (unit/integration tests for web app)
+- [ ] DotNetCloud.Server.Api.Tests (API endpoint tests)
+- [ ] DotNetCloud.Server.Services.Tests (services/business logic tests)
+- [ ] DotNetCloud.Server.Data.Tests (database interaction tests)
+- [ ] DotNetCloud.Core.Tests (shared models/utilities tests)
 
 ## Extensibility
 - [ ] Setup for functionality extensions via plugins or modules
