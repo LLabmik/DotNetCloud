@@ -330,7 +330,7 @@ Users choose which folders sync to which devices. Device with limited storage do
 
 ### Local State
 
-SQLite database on each client tracks sync state, chunk hashes, file metadata, pending operations.
+SQLite database per OS user per account on each client tracks sync state, chunk hashes, file metadata, pending operations. Databases are stored under the OS user's profile directory, fully isolated from other users on the same machine. See [Multi-User Client Support](#multi-user-client-support) in Section 11.
 
 ---
 
@@ -560,6 +560,56 @@ Monorepo now (single Git repo), designed for easy split later. When split, modul
 ### Shared Library
 
 `DotNetCloud.Client.Core` — sync engine, API client, OAuth2 PKCE, local SQLite. Used by all clients. Written once.
+
+### Multi-User Client Support
+
+A single client machine may have multiple OS-level users (e.g., a family sharing a Windows PC), and each OS user may connect to one or more DotNetCloud server accounts (e.g., personal + work). The sync service handles both scenarios.
+
+#### Architecture
+
+The `SyncService` runs as a **single system-level service** (Windows Service / systemd unit) but manages **independent sync contexts** — one per OS-user-plus-account combination.
+
+```
+SyncService (system service, one process)
+├── SyncContext: alice@pc → alice@home.dotnetcloud.net
+│   ├── Auth: OAuth2 refresh token (encrypted, per-context)
+│   ├── Sync folder: C:\Users\Alice\DotNetCloud\Home\
+│   └── State DB: %LOCALAPPDATA%\DotNetCloud\sync-home.db
+├── SyncContext: alice@pc → alice@work.dotnetcloud.net
+│   ├── Auth: OAuth2 refresh token (encrypted, per-context)
+│   ├── Sync folder: C:\Users\Alice\DotNetCloud\Work\
+│   └── State DB: %LOCALAPPDATA%\DotNetCloud\sync-work.db
+└── SyncContext: bob@pc → bob@home.dotnetcloud.net
+    ├── Auth: OAuth2 refresh token (encrypted, per-context)
+    ├── Sync folder: C:\Users\Bob\DotNetCloud\Home\
+    └── State DB: %LOCALAPPDATA%\DotNetCloud\sync-home.db
+```
+
+#### Data Isolation
+
+| Concern | Approach |
+|---|---|
+| Configuration | Stored under OS user profile (`%LOCALAPPDATA%\DotNetCloud\` / `~/.local/share/dotnetcloud/`) |
+| SQLite state DBs | One per account, under the OS user's profile directory |
+| Sync folders | Default under OS user's home directory; user-configurable per account |
+| Auth tokens | Encrypted per-context, stored in OS user's profile; inaccessible to other OS users via filesystem permissions |
+| Selective sync | Configured independently per account |
+
+OS-level filesystem permissions ensure one OS user cannot access another's sync data, tokens, or state databases.
+
+#### SyncTray ↔ SyncService Communication
+
+The `SyncTray` app runs per OS user session. On launch it connects to the shared `SyncService` over IPC (Named Pipe on Windows, Unix socket on Linux) and identifies itself with the current OS user identity. The `SyncService` responds with only the sync contexts belonging to that OS user — no cross-user information is exposed.
+
+#### Account Management
+
+- **Add account:** `SyncTray → Settings → Add Account` initiates OAuth2 PKCE in the system browser. On success, the `SyncService` creates a new sync context for the OS user.
+- **Remove account:** Stops sync, deletes the refresh token and state DB for that context. Synced files on disk are optionally deleted.
+- **Switch default:** When multiple accounts exist, the user picks a default for the tray icon status display.
+
+#### Linux Considerations
+
+On multi-user Linux systems the `SyncService` systemd unit runs as root (or a dedicated `dotnetcloud-sync` user) and drops privileges per sync context using the target OS user's UID/GID for all filesystem operations. This ensures files are created with correct ownership and prevents privilege escalation.
 
 ### Android Specifics
 

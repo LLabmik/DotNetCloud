@@ -128,6 +128,7 @@ The sync client keeps your files synchronized between your devices and your DotN
 
 - **Background sync service** — Runs as a Windows Service or systemd unit, syncs even when you're logged out
 - **Tray app** — Shows sync status, folder selection, account settings
+- **Multi-user & multi-account** — Multiple OS users on the same machine each get fully isolated sync. Each user can connect to multiple DotNetCloud servers (e.g., personal + work) with independent sync folders, credentials, and selective-sync settings
 - **Chunked, resumable uploads** — Large files sync efficiently; interrupted transfers resume automatically
 - **Conflict resolution** — Both versions are kept with a clear notification to resolve
 - **Selective sync** — Choose which folders sync to which devices
