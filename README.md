@@ -4,7 +4,7 @@
 
 DotNetCloud is a modern alternative to NextCloud and OwnCloud, designed to leverage .NET's async, multithreaded capabilities to provide a comprehensive, extensible cloud solution that anyone can install on their own server.
 
-🌐 **Website:** [dotnetcloud.net](https://dotnetcloud.net)
+🌐 **Website:** [dotnetcloud.net](https://dotnetcloud.net) (Coming soon)
 
 ---
 
@@ -202,7 +202,7 @@ All dependencies are open source with permissive licenses. Zero cost. See the [f
 
 DotNetCloud is open source and welcomes contributions!
 
-- **Repository:** [git.kimball.home/benk/dotnetcloud](https://git.kimball.home/benk/dotnetcloud) (primary) | GitHub mirror (community)
+- **Repository:** [github.com/LLabmik/DotNetCloud](https://github.com/LLabmik/DotNetCloud) (primary)
 - **License:** AGPL-3.0 (server & modules), Apache 2.0 (SDK/interfaces)
 - **Module SDK:** Apache 2.0 — build proprietary or open-source modules
 
