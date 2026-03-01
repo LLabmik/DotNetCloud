@@ -17,21 +17,22 @@
 5. [Module System & Security](#5-module-system--security)
 6. [Real-Time Communication](#6-real-time-communication)
 7. [File Synchronization](#7-file-synchronization)
-8. [Solution Structure](#8-solution-structure)
-9. [Platform Support](#9-platform-support)
-10. [Client Architecture](#10-client-architecture)
-11. [API Design](#11-api-design)
-12. [Core Data Model](#12-core-data-model)
-13. [Deployment & Infrastructure](#13-deployment--infrastructure)
-14. [Backup & Disaster Recovery](#14-backup--disaster-recovery)
-15. [Logging & Observability](#15-logging--observability)
-16. [Internationalization](#16-internationalization)
-17. [CI/CD Pipeline](#17-cicd-pipeline)
-18. [NextCloud Migration](#18-nextcloud-migration)
-19. [Privacy & GDPR](#19-privacy--gdpr)
-20. [Licensing](#20-licensing)
-21. [Dependencies](#21-dependencies)
-22. [Implementation Roadmap](#22-implementation-roadmap)
+8. [AI & LLM Integration](#8-ai--llm-integration)
+9. [Solution Structure](#9-solution-structure)
+10. [Platform Support](#10-platform-support)
+11. [Client Architecture](#11-client-architecture)
+12. [API Design](#12-api-design)
+13. [Core Data Model](#13-core-data-model)
+14. [Deployment & Infrastructure](#14-deployment--infrastructure)
+15. [Backup & Disaster Recovery](#15-backup--disaster-recovery)
+16. [Logging & Observability](#16-logging--observability)
+17. [Internationalization](#17-internationalization)
+18. [CI/CD Pipeline](#18-cicd-pipeline)
+19. [NextCloud Migration](#19-nextcloud-migration)
+20. [Privacy & GDPR](#20-privacy--gdpr)
+21. [Licensing](#21-licensing)
+22. [Dependencies](#22-dependencies)
+23. [Implementation Roadmap](#23-implementation-roadmap)
 
 ---
 
@@ -63,6 +64,7 @@ DotNetCloud is a self-hosted, open-source cloud platform built on .NET 10/C#. It
 | Browser bookmark sync | Browser extensions |
 | Announcements | User/group/org broadcasts |
 | Full-text search | Across all modules |
+| AI assistant | Local (Ollama) or cloud LLM (Claude, etc.) |
 
 ---
 
@@ -332,7 +334,125 @@ SQLite database on each client tracks sync state, chunk hashes, file metadata, p
 
 ---
 
-## 8. Solution Structure
+## 8. AI & LLM Integration
+
+**Decision: Microsoft.Extensions.AI with Pluggable Providers (Ollama + Cloud)**
+
+### Overview
+
+DotNetCloud integrates LLM capabilities through a provider-agnostic abstraction layer, supporting both **local/network LLMs via Ollama** and **cloud-hosted LLMs** (Anthropic Claude, OpenAI, etc.). Users choose where their AI runs — privacy-conscious users keep everything local; others can opt into cloud providers for more capable models.
+
+### Architecture
+
+`Microsoft.Extensions.AI` provides the `IChatClient` abstraction — a first-party .NET interface that decouples application code from specific LLM providers. This follows the same multi-provider pattern used for databases (`ISearchProvider`) and storage (`IStorageProvider`).
+
+```
+DotNetCloud.Core (ILlmProvider capability interface)
+        │
+        ▼
+DotNetCloud.Modules.AI (module process)
+        │
+        ├── OllamaProvider  ← Microsoft.Extensions.AI.Ollama
+        │     └── Connects to http://localhost:11434 or LAN address
+        │
+        ├── AnthropicProvider ← Community IChatClient for Claude
+        │     └── API key in encrypted settings
+        │
+        └── OpenAIProvider ← Microsoft.Extensions.AI.OpenAI
+              └── API key in encrypted settings (optional)
+```
+
+### Capability Interface
+
+```csharp
+public interface ILlmProvider
+{
+    /// <summary>
+    /// Send a chat completion request to the configured LLM.
+    /// </summary>
+    Task<LlmResponse> CompleteAsync(
+        CallerContext caller,
+        LlmRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Stream a chat completion response token-by-token.
+    /// </summary>
+    IAsyncEnumerable<LlmResponseChunk> CompleteStreamingAsync(
+        CallerContext caller,
+        LlmRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// List available models from the configured provider(s).
+    /// </summary>
+    Task<IReadOnlyList<LlmModelInfo>> ListModelsAsync(
+        CallerContext caller,
+        CancellationToken cancellationToken = default);
+}
+```
+
+`ILlmProvider` is a **Restricted** capability — modules must declare it in their manifest, and admin must approve access.
+
+### Provider Strategy
+
+| Provider | Transport | Models | License | Cost |
+|---|---|---|---|---|
+| Ollama (local/LAN) | HTTP to `localhost:11434` or LAN IP | Llama, Mistral, Phi, Gemma, etc. | MIT | Free (self-hosted) |
+| Anthropic Claude | HTTPS API | Claude 4 Sonnet, Opus, Haiku | Proprietary | Pay-per-token |
+| OpenAI | HTTPS API | GPT-4o, GPT-4.1, etc. | Proprietary | Pay-per-token |
+| Azure OpenAI | HTTPS API | Same as OpenAI, Azure-hosted | Proprietary | Pay-per-token |
+
+Admin configures one or more providers during `dotnetcloud setup` or via admin UI. Users can select their preferred provider/model per-session if multiple are configured.
+
+### Ollama Integration
+
+- **Local:** Ollama runs on the same machine as DotNetCloud (`http://localhost:11434`)
+- **Network:** Ollama runs on another machine on the LAN (`http://ollama.local:11434`)
+- **Model management:** Admin pulls/removes models via DotNetCloud admin UI, which proxies to Ollama's API (`/api/pull`, `/api/delete`, `/api/tags`)
+- **No internet required:** Fully air-gapped operation possible with Ollama
+- **GPU passthrough:** Docker deployments pass through GPU for hardware-accelerated inference
+
+### Cloud Provider Integration
+
+- **API keys stored encrypted** in `SystemSetting` (module-scoped, admin-only)
+- **No data leaves the server unless admin explicitly configures a cloud provider**
+- **Per-user opt-in:** Admin can allow users to bring their own API keys (stored in `UserSetting`, encrypted)
+- **Rate limiting:** Cloud provider usage tracked and rate-limited per-user to control costs
+- **Fallback chain:** Admin can configure fallback order (e.g., try Ollama first, fall back to Claude if Ollama is unavailable)
+
+### Module Integration Points
+
+Other modules can leverage AI through the `ILlmProvider` capability:
+
+| Module | AI Use Case |
+|---|---|
+| Notes | Summarize, expand, translate, grammar check |
+| Chat | Message summarization, smart replies |
+| Email | Draft replies, summarize threads |
+| Files | Content summarization, document Q&A |
+| Search | Semantic search, natural language queries |
+| Deck | Generate card descriptions, sprint summaries |
+
+### Privacy & Data Sovereignty
+
+- **Local-first by default:** If Ollama is configured, all AI processing stays on-premise
+- **Cloud providers are opt-in:** Admin must explicitly add API keys and enable cloud providers
+- **E2EE compatibility:** AI features are unavailable for encrypted content (server can't read ciphertext)
+- **No training:** Cloud API calls use provider APIs that don't train on user data (Anthropic API, OpenAI API)
+- **Audit log:** All LLM requests logged with user, module, provider, and token count (content not logged)
+
+### Blazor UI
+
+- Chat-style AI assistant panel (slide-out or dedicated page)
+- Streaming responses rendered token-by-token via SignalR
+- Model selector dropdown (shows available models from all configured providers)
+- Context-aware: modules can inject context into the assistant (e.g., "summarize this note")
+- Conversation history stored per-user (optional, admin-configurable retention)
+
+---
+
+## 9. Solution Structure
 
 ```
 DotNetCloud.sln
@@ -360,6 +480,7 @@ DotNetCloud.sln
 │   │   ├── DotNetCloud.Modules.Photos/
 │   │   ├── DotNetCloud.Modules.Bookmarks/
 │   │   ├── DotNetCloud.Modules.Announcements/
+│   │   ├── DotNetCloud.Modules.AI/              ← LLM integration (Ollama + cloud)
 │   │   └── DotNetCloud.Modules.Example/         ← Developer reference module
 │   │
 │   ├── UI/
@@ -408,7 +529,7 @@ Monorepo now (single Git repo), designed for easy split later. When split, modul
 
 ---
 
-## 9. Platform Support
+## 10. Platform Support
 
 | Platform | Status | Notes |
 |---|---|---|
@@ -420,7 +541,7 @@ Monorepo now (single Git repo), designed for easy split later. When split, modul
 
 ---
 
-## 10. Client Architecture
+## 11. Client Architecture
 
 ### Three Desktop Components (Option D)
 
@@ -453,7 +574,7 @@ Monorepo now (single Git repo), designed for easy split later. When split, modul
 
 ---
 
-## 11. API Design
+## 12. API Design
 
 ### Style
 
@@ -516,7 +637,7 @@ Configurable rate limiting with generous defaults. Admins can tighten per-module
 
 ---
 
-## 12. Core Data Model
+## 13. Core Data Model
 
 ### Identity (ASP.NET Core Identity)
 
@@ -558,7 +679,7 @@ Three scopes: `SystemSetting`, `OrganizationSetting`, `UserSetting`. Each keyed 
 
 ---
 
-## 13. Deployment & Infrastructure
+## 14. Deployment & Infrastructure
 
 ### Deployment Modes
 
@@ -628,7 +749,7 @@ dotnetcloud help               # Full command reference
 
 ---
 
-## 14. Backup & Disaster Recovery
+## 15. Backup & Disaster Recovery
 
 ### Built-In Backup
 
@@ -647,7 +768,7 @@ dotnetcloud backup --schedule daily --keep 30 --output /backups/
 
 ---
 
-## 15. Logging & Observability
+## 16. Logging & Observability
 
 | Concern | Technology | License |
 |---|---|---|
@@ -664,7 +785,7 @@ dotnetcloud backup --schedule daily --keep 30 --output /backups/
 
 ---
 
-## 16. Internationalization
+## 17. Internationalization
 
 - Built in from Phase 0 using .NET's `IStringLocalizer` with `.resx` resource files
 - Default language: English
@@ -674,7 +795,7 @@ dotnetcloud backup --schedule daily --keep 30 --output /backups/
 
 ---
 
-## 17. CI/CD Pipeline
+## 18. CI/CD Pipeline
 
 ### Dual Pipeline
 
@@ -694,7 +815,7 @@ dotnetcloud backup --schedule daily --keep 30 --output /backups/
 
 ---
 
-## 18. NextCloud Migration
+## 19. NextCloud Migration
 
 ### Migration Tool
 
@@ -710,7 +831,7 @@ Imports: users, files, calendars, contacts, bookmarks.
 
 ---
 
-## 19. Privacy & GDPR
+## 20. Privacy & GDPR
 
 | Requirement | Implementation |
 |---|---|
@@ -721,7 +842,7 @@ Imports: users, files, calendars, contacts, bookmarks.
 
 ---
 
-## 20. Licensing
+## 21. Licensing
 
 | Component | License | Reason |
 |---|---|---|
@@ -731,7 +852,7 @@ Imports: users, files, calendars, contacts, bookmarks.
 
 ---
 
-## 21. Dependencies
+## 22. Dependencies
 
 All dependencies are open source with permissive or compatible licenses. Zero cost. .NET-preferred.
 
@@ -753,6 +874,10 @@ All dependencies are open source with permissive or compatible licenses. Zero co
 | Pomelo.EntityFrameworkCore.MySql | MariaDB provider | MIT | ✅ |
 | Microsoft.EntityFrameworkCore.SqlServer | SQL Server provider | MIT | ✅ |
 | LiveKit | Video SFU (optional external) | Apache 2.0 | ❌ (Go) |
+| Microsoft.Extensions.AI | LLM abstraction layer | MIT | ✅ |
+| Microsoft.Extensions.AI.Ollama | Ollama IChatClient | MIT | ✅ |
+| Microsoft.Extensions.AI.OpenAI | OpenAI/Azure OpenAI IChatClient | MIT | ✅ |
+| Ollama | Local LLM inference (optional external) | MIT | ❌ (Go) |
 
 **Rules:**
 - All dependencies must be open source with zero-cost licensing
@@ -762,7 +887,7 @@ All dependencies are open source with permissive or compatible licenses. Zero co
 
 ---
 
-## 22. Implementation Roadmap
+## 23. Implementation Roadmap
 
 ### Phase 0: Foundation
 
@@ -862,6 +987,21 @@ All dependencies are open source with permissive or compatible licenses. Zero co
 - Performance optimization, security audit
 
 **Milestone:** Feature-complete platform.
+
+### Phase 9: AI Assistant
+
+**Goal:** LLM-powered assistant with local and cloud provider support.
+
+- AI module (`DotNetCloud.Modules.AI`) with `ILlmProvider` capability interface
+- `Microsoft.Extensions.AI` abstraction with Ollama + Anthropic Claude + OpenAI providers
+- Ollama integration (local or LAN, model management via admin UI)
+- Cloud provider support (API keys encrypted in settings, per-user opt-in)
+- Blazor chat-style assistant UI with streaming responses
+- Cross-module AI features (Notes summarization, Email drafts, Search enhancement)
+- Conversation history with configurable retention
+- Admin controls: provider configuration, rate limiting, usage tracking, audit log
+
+**Milestone:** Ask the AI assistant a question, get a streaming response from Ollama or Claude. Modules leverage AI for smart features.
 
 ---
 

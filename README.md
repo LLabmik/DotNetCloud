@@ -30,6 +30,7 @@ DotNetCloud gives you full control of your data by running your own cloud server
 | 📹 **Video Calls** | WebRTC video calling and screen sharing | Phase 7 |
 | 🔍 **Search** | Full-text search across all modules | Phase 8 |
 | 🔒 **E2EE** | Optional zero-knowledge encryption | Phase 8 |
+| 🤖 **AI Assistant** | LLM-powered assistant via Ollama (local) or Claude/OpenAI (cloud) | Phase 9 |
 
 ---
 

@@ -20,6 +20,7 @@
 | **6** | Email + Bookmarks | Integrated email, browser sync |
 | **7** | Video Calling | WebRTC P2P + LiveKit SFU |
 | **8** | Search + Updates + E2EE | Feature-complete platform |
+| **9** | AI Assistant | Local (Ollama) + cloud LLM integration |
 
 ---
 
@@ -203,6 +204,42 @@ Cross-module search, automated updates, encryption, production hardening.
 
 ### Milestone
 Feature-complete platform. Cross-module search works. Updates are seamless. E2EE available for privacy-conscious users.
+
+---
+
+## Phase 9: AI Assistant
+
+### Goal
+LLM-powered assistant supporting both local/network models (Ollama) and cloud-hosted models (Anthropic Claude, OpenAI). Users and admins choose where AI runs — fully local for privacy, cloud for capability, or both with fallback.
+
+### Deliverables
+
+- [ ] `ILlmProvider` capability interface in `DotNetCloud.Core` — `CompleteAsync`, `CompleteStreamingAsync`, `ListModelsAsync` with `CallerContext`
+- [ ] `DotNetCloud.Modules.AI` — AI module with provider management, conversation orchestration, context injection from other modules
+- [ ] `DotNetCloud.Modules.AI.Data` — `AiDbContext`: conversation history, usage tracking, provider configuration
+- [ ] `Microsoft.Extensions.AI` integration — Provider-agnostic `IChatClient` abstraction
+- [ ] **Ollama provider** — Connect to local (`localhost:11434`) or LAN Ollama instance. Model management (pull/delete/list) via admin UI proxying Ollama's API. GPU passthrough for Docker deployments.
+- [ ] **Anthropic Claude provider** — Claude API integration via `IChatClient`. API keys encrypted in `SystemSetting`. Support for Claude 4 Sonnet, Opus, Haiku.
+- [ ] **OpenAI provider** — OpenAI + Azure OpenAI via `Microsoft.Extensions.AI.OpenAI`. Optional.
+- [ ] **Provider fallback chain** — Admin configures priority order (e.g., Ollama → Claude). Automatic fallback on provider unavailability.
+- [ ] **Per-user API keys** — Optional: admin can allow users to bring their own cloud API keys (stored encrypted in `UserSetting`)
+- [ ] `DotNetCloud.UI.Modules.AI` — Blazor chat-style assistant panel (slide-out + dedicated page), streaming token-by-token rendering via SignalR, model selector dropdown, conversation history
+- [ ] **Cross-module context injection** — Modules provide context to the assistant (e.g., "summarize this note", "draft a reply to this email"). Context passed through `ILlmProvider` with module-scoped metadata.
+- [ ] **Cross-module AI features:**
+  - Notes: summarize, expand, translate, grammar check
+  - Chat: message summarization, smart reply suggestions
+  - Email: draft replies, summarize threads
+  - Files: document summarization, content Q&A
+  - Search: semantic search enhancement, natural language queries
+  - Deck: generate card descriptions, sprint summaries
+- [ ] **Admin controls** — Provider configuration UI, per-user rate limiting, usage dashboard (requests, tokens, cost estimates for cloud providers), audit log (user, module, provider, token count — content not logged)
+- [ ] **Privacy safeguards** — Local-first default (Ollama if configured), cloud providers require explicit admin opt-in, E2EE content excluded from AI features, cloud API calls use non-training endpoints
+- [ ] `dotnetcloud setup` integration — Ollama detection/configuration during setup wizard. Optional cloud provider key entry.
+- [ ] Tests — AI module unit tests, provider integration tests (Ollama mock, cloud API mock), streaming tests, fallback chain tests
+- [ ] Documentation — AI admin guide (Ollama setup, cloud provider configuration, GPU passthrough), AI user guide, module developer guide (using `ILlmProvider` in custom modules)
+
+### Milestone
+Ask the AI assistant a question from the Blazor UI and get a streaming response from a local Ollama model or Claude. Other modules offer AI-powered features (summarize a note, draft an email reply). Admin controls which providers are available and tracks usage.
 
 ---
 
