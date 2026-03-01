@@ -54,6 +54,7 @@ DotNetCloud is a self-hosted, open-source cloud platform built on .NET 10/C#. It
 | Feature | Inspired By |
 |---|---|
 | File sync & sharing | NextCloud Files |
+| Online document editing | Collabora Online (LibreOffice-based) |
 | Chat & video calls | NextCloud Talk |
 | Project management | NextCloud Deck + Jira |
 | Calendar & contacts | CalDAV/CardDAV |
@@ -82,6 +83,7 @@ dotnetcloud (core process — supervisor)
 ├── dotnetcloud-module chat       (child process, gRPC)
 ├── dotnetcloud-module calendar   (child process, gRPC)
 ├── dotnetcloud-module music      (child process, gRPC)
+├── collabora-code                (managed component, optional)
 └── livekit                       (managed component, optional)
 ```
 
@@ -331,6 +333,84 @@ Users choose which folders sync to which devices. Device with limited storage do
 ### Local State
 
 SQLite database per OS user per account on each client tracks sync state, chunk hashes, file metadata, pending operations. Databases are stored under the OS user's profile directory, fully isolated from other users on the same machine. See [Multi-User Client Support](#multi-user-client-support) in Section 11.
+
+### Online Document Editing (Collabora)
+
+**Decision: Collabora Online via WOPI, with Collabora CODE for local/small deployments**
+
+DotNetCloud integrates with [Collabora Online](https://www.collaboraoffice.com/collabora-online/) to provide browser-based editing of documents, spreadsheets, and presentations — directly from the file browser without downloading.
+
+#### Architecture
+
+Collabora Online is an external managed component (like LiveKit). It runs as a separate process under DotNetCloud's process supervisor and communicates with the Files module via the **WOPI protocol** (Web Application Open Platform Interface).
+
+```
+User opens document → Blazor UI loads Collabora iframe
+                       → Collabora fetches file via WOPI (Files module)
+                       → User edits in browser
+                       → Collabora saves via WOPI → Files module stores new version
+```
+
+#### Deployment Modes
+
+| Mode | Component | For whom |
+|---|---|---|
+| **Built-in (CODE)** | Collabora CODE (Development Edition) | Small instances, home users, development. Auto-installed by `dotnetcloud setup`. |
+| **External** | Collabora Online (full) | Organizations needing higher capacity. Admin points DotNetCloud at an external Collabora Online server. |
+| **Docker** | Collabora CODE container | Docker Compose deployments. Included in auto-generated `docker-compose.yml`. |
+
+#### Collabora CODE (Built-In)
+
+- **Collabora CODE** is the free, community edition of Collabora Online — same LibreOffice-based engine, designed for smaller deployments
+- `dotnetcloud setup` downloads and configures CODE automatically (same pattern as LiveKit)
+- Runs under the process supervisor as a managed component
+- Users never see Collabora's configuration — DotNetCloud handles WOPI discovery, URL routing, and TLS
+- Suitable for personal/family instances and small teams
+
+#### Collabora Online (External)
+
+- For larger deployments, admin configures an external Collabora Online server URL in the admin UI
+- DotNetCloud's WOPI host implementation works identically with CODE or full Collabora Online
+- Enables clustering, higher concurrent user limits, and dedicated resources for document editing
+
+#### WOPI Integration
+
+The Files module implements a **WOPI host** endpoint:
+
+- `GET /api/v1/wopi/files/{fileId}` — File info (name, size, permissions)
+- `GET /api/v1/wopi/files/{fileId}/contents` — Download file content
+- `POST /api/v1/wopi/files/{fileId}/contents` — Save edited file (creates new version)
+- WOPI access tokens scoped per-user, per-file, time-limited
+- All WOPI requests flow through the Files module's permission checks using `CallerContext`
+
+#### Supported Formats
+
+| Category | Formats |
+|---|---|
+| Documents | .docx, .odt, .doc, .rtf |
+| Spreadsheets | .xlsx, .ods, .xls, .csv |
+| Presentations | .pptx, .odp, .ppt |
+| Other | .txt, .html (basic) |
+
+#### Collaborative Editing
+
+- **Real-time co-editing:** Multiple users edit the same document simultaneously (Collabora handles OT/conflict resolution internally)
+- **Awareness:** Users see each other's cursors and selections
+- **Auto-save:** Changes saved automatically at configurable intervals
+- **Version integration:** Each save-back creates a new file version in DotNetCloud's versioning system
+
+#### Privacy & E2EE
+
+- Document content is processed by Collabora in-memory on the same server (CODE) or on a trusted internal server (external Collabora Online)
+- No data sent to external services unless admin explicitly configures an external Collabora server
+- **E2EE-incompatible:** Online editing requires the server to read file content. Encrypted files show a "download to edit locally" prompt instead.
+
+#### CLI
+
+```sh
+dotnetcloud component status collabora    # Check Collabora CODE status
+dotnetcloud component restart collabora   # Restart Collabora CODE
+```
 
 ---
 
@@ -924,6 +1004,8 @@ All dependencies are open source with permissive or compatible licenses. Zero co
 | Pomelo.EntityFrameworkCore.MySql | MariaDB provider | MIT | ✅ |
 | Microsoft.EntityFrameworkCore.SqlServer | SQL Server provider | MIT | ✅ |
 | LiveKit | Video SFU (optional external) | Apache 2.0 | ❌ (Go) |
+| Collabora CODE | Online document editing (optional, built-in) | MPL-2.0 | ❌ (C++/JS) |
+| Collabora Online | Online document editing (optional, external) | MPL-2.0 | ❌ (C++/JS) |
 | Microsoft.Extensions.AI | LLM abstraction layer | MIT | ✅ |
 | Microsoft.Extensions.AI.Ollama | Ollama IChatClient | MIT | ✅ |
 | Microsoft.Extensions.AI.OpenAI | OpenAI/Azure OpenAI IChatClient | MIT | ✅ |
@@ -960,6 +1042,7 @@ All dependencies are open source with permissive or compatible licenses. Zero co
 
 - Files module (upload, download, browse, share, quotas, trash, versioning)
 - File browser UI (grid/list, drag-drop upload, sharing, preview)
+- Collabora CODE integration (WOPI host in Files module, managed component, browser-based document editing)
 - Client.Core (sync engine, chunked upload, conflict detection)
 - Client.SyncService + Client.SyncTray
 - Full REST API with bulk operations

@@ -17,6 +17,7 @@ DotNetCloud gives you full control of your data by running your own cloud server
 | Feature | Description | Status |
 |---|---|---|
 | 📁 **Files** | File sync and sharing with desktop client | Phase 1 |
+| 📝 **Document Editing** | Browser-based editing via Collabora Online (LibreOffice-based) | Phase 1 |
 | 💬 **Chat** | Real-time messaging, channels, direct messages | Phase 2 |
 | 📱 **Android App** | Mobile client with photo auto-upload | Phase 2 |
 | 👤 **Contacts** | Contact management with CardDAV support | Phase 3 |
@@ -191,6 +192,7 @@ Imports users, files, calendars, contacts, and bookmarks. Available starting in 
 | Real-time | SignalR |
 | Module IPC | gRPC |
 | Video (optional) | LiveKit (Apache 2.0) |
+| Document Editing (optional) | Collabora CODE / Collabora Online (MPL-2.0) |
 | Logging | Serilog |
 | Telemetry | OpenTelemetry |
 

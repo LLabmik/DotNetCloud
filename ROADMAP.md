@@ -57,6 +57,7 @@ Users can upload, download, browse, and share files through the web UI. Desktop 
 - [ ] `DotNetCloud.Modules.Files` — Upload (chunked, resumable), download, browse (folder tree), rename, move, delete, share (user/team/public link with expiry), storage quotas, trash/recycle bin, file versioning (configurable history depth)
 - [ ] `DotNetCloud.Modules.Files.Data` — `FilesDbContext`: file metadata, chunk records (SHA-256 content hashes), share links, version history, quota tracking
 - [ ] `DotNetCloud.UI.Modules.Files` — File browser (grid + list view), drag-and-drop upload, sharing dialog, file preview (images, text, PDF, video), breadcrumb navigation, context menus
+- [ ] Collabora CODE integration — WOPI host endpoints in Files module (`/api/v1/wopi/files/{fileId}`, `/contents`), WOPI access tokens (per-user, per-file, time-limited), Collabora CODE as managed component under process supervisor, auto-download/configure during `dotnetcloud setup`, Blazor iframe integration for in-browser document editing, support for external Collabora Online server as admin-configurable alternative
 - [ ] `DotNetCloud.Client.Core` — Sync engine (hybrid change detection, chunked upload with content hashing, conflict detection + copy with notification), API client (`HttpClient` wrapper for REST API), OAuth2 PKCE token management, local SQLite state database
 - [ ] `DotNetCloud.Client.SyncService` — .NET Worker Service: background file watcher, sync worker, IPC status server (named pipe/unix socket). Runs as Windows Service / systemd user service.
 - [ ] `DotNetCloud.Client.SyncTray` — Avalonia tray app: tray icon with sync status (syncing/up-to-date/error), settings window (folder selection, account, selective sync per folder), IPC client to SyncService
@@ -66,7 +67,7 @@ Users can upload, download, browse, and share files through the web UI. Desktop 
 - [ ] Documentation — Admin guide (installation Linux + Windows), API reference, user guide (web UI + sync client)
 
 ### Milestone
-Install DotNetCloud on a Linux server. Install sync client on Windows desktop. Select folders. Files sync bidirectionally. Upload via web UI appears on desktop. Edit on desktop updates on server. Conflicts detected and resolved with notification. **This is the public launch.**
+Install DotNetCloud on a Linux server. Install sync client on Windows desktop. Select folders. Files sync bidirectionally. Upload via web UI appears on desktop. Edit on desktop updates on server. Conflicts detected and resolved with notification. Open a .docx in the browser and edit it via Collabora. **This is the public launch.**
 
 ---
 
