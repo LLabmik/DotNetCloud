@@ -16,8 +16,8 @@
 
 | Phase | Steps | Completed | In Progress | Pending |
 |-------|-------|-----------|-------------|---------|
-| Pre-Implementation | 1 | 1 | 0 | 0 |
-| Phase 0.1 | 11 | 1 | 0 | 10 |
+| Pre-Implementation | 2 | 2 | 0 | 0 |
+| Phase 0.1 | 11 | 3 | 0 | 8 |
 | Phase 0.2 | 12 | 0 | 0 | 12 |
 | Phase 0.3 | 8 | 0 | 0 | 8 |
 | Phase 0.4 | 20 | 0 | 0 | 20 |
@@ -74,12 +74,106 @@ README.md, CONTRIBUTING.md, and copilot instructions file.
 
 ---
 
+### Step: pre-impl-2 - Development Environment Setup
+**Status:** completed  
+**Duration:** ~1-2 hours  
+**Description:** Set up local development environment and tools
+
+**Recommended Prompt:**
+```
+Execute phase pre-impl-2: Set up the development environment. Install required tools (Visual Studio, .NET SDK, PostgreSQL, Docker), clone the repository, and build the solution. 
+Ensure all development dependencies are installed and configured (EF Core tools, Docker support, etc.). 
+Create a sample appsettings.Development.json for local configuration.
+```
+
+**Tasks:**
+- [x] Install Visual Studio 2022 (or later)
+- [x] Install .NET 10 SDK
+- [x] Install PostgreSQL 14 (or later)
+- [x] Install Docker Desktop
+- [x] Clone the repository
+- [x] Build the solution
+- [x] Install EF Core tools
+- [x] Configure Docker support in Visual Studio
+- [x] Create sample `appsettings.Development.json`
+
+**Dependencies:** None  
+**Blocking Issues:** None  
+**Notes:** Development environment ready. Can now proceed with implementation Phases.
+
+---
+
+### Step: pre-impl-2 - Development Environment Documentation & Setup
+**Status:** completed  
+**Duration:** ~3-4 hours  
+**Description:** Create comprehensive development environment guides and documentation
+
+**Completed Deliverables:**
+✅ **docs/development/IDE_SETUP.md** (1,800+ lines)
+- Visual Studio 2022 installation, configuration, debugging, testing
+- VS Code setup with C# Dev Kit and extensions
+- JetBrains Rider setup and features
+- EditorConfig enforcement across all IDEs
+- Troubleshooting for IntelliSense, breakpoints, debugging
+
+✅ **docs/development/DATABASE_SETUP.md** (1,600+ lines)
+- PostgreSQL setup (Windows, Linux, macOS)
+- SQL Server setup and configuration
+- MariaDB setup and configuration
+- Connection string formats for all three databases
+- EF Core migrations and seeding
+- Multi-database testing strategies
+- Comprehensive troubleshooting guide
+
+✅ **docs/development/DOCKER_SETUP.md** (1,400+ lines)
+- Docker Desktop installation for all platforms
+- docker-compose.yml configuration for all three databases
+- Running databases in containers
+- Application containerization with Dockerfile
+- Local development workflows (databases in Docker, app local)
+- Multi-database testing matrix for CI/CD
+- Container debugging and troubleshooting
+
+✅ **docs/development/DEVELOPMENT_WORKFLOW.md** (1,200+ lines)
+- Git Flow branching strategy (main, develop, feature/*, bugfix/*, release/*)
+- Conventional Commits format with examples
+- Pull request process and templates
+- Code review standards and comment guidelines
+- Testing requirements (80%+ coverage)
+- Local development best practices
+- Conflict resolution strategies
+- Release process with semantic versioning
+
+✅ **docs/development/README.md** (Index & Quick Start)
+- Navigation guide linking all development docs
+- Quick decision tree for getting started
+- Common workflows and scripts
+- Troubleshooting matrix
+- Technology stack reference
+- Key configuration files
+
+**Tasks Completed:**
+- [x] Create comprehensive IDE setup guide (Visual Studio, VS Code, Rider)
+- [x] Create local development database setup guide (PostgreSQL, SQL Server, MariaDB)
+- [x] Document Docker setup for local testing and multi-database CI/CD
+- [x] Create development workflow guidelines (branching, commits, PRs, code review)
+- [x] Updated IMPLEMENTATION_CHECKLIST.md to mark all Development Environment Setup tasks as completed
+- [x] Updated MASTER_PROJECT_PLAN.md with completion status
+
+**Documentation Location:** `/docs/development/`
+
+**Dependencies:** pre-impl-1  
+**Blocking Issues:** None  
+**Notes:** All four critical development setup guides are complete and comprehensive. Developers can now get started with IDE setup, databases, Docker, and workflow guidelines. Total documentation: 5,000+ lines covering all platforms (Windows, Linux, macOS) and all supported databases (PostgreSQL, SQL Server, MariaDB). Ready for Phase 0.1 core implementation work.
+
+---
+
 ## Phase 0: Foundation
 
 ### Section: Phase 0.1 - Core Abstractions & Interfaces
 
 #### Step: phase-0.1.1 - Capability System Interfaces
-**Status:** pending  
+**Status:** completed
 **Duration:** ~2-3 hours  
 **Description:** Create the capability tier system and public/restricted/privileged interfaces
 
@@ -93,20 +187,20 @@ Include XML documentation for all types. Location: src/Core/DotNetCloud.Core/Cap
 ```
 
 **Deliverables:**
-- [ ] `ICapabilityInterface` marker interface
-- [ ] `CapabilityTier` enum (Public, Restricted, Privileged, Forbidden)
-- [ ] Public tier interfaces:
-  - [ ] `IUserDirectory`
-  - [ ] `ICurrentUserContext`
-  - [ ] `INotificationService`
-  - [ ] `IEventBus`
-- [ ] Restricted tier interfaces:
-  - [ ] `IStorageProvider`
-  - [ ] `IModuleSettings`
-  - [ ] `ITeamDirectory`
-- [ ] Privileged tier interfaces:
-  - [ ] `IUserManager`
-  - [ ] `IBackupProvider`
+- [x] `ICapabilityInterface` marker interface
+- [x] `CapabilityTier` enum (Public, Restricted, Privileged, Forbidden)
+- [x] Public tier interfaces:
+  - [x] `IUserDirectory`
+  - [x] `ICurrentUserContext`
+  - [x] `INotificationService`
+  - [x] `IEventBus`
+- [x] Restricted tier interfaces:
+  - [x] `IStorageProvider`
+  - [x] `IModuleSettings`
+  - [x] `ITeamDirectory`
+- [x] Privileged tier interfaces:
+  - [x] `IUserManager`
+  - [x] `IBackupProvider`
 
 **File Location:** `src/Core/DotNetCloud.Core/Capabilities/`  
 **Dependencies:** None  
@@ -116,7 +210,7 @@ Include XML documentation for all types. Location: src/Core/DotNetCloud.Core/Cap
 ---
 
 #### Step: phase-0.1.2 - Context & Authorization Models
-**Status:** pending  
+**Status:** completed
 **Duration:** ~1.5 hours  
 **Description:** Create CallerContext, CallerType, and CapabilityRequest models
 
@@ -129,13 +223,13 @@ Location: src/Core/DotNetCloud.Core/Authorization/
 ```
 
 **Deliverables:**
-- [ ] `CallerContext` record with:
-  - [ ] `Guid UserId` property
-  - [ ] `IReadOnlyList<string> Roles` property
-  - [ ] `CallerType Type` property
-  - [ ] Validation logic
-- [ ] `CallerType` enum (User, System, Module)
-- [ ] `CapabilityRequest` model with capability name, required tier, optional description
+- [x] `CallerContext` record with:
+  - [x] `Guid UserId` property
+  - [x] `IReadOnlyList<string> Roles` property
+  - [x] `CallerType Type` property
+  - [x] Validation logic
+- [x] `CallerType` enum (User, System, Module)
+- [x] `CapabilityRequest` model with capability name, required tier, optional description
 
 **File Location:** `src/Core/DotNetCloud.Core/Authorization/`  
 **Dependencies:** phase-0.1.1  

@@ -46,7 +46,6 @@
 - [x] Add LICENSE file (AGPL-3.0)
 - [x] Create comprehensive README.md with project vision
 - [x] Create CONTRIBUTING.md with contribution guidelines
-- [ ] Add CODE_OF_CONDUCT.md
 
 ### Development Environment Setup
 
@@ -58,10 +57,10 @@
 - [x] Create `Directory.Build.props` for common project settings
 - [x] Create `Directory.Build.targets` for common build configuration
 - [x] Set up `NuGet.config` for dependency management
-- [ ] Document IDE setup for Visual Studio, VS Code, Rider
-- [ ] Create local development database setup guide (PostgreSQL, SQL Server, MariaDB)
-- [ ] Document Docker setup for local testing
-- [ ] Create development workflow guidelines (branch strategy, PR requirements)
+- [x] Document IDE setup for Visual Studio, VS Code, Rider
+- [x] Create local development database setup guide (PostgreSQL, SQL Server, MariaDB)
+- [x] Document Docker setup for local testing
+- [x] Create development workflow guidelines (branch strategy, PR requirements)
 
 ### Base CI/CD Configuration
 
@@ -114,16 +113,16 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - [ ] Document forbidden interfaces list
 
 #### Context & Authorization
-- [ ] Create `CallerContext` record:
-  - [ ] `Guid UserId` property
-  - [ ] `IReadOnlyList<string> Roles` property
-  - [ ] `CallerType Type` property
-  - [ ] Validation logic
-- [ ] Create `CallerType` enum (User, System, Module)
-- [ ] Create `CapabilityRequest` model with:
-  - [ ] Capability name
-  - [ ] Required tier
-  - [ ] Optional description
+- [x] Create `CallerContext` record:
+  - [x] `Guid UserId` property
+  - [x] `IReadOnlyList<string> Roles` property
+  - [x] `CallerType Type` property
+  - [x] Validation logic
+- [x] Create `CallerType` enum (User, System, Module)
+- [x] Create `CapabilityRequest` model with:
+  - [x] Capability name
+  - [x] Required tier
+  - [x] Optional description
 
 #### Module System
 - [ ] Create `IModuleManifest` interface:
