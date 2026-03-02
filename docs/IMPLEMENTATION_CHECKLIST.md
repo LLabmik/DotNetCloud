@@ -110,7 +110,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - [x] Implement privileged tier interfaces:
   - [x] `IUserManager` - create/disable users
   - [x] `IBackupProvider` - backup operations
-- [ ] Document forbidden interfaces list
+- [x] Document forbidden interfaces list
 
 #### Context & Authorization
 - [x] Create `CallerContext` record:
@@ -156,22 +156,22 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - [x] Create event subscription model
 
 #### Data Transfer Objects (DTOs)
-- [ ] Create user DTOs (UserDto, CreateUserDto, UpdateUserDto)
-- [ ] Create organization DTOs
-- [ ] Create team DTOs
-- [ ] Create permission DTOs
-- [ ] Create module DTOs
-- [ ] Create device DTOs
-- [ ] Create settings DTOs
+- [x] Create user DTOs (UserDto, CreateUserDto, UpdateUserDto)
+- [x] Create organization DTOs
+- [x] Create team DTOs
+- [x] Create permission DTOs
+- [x] Create module DTOs
+- [x] Create device DTOs
+- [x] Create settings DTOs
 
 #### Error Handling
-- [ ] Create error code constants class
-- [ ] Define standard exception types:
-  - [ ] `CapabilityNotGrantedException`
-  - [ ] `ModuleNotFoundException`
-  - [ ] `UnauthorizedException`
-  - [ ] `ValidationException`
-- [ ] Create API error response model
+- [x] Create error code constants class
+- [x] Define standard exception types:
+  - [x] `CapabilityNotGrantedException`
+  - [x] `ModuleNotFoundException`
+  - [x] `UnauthorizedException`
+  - [x] `ValidationException`
+- [x] Create API error response model
 
 ---
 
