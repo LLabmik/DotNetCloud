@@ -990,30 +990,536 @@ Location: tests/DotNetCloud.Core.ServiceDefaults.Tests/
 
 ---
 
-## How to Use This Plan
+### Section: Phase 0.4 - Authentication & Authorization
 
-### In Your Next Conversation:
-```
-Per MASTER_PROJECT_PLAN.md, execute phase-0.1.1: Create the capability system interfaces.
-```
+#### Step: phase-0.4.1 - OpenIddict NuGet Packages & Configuration
+**Status:** pending  
+**Duration:** ~1.5 hours  
+**Description:** Add OpenIddict packages and configure dependency injection
 
-### To Update Status:
+**Recommended Prompt:**
 ```
-Mark phase-0.1.1 as completed. I successfully created ICapabilityInterface, CapabilityTier enum, 
-and all public/restricted/privileged interfaces. Per the plan, continue to phase-0.1.2.
-```
-
-### To Skip a Step:
-```
-Skip phase-0.1.8: Documentation. We'll consolidate docs after Phase 0 completion. 
-Move directly to phase-0.2.1: Multi-Database Provider Strategy.
+Execute phase-0.4.1: Set up OpenIddict foundation. Add OpenIddict.AspNetCore, OpenIddict.EntityFrameworkCore 
+NuGet packages. Configure OpenIddict in DI with server features, token formats (JWT), supported flows 
+(authorization code, refresh token, client credentials), and scopes (openid, profile, email). 
+Create OpenIddictApplication entity model for registered clients.
+Location: src/Core/DotNetCloud.Core.Data/Entities/Identity/
 ```
 
-### To Reference Progress:
+**Deliverables:**
+- ☐ OpenIddict NuGet packages added
+- ☐ OpenIddict server configuration in DI
+- ☐ Token format configuration (JWT)
+- ☐ Scopes configuration (openid, profile, email, offline_access)
+- ☐ `OpenIddictApplication` entity model
+
+**File Location:** `src/Core/DotNetCloud.Core.Data/Entities/Identity/`  
+**Dependencies:** phase-0.2.7 (CoreDbContext)  
+**Testing:** Configuration validation tests  
+**Notes:** Foundation for OAuth2/OIDC server
+
+---
+
+#### Step: phase-0.4.2 - Token Endpoint Implementation
+**Status:** pending  
+**Duration:** ~3 hours  
+**Description:** Implement /connect/token endpoint with multiple flows
+
+**Recommended Prompt:**
 ```
-Per docs/MASTER_PROJECT_PLAN.md, I'm on phase-0.1.5. All capability, context, module, and event 
-system interfaces are complete. Now implementing DTOs as specified.
+Execute phase-0.4.2: Create token endpoint. Implement POST /connect/token with Authorization Code flow, 
+Refresh Token flow, and Client Credentials flow. Handle token requests, validate client credentials, 
+issue access/refresh tokens. Add proper error responses per OAuth2 spec.
+Location: src/Core/DotNetCloud.Core.Server/Controllers/
 ```
+
+**Deliverables:**
+- ☐ `/connect/token` endpoint
+- ☐ Authorization Code flow handler
+- ☐ Refresh Token flow handler
+- ☐ Client Credentials flow handler
+- ☐ Token validation logic
+
+**File Location:** `src/Core/DotNetCloud.Core.Server/Controllers/`  
+**Dependencies:** phase-0.4.1  
+**Testing:** Token flow integration tests  
+**Notes:** Core OAuth2 endpoint
+
+---
+
+#### Step: phase-0.4.3 - Authorization Endpoint with PKCE
+**Status:** pending  
+**Duration:** ~3 hours  
+**Description:** Implement /connect/authorize endpoint with login and consent
+
+**Recommended Prompt:**
+```
+Execute phase-0.4.3: Create authorization endpoint. Implement GET /connect/authorize with login page 
+redirect, consent page, PKCE validation (code_challenge, code_verifier). Handle authorization code 
+generation and storage. Implement redirect_uri validation.
+Location: src/Core/DotNetCloud.Core.Server/Controllers/
+```
+
+**Deliverables:**
+- ☐ `/connect/authorize` endpoint
+- ☐ Login page integration
+- ☐ Consent page UI
+- ☐ PKCE support (code_challenge/code_verifier)
+- ☐ Authorization code generation
+
+**File Location:** `src/Core/DotNetCloud.Core.Server/Controllers/`  
+**Dependencies:** phase-0.4.2  
+**Testing:** Authorization flow tests, PKCE validation tests  
+**Notes:** Enables secure public client flows
+
+---
+
+#### Step: phase-0.4.4 - Logout & Userinfo Endpoints
+**Status:** pending  
+**Duration:** ~1.5 hours  
+**Description:** Implement logout and userinfo endpoints
+
+**Recommended Prompt:**
+```
+Execute phase-0.4.4: Create logout and userinfo endpoints. Implement POST /connect/logout to revoke 
+tokens and end session, and GET /connect/userinfo to return user claims. Validate bearer tokens, 
+return standard OIDC claims (sub, name, email, etc.).
+Location: src/Core/DotNetCloud.Core.Server/Controllers/
+```
+
+**Deliverables:**
+- ☐ `/connect/logout` endpoint
+- ☐ `/connect/userinfo` endpoint
+- ☐ Token revocation logic
+- ☐ Claims mapping
+
+**File Location:** `src/Core/DotNetCloud.Core.Server/Controllers/`  
+**Dependencies:** phase-0.4.3  
+**Testing:** Logout flow tests, userinfo claim tests  
+**Notes:** Completes core OIDC endpoints
+
+---
+
+#### Step: phase-0.4.5 - Token Revocation Endpoint
+**Status:** pending  
+**Duration:** ~1 hour  
+**Description:** Implement token revocation endpoint
+
+**Recommended Prompt:**
+```
+Execute phase-0.4.5: Create token revocation. Implement POST /connect/revoke endpoint to revoke 
+access and refresh tokens. Validate client credentials, mark tokens as revoked in database.
+Location: src/Core/DotNetCloud.Core.Server/Controllers/
+```
+
+**Deliverables:**
+- ☐ `/connect/revoke` endpoint
+- ☐ Token revocation logic
+- ☐ Database persistence of revoked tokens
+
+**File Location:** `src/Core/DotNetCloud.Core.Server/Controllers/`  
+**Dependencies:** phase-0.4.4  
+**Testing:** Revocation flow tests  
+**Notes:** Security best practice for token lifecycle
+
+---
+
+#### Step: phase-0.4.6 - Token Lifetime & Rotation Configuration
+**Status:** pending  
+**Duration:** ~1 hour  
+**Description:** Configure token lifetimes and refresh token rotation
+
+**Recommended Prompt:**
+```
+Execute phase-0.4.6: Configure token lifetimes. Set access token lifetime (15 min default), 
+refresh token lifetime (14 days default). Implement refresh token rotation (one-time use). 
+Create configuration options in appsettings.json.
+Location: src/Core/DotNetCloud.Core.Server/Configuration/
+```
+
+**Deliverables:**
+- ☐ Access token lifetime configuration
+- ☐ Refresh token lifetime configuration
+- ☐ Refresh token rotation implementation
+- ☐ Configuration validation
+
+**File Location:** `src/Core/DotNetCloud.Core.Server/Configuration/`  
+**Dependencies:** phase-0.4.2  
+**Testing:** Token lifetime validation tests  
+**Notes:** Balances security and usability
+
+---
+
+#### Step: phase-0.4.7 - Token Validation Middleware
+**Status:** pending  
+**Duration:** ~1.5 hours  
+**Description:** Create middleware for validating bearer tokens
+
+**Recommended Prompt:**
+```
+Execute phase-0.4.7: Create token validation middleware. Implement JWT bearer authentication, 
+validate token signature, expiration, issuer, audience. Inject CallerContext from token claims. 
+Handle revoked tokens.
+Location: src/Core/DotNetCloud.Core.ServiceDefaults/Authentication/
+```
+
+**Deliverables:**
+- ☐ JWT bearer authentication configuration
+- ☐ Token validation logic
+- ☐ CallerContext injection
+- ☐ Revoked token check
+
+**File Location:** `src/Core/DotNetCloud.Core.ServiceDefaults/Authentication/`  
+**Dependencies:** phase-0.4.6  
+**Testing:** Token validation tests  
+**Notes:** Applied to all authenticated endpoints
+
+---
+
+#### Step: phase-0.4.8 - ASP.NET Core Identity Integration
+**Status:** pending  
+**Duration:** ~2 hours  
+**Description:** Integrate ASP.NET Core Identity for user management
+
+**Recommended Prompt:**
+```
+Execute phase-0.4.8: Integrate ASP.NET Core Identity. Configure UserManager<ApplicationUser>, 
+SignInManager<ApplicationUser>, RoleManager<ApplicationRole>. Set up password validation rules 
+(length, complexity). Configure account lockout (5 failed attempts, 15 min lockout).
+Location: src/Core/DotNetCloud.Core.Server/
+```
+
+**Deliverables:**
+- ☐ UserManager configuration
+- ☐ SignInManager configuration
+- ☐ RoleManager configuration
+- ☐ Password validation rules
+- ☐ Account lockout configuration
+
+**File Location:** `src/Core/DotNetCloud.Core.Server/`  
+**Dependencies:** phase-0.2.2 (ApplicationUser)  
+**Testing:** User management tests  
+**Notes:** Foundation for user operations
+
+---
+
+#### Step: phase-0.4.9 - User Registration Endpoint
+**Status:** pending  
+**Duration:** ~2 hours  
+**Description:** Create user registration with email confirmation
+
+**Recommended Prompt:**
+```
+Execute phase-0.4.9: Create user registration. Implement POST /api/v1/auth/register endpoint 
+with email, password, displayName. Validate email uniqueness, generate email confirmation token, 
+send confirmation email. Return registration success response.
+Location: src/Core/DotNetCloud.Core.Server/Controllers/
+```
+
+**Deliverables:**
+- ☐ User registration endpoint
+- ☐ Email validation logic
+- ☐ Email confirmation token generation
+- ☐ Confirmation email sending
+
+**File Location:** `src/Core/DotNetCloud.Core.Server/Controllers/`  
+**Dependencies:** phase-0.4.8  
+**Testing:** Registration flow tests  
+**Notes:** Requires email service configuration
+
+---
+
+#### Step: phase-0.4.10 - Password Management Endpoints
+**Status:** pending  
+**Duration:** ~2 hours  
+**Description:** Implement password change and reset flows
+
+**Recommended Prompt:**
+```
+Execute phase-0.4.10: Create password management. Implement POST /api/v1/auth/password/change 
+(requires authentication), POST /api/v1/auth/password/forgot (generates reset token), 
+POST /api/v1/auth/password/reset (validates token, sets new password). Add password history 
+to prevent reuse of last 5 passwords.
+Location: src/Core/DotNetCloud.Core.Server/Controllers/
+```
+
+**Deliverables:**
+- ☐ Password change endpoint
+- ☐ Password forgot endpoint
+- ☐ Password reset endpoint
+- ☐ Password reset token generation/validation
+- ☐ Password history tracking
+
+**File Location:** `src/Core/DotNetCloud.Core.Server/Controllers/`  
+**Dependencies:** phase-0.4.9  
+**Testing:** Password flow tests  
+**Notes:** Includes password strength validation
+
+---
+
+#### Step: phase-0.4.11 - TOTP MFA Setup
+**Status:** pending  
+**Duration:** ~2.5 hours  
+**Description:** Implement Time-based One-Time Password MFA
+
+**Recommended Prompt:**
+```
+Execute phase-0.4.11: Create TOTP MFA. Implement POST /api/v1/auth/mfa/totp/setup to generate 
+TOTP secret and QR code, POST /api/v1/auth/mfa/totp/verify to validate TOTP code. Store TOTP 
+secrets encrypted. Generate 10 backup codes for recovery. Use GoogleAuthenticator library.
+Location: src/Core/DotNetCloud.Core.Server/Controllers/
+```
+
+**Deliverables:**
+- ☐ TOTP setup endpoint with QR code generation
+- ☐ TOTP verification endpoint
+- ☐ Encrypted TOTP secret storage
+- ☐ Backup code generation
+- ☐ MFA enforcement policies
+
+**File Location:** `src/Core/DotNetCloud.Core.Server/Controllers/`  
+**Dependencies:** phase-0.4.10  
+**Testing:** TOTP flow tests, encryption tests  
+**Notes:** Adds second factor authentication
+
+---
+
+#### Step: phase-0.4.12 - WebAuthn/Passkey Support
+**Status:** pending  
+**Duration:** ~3 hours  
+**Description:** Implement WebAuthn for passwordless authentication
+
+**Recommended Prompt:**
+```
+Execute phase-0.4.12: Create WebAuthn/Passkey support. Integrate Fido2NetLib package. 
+Implement POST /api/v1/auth/passkey/register (credential creation), 
+POST /api/v1/auth/passkey/verify (assertion verification). Store WebAuthn credentials 
+with counter tracking. Support platform and cross-platform authenticators.
+Location: src/Core/DotNetCloud.Core.Server/Controllers/
+```
+
+**Deliverables:**
+- ☐ Fido2NetLib package integration
+- ☐ Passkey registration flow
+- ☐ Passkey verification flow
+- ☐ WebAuthn credential storage
+- ☐ Challenge generation/validation
+
+**File Location:** `src/Core/DotNetCloud.Core.Server/Controllers/`  
+**Dependencies:** phase-0.4.11  
+**Testing:** WebAuthn flow tests  
+**Notes:** Passwordless authentication
+
+---
+
+#### Step: phase-0.4.13 - Session Management
+**Status:** pending  
+**Duration:** ~1.5 hours  
+**Description:** Implement cookie-based sessions with timeout and limits
+
+**Recommended Prompt:**
+```
+Execute phase-0.4.13: Create session management. Configure cookie authentication with 
+sliding expiration (30 min default). Implement concurrent session limits (max 5 per user). 
+Track active sessions per user. Add session termination endpoint.
+Location: src/Core/DotNetCloud.Core.Server/Services/
+```
+
+**Deliverables:**
+- ☐ Cookie session configuration
+- ☐ Session timeout (sliding expiration)
+- ☐ Concurrent session limits
+- ☐ Session tracking per user
+
+**File Location:** `src/Core/DotNetCloud.Core.Server/Services/`  
+**Dependencies:** phase-0.4.8  
+**Testing:** Session lifecycle tests  
+**Notes:** Balances security and UX
+
+---
+
+#### Step: phase-0.4.14 - Device Tracking
+**Status:** pending  
+**Duration:** ~1.5 hours  
+**Description:** Track user devices and provide device management UI
+
+**Recommended Prompt:**
+```
+Execute phase-0.4.14: Create device tracking. Implement device registration on login, 
+track LastSeenAt, DeviceType, PushToken. Create GET /api/v1/auth/devices endpoint 
+(list user devices), DELETE /api/v1/auth/devices/{deviceId} (remove device). 
+Update UserDevice entity on each login.
+Location: src/Core/DotNetCloud.Core.Server/Controllers/
+```
+
+**Deliverables:**
+- ☐ Device registration on login
+- ☐ Device list endpoint
+- ☐ Device removal endpoint
+- ☐ LastSeenAt tracking
+
+**File Location:** `src/Core/DotNetCloud.Core.Server/Controllers/`  
+**Dependencies:** phase-0.2.6 (UserDevice entity)  
+**Testing:** Device tracking tests  
+**Notes:** Security audit trail
+
+---
+
+#### Step: phase-0.4.15 - Google OAuth Integration
+**Status:** pending  
+**Duration:** ~2 hours  
+**Description:** Configure Google as external authentication provider
+
+**Recommended Prompt:**
+```
+Execute phase-0.4.15: Add Google OAuth. Install Microsoft.AspNetCore.Authentication.Google package. 
+Configure Google OAuth options (ClientId, ClientSecret from Google Cloud Console). 
+Implement sign-in handler, map Google claims (sub, name, email, picture) to ApplicationUser. 
+Create account linking if email already exists.
+Location: src/Core/DotNetCloud.Core.Server/Configuration/
+```
+
+**Deliverables:**
+- ☐ Google OAuth package
+- ☐ Google OAuth configuration
+- ☐ Google sign-in handler
+- ☐ Claims mapping to ApplicationUser
+
+**File Location:** `src/Core/DotNetCloud.Core.Server/Configuration/`  
+**Dependencies:** phase-0.4.8  
+**Testing:** Google OAuth flow tests  
+**Notes:** Requires Google Cloud project
+
+---
+
+#### Step: phase-0.4.16 - Microsoft/Azure AD Integration
+**Status:** pending  
+**Duration:** ~2 hours  
+**Description:** Configure Microsoft/Azure AD as external authentication provider
+
+**Recommended Prompt:**
+```
+Execute phase-0.4.16: Add Microsoft OAuth. Install Microsoft.AspNetCore.Authentication.MicrosoftAccount 
+package. Configure Microsoft OAuth options (ClientId, ClientSecret from Azure portal). 
+Implement sign-in handler, map Microsoft claims to ApplicationUser. Support personal and 
+organizational accounts.
+Location: src/Core/DotNetCloud.Core.Server/Configuration/
+```
+
+**Deliverables:**
+- ☐ Microsoft OAuth package
+- ☐ Microsoft OAuth configuration
+- ☐ Microsoft sign-in handler
+- ☐ Claims mapping to ApplicationUser
+
+**File Location:** `src/Core/DotNetCloud.Core.Server/Configuration/`  
+**Dependencies:** phase-0.4.15  
+**Testing:** Microsoft OAuth flow tests  
+**Notes:** Requires Azure AD app registration
+
+---
+
+#### Step: phase-0.4.17 - GitHub OAuth Skeleton
+**Status:** pending  
+**Duration:** ~1 hour  
+**Description:** Create GitHub OAuth configuration structure (future phase)
+
+**Recommended Prompt:**
+```
+Execute phase-0.4.17: Create GitHub OAuth skeleton. Install AspNet.Security.OAuth.GitHub package. 
+Add configuration structure for GitHub OAuth (ClientId, ClientSecret). Document setup process. 
+Mark as future phase implementation.
+Location: src/Core/DotNetCloud.Core.Server/Configuration/
+```
+
+**Deliverables:**
+- ☐ GitHub OAuth package
+- ☐ Configuration structure
+- ☐ Setup documentation
+
+**File Location:** `src/Core/DotNetCloud.Core.Server/Configuration/`  
+**Dependencies:** phase-0.4.16  
+**Testing:** None (skeleton only)  
+**Notes:** Implementation in future phase
+
+---
+
+#### Step: phase-0.4.18 - SAML 2.0 Skeleton
+**Status:** pending  
+**Duration:** ~1.5 hours  
+**Description:** Create SAML configuration structure (enterprise feature)
+
+**Recommended Prompt:**
+```
+Execute phase-0.4.18: Create SAML 2.0 skeleton. Create SAML configuration models, 
+document SAML metadata endpoint structure, create assertion consumer service (ACS) endpoint stub. 
+Add setup documentation for SAML IdP integration. Mark as future enterprise feature.
+Location: src/Core/DotNetCloud.Core.Server/Controllers/
+```
+
+**Deliverables:**
+- ☐ SAML configuration models
+- ☐ Metadata endpoint documentation
+- ☐ ACS endpoint stub
+- ☐ SAML setup documentation
+
+**File Location:** `src/Core/DotNetCloud.Core.Server/Controllers/`  
+**Dependencies:** phase-0.4.17  
+**Testing:** None (skeleton only)  
+**Notes:** Enterprise SSO feature
+
+---
+
+#### Step: phase-0.4.19 - OIDC Federation Skeleton
+**Status:** pending  
+**Duration:** ~1 hour  
+**Description:** Create OIDC discovery endpoint and federation docs
+
+**Recommended Prompt:**
+```
+Execute phase-0.4.19: Create OIDC federation skeleton. Implement GET /.well-known/openid-configuration 
+discovery endpoint returning issuer, endpoints, supported scopes, token signing keys. Document federation 
+setup for external OIDC providers.
+Location: src/Core/DotNetCloud.Core.Server/Controllers/
+```
+
+**Deliverables:**
+- ☐ OIDC discovery endpoint
+- ☐ Federation configuration documentation
+- ☐ JWT key set endpoint (JWKS)
+
+**File Location:** `src/Core/DotNetCloud.Core.Server/Controllers/`  
+**Dependencies:** phase-0.4.18  
+**Testing:** Discovery endpoint tests  
+**Notes:** Enables federation with external IdPs
+
+---
+
+#### Step: phase-0.4.20 - Authentication Integration Tests
+**Status:** pending  
+**Duration:** ~3 hours  
+**Description:** Create comprehensive authentication test suite
+
+**Recommended Prompt:**
+```
+Execute phase-0.4.20: Create authentication integration tests. Test all OAuth2/OIDC flows 
+(authorization code, refresh token, client credentials), password flows (registration, login, reset), 
+MFA flows (TOTP, passkey), external provider flows (Google, Microsoft). Use WebApplicationFactory 
+for integration tests. Target 80%+ coverage.
+Location: tests/DotNetCloud.Core.Server.Tests/
+```
+
+**Deliverables:**
+- ☐ OAuth2 flow integration tests
+- ☐ Password management tests
+- ☐ MFA tests (TOTP, passkey)
+- ☐ External provider tests
+- ☐ Session management tests
+
+**File Location:** `tests/DotNetCloud.Core.Server.Tests/`  
+**Dependencies:** phase-0.4.1 through phase-0.4.19  
+**Testing:** 80%+ code coverage  
+**Notes:** Critical for security validation
 
 ---
 

@@ -20,6 +20,47 @@
 
 ---
 
+## 🚨 CRITICAL: Complete Work Standards
+
+### The "No Half-Measures" Rule
+
+**PRINCIPLE:** When a user requests work to be done, deliver the COMPLETE work in ONE response, not partial work with "options."
+
+**BAD PATTERNS TO AVOID:**
+- ❌ Delivering 40% of requested work and asking "would you like me to continue?"
+- ❌ Creating separate/companion documents when user asked for updates to ONE document
+- ❌ Giving "options" about how to proceed when user gave clear instructions
+- ❌ Worrying about response length instead of completing the task
+- ❌ Assuming user preferences that weren't stated
+
+**GOOD PATTERNS:**
+- ✅ User asks for X → Deliver complete X in one response
+- ✅ If file edits are large → Use edit_file tool multiple times in ONE response
+- ✅ If genuinely blocked (technical limitation) → State the blocker upfront, don't guess solutions
+- ✅ Follow instructions LITERALLY unless they're ambiguous
+- ✅ Take "do it right" seriously → means complete, thorough, professional
+
+**EXAMPLE FAILURE:**
+- **Request:** "Complete MASTER_PROJECT_PLAN.md with phases 0.4-0.19"
+- **Wrong Response:** Complete 0.4-0.5, create separate doc for 0.6-0.19, give "options"
+- **Right Response:** Edit MASTER_PROJECT_PLAN.md directly, add ALL phases 0.4-0.19 in that file
+
+**PROFESSIONALISM STANDARD:**
+This is a long-term project where details matter. Treat every request as if you're a paid professional contractor:
+- Complete the full scope of work
+- Don't make the user repeat themselves
+- Don't waste their time with half-done deliverables
+- If you're unsure about scope, ASK before starting, don't assume
+
+### The "Token Budget" Fallacy
+
+**WRONG THINKING:** "This response might be long, let me split it up"
+**RIGHT THINKING:** "User asked for complete work. I have 1,000,000 token budget. Deliver complete work."
+
+You have a **massive token budget** (1,000,000 tokens). Use it. Don't artificially limit responses unless you hit ACTUAL technical limits.
+
+---
+
 ## 🎯 CRITICAL: Dual Documentation Update Requirement
 
 **⚠️ IMPORTANT:** After EVERY completed implementation task or phase step, you MUST update BOTH documentation files below. Failure to do so will result in incomplete project tracking. This is non-negotiable.
@@ -317,5 +358,8 @@ Find step phase-0.1.1:
 2. ✅ Update MASTER_PROJECT_PLAN.md using **TARGETED EDITS**
 3. ✅ Update both Status, Deliverables, and Notes in one edit per section
 4. ✅ Preserve Git history by avoiding full file replacements
+5. ✅ **DELIVER COMPLETE WORK** - No half-measures, no "options"
 
 **TARGETED EDITS are the professional, efficient, and preferred approach.**
+
+**COMPLETE WORK is non-negotiable.**
