@@ -363,3 +363,72 @@ Find step phase-0.1.1:
 **TARGETED EDITS are the professional, efficient, and preferred approach.**
 
 **COMPLETE WORK is non-negotiable.**
+
+---
+
+## 🪟 Development Environment: Windows 11 with PowerShell
+
+**CRITICAL:** This project is developed on **Windows 11**. All commands MUST use PowerShell syntax.
+
+### PowerShell Commands (REQUIRED)
+
+**ALWAYS use these PowerShell cmdlets:**
+- ✅ `Get-Content` (NOT `cat`)
+- ✅ `Get-ChildItem` (NOT `ls`)
+- ✅ `Set-Location` (NOT `cd` when scripting)
+- ✅ `Remove-Item` (NOT `rm`)
+- ✅ `Copy-Item` (NOT `cp`)
+- ✅ `Move-Item` (NOT `mv`)
+- ✅ `New-Item` (NOT `touch` or `mkdir`)
+- ✅ `Test-Path` (to check file existence)
+
+### Path Conventions (REQUIRED)
+
+**ALWAYS use Windows path format:**
+- ✅ Backslashes: `src\Core\DotNetCloud.Core\`
+- ✅ Windows-style: `D:\Repos\dotnetcloud\`
+- ❌ NEVER use forward slashes for local paths (except in URLs)
+
+### Cross-Platform .NET CLI (ALLOWED)
+
+**These .NET commands work on Windows:**
+- ✅ `dotnet build`
+- ✅ `dotnet test`
+- ✅ `dotnet run`
+- ✅ `dotnet add package`
+- ✅ `dotnet new`
+- ✅ `dotnet restore`
+
+### What NOT to Use
+
+**NEVER use Linux/Bash commands:**
+- ❌ `cat` → Use `Get-Content`
+- ❌ `ls` → Use `Get-ChildItem`
+- ❌ `rm` → Use `Remove-Item`
+- ❌ `cp` → Use `Copy-Item`
+- ❌ `mv` → Use `Move-Item`
+- ❌ `touch` → Use `New-Item`
+- ❌ `grep` → Use `Select-String`
+- ❌ `find` → Use `Get-ChildItem -Recurse`
+
+### Example: Correct PowerShell Usage
+
+**✅ CORRECT:**
+```powershell
+Get-Content "src\Core\DotNetCloud.Core\README.md"
+Get-ChildItem -Path "tests" -Recurse -Filter "*.csproj"
+Remove-Item "bin\Debug" -Recurse -Force
+dotnet build src\Core\DotNetCloud.Core\DotNetCloud.Core.csproj
+```
+
+**❌ WRONG:**
+```bash
+cat src/Core/DotNetCloud.Core/README.md
+ls -R tests/*.csproj
+rm -rf bin/Debug
+dotnet build src/Core/DotNetCloud.Core/DotNetCloud.Core.csproj
+```
+
+### When User Says "remember"
+
+When the user says the keyword **"remember"**, it means this information should be added to this instructions file for permanent reference across all future sessions.

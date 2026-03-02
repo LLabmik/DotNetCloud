@@ -197,18 +197,18 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 #### CoreDbContext & Models
 
 **ASP.NET Core Identity Models**
-- [ ] Create `ApplicationUser` entity (extends `IdentityUser<Guid>`):
-  - [ ] `string DisplayName` property
-  - [ ] `string? AvatarUrl` property
-  - [ ] `string Locale` property
-  - [ ] `string Timezone` property
-  - [ ] `DateTime CreatedAt` property
-  - [ ] `DateTime? LastLoginAt` property
-  - [ ] `bool IsActive` property
-- [ ] Create `ApplicationRole` entity (extends `IdentityRole<Guid>`):
-  - [ ] `string Description` property
-  - [ ] `bool IsSystemRole` property
-- [ ] Configure Identity relationships (IdentityUserClaim, IdentityUserRole, etc.)
+- ✓ Create `ApplicationUser` entity (extends `IdentityUser<Guid>`):
+  - ✓ `string DisplayName` property
+  - ✓ `string? AvatarUrl` property
+  - ✓ `string Locale` property
+  - ✓ `string Timezone` property
+  - ✓ `DateTime CreatedAt` property
+  - ✓ `DateTime? LastLoginAt` property
+  - ✓ `bool IsActive` property
+- ✓ Create `ApplicationRole` entity (extends `IdentityRole<Guid>`):
+  - ✓ `string Description` property
+  - ✓ `bool IsSystemRole` property
+- ✓ Configure Identity relationships (IdentityUserClaim, IdentityUserRole, etc.)
 
 **Organization Hierarchy Models**
 - [ ] Create `Organization` entity:

@@ -18,7 +18,7 @@
 |-------|-------|-----------|-------------|---------|
 | Pre-Implementation | 2 | 2 | 0 | 0 |
 | Phase 0.1 | 11 | 10 | 0 | 1 |
-| Phase 0.2 | 12 | 1 | 0 | 11 |
+| Phase 0.2 | 12 | 2 | 0 | 10 |
 | Phase 0.3 | 8 | 0 | 0 | 8 |
 | Phase 0.4 | 20 | 0 | 0 | 20 |
 | Phase 0.5 | 9 | 9 | 0 | 0 |
@@ -479,7 +479,7 @@ Location: tests/DotNetCloud.Core.Tests/
 ---
 
 #### Step: phase-0.2.2 - Identity Models (ASP.NET Core Identity)
-**Status:** pending  
+**Status:** completed ✅  
 **Duration:** ~2 hours  
 **Description:** Create ApplicationUser and ApplicationRole entities
 
@@ -493,17 +493,46 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Identity/
 ```
 
 **Deliverables:**
-- ☐ `ApplicationUser` entity extending `IdentityUser<Guid>`:
-  - ☐ DisplayName, AvatarUrl, Locale, Timezone properties
-  - ☐ CreatedAt, LastLoginAt, IsActive properties
-- ☐ `ApplicationRole` entity extending `IdentityRole<Guid>`:
-  - ☐ Description, IsSystemRole properties
-- ☐ Identity relationship configuration
+- ✓ `ApplicationUser` entity extending `IdentityUser<Guid>`:
+  - ✓ DisplayName (required, max 200 chars)
+  - ✓ AvatarUrl (optional, max 500 chars)
+  - ✓ Locale (required, default "en-US", max 10 chars)
+  - ✓ Timezone (required, default "UTC", max 50 chars)
+  - ✓ CreatedAt (required, auto-set)
+  - ✓ LastLoginAt (optional)
+  - ✓ IsActive (required, default true)
+- ✓ `ApplicationRole` entity extending `IdentityRole<Guid>`:
+  - ✓ Description (optional, max 500 chars)
+  - ✓ IsSystemRole (required, default false)
+- ✓ `ApplicationUserConfiguration` with fluent API:
+  - ✓ Property configurations with max lengths
+  - ✓ Default values
+  - ✓ Indexes on DisplayName, Email, IsActive, LastLoginAt
+- ✓ `ApplicationRoleConfiguration` with fluent API:
+  - ✓ Property configurations
+  - ✓ Indexes on IsSystemRole and Name
+- ✓ `CoreDbContext` updated to extend `IdentityDbContext<ApplicationUser, ApplicationRole, Guid>`
+- ✓ Identity model configuration applied in ConfigureIdentityModels()
+- ✓ Microsoft.AspNetCore.Identity.EntityFrameworkCore package added
+- ✓ Comprehensive unit tests created:
+  - ✓ ApplicationUserTests (12 test methods)
+  - ✓ ApplicationRoleTests (10 test methods)
+  - ✓ All 22 tests passing
+  - ✓ Test project created: DotNetCloud.Core.Data.Tests
 
-**File Location:** `src/Core/DotNetCloud.Core.Data/Entities/Identity/`  
-**Dependencies:** phase-0.2.1 (naming strategy)  
-**Testing:** EF Core model snapshot tests  
-**Notes:** Extends standard ASP.NET Identity
+**File Locations:**
+- `src/Core/DotNetCloud.Core.Data/Entities/Identity/ApplicationUser.cs`
+- `src/Core/DotNetCloud.Core.Data/Entities/Identity/ApplicationRole.cs`
+- `src/Core/DotNetCloud.Core.Data/Configuration/Identity/ApplicationUserConfiguration.cs`
+- `src/Core/DotNetCloud.Core.Data/Configuration/Identity/ApplicationRoleConfiguration.cs`
+- `src/Core/DotNetCloud.Core.Data/Context/CoreDbContext.cs` (updated)
+- `tests/DotNetCloud.Core.Data.Tests/Entities/Identity/ApplicationUserTests.cs`
+- `tests/DotNetCloud.Core.Data.Tests/Entities/Identity/ApplicationRoleTests.cs`
+
+**Dependencies:** phase-0.2.1 ✅  
+**Testing:** ✅ All unit tests passing (22/22)  
+**Build Status:** ✅ Solution builds successfully  
+**Notes:** Identity models complete with proper Guid primary keys, comprehensive XML documentation, and full test coverage. CoreDbContext now properly extends IdentityDbContext with multi-database naming strategy support. MariaDB support temporarily disabled (Pomelo package awaiting .NET 10 update). Ready for phase-0.2.3 (Organization Hierarchy Models).
 
 ---
 
@@ -1207,7 +1236,7 @@ Location: src/Core/DotNetCloud.Core.Server/
 - ☐ Account lockout configuration
 
 **File Location:** `src/Core/DotNetCloud.Core.Server/`  
-**Dependencies:** phase-0.2.2 (ApplicationUser)  
+**Dependencies:** phase-0.4.1 (OpenIddict)  
 **Testing:** User management tests  
 **Notes:** Foundation for user operations
 

@@ -1,13 +1,18 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
 using DotNetCloud.Core.Data.Naming;
+using DotNetCloud.Core.Data.Entities.Identity;
+using DotNetCloud.Core.Data.Configuration.Identity;
 
 namespace DotNetCloud.Core.Data.Context;
 
 /// <summary>
 /// Core database context for DotNetCloud application.
-/// Manages all core entities and applies naming strategies based on the database provider.
+/// Manages all core entities including ASP.NET Core Identity and applies naming strategies based on the database provider.
+/// Extends IdentityDbContext to provide ASP.NET Core Identity support with Guid primary keys.
 /// </summary>
-public class CoreDbContext : DbContext
+public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>
 {
     private readonly ITableNamingStrategy _namingStrategy;
 
@@ -83,8 +88,13 @@ public class CoreDbContext : DbContext
     /// </summary>
     private void ConfigureIdentityModels(ModelBuilder modelBuilder)
     {
-        // Placeholder for Identity model configuration
-        // Will be implemented when Identity entities are created
+        // Apply custom configurations for ApplicationUser and ApplicationRole
+        modelBuilder.ApplyConfiguration(new ApplicationUserConfiguration());
+        modelBuilder.ApplyConfiguration(new ApplicationRoleConfiguration());
+
+        // Configure Identity tables with naming strategy
+        // Note: Identity tables (Users, Roles, UserRoles, UserClaims, UserLogins, UserTokens, RoleClaims, UserPasskeys)
+        // will have their names transformed by ApplyNamingStrategy method above
     }
 
     /// <summary>

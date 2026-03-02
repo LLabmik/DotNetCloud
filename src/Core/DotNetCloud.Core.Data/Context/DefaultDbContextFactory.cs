@@ -79,12 +79,8 @@ public class DefaultDbContextFactory : IDbContextFactory
                 break;
 
             case DatabaseProvider.MariaDB:
-                options.UseMySql(_connectionString, ServerVersion.AutoDetect(_connectionString), mySqlOptions =>
-                {
-                    mySqlOptions.EnableRetryOnFailure(maxRetryCount: 3);
-                    mySqlOptions.CommandTimeout(30);
-                });
-                break;
+                // TODO: Add MariaDB support when Pomelo.EntityFrameworkCore.MySql .NET 10 compatible version is released
+                throw new NotSupportedException("MariaDB support will be added when Pomelo.EntityFrameworkCore.MySql package is updated for .NET 10");
 
             default:
                 throw new InvalidOperationException($"Unsupported database provider: {_provider}");
