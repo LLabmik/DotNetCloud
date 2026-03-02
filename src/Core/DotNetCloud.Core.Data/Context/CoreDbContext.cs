@@ -6,6 +6,8 @@ using DotNetCloud.Core.Data.Entities.Identity;
 using DotNetCloud.Core.Data.Configuration.Identity;
 using DotNetCloud.Core.Data.Entities.Organizations;
 using DotNetCloud.Core.Data.Configuration.Organizations;
+using DotNetCloud.Core.Data.Entities.Permissions;
+using DotNetCloud.Core.Data.Configuration.Permissions;
 
 namespace DotNetCloud.Core.Data.Context;
 
@@ -65,6 +67,35 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     /// Gets or sets the OrganizationMembers DbSet.
     /// </summary>
     public DbSet<OrganizationMember> OrganizationMembers => Set<OrganizationMember>();
+
+    // Permission System DbSets
+    /// <summary>
+    /// Gets or sets the Permissions DbSet.
+    /// </summary>
+    /// <remarks>
+    /// Represents all available permissions in the system that can be assigned to roles.
+    /// Includes both system-defined and custom permissions.
+    /// </remarks>
+    public DbSet<Permission> Permissions => Set<Permission>();
+
+    /// <summary>
+    /// Gets or sets the Roles DbSet.
+    /// </summary>
+    /// <remarks>
+    /// Represents role definitions that group permissions together.
+    /// This is distinct from ASP.NET Core Identity's IdentityRole and represents
+    /// application-level role definitions for the DotNetCloud permission system.
+    /// </remarks>
+    public DbSet<Role> Roles => Set<Role>();
+
+    /// <summary>
+    /// Gets or sets the RolePermissions DbSet.
+    /// </summary>
+    /// <remarks>
+    /// Represents the many-to-many junction table between Roles and Permissions.
+    /// Used to define which permissions are assigned to each role.
+    /// </remarks>
+    public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -151,8 +182,10 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     /// </summary>
     private void ConfigurePermissionModels(ModelBuilder modelBuilder)
     {
-        // Placeholder for Permission model configuration
-        // Will be implemented when Permission entities are created
+        // Apply configurations for all permission entities
+        modelBuilder.ApplyConfiguration(new PermissionConfiguration());
+        modelBuilder.ApplyConfiguration(new RoleConfiguration());
+        modelBuilder.ApplyConfiguration(new RolePermissionConfiguration());
     }
 
     /// <summary>

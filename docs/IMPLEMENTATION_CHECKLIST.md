@@ -236,16 +236,16 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
   - ✓ `ICollection<Guid> RoleIds` for org-scoped roles
 
 **Permissions System Models**
-- [ ] Create `Permission` entity:
-  - [ ] `string Code` property (e.g., "files.upload")
-  - [ ] `string DisplayName` property
-  - [ ] `string? Description` property
-- [ ] Create `Role` entity:
-  - [ ] `string Name` property
-  - [ ] `string? Description` property
-  - [ ] `bool IsSystemRole` property
-  - [ ] `ICollection<Permission> Permissions` navigation
-- [ ] Create `RolePermission` junction table
+- ✓ Create `Permission` entity:
+  - ✓ `string Code` property (e.g., "files.upload")
+  - ✓ `string DisplayName` property
+  - ✓ `string? Description` property
+- ✓ Create `Role` entity:
+  - ✓ `string Name` property
+  - ✓ `string? Description` property
+  - ✓ `bool IsSystemRole` property
+  - ✓ `ICollection<Permission> Permissions` navigation
+- ✓ Create `RolePermission` junction table
 
 **Settings Models (Three Scopes)**
 - [ ] Create `SystemSetting` entity:
