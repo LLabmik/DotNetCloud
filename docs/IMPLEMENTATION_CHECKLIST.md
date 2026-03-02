@@ -147,13 +147,13 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
   - [x] `CallerContext SystemCaller` property
 
 #### Event System
-- [ ] Create `IEvent` base interface
-- [ ] Create `IEventHandler<TEvent>` interface
-- [ ] Create `IEventBus` interface:
-  - [ ] `Task PublishAsync<TEvent>(TEvent @event, CallerContext caller)` method
-  - [ ] `Task SubscribeAsync<TEvent>(IEventHandler<TEvent> handler)` method
-  - [ ] `Task UnsubscribeAsync<TEvent>(IEventHandler<TEvent> handler)` method
-- [ ] Create event subscription model
+- [x] Create `IEvent` base interface
+- [x] Create `IEventHandler<TEvent>` interface
+- [x] Create `IEventBus` interface:
+  - [x] `Task PublishAsync<TEvent>(TEvent @event, CallerContext caller)` method
+  - [x] `Task SubscribeAsync<TEvent>(IEventHandler<TEvent> handler)` method
+  - [x] `Task UnsubscribeAsync<TEvent>(IEventHandler<TEvent> handler)` method
+- [x] Create event subscription model
 
 #### Data Transfer Objects (DTOs)
 - [ ] Create user DTOs (UserDto, CreateUserDto, UpdateUserDto)
