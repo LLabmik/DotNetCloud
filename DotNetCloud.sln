@@ -14,6 +14,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Core", "Core", "{8D626EA8-C
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotNetCloud.Core", "src\Core\DotNetCloud.Core\DotNetCloud.Core.csproj", "{0C18A4EA-7422-4DE0-BB79-6C8E6A5A85C2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotNetCloud.Core.ServiceDefaults", "src\Core\DotNetCloud.Core.ServiceDefaults\DotNetCloud.Core.ServiceDefaults.csproj", "{5A31CDEA-7572-48C5-B489-185277905D5F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -36,6 +38,18 @@ Global
 		{0C18A4EA-7422-4DE0-BB79-6C8E6A5A85C2}.Release|x64.Build.0 = Release|Any CPU
 		{0C18A4EA-7422-4DE0-BB79-6C8E6A5A85C2}.Release|x86.ActiveCfg = Release|Any CPU
 		{0C18A4EA-7422-4DE0-BB79-6C8E6A5A85C2}.Release|x86.Build.0 = Release|Any CPU
+		{5A31CDEA-7572-48C5-B489-185277905D5F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5A31CDEA-7572-48C5-B489-185277905D5F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5A31CDEA-7572-48C5-B489-185277905D5F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{5A31CDEA-7572-48C5-B489-185277905D5F}.Debug|x64.Build.0 = Debug|Any CPU
+		{5A31CDEA-7572-48C5-B489-185277905D5F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{5A31CDEA-7572-48C5-B489-185277905D5F}.Debug|x86.Build.0 = Debug|Any CPU
+		{5A31CDEA-7572-48C5-B489-185277905D5F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5A31CDEA-7572-48C5-B489-185277905D5F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5A31CDEA-7572-48C5-B489-185277905D5F}.Release|x64.ActiveCfg = Release|Any CPU
+		{5A31CDEA-7572-48C5-B489-185277905D5F}.Release|x64.Build.0 = Release|Any CPU
+		{5A31CDEA-7572-48C5-B489-185277905D5F}.Release|x86.ActiveCfg = Release|Any CPU
+		{5A31CDEA-7572-48C5-B489-185277905D5F}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -43,6 +57,7 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{8D626EA8-CB54-BC41-363A-217881BEBA6E} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{0C18A4EA-7422-4DE0-BB79-6C8E6A5A85C2} = {8D626EA8-CB54-BC41-363A-217881BEBA6E}
+		{5A31CDEA-7572-48C5-B489-185277905D5F} = {8D626EA8-CB54-BC41-363A-217881BEBA6E}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {54E6D1AE-D504-4776-81EB-21EFFFDA4627}
