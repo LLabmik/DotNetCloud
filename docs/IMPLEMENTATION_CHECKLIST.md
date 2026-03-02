@@ -125,18 +125,26 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
   - [x] Optional description
 
 #### Module System
-- [ ] Create `IModuleManifest` interface:
-  - [ ] `string Id` property
-  - [ ] `string Name` property
-  - [ ] `Version Version` property
-  - [ ] `IReadOnlyList<CapabilityRequest> RequiredCapabilities` property
-  - [ ] `IReadOnlyList<string> PublishedEvents` property
-  - [ ] `IReadOnlyList<string> SubscribedEvents` property
-- [ ] Create `IModule` base interface:
-  - [ ] `IModuleManifest Manifest` property
-  - [ ] `Task InitializeAsync()` method
-  - [ ] `Task StartAsync()` method
-  - [ ] `Task StopAsync()` method
+- [x] Create `IModuleManifest` interface:
+  - [x] `string Id` property
+  - [x] `string Name` property
+  - [x] `string Version` property
+  - [x] `IReadOnlyCollection<string> RequiredCapabilities` property
+  - [x] `IReadOnlyCollection<string> PublishedEvents` property
+  - [x] `IReadOnlyCollection<string> SubscribedEvents` property
+- [x] Create `IModule` base interface:
+  - [x] `IModuleManifest Manifest` property
+  - [x] `Task InitializeAsync(ModuleInitializationContext context, CancellationToken cancellationToken)` method
+  - [x] `Task StartAsync(CancellationToken cancellationToken)` method
+  - [x] `Task StopAsync(CancellationToken cancellationToken)` method
+- [x] Create `IModuleLifecycle` interface:
+  - [x] Extends `IModule` and `IAsyncDisposable`
+  - [x] `Task DisposeAsync()` method
+- [x] Create `ModuleInitializationContext` record:
+  - [x] `string ModuleId` property
+  - [x] `IServiceProvider Services` property
+  - [x] `IReadOnlyDictionary<string, object> Configuration` property
+  - [x] `CallerContext SystemCaller` property
 
 #### Event System
 - [ ] Create `IEvent` base interface
