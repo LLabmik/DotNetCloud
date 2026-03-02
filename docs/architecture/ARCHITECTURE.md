@@ -2,7 +2,7 @@
 
 > **Version:** 1.0  
 > **Status:** Approved  
-> **Last Updated:** 2025-07-14  
+> **Last Updated:** 2026-02-28  
 > **Domain:** dotnetcloud.net  
 > **Repository:** https://git.kimball.home/benk/dotnetcloud (primary), GitHub mirror (community)
 
