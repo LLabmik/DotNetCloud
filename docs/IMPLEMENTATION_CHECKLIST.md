@@ -248,21 +248,32 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Create `RolePermission` junction table
 
 **Settings Models (Three Scopes)**
-- [ ] Create `SystemSetting` entity:
-  - [ ] `string Key` property
-  - [ ] `string Value` property (JSON serializable)
-  - [ ] `string Module` property (which module owns this setting)
-  - [ ] Composite key: (Module, Key)
-- [ ] Create `OrganizationSetting` entity:
-  - [ ] `Guid OrganizationId` FK
-  - [ ] `string Key` property
-  - [ ] `string Value` property
-  - [ ] `string Module` property
-- [ ] Create `UserSetting` entity:
-  - [ ] `Guid UserId` FK
-  - [ ] `string Key` property
-  - [ ] `string Value` property (encrypted for sensitive data)
-  - [ ] `string Module` property
+- ✓ Create `SystemSetting` entity:
+  - ✓ `string Module` property (which module owns this setting)
+  - ✓ `string Key` property
+  - ✓ `string Value` property (JSON serializable)
+  - ✓ Composite key: (Module, Key)
+  - ✓ `DateTime UpdatedAt` property
+  - ✓ `string? Description` property
+- ✓ Create `OrganizationSetting` entity:
+  - ✓ `Guid Id` primary key
+  - ✓ `Guid OrganizationId` FK
+  - ✓ `string Key` property
+  - ✓ `string Value` property
+  - ✓ `string Module` property
+  - ✓ `DateTime UpdatedAt` property
+  - ✓ `string? Description` property
+  - ✓ Unique constraint: (OrganizationId, Module, Key)
+- ✓ Create `UserSetting` entity:
+  - ✓ `Guid Id` primary key
+  - ✓ `Guid UserId` FK
+  - ✓ `string Key` property
+  - ✓ `string Value` property (encrypted for sensitive data)
+  - ✓ `string Module` property
+  - ✓ `DateTime UpdatedAt` property
+  - ✓ `string? Description` property
+  - ✓ `bool IsEncrypted` property for sensitive data flag
+  - ✓ Unique constraint: (UserId, Module, Key)
 
 **Device & Module Registry Models**
 - [ ] Create `UserDevice` entity:

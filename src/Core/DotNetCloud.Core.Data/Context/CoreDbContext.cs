@@ -8,6 +8,8 @@ using DotNetCloud.Core.Data.Entities.Organizations;
 using DotNetCloud.Core.Data.Configuration.Organizations;
 using DotNetCloud.Core.Data.Entities.Permissions;
 using DotNetCloud.Core.Data.Configuration.Permissions;
+using DotNetCloud.Core.Data.Entities.Settings;
+using DotNetCloud.Core.Data.Configuration.Settings;
 
 namespace DotNetCloud.Core.Data.Context;
 
@@ -97,6 +99,35 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     /// </remarks>
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
 
+    // Settings DbSets
+    /// <summary>
+    /// Gets or sets the SystemSettings DbSet.
+    /// </summary>
+    /// <remarks>
+    /// Represents system-wide settings that apply across the entire DotNetCloud instance.
+    /// System settings have a composite primary key (Module, Key) for efficient configuration management.
+    /// </remarks>
+    public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
+
+    /// <summary>
+    /// Gets or sets the OrganizationSettings DbSet.
+    /// </summary>
+    /// <remarks>
+    /// Represents organization-scoped settings that can override system settings.
+    /// Enables per-organization configuration for multi-tenant deployments.
+    /// </remarks>
+    public DbSet<OrganizationSetting> OrganizationSettings => Set<OrganizationSetting>();
+
+    /// <summary>
+    /// Gets or sets the UserSettings DbSet.
+    /// </summary>
+    /// <remarks>
+    /// Represents user-scoped settings for personal preferences and configuration.
+    /// Enables per-user customization of the application.
+    /// Some settings may contain encrypted sensitive data.
+    /// </remarks>
+    public DbSet<UserSetting> UserSettings => Set<UserSetting>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -114,55 +145,28 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     }
 
     /// <summary>
-    /// Applies the naming strategy to all entity configurations.
-    /// This method dynamically configures table names, column names, and constraint names
-    /// based on the active naming strategy (PostgreSQL, SQL Server, or MariaDB).
+    /// Applies the naming strategy to all entity tables.
     /// </summary>
+    /// <param name="modelBuilder">The model builder</param>
     private void ApplyNamingStrategy(ModelBuilder modelBuilder)
     {
-        // Get the module name from the schema if using PostgreSQL/SQL Server
-        var moduleName = "core";
-
-        foreach (var entity in modelBuilder.Model.GetEntityTypes())
-        {
-            var entityName = entity.Name.Split('.').Last();
-
-            // Set the schema for PostgreSQL and SQL Server
-            var schema = _namingStrategy.GetSchemaForModule(moduleName);
-            if (schema != null)
-            {
-                entity.SetSchema(schema);
-            }
-
-            // Set the table name using naming strategy
-            entity.SetTableName(_namingStrategy.GetTableName(entityName, moduleName));
-
-            // Configure all properties with naming strategy
-            foreach (var property in entity.GetProperties())
-            {
-                var columnName = _namingStrategy.GetColumnName(property.Name);
-                property.SetColumnName(columnName);
-            }
-        }
+        ArgumentNullException.ThrowIfNull(modelBuilder);
+        _namingStrategy.ApplyStrategy(modelBuilder);
     }
 
     /// <summary>
-    /// Configures ASP.NET Core Identity entities.
-    /// Includes ApplicationUser, ApplicationRole, and their relationships.
+    /// Configures identity entities.
+    /// Includes ApplicationUser and ApplicationRole.
     /// </summary>
     private void ConfigureIdentityModels(ModelBuilder modelBuilder)
     {
-        // Apply custom configurations for ApplicationUser and ApplicationRole
+        // Apply configurations for all identity entities
         modelBuilder.ApplyConfiguration(new ApplicationUserConfiguration());
         modelBuilder.ApplyConfiguration(new ApplicationRoleConfiguration());
-
-        // Configure Identity tables with naming strategy
-        // Note: Identity tables (Users, Roles, UserRoles, UserClaims, UserLogins, UserTokens, RoleClaims, UserPasskeys)
-        // will have their names transformed by ApplyNamingStrategy method above
     }
 
     /// <summary>
-    /// Configures organization hierarchy entities.
+    /// Configures organization and team hierarchy entities.
     /// Includes Organization, Team, TeamMember, Group, GroupMember, and OrganizationMember.
     /// </summary>
     private void ConfigureOrganizationModels(ModelBuilder modelBuilder)
@@ -194,8 +198,10 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     /// </summary>
     private void ConfigureSettingModels(ModelBuilder modelBuilder)
     {
-        // Placeholder for Settings model configuration
-        // Will be implemented when Setting entities are created
+        // Apply configurations for all settings entities
+        modelBuilder.ApplyConfiguration(new SystemSettingConfiguration());
+        modelBuilder.ApplyConfiguration(new OrganizationSettingConfiguration());
+        modelBuilder.ApplyConfiguration(new UserSettingConfiguration());
     }
 
     /// <summary>
