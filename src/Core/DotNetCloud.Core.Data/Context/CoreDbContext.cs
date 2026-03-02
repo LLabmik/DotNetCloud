@@ -10,6 +10,8 @@ using DotNetCloud.Core.Data.Entities.Permissions;
 using DotNetCloud.Core.Data.Configuration.Permissions;
 using DotNetCloud.Core.Data.Entities.Settings;
 using DotNetCloud.Core.Data.Configuration.Settings;
+using DotNetCloud.Core.Data.Entities.Modules;
+using DotNetCloud.Core.Data.Configuration.Modules;
 
 namespace DotNetCloud.Core.Data.Context;
 
@@ -128,6 +130,38 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     /// </remarks>
     public DbSet<UserSetting> UserSettings => Set<UserSetting>();
 
+    // Device Registry DbSets
+    /// <summary>
+    /// Gets or sets the UserDevices DbSet.
+    /// </summary>
+    /// <remarks>
+    /// Represents devices registered by users for accessing the DotNetCloud platform.
+    /// Tracks device information, push notification tokens, and last activity.
+    /// Used for device management, security monitoring, and presence tracking.
+    /// </remarks>
+    public DbSet<UserDevice> UserDevices => Set<UserDevice>();
+
+    // Module Registry DbSets
+    /// <summary>
+    /// Gets or sets the InstalledModules DbSet.
+    /// </summary>
+    /// <remarks>
+    /// Represents modules installed in the DotNetCloud system.
+    /// Tracks module versions, status (Enabled/Disabled/UpdateAvailable), and installation metadata.
+    /// Used for module lifecycle management and update notifications.
+    /// </remarks>
+    public DbSet<InstalledModule> InstalledModules => Set<InstalledModule>();
+
+    /// <summary>
+    /// Gets or sets the ModuleCapabilityGrants DbSet.
+    /// </summary>
+    /// <remarks>
+    /// Represents capability grants to installed modules.
+    /// Tracks which capabilities (IUserDirectory, IStorageProvider, etc.) are granted to modules and when.
+    /// Enables capability-based security at the database level.
+    /// </remarks>
+    public DbSet<ModuleCapabilityGrant> ModuleCapabilityGrants => Set<ModuleCapabilityGrant>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -210,8 +244,8 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     /// </summary>
     private void ConfigureDeviceModels(ModelBuilder modelBuilder)
     {
-        // Placeholder for Device model configuration
-        // Will be implemented when Device entities are created
+        // Apply configurations for all device entities
+        modelBuilder.ApplyConfiguration(new UserDeviceConfiguration());
     }
 
     /// <summary>
@@ -220,7 +254,8 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     /// </summary>
     private void ConfigureModuleModels(ModelBuilder modelBuilder)
     {
-        // Placeholder for Module model configuration
-        // Will be implemented when Module entities are created
+        // Apply configurations for all module entities
+        modelBuilder.ApplyConfiguration(new InstalledModuleConfiguration());
+        modelBuilder.ApplyConfiguration(new ModuleCapabilityGrantConfiguration());
     }
 }

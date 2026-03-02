@@ -276,22 +276,22 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
   - ✓ Unique constraint: (UserId, Module, Key)
 
 **Device & Module Registry Models**
-- [ ] Create `UserDevice` entity:
-  - [ ] `Guid UserId` FK
-  - [ ] `string Name` property (e.g., "Windows Laptop")
-  - [ ] `string DeviceType` property (Desktop, Mobile, etc.)
-  - [ ] `string? PushToken` property
-  - [ ] `DateTime LastSeenAt` property
-- [ ] Create `InstalledModule` entity:
-  - [ ] `string ModuleId` property (primary key, e.g., "dotnetcloud.files")
-  - [ ] `Version Version` property
-  - [ ] `string Status` property (Enabled, Disabled, UpdateAvailable)
-  - [ ] `DateTime InstalledAt` property
-- [ ] Create `ModuleCapabilityGrant` entity:
-  - [ ] `string ModuleId` FK
-  - [ ] `string CapabilityName` property
-  - [ ] `DateTime GrantedAt` property
-  - [ ] `Guid? GrantedByUserId` (admin who approved)
+- ✓ Create `UserDevice` entity:
+  - ✓ `Guid UserId` FK
+  - ✓ `string Name` property (e.g., "Windows Laptop")
+  - ✓ `string DeviceType` property (Desktop, Mobile, etc.)
+  - ✓ `string? PushToken` property
+  - ✓ `DateTime LastSeenAt` property
+- ✓ Create `InstalledModule` entity:
+  - ✓ `string ModuleId` property (primary key, e.g., "dotnetcloud.files")
+  - ✓ `Version Version` property
+  - ✓ `string Status` property (Enabled, Disabled, UpdateAvailable)
+  - ✓ `DateTime InstalledAt` property
+- ✓ Create `ModuleCapabilityGrant` entity:
+  - ✓ `string ModuleId` FK
+  - ✓ `string CapabilityName` property
+  - ✓ `DateTime GrantedAt` property
+  - ✓ `Guid? GrantedByUserId` (admin who approved)
 
 #### EF Core Configuration
 - [ ] Create `CoreDbContext` class extending `IdentityDbContext<ApplicationUser, ApplicationRole, Guid>`
