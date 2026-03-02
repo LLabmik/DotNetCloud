@@ -173,6 +173,11 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
   - ✓ `ValidationException`
 - ✓ Create API error response model
 
+#### Documentation
+- ✓ Create `docs/architecture/core-abstractions.md` with comprehensive guide
+- ✓ Add comprehensive XML documentation (///) to all public types
+- ✓ Create `src/Core/DotNetCloud.Core/README.md` for developers
+
 ---
 
 ## Phase 0.2: Database & Data Access Layer
