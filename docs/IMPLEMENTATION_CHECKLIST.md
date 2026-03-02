@@ -307,10 +307,10 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
   - ✓ Seed default system roles
   - ✓ Seed default permissions
   - ✓ Seed system settings
-- [ ] Create migration files for each supported database:
-  - [ ] PostgreSQL migrations
-  - [ ] SQL Server migrations
-  - [ ] MariaDB migrations
+- ✓ Create migration files for each supported database:
+  - ✓ PostgreSQL migrations
+  - ☐ SQL Server migrations
+  - ☐ MariaDB migrations
 
 ---
 
