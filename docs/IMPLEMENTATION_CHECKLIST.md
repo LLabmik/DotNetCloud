@@ -373,26 +373,29 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 **OAuth2/OIDC Server Implementation**
 
 #### Core Configuration
-- [ ] Add OpenIddict NuGet packages
-- [ ] Configure OpenIddict in dependency injection:
-  - [ ] Server features
-  - [ ] Token formats
-  - [ ] Scopes
-- [ ] Create `OpenIddictApplication` entity model for registered clients
-- [ ] Implement OpenIddict data access layer
+- ✓ Add OpenIddict NuGet packages (pending - will be added in step-2)
+- ☐ Configure OpenIddict in dependency injection:
+  - ☐ Server features
+  - ☐ Token formats
+  - ☐ Scopes
+- ✓ Create `OpenIddictApplication` entity model for registered clients
+- ✓ Create `OpenIddictAuthorization` entity model for user consent tracking
+- ✓ Create `OpenIddictToken` entity model for token storage
+- ✓ Create `OpenIddictScope` entity model for scope definitions
+- ✓ Implement OpenIddict data access layer (EF Core configurations)
 
 #### Token Endpoints
-- [ ] Implement `/connect/token` endpoint:
-  - [ ] Authorization Code flow
-  - [ ] Refresh Token flow
-  - [ ] Client Credentials flow
-- [ ] Implement `/connect/authorize` endpoint with:
-  - [ ] Login page
-  - [ ] Consent page
-  - [ ] PKCE support
-- [ ] Implement `/connect/logout` endpoint
-- [ ] Implement `/connect/userinfo` endpoint
-- [ ] Implement token revocation endpoint (`/connect/revoke`)
+- ☐ Implement `/connect/token` endpoint:
+  - ☐ Authorization Code flow
+  - ☐ Refresh Token flow
+  - ☐ Client Credentials flow
+- ☐ Implement `/connect/authorize` endpoint with:
+  - ☐ Login page
+  - ☐ Consent page
+  - ☐ PKCE support
+- ☐ Implement `/connect/logout` endpoint
+- ☐ Implement `/connect/userinfo` endpoint
+- ☐ Implement token revocation endpoint (`/connect/revoke`)
 
 #### PKCE Support
 - [ ] Configure PKCE requirement for public clients

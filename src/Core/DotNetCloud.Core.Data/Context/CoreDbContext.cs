@@ -1,44 +1,79 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-using Microsoft.AspNetCore.Identity;
-using DotNetCloud.Core.Data.Naming;
+using DotNetCloud.Core.Data.Entities.Auth;
 using DotNetCloud.Core.Data.Entities.Identity;
-using DotNetCloud.Core.Data.Configuration.Identity;
-using DotNetCloud.Core.Data.Entities.Organizations;
-using DotNetCloud.Core.Data.Configuration.Organizations;
-using DotNetCloud.Core.Data.Entities.Permissions;
-using DotNetCloud.Core.Data.Configuration.Permissions;
-using DotNetCloud.Core.Data.Entities.Settings;
-using DotNetCloud.Core.Data.Configuration.Settings;
 using DotNetCloud.Core.Data.Entities.Modules;
+using DotNetCloud.Core.Data.Entities.Organizations;
+using DotNetCloud.Core.Data.Entities.Permissions;
+using DotNetCloud.Core.Data.Entities.Settings;
+using DotNetCloud.Core.Data.Configuration.Auth;
+using DotNetCloud.Core.Data.Configuration.Identity;
 using DotNetCloud.Core.Data.Configuration.Modules;
+using DotNetCloud.Core.Data.Configuration.Organizations;
+using DotNetCloud.Core.Data.Configuration.Permissions;
+using DotNetCloud.Core.Data.Configuration.Settings;
+using DotNetCloud.Core.Data.Infrastructure;
 using DotNetCloud.Core.Data.Interceptors;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 
 namespace DotNetCloud.Core.Data.Context;
 
 /// <summary>
-/// Core database context for DotNetCloud application.
-/// Manages all core entities including ASP.NET Core Identity and applies naming strategies based on the database provider.
-/// Extends IdentityDbContext to provide ASP.NET Core Identity support with Guid primary keys.
+/// Main database context for the DotNetCloud platform.
 /// </summary>
+/// <remarks>
+/// This DbContext serves as the main data access layer for the entire DotNetCloud platform.
+/// It extends IdentityDbContext to include ASP.NET Core Identity support with custom user
+/// and role types using Guid as the primary key type.
+///
+/// <para>
+/// <b>Entity Groups:</b>
+/// <list type="bullet">
+/// <item>Identity: ApplicationUser, ApplicationRole (ASP.NET Core Identity)</item>
+/// <item>Organizations: Organization, Team, TeamMember, Group, GroupMember, OrganizationMember</item>
+/// <item>Permissions: Permission, Role, RolePermission</item>
+/// <item>Settings: SystemSetting, OrganizationSetting, UserSetting</item>
+/// <item>Devices: UserDevice</item>
+/// <item>Modules: InstalledModule, ModuleCapabilityGrant</item>
+/// <item>Authentication: OpenIddictApplication, OpenIddictAuthorization, OpenIddictToken, OpenIddictScope</item>
+/// </list>
+/// </para>
+///
+/// <para>
+/// <b>Multi-Database Support:</b>
+/// <list type="bullet">
+/// <item>PostgreSQL: Uses schemas (core.*, files.*) and snake_case naming</item>
+/// <item>SQL Server: Uses schemas ([core], [files]) and PascalCase naming</item>
+/// <item>MariaDB: Uses table prefixes (core_*, files_*) and snake_case naming</item>
+/// </list>
+/// </para>
+///
+/// <para>
+/// <b>Automatic Features:</b>
+/// <list type="bullet">
+/// <item>Timestamp management: CreatedAt, UpdatedAt automatically set via TimestampInterceptor</item>
+/// <item>Soft-delete: Query filters applied for Organization, Team, Group entities</item>
+/// <item>Concurrency: ConcurrencyToken properties configured for optimistic concurrency</item>
+/// </list>
+/// </para>
+/// </remarks>
 public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>
 {
     private readonly ITableNamingStrategy _namingStrategy;
 
     /// <summary>
-    /// Creates a new instance of CoreDbContext.
+    /// Initializes a new instance of the <see cref="CoreDbContext"/> class.
     /// </summary>
-    /// <param name="options">The DbContext options</param>
-    /// <param name="namingStrategy">The naming strategy for the configured database provider</param>
+    /// <param name="options">The options to be used by the DbContext.</param>
+    /// <param name="namingStrategy">The naming strategy for table and column names.</param>
     public CoreDbContext(DbContextOptions<CoreDbContext> options, ITableNamingStrategy namingStrategy)
         : base(options)
     {
-        ArgumentNullException.ThrowIfNull(namingStrategy);
-        _namingStrategy = namingStrategy;
+        _namingStrategy = namingStrategy ?? throw new ArgumentNullException(nameof(namingStrategy));
     }
 
     /// <summary>
-    /// Gets the naming strategy used by this context.
+    /// Gets the table naming strategy used by this context.
     /// </summary>
     public ITableNamingStrategy NamingStrategy => _namingStrategy;
 
@@ -163,6 +198,43 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     /// </remarks>
     public DbSet<ModuleCapabilityGrant> ModuleCapabilityGrants => Set<ModuleCapabilityGrant>();
 
+    // Authentication (OpenIddict) DbSets
+    /// <summary>
+    /// Gets or sets the OpenIddict Applications DbSet.
+    /// </summary>
+    /// <remarks>
+    /// Represents OAuth2/OIDC client applications registered in the system.
+    /// Includes client IDs, secrets, redirect URIs, and permissions.
+    /// </remarks>
+    public DbSet<OpenIddictApplication> OpenIddictApplications => Set<OpenIddictApplication>();
+
+    /// <summary>
+    /// Gets or sets the OpenIddict Authorizations DbSet.
+    /// </summary>
+    /// <remarks>
+    /// Represents user consents/authorizations granted to applications.
+    /// Tracks which users have authorized which applications with specific scopes.
+    /// </remarks>
+    public DbSet<OpenIddictAuthorization> OpenIddictAuthorizations => Set<OpenIddictAuthorization>();
+
+    /// <summary>
+    /// Gets or sets the OpenIddict Tokens DbSet.
+    /// </summary>
+    /// <remarks>
+    /// Represents OAuth2/OIDC tokens (access tokens, refresh tokens, ID tokens, authorization codes).
+    /// Used for token validation, revocation, and audit trails.
+    /// </remarks>
+    public DbSet<OpenIddictToken> OpenIddictTokens => Set<OpenIddictToken>();
+
+    /// <summary>
+    /// Gets or sets the OpenIddict Scopes DbSet.
+    /// </summary>
+    /// <remarks>
+    /// Represents available OAuth2/OIDC scopes that applications can request.
+    /// Includes both standard OIDC scopes (openid, profile, email) and custom scopes.
+    /// </remarks>
+    public DbSet<OpenIddictScope> OpenIddictScopes => Set<OpenIddictScope>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -175,6 +247,7 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
         ConfigureSettingModels(modelBuilder);
         ConfigureDeviceModels(modelBuilder);
         ConfigureModuleModels(modelBuilder);
+        ConfigureAuthenticationModels(modelBuilder);
     }
 
     /// <summary>
@@ -246,6 +319,19 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
         // Apply configurations for all module entities
         modelBuilder.ApplyConfiguration(new InstalledModuleConfiguration());
         modelBuilder.ApplyConfiguration(new ModuleCapabilityGrantConfiguration());
+    }
+
+    /// <summary>
+    /// Configures authentication entities (OpenIddict).
+    /// Includes OpenIddictApplication, OpenIddictAuthorization, OpenIddictToken, and OpenIddictScope.
+    /// </summary>
+    private void ConfigureAuthenticationModels(ModelBuilder modelBuilder)
+    {
+        // Apply configurations for all authentication entities
+        modelBuilder.ApplyConfiguration(new OpenIddictApplicationConfiguration(_namingStrategy));
+        modelBuilder.ApplyConfiguration(new OpenIddictAuthorizationConfiguration(_namingStrategy));
+        modelBuilder.ApplyConfiguration(new OpenIddictTokenConfiguration(_namingStrategy));
+        modelBuilder.ApplyConfiguration(new OpenIddictScopeConfiguration(_namingStrategy));
     }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

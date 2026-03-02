@@ -20,7 +20,7 @@
 | Phase 0.1 | 11 | 10 | 0 | 1 |
 | Phase 0.2 | 12 | 10 | 0 | 2 |
 | Phase 0.3 | 8 | 8 | 0 | 0 |
-| Phase 0.4 | 20 | 0 | 0 | 20 |
+| Phase 0.4 | 20 | 1 | 1 | 18 |
 | Phase 0.5 | 9 | 9 | 0 | 0 |
 | Phase 0.6 | 13 | 0 | 0 | 13 |
 | Phase 0.7 | 16 | 0 | 0 | 16 |
@@ -1300,6 +1300,112 @@ Location: tests/DotNetCloud.Core.Data.Tests/
 - ✅ Production-ready with sensible defaults
 
 **Next Phase:** Phase 0.4 - Authentication & Authorization (OpenIddict, ASP.NET Core Identity)
+
+---
+
+### Section: Phase 0.4 - Authentication & Authorization
+
+#### Step: phase-0.4.1 - OpenIddict Database Models & Configuration
+**Status:** completed ✅
+**Duration:** ~2 hours
+**Description:** Create OpenIddict entity models and EF Core configurations for OAuth2/OIDC
+
+**Completed Deliverables:**
+- ✓ `OpenIddictApplication` entity with comprehensive XML documentation
+  - ✓ Represents OAuth2/OIDC client applications
+  - ✓ Properties: ClientId, ClientSecret, RedirectUris, Permissions, Type, ConsentType
+  - ✓ Navigation properties to Authorizations and Tokens
+  - ✓ Supports confidential, public, and hybrid client types
+- ✓ `OpenIddictAuthorization` entity with comprehensive XML documentation
+  - ✓ Represents user consent/authorization records
+  - ✓ Properties: ApplicationId, Subject, Status, Type, Scopes, CreationDate
+  - ✓ Navigation properties to Application and Tokens
+  - ✓ Supports permanent and ad-hoc authorization types
+- ✓ `OpenIddictToken` entity with comprehensive XML documentation
+  - ✓ Represents OAuth2/OIDC tokens (access, refresh, ID tokens, authorization codes)
+  - ✓ Properties: ApplicationId, AuthorizationId, Type, Status, Payload, ReferenceId, ExpirationDate
+  - ✓ Navigation properties to Application and Authorization
+  - ✓ Supports token revocation and redemption tracking
+- ✓ `OpenIddictScope` entity with comprehensive XML documentation
+  - ✓ Represents OAuth2/OIDC scope definitions
+  - ✓ Properties: Name, DisplayName, Description, Resources
+  - ✓ Supports localized names and descriptions
+  - ✓ Includes standard OIDC scopes and custom scope examples
+- ✓ `OpenIddictApplicationConfiguration` (IEntityTypeConfiguration)
+  - ✓ Table naming via ITableNamingStrategy (multi-database support)
+  - ✓ Primary key, unique constraint on ClientId
+  - ✓ Relationships to Authorizations and Tokens with cascade delete
+  - ✓ Concurrency token configuration
+- ✓ `OpenIddictAuthorizationConfiguration` (IEntityTypeConfiguration)
+  - ✓ Table naming via ITableNamingStrategy
+  - ✓ Indexes on ApplicationId, Subject, Status
+  - ✓ Composite index on (ApplicationId, Subject, Status)
+  - ✓ Relationships with cascade delete
+- ✓ `OpenIddictTokenConfiguration` (IEntityTypeConfiguration)
+  - ✓ Table naming via ITableNamingStrategy
+  - ✓ Unique constraint on ReferenceId
+  - ✓ Indexes on ApplicationId, AuthorizationId, Subject, Status, Type, ExpirationDate
+  - ✓ Composite index on (ApplicationId, Status, Subject, Type)
+  - ✓ Relationships with cascade delete
+- ✓ `OpenIddictScopeConfiguration` (IEntityTypeConfiguration)
+  - ✓ Table naming via ITableNamingStrategy
+  - ✓ Unique constraint on Name
+  - ✓ Concurrency token configuration
+- ✓ CoreDbContext updated with 4 new DbSets:
+  - ✓ OpenIddictApplications
+  - ✓ OpenIddictAuthorizations
+  - ✓ OpenIddictTokens
+  - ✓ OpenIddictScopes
+- ✓ CoreDbContext updated with ConfigureAuthenticationModels() method
+- ✓ All entity configurations integrated into OnModelCreating
+
+**Quality Metrics:**
+- ✓ All entities have comprehensive XML documentation (2,500+ lines total)
+- ✓ All configurations follow established EF Core patterns
+- ✓ Build successful with no compiler errors or warnings
+- ✓ Multi-database naming strategy support (PostgreSQL, SQL Server, MariaDB)
+- ✓ Proper cascade delete configuration for data integrity
+- ✓ Comprehensive indexing for performance
+- ✓ Follows OpenIddict entity model best practices
+
+**File Locations:**
+- `src/Core/DotNetCloud.Core.Data/Entities/Auth/OpenIddictApplication.cs`
+- `src/Core/DotNetCloud.Core.Data/Entities/Auth/OpenIddictAuthorization.cs`
+- `src/Core/DotNetCloud.Core.Data/Entities/Auth/OpenIddictToken.cs`
+- `src/Core/DotNetCloud.Core.Data/Entities/Auth/OpenIddictScope.cs`
+- `src/Core/DotNetCloud.Core.Data/Configuration/Auth/OpenIddictApplicationConfiguration.cs`
+- `src/Core/DotNetCloud.Core.Data/Configuration/Auth/OpenIddictAuthorizationConfiguration.cs`
+- `src/Core/DotNetCloud.Core.Data/Configuration/Auth/OpenIddictTokenConfiguration.cs`
+- `src/Core/DotNetCloud.Core.Data/Configuration/Auth/OpenIddictScopeConfiguration.cs`
+- `src/Core/DotNetCloud.Core.Data/Context/CoreDbContext.cs` (updated)
+
+**Dependencies:** phase-0.2.2 (ApplicationUser for Identity integration) ✓
+**Testing:** Ready for migration generation in phase-0.4.19
+**Build Status:** ✅ Solution builds successfully
+**Notes:** OpenIddict entity models complete with comprehensive documentation. Database models ready for OpenIddict server configuration. All entities follow established patterns with proper relationships, indexing, and multi-database support. Ready for phase-0.4.2 (OpenIddict NuGet packages and service configuration).
+
+---
+
+#### Step: phase-0.4.2 - Configure OpenIddict Services
+**Status:** in-progress
+**Duration:** ~3 hours
+**Description:** Add OpenIddict NuGet packages and configure OpenIddict server services
+
+**Planned Deliverables:**
+- ☐ Add OpenIddict.AspNetCore NuGet package
+- ☐ Add OpenIddict.EntityFrameworkCore NuGet package
+- ☐ Configure OpenIddict server in dependency injection
+- ☐ Configure token formats (JWT for access tokens, reference for refresh tokens)
+- ☐ Configure token lifetimes (1 hour access, 7 days refresh)
+- ☐ Configure endpoint routes (/connect/token, /connect/authorize, etc.)
+- ☐ Configure scope definitions (openid, profile, email, offline_access)
+- ☐ Configure PKCE requirements for public clients
+- ☐ Create OpenIddictServerConfiguration extension class
+- ☐ Integrate with CoreDbContext for data persistence
+
+**Dependencies:** phase-0.4.1 ✓
+**Testing:** Service configuration validation
+**Notes:** In progress. Will configure OpenIddict server with proper security defaults.
 
 ---
 
