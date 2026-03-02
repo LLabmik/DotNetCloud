@@ -1,5 +1,25 @@
 # Copilot Instructions
 
+## 📋 Documentation Format Standards
+
+### Visual Checkbox Format (MANDATORY)
+
+**Always use visual checkmark characters for all documentation files:**
+- **✓** (checkmark) = Completed tasks
+- **☐** (empty box) = Pending tasks
+
+**Never use bracket syntax:** `[x]` or `[ ]`
+
+**Applies to:**
+- `/docs/IMPLEMENTATION_CHECKLIST.md`
+- `/docs/MASTER_PROJECT_PLAN.md`
+- All project tracking and status documents
+- Any deliverable lists or task checklists
+
+**Why:** Visual format is easier to scan, more professional, and clearer for progress tracking.
+
+---
+
 ## 🎯 CRITICAL: Dual Documentation Update Requirement
 
 **⚠️ IMPORTANT:** After EVERY completed implementation task or phase step, you MUST update BOTH documentation files below. Failure to do so will result in incomplete project tracking. This is non-negotiable.
@@ -13,15 +33,15 @@
 ### 1️⃣ Update IMPLEMENTATION_CHECKLIST.md (ALWAYS)
 
 **When:** After completing any Phase 0-9 task or Pre-Implementation step  
-**What:** Mark the corresponding checkbox as `[x]` in `/docs/IMPLEMENTATION_CHECKLIST.md`  
+**What:** Mark the corresponding checkbox as `✓` for completed tasks and `☐` for pending tasks in `/docs/IMPLEMENTATION_CHECKLIST.md`  
 **How:** ⭐ **Use targeted edits (edit_file tool) with minimal context** — do NOT replace the entire file  
 **Why:** Provides quick visibility into phase completion status for all stakeholders
 
 **Example (GOOD - Targeted Edit):**
 ```markdown
 ### User Authentication
-- [x] Implement user registration endpoint  ← Mark as completed
-- [ ] Implement password reset flow         ← Still pending
+- ✓ Implement user registration endpoint  ← Mark as completed
+- ☐ Implement password reset flow         ← Still pending
 ```
 
 **DO NOT do this (BAD - Full File Replacement):**
@@ -38,7 +58,7 @@
 - Update the **Quick Status Summary** table at the top
 - Update the corresponding **Step** details with:
   - `**Status:** completed` (or in-progress, failed, skipped)
-  - `**Deliverables:**` list with [x] marks for completed items
+  - `**Deliverables:**` list with `✓` marks for completed items and `☐` for pending items
   - `**Notes:**` with current progress and what comes next
 
 **How:** ⭐ **Use targeted edits (edit_file tool) with minimal context FIRST** — only replace entire file as last resort  
@@ -66,10 +86,10 @@ And update step section (targeted edit):
 **Status:** completed ✅
 **Duration:** ~1.5 hours
 **Deliverables:**
-- [x] `IEvent` base interface
-- [x] `IEventHandler<TEvent>` interface with `Task HandleAsync()` method
-- [x] `IEventBus` interface with PublishAsync, SubscribeAsync, UnsubscribeAsync
-- [x] Event subscription model
+- ✓ `IEvent` base interface
+- ✓ `IEventHandler<TEvent>` interface with `Task HandleAsync()` method
+- ✓ `IEventBus` interface with PublishAsync, SubscribeAsync, UnsubscribeAsync
+- ✓ Event subscription model
 
 **Notes:** Event system complete. Enables inter-module communication via pub/sub pattern.
 ```
@@ -110,9 +130,9 @@ And update step section (targeted edit):
 Input section (what you provide):
 ```
 // ...existing content...
-- [ ] Task 1
-- [x] Task 2  ← This is the ONLY line that changed
-- [ ] Task 3
+- ☐ Task 1
+- ✓ Task 2  ← This is the ONLY line that changed
+- ☐ Task 3
 // ...existing content...
 ```
 
@@ -127,11 +147,11 @@ After completing work, use this checklist BEFORE finishing:
 - [ ] **Completed the implementation task** (code is functional, tested, builds successfully)
 - [ ] **Used TARGETED EDITS** for IMPLEMENTATION_CHECKLIST.md (not full file replacement)
 - [ ] **Used TARGETED EDITS** for MASTER_PROJECT_PLAN.md updates (not full file replacement)
-- [ ] **Updated IMPLEMENTATION_CHECKLIST.md** with [x] marks for completed tasks
+- [ ] **Updated IMPLEMENTATION_CHECKLIST.md** with `✓` marks for completed tasks and `☐` for pending tasks
 - [ ] **Updated MASTER_PROJECT_PLAN.md Quick Status Summary table** (adjust completed/pending counts)
 - [ ] **Updated the corresponding Step in MASTER_PROJECT_PLAN.md** with:
   - [ ] Status changed to `completed` (or appropriate status)
-  - [ ] Deliverables listed with [x] marks
+  - [ ] Deliverables listed with `✓` marks for completed items and `☐` for pending items
   - [ ] Notes field includes what was accomplished and what's next
   - [ ] Dependencies noted if any failed
 - [ ] **Code builds and tests pass** (`dotnet build && dotnet test`)
@@ -213,12 +233,12 @@ INSTEAD: Combine into a SINGLE targeted edit that changes all three
 Before marking a step as completed, answer:
 
 1. **Is the code complete?** (All deliverables implemented and tested)
-2. **Is IMPLEMENTATION_CHECKLIST.md updated?** (All relevant checkboxes marked [x])
+2. **Is IMPLEMENTATION_CHECKLIST.md updated?** (All relevant checkboxes marked `✓`)
    - ⭐ Did I use targeted edits? (Not full file replacement)
 3. **Is MASTER_PROJECT_PLAN.md updated?** 
    - Quick Status Summary table? ✅ (targeted edit)
    - Step status changed to completed? ✅ (targeted edit)
-   - Deliverables marked [x]? ✅ (targeted edit)
+   - Deliverables marked `✓`? ✅ (targeted edit)
    - Notes updated with what's next? ✅ (targeted edit)
 4. **Do all tests pass?** (`dotnet test`)
 5. **Does the code build?** (`dotnet build`)
@@ -237,32 +257,36 @@ Before marking a step as completed, answer:
 Find this section in the file:
 ```markdown
 #### Capability System
-- [ ] Create `ICapabilityInterface` marker interface
-- [ ] Create `CapabilityTier` enum
-- [ ] Implement public tier interfaces
-- [ ] Implement restricted tier interfaces
-- [ ] Implement privileged tier interfaces
+- ☐ Create `ICapabilityInterface` marker interface
+- ☐ Create `CapabilityTier` enum
+- ☐ Implement public tier interfaces
+- ☐ Implement restricted tier interfaces
+- ☐ Implement privileged tier interfaces
 ```
 
 Change to:
 ```markdown
 #### Capability System
-- [x] Create `ICapabilityInterface` marker interface
-- [x] Create `CapabilityTier` enum
-- [x] Implement public tier interfaces
-- [x] Implement restricted tier interfaces
-- [x] Implement privileged tier interfaces
+- ✓ Create `ICapabilityInterface` marker interface
+- ✓ Create `CapabilityTier` enum
+- ✓ Implement public tier interfaces
+- ✓ Implement restricted tier interfaces
+- ✓ Implement privileged tier interfaces
 ```
 
 **Step 3: Update MASTER_PROJECT_PLAN.md Quick Status Summary with TARGETED EDIT**
 
 Find this table row:
 ```markdown
+| Phase | Steps | Completed | In Progress | Pending |
+|-------|-------|-----------|-------------|---------|
 | Phase 0.1 | 11 | 3 | 0 | 8 |
 ```
 
 Change to:
 ```markdown
+| Phase | Steps | Completed | In Progress | Pending |
+|-------|-------|-----------|-------------|---------|
 | Phase 0.1 | 11 | 4 | 0 | 7 |
 ```
 
@@ -273,11 +297,11 @@ Find step phase-0.1.1:
 #### Step: phase-0.1.1 - Capability System Interfaces
 **Status:** completed
 **Deliverables:**
-- [x] `ICapabilityInterface` marker interface
-- [x] `CapabilityTier` enum (Public, Restricted, Privileged, Forbidden)
-- [x] Public tier interfaces (IUserDirectory, ICurrentUserContext, etc.)
-- [x] Restricted tier interfaces (IStorageProvider, IModuleSettings, ITeamDirectory)
-- [x] Privileged tier interfaces (IUserManager, IBackupProvider)
+- ✓ `ICapabilityInterface` marker interface
+- ✓ `CapabilityTier` enum (Public, Restricted, Privileged, Forbidden)
+- ✓ Public tier interfaces (IUserDirectory, ICurrentUserContext, etc.)
+- ✓ Restricted tier interfaces (IStorageProvider, IModuleSettings, ITeamDirectory)
+- ✓ Privileged tier interfaces (IUserManager, IBackupProvider)
 
 **Notes:** Capability system complete. Foundation for all authorization. Ready for phase-0.1.2.
 ```

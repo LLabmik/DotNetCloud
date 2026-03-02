@@ -32,46 +32,46 @@
 
 **Objective:** Establish the monorepo structure and foundational files
 
-- [x] Initialize Git repository (if not already done)
-- [x] Create `.gitignore` for .NET projects
-- [x] Create solution file: `DotNetCloud.sln`
-- [x] Create project directory structure:
-  - [x] `src/Core/`
-  - [x] `src/Modules/`
-  - [x] `src/UI/`
-  - [x] `src/Clients/`
-  - [x] `tests/`
-  - [x] `tools/`
-  - [x] `docs/`
-- [x] Add LICENSE file (AGPL-3.0)
-- [x] Create comprehensive README.md with project vision
-- [x] Create CONTRIBUTING.md with contribution guidelines
+- ✓ Initialize Git repository (if not already done)
+- ✓ Create `.gitignore` for .NET projects
+- ✓ Create solution file: `DotNetCloud.sln`
+- ✓ Create project directory structure:
+  - ✓ `src/Core/`
+  - ✓ `src/Modules/`
+  - ✓ `src/UI/`
+  - ✓ `src/Clients/`
+  - ✓ `tests/`
+  - ✓ `tools/`
+  - ✓ `docs/`
+- ✓ Add LICENSE file (AGPL-3.0)
+- ✓ Create comprehensive README.md with project vision
+- ✓ Create CONTRIBUTING.md with contribution guidelines
 
 ### Development Environment Setup
 
 **Objective:** Document and configure local development prerequisites
 
-- [x] Document .NET version requirements (.NET 10)
-- [x] Create `global.json` for .NET version pinning
-- [x] Create `.editorconfig` for code style consistency
-- [x] Create `Directory.Build.props` for common project settings
-- [x] Create `Directory.Build.targets` for common build configuration
-- [x] Set up `NuGet.config` for dependency management
-- [x] Document IDE setup for Visual Studio, VS Code, Rider
-- [x] Create local development database setup guide (PostgreSQL, SQL Server, MariaDB)
-- [x] Document Docker setup for local testing
-- [x] Create development workflow guidelines (branch strategy, PR requirements)
+- ✓ Document .NET version requirements (.NET 10)
+- ✓ Create `global.json` for .NET version pinning
+- ✓ Create `.editorconfig` for code style consistency
+- ✓ Create `Directory.Build.props` for common project settings
+- ✓ Create `Directory.Build.targets` for common build configuration
+- ✓ Set up `NuGet.config` for dependency management
+- ✓ Document IDE setup for Visual Studio, VS Code, Rider
+- ✓ Create local development database setup guide (PostgreSQL, SQL Server, MariaDB)
+- ✓ Document Docker setup for local testing
+- ✓ Create development workflow guidelines (branch strategy, PR requirements)
 
 ### Base CI/CD Configuration
 
 **Objective:** Set up initial CI/CD pipelines for build and test
 
-- [ ] Create Gitea Actions workflow file (`.gitea/workflows/build-test.yml`)
-- [ ] Create GitHub Actions workflow file (`.github/workflows/build-test.yml`)
-- [ ] Configure multi-database testing (Docker containers for PostgreSQL, SQL Server, MariaDB)
-- [ ] Set up build artifact generation
-- [ ] Configure package publishing pipeline skeleton
-- [ ] Create status badge documentation
+- ☐ Create Gitea Actions workflow file (`.gitea/workflows/build-test.yml`)
+- ☐ Create GitHub Actions workflow file (`.github/workflows/build-test.yml`)
+- ☐ Configure multi-database testing (Docker containers for PostgreSQL, SQL Server, MariaDB)
+- ☐ Set up build artifact generation
+- ☐ Configure package publishing pipeline skeleton
+- ☐ Create status badge documentation
 
 ---
 
@@ -96,82 +96,82 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 **Create shared abstractions and interfaces layer**
 
 #### Capability System
-- [x] Create `ICapabilityInterface` marker interface
-- [x] Create `CapabilityTier` enum (Public, Restricted, Privileged, Forbidden)
-- [x] Implement public tier interfaces:
-  - [x] `IUserDirectory` - query user information
-  - [x] `ICurrentUserContext` - get current caller context
-  - [x] `INotificationService` - send notifications
-  - [x] `IEventBus` - publish/subscribe to events
-- [x] Implement restricted tier interfaces:
-  - [x] `IStorageProvider` - file storage operations
-  - [x] `IModuleSettings` - module configuration
-  - [x] `ITeamDirectory` - team information
-- [x] Implement privileged tier interfaces:
-  - [x] `IUserManager` - create/disable users
-  - [x] `IBackupProvider` - backup operations
-- [x] Document forbidden interfaces list
+- ✓ Create `ICapabilityInterface` marker interface
+- ✓ Create `CapabilityTier` enum (Public, Restricted, Privileged, Forbidden)
+- ✓ Implement public tier interfaces:
+  - ✓ `IUserDirectory` - query user information
+  - ✓ `ICurrentUserContext` - get current caller context
+  - ✓ `INotificationService` - send notifications
+  - ✓ `IEventBus` - publish/subscribe to events
+- ✓ Implement restricted tier interfaces:
+  - ✓ `IStorageProvider` - file storage operations
+  - ✓ `IModuleSettings` - module configuration
+  - ✓ `ITeamDirectory` - team information
+- ✓ Implement privileged tier interfaces:
+  - ✓ `IUserManager` - create/disable users
+  - ✓ `IBackupProvider` - backup operations
+- ✓ Document forbidden interfaces list
 
 #### Context & Authorization
-- [x] Create `CallerContext` record:
-  - [x] `Guid UserId` property
-  - [x] `IReadOnlyList<string> Roles` property
-  - [x] `CallerType Type` property
-  - [x] Validation logic
-- [x] Create `CallerType` enum (User, System, Module)
-- [x] Create `CapabilityRequest` model with:
-  - [x] Capability name
-  - [x] Required tier
-  - [x] Optional description
+- ✓ Create `CallerContext` record:
+  - ✓ `Guid UserId` property
+  - ✓ `IReadOnlyList<string> Roles` property
+  - ✓ `CallerType Type` property
+  - ✓ Validation logic
+- ✓ Create `CallerType` enum (User, System, Module)
+- ✓ Create `CapabilityRequest` model with:
+  - ✓ Capability name
+  - ✓ Required tier
+  - ✓ Optional description
 
 #### Module System
-- [x] Create `IModuleManifest` interface:
-  - [x] `string Id` property
-  - [x] `string Name` property
-  - [x] `string Version` property
-  - [x] `IReadOnlyCollection<string> RequiredCapabilities` property
-  - [x] `IReadOnlyCollection<string> PublishedEvents` property
-  - [x] `IReadOnlyCollection<string> SubscribedEvents` property
-- [x] Create `IModule` base interface:
-  - [x] `IModuleManifest Manifest` property
-  - [x] `Task InitializeAsync(ModuleInitializationContext context, CancellationToken cancellationToken)` method
-  - [x] `Task StartAsync(CancellationToken cancellationToken)` method
-  - [x] `Task StopAsync(CancellationToken cancellationToken)` method
-- [x] Create `IModuleLifecycle` interface:
-  - [x] Extends `IModule` and `IAsyncDisposable`
-  - [x] `Task DisposeAsync()` method
-- [x] Create `ModuleInitializationContext` record:
-  - [x] `string ModuleId` property
-  - [x] `IServiceProvider Services` property
-  - [x] `IReadOnlyDictionary<string, object> Configuration` property
-  - [x] `CallerContext SystemCaller` property
+- ✓ Create `IModuleManifest` interface:
+  - ✓ `string Id` property
+  - ✓ `string Name` property
+  - ✓ `string Version` property
+  - ✓ `IReadOnlyCollection<string> RequiredCapabilities` property
+  - ✓ `IReadOnlyCollection<string> PublishedEvents` property
+  - ✓ `IReadOnlyCollection<string> SubscribedEvents` property
+- ✓ Create `IModule` base interface:
+  - ✓ `IModuleManifest Manifest` property
+  - ✓ `Task InitializeAsync(ModuleInitializationContext context, CancellationToken cancellationToken)` method
+  - ✓ `Task StartAsync(CancellationToken cancellationToken)` method
+  - ✓ `Task StopAsync(CancellationToken cancellationToken)` method
+- ✓ Create `IModuleLifecycle` interface:
+  - ✓ Extends `IModule` and `IAsyncDisposable`
+  - ✓ `Task DisposeAsync()` method
+- ✓ Create `ModuleInitializationContext` record:
+  - ✓ `string ModuleId` property
+  - ✓ `IServiceProvider Services` property
+  - ✓ `IReadOnlyDictionary<string, object> Configuration` property
+  - ✓ `CallerContext SystemCaller` property
 
 #### Event System
-- [x] Create `IEvent` base interface
-- [x] Create `IEventHandler<TEvent>` interface
-- [x] Create `IEventBus` interface:
-  - [x] `Task PublishAsync<TEvent>(TEvent @event, CallerContext caller)` method
-  - [x] `Task SubscribeAsync<TEvent>(IEventHandler<TEvent> handler)` method
-  - [x] `Task UnsubscribeAsync<TEvent>(IEventHandler<TEvent> handler)` method
-- [x] Create event subscription model
+- ✓ Create `IEvent` base interface
+- ✓ Create `IEventHandler<TEvent>` interface
+- ✓ Create `IEventBus` interface:
+  - ✓ `Task PublishAsync<TEvent>(TEvent @event, CallerContext caller)` method
+  - ✓ `Task SubscribeAsync<TEvent>(IEventHandler<TEvent> handler)` method
+  - ✓ `Task UnsubscribeAsync<TEvent>(IEventHandler<TEvent> handler)` method
+- ✓ Create event subscription model
 
 #### Data Transfer Objects (DTOs)
-- [x] Create user DTOs (UserDto, CreateUserDto, UpdateUserDto)
-- [x] Create organization DTOs
-- [x] Create team DTOs
-- [x] Create permission DTOs
-- [x] Create module DTOs
-- [x] Create device DTOs
-- [x] Create settings DTOs
+- ✓ Create user DTOs (UserDto, CreateUserDto, UpdateUserDto)
+- ✓ Create organization DTOs
+- ✓ Create team DTOs
+- ✓ Create permission DTOs
+- ✓ Create module DTOs
+- ✓ Create device DTOs
+- ✓ Create settings DTOs
 
 #### Error Handling
-- [x] Create error code constants class
-- [x] Define standard exception types:
-  - [x] `CapabilityNotGrantedException`
-  - [x] `ModuleNotFoundException`
-  - [x] `UnauthorizedException`
-  - [x] `ValidationException`
-- [x] Create API error response model
+- ✓ Create error code constants class
+- ✓ Define standard exception types:
+  - ✓ `CapabilityNotGrantedException`
+  - ✓ `ModuleNotFoundException`
+  - ✓ `UnauthorizedException`
+  - ✓ `ValidationException`
+- ✓ Create API error response model
 
 ---
 
@@ -940,36 +940,36 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 
 ### Unit Test Infrastructure
 
-- [x] Create `DotNetCloud.Core.Tests` project
-- [x] Set up MSTest test framework
-- [x] Integrate Moq for mocking
-- [x] Create test fixtures for:
-  - [x] Capability system (CapabilityTier enum tests)
-  - [x] Event bus (IEventBus, IEvent, IEventHandler contracts)
-  - [x] Identity/authorization (CallerContext validation, role checking)
-  - [x] Module system (IModule, IModuleLifecycle, IModuleManifest)
-- [x] Create fake implementations of core interfaces
-- [x] Create test helpers and fixtures (Moq-based)
-- [x] Test coverage: 108 test cases across 6 test classes
+- ✓ Create `DotNetCloud.Core.Tests` project
+- ✓ Set up MSTest test framework
+- ✓ Integrate Moq for mocking
+- ✓ Create test fixtures for:
+  - ✓ Capability system (CapabilityTier enum tests)
+  - ✓ Event bus (IEventBus, IEvent, IEventHandler contracts)
+  - ✓ Identity/authorization (CallerContext validation, role checking)
+  - ✓ Module system (IModule, IModuleLifecycle, IModuleManifest)
+- ✓ Create fake implementations of core interfaces
+- ✓ Create test helpers and fixtures (Moq-based)
+- ✓ Test coverage: 108 test cases across 6 test classes
 
 ### Integration Test Infrastructure
 
-- [ ] Create `DotNetCloud.Integration.Tests` project
-- [ ] Set up Docker for database testing
-- [ ] Create database initialization scripts
-- [ ] Build multi-database test matrix:
-  - [ ] PostgreSQL tests
-  - [ ] SQL Server tests
-  - [ ] MariaDB tests
-- [ ] Create gRPC client test helpers
-- [ ] Build API integration test framework
-- [ ] Create test data builders
+- ☐ Create `DotNetCloud.Integration.Tests` project
+- ☐ Set up Docker for database testing
+- ☐ Create database initialization scripts
+- ☐ Build multi-database test matrix:
+  - ☐ PostgreSQL tests
+  - ☐ SQL Server tests
+  - ☐ MariaDB tests
+- ☐ Create gRPC client test helpers
+- ☐ Build API integration test framework
+- ☐ Create test data builders
 
 ### Test Coverage
 
-- [x] Establish comprehensive unit tests for Phase 0.1 (80%+ coverage)
-- [x] Create coverage reporting framework
-- [ ] Set up CI/CD coverage checks
+- ✓ Establish comprehensive unit tests for Phase 0.1 (80%+ coverage)
+- ✓ Create coverage reporting framework
+- ☐ Set up CI/CD coverage checks
 
 ---
 

@@ -59,14 +59,14 @@ README.md, CONTRIBUTING.md, and copilot instructions file.
 ```
 
 **Tasks:**
-- [x] Initialize Git repository (if not already done)
-- [x] Create `.gitignore` for .NET projects
-- [x] Create solution file: `DotNetCloud.sln`
-- [x] Create directory structure: `src/Core/`, `src/Modules/`, `src/UI/`, `src/Clients/`, `tests/`, `tools/`, `docs/`
-- [x] Add LICENSE file (AGPL-3.0)
-- [x] Create comprehensive README.md with project vision
-- [x] Create CONTRIBUTING.md
-- [x] Add .github/copilot-instructions.md for AI contribution guidelines
+- ✓ Initialize Git repository (if not already done)
+- ✓ Create `.gitignore` for .NET projects
+- ✓ Create solution file: `DotNetCloud.sln`
+- ✓ Create directory structure: `src/Core/`, `src/Modules/`, `src/UI/`, `src/Clients/`, `tests/`, `tools/`, `docs/`
+- ✓ Add LICENSE file (AGPL-3.0)
+- ✓ Create comprehensive README.md with project vision
+- ✓ Create CONTRIBUTING.md
+- ✓ Add .github/copilot-instructions.md for AI contribution guidelines
 
 **Dependencies:** None (starting point)  
 **Blocking Issues:** None  
@@ -87,15 +87,15 @@ Create a sample appsettings.Development.json for local configuration.
 ```
 
 **Tasks:**
-- [x] Install Visual Studio 2022 (or later)
-- [x] Install .NET 10 SDK
-- [x] Install PostgreSQL 14 (or later)
-- [x] Install Docker Desktop
-- [x] Clone the repository
-- [x] Build the solution
-- [x] Install EF Core tools
-- [x] Configure Docker support in Visual Studio
-- [x] Create sample `appsettings.Development.json`
+- ✓ Install Visual Studio 2022 (or later)
+- ✓ Install .NET 10 SDK
+- ✓ Install PostgreSQL 14 (or later)
+- ✓ Install Docker Desktop
+- ✓ Clone the repository
+- ✓ Build the solution
+- ✓ Install EF Core tools
+- ✓ Configure Docker support in Visual Studio
+- ✓ Create sample `appsettings.Development.json`
 
 **Dependencies:** None  
 **Blocking Issues:** None  
@@ -153,12 +153,12 @@ Create a sample appsettings.Development.json for local configuration.
 - Key configuration files
 
 **Tasks Completed:**
-- [x] Create comprehensive IDE setup guide (Visual Studio, VS Code, Rider)
-- [x] Create local development database setup guide (PostgreSQL, SQL Server, MariaDB)
-- [x] Document Docker setup for local testing and multi-database CI/CD
-- [x] Create development workflow guidelines (branching, commits, PRs, code review)
-- [x] Updated IMPLEMENTATION_CHECKLIST.md to mark all Development Environment Setup tasks as completed
-- [x] Updated MASTER_PROJECT_PLAN.md with completion status
+- ✓ Create comprehensive IDE setup guide (Visual Studio, VS Code, Rider)
+- ✓ Create local development database setup guide (PostgreSQL, SQL Server, MariaDB)
+- ✓ Document Docker setup for local testing and multi-database CI/CD
+- ✓ Create development workflow guidelines (branching, commits, PRs, code review)
+- ✓ Updated IMPLEMENTATION_CHECKLIST.md to mark all Development Environment Setup tasks as completed
+- ✓ Updated MASTER_PROJECT_PLAN.md with completion status
 
 **Documentation Location:** `/docs/development/`
 
@@ -174,13 +174,13 @@ Create a sample appsettings.Development.json for local configuration.
 **STATUS:** ✅ COMPLETED (11/11 steps)
 **DURATION:** ~11 hours
 **DELIVERABLES:**
-- [x] Capability system with tier enforcement (ICapabilityInterface, CapabilityTier enum, public/restricted/privileged tier interfaces, forbidden interfaces list)
-- [x] Authorization context and models (CallerContext, CallerType, CapabilityRequest)
-- [x] Module system interfaces (IModuleManifest, IModule, IModuleLifecycle, ModuleInitializationContext)
-- [x] Event system interfaces (IEvent, IEventHandler<T>, IEventBus, EventSubscription model)
-- [x] Complete DTO layer (User, Organization, Team, Permission, Role, Module, Device, Settings DTOs)
-- [x] Standardized error handling (ErrorCodes constants, exception hierarchy, API error response models)
-- [x] Foundation for all subsequent phases established
+- ✓ Capability system with tier enforcement (ICapabilityInterface, CapabilityTier enum, public/restricted/privileged tier interfaces, forbidden interfaces list)
+- ✓ Authorization context and models (CallerContext, CallerType, CapabilityRequest)
+- ✓ Module system interfaces (IModuleManifest, IModule, IModuleLifecycle, ModuleInitializationContext)
+- ✓ Event system interfaces (IEvent, IEventHandler<T>, IEventBus, EventSubscription model)
+- ✓ Complete DTO layer (User, Organization, Team, Permission, Role, Module, Device, Settings DTOs)
+- ✓ Standardized error handling (ErrorCodes constants, exception hierarchy, API error response models)
+- ✓ Foundation for all subsequent phases established
 
 ---
 
@@ -199,20 +199,20 @@ Include XML documentation for all types. Location: src/Core/DotNetCloud.Core/Cap
 ```
 
 **Deliverables:**
-- [x] `ICapabilityInterface` marker interface
-- [x] `CapabilityTier` enum (Public, Restricted, Privileged, Forbidden)
-- [x] Public tier interfaces:
-  - [x] `IUserDirectory`
-  - [x] `ICurrentUserContext`
-  - [x] `INotificationService`
-  - [x] `IEventBus`
-- [x] Restricted tier interfaces:
-  - [x] `IStorageProvider`
-  - [x] `IModuleSettings`
-  - [x] `ITeamDirectory`
-- [x] Privileged tier interfaces:
-  - [x] `IUserManager`
-  - [x] `IBackupProvider`
+- ✓ `ICapabilityInterface` marker interface
+- ✓ `CapabilityTier` enum (Public, Restricted, Privileged, Forbidden)
+- ✓ Public tier interfaces:
+  - ✓ `IUserDirectory`
+  - ✓ `ICurrentUserContext`
+  - ✓ `INotificationService`
+  - ✓ `IEventBus`
+- ✓ Restricted tier interfaces:
+  - ✓ `IStorageProvider`
+  - ✓ `IModuleSettings`
+  - ✓ `ITeamDirectory`
+- ✓ Privileged tier interfaces:
+  - ✓ `IUserManager`
+  - ✓ `IBackupProvider`
 
 **File Location:** `src/Core/DotNetCloud.Core/Capabilities/`  
 **Dependencies:** None  
@@ -235,13 +235,13 @@ Location: src/Core/DotNetCloud.Core/Authorization/
 ```
 
 **Deliverables:**
-- [x] `CallerContext` record with:
-  - [x] `Guid UserId` property
-  - [x] `IReadOnlyList<string> Roles` property
-  - [x] `CallerType Type` property
-  - [x] Validation logic
-- [x] `CallerType` enum (User, System, Module)
-- [x] `CapabilityRequest` model with capability name, required tier, optional description
+- ✓ `CallerContext` record with:
+  - ✓ `Guid UserId` property
+  - ✓ `IReadOnlyList<string> Roles` property
+  - ✓ `CallerType Type` property
+  - ✓ Validation logic
+- ✓ `CallerType` enum (User, System, Module)
+- ✓ `CapabilityRequest` model with capability name, required tier, optional description
 
 **File Location:** `src/Core/DotNetCloud.Core/Authorization/`  
 **Dependencies:** phase-0.1.1  
@@ -256,10 +256,10 @@ Location: src/Core/DotNetCloud.Core/Authorization/
 **Description:** Create IModuleManifest and IModule interfaces
 
 **Deliverables:**
-- [x] `IModuleManifest` interface with properties: Id, Name, Version, RequiredCapabilities, PublishedEvents, SubscribedEvents
-- [x] `IModule` base interface with: Manifest property, InitializeAsync(), StartAsync(), StopAsync()
-- [x] `IModuleLifecycle` interface with: InitializeAsync(), StartAsync(), StopAsync(), DisposeAsync()
-- [x] Module initialization context (ModuleInitializationContext record)
+- ✓ `IModuleManifest` interface with properties: Id, Name, Version, RequiredCapabilities, PublishedEvents, SubscribedEvents
+- ✓ `IModule` base interface with: Manifest property, InitializeAsync(), StartAsync(), StopAsync()
+- ✓ `IModuleLifecycle` interface with: InitializeAsync(), StartAsync(), StopAsync(), DisposeAsync()
+- ✓ Module initialization context (ModuleInitializationContext record)
 
 **File Location:** `src/Core/DotNetCloud.Core/Modules/`  
 **Dependencies:** phase-0.1.1 (capability system)  
@@ -269,7 +269,7 @@ Location: src/Core/DotNetCloud.Core/Authorization/
 ---
 
 #### Step: phase-0.1.4 - Event System Interfaces
-**Status:** pending  
+**Status:** completed
 **Duration:** ~1.5 hours  
 **Description:** Create IEvent, IEventHandler, and IEventBus interfaces
 
@@ -283,10 +283,10 @@ Location: src/Core/DotNetCloud.Core/Events/
 ```
 
 **Deliverables:**
-- [ ] `IEvent` base interface
-- [ ] `IEventHandler<TEvent>` interface with `Task HandleAsync(TEvent @event)` method
-- [ ] `IEventBus` interface with: PublishAsync, SubscribeAsync, UnsubscribeAsync
-- [ ] Event subscription model
+- ✓ `IEvent` base interface
+- ✓ `IEventHandler<TEvent>` interface with `Task HandleAsync(TEvent @event)` method
+- ✓ `IEventBus` interface with: PublishAsync, SubscribeAsync, UnsubscribeAsync
+- ✓ Event subscription model
 
 **File Location:** `src/Core/DotNetCloud.Core/Events/`  
 **Dependencies:** phase-0.1.1 (for capability-aware event filtering)  
@@ -310,13 +310,13 @@ Location: src/Core/DotNetCloud.Core/DTOs/
 ```
 
 **Deliverables:**
-- [x] User DTOs: UserDto, CreateUserDto, UpdateUserDto
-- [x] Organization DTOs: OrganizationDto, CreateOrganizationDto, UpdateOrganizationDto
-- [x] Team DTOs: TeamDto, CreateTeamDto, UpdateTeamDto, TeamMemberDto, AddTeamMemberDto
-- [x] Permission DTOs: PermissionDto, CreatePermissionDto, RoleDto, CreateRoleDto, UpdateRoleDto
-- [x] Module DTOs: ModuleDto, CreateModuleDto, ModuleCapabilityGrantDto, GrantModuleCapabilityDto
-- [x] Device DTOs: UserDeviceDto, RegisterUserDeviceDto, UpdateUserDeviceDto
-- [x] Settings DTOs: SystemSettingDto, OrganizationSettingDto, UserSettingDto, UpsertSystemSettingDto, UpsertOrganizationSettingDto, UpsertUserSettingDto, SettingsBulkDto
+- ✓ User DTOs: UserDto, CreateUserDto, UpdateUserDto
+- ✓ Organization DTOs: OrganizationDto, CreateOrganizationDto, UpdateOrganizationDto
+- ✓ Team DTOs: TeamDto, CreateTeamDto, UpdateTeamDto, TeamMemberDto, AddTeamMemberDto
+- ✓ Permission DTOs: PermissionDto, CreatePermissionDto, RoleDto, CreateRoleDto, UpdateRoleDto
+- ✓ Module DTOs: ModuleDto, CreateModuleDto, ModuleCapabilityGrantDto, GrantModuleCapabilityDto
+- ✓ Device DTOs: UserDeviceDto, RegisterUserDeviceDto, UpdateUserDeviceDto
+- ✓ Settings DTOs: SystemSettingDto, OrganizationSettingDto, UserSettingDto, UpsertSystemSettingDto, UpsertOrganizationSettingDto, UpsertUserSettingDto, SettingsBulkDto
 
 **File Location:** `src/Core/DotNetCloud.Core/DTOs/`  
 **Dependencies:** None  
@@ -340,19 +340,19 @@ Location: src/Core/DotNetCloud.Core/Errors/
 ```
 
 **Deliverables:**
-- [x] Error code constants class (70+ error codes)
-- [x] Exception types:
-  - [x] `CapabilityNotGrantedException`
-  - [x] `ModuleNotFoundException`
-  - [x] `UnauthorizedException`
-  - [x] `ValidationException`
-  - [x] `ForbiddenException`
-  - [x] `NotFoundException`
-  - [x] `ConcurrencyException`
-  - [x] `InvalidOperationException`
-- [x] `ApiErrorResponse` model with code, message, details, path, timestamp, traceId
-- [x] `ApiSuccessResponse<T>` generic model with data and pagination support
-- [x] `PaginationInfo` model for paginated responses
+- ✓ Error code constants class (70+ error codes)
+- ✓ Exception types:
+  - ✓ `CapabilityNotGrantedException`
+  - ✓ `ModuleNotFoundException`
+  - ✓ `UnauthorizedException`
+  - ✓ `ValidationException`
+  - ✓ `ForbiddenException`
+  - ✓ `NotFoundException`
+  - ✓ `ConcurrencyException`
+  - ✓ `InvalidOperationException`
+- ✓ `ApiErrorResponse` model with code, message, details, path, timestamp, traceId
+- ✓ `ApiSuccessResponse<T>` generic model with data and pagination support
+- ✓ `PaginationInfo` model for paginated responses
 
 **File Location:** `src/Core/DotNetCloud.Core/Errors/`  
 **Dependencies:** None  
@@ -362,7 +362,7 @@ Location: src/Core/DotNetCloud.Core/Errors/
 ---
 
 #### Step: phase-0.1.7 - Core Abstractions Unit Tests
-**Status:** pending  
+**Status:** completed
 **Duration:** ~2 hours  
 **Description:** Create comprehensive unit test suite for all Phase 0.1 interfaces
 
@@ -375,11 +375,11 @@ Location: tests/DotNetCloud.Core.Tests/
 ```
 
 **Deliverables:**
-- [ ] Capability system tests
-- [ ] CallerContext validation tests
-- [ ] Module manifest validation tests
-- [ ] Event bus interface contract tests
-- [ ] Exception creation tests
+- ✓ Capability system tests
+- ✓ CallerContext validation tests
+- ✓ Module manifest validation tests
+- ✓ Event bus interface contract tests
+- ✓ Exception creation tests
 
 **File Location:** `tests/DotNetCloud.Core.Tests/`  
 **Dependencies:** phase-0.1.1 through phase-0.1.6  
@@ -402,11 +402,11 @@ public types. Create README for src/Core/DotNetCloud.Core/
 ```
 
 **Deliverables:**
-- [ ] Capability system design document (how tiers work, examples)
-- [ ] Module system design document (lifecycle, manifest)
-- [ ] Event system design document (pub/sub patterns)
-- [ ] XML documentation comments on all public types
-- [ ] README for Core abstractions
+- ☐ Capability system design document (how tiers work, examples)
+- ☐ Module system design document (lifecycle, manifest)
+- ☐ Event system design document (pub/sub patterns)
+- ☐ XML documentation comments on all public types
+- ☐ README for Core abstractions
 
 **File Location:** `docs/architecture/core-abstractions.md` and inline `///` comments  
 **Dependencies:** phase-0.1.1 through phase-0.1.6  
@@ -432,12 +432,12 @@ Location: src/Core/DotNetCloud.Core.Data/Strategies/
 ```
 
 **Deliverables:**
-- [ ] `IDbContextFactory<CoreDbContext>` abstraction
-- [ ] `ITableNamingStrategy` interface
-- [ ] `PostgreSqlNamingStrategy` (schemas: `core.*`, `files.*`)
-- [ ] `SqlServerNamingStrategy` (schemas)
-- [ ] `MariaDbNamingStrategy` (table prefixes)
-- [ ] Provider detection logic from connection string
+- ☐ `IDbContextFactory<CoreDbContext>` abstraction
+- ☐ `ITableNamingStrategy` interface
+- ☐ `PostgreSqlNamingStrategy` (schemas: `core.*`, `files.*`)
+- ☐ `SqlServerNamingStrategy` (schemas)
+- ☐ `MariaDbNamingStrategy` (table prefixes)
+- ☐ Provider detection logic from connection string
 
 **File Location:** `src/Core/DotNetCloud.Core.Data/Strategies/`  
 **Dependencies:** None  
@@ -461,12 +461,12 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Identity/
 ```
 
 **Deliverables:**
-- [ ] `ApplicationUser` entity extending `IdentityUser<Guid>`:
-  - [ ] DisplayName, AvatarUrl, Locale, Timezone properties
-  - [ ] CreatedAt, LastLoginAt, IsActive properties
-- [ ] `ApplicationRole` entity extending `IdentityRole<Guid>`:
-  - [ ] Description, IsSystemRole properties
-- [ ] Identity relationship configuration
+- ☐ `ApplicationUser` entity extending `IdentityUser<Guid>`:
+  - ☐ DisplayName, AvatarUrl, Locale, Timezone properties
+  - ☐ CreatedAt, LastLoginAt, IsActive properties
+- ☐ `ApplicationRole` entity extending `IdentityRole<Guid>`:
+  - ☐ Description, IsSystemRole properties
+- ☐ Identity relationship configuration
 
 **File Location:** `src/Core/DotNetCloud.Core.Data/Entities/Identity/`  
 **Dependencies:** phase-0.2.1 (naming strategy)  
@@ -491,12 +491,12 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Organizations/
 ```
 
 **Deliverables:**
-- [ ] `Organization` entity (Name, Description, CreatedAt, soft-delete)
-- [ ] `Team` entity (OrganizationId FK, Name, soft-delete)
-- [ ] `TeamMember` entity (TeamId, UserId, RoleIds)
-- [ ] `Group` entity (OrganizationId, Name)
-- [ ] `GroupMember` entity (GroupId, UserId)
-- [ ] `OrganizationMember` entity (OrganizationId, UserId, RoleIds)
+- ☐ `Organization` entity (Name, Description, CreatedAt, soft-delete)
+- ☐ `Team` entity (OrganizationId FK, Name, soft-delete)
+- ☐ `TeamMember` entity (TeamId, UserId, RoleIds)
+- ☐ `Group` entity (OrganizationId, Name)
+- ☐ `GroupMember` entity (GroupId, UserId)
+- ☐ `OrganizationMember` entity (OrganizationId, UserId, RoleIds)
 
 **File Location:** `src/Core/DotNetCloud.Core.Data/Entities/Organizations/`  
 **Dependencies:** phase-0.2.2 (ApplicationUser)  
@@ -520,9 +520,9 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Permissions/
 ```
 
 **Deliverables:**
-- [ ] `Permission` entity (Code, DisplayName, Description)
-- [ ] `Role` entity (Name, Description, IsSystemRole, Permissions navigation)
-- [ ] `RolePermission` junction table
+- ☐ `Permission` entity (Code, DisplayName, Description)
+- ☐ `Role` entity (Name, Description, IsSystemRole, Permissions navigation)
+- ☐ `RolePermission` junction table
 
 **File Location:** `src/Core/DotNetCloud.Core.Data/Entities/Permissions/`  
 **Dependencies:** phase-0.2.3 (Organization hierarchy)  
@@ -546,9 +546,9 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Settings/
 ```
 
 **Deliverables:**
-- [ ] `SystemSetting` entity (Key, Value, Module, composite key)
-- [ ] `OrganizationSetting` entity (OrganizationId, Key, Value, Module)
-- [ ] `UserSetting` entity (UserId, Key, Value encrypted, Module)
+- ☐ `SystemSetting` entity (Key, Value, Module, composite key)
+- ☐ `OrganizationSetting` entity (OrganizationId, Key, Value, Module)
+- ☐ `UserSetting` entity (UserId, Key, Value encrypted, Module)
 
 **File Location:** `src/Core/DotNetCloud.Core.Data/Entities/Settings/`  
 **Dependencies:** phase-0.2.2, phase-0.2.3  
@@ -572,9 +572,9 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ```
 
 **Deliverables:**
-- [ ] `UserDevice` entity (UserId, Name, DeviceType, PushToken, LastSeenAt)
-- [ ] `InstalledModule` entity (ModuleId PK, Version, Status, InstalledAt)
-- [ ] `ModuleCapabilityGrant` entity (ModuleId, CapabilityName, GrantedAt, GrantedByUserId)
+- ☐ `UserDevice` entity (UserId, Name, DeviceType, PushToken, LastSeenAt)
+- ☐ `InstalledModule` entity (ModuleId PK, Version, Status, InstalledAt)
+- ☐ `ModuleCapabilityGrant` entity (ModuleId, CapabilityName, GrantedAt, GrantedByUserId)
 
 **File Location:** `src/Core/DotNetCloud.Core.Data/Entities/Modules/`  
 **Dependencies:** phase-0.2.2, phase-0.2.4  
@@ -599,12 +599,12 @@ Location: src/Core/DotNetCloud.Core.Data/CoreDbContext.cs
 ```
 
 **Deliverables:**
-- [ ] `CoreDbContext` class extending `IdentityDbContext<ApplicationUser, ApplicationRole, Guid>`
-- [ ] DbSet properties for all entities
-- [ ] Fluent API configuration for all relationships
-- [ ] Automatic timestamps (CreatedAt, UpdatedAt)
-- [ ] Soft-delete query filters
-- [ ] Table naming strategy application
+- ☐ `CoreDbContext` class extending `IdentityDbContext<ApplicationUser, ApplicationRole, Guid>`
+- ☐ DbSet properties for all entities
+- ☐ Fluent API configuration for all relationships
+- ☐ Automatic timestamps (CreatedAt, UpdatedAt)
+- ☐ Soft-delete query filters
+- ☐ Table naming strategy application
 
 **File Location:** `src/Core/DotNetCloud.Core.Data/CoreDbContext.cs`  
 **Dependencies:** phase-0.2.2 through phase-0.2.6  
@@ -628,10 +628,10 @@ Location: src/Core/DotNetCloud.Core.Data/DbInitializer.cs
 ```
 
 **Deliverables:**
-- [ ] Database creation logic
-- [ ] Seed default system roles (Admin, User, Guest, etc.)
-- [ ] Seed default permissions (for all modules)
-- [ ] Seed system settings (default config values)
+- ☐ Database creation logic
+- ☐ Seed default system roles (Admin, User, Guest, etc.)
+- ☐ Seed default permissions (for all modules)
+- ☐ Seed system settings (default config values)
 
 **File Location:** `src/Core/DotNetCloud.Core.Data/DbInitializer.cs`  
 **Dependencies:** phase-0.2.7 (CoreDbContext)  
@@ -654,10 +654,10 @@ Location: src/Core/DotNetCloud.Core.Data/Migrations/PostgreSQL/
 ```
 
 **Deliverables:**
-- [ ] Initial migration file
-- [ ] Schema creation (core.*, files.*, etc.)
-- [ ] Index creation
-- [ ] Constraint definitions
+- ☐ Initial migration file
+- ☐ Schema creation (core.*, files.*, etc.)
+- ☐ Index creation
+- ☐ Constraint definitions
 
 **File Location:** `src/Core/DotNetCloud.Core.Data/Migrations/PostgreSQL/`  
 **Dependencies:** phase-0.2.7, phase-0.2.8  
@@ -680,10 +680,10 @@ Location: src/Core/DotNetCloud.Core.Data/Migrations/SqlServer/
 ```
 
 **Deliverables:**
-- [ ] Initial migration file
-- [ ] Schema creation
-- [ ] Index creation
-- [ ] Constraint definitions
+- ☐ Initial migration file
+- ☐ Schema creation
+- ☐ Index creation
+- ☐ Constraint definitions
 
 **File Location:** `src/Core/DotNetCloud.Core.Data/Migrations/SqlServer/`  
 **Dependencies:** phase-0.2.7, phase-0.2.8  
@@ -706,10 +706,10 @@ Location: src/Core/DotNetCloud.Core.Data/Migrations/MariaDB/
 ```
 
 **Deliverables:**
-- [ ] Initial migration file
-- [ ] Table prefix naming applied
-- [ ] Index creation
-- [ ] Constraint definitions
+- ☐ Initial migration file
+- ☐ Table prefix naming applied
+- ☐ Index creation
+- ☐ Constraint definitions
 
 **File Location:** `src/Core/DotNetCloud.Core.Data/Migrations/MariaDB/`  
 **Dependencies:** phase-0.2.7, phase-0.2.8  
@@ -733,11 +733,11 @@ Location: tests/DotNetCloud.Core.Data.Tests/
 ```
 
 **Deliverables:**
-- [ ] Entity relationship tests
-- [ ] Soft-delete tests
-- [ ] Query filter tests
-- [ ] Migration integration tests (all 3 databases)
-- [ ] DbInitializer tests
+- ☐ Entity relationship tests
+- ☐ Soft-delete tests
+- ☐ Query filter tests
+- ☐ Migration integration tests (all 3 databases)
+- ☐ DbInitializer tests
 
 **File Location:** `tests/DotNetCloud.Core.Data.Tests/`  
 **Dependencies:** phase-0.2.9, phase-0.2.10, phase-0.2.11  
@@ -763,11 +763,11 @@ Location: src/Core/DotNetCloud.Core.ServiceDefaults/Logging/
 ```
 
 **Deliverables:**
-- [ ] Console sink configuration (development)
-- [ ] File sink configuration (production with rotation)
-- [ ] Structured logging format
-- [ ] Log level configuration per module
-- [ ] Log context enrichment (user ID, request ID, module name)
+- ☐ Console sink configuration (development)
+- ☐ File sink configuration (production with rotation)
+- ☐ Structured logging format
+- ☐ Log level configuration per module
+- ☐ Log context enrichment (user ID, request ID, module name)
 
 **File Location:** `src/Core/DotNetCloud.Core.ServiceDefaults/Logging/`  
 **Dependencies:** None  
@@ -791,11 +791,11 @@ Location: src/Core/DotNetCloud.Core.ServiceDefaults/HealthChecks/
 ```
 
 **Deliverables:**
-- [ ] Health check infrastructure base classes
-- [ ] Database health check implementation
-- [ ] Custom health check interface for modules
-- [ ] Health check endpoints setup
-- [ ] Health status aggregation
+- ☐ Health check infrastructure base classes
+- ☐ Database health check implementation
+- ☐ Custom health check interface for modules
+- ☐ Health check endpoints setup
+- ☐ Health status aggregation
 
 **File Location:** `src/Core/DotNetCloud.Core.ServiceDefaults/HealthChecks/`  
 **Dependencies:** None  
@@ -819,11 +819,11 @@ Location: src/Core/DotNetCloud.Core.ServiceDefaults/Telemetry/
 ```
 
 **Deliverables:**
-- [ ] Metrics configuration (HTTP, gRPC, database)
-- [ ] W3C Trace Context propagation
-- [ ] gRPC interceptor for tracing
-- [ ] HTTP middleware for tracing
-- [ ] Trace exporter configuration
+- ☐ Metrics configuration (HTTP, gRPC, database)
+- ☐ W3C Trace Context propagation
+- ☐ gRPC interceptor for tracing
+- ☐ HTTP middleware for tracing
+- ☐ Trace exporter configuration
 
 **File Location:** `src/Core/DotNetCloud.Core.ServiceDefaults/Telemetry/`  
 **Dependencies:** Serilog (phase-0.3.1)  
@@ -847,13 +847,13 @@ Location: src/Core/DotNetCloud.Core.ServiceDefaults/Security/
 ```
 
 **Deliverables:**
-- [ ] CORS configuration with origin whitelist
-- [ ] Security headers middleware:
-  - [ ] Content-Security-Policy
-  - [ ] X-Frame-Options
-  - [ ] X-Content-Type-Options
-  - [ ] Strict-Transport-Security
-- [ ] Authorization/authentication middleware
+- ☐ CORS configuration with origin whitelist
+- ☐ Security headers middleware:
+  - ☐ Content-Security-Policy
+  - ☐ X-Frame-Options
+  - ☐ X-Content-Type-Options
+  - ☐ Strict-Transport-Security
+- ☐ Authorization/authentication middleware
 
 **File Location:** `src/Core/DotNetCloud.Core.ServiceDefaults/Security/`  
 **Dependencies:** None  
@@ -876,11 +876,11 @@ Location: src/Core/DotNetCloud.Core.ServiceDefaults/Middleware/
 ```
 
 **Deliverables:**
-- [ ] Global exception handler middleware
-- [ ] Consistent error response formatting
-- [ ] Request validation error handling
-- [ ] Stack trace handling (dev vs. production)
-- [ ] Error logging integration
+- ☐ Global exception handler middleware
+- ☐ Consistent error response formatting
+- ☐ Request validation error handling
+- ☐ Stack trace handling (dev vs. production)
+- ☐ Error logging integration
 
 **File Location:** `src/Core/DotNetCloud.Core.ServiceDefaults/Middleware/`  
 **Dependencies:** Logging (phase-0.3.1)  
@@ -903,10 +903,10 @@ Location: src/Core/DotNetCloud.Core.ServiceDefaults/Middleware/
 ```
 
 **Deliverables:**
-- [ ] Request body logging
-- [ ] Response body logging
-- [ ] PII/sensitive data masking
-- [ ] Request/response timing
+- ☐ Request body logging
+- ☐ Response body logging
+- ☐ PII/sensitive data masking
+- ☐ Request/response timing
 
 **File Location:** `src/Core/DotNetCloud.Core.ServiceDefaults/Middleware/`  
 **Dependencies:** Logging (phase-0.3.1)  
@@ -930,9 +930,9 @@ Location: src/Core/DotNetCloud.Core.ServiceDefaults/ServiceCollectionExtensions.
 ```
 
 **Deliverables:**
-- [ ] `AddServiceDefaults()` extension method
-- [ ] `UseServiceDefaults()` extension method
-- [ ] Feature flag for middleware enablement
+- ☐ `AddServiceDefaults()` extension method
+- ☐ `UseServiceDefaults()` extension method
+- ☐ Feature flag for middleware enablement
 
 **File Location:** `src/Core/DotNetCloud.Core.ServiceDefaults/ServiceCollectionExtensions.cs`  
 **Dependencies:** phase-0.3.1 through phase-0.3.6  
@@ -955,11 +955,11 @@ Location: tests/DotNetCloud.Core.ServiceDefaults.Tests/
 ```
 
 **Deliverables:**
-- [ ] Logging configuration tests
-- [ ] Health check format tests
-- [ ] Telemetry emission tests
-- [ ] Security header tests
-- [ ] Exception handling tests
+- ☐ Logging configuration tests
+- ☐ Health check format tests
+- ☐ Telemetry emission tests
+- ☐ Security header tests
+- ☐ Exception handling tests
 
 **File Location:** `tests/DotNetCloud.Core.ServiceDefaults.Tests/`  
 **Dependencies:** phase-0.3.1 through phase-0.3.7  
