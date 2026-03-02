@@ -187,12 +187,12 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 **Create EF Core database abstraction and models**
 
 #### Multi-Provider Support
-- [ ] Create `IDbContextFactory<CoreDbContext>` abstraction
-- [ ] Create `ITableNamingStrategy` interface for schema/prefix handling
-- [ ] Implement `PostgreSqlNamingStrategy` (use schemas: `core.*`, `files.*`, etc.)
-- [ ] Implement `SqlServerNamingStrategy` (use schemas)
-- [ ] Implement `MariaDbNamingStrategy` (use table prefixes)
-- [ ] Create provider detection logic based on connection string
+- ✓ Create `IDbContextFactory<CoreDbContext>` abstraction
+- ✓ Create `ITableNamingStrategy` interface for schema/prefix handling
+- ✓ Implement `PostgreSqlNamingStrategy` (use schemas: `core.*`, `files.*`, etc.)
+- ✓ Implement `SqlServerNamingStrategy` (use schemas)
+- ✓ Implement `MariaDbNamingStrategy` (use table prefixes)
+- ✓ Create provider detection logic based on connection string
 
 #### CoreDbContext & Models
 
