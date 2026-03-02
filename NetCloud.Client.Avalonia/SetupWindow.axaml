@@ -1,9 +1,0 @@
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="NetCloud.Client.Avalonia.SetupWindow"
-        Title="Setup">
-    <StackPanel Margin="20">
-        <TextBlock Text="Setup Window" FontSize="24" HorizontalAlignment="Center" Margin="0,0,0,20"/>
-        <!-- Add setup controls here -->
-    </StackPanel>
-</Window>
