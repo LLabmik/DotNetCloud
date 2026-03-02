@@ -18,7 +18,7 @@
 |-------|-------|-----------|-------------|---------|
 | Pre-Implementation | 2 | 2 | 0 | 0 |
 | Phase 0.1 | 11 | 10 | 0 | 1 |
-| Phase 0.2 | 12 | 2 | 0 | 10 |
+| Phase 0.2 | 12 | 3 | 0 | 9 |
 | Phase 0.3 | 8 | 0 | 0 | 8 |
 | Phase 0.4 | 20 | 0 | 0 | 20 |
 | Phase 0.5 | 9 | 9 | 0 | 0 |
@@ -537,7 +537,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Identity/
 ---
 
 #### Step: phase-0.2.3 - Organization Hierarchy Models
-**Status:** pending  
+**Status:** completed ✅
 **Duration:** ~2.5 hours  
 **Description:** Create Organization, Team, and related hierarchy entities
 
@@ -552,17 +552,74 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Organizations/
 ```
 
 **Deliverables:**
-- ☐ `Organization` entity (Name, Description, CreatedAt, soft-delete)
-- ☐ `Team` entity (OrganizationId FK, Name, soft-delete)
-- ☐ `TeamMember` entity (TeamId, UserId, RoleIds)
-- ☐ `Group` entity (OrganizationId, Name)
-- ☐ `GroupMember` entity (GroupId, UserId)
-- ☐ `OrganizationMember` entity (OrganizationId, UserId, RoleIds)
+- ✓ `Organization` entity with:
+  - ✓ Name, Description, CreatedAt properties
+  - ✓ Soft-delete support (IsDeleted, DeletedAt)
+  - ✓ Navigation properties for Teams, Groups, Members, Settings
+  - ✓ Comprehensive XML documentation
+- ✓ `Team` entity with:
+  - ✓ OrganizationId FK
+  - ✓ Name, Description, CreatedAt properties
+  - ✓ Soft-delete support
+  - ✓ Navigation properties for Organization and Members
+- ✓ `TeamMember` entity with:
+  - ✓ Composite key (TeamId, UserId)
+  - ✓ RoleIds collection for team-scoped roles (JSON serialized)
+  - ✓ JoinedAt timestamp
+  - ✓ Navigation properties for Team and User
+- ✓ `Group` entity with:
+  - ✓ OrganizationId FK
+  - ✓ Name, Description, CreatedAt properties
+  - ✓ Soft-delete support
+  - ✓ Navigation properties for Organization and Members
+- ✓ `GroupMember` entity with:
+  - ✓ Composite key (GroupId, UserId)
+  - ✓ AddedAt timestamp
+  - ✓ AddedByUserId for audit tracking
+  - ✓ Navigation properties for Group, User, and AddedByUser
+- ✓ `OrganizationMember` entity with:
+  - ✓ Composite key (OrganizationId, UserId)
+  - ✓ RoleIds collection for org-scoped roles (JSON serialized)
+  - ✓ JoinedAt timestamp
+  - ✓ InvitedByUserId for audit tracking
+  - ✓ IsActive flag
+  - ✓ Navigation properties for Organization, User, and InvitedByUser
+- ✓ EF Core fluent API configurations for all entities:
+  - ✓ OrganizationConfiguration with soft-delete query filter
+  - ✓ TeamConfiguration with soft-delete query filter
+  - ✓ TeamMemberConfiguration with JSON serialization for RoleIds
+  - ✓ GroupConfiguration with soft-delete query filter
+  - ✓ GroupMemberConfiguration
+  - ✓ OrganizationMemberConfiguration with JSON serialization for RoleIds
+  - ✓ All indexes, constraints, and relationships properly configured
+- ✓ CoreDbContext updated with 6 new DbSets
+- ✓ Comprehensive unit tests (67 tests passing):
+  - ✓ OrganizationTests (10 tests)
+  - ✓ TeamTests (10 tests)
+  - ✓ TeamMemberTests (11 tests)
+  - ✓ GroupTests (12 tests)
+  - ✓ GroupMemberTests (12 tests)
+  - ✓ OrganizationMemberTests (12 tests)
 
-**File Location:** `src/Core/DotNetCloud.Core.Data/Entities/Organizations/`  
-**Dependencies:** phase-0.2.2 (ApplicationUser)  
-**Testing:** Entity relationship tests  
-**Notes:** Supports hierarchical permission structure
+**Quality Metrics:**
+- All entities have comprehensive XML documentation
+- All navigation properties properly configured
+- Composite keys correctly defined
+- Soft-delete query filters applied
+- JSON serialization for RoleIds collections
+- Build passes with no errors
+- All 67 unit tests passing
+- Follows established naming conventions
+
+**File Locations:**
+- `src/Core/DotNetCloud.Core.Data/Entities/Organizations/*.cs` (6 entity files)
+- `src/Core/DotNetCloud.Core.Data/Configuration/Organizations/*.cs` (6 configuration files)
+- `tests/DotNetCloud.Core.Data.Tests/Entities/Organizations/*.cs` (6 test files)
+
+**Dependencies:** phase-0.2.2 (ApplicationUser) ✅  
+**Testing:** ✅ All entity relationship tests passing (67/67)  
+**Build Status:** ✅ Solution builds successfully  
+**Notes:** Organization hierarchy complete with comprehensive three-tier role system (organization-scoped, team-scoped, and group-based permissions). Supports multi-tenancy, soft-deletion, and full audit tracking. Ready for phase-0.2.4 (Permissions System Models).
 
 ---
 

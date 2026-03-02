@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Identity;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Data.Entities.Identity;
 using DotNetCloud.Core.Data.Configuration.Identity;
+using DotNetCloud.Core.Data.Entities.Organizations;
+using DotNetCloud.Core.Data.Configuration.Organizations;
 
 namespace DotNetCloud.Core.Data.Context;
 
@@ -32,6 +34,37 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     /// Gets the naming strategy used by this context.
     /// </summary>
     public ITableNamingStrategy NamingStrategy => _namingStrategy;
+
+    // Organization Hierarchy DbSets
+    /// <summary>
+    /// Gets or sets the Organizations DbSet.
+    /// </summary>
+    public DbSet<Organization> Organizations => Set<Organization>();
+
+    /// <summary>
+    /// Gets or sets the Teams DbSet.
+    /// </summary>
+    public DbSet<Team> Teams => Set<Team>();
+
+    /// <summary>
+    /// Gets or sets the TeamMembers DbSet.
+    /// </summary>
+    public DbSet<TeamMember> TeamMembers => Set<TeamMember>();
+
+    /// <summary>
+    /// Gets or sets the Groups DbSet.
+    /// </summary>
+    public DbSet<Group> Groups => Set<Group>();
+
+    /// <summary>
+    /// Gets or sets the GroupMembers DbSet.
+    /// </summary>
+    public DbSet<GroupMember> GroupMembers => Set<GroupMember>();
+
+    /// <summary>
+    /// Gets or sets the OrganizationMembers DbSet.
+    /// </summary>
+    public DbSet<OrganizationMember> OrganizationMembers => Set<OrganizationMember>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -103,8 +136,13 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     /// </summary>
     private void ConfigureOrganizationModels(ModelBuilder modelBuilder)
     {
-        // Placeholder for Organization model configuration
-        // Will be implemented when Organization entities are created
+        // Apply configurations for all organization entities
+        modelBuilder.ApplyConfiguration(new OrganizationConfiguration());
+        modelBuilder.ApplyConfiguration(new TeamConfiguration());
+        modelBuilder.ApplyConfiguration(new TeamMemberConfiguration());
+        modelBuilder.ApplyConfiguration(new GroupConfiguration());
+        modelBuilder.ApplyConfiguration(new GroupMemberConfiguration());
+        modelBuilder.ApplyConfiguration(new OrganizationMemberConfiguration());
     }
 
     /// <summary>

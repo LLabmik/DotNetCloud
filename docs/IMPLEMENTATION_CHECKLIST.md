@@ -211,29 +211,29 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Configure Identity relationships (IdentityUserClaim, IdentityUserRole, etc.)
 
 **Organization Hierarchy Models**
-- [ ] Create `Organization` entity:
-  - [ ] `string Name` property
-  - [ ] `string? Description` property
-  - [ ] `DateTime CreatedAt` property
-  - [ ] Soft-delete support (IsDeleted, DeletedAt)
-- [ ] Create `Team` entity:
-  - [ ] `Guid OrganizationId` FK
-  - [ ] `string Name` property
-  - [ ] Soft-delete support
-- [ ] Create `TeamMember` entity:
-  - [ ] `Guid TeamId` FK
-  - [ ] `Guid UserId` FK
-  - [ ] `ICollection<Guid> RoleIds` for team-scoped roles
-- [ ] Create `Group` entity (cross-team permission groups):
-  - [ ] `Guid OrganizationId` FK
-  - [ ] `string Name` property
-- [ ] Create `GroupMember` entity:
-  - [ ] `Guid GroupId` FK
-  - [ ] `Guid UserId` FK
-- [ ] Create `OrganizationMember` entity:
-  - [ ] `Guid OrganizationId` FK
-  - [ ] `Guid UserId` FK
-  - [ ] `ICollection<Guid> RoleIds` for org-scoped roles
+- ✓ Create `Organization` entity:
+  - ✓ `string Name` property
+  - ✓ `string? Description` property
+  - ✓ `DateTime CreatedAt` property
+  - ✓ Soft-delete support (IsDeleted, DeletedAt)
+- ✓ Create `Team` entity:
+  - ✓ `Guid OrganizationId` FK
+  - ✓ `string Name` property
+  - ✓ Soft-delete support
+- ✓ Create `TeamMember` entity:
+  - ✓ `Guid TeamId` FK
+  - ✓ `Guid UserId` FK
+  - ✓ `ICollection<Guid> RoleIds` for team-scoped roles
+- ✓ Create `Group` entity (cross-team permission groups):
+  - ✓ `Guid OrganizationId` FK
+  - ✓ `string Name` property
+- ✓ Create `GroupMember` entity:
+  - ✓ `Guid GroupId` FK
+  - ✓ `Guid UserId` FK
+- ✓ Create `OrganizationMember` entity:
+  - ✓ `Guid OrganizationId` FK
+  - ✓ `Guid UserId` FK
+  - ✓ `ICollection<Guid> RoleIds` for org-scoped roles
 
 **Permissions System Models**
 - [ ] Create `Permission` entity:
