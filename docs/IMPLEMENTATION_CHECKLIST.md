@@ -302,11 +302,11 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Create design-time factory for migrations
 
 #### Database Initialization
-- [ ] Create `DbInitializer` class:
-  - [ ] Database creation
-  - [ ] Seed default system roles
-  - [ ] Seed default permissions
-  - [ ] Seed system settings
+- ✓ Create `DbInitializer` class:
+  - ✓ Database creation
+  - ✓ Seed default system roles
+  - ✓ Seed default permissions
+  - ✓ Seed system settings
 - [ ] Create migration files for each supported database:
   - [ ] PostgreSQL migrations
   - [ ] SQL Server migrations
