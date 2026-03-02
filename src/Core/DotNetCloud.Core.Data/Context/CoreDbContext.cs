@@ -12,6 +12,7 @@ using DotNetCloud.Core.Data.Entities.Settings;
 using DotNetCloud.Core.Data.Configuration.Settings;
 using DotNetCloud.Core.Data.Entities.Modules;
 using DotNetCloud.Core.Data.Configuration.Modules;
+using DotNetCloud.Core.Data.Interceptors;
 
 namespace DotNetCloud.Core.Data.Context;
 
@@ -90,7 +91,7 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     /// This is distinct from ASP.NET Core Identity's IdentityRole and represents
     /// application-level role definitions for the DotNetCloud permission system.
     /// </remarks>
-    public DbSet<Role> Roles => Set<Role>();
+    public new DbSet<Role> Roles => Set<Role>();
 
     /// <summary>
     /// Gets or sets the RolePermissions DbSet.
@@ -166,26 +167,14 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     {
         base.OnModelCreating(modelBuilder);
 
-        // Configure naming strategy for all entities
-        ApplyNamingStrategy(modelBuilder);
-
         // Configure specific entity models
+        // (Naming strategy is applied in each entity configuration)
         ConfigureIdentityModels(modelBuilder);
         ConfigureOrganizationModels(modelBuilder);
         ConfigurePermissionModels(modelBuilder);
         ConfigureSettingModels(modelBuilder);
         ConfigureDeviceModels(modelBuilder);
         ConfigureModuleModels(modelBuilder);
-    }
-
-    /// <summary>
-    /// Applies the naming strategy to all entity tables.
-    /// </summary>
-    /// <param name="modelBuilder">The model builder</param>
-    private void ApplyNamingStrategy(ModelBuilder modelBuilder)
-    {
-        ArgumentNullException.ThrowIfNull(modelBuilder);
-        _namingStrategy.ApplyStrategy(modelBuilder);
     }
 
     /// <summary>
@@ -257,5 +246,13 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
         // Apply configurations for all module entities
         modelBuilder.ApplyConfiguration(new InstalledModuleConfiguration());
         modelBuilder.ApplyConfiguration(new ModuleCapabilityGrantConfiguration());
+    }
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        base.OnConfiguring(optionsBuilder);
+
+        // Add TimestampInterceptor for automatic timestamp management
+        optionsBuilder.AddInterceptors(new TimestampInterceptor());
     }
 }

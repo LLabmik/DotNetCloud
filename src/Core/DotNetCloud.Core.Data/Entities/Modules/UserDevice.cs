@@ -1,3 +1,5 @@
+using DotNetCloud.Core.Data.Entities.Identity;
+
 namespace DotNetCloud.Core.Data.Entities.Modules;
 
 /// <summary>

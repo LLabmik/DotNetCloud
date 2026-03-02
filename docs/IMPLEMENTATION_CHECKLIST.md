@@ -294,12 +294,12 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
   - ✓ `Guid? GrantedByUserId` (admin who approved)
 
 #### EF Core Configuration
-- [ ] Create `CoreDbContext` class extending `IdentityDbContext<ApplicationUser, ApplicationRole, Guid>`
-- [ ] Configure all entity relationships
-- [ ] Set up automatic timestamps (CreatedAt, UpdatedAt)
-- [ ] Configure soft-delete query filters
-- [ ] Set up table naming strategy application
-- [ ] Create schema creation logic
+- ✓ Create `CoreDbContext` class extending `IdentityDbContext<ApplicationUser, ApplicationRole, Guid>`
+- ✓ Configure all entity relationships
+- ✓ Set up automatic timestamps (CreatedAt, UpdatedAt)
+- ✓ Configure soft-delete query filters
+- ✓ Set up table naming strategy application
+- ✓ Create design-time factory for migrations
 
 #### Database Initialization
 - [ ] Create `DbInitializer` class:
