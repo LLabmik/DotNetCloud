@@ -1,262 +1,443 @@
 # DotNetCloud.Core.Data
 
-Data access layer for the DotNetCloud core system, providing multi-database provider support with automatic naming strategy application.
+**Version:** 1.0.0  
+**Status:** ✅ Complete (Phase 0.2)  
+**Target Framework:** .NET 10
 
 ## Overview
 
-The `DotNetCloud.Core.Data` project provides:
+The `DotNetCloud.Core.Data` project provides the Entity Framework Core data access layer for the DotNetCloud platform. It implements a multi-database provider strategy supporting PostgreSQL, SQL Server, and MariaDB (when .NET 10 compatible).
 
-- **Multi-Database Provider Support**: PostgreSQL, SQL Server, and MariaDB/MySQL
-- **Automatic Naming Strategies**: Provider-specific naming conventions automatically applied
-- **DbContext Factory Pattern**: Centralized context creation and configuration
-- **Provider Detection**: Automatic database provider detection from connection strings
-- **Entity Framework Core Integration**: Full EF Core support with migrations
+## Key Features
 
-## Database Providers
+✅ **Multi-Database Provider Support**
+- PostgreSQL (Npgsql) - Primary target
+- SQL Server - Enterprise support
+- MariaDB - Planned (awaiting Pomelo.EntityFrameworkCore.MySql .NET 10 support)
 
-### PostgreSQL
+✅ **Flexible Table Naming Strategies**
+- PostgreSQL: Schema-based (`core.users`, `files.documents`)
+- SQL Server: Schema-based
+- MariaDB: Prefix-based (`core_users`, `files_documents`)
 
-- **Schema Naming**: Lowercase module names (e.g., `core`, `files`, `chat`)
-- **Table Naming**: Snake_case (e.g., `application_user`, `team_member`)
-- **Column Naming**: Snake_case
-- **Indexes**: Lowercase with underscores (e.g., `idx_application_user_email`)
-- **Constraints**: Lowercase with prefix (e.g., `fk_`, `uq_`)
+✅ **Comprehensive Entity Models**
+- ASP.NET Core Identity integration with custom user/role models
+- Organization hierarchy (Organizations, Teams, Groups)
+- Permission system (Roles, Permissions)
+- Settings (System, Organization, User-scoped)
+- Module registry and capability grants
+- Device tracking
 
-**Connection String Examples:**
+✅ **Automated Database Management**
+- Database migrations for PostgreSQL and SQL Server
+- Automatic timestamp management via interceptors
+- Soft-delete query filters
+- Database initialization and seeding
+
+## Project Structure
+
 ```
-Host=localhost;Database=dotnetcloud;Username=postgres;Password=password
-Server=postgres.example.com;Database=dotnetcloud_prod;User Id=app;Password=secret
+DotNetCloud.Core.Data/
+├── Context/
+│   └── CoreDbContext.cs                  # Main EF Core DbContext
+├── Entities/
+│   ├── Identity/                         # ASP.NET Core Identity entities
+│   │   ├── ApplicationUser.cs
+│   │   └── ApplicationRole.cs
+│   ├── Organizations/                    # Org hierarchy entities
+│   │   ├── Organization.cs
+│   │   ├── Team.cs
+│   │   ├── TeamMember.cs
+│   │   ├── Group.cs
+│   │   ├── GroupMember.cs
+│   │   └── OrganizationMember.cs
+│   ├── Permissions/                      # Permission system entities
+│   │   ├── Permission.cs
+│   │   ├── Role.cs
+│   │   └── RolePermission.cs
+│   ├── Settings/                         # Settings entities
+│   │   ├── SystemSetting.cs
+│   │   ├── OrganizationSetting.cs
+│   │   └── UserSetting.cs
+│   └── Modules/                          # Module registry entities
+│       ├── InstalledModule.cs
+│       ├── ModuleCapabilityGrant.cs
+│       └── UserDevice.cs
+├── Configuration/                        # EF Core entity configurations
+│   ├── Identity/
+│   ├── Organizations/
+│   ├── Permissions/
+│   ├── Settings/
+│   └── Modules/
+├── Naming/                               # Database provider naming strategies
+│   ├── ITableNamingStrategy.cs
+│   ├── PostgreSqlNamingStrategy.cs
+│   ├── SqlServerNamingStrategy.cs
+│   ├── MariaDbNamingStrategy.cs
+│   ├── DatabaseProvider.cs
+│   └── DatabaseProviderDetector.cs
+├── Infrastructure/                       # DbContext factory
+│   ├── IDbContextFactory.cs
+│   └── DefaultDbContextFactory.cs
+├── Initialization/                       # Database seeding
+│   └── DbInitializer.cs
+├── Interceptors/                         # EF Core interceptors
+│   └── TimestampInterceptor.cs
+└── Migrations/                           # Database migrations
+    ├── 20260302195528_InitialCreate.cs   # PostgreSQL initial migration
+    └── SqlServer/                        # SQL Server migrations
+        └── 20260302203100_InitialCreate_SqlServer.cs
 ```
+
+## Entity Models
+
+### Identity Entities
+
+#### ApplicationUser
+Extends `IdentityUser<Guid>` with additional properties:
+- `DisplayName` - User's display name
+- `AvatarUrl` - Profile picture URL
+- `Locale` - User's preferred language (default: "en-US")
+- `Timezone` - User's timezone (default: "UTC")
+- `CreatedAt` - Account creation timestamp
+- `LastLoginAt` - Last successful login timestamp
+- `IsActive` - Account active status
+
+#### ApplicationRole
+Extends `IdentityRole<Guid>` with:
+- `Description` - Role description
+- `IsSystemRole` - Indicates system-managed role
+
+### Organization Hierarchy
+
+#### Organization
+Top-level organizational unit:
+- `Name` - Organization name
+- `Description` - Optional description
+- `CreatedAt` - Creation timestamp
+- `IsDeleted`, `DeletedAt` - Soft-delete support
+
+#### Team
+Organization sub-units:
+- `OrganizationId` - Parent organization
+- `Name` - Team name
+- Soft-delete support
+
+#### Group
+Cross-team permission groups:
+- `OrganizationId` - Parent organization
+- `Name` - Group name
+
+#### Membership Entities
+- `TeamMember` - User membership in teams
+- `GroupMember` - User membership in groups
+- `OrganizationMember` - User membership in organizations with role assignments
+
+### Permission System
+
+#### Permission
+Defines individual permissions:
+- `Code` - Unique permission code (e.g., "files.upload")
+- `DisplayName` - Human-readable name
+- `Description` - Optional description
+
+#### Role
+Groups permissions together:
+- `Name` - Role name
+- `Description` - Optional description
+- `IsSystemRole` - System-managed flag
+- `Permissions` - Navigation to assigned permissions
+
+#### RolePermission
+Many-to-many junction table between roles and permissions.
+
+### Settings (Three Scopes)
+
+#### SystemSetting
+System-wide configuration:
+- Composite key: (`Module`, `Key`)
+- `Value` - JSON-serializable value
+- `Description` - Optional description
+- `UpdatedAt` - Last modification timestamp
+
+#### OrganizationSetting
+Organization-scoped settings:
+- `OrganizationId` - FK to organization
+- `Module`, `Key`, `Value` - Setting triple
+- Unique constraint: (OrganizationId, Module, Key)
+
+#### UserSetting
+User-scoped preferences:
+- `UserId` - FK to user
+- `Module`, `Key`, `Value` - Setting triple
+- `IsEncrypted` - Encryption flag for sensitive data
+- Unique constraint: (UserId, Module, Key)
+
+### Module Registry
+
+#### InstalledModule
+Tracks installed modules:
+- `ModuleId` - Primary key (e.g., "dotnetcloud.files")
+- `Version` - Module version
+- `Status` - Module status (Enabled, Disabled, UpdateAvailable)
+- `InstalledAt`, `UpdatedAt` - Timestamps
+
+#### ModuleCapabilityGrant
+Tracks granted capabilities per module:
+- `ModuleId` - FK to module
+- `CapabilityName` - Granted capability
+- `GrantedAt` - Grant timestamp
+- `GrantedByUserId` - Admin who granted (nullable)
+
+#### UserDevice
+Tracks user devices for push notifications:
+- `UserId` - FK to user
+- `Name` - Device name
+- `DeviceType` - Device type enum
+- `PushToken` - Push notification token
+- `LastSeenAt` - Last activity timestamp
+
+## Database Provider Support
+
+### PostgreSQL (Primary)
+- **Provider:** Npgsql.EntityFrameworkCore.PostgreSQL
+- **Version:** 10.0.0
+- **Naming:** Schema-based (e.g., `core.users`, `core.organizations`)
+- **Migration Folder:** `Migrations/`
 
 ### SQL Server
+- **Provider:** Microsoft.EntityFrameworkCore.SqlServer
+- **Version:** 10.0.0
+- **Naming:** Schema-based (e.g., `core.users`)
+- **Migration Folder:** `Migrations/SqlServer/`
 
-- **Schema Naming**: Lowercase module names (e.g., `[core]`, `[files]`, `[chat]`)
-- **Table Naming**: PascalCase (e.g., `[core].[ApplicationUser]`)
-- **Column Naming**: PascalCase
-- **Indexes**: PascalCase with prefix (e.g., `IX_ApplicationUser_Email`)
-- **Constraints**: PascalCase with prefix (e.g., `FK_`, `UQ_`)
+### MariaDB (Future)
+- **Provider:** Pomelo.EntityFrameworkCore.MySql
+- **Version:** Awaiting .NET 10 support
+- **Naming:** Prefix-based (e.g., `core_users`, `core_organizations`)
+- **Status:** ⏸️ Temporarily disabled until Pomelo releases .NET 10 compatible version
 
-**Connection String Examples:**
-```
-Server=(local);Database=DotNetCloud;Trusted_Connection=true;
-Data Source=sqlserver.example.com;Initial Catalog=DotNetCloud_Prod;User Id=sa;Password=Secret123!
-```
+## Naming Strategies
 
-### MariaDB/MySQL
-
-- **Table Naming**: Table prefix with lowercase module names (e.g., `core_application_user`, `files_file_entry`)
-- **Column Naming**: Snake_case
-- **Indexes**: Lowercase with truncation for 64-character identifier limit
-- **Constraints**: Lowercase with truncation for MySQL identifier limits
-
-**Connection String Examples:**
-```
-Server=localhost;Port=3306;Database=dotnetcloud;User Id=root;Password=password;
-Server=mysql.example.com;Port=3306;Database=dotnetcloud_prod;User=app;Password=secret;
-```
-
-## Architecture
-
-### Provider Detection
-
-The `DatabaseProviderDetector` class automatically detects the database provider from connection strings:
+The `ITableNamingStrategy` interface provides database-specific table naming:
 
 ```csharp
-var provider = DatabaseProviderDetector.DetectProvider(connectionString);
-// Returns: DatabaseProvider.PostgreSQL, DatabaseProvider.SqlServer, or DatabaseProvider.MariaDB
-```
-
-Detection logic:
-- **PostgreSQL**: Looks for `Host=` or `Server=postgresql` keywords
-- **SQL Server**: Looks for `Data Source=` or `Server=` without PostgreSQL indicators
-- **MariaDB**: Looks for port 3306 or MySQL-specific keywords
-
-### Naming Strategies
-
-Each database provider has a corresponding naming strategy implementing `ITableNamingStrategy`:
-
-- `PostgreSqlNamingStrategy`: Schema-based organization with snake_case naming
-- `SqlServerNamingStrategy`: Schema-based organization with PascalCase naming
-- `MariaDbNamingStrategy`: Table prefix-based organization with snake_case naming and truncation support
-
-**Core Methods:**
-- `GetSchemaForModule(moduleName)`: Returns the schema/prefix for a module
-- `GetTableName(entityName, moduleName)`: Returns the full table name
-- `GetColumnName(propertyName)`: Returns the column name
-- `GetIndexName(...)`: Returns the index name
-- `GetForeignKeyName(...)`: Returns the foreign key name
-- `GetUniqueConstraintName(...)`: Returns the unique constraint name
-
-### DbContext Factory
-
-The factory pattern provides centralized context creation:
-
-```csharp
-IDbContextFactory factory = new DefaultDbContextFactory(connectionString);
-CoreDbContext context = factory.CreateDbContext();
-```
-
-The factory automatically:
-1. Detects the database provider from the connection string
-2. Creates the appropriate naming strategy instance
-3. Configures EF Core with provider-specific options (retry policies, timeouts, etc.)
-4. Applies naming strategies to the context
-
-## Usage
-
-### Creating a DbContext
-
-```csharp
-// Automatic provider detection
-var factory = new DefaultDbContextFactory(connectionString);
-var context = factory.CreateDbContext();
-
-// Or explicit provider specification (useful for testing)
-var factory = new DefaultDbContextFactory(connectionString, DatabaseProvider.PostgreSQL);
-var context = factory.CreateDbContext();
-```
-
-### Dependency Injection
-
-Register the factory in the service container:
-
-```csharp
-services.AddScoped<IDbContextFactory>(sp =>
-    new DefaultDbContextFactory(configuration.GetConnectionString("Default")));
-
-services.AddScoped(sp =>
-    sp.GetRequiredService<IDbContextFactory>().CreateDbContext());
-```
-
-### Entity Configuration Example
-
-When creating entity configurations in `CoreDbContext.OnModelCreating()`:
-
-```csharp
-// The naming strategy is automatically applied to all entities
-// Developers simply configure relationships and constraints
-
-modelBuilder.Entity<ApplicationUser>(entity =>
+public interface ITableNamingStrategy
 {
-    entity.HasKey(u => u.Id);
-    entity.HasIndex(u => u.Email).IsUnique();
-    
-    // Naming strategy automatically handles:
-    // - Table name (different for each provider)
-    // - Column names (provider-specific casing)
-    // - Index names (provider-specific format)
+    string GetTableName(string tableName, string? schema = null);
+    string GetSchemaName(string? schema = null);
+    DatabaseProvider Provider { get; }
+}
+```
+
+### PostgreSQL Strategy
+Uses native schemas:
+```sql
+CREATE TABLE core.users (...);
+CREATE TABLE files.documents (...);
+```
+
+### SQL Server Strategy
+Uses native schemas (same as PostgreSQL):
+```sql
+CREATE TABLE core.users (...);
+CREATE TABLE files.documents (...);
+```
+
+### MariaDB Strategy
+Uses table prefixes (schemas not fully supported):
+```sql
+CREATE TABLE core_users (...);
+CREATE TABLE files_documents (...);
+```
+
+## Database Initialization
+
+The `DbInitializer` class handles:
+
+1. **Database Creation & Migration**
+   - Ensures database exists
+   - Applies pending migrations
+   - Verifies connectivity
+
+2. **Default Data Seeding**
+   - System roles (Administrator, User, Guest)
+   - Default permissions
+   - System settings for core modules
+
+3. **Transaction Management**
+   - All seeding operations run in a transaction
+   - Automatic rollback on failure
+
+### Usage Example
+
+```csharp
+services.AddScoped<DbInitializer>();
+
+// In Program.cs or startup
+var initializer = serviceProvider.GetRequiredService<DbInitializer>();
+await initializer.InitializeAsync(cancellationToken);
+```
+
+## Migrations
+
+### Creating Migrations
+
+#### PostgreSQL (Default)
+```powershell
+dotnet ef migrations add <MigrationName> --project src\Core\DotNetCloud.Core.Data --startup-project src\Core\DotNetCloud.Core.Data --context CoreDbContext
+```
+
+#### SQL Server
+```powershell
+dotnet ef migrations add <MigrationName>_SqlServer --project src\Core\DotNetCloud.Core.Data --startup-project src\Core\DotNetCloud.Core.Data --context CoreDbContext --output-dir Migrations\SqlServer
+```
+
+### Applying Migrations
+
+Migrations are automatically applied by `DbInitializer` during application startup.
+
+Manual application:
+```powershell
+dotnet ef database update --project src\Core\DotNetCloud.Core.Data --context CoreDbContext
+```
+
+## Configuration
+
+### Connection String Examples
+
+#### PostgreSQL
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Host=localhost;Database=dotnetcloud;Username=dotnetcloud;Password=***"
+  }
+}
+```
+
+#### SQL Server
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=localhost;Database=DotNetCloud;User Id=sa;Password=***;TrustServerCertificate=True"
+  }
+}
+```
+
+#### MariaDB (Future)
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=localhost;Database=dotnetcloud;User=dotnetcloud;Password=***"
+  }
+}
+```
+
+### Dependency Injection Setup
+
+```csharp
+// Detect database provider from connection string
+var connectionString = configuration.GetConnectionString("DefaultConnection");
+var provider = DatabaseProviderDetector.DetectProvider(connectionString);
+
+// Register naming strategy
+services.AddSingleton<ITableNamingStrategy>(provider switch
+{
+    DatabaseProvider.PostgreSql => new PostgreSqlNamingStrategy(),
+    DatabaseProvider.SqlServer => new SqlServerNamingStrategy(),
+    DatabaseProvider.MariaDb => new MariaDbNamingStrategy(),
+    _ => throw new NotSupportedException($"Database provider {provider} is not supported.")
 });
+
+// Register DbContext
+services.AddDbContext<CoreDbContext>((serviceProvider, options) =>
+{
+    var namingStrategy = serviceProvider.GetRequiredService<ITableNamingStrategy>();
+    
+    switch (provider)
+    {
+        case DatabaseProvider.PostgreSql:
+            options.UseNpgsql(connectionString);
+            break;
+        case DatabaseProvider.SqlServer:
+            options.UseSqlServer(connectionString);
+            break;
+        case DatabaseProvider.MariaDb:
+            options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
+            break;
+    }
+});
+
+// Register initializer
+services.AddScoped<DbInitializer>();
 ```
 
-## Integration Points
+## Automatic Features
 
-### With DotNetCloud.Core
+### Timestamp Management
+The `TimestampInterceptor` automatically sets:
+- `CreatedAt` on entity creation
+- `UpdatedAt` on entity modification
 
-- Uses `CallerContext` from core for audit trail support
-- Uses `IModule` manifest for module-scoped entities
-- Uses capability interfaces for data access permission checking
-
-### With EF Core Migrations
-
-Migration files are provider-specific:
-
-```
-Migrations/
-├── 20240101000001_InitialCreate_PostgreSQL.cs
-├── 20240101000001_InitialCreate_SqlServer.cs
-└── 20240101000001_InitialCreate_MariaDB.cs
-```
-
-## Performance Considerations
-
-- **Connection Pooling**: Configured per provider with default pool size of 10
-- **Retry Logic**: Automatic retry on transient failures (up to 3 retries)
-- **Command Timeout**: 30-second timeout per command
-- **Lazy Loading**: Consider explicit loading or projection for performance
-
-## Security
-
-- Connection strings stored securely (user secrets in development, Azure Key Vault in production)
-- Parameterized queries prevent SQL injection (handled by EF Core)
-- Identifier truncation in MariaDB preserves query uniqueness via hash suffix
-- Audit logging supported via `CoreDbContext` integration
+### Soft Delete Query Filters
+Entities with `IsDeleted` property are automatically filtered from queries unless explicitly included.
 
 ## Testing
 
-The factory supports easy testing with different providers:
+### Unit Tests
+Located in `tests/DotNetCloud.Core.Data.Tests/`:
+- Entity validation tests
+- Configuration tests
+- Naming strategy tests
+- DbInitializer tests
 
-```csharp
-[TestClass]
-public class DataAccessTests
-{
-    private IDbContextFactory _postgresFactory;
-    private IDbContextFactory _sqlServerFactory;
-    private IDbContextFactory _mariadbFactory;
-
-    [TestInitialize]
-    public void Setup()
-    {
-        _postgresFactory = new DefaultDbContextFactory(PostgresConnectionString);
-        _sqlServerFactory = new DefaultDbContextFactory(SqlServerConnectionString);
-        _mariadbFactory = new DefaultDbContextFactory(MariadbConnectionString);
-    }
-
-    [TestMethod]
-    public void TestWithPostgreSQL()
-    {
-        var context = _postgresFactory.CreateDbContext();
-        // Test logic...
-    }
-
-    [TestMethod]
-    public void TestWithSqlServer()
-    {
-        var context = _sqlServerFactory.CreateDbContext();
-        // Test logic...
-    }
-
-    [TestMethod]
-    public void TestWithMariaDB()
-    {
-        var context = _mariadbFactory.CreateDbContext();
-        // Test logic...
-    }
-}
+### Running Tests
+```powershell
+dotnet test tests\DotNetCloud.Core.Data.Tests\DotNetCloud.Core.Data.Tests.csproj
 ```
 
-## Extension Points
+**Test Coverage:** 103 tests passing ✅
 
-### Adding a New Database Provider
+## Dependencies
 
-To add support for a new database provider:
-
-1. Create a new enum value in `DatabaseProvider`
-2. Implement a new naming strategy class extending `ITableNamingStrategy`
-3. Add detection logic to `DatabaseProviderDetector.DetectProvider()`
-4. Add provider configuration to `DefaultDbContextFactory.ConfigureDbContextOptions()`
-5. Add migration files for the new provider
-
-### Custom Naming Strategies
-
-Applications can implement custom naming strategies:
-
-```csharp
-public class CustomNamingStrategy : ITableNamingStrategy
-{
-    public DatabaseProvider Provider => DatabaseProvider.PostgreSQL;
-    
-    // Implement interface methods with custom logic...
-}
-
-// Use in factory
-var factory = new DefaultDbContextFactory(connectionString)
-{
-    NamingStrategy = new CustomNamingStrategy()
-};
+```xml
+<PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.0" />
+<PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.0" />
+<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0" />
+<PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.0" />
+<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.0" />
+<PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
 ```
 
-## Related Documentation
+## Known Limitations
 
-- [Core Abstractions](../architecture/core-abstractions.md) - Core interfaces and types
-- [Architecture Overview](../architecture/ARCHITECTURE.md) - System-wide architecture
-- [Phase 0.2 Specification](../MASTER_PROJECT_PLAN.md#phase-02-database--data-access-layer) - Requirements for this phase
+1. **MariaDB Support:** Temporarily disabled pending Pomelo.EntityFrameworkCore.MySql .NET 10 support
+2. **Schema Support:** MariaDB uses table prefixes instead of native schemas
+3. **Migration Management:** Separate migration folders required for SQL Server
+
+## Future Enhancements
+
+- [ ] Add MariaDB migrations when Pomelo supports .NET 10
+- [ ] Implement read-only replicas support
+- [ ] Add database sharding support for large deployments
+- [ ] Implement audit logging interceptor
+- [ ] Add data encryption at rest
+
+## Related Projects
+
+- **DotNetCloud.Core** - Core abstractions and interfaces
+- **DotNetCloud.Core.Tests** - Unit tests for core functionality
+- **DotNetCloud.Core.Data.Tests** - Data layer integration tests
+
+## Contributing
+
+See [CONTRIBUTING.md](../../../CONTRIBUTING.md) for guidelines.
+
+## License
+
+AGPL-3.0 - See [LICENSE](../../../LICENSE) for details.
+
+---
+
+**Last Updated:** 2026-03-02  
+**Maintainer:** DotNetCloud Development Team

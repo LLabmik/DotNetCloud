@@ -310,7 +310,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Create migration files for each supported database:
   - ✓ PostgreSQL migrations
   - ✓ SQL Server migrations
-  - ✓ MariaDB migrations
+  - ☐ MariaDB migrations (temporarily disabled - awaiting Pomelo .NET 10 support)
 
 ---
 
