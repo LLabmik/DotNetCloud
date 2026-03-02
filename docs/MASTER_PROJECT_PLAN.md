@@ -21,7 +21,7 @@
 | Phase 0.2 | 12 | 0 | 0 | 12 |
 | Phase 0.3 | 8 | 0 | 0 | 8 |
 | Phase 0.4 | 20 | 0 | 0 | 20 |
-| Phase 0.5 | 9 | 0 | 0 | 9 |
+| Phase 0.5 | 9 | 9 | 0 | 0 |
 | Phase 0.6 | 13 | 0 | 0 | 13 |
 | Phase 0.7 | 16 | 0 | 0 | 16 |
 | Phase 0.8 | 11 | 0 | 0 | 11 |
@@ -1530,9 +1530,77 @@ Location: tests/DotNetCloud.Core.Server.Tests/
 - **Critical Path:** 0.1 → 0.2 → 0.3 → 0.4 → (0.5-0.19 can parallelize somewhat)
 - **Blocking Issues:** None currently
 - **Assumptions:** .NET 10, PostgreSQL/SQL Server/MariaDB support required
+- **Reference:** Complete detailed task breakdowns in `/docs/IMPLEMENTATION_CHECKLIST.md`
 
 ---
 
 **Last Updated:** 2026-03-02 (phase pre-impl-1 completed)  
 **Next Review:** After Phase 0.1.1 completion  
 **Maintained By:** Development Team
+
+---
+
+## How to Use This Plan
+
+This plan is structured as a living document to guide the implementation of the DotNetCloud project
+in phases. Each phase is broken down into steps with assigned status, duration, description, tasks,
+dependencies, and testing requirements.
+
+**Sections:**
+- `Pre-Implementation Setup`: Actions required before the main implementation phases
+- `Phase 0`: Foundational work for the entire project, subdivided into sections (0.1 - 0.19)
+
+**Phase Structure:**
+Each phase follows a similar structure:
+- **Step ID** - Unique identifier for the step
+- **Status** - Current status (pending|in-progress|completed|failed|skipped)
+- **Duration** - Estimated time to complete
+- **Description** - High-level overview of the step
+- **Recommended Prompt** - Suggested AI prompt to execute the step
+- **Tasks** - Checklist of tasks to complete
+- **Dependencies** - Other steps that must be completed first
+- **Testing** - How the step will be validated
+
+**Using This Document:**
+- Review the `Quick Status Summary` for a high-level overview
+- Find your area of work in the detailed phases and steps
+- Update the status, add notes, and check off tasks as you work
+- Use the `Recommended Prompt` to guide AI assistance for your tasks
+- Ensure you meet the `Testing` requirements for your steps
+
+**Maintainers:**
+This document is maintained by the Development Team. For questions or suggestions, please contact
+your project lead.
+
+---
+
+## Ongoing Management
+
+This plan is a living document and will evolve as the project progresses. Regularly review and
+update the plan to reflect the current state of the project, adjust estimates, and add new tasks
+or phases as needed. Use this plan to communicate progress, roadblocks, and changes to all
+stakeholders.
+
+---
+
+## Appendix
+
+### A. References
+- [Git Flow](https://nvie.com/posts/a-successful-git-branching-model/)
+- [Semantic Versioning](https://semver.org/)
+- [API Versioning in ASP.NET Core](https://docs.microsoft.com/en-us/aspnet/core/web-api/overview)
+- [OpenID Connect & OAuth 2.0 Protocol](https://oauth.net/2/)
+- [SAML 2.0 Specification](https://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf)
+
+### B. Tools & Technologies
+- **Programming Languages:** C# 10
+- **Framework:** .NET 6
+- **Database:** PostgreSQL 14, SQL Server 2019, MariaDB 10.5
+- **ORM:** EF Core 6
+- **API:** ASP.NET Core 6
+- **Authentication:** OpenIddict, ASP.NET Core Identity
+- **Logging:** Serilog
+- **Monitoring:** OpenTelemetry
+- **Containerization:** Docker, Docker Compose
+- **IDEs:** Visual Studio 2022, JetBrains Rider, VS Code
+- **Operating Systems:** Windows 10/11, Ubuntu 20.04+, macOS Monterey+
