@@ -68,4 +68,19 @@ public interface IAuthService
     /// <param name="request">Reset details including email, token, and new password.</param>
     /// <returns><see langword="true"/> if the password was reset successfully; otherwise <see langword="false"/>.</returns>
     Task<bool> ResetPasswordAsync(ResetPasswordRequest request);
+
+    /// <summary>
+    /// Changes the authenticated user's password after verifying the current password.
+    /// </summary>
+    /// <param name="userId">The ID of the user changing their password.</param>
+    /// <param name="request">Request containing the current and new passwords.</param>
+    /// <returns><see langword="true"/> if the password was changed successfully; otherwise <see langword="false"/>.</returns>
+    Task<bool> ChangePasswordAsync(Guid userId, ChangePasswordRequest request);
+
+    /// <summary>
+    /// Gets the current authenticated user's profile information.
+    /// </summary>
+    /// <param name="userId">The ID of the user.</param>
+    /// <returns>The user profile, or <see langword="null"/> if the user was not found.</returns>
+    Task<UserProfileResponse?> GetUserProfileAsync(Guid userId);
 }

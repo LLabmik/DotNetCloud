@@ -206,3 +206,59 @@ public sealed class ResetPasswordRequest
 /// <param name="Code">A machine-readable error code (e.g., "InvalidCredentials").</param>
 /// <param name="Description">A human-readable error description.</param>
 public sealed record AuthError(string Code, string Description);
+
+/// <summary>
+/// Response containing the current authenticated user's profile information.
+/// </summary>
+public sealed class UserProfileResponse
+{
+    /// <summary>
+    /// Gets or sets the user's unique identifier.
+    /// </summary>
+    public Guid UserId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the user's email address.
+    /// </summary>
+    public string Email { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the user's display name.
+    /// </summary>
+    public string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the user's avatar URL.
+    /// </summary>
+    public string? AvatarUrl { get; set; }
+
+    /// <summary>
+    /// Gets or sets the user's preferred locale.
+    /// </summary>
+    public string Locale { get; set; } = "en-US";
+
+    /// <summary>
+    /// Gets or sets the user's preferred timezone.
+    /// </summary>
+    public string Timezone { get; set; } = "UTC";
+
+    /// <summary>
+    /// Gets or sets the user's assigned roles.
+    /// </summary>
+    public IReadOnlyList<string> Roles { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets whether two-factor authentication is enabled for this user.
+    /// </summary>
+    public bool IsMfaEnabled { get; set; }
+
+    /// <summary>
+    /// Gets or sets when the user account was created.
+    /// </summary>
+    public DateTime CreatedAt { get; set; }
+
+    /// <summary>
+    /// Gets or sets the last time the user logged in.
+    /// </summary>
+    public DateTime? LastLoginAt { get; set; }
+}

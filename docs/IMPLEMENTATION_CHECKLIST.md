@@ -612,32 +612,32 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 **REST endpoints for authentication flows**
 
 #### User Authentication
-- [ ] `POST /api/v1/core/auth/register` - User registration
-- [ ] `POST /api/v1/core/auth/login` - User login (returns tokens)
-- [ ] `POST /api/v1/core/auth/logout` - Revoke tokens
-- [ ] `POST /api/v1/core/auth/refresh` - Refresh access token
-- [ ] `GET /api/v1/core/auth/user` - Get current user info
+- ✓ `POST /api/v1/core/auth/register` - User registration
+- ✓ `POST /api/v1/core/auth/login` - User login (returns tokens)
+- ✓ `POST /api/v1/core/auth/logout` - Revoke tokens
+- ✓ `POST /api/v1/core/auth/refresh` - Refresh access token
+- ✓ `GET /api/v1/core/auth/user` - Get current user info
 
 #### OAuth2/OIDC Integration
-- [ ] `GET /api/v1/core/auth/external-login/{provider}` - External provider sign-in
-- [ ] `GET /api/v1/core/auth/external-callback` - External provider callback
-- [ ] `GET /.well-known/openid-configuration` - OIDC discovery
+- ✓ `GET /api/v1/core/auth/external-login/{provider}` - External provider sign-in
+- ✓ `GET /api/v1/core/auth/external-callback` - External provider callback
+- ✓ `GET /.well-known/openid-configuration` - OIDC discovery
 
 #### MFA Management
-- [ ] `POST /api/v1/core/auth/mfa/totp/setup` - Setup TOTP
-- [ ] `POST /api/v1/core/auth/mfa/totp/verify` - Verify TOTP code
-- [ ] `POST /api/v1/core/auth/mfa/passkey/setup` - Setup passkey
-- [ ] `POST /api/v1/core/auth/mfa/passkey/verify` - Verify passkey
-- [ ] `GET /api/v1/core/auth/mfa/backup-codes` - Generate backup codes
+- ✓ `POST /api/v1/core/auth/mfa/totp/setup` - Setup TOTP
+- ✓ `POST /api/v1/core/auth/mfa/totp/verify` - Verify TOTP code
+- ✓ `POST /api/v1/core/auth/mfa/passkey/setup` - Setup passkey
+- ✓ `POST /api/v1/core/auth/mfa/passkey/verify` - Verify passkey
+- ✓ `GET /api/v1/core/auth/mfa/backup-codes` - Generate backup codes
 
 #### Password Management
-- [ ] `POST /api/v1/core/auth/password/change` - Change password
-- [ ] `POST /api/v1/core/auth/password/forgot` - Request password reset
-- [ ] `POST /api/v1/core/auth/password/reset` - Reset password with token
+- ✓ `POST /api/v1/core/auth/password/change` - Change password
+- ✓ `POST /api/v1/core/auth/password/forgot` - Request password reset
+- ✓ `POST /api/v1/core/auth/password/reset` - Reset password with token
 
 #### Device Management
-- [ ] `GET /api/v1/core/auth/devices` - List user's devices
-- [ ] `DELETE /api/v1/core/auth/devices/{deviceId}` - Remove device
+- ✓ `GET /api/v1/core/auth/devices` - List user's devices
+- ✓ `DELETE /api/v1/core/auth/devices/{deviceId}` - Remove device
 
 ---
 

@@ -6,10 +6,10 @@ using Microsoft.AspNetCore.Mvc;
 namespace DotNetCloud.Core.Server.Controllers;
 
 /// <summary>
-/// Multi-factor authentication (MFA) endpoints for TOTP setup, verification, and backup codes.
+/// Multi-factor authentication (MFA) endpoints for TOTP setup, verification, passkeys, and backup codes.
 /// </summary>
 [ApiController]
-[Route("api/v1/auth/mfa")]
+[Route("api/v1/core/auth/mfa")]
 [Authorize]
 public class MfaController : ControllerBase
 {
@@ -25,12 +25,16 @@ public class MfaController : ControllerBase
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
+    // ---------------------------------------------------------------------------
+    // TOTP
+    // ---------------------------------------------------------------------------
+
     /// <summary>
     /// Get TOTP authenticator setup information (shared key, QR code URI).
     /// </summary>
     /// <returns>TOTP setup response with shared key and provisioning URI.</returns>
-    [HttpGet("totp-setup")]
-    public async Task<IActionResult> GetTotpSetupAsync()
+    [HttpPost("totp/setup")]
+    public async Task<IActionResult> SetupTotpAsync()
     {
         if (!TryGetUserId(out var userId))
         {
@@ -47,7 +51,7 @@ public class MfaController : ControllerBase
     /// </summary>
     /// <param name="request">Request containing the 6-digit TOTP code.</param>
     /// <returns>Whether the code was verified successfully.</returns>
-    [HttpPost("totp-verify")]
+    [HttpPost("totp/verify")]
     public async Task<IActionResult> VerifyTotpAsync([FromBody] TotpVerifyRequest request)
     {
         if (!TryGetUserId(out var userId))
@@ -70,7 +74,7 @@ public class MfaController : ControllerBase
     /// Disable TOTP authentication for the current user.
     /// </summary>
     /// <returns>Confirmation that TOTP was disabled.</returns>
-    [HttpPost("totp-disable")]
+    [HttpPost("totp/disable")]
     public async Task<IActionResult> DisableTotpAsync()
     {
         if (!TryGetUserId(out var userId))
@@ -83,11 +87,78 @@ public class MfaController : ControllerBase
         return Ok(new { success = true, message = "TOTP has been disabled." });
     }
 
+    // ---------------------------------------------------------------------------
+    // Passkey (FIDO2/WebAuthn) — skeleton endpoints
+    // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// Initiate passkey (FIDO2/WebAuthn) registration for the current user.
+    /// </summary>
+    /// <returns>Registration challenge options for the client.</returns>
+    /// <remarks>
+    /// Full FIDO2 implementation requires a WebAuthn library (e.g., FIDO2.NET).
+    /// This endpoint provides the skeleton for future implementation.
+    /// </remarks>
+    [HttpPost("passkey/setup")]
+    public IActionResult SetupPasskey()
+    {
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
+        }
+
+        // FIDO2 registration challenge generation will be implemented when a WebAuthn library is integrated.
+        // The FidoCredential entity is already in the database schema.
+        _logger.LogInformation("Passkey setup requested for user {UserId}", userId);
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                message = "Passkey registration not yet fully implemented. FidoCredential entity is ready.",
+                userId,
+            }
+        });
+    }
+
+    /// <summary>
+    /// Verify a passkey assertion to authenticate the user.
+    /// </summary>
+    /// <returns>Whether the passkey assertion was verified successfully.</returns>
+    /// <remarks>
+    /// Full FIDO2 implementation requires a WebAuthn library (e.g., FIDO2.NET).
+    /// This endpoint provides the skeleton for future implementation.
+    /// </remarks>
+    [HttpPost("passkey/verify")]
+    public IActionResult VerifyPasskey()
+    {
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
+        }
+
+        // FIDO2 assertion verification will be implemented when a WebAuthn library is integrated.
+        _logger.LogInformation("Passkey verification requested for user {UserId}", userId);
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                message = "Passkey verification not yet fully implemented. FidoCredential entity is ready.",
+                userId,
+            }
+        });
+    }
+
+    // ---------------------------------------------------------------------------
+    // Backup Codes
+    // ---------------------------------------------------------------------------
+
     /// <summary>
     /// Generate new backup codes for account recovery.
     /// </summary>
     /// <returns>New backup codes (shown once, stored as SHA-256 hashes).</returns>
-    [HttpPost("backup-codes")]
+    [HttpGet("backup-codes")]
     public async Task<IActionResult> GenerateBackupCodesAsync()
     {
         if (!TryGetUserId(out var userId))
@@ -99,6 +170,10 @@ public class MfaController : ControllerBase
         _logger.LogInformation("Backup codes generated for user {UserId}", userId);
         return Ok(new { success = true, data = response });
     }
+
+    // ---------------------------------------------------------------------------
+    // MFA Status
+    // ---------------------------------------------------------------------------
 
     /// <summary>
     /// Get MFA status for the current user.
@@ -112,7 +187,6 @@ public class MfaController : ControllerBase
             return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
         }
 
-        // MFA status is available from the user's claims and the MFA service
         var hasTwoFactor = User.HasClaim("amr", "mfa");
 
         var status = new

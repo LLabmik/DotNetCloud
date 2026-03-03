@@ -167,6 +167,7 @@ public static class AuthServiceExtensions
         // -----------------------------------------------------------------
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IMfaService, MfaService>();
+        services.AddScoped<IDeviceService, DeviceService>();
 
         // -----------------------------------------------------------------
         // Capability implementations

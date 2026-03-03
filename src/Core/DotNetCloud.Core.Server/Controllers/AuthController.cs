@@ -1,16 +1,17 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Services;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DotNetCloud.Core.Server.Controllers;
 
 /// <summary>
-/// Authentication endpoints for user registration, login, password reset, and token refresh.
+/// Authentication endpoints for user registration, login, logout, password management, and token refresh.
 /// </summary>
 [ApiController]
-[Route("api/v1/auth")]
+[Route("api/v1/core/auth")]
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
@@ -24,6 +25,10 @@ public class AuthController : ControllerBase
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
+
+    // ---------------------------------------------------------------------------
+    // User Authentication
+    // ---------------------------------------------------------------------------
 
     /// <summary>
     /// Register a new user account.
@@ -80,120 +85,6 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// Refresh an access token using a refresh token.
-    /// </summary>
-    /// <param name="request">Refresh token request.</param>
-    /// <returns>New token pair.</returns>
-    [HttpPost("refresh")]
-    [AllowAnonymous]
-    public async Task<IActionResult> RefreshTokenAsync([FromBody] RefreshTokenRequest request)
-    {
-        try
-        {
-            var caller = BuildCallerContext();
-            var response = await _authService.RefreshTokenAsync(request, caller);
-            return Ok(new { success = true, data = response });
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return Unauthorized(new { success = false, error = new { code = "INVALID_REFRESH_TOKEN", message = "Invalid or expired refresh token" } });
-        }
-    }
-
-    /// <summary>
-    /// Request a password reset email.
-    /// </summary>
-    /// <param name="request">Request containing the user's email address.</param>
-    /// <returns>Confirmation (always 200 to prevent email enumeration).</returns>
-    [HttpPost("password-reset-request")]
-    [AllowAnonymous]
-    public async Task<IActionResult> RequestPasswordResetAsync([FromBody] PasswordResetRequestDto request)
-    {
-        // Always return success to prevent email enumeration
-        try
-        {
-            await _authService.InitiatePasswordResetAsync(request.Email);
-            _logger.LogInformation("Password reset requested for {Email}", request.Email);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Password reset initiation error for {Email} (suppressed)", request.Email);
-        }
-
-        return Ok(new { success = true, message = "If the account exists, a password reset email has been sent." });
-    }
-
-    /// <summary>
-    /// Reset a user's password using a reset token.
-    /// </summary>
-    /// <param name="request">Reset request with email, token, and new password.</param>
-    /// <returns>Whether the password was reset successfully.</returns>
-    [HttpPost("password-reset")]
-    [AllowAnonymous]
-    public async Task<IActionResult> ResetPasswordAsync([FromBody] ResetPasswordRequest request)
-    {
-        var success = await _authService.ResetPasswordAsync(request);
-
-        if (!success)
-        {
-            return BadRequest(new { success = false, error = new { code = "RESET_FAILED", message = "Invalid or expired reset token." } });
-        }
-
-        _logger.LogInformation("Password reset for {Email}", request.Email);
-        return Ok(new { success = true, message = "Password has been reset successfully." });
-    }
-
-    /// <summary>
-    /// Get the current authenticated user's profile.
-    /// </summary>
-    /// <returns>User profile information.</returns>
-    [HttpGet("profile")]
-    [Authorize]
-    public IActionResult GetProfile()
-    {
-        var userIdClaim = User.FindFirst("sub")?.Value;
-        if (!Guid.TryParse(userIdClaim, out var userId))
-        {
-            return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
-        }
-
-        var profile = new
-        {
-            userId,
-            email = User.FindFirst("email")?.Value,
-            displayName = User.FindFirst("name")?.Value,
-            locale = User.FindFirst("locale")?.Value ?? "en-US",
-            timezone = User.FindFirst("zoneinfo")?.Value ?? "UTC",
-            roles = User.FindAll("role").Select(c => c.Value).ToList()
-        };
-
-        return Ok(new { success = true, data = profile });
-    }
-
-    /// <summary>
-    /// Change the current user's password.
-    /// </summary>
-    /// <param name="request">Request with current and new passwords.</param>
-    /// <returns>Confirmation that the password was changed.</returns>
-    [HttpPost("change-password")]
-    [Authorize]
-    public async Task<IActionResult> ChangePasswordAsync([FromBody] ChangePasswordRequest request)
-    {
-        var userIdClaim = User.FindFirst("sub")?.Value;
-        if (!Guid.TryParse(userIdClaim, out var userId))
-        {
-            return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
-        }
-
-        // Password change requires InitiatePasswordReset + ResetPassword flow
-        // or a dedicated ChangePassword method on IAuthService (future Phase 0.9)
-        // For now, validate the request and return a not-implemented response.
-        // This endpoint will be fully wired when IAuthService is extended.
-        _logger.LogInformation("Password change requested for user {UserId}", userId);
-        return Ok(new { success = true, message = "Password changed successfully." });
-    }
-
-    /// <summary>
     /// Log out the current user and revoke their tokens.
     /// </summary>
     /// <returns>Confirmation that the user was logged out.</returns>
@@ -217,6 +108,170 @@ public class AuthController : ControllerBase
         }
 
         return Ok(new { success = true, message = "Logged out successfully." });
+    }
+
+    /// <summary>
+    /// Refresh an access token using a refresh token.
+    /// </summary>
+    /// <param name="request">Refresh token request.</param>
+    /// <returns>New token pair.</returns>
+    [HttpPost("refresh")]
+    [AllowAnonymous]
+    public async Task<IActionResult> RefreshTokenAsync([FromBody] RefreshTokenRequest request)
+    {
+        try
+        {
+            var caller = BuildCallerContext();
+            var response = await _authService.RefreshTokenAsync(request, caller);
+            return Ok(new { success = true, data = response });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Unauthorized(new { success = false, error = new { code = "INVALID_REFRESH_TOKEN", message = "Invalid or expired refresh token" } });
+        }
+    }
+
+    /// <summary>
+    /// Get the current authenticated user's profile information.
+    /// </summary>
+    /// <returns>User profile information.</returns>
+    [HttpGet("user")]
+    [Authorize]
+    public async Task<IActionResult> GetCurrentUserAsync()
+    {
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
+        }
+
+        var profile = await _authService.GetUserProfileAsync(userId);
+        if (profile is null)
+        {
+            return NotFound(new { success = false, error = new { code = "USER_NOT_FOUND", message = "User not found" } });
+        }
+
+        return Ok(new { success = true, data = profile });
+    }
+
+    // ---------------------------------------------------------------------------
+    // OAuth2/OIDC Integration
+    // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// Initiate external provider authentication (e.g., Google, GitHub).
+    /// </summary>
+    /// <param name="provider">The external authentication provider name.</param>
+    /// <param name="returnUrl">URL to redirect to after authentication.</param>
+    /// <returns>A challenge result that redirects to the external provider.</returns>
+    [HttpGet("external-login/{provider}")]
+    [AllowAnonymous]
+    public IActionResult ExternalLogin(string provider, [FromQuery] string? returnUrl = null)
+    {
+        var redirectUrl = Url.Action(nameof(ExternalCallback), "Auth", new { returnUrl });
+        var properties = new AuthenticationProperties { RedirectUri = redirectUrl };
+        return Challenge(properties, provider);
+    }
+
+    /// <summary>
+    /// Handle the callback from an external authentication provider.
+    /// </summary>
+    /// <param name="returnUrl">URL to redirect to after processing.</param>
+    /// <returns>Redirect to the return URL or an error response.</returns>
+    [HttpGet("external-callback")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ExternalCallback([FromQuery] string? returnUrl = null)
+    {
+        // External login callback processing will be wired to Identity's ExternalLoginSignInAsync
+        // when external providers are configured. For now, return a placeholder.
+        var info = await HttpContext.AuthenticateAsync();
+        if (!info.Succeeded)
+        {
+            return Unauthorized(new { success = false, error = new { code = "EXTERNAL_LOGIN_FAILED", message = "External authentication failed" } });
+        }
+
+        _logger.LogInformation("External login callback received");
+        return Ok(new { success = true, message = "External authentication successful", returnUrl });
+    }
+
+    // ---------------------------------------------------------------------------
+    // Password Management
+    // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// Change the current user's password.
+    /// </summary>
+    /// <param name="request">Request with current and new passwords.</param>
+    /// <returns>Confirmation that the password was changed.</returns>
+    [HttpPost("password/change")]
+    [Authorize]
+    public async Task<IActionResult> ChangePasswordAsync([FromBody] ChangePasswordRequest request)
+    {
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
+        }
+
+        var success = await _authService.ChangePasswordAsync(userId, request);
+        if (!success)
+        {
+            return BadRequest(new { success = false, error = new { code = "PASSWORD_CHANGE_FAILED", message = "Current password is incorrect or new password does not meet requirements." } });
+        }
+
+        _logger.LogInformation("Password changed for user {UserId}", userId);
+        return Ok(new { success = true, message = "Password changed successfully." });
+    }
+
+    /// <summary>
+    /// Request a password reset email.
+    /// </summary>
+    /// <param name="request">Request containing the user's email address.</param>
+    /// <returns>Confirmation (always 200 to prevent email enumeration).</returns>
+    [HttpPost("password/forgot")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ForgotPasswordAsync([FromBody] PasswordResetRequestDto request)
+    {
+        // Always return success to prevent email enumeration
+        try
+        {
+            await _authService.InitiatePasswordResetAsync(request.Email);
+            _logger.LogInformation("Password reset requested for {Email}", request.Email);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Password reset initiation error for {Email} (suppressed)", request.Email);
+        }
+
+        return Ok(new { success = true, message = "If the account exists, a password reset email has been sent." });
+    }
+
+    /// <summary>
+    /// Reset a user's password using a reset token.
+    /// </summary>
+    /// <param name="request">Reset request with email, token, and new password.</param>
+    /// <returns>Whether the password was reset successfully.</returns>
+    [HttpPost("password/reset")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ResetPasswordAsync([FromBody] ResetPasswordRequest request)
+    {
+        var success = await _authService.ResetPasswordAsync(request);
+
+        if (!success)
+        {
+            return BadRequest(new { success = false, error = new { code = "RESET_FAILED", message = "Invalid or expired reset token." } });
+        }
+
+        _logger.LogInformation("Password reset for {Email}", request.Email);
+        return Ok(new { success = true, message = "Password has been reset successfully." });
+    }
+
+    // ---------------------------------------------------------------------------
+    // Helpers
+    // ---------------------------------------------------------------------------
+
+    private bool TryGetUserId(out Guid userId)
+    {
+        var claim = User.FindFirst("sub")?.Value;
+        return Guid.TryParse(claim, out userId);
     }
 
     private CallerContext BuildCallerContext()

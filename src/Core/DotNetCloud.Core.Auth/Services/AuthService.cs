@@ -266,4 +266,57 @@ public sealed class AuthService : IAuthService
 
         return result.Succeeded;
     }
+
+    /// <inheritdoc/>
+    public async Task<bool> ChangePasswordAsync(Guid userId, ChangePasswordRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+        {
+            _logger.LogWarning("Password change failed: user {UserId} not found", userId);
+            return false;
+        }
+
+        var result = await _userManager.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
+        if (result.Succeeded)
+        {
+            _logger.LogInformation("Password changed for user {UserId}", userId);
+        }
+        else
+        {
+            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+            _logger.LogWarning("Password change failed for {UserId}: {Errors}", userId, errors);
+        }
+
+        return result.Succeeded;
+    }
+
+    /// <inheritdoc/>
+    public async Task<UserProfileResponse?> GetUserProfileAsync(Guid userId)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+        {
+            return null;
+        }
+
+        var roles = await _userManager.GetRolesAsync(user);
+        var isMfaEnabled = await _userManager.GetTwoFactorEnabledAsync(user);
+
+        return new UserProfileResponse
+        {
+            UserId = user.Id,
+            Email = user.Email ?? string.Empty,
+            DisplayName = user.DisplayName,
+            AvatarUrl = user.AvatarUrl,
+            Locale = user.Locale,
+            Timezone = user.Timezone,
+            Roles = roles.ToList().AsReadOnly(),
+            IsMfaEnabled = isMfaEnabled,
+            CreatedAt = user.CreatedAt,
+            LastLoginAt = user.LastLoginAt,
+        };
+    }
 }

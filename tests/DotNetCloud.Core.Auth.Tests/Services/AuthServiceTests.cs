@@ -340,4 +340,161 @@ public class AuthServiceTests
             yield return item;
         }
     }
+
+    // ---------------------------------------------------------------------------
+    // ChangePasswordAsync
+    // ---------------------------------------------------------------------------
+
+    [TestMethod]
+    public async Task WhenUserFoundAndCurrentPasswordValidThenChangePasswordReturnsTrue()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var user = new ApplicationUser
+        {
+            Id = userId,
+            Email = "user@example.com",
+            DisplayName = "Test User",
+        };
+        var request = new ChangePasswordRequest
+        {
+            CurrentPassword = "OldP@ss1!",
+            NewPassword = "NewP@ss2!",
+        };
+
+        _userManagerMock.Setup(m => m.FindByIdAsync(userId.ToString())).ReturnsAsync(user);
+        _userManagerMock
+            .Setup(m => m.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword))
+            .ReturnsAsync(IdentityResult.Success);
+
+        // Act
+        var result = await _service.ChangePasswordAsync(userId, request);
+
+        // Assert
+        Assert.IsTrue(result);
+    }
+
+    [TestMethod]
+    public async Task WhenCurrentPasswordIncorrectThenChangePasswordReturnsFalse()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var user = new ApplicationUser
+        {
+            Id = userId,
+            Email = "user@example.com",
+            DisplayName = "Test User",
+        };
+        var request = new ChangePasswordRequest
+        {
+            CurrentPassword = "WrongPass!",
+            NewPassword = "NewP@ss2!",
+        };
+
+        _userManagerMock.Setup(m => m.FindByIdAsync(userId.ToString())).ReturnsAsync(user);
+        _userManagerMock
+            .Setup(m => m.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword))
+            .ReturnsAsync(IdentityResult.Failed(new IdentityError
+            {
+                Code = "PasswordMismatch",
+                Description = "Incorrect password.",
+            }));
+
+        // Act
+        var result = await _service.ChangePasswordAsync(userId, request);
+
+        // Assert
+        Assert.IsFalse(result);
+    }
+
+    [TestMethod]
+    public async Task WhenUserNotFoundThenChangePasswordReturnsFalse()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var request = new ChangePasswordRequest
+        {
+            CurrentPassword = "OldP@ss1!",
+            NewPassword = "NewP@ss2!",
+        };
+
+        _userManagerMock.Setup(m => m.FindByIdAsync(userId.ToString())).ReturnsAsync((ApplicationUser?)null);
+
+        // Act
+        var result = await _service.ChangePasswordAsync(userId, request);
+
+        // Assert
+        Assert.IsFalse(result);
+    }
+
+    [TestMethod]
+    public async Task WhenChangePasswordCalledWithNullRequestThenThrowsArgumentNullException()
+    {
+        // Act & Assert
+        try
+        {
+            await _service.ChangePasswordAsync(Guid.NewGuid(), null!);
+            Assert.Fail("Expected ArgumentNullException");
+        }
+        catch (ArgumentNullException)
+        {
+            // Expected
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // GetUserProfileAsync
+    // ---------------------------------------------------------------------------
+
+    [TestMethod]
+    public async Task WhenUserExistsThenGetUserProfileReturnsProfile()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var user = new ApplicationUser
+        {
+            Id = userId,
+            Email = "user@example.com",
+            DisplayName = "Jane Doe",
+            AvatarUrl = "https://example.com/avatar.png",
+            Locale = "de-DE",
+            Timezone = "Europe/Berlin",
+            CreatedAt = new DateTime(2025, 1, 15, 0, 0, 0, DateTimeKind.Utc),
+            LastLoginAt = new DateTime(2025, 7, 18, 12, 0, 0, DateTimeKind.Utc),
+        };
+
+        _userManagerMock.Setup(m => m.FindByIdAsync(userId.ToString())).ReturnsAsync(user);
+        _userManagerMock.Setup(m => m.GetRolesAsync(user)).ReturnsAsync(new List<string> { "admin", "user" });
+        _userManagerMock.Setup(m => m.GetTwoFactorEnabledAsync(user)).ReturnsAsync(true);
+
+        // Act
+        var profile = await _service.GetUserProfileAsync(userId);
+
+        // Assert
+        Assert.IsNotNull(profile);
+        Assert.AreEqual(userId, profile.UserId);
+        Assert.AreEqual("user@example.com", profile.Email);
+        Assert.AreEqual("Jane Doe", profile.DisplayName);
+        Assert.AreEqual("https://example.com/avatar.png", profile.AvatarUrl);
+        Assert.AreEqual("de-DE", profile.Locale);
+        Assert.AreEqual("Europe/Berlin", profile.Timezone);
+        Assert.AreEqual(2, profile.Roles.Count);
+        Assert.IsTrue(profile.IsMfaEnabled);
+        Assert.AreEqual(new DateTime(2025, 1, 15, 0, 0, 0, DateTimeKind.Utc), profile.CreatedAt);
+        Assert.AreEqual(new DateTime(2025, 7, 18, 12, 0, 0, DateTimeKind.Utc), profile.LastLoginAt);
+    }
+
+    [TestMethod]
+    public async Task WhenUserNotFoundThenGetUserProfileReturnsNull()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        _userManagerMock.Setup(m => m.FindByIdAsync(userId.ToString())).ReturnsAsync((ApplicationUser?)null);
+
+        // Act
+        var profile = await _service.GetUserProfileAsync(userId);
+
+        // Assert
+        Assert.IsNull(profile);
+    }
 }

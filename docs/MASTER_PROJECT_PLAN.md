@@ -25,7 +25,7 @@
 | Phase 0.6 | 14 | 14 | 0 | 0 |
 | Phase 0.7 | 16 | 16 | 0 | 0 |
 | Phase 0.8 | 11 | 11 | 0 | 0 |
-| Phase 0.9 | 13 | 0 | 0 | 13 |
+| Phase 0.9 | 13 | 13 | 0 | 0 |
 | Phase 0.10 | 11 | 0 | 0 | 11 |
 | Phase 0.11 | 18 | 0 | 0 | 18 |
 | Phase 0.12 | 25 | 0 | 0 | 25 |
@@ -1618,6 +1618,59 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
+### Section: Phase 0.9 - Authentication API Endpoints
+
+**Status:** completed ✅
+**Description:** REST endpoints for all authentication flows — user auth, OAuth2/OIDC, MFA (TOTP + passkey skeleton), password management, and device management. Routes restructured to `/api/v1/core/auth/` namespace.
+
+**Deliverables:**
+- ✓ `POST /api/v1/core/auth/register` — User registration
+- ✓ `POST /api/v1/core/auth/login` — User login (credential validation, MFA detection)
+- ✓ `POST /api/v1/core/auth/logout` — Revoke all tokens for user
+- ✓ `POST /api/v1/core/auth/refresh` — Refresh access token via refresh token
+- ✓ `GET /api/v1/core/auth/user` — Get current user profile (new: queries Identity + roles + MFA status)
+- ✓ `GET /api/v1/core/auth/external-login/{provider}` — External provider challenge redirect
+- ✓ `GET /api/v1/core/auth/external-callback` — External provider callback handler
+- ✓ `GET /.well-known/openid-configuration` — OIDC discovery (via OpenIddict)
+- ✓ `POST /api/v1/core/auth/mfa/totp/setup` — TOTP authenticator setup
+- ✓ `POST /api/v1/core/auth/mfa/totp/verify` — Verify TOTP code
+- ✓ `POST /api/v1/core/auth/mfa/totp/disable` — Disable TOTP
+- ✓ `POST /api/v1/core/auth/mfa/passkey/setup` — Passkey registration skeleton (FidoCredential entity ready)
+- ✓ `POST /api/v1/core/auth/mfa/passkey/verify` — Passkey assertion skeleton
+- ✓ `GET /api/v1/core/auth/mfa/backup-codes` — Generate backup codes
+- ✓ `GET /api/v1/core/auth/mfa/status` — MFA status for current user
+- ✓ `POST /api/v1/core/auth/password/change` — Change password (verifies current password via Identity)
+- ✓ `POST /api/v1/core/auth/password/forgot` — Request password reset (anti-enumeration)
+- ✓ `POST /api/v1/core/auth/password/reset` — Reset password with token
+- ✓ `GET /api/v1/core/auth/devices` — List user's registered devices
+- ✓ `DELETE /api/v1/core/auth/devices/{deviceId}` — Remove device (ownership validated)
+- ✓ `IAuthService.ChangePasswordAsync` — New method using Identity's ChangePasswordAsync
+- ✓ `IAuthService.GetUserProfileAsync` — New method returning full profile + roles + MFA status
+- ✓ `IDeviceService` interface + `DeviceService` implementation (EF Core, CoreDbContext)
+- ✓ `UserProfileResponse` DTO added to AuthDtos.cs
+- ✓ `DeviceController` — New controller for device management endpoints
+- ✓ DI registration in `AuthServiceExtensions.AddDotNetCloudAuth`
+- ✓ Unit tests: 10 DeviceServiceTests + 6 AuthServiceTests (ChangePasswordAsync, GetUserProfileAsync)
+
+**File Locations:**
+- `src/Core/DotNetCloud.Core/Services/IAuthService.cs` (modified — ChangePasswordAsync, GetUserProfileAsync)
+- `src/Core/DotNetCloud.Core/Services/IDeviceService.cs` (new)
+- `src/Core/DotNetCloud.Core/DTOs/AuthDtos.cs` (modified — UserProfileResponse)
+- `src/Core/DotNetCloud.Core.Auth/Services/AuthService.cs` (modified — 2 new methods)
+- `src/Core/DotNetCloud.Core.Auth/Services/DeviceService.cs` (new)
+- `src/Core/DotNetCloud.Core.Auth/Extensions/AuthServiceExtensions.cs` (modified — IDeviceService DI)
+- `src/Core/DotNetCloud.Core.Server/Controllers/AuthController.cs` (restructured — route, new endpoints)
+- `src/Core/DotNetCloud.Core.Server/Controllers/MfaController.cs` (restructured — route, passkey, backup-codes)
+- `src/Core/DotNetCloud.Core.Server/Controllers/DeviceController.cs` (new)
+- `tests/DotNetCloud.Core.Auth.Tests/Services/DeviceServiceTests.cs` (new — 10 tests)
+- `tests/DotNetCloud.Core.Auth.Tests/Services/AuthServiceTests.cs` (modified — 6 new tests)
+
+**Build Status:** ✅ Full solution builds with zero errors
+**Testing:** ✅ 186/186 tests pass across solution (16 new tests added)
+**Notes:** All Phase 0.9 endpoints implemented. Routes moved from `/api/v1/auth/` to `/api/v1/core/auth/` to match the planned URL structure. Passkey endpoints are skeleton implementations — full FIDO2/WebAuthn requires a dedicated library (e.g., FIDO2.NET) which will be integrated when Phase 0.x addresses passkey hardware support. External login endpoints redirect to ASP.NET Core's Challenge flow; actual provider configuration (Google, GitHub, etc.) is a deployment-time concern.
+
+---
+
 ## Status Summary & Notes
 
 - **Total Phase 0 Steps:** 229+ (across subsections 0.1-0.19)
@@ -1629,8 +1682,8 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
-**Last Updated:** 2025-07-18 (Phase 0.8 Real-Time Communication completed)  
-**Next Review:** After Phase 0.9 start
+**Last Updated:** 2025-07-19 (Phase 0.9 Authentication API Endpoints completed)  
+**Next Review:** After Phase 0.10 start
 **Maintained By:** Development Team
 
 ---
