@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).xml</DocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OpenIddict.AspNetCore" Version="5.8.0" />
+    <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="5.8.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DotNetCloud.Core\DotNetCloud.Core.csproj" />
+    <ProjectReference Include="..\DotNetCloud.Core.Auth\DotNetCloud.Core.Auth.csproj" />
+    <ProjectReference Include="..\DotNetCloud.Core.Data\DotNetCloud.Core.Data.csproj" />
+    <ProjectReference Include="..\DotNetCloud.Core.ServiceDefaults\DotNetCloud.Core.ServiceDefaults.csproj" />
+  </ItemGroup>
+
+</Project>
