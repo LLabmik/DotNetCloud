@@ -4,17 +4,17 @@ using DotNetCloud.Core.Data.Entities.Modules;
 using DotNetCloud.Core.Data.Entities.Organizations;
 using DotNetCloud.Core.Data.Entities.Permissions;
 using DotNetCloud.Core.Data.Entities.Settings;
-using DotNetCloud.Core.Data.Configuration.Auth;
 using DotNetCloud.Core.Data.Configuration.Identity;
 using DotNetCloud.Core.Data.Configuration.Modules;
 using DotNetCloud.Core.Data.Configuration.Organizations;
 using DotNetCloud.Core.Data.Configuration.Permissions;
 using DotNetCloud.Core.Data.Configuration.Settings;
-using DotNetCloud.Core.Data.Infrastructure;
+using DotNetCloud.Core.Data.Configuration.Auth;
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Data.Interceptors;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using OpenIddict.EntityFrameworkCore;
 
 namespace DotNetCloud.Core.Data.Context;
 
@@ -235,6 +235,24 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     /// </remarks>
     public DbSet<OpenIddictScope> OpenIddictScopes => Set<OpenIddictScope>();
 
+    /// <summary>
+    /// Gets the TOTP backup codes for users.
+    /// </summary>
+    /// <remarks>
+    /// Stores hashed single-use backup codes that users can use when their authenticator
+    /// app is unavailable. Each code can only be used once.
+    /// </remarks>
+    public DbSet<UserBackupCode> UserBackupCodes => Set<UserBackupCode>();
+
+    /// <summary>
+    /// Gets the FIDO2/WebAuthn passkey credentials registered by users.
+    /// </summary>
+    /// <remarks>
+    /// Stores public key credentials for passwordless authentication.
+    /// Each credential is device-specific and tied to a user account.
+    /// </remarks>
+    public DbSet<FidoCredential> FidoCredentials => Set<FidoCredential>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -322,16 +340,32 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     }
 
     /// <summary>
-    /// Configures authentication entities (OpenIddict).
-    /// Includes OpenIddictApplication, OpenIddictAuthorization, OpenIddictToken, and OpenIddictScope.
+    /// Configures authentication entities (OpenIddict, UserBackupCode, FidoCredential).
     /// </summary>
+    /// <remarks>
+    /// Uses OpenIddict's built-in EF Core model builder (<c>UseOpenIddict</c>) for the four
+    /// OAuth2/OIDC entity types, then overrides table names to match the project's naming strategy.
+    /// </remarks>
     private void ConfigureAuthenticationModels(ModelBuilder modelBuilder)
     {
-        // Apply configurations for all authentication entities
-        modelBuilder.ApplyConfiguration(new OpenIddictApplicationConfiguration(_namingStrategy));
-        modelBuilder.ApplyConfiguration(new OpenIddictAuthorizationConfiguration(_namingStrategy));
-        modelBuilder.ApplyConfiguration(new OpenIddictTokenConfiguration(_namingStrategy));
-        modelBuilder.ApplyConfiguration(new OpenIddictScopeConfiguration(_namingStrategy));
+        // Register OpenIddict's built-in entity configurations for our custom entity types
+        modelBuilder.UseOpenIddict<
+            OpenIddictApplication,
+            OpenIddictAuthorization,
+            OpenIddictScope,
+            OpenIddictToken,
+            Guid>();
+
+        // Override table names using the active naming strategy (PostgreSQL: schema + snake_case,
+        // SQL Server: schema + PascalCase, MariaDB: prefix + snake_case)
+        ApplyTableName<OpenIddictApplication>(modelBuilder, "OpenIddictApplications", "core");
+        ApplyTableName<OpenIddictAuthorization>(modelBuilder, "OpenIddictAuthorizations", "core");
+        ApplyTableName<OpenIddictScope>(modelBuilder, "OpenIddictScopes", "core");
+        ApplyTableName<OpenIddictToken>(modelBuilder, "OpenIddictTokens", "core");
+
+        // Apply configurations for new auth entities
+        modelBuilder.ApplyConfiguration(new UserBackupCodeConfiguration());
+        modelBuilder.ApplyConfiguration(new FidoCredentialConfiguration());
     }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -340,5 +374,33 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
 
         // Add TimestampInterceptor for automatic timestamp management
         optionsBuilder.AddInterceptors(new TimestampInterceptor());
+    }
+
+    /// <summary>
+    /// Applies the active naming strategy to an entity's table mapping.
+    /// </summary>
+    /// <remarks>
+    /// For schema-supporting databases (PostgreSQL, SQL Server) the entity name is converted
+    /// using <see cref="ITableNamingStrategy.GetColumnName"/> and the schema is taken from
+    /// <see cref="ITableNamingStrategy.GetSchemaForModule"/>.
+    /// For MariaDB (no schema support), the full prefixed table name is returned by
+    /// <see cref="ITableNamingStrategy.GetTableName"/>.
+    /// </remarks>
+    private void ApplyTableName<TEntity>(ModelBuilder modelBuilder, string entityName, string module)
+        where TEntity : class
+    {
+        var schema = _namingStrategy.GetSchemaForModule(module);
+        if (schema is not null)
+        {
+            // Schema-supporting provider: table name without the schema prefix
+            var tableName = _namingStrategy.GetColumnName(entityName);
+            modelBuilder.Entity<TEntity>().ToTable(tableName, schema);
+        }
+        else
+        {
+            // No-schema provider (MariaDB): use module-prefixed table name
+            var tableName = _namingStrategy.GetTableName(entityName, module);
+            modelBuilder.Entity<TEntity>().ToTable(tableName);
+        }
     }
 }

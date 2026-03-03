@@ -20,7 +20,7 @@
 | Phase 0.1 | 11 | 10 | 0 | 1 |
 | Phase 0.2 | 12 | 10 | 0 | 2 |
 | Phase 0.3 | 8 | 8 | 0 | 0 |
-| Phase 0.4 | 20 | 1 | 1 | 18 |
+| Phase 0.4 | 20 | 14 | 0 | 6 |
 | Phase 0.5 | 9 | 9 | 0 | 0 |
 | Phase 0.6 | 13 | 0 | 0 | 13 |
 | Phase 0.7 | 16 | 0 | 0 | 16 |
@@ -1386,19 +1386,42 @@ Location: tests/DotNetCloud.Core.Data.Tests/
 
 ---
 
-#### Step: phase-0.4.2 - Configure OpenIddict Services
-**Status:** in-progress
-**Duration:** ~3 hours
-**Description:** Add OpenIddict NuGet packages and configure OpenIddict server services
+#### Step: phase-0.4.2 through phase-0.4.12 - Auth Infrastructure Library
+**Status:** completed ✅
+**Duration:** ~6 hours (across 2 sessions)
+**Description:** Full authentication & authorization infrastructure layer (no HTTP endpoints — those are Phase 0.7)
 
-**Planned Deliverables:**
-- ☐ Add OpenIddict.AspNetCore NuGet package
-- ☐ Add OpenIddict.EntityFrameworkCore NuGet package
-- ☐ Configure OpenIddict server in dependency injection
-- ☐ Configure token formats (JWT for access tokens, reference for refresh tokens)
-- ☐ Configure token lifetimes (1 hour access, 7 days refresh)
-- ☐ Configure endpoint routes (/connect/token, /connect/authorize, etc.)
-- ☐ Configure scope definitions (openid, profile, email, offline_access)
+**Completed Deliverables:**
+- ✓ Fixed OpenIddict entity inheritance: 4 entities now inherit from `OpenIddictEntityFrameworkCore*<Guid>` base classes
+- ✓ Replaced 4 broken POCO `IEntityTypeConfiguration` files with `modelBuilder.UseOpenIddict<>()` + naming overrides
+- ✓ Added `OpenIddict.EntityFrameworkCore` 5.x to `DotNetCloud.Core.Data.csproj`
+- ✓ Created `UserBackupCode` entity (SHA-256 hashed TOTP backup codes with FK to ApplicationUser)
+- ✓ Created `FidoCredential` entity skeleton (WebAuthn/passkey data model)
+- ✓ Created `UserBackupCodeConfiguration` and `FidoCredentialConfiguration` (EF Core)
+- ✓ Updated `CoreDbContext` with `UserBackupCodes`/`FidoCredentials` DbSets
+- ✓ Created Auth DTOs: `LoginRequest/Response`, `RegisterRequest/Response`, `RefreshTokenRequest`, `TokenResponse`, `AuthError`, etc.
+- ✓ Created MFA DTOs: `TotpSetupResponse`, `TotpVerifyRequest`, `BackupCodesResponse`
+- ✓ Created `IAuthService`, `IMfaService`, `IFidoService` interfaces in `DotNetCloud.Core`
+- ✓ Created `DotNetCloud.Core.Auth` class library project (net10.0, FrameworkReference ASP.NET Core)
+- ✓ Created `AuthOptions` strongly-typed configuration (access/refresh token lifetimes, external auth stubs)
+- ✓ Created `AuthServiceExtensions.AddDotNetCloudAuth()`: Identity, OpenIddict 5.x, claims transformation, policies, capabilities
+- ✓ Configured OpenIddict 5.x server (JWT default, ephemeral keys, all 6 endpoints, PKCE required, 4 scopes)
+- ✓ Implemented `AuthService`: register, login (with lockout + MFA check), logout (token revocation), password reset, email confirmation
+- ✓ Implemented `MfaService`: TOTP setup/verify (via ASP.NET Identity), backup codes (10x SHA-256 hashed)
+- ✓ Implemented `DotNetCloudClaimsTransformation`: role + locale + timezone claims, 5-min `IMemoryCache`
+- ✓ Created `PermissionRequirement` + `PermissionAuthorizationHandler` (`dnc:perm` claims)
+- ✓ Created `AuthorizationPolicies` constants + policies registered in DI
+- ✓ Created `UserDirectoryService`, `UserManagerService`, `CurrentUserContextService` capability implementations
+- ✓ Added `DotNetCloud.Core.Auth`, `DotNetCloud.Core.Data`, and test projects to `DotNetCloud.sln`
+- ✓ Generated EF Core migrations: `Phase0_4_Auth` (PostgreSQL) + `Phase0_4_Auth_SqlServer`
+- ✓ Created `DotNetCloud.Core.Auth.Tests` project with 31 passing tests covering MfaService, AuthService, ClaimsTransformation, PermissionAuthorizationHandler
+
+**Key Fix:** `UseJsonWebTokens()` removed — JWT is the default token format in OpenIddict 5.8.x (removed from builder API; `UseReferenceAccessTokens()` is the opt-in alternative)
+
+**Dependencies:** phase-0.4.1 ✓
+**Build Status:** ✅ All projects build successfully; 0 errors
+**Testing:** ✅ 31/31 tests pass (`dotnet test tests/DotNetCloud.Core.Auth.Tests/`)
+**Notes:** HTTP endpoint handlers (`/connect/token`, `/connect/authorize`, etc.) are deferred to Phase 0.7. The DI configuration (`AddDotNetCloudAuth`) is fully wired and ready for a web host.
 - ☐ Configure PKCE requirements for public clients
 - ☐ Create OpenIddictServerConfiguration extension class
 - ☐ Integrate with CoreDbContext for data persistence

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>DotNetCloud.Core.Auth</RootNamespace>
+    <AssemblyName>DotNetCloud.Core.Auth</AssemblyName>
+  </PropertyGroup>
+
+  <!-- ASP.NET Core framework reference for IServiceCollection, WebApplication, etc. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OpenIddict.AspNetCore" Version="5.*" />
+    <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="5.*" />
+    <PackageReference Include="Otp.NET" Version="1.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../DotNetCloud.Core/DotNetCloud.Core.csproj" />
+    <ProjectReference Include="../DotNetCloud.Core.Data/DotNetCloud.Core.Data.csproj" />
+  </ItemGroup>
+
+</Project>
