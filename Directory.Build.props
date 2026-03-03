@@ -1,4 +1,11 @@
 <Project>
+  <!-- CRITICAL: Set output paths before Microsoft.Common.props is imported -->
+  <!-- This prevents MSB3539 warning about BaseIntermediateOutputPath being modified after use -->
+  <PropertyGroup>
+    <BaseIntermediateOutputPath>$(MSBuildProjectDir)bin\obj\</BaseIntermediateOutputPath>
+    <BaseOutputPath>$(MSBuildProjectDir)bin\</BaseOutputPath>
+  </PropertyGroup>
+
   <!-- Common properties for all projects -->
   <PropertyGroup>
     <LangVersion>latest</LangVersion>
