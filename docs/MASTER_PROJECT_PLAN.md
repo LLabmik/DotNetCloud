@@ -26,7 +26,7 @@
 | Phase 0.7 | 16 | 16 | 0 | 0 |
 | Phase 0.8 | 11 | 11 | 0 | 0 |
 | Phase 0.9 | 13 | 13 | 0 | 0 |
-| Phase 0.10 | 11 | 0 | 0 | 11 |
+| Phase 0.10 | 11 | 11 | 0 | 0 |
 | Phase 0.11 | 18 | 0 | 0 | 18 |
 | Phase 0.12 | 25 | 0 | 0 | 25 |
 | Phase 0.13 | 20 | 0 | 0 | 20 |
@@ -1671,6 +1671,69 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
+### Section: Phase 0.10 - User & Admin Management
+
+**Status:** completed ✅
+**Description:** Administrative REST endpoints for user management (list, get, update, delete, disable/enable, password reset), system settings CRUD, module lifecycle management (list, start/stop/restart, capability grant/revoke), and system health checks. All endpoints are admin-only (RequireAdmin policy) except user profile self-view and self-update.
+
+**Deliverables:**
+- ✓ `IUserManagementService` interface — list, get, update, delete, disable, enable, admin password reset
+- ✓ `IAdminSettingsService` interface — list, get, upsert, delete system settings
+- ✓ `IAdminModuleService` interface — list, get, start/stop/restart modules, grant/revoke capabilities
+- ✓ `UserListQuery` DTO — pagination, search, sort, active-status filter
+- ✓ `PaginatedResult<T>` DTO — generic paginated response with page/totalCount/totalPages
+- ✓ `AdminResetPasswordRequest` DTO — admin-initiated password reset (no current password)
+- ✓ Error codes added: `SETTING_NOT_FOUND`, `SETTING_INVALID_VALUE`, `ADMIN_PASSWORD_RESET_FAILED`, `USER_ALREADY_DISABLED`, `USER_ALREADY_ENABLED`
+- ✓ `UserManagementService` implementation (ASP.NET Core Identity, UserManager)
+- ✓ `AdminSettingsService` implementation (EF Core, CoreDbContext)
+- ✓ `AdminModuleService` implementation (EF Core + IProcessSupervisor for lifecycle)
+- ✓ `UserManagementController` — 7 endpoints at `/api/v1/core/users/`
+  - ✓ `GET /api/v1/core/users` — List users with pagination (admin only)
+  - ✓ `GET /api/v1/core/users/{userId}` — Get user details (self or admin)
+  - ✓ `PUT /api/v1/core/users/{userId}` — Update user profile (self or admin)
+  - ✓ `DELETE /api/v1/core/users/{userId}` — Delete user (admin only, self-delete blocked)
+  - ✓ `POST /api/v1/core/users/{userId}/disable` — Disable user (admin only, self-disable blocked)
+  - ✓ `POST /api/v1/core/users/{userId}/enable` — Enable user (admin only)
+  - ✓ `POST /api/v1/core/users/{userId}/reset-password` — Admin password reset
+- ✓ `AdminController` — 12 endpoints at `/api/v1/core/admin/`
+  - ✓ `GET /api/v1/core/admin/settings` — List settings (optional module filter)
+  - ✓ `GET /api/v1/core/admin/settings/{module}/{key}` — Get specific setting
+  - ✓ `PUT /api/v1/core/admin/settings/{module}/{key}` — Create/update setting
+  - ✓ `DELETE /api/v1/core/admin/settings/{module}/{key}` — Delete setting
+  - ✓ `GET /api/v1/core/admin/modules` — List installed modules
+  - ✓ `GET /api/v1/core/admin/modules/{moduleId}` — Get module details
+  - ✓ `POST /api/v1/core/admin/modules/{moduleId}/start` — Start module
+  - ✓ `POST /api/v1/core/admin/modules/{moduleId}/stop` — Stop module
+  - ✓ `POST /api/v1/core/admin/modules/{moduleId}/restart` — Restart module
+  - ✓ `POST /api/v1/core/admin/modules/{moduleId}/capabilities/{capability}/grant` — Grant capability
+  - ✓ `DELETE /api/v1/core/admin/modules/{moduleId}/capabilities/{capability}` — Revoke capability
+  - ✓ `GET /api/v1/core/admin/health` — Detailed system health report
+- ✓ DI registration in `AuthServiceExtensions` (UserManagementService, AdminSettingsService)
+- ✓ DI registration in `SupervisorServiceExtensions` (AdminModuleService)
+- ✓ Unit tests: 14 UserManagementServiceTests + 9 AdminSettingsServiceTests (23 total)
+
+**File Locations:**
+- `src/Core/DotNetCloud.Core/Services/IUserManagementService.cs` (new)
+- `src/Core/DotNetCloud.Core/Services/IAdminSettingsService.cs` (new)
+- `src/Core/DotNetCloud.Core/Services/IAdminModuleService.cs` (new)
+- `src/Core/DotNetCloud.Core/DTOs/AdminDtos.cs` (new — UserListQuery, PaginatedResult<T>, AdminResetPasswordRequest)
+- `src/Core/DotNetCloud.Core/Errors/ErrorCodes.cs` (modified — 5 new error codes)
+- `src/Core/DotNetCloud.Core.Auth/Services/UserManagementService.cs` (new)
+- `src/Core/DotNetCloud.Core.Auth/Services/AdminSettingsService.cs` (new)
+- `src/Core/DotNetCloud.Core.Auth/Extensions/AuthServiceExtensions.cs` (modified — 2 new service registrations)
+- `src/Core/DotNetCloud.Core.Server/Services/AdminModuleService.cs` (new)
+- `src/Core/DotNetCloud.Core.Server/Extensions/SupervisorServiceExtensions.cs` (modified — AdminModuleService DI)
+- `src/Core/DotNetCloud.Core.Server/Controllers/UserManagementController.cs` (new)
+- `src/Core/DotNetCloud.Core.Server/Controllers/AdminController.cs` (new)
+- `tests/DotNetCloud.Core.Auth.Tests/Services/UserManagementServiceTests.cs` (new — 14 tests)
+- `tests/DotNetCloud.Core.Auth.Tests/Services/AdminSettingsServiceTests.cs` (new — 9 tests)
+
+**Build Status:** ✅ Full solution builds with zero errors
+**Testing:** ✅ 69/69 tests pass across solution (23 new tests added)
+**Notes:** All Phase 0.10 endpoints implemented. User management includes self-action guards (cannot delete/disable own account). Settings use composite key (module, key) to match the SystemSetting entity model. Module management delegates to IProcessSupervisor for start/stop/restart and uses EF Core for capability grant persistence. Health endpoint uses ASP.NET Core's built-in HealthCheckService for comprehensive reporting.
+
+---
+
 ## Status Summary & Notes
 
 - **Total Phase 0 Steps:** 229+ (across subsections 0.1-0.19)
@@ -1682,8 +1745,8 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
-**Last Updated:** 2025-07-19 (Phase 0.9 Authentication API Endpoints completed)  
-**Next Review:** After Phase 0.10 start
+**Last Updated:** 2025-07-19 (Phase 0.10 User & Admin Management completed)  
+**Next Review:** After Phase 0.11 start
 **Maintained By:** Development Team
 
 ---

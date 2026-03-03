@@ -645,28 +645,28 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 
 ### User Management Endpoints
 
-- [ ] `GET /api/v1/core/users` - List users (admin only)
-- [ ] `GET /api/v1/core/users/{userId}` - Get user details
-- [ ] `PUT /api/v1/core/users/{userId}` - Update user profile
-- [ ] `DELETE /api/v1/core/users/{userId}` - Delete user (admin only)
-- [ ] `POST /api/v1/core/users/{userId}/disable` - Disable user (admin only)
-- [ ] `POST /api/v1/core/users/{userId}/enable` - Enable user (admin only)
-- [ ] `POST /api/v1/core/users/{userId}/reset-password` - Admin password reset
+- ✓ `GET /api/v1/core/users` - List users (admin only)
+- ✓ `GET /api/v1/core/users/{userId}` - Get user details
+- ✓ `PUT /api/v1/core/users/{userId}` - Update user profile
+- ✓ `DELETE /api/v1/core/users/{userId}` - Delete user (admin only)
+- ✓ `POST /api/v1/core/users/{userId}/disable` - Disable user (admin only)
+- ✓ `POST /api/v1/core/users/{userId}/enable` - Enable user (admin only)
+- ✓ `POST /api/v1/core/users/{userId}/reset-password` - Admin password reset
 
 ### Admin Management Endpoints
 
-- [ ] `GET /api/v1/core/admin/settings` - List all settings
-- [ ] `GET /api/v1/core/admin/settings/{key}` - Get specific setting
-- [ ] `PUT /api/v1/core/admin/settings/{key}` - Update setting
-- [ ] `DELETE /api/v1/core/admin/settings/{key}` - Delete setting
-- [ ] `GET /api/v1/core/admin/modules` - List installed modules
-- [ ] `GET /api/v1/core/admin/modules/{moduleId}` - Get module details
-- [ ] `POST /api/v1/core/admin/modules/{moduleId}/start` - Start module
-- [ ] `POST /api/v1/core/admin/modules/{moduleId}/stop` - Stop module
-- [ ] `POST /api/v1/core/admin/modules/{moduleId}/restart` - Restart module
-- [ ] `POST /api/v1/core/admin/modules/{moduleId}/capabilities/{capability}/grant` - Grant capability
-- [ ] `DELETE /api/v1/core/admin/modules/{moduleId}/capabilities/{capability}` - Revoke capability
-- [ ] `GET /api/v1/core/admin/health` - System health check
+- ✓ `GET /api/v1/core/admin/settings` - List all settings
+- ✓ `GET /api/v1/core/admin/settings/{key}` - Get specific setting
+- ✓ `PUT /api/v1/core/admin/settings/{key}` - Update setting
+- ✓ `DELETE /api/v1/core/admin/settings/{key}` - Delete setting
+- ✓ `GET /api/v1/core/admin/modules` - List installed modules
+- ✓ `GET /api/v1/core/admin/modules/{moduleId}` - Get module details
+- ✓ `POST /api/v1/core/admin/modules/{moduleId}/start` - Start module
+- ✓ `POST /api/v1/core/admin/modules/{moduleId}/stop` - Stop module
+- ✓ `POST /api/v1/core/admin/modules/{moduleId}/restart` - Restart module
+- ✓ `POST /api/v1/core/admin/modules/{moduleId}/capabilities/{capability}/grant` - Grant capability
+- ✓ `DELETE /api/v1/core/admin/modules/{moduleId}/capabilities/{capability}` - Revoke capability
+- ✓ `GET /api/v1/core/admin/health` - System health check
 
 ---
 

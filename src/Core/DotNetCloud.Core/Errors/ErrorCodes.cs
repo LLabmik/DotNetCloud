@@ -198,6 +198,23 @@ public static class ErrorCodes
     /// <summary>Error code for invalid file type.</summary>
     public const string InvalidFileType = "FILE_INVALID_TYPE";
 
+    // Settings
+    /// <summary>Error code for setting not found.</summary>
+    public const string SettingNotFound = "SETTING_NOT_FOUND";
+
+    /// <summary>Error code for invalid setting value.</summary>
+    public const string InvalidSettingValue = "SETTING_INVALID_VALUE";
+
+    // Admin
+    /// <summary>Error code for admin password reset failed.</summary>
+    public const string AdminPasswordResetFailed = "ADMIN_PASSWORD_RESET_FAILED";
+
+    /// <summary>Error code for user already disabled.</summary>
+    public const string UserAlreadyDisabled = "USER_ALREADY_DISABLED";
+
+    /// <summary>Error code for user already enabled.</summary>
+    public const string UserAlreadyEnabled = "USER_ALREADY_ENABLED";
+
     // General
     /// <summary>Error code for unknown error.</summary>
     public const string UnknownError = "UNKNOWN_ERROR";
