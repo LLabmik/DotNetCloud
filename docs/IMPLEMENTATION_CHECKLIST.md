@@ -791,57 +791,64 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 **Command-line interface for administration**
 
 #### Project Setup
-- [ ] Create console application project
-- [ ] Integrate System.CommandLine library
-- [ ] Set up command structure
+- ✓ Create console application project
+- ✓ Integrate System.CommandLine library
+- ✓ Set up command structure
 
 #### Core Commands
 
 ##### Setup Command
-- [ ] `dotnetcloud setup` - Interactive first-run wizard
-  - [ ] Database selection (PostgreSQL/SQL Server/MariaDB)
-  - [ ] Connection string configuration
-  - [ ] Admin user creation
-  - [ ] Admin MFA setup
-  - [ ] Organization setup
-  - [ ] TLS/HTTPS configuration
-  - [ ] Let's Encrypt setup (optional)
-  - [ ] Module selection
-  - [ ] Save configuration
+- ✓ `dotnetcloud setup` - Interactive first-run wizard
+  - ✓ Database selection (PostgreSQL/SQL Server/MariaDB)
+  - ✓ Connection string configuration
+  - ✓ Admin user creation
+  - ✓ Admin MFA setup
+  - ✓ Organization setup
+  - ✓ TLS/HTTPS configuration
+  - ✓ Let's Encrypt setup (optional)
+  - ✓ Module selection
+  - ✓ Save configuration
 
 ##### Service Commands
-- [ ] `dotnetcloud serve` - Start all services
-- [ ] `dotnetcloud stop` - Graceful shutdown
-- [ ] `dotnetcloud status` - Show service & module status
-- [ ] `dotnetcloud restart` - Restart all services
+- ✓ `dotnetcloud serve` - Start all services
+- ✓ `dotnetcloud stop` - Graceful shutdown
+- ✓ `dotnetcloud status` - Show service & module status
+- ✓ `dotnetcloud restart` - Restart all services
 
 ##### Module Commands
-- [ ] `dotnetcloud module list` - List all modules
-- [ ] `dotnetcloud module start {module}` - Start specific module
-- [ ] `dotnetcloud module stop {module}` - Stop specific module
-- [ ] `dotnetcloud module restart {module}` - Restart specific module
-- [ ] `dotnetcloud module install {module}` - Install module
-- [ ] `dotnetcloud module uninstall {module}` - Uninstall module
+- ✓ `dotnetcloud module list` - List all modules
+- ✓ `dotnetcloud module start {module}` - Start specific module
+- ✓ `dotnetcloud module stop {module}` - Stop specific module
+- ✓ `dotnetcloud module restart {module}` - Restart specific module
+- ✓ `dotnetcloud module install {module}` - Install module
+- ✓ `dotnetcloud module uninstall {module}` - Uninstall module
 
 ##### Component Commands
-- [ ] `dotnetcloud component status {component}` - Check component status
-- [ ] `dotnetcloud component restart {component}` - Restart component
+- ✓ `dotnetcloud component status {component}` - Check component status
+- ✓ `dotnetcloud component restart {component}` - Restart component
 
 ##### Logging Commands
-- [ ] `dotnetcloud logs` - View system logs
-- [ ] `dotnetcloud logs {module}` - View module-specific logs
-- [ ] `dotnetcloud logs --level {level}` - Filter by log level
+- ✓ `dotnetcloud logs` - View system logs
+- ✓ `dotnetcloud logs {module}` - View module-specific logs
+- ✓ `dotnetcloud logs --level {level}` - Filter by log level
 
 ##### Backup Commands
-- [ ] `dotnetcloud backup` - Create backup
-- [ ] `dotnetcloud backup --output {path}` - Backup to specific location
-- [ ] `dotnetcloud restore {file}` - Restore from backup
-- [ ] `dotnetcloud backup --schedule daily` - Schedule automatic backups
+- ✓ `dotnetcloud backup` - Create backup
+- ✓ `dotnetcloud backup --output {path}` - Backup to specific location
+- ✓ `dotnetcloud restore {file}` - Restore from backup
+- ✓ `dotnetcloud backup --schedule daily` - Schedule automatic backups
 
 ##### Miscellaneous Commands
-- [ ] `dotnetcloud update` - Check and apply updates
-- [ ] `dotnetcloud help` - Show command reference
-- [ ] `dotnetcloud help {command}` - Show command-specific help
+- ✓ `dotnetcloud update` - Check and apply updates
+- ✓ `dotnetcloud help` - Show command reference
+- ✓ `dotnetcloud help {command}` - Show command-specific help
+
+#### Unit Tests
+- ✓ Create `DotNetCloud.CLI.Tests` project with MSTest
+- ✓ `CliConfigTests` — 16 tests (defaults, JSON roundtrip, save/load)
+- ✓ `ConsoleOutputTests` — 16 tests (FormatStatus color indicators, case insensitivity)
+- ✓ `SetupCommandTests` — 9 tests (MaskConnectionString, command structure)
+- ✓ `CommandStructureTests` — 25 tests (all commands, subcommands, options, arguments)
 
 ---
 

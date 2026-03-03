@@ -1,0 +1,146 @@
+using System.Text.Json;
+
+namespace DotNetCloud.CLI.Infrastructure;
+
+/// <summary>
+/// Manages CLI configuration file loading and persistence.
+/// Configuration is stored in a JSON file at the platform-appropriate location.
+/// </summary>
+internal static class CliConfiguration
+{
+    private static readonly string ConfigDirectory = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "dotnetcloud");
+
+    private static readonly string ConfigFilePath = Path.Combine(ConfigDirectory, "config.json");
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
+    /// <summary>
+    /// Loads the CLI configuration from disk.
+    /// Returns a default configuration if the file does not exist.
+    /// </summary>
+    public static CliConfig Load()
+    {
+        if (!File.Exists(ConfigFilePath))
+        {
+            return new CliConfig();
+        }
+
+        var json = File.ReadAllText(ConfigFilePath);
+        return JsonSerializer.Deserialize<CliConfig>(json, JsonOptions) ?? new CliConfig();
+    }
+
+    /// <summary>
+    /// Saves the CLI configuration to disk.
+    /// </summary>
+    public static void Save(CliConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+
+        Directory.CreateDirectory(ConfigDirectory);
+        var json = JsonSerializer.Serialize(config, JsonOptions);
+        File.WriteAllText(ConfigFilePath, json);
+    }
+
+    /// <summary>
+    /// Returns the path to the configuration file.
+    /// </summary>
+    public static string GetConfigFilePath() => ConfigFilePath;
+
+    /// <summary>
+    /// Checks whether a configuration file exists.
+    /// </summary>
+    public static bool ConfigExists() => File.Exists(ConfigFilePath);
+}
+
+/// <summary>
+/// Represents the persisted CLI configuration (database, server, modules).
+/// </summary>
+internal sealed class CliConfig
+{
+    /// <summary>
+    /// The database provider name (PostgreSQL, SqlServer, MariaDB).
+    /// </summary>
+    public string DatabaseProvider { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The database connection string.
+    /// </summary>
+    public string ConnectionString { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The server HTTP port.
+    /// </summary>
+    public int HttpPort { get; set; } = 5080;
+
+    /// <summary>
+    /// The server HTTPS port.
+    /// </summary>
+    public int HttpsPort { get; set; } = 5443;
+
+    /// <summary>
+    /// Whether HTTPS is enabled.
+    /// </summary>
+    public bool EnableHttps { get; set; } = true;
+
+    /// <summary>
+    /// The path to the TLS certificate file (PFX or PEM).
+    /// </summary>
+    public string? TlsCertificatePath { get; set; }
+
+    /// <summary>
+    /// Whether Let's Encrypt automatic certificate provisioning is enabled.
+    /// </summary>
+    public bool UseLetsEncrypt { get; set; }
+
+    /// <summary>
+    /// The domain name for Let's Encrypt (e.g., "cloud.example.com").
+    /// </summary>
+    public string? LetsEncryptDomain { get; set; }
+
+    /// <summary>
+    /// The organization name created during setup.
+    /// </summary>
+    public string? OrganizationName { get; set; }
+
+    /// <summary>
+    /// The admin user email created during setup.
+    /// </summary>
+    public string? AdminEmail { get; set; }
+
+    /// <summary>
+    /// List of module IDs selected during setup.
+    /// </summary>
+    public List<string> EnabledModules { get; set; } = [];
+
+    /// <summary>
+    /// The path to the data directory for file storage.
+    /// </summary>
+    public string DataDirectory { get; set; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "dotnetcloud", "data");
+
+    /// <summary>
+    /// The path to the log directory.
+    /// </summary>
+    public string LogDirectory { get; set; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "dotnetcloud", "logs");
+
+    /// <summary>
+    /// The backup output directory.
+    /// </summary>
+    public string BackupDirectory { get; set; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "dotnetcloud", "backups");
+
+    /// <summary>
+    /// When the setup wizard was last run.
+    /// </summary>
+    public DateTime? SetupCompletedAt { get; set; }
+}

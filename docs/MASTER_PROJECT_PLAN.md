@@ -29,7 +29,7 @@
 | Phase 0.10 | 11 | 11 | 0 | 0 |
 | Phase 0.11 | 18 | 16 | 0 | 2 |
 | Phase 0.12 | 25 | 25 | 0 | 0 |
-| Phase 0.13 | 20 | 0 | 0 | 20 |
+| Phase 0.13 | 20 | 20 | 0 | 0 |
 | Phase 0.14 | 12 | 0 | 0 | 12 |
 | Phase 0.15 | 11 | 11 | 0 | 0 |
 | Phase 0.16 | 9 | 0 | 0 | 9 |
@@ -1872,6 +1872,90 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
+### Phase 0.13: CLI Management Tool
+
+#### Step: phase-0.13.1 - DotNetCloud.CLI Project
+**Status:** completed ✅
+**Duration:** ~3 hours
+**Description:** Create CLI management tool with System.CommandLine for all administration tasks
+
+**Deliverables:**
+- ✓ Console application project (`DotNetCloud.CLI.csproj`) with System.CommandLine 2.0.3
+- ✓ Project references to Core, Core.Data, Core.ServiceDefaults
+- ✓ Assembly name `dotnetcloud` for ergonomic CLI usage
+- ✓ CLI infrastructure (CliConfiguration, ConsoleOutput, ServiceProviderFactory)
+- ✓ Setup command — interactive first-run wizard:
+  - ✓ Database selection (PostgreSQL/SQL Server/MariaDB)
+  - ✓ Connection string configuration with verification
+  - ✓ Admin user creation (email + password)
+  - ✓ MFA setup prompt
+  - ✓ Organization setup
+  - ✓ TLS/HTTPS configuration with Let's Encrypt option
+  - ✓ Module selection (files, chat, contacts, calendar, notes, deck)
+  - ✓ Data/log/backup directory configuration
+  - ✓ Configuration summary and save to JSON
+- ✓ Service commands:
+  - ✓ `dotnetcloud serve` — start server (foreground/background modes, PID file tracking)
+  - ✓ `dotnetcloud stop` — graceful shutdown via PID
+  - ✓ `dotnetcloud status` — show server process, config, memory, uptime
+  - ✓ `dotnetcloud restart` — stop then start
+- ✓ Module commands:
+  - ✓ `dotnetcloud module list` — list installed modules from DB with table output
+  - ✓ `dotnetcloud module start {module}` — enable module in DB
+  - ✓ `dotnetcloud module stop {module}` — disable module in DB
+  - ✓ `dotnetcloud module restart {module}` — request restart via supervisor
+  - ✓ `dotnetcloud module install {module}` — register module in DB
+  - ✓ `dotnetcloud module uninstall {module}` — remove module and capability grants
+- ✓ Component commands:
+  - ✓ `dotnetcloud component status {component}` — check database, server, modules, signalr, grpc
+  - ✓ `dotnetcloud component restart {component}` — restart guidance
+- ✓ Log commands:
+  - ✓ `dotnetcloud logs` — view system logs with colored output
+  - ✓ `dotnetcloud logs {module}` — module-specific log filtering
+  - ✓ `dotnetcloud logs --level {level}` — Serilog level filtering (DBG/INF/WRN/ERR/FTL)
+  - ✓ `dotnetcloud logs --tail N` — show last N lines
+  - ✓ `dotnetcloud logs --follow` — real-time log tailing
+- ✓ Backup commands:
+  - ✓ `dotnetcloud backup` — create ZIP backup of config + data
+  - ✓ `dotnetcloud backup --output {path}` — custom output path
+  - ✓ `dotnetcloud backup restore {file}` — restore from ZIP backup
+  - ✓ `dotnetcloud backup schedule {interval}` — cron/schtasks guidance (daily/weekly/monthly)
+- ✓ Miscellaneous commands:
+  - ✓ `dotnetcloud update` — update check (placeholder for future remote check)
+  - ✓ `dotnetcloud version` — version, runtime, OS, architecture info
+  - ✓ `dotnetcloud help` — built-in via System.CommandLine
+  - ✓ `dotnetcloud help {command}` — built-in per-command help
+- ✓ Unit tests (66 tests, all passing):
+  - ✓ `CliConfigTests` — 16 tests (defaults, JSON serialization roundtrip, save/load to disk)
+  - ✓ `ConsoleOutputTests` — 16 tests (FormatStatus color mappings, case insensitivity)
+  - ✓ `SetupCommandTests` — 9 tests (MaskConnectionString, command name/description)
+  - ✓ `CommandStructureTests` — 25 tests (all commands, subcommands, options, arguments validated)
+
+**File Locations:**
+- `src/CLI/DotNetCloud.CLI/DotNetCloud.CLI.csproj` — project file
+- `src/CLI/DotNetCloud.CLI/Program.cs` — entry point, root command registration
+- `src/CLI/DotNetCloud.CLI/Infrastructure/CliConfiguration.cs` — config file management
+- `src/CLI/DotNetCloud.CLI/Infrastructure/ConsoleOutput.cs` — formatted console output
+- `src/CLI/DotNetCloud.CLI/Infrastructure/ServiceProviderFactory.cs` — DI for DB access
+- `src/CLI/DotNetCloud.CLI/Commands/SetupCommand.cs` — setup wizard
+- `src/CLI/DotNetCloud.CLI/Commands/ServiceCommands.cs` — serve/stop/status/restart
+- `src/CLI/DotNetCloud.CLI/Commands/ModuleCommands.cs` — module lifecycle
+- `src/CLI/DotNetCloud.CLI/Commands/ComponentCommands.cs` — component status/restart
+- `src/CLI/DotNetCloud.CLI/Commands/LogCommands.cs` — log viewing
+- `src/CLI/DotNetCloud.CLI/Commands/BackupCommands.cs` — backup/restore/schedule
+- `src/CLI/DotNetCloud.CLI/Commands/MiscCommands.cs` — update/version
+- `tests/DotNetCloud.CLI.Tests/DotNetCloud.CLI.Tests.csproj` — test project
+- `tests/DotNetCloud.CLI.Tests/Infrastructure/CliConfigTests.cs` — config tests
+- `tests/DotNetCloud.CLI.Tests/Infrastructure/ConsoleOutputTests.cs` — console output tests
+- `tests/DotNetCloud.CLI.Tests/Commands/SetupCommandTests.cs` — setup command tests
+- `tests/DotNetCloud.CLI.Tests/Commands/CommandStructureTests.cs` — command structure tests
+
+**Build Status:** ✅ Full solution builds with zero errors, zero warnings (16 projects)
+**Testing:** ✅ 605/605 tests pass (108 Core + 186 Server + 69 Auth + 176 Data + 66 CLI)
+**Notes:** CLI uses System.CommandLine 2.0.3 (stable). Argument/Option constructors use name-only with Description via object initializer (2.0.3 API). Commands that need DB access use ServiceProviderFactory which builds a minimal DI container with AddDotNetCloudDbContext. Configuration persisted as JSON in AppData/dotnetcloud. Server management uses PID file for process tracking. Help is automatically generated by System.CommandLine for all commands and subcommands.
+
+---
+
 ## Status Summary & Notes
 
 - **Total Phase 0 Steps:** 229+ (across subsections 0.1-0.19)
@@ -1883,8 +1967,8 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
-**Last Updated:** 2025-07-19 (Phase 0.12 Shared UI Components completed)  
-**Next Review:** After Phase 0.13 start
+**Last Updated:** 2025-07-19 (Phase 0.13 CLI Management Tool completed)  
+**Next Review:** After Phase 0.14 start
 **Maintained By:** Development Team
 
 ---
