@@ -1,0 +1,139 @@
+syntax = "proto3";
+
+option csharp_namespace = "DotNetCloud.Core.Grpc.Capabilities";
+
+package dotnetcloud.capabilities;
+
+// CoreCapabilities service: hosted by the core server.
+// Modules call this service to access platform capabilities (IUserDirectory,
+// INotificationService, IEventBus, etc.) via gRPC.
+service CoreCapabilities {
+  // Looks up public user information by user ID.
+  rpc GetUser (GetUserRequest) returns (GetUserResponse);
+
+  // Searches for users matching specified criteria.
+  rpc SearchUsers (SearchUsersRequest) returns (SearchUsersResponse);
+
+  // Gets the current caller's context and identity information.
+  rpc GetCurrentUser (GetCurrentUserRequest) returns (GetCurrentUserResponse);
+
+  // Sends a notification to one or more users.
+  rpc SendNotification (SendNotificationRequest) returns (SendNotificationResponse);
+
+  // Publishes an event on the event bus.
+  rpc PublishEvent (PublishEventRequest) returns (PublishEventResponse);
+
+  // Reads a module-specific setting value.
+  rpc GetSetting (GetSettingRequest) returns (GetSettingResponse);
+
+  // Writes a module-specific setting value.
+  rpc SetSetting (SetSettingRequest) returns (SetSettingResponse);
+}
+
+// Caller context passed with every capability request for authorization.
+message CallerContextMessage {
+  string user_id = 1;
+  repeated string roles = 2;
+  // "User", "System", or "Module"
+  string caller_type = 3;
+  // The calling module ID (populated when caller_type is "Module").
+  string module_id = 4;
+}
+
+// --- IUserDirectory ---
+
+message GetUserRequest {
+  CallerContextMessage caller = 1;
+  string user_id = 2;
+}
+
+message GetUserResponse {
+  bool found = 1;
+  UserInfo user = 2;
+}
+
+message UserInfo {
+  string id = 1;
+  string display_name = 2;
+  string email = 3;
+  string avatar_url = 4;
+  bool is_active = 5;
+}
+
+message SearchUsersRequest {
+  CallerContextMessage caller = 1;
+  string query = 2;
+  int32 max_results = 3;
+}
+
+message SearchUsersResponse {
+  repeated UserInfo users = 1;
+}
+
+// --- ICurrentUserContext ---
+
+message GetCurrentUserRequest {
+  CallerContextMessage caller = 1;
+}
+
+message GetCurrentUserResponse {
+  string user_id = 1;
+  string display_name = 2;
+  string email = 3;
+  string locale = 4;
+  string timezone = 5;
+  repeated string roles = 6;
+}
+
+// --- INotificationService ---
+
+message SendNotificationRequest {
+  CallerContextMessage caller = 1;
+  repeated string recipient_user_ids = 2;
+  string title = 3;
+  string body = 4;
+  string category = 5;
+  string link = 6;
+}
+
+message SendNotificationResponse {
+  bool success = 1;
+  int32 delivered_count = 2;
+}
+
+// --- IEventBus ---
+
+message PublishEventRequest {
+  CallerContextMessage caller = 1;
+  string event_type = 2;
+  // Event payload serialized as JSON.
+  string payload_json = 3;
+}
+
+message PublishEventResponse {
+  bool success = 1;
+}
+
+// --- IModuleSettings ---
+
+message GetSettingRequest {
+  CallerContextMessage caller = 1;
+  string module_id = 2;
+  string key = 3;
+}
+
+message GetSettingResponse {
+  bool found = 1;
+  string value = 2;
+}
+
+message SetSettingRequest {
+  CallerContextMessage caller = 1;
+  string module_id = 2;
+  string key = 3;
+  string value = 4;
+}
+
+message SetSettingResponse {
+  bool success = 1;
+}

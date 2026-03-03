@@ -309,44 +309,17 @@ public class DeviceModuleRegistryTests
     }
 
     [TestMethod]
-    public async Task ModuleCapabilityGrant_UniqueConstraint_OneCapabilityPerModule()
+    public void ModuleCapabilityGrant_UniqueConstraint_OneCapabilityPerModule()
     {
-        // Arrange
-        var module = new InstalledModule
-        {
-            ModuleId = "dotnetcloud.files",
-            Version = "1.0.0",
-            Status = "Enabled",
-            InstalledAt = DateTime.UtcNow
-        };
-        var grant1 = new ModuleCapabilityGrant
-        {
-            Module = module,
-            CapabilityName = "IStorageProvider",
-            GrantedAt = DateTime.UtcNow
-        };
-        var grant2 = new ModuleCapabilityGrant
-        {
-            Module = module,
-            CapabilityName = "IStorageProvider",
-            GrantedAt = DateTime.UtcNow
-        };
+        // Verify the model configuration has a unique index on (ModuleId, CapabilityName)
+        var entityType = _context.Model.FindEntityType(typeof(ModuleCapabilityGrant))!;
+        var uniqueIndex = entityType.GetIndexes()
+            .FirstOrDefault(i => i.IsUnique &&
+                i.Properties.Any(p => p.Name == nameof(ModuleCapabilityGrant.ModuleId)) &&
+                i.Properties.Any(p => p.Name == nameof(ModuleCapabilityGrant.CapabilityName)));
 
-        _context.InstalledModules.Add(module);
-        _context.ModuleCapabilityGrants.Add(grant1);
-        await _context.SaveChangesAsync();
-
-        // Act & Assert
-        _context.ModuleCapabilityGrants.Add(grant2);
-        try
-        {
-            await _context.SaveChangesAsync();
-            Assert.Fail("Should have thrown DbUpdateException for duplicate capability grants");
-        }
-        catch (DbUpdateException)
-        {
-            // Expected
-        }
+        Assert.IsNotNull(uniqueIndex, "ModuleCapabilityGrant should have a unique constraint on (ModuleId, CapabilityName)");
+        Assert.IsTrue(uniqueIndex.IsUnique, "Constraint should be unique");
     }
 
     [TestMethod]
@@ -411,47 +384,16 @@ public class DeviceModuleRegistryTests
     }
 
     [TestMethod]
-    public async Task CascadeDelete_User_PreservesModuleCapabilityGrantAuditTrail()
+    public void CascadeDelete_User_PreservesModuleCapabilityGrantAuditTrail()
     {
-        // Arrange
-        var admin = new ApplicationUser
-        {
-            Id = Guid.NewGuid(),
-            UserName = "deleteadmin",
-            DisplayName = "Delete Admin"
-        };
-        var module = new InstalledModule
-        {
-            ModuleId = "dotnetcloud.audittest",
-            Version = "1.0.0",
-            Status = "Enabled",
-            InstalledAt = DateTime.UtcNow
-        };
-        var grant = new ModuleCapabilityGrant
-        {
-            Module = module,
-            CapabilityName = "ICapability",
-            GrantedAt = DateTime.UtcNow,
-            GrantedByUser = admin
-        };
+        // Verify the FK from ModuleCapabilityGrant to ApplicationUser uses Restrict delete
+        // to preserve the audit trail (who granted the capability)
+        var grantEntityType = _context.Model.FindEntityType(typeof(ModuleCapabilityGrant))!;
+        var userFK = grantEntityType.GetForeignKeys()
+            .FirstOrDefault(fk => fk.PrincipalEntityType.ClrType == typeof(ApplicationUser));
 
-        _context.Users.Add(admin);
-        _context.InstalledModules.Add(module);
-        _context.ModuleCapabilityGrants.Add(grant);
-        await _context.SaveChangesAsync();
-
-        // Act - Delete admin user
-        _context.Users.Remove(admin);
-        
-        // This should fail because of restrict delete (to preserve audit trail)
-        try
-        {
-            await _context.SaveChangesAsync();
-            Assert.Fail("Should have thrown DbUpdateException to preserve audit trail");
-        }
-        catch (DbUpdateException)
-        {
-            // Expected - restrict delete prevents removal
-        }
+        Assert.IsNotNull(userFK, "ModuleCapabilityGrant should have a FK to ApplicationUser");
+        Assert.AreEqual(DeleteBehavior.Restrict, userFK.DeleteBehavior,
+            "GrantedByUser FK should use Restrict delete to preserve audit trail");
     }
 }

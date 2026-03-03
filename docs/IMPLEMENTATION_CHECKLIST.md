@@ -447,50 +447,57 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 **Process management and module communication**
 
 #### Process Supervisor
-- [ ] Create module process spawning logic
-- [ ] Implement process health monitoring:
-  - [ ] Periodic gRPC health checks
-  - [ ] Configurable check intervals
-  - [ ] Health status tracking
-- [ ] Implement restart policies:
-  - [ ] Immediate restart
-  - [ ] Exponential backoff
-  - [ ] Alert-only (no auto-restart)
-- [ ] Implement graceful shutdown:
-  - [ ] Signal modules to stop
-  - [ ] Wait for graceful termination
-  - [ ] Force kill timeout
-  - [ ] Drain active connections
-- [ ] Implement resource limits:
-  - [ ] CPU limits (cgroups on Linux)
-  - [ ] Memory limits (cgroups on Linux)
-  - [ ] Job Objects on Windows
+- ✓ Create module process spawning logic
+- ✓ Implement process health monitoring:
+  - ✓ Periodic gRPC health checks
+  - ✓ Configurable check intervals
+  - ✓ Health status tracking
+- ✓ Implement restart policies:
+  - ✓ Immediate restart
+  - ✓ Exponential backoff
+  - ✓ Alert-only (no auto-restart)
+- ✓ Implement graceful shutdown:
+  - ✓ Signal modules to stop
+  - ✓ Wait for graceful termination
+  - ✓ Force kill timeout
+  - ✓ Drain active connections
+- ✓ Implement resource limits:
+  - ✓ CPU limits (cgroups on Linux)
+  - ✓ Memory limits (cgroups on Linux)
+  - ✓ Job Objects on Windows
 
 #### gRPC Infrastructure
-- [ ] Configure gRPC server:
-  - [ ] Unix domain socket support (Linux)
-  - [ ] Named pipe support (Windows)
-  - [ ] TCP fallback for Docker/Kubernetes
-- [ ] Create gRPC health service
-- [ ] Implement gRPC interceptors:
-  - [ ] Authentication/authorization interceptor
-  - [ ] CallerContext injection interceptor
-  - [ ] Distributed tracing interceptor
-  - [ ] Error handling interceptor
-  - [ ] Logging interceptor
+- ✓ Configure gRPC server:
+  - ✓ Unix domain socket support (Linux)
+  - ✓ Named pipe support (Windows)
+  - ✓ TCP fallback for Docker/Kubernetes
+- ✓ Create gRPC health service
+- ✓ Implement gRPC interceptors:
+  - ✓ Authentication/authorization interceptor
+  - ✓ CallerContext injection interceptor
+  - ✓ Distributed tracing interceptor
+  - ✓ Error handling interceptor
+  - ✓ Logging interceptor
 
 #### Module Loading
-- [ ] Create module discovery from filesystem
-- [ ] Implement module manifest loading and validation
-- [ ] Create capability request validation
-- [ ] Implement capability grant enforcement
-- [ ] Create module configuration loading
+- ✓ Create module discovery from filesystem
+- ✓ Implement module manifest loading and validation
+- ✓ Create capability request validation
+- ✓ Implement capability grant enforcement
+- ✓ Create module configuration loading
 
 #### Inter-Process Communication
-- [ ] Define gRPC service contracts for core capabilities
-- [ ] Create gRPC channel management
-- [ ] Implement connection pooling
-- [ ] Create timeout configuration
+- ✓ Define gRPC service contracts for core capabilities
+- ✓ Create gRPC channel management
+- ✓ Implement connection pooling
+- ✓ Create timeout configuration
+
+#### Unit Tests (DotNetCloud.Core.Server.Tests)
+- ✓ Create test project with MSTest, project references, InternalsVisibleTo
+- ✓ ModuleProcessHandleTests (state transitions, health checks, restart counting, ToProcessInfo)
+- ✓ ModuleManifestLoaderTests (validation rules, LoadAndValidate, CreateDefaultManifest)
+- ✓ GrpcChannelManagerTests (channel lifecycle, caching, disposal, CallOptions)
+- ✓ ModuleDiscoveryServiceTests (filesystem discovery, DLL/EXE detection, manifest detection)
 
 ---
 

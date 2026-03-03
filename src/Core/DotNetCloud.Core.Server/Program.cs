@@ -1,8 +1,10 @@
-using DotNetCloud.Core.Auth;
-using DotNetCloud.Core.Data;
-using DotNetCloud.Core.ServiceDefaults;
+using DotNetCloud.Core.Auth.Extensions;
+using DotNetCloud.Core.Data.Extensions;
+using DotNetCloud.Core.Data.Initialization;
+using DotNetCloud.Core.Server.Extensions;
+using DotNetCloud.Core.ServiceDefaults.Extensions;
 
-var builder = WebApplicationBuilder.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
 
 // Add service defaults (logging, telemetry, health checks, CORS, etc.)
 builder.AddDotNetCloudServiceDefaults();
@@ -33,7 +35,7 @@ app.MapDotNetCloudHealthChecks();
 using (var scope = app.Services.CreateScope())
 {
     var dbInitializer = scope.ServiceProvider.GetRequiredService<DbInitializer>();
-    await dbInitializer.EnsureDatabaseAsync();
+    await dbInitializer.InitializeAsync();
 }
 
 if (app.Environment.IsDevelopment())

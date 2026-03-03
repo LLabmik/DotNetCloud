@@ -1,5 +1,5 @@
-using DotNetCloud.Core.Auth;
-using DotNetCloud.Core.Dtos.Auth;
+using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -26,138 +26,108 @@ public class MfaController : ControllerBase
     }
 
     /// <summary>
-    /// Get TOTP setup information including QR code for authenticator app.
+    /// Get TOTP authenticator setup information (shared key, QR code URI).
     /// </summary>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>TOTP setup response with QR code and shared key</returns>
+    /// <returns>TOTP setup response with shared key and provisioning URI.</returns>
     [HttpGet("totp-setup")]
-    public async Task<IActionResult> GetTotpSetupAsync(CancellationToken cancellationToken = default)
+    public async Task<IActionResult> GetTotpSetupAsync()
     {
-        try
+        if (!TryGetUserId(out var userId))
         {
-            var userIdClaim = User.FindFirst("sub")?.Value;
-            if (!Guid.TryParse(userIdClaim, out var userId))
-            {
-                return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
-            }
+            return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
+        }
 
-            var response = await _mfaService.GetTotpSetupAsync(userId, cancellationToken);
-            _logger.LogInformation("TOTP setup initiated for user {UserId}", userId);
-            return Ok(new { success = true, data = response });
-        }
-        catch (InvalidOperationException ex)
-        {
-            _logger.LogWarning("TOTP setup failed: {Message}", ex.Message);
-            return BadRequest(new { success = false, error = new { code = "TOTP_SETUP_FAILED", message = ex.Message } });
-        }
+        var response = await _mfaService.GetTotpSetupAsync(userId);
+        _logger.LogInformation("TOTP setup retrieved for user {UserId}", userId);
+        return Ok(new { success = true, data = response });
     }
 
     /// <summary>
-    /// Verify TOTP code and enable two-factor authentication.
+    /// Verify a TOTP code to complete setup or confirm identity.
     /// </summary>
-    /// <param name="request">TOTP verification request with code</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Verification response with backup codes</returns>
+    /// <param name="request">Request containing the 6-digit TOTP code.</param>
+    /// <returns>Whether the code was verified successfully.</returns>
     [HttpPost("totp-verify")]
-    public async Task<IActionResult> VerifyTotpAsync([FromBody] TotpVerifyRequest request, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> VerifyTotpAsync([FromBody] TotpVerifyRequest request)
     {
-        try
+        if (!TryGetUserId(out var userId))
         {
-            var userIdClaim = User.FindFirst("sub")?.Value;
-            if (!Guid.TryParse(userIdClaim, out var userId))
-            {
-                return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
-            }
+            return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
+        }
 
-            var response = await _mfaService.VerifyTotpAsync(userId, request.Code, cancellationToken);
-            _logger.LogInformation("TOTP verified and enabled for user {UserId}", userId);
-            return Ok(new { success = true, data = response });
-        }
-        catch (ValidationException ex)
+        var verified = await _mfaService.VerifyTotpAsync(userId, request.Code);
+
+        if (!verified)
         {
-            return BadRequest(new { success = false, error = new { code = "INVALID_CODE", message = ex.Message } });
+            return BadRequest(new { success = false, error = new { code = "INVALID_CODE", message = "The TOTP code is invalid or expired." } });
         }
-        catch (InvalidOperationException ex)
-        {
-            _logger.LogWarning("TOTP verification failed: {Message}", ex.Message);
-            return BadRequest(new { success = false, error = new { code = "VERIFICATION_FAILED", message = ex.Message } });
-        }
+
+        _logger.LogInformation("TOTP verified for user {UserId}", userId);
+        return Ok(new { success = true, message = "TOTP verified successfully." });
     }
 
     /// <summary>
-    /// Disable TOTP authentication.
+    /// Disable TOTP authentication for the current user.
     /// </summary>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Confirmation that TOTP was disabled</returns>
+    /// <returns>Confirmation that TOTP was disabled.</returns>
     [HttpPost("totp-disable")]
-    public async Task<IActionResult> DisableTotpAsync(CancellationToken cancellationToken = default)
+    public async Task<IActionResult> DisableTotpAsync()
     {
-        try
+        if (!TryGetUserId(out var userId))
         {
-            var userIdClaim = User.FindFirst("sub")?.Value;
-            if (!Guid.TryParse(userIdClaim, out var userId))
-            {
-                return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
-            }
+            return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
+        }
 
-            await _mfaService.DisableTotpAsync(userId, cancellationToken);
-            _logger.LogInformation("TOTP disabled for user {UserId}", userId);
-            return Ok(new { success = true, message = "TOTP has been disabled" });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { success = false, error = new { code = "DISABLE_FAILED", message = ex.Message } });
-        }
+        await _mfaService.DisableMfaAsync(userId);
+        _logger.LogInformation("TOTP disabled for user {UserId}", userId);
+        return Ok(new { success = true, message = "TOTP has been disabled." });
     }
 
     /// <summary>
     /// Generate new backup codes for account recovery.
     /// </summary>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>New backup codes for account recovery</returns>
+    /// <returns>New backup codes (shown once, stored as SHA-256 hashes).</returns>
     [HttpPost("backup-codes")]
-    public async Task<IActionResult> GenerateBackupCodesAsync(CancellationToken cancellationToken = default)
+    public async Task<IActionResult> GenerateBackupCodesAsync()
     {
-        try
+        if (!TryGetUserId(out var userId))
         {
-            var userIdClaim = User.FindFirst("sub")?.Value;
-            if (!Guid.TryParse(userIdClaim, out var userId))
-            {
-                return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
-            }
+            return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
+        }
 
-            var response = await _mfaService.GenerateBackupCodesAsync(userId, cancellationToken);
-            _logger.LogInformation("Backup codes generated for user {UserId}", userId);
-            return Ok(new { success = true, data = response });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { success = false, error = new { code = "GENERATION_FAILED", message = ex.Message } });
-        }
+        var response = await _mfaService.GenerateBackupCodesAsync(userId);
+        _logger.LogInformation("Backup codes generated for user {UserId}", userId);
+        return Ok(new { success = true, data = response });
     }
 
     /// <summary>
     /// Get MFA status for the current user.
     /// </summary>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Current MFA status and enabled methods</returns>
+    /// <returns>Whether MFA is enabled and which methods are active.</returns>
     [HttpGet("status")]
-    public async Task<IActionResult> GetMfaStatusAsync(CancellationToken cancellationToken = default)
+    public IActionResult GetMfaStatus()
     {
-        try
+        if (!TryGetUserId(out var userId))
         {
-            var userIdClaim = User.FindFirst("sub")?.Value;
-            if (!Guid.TryParse(userIdClaim, out var userId))
-            {
-                return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
-            }
+            return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
+        }
 
-            var status = await _mfaService.GetMfaStatusAsync(userId, cancellationToken);
-            return Ok(new { success = true, data = status });
-        }
-        catch (InvalidOperationException)
+        // MFA status is available from the user's claims and the MFA service
+        var hasTwoFactor = User.HasClaim("amr", "mfa");
+
+        var status = new
         {
-            return NotFound(new { success = false, error = new { code = "USER_NOT_FOUND", message = "User not found" } });
-        }
+            userId,
+            isMfaEnabled = hasTwoFactor,
+            methods = hasTwoFactor ? new[] { "totp" } : Array.Empty<string>()
+        };
+
+        return Ok(new { success = true, data = status });
+    }
+
+    private bool TryGetUserId(out Guid userId)
+    {
+        var claim = User.FindFirst("sub")?.Value;
+        return Guid.TryParse(claim, out userId);
     }
 }

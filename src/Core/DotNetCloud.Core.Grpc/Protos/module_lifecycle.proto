@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+option csharp_namespace = "DotNetCloud.Core.Grpc.Lifecycle";
+
+package dotnetcloud.lifecycle;
+
+// ModuleLifecycle service: called by the core supervisor to control module processes.
+// Each module process hosts this service on its gRPC endpoint.
+service ModuleLifecycle {
+  // Initializes the module with its configuration and granted capabilities.
+  rpc Initialize (InitializeRequest) returns (InitializeResponse);
+
+  // Starts the module after initialization.
+  rpc Start (StartRequest) returns (StartResponse);
+
+  // Gracefully stops the module, allowing it to drain active work.
+  rpc Stop (StopRequest) returns (StopResponse);
+
+  // Performs a health check on the module.
+  rpc HealthCheck (HealthCheckRequest) returns (HealthCheckResponse);
+
+  // Gets the module's current manifest information.
+  rpc GetManifest (GetManifestRequest) returns (GetManifestResponse);
+}
+
+message InitializeRequest {
+  // The module ID as registered in the system.
+  string module_id = 1;
+
+  // Module-specific configuration as JSON key-value pairs.
+  map<string, string> configuration = 2;
+
+  // List of capability names that have been granted to this module.
+  repeated string granted_capabilities = 3;
+
+  // The gRPC endpoint of the core server for capability calls.
+  string core_endpoint = 4;
+}
+
+message InitializeResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message StartRequest {
+}
+
+message StartResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message StopRequest {
+  // Maximum time in seconds to wait for graceful shutdown.
+  int32 timeout_seconds = 1;
+}
+
+message StopResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message HealthCheckRequest {
+}
+
+message HealthCheckResponse {
+  HealthStatus status = 1;
+  string description = 2;
+  map<string, string> metadata = 3;
+}
+
+enum HealthStatus {
+  HEALTH_STATUS_UNKNOWN = 0;
+  HEALTH_STATUS_HEALTHY = 1;
+  HEALTH_STATUS_DEGRADED = 2;
+  HEALTH_STATUS_UNHEALTHY = 3;
+}
+
+message GetManifestRequest {
+}
+
+message GetManifestResponse {
+  string module_id = 1;
+  string name = 2;
+  string version = 3;
+  repeated string required_capabilities = 4;
+  repeated string published_events = 5;
+  repeated string subscribed_events = 6;
+}

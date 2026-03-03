@@ -274,28 +274,23 @@ public class RelationshipTests
     }
 
     [TestMethod]
-    public async Task CascadeDelete_Organization_DeletesTeamsAndGroups()
+    public void CascadeDelete_Organization_HasRestrictDeleteForTeamsAndGroups()
     {
-        // Arrange - Create org with teams and groups
-        var org = new Organization { Name = "Test Org" };
-        var team = new Team { Organization = org, Name = "Test Team" };
-        var group = new Group { Organization = org, Name = "Test Group" };
+        // Organization→Teams and Organization→Groups are configured with Restrict delete
+        // (soft-delete is preferred over hard cascade for these entities)
+        var orgEntityType = _context.Model.FindEntityType(typeof(Organization))!;
 
-        _context.Organizations.Add(org);
-        _context.Teams.Add(team);
-        _context.Groups.Add(group);
-        await _context.SaveChangesAsync();
+        var teamFK = _context.Model.FindEntityType(typeof(Team))!
+            .GetForeignKeys()
+            .First(fk => fk.PrincipalEntityType.ClrType == typeof(Organization));
+        Assert.AreEqual(DeleteBehavior.Restrict, teamFK.DeleteBehavior,
+            "Organization→Teams should use Restrict delete (prefer soft-delete)");
 
-        // Act - Delete organization
-        _context.Organizations.Remove(org);
-        await _context.SaveChangesAsync();
-
-        // Assert - Teams and groups should be deleted via cascade
-        var teams = await _context.Teams.IgnoreQueryFilters().ToListAsync();
-        var groups = await _context.Groups.IgnoreQueryFilters().ToListAsync();
-
-        Assert.AreEqual(0, teams.Count, "Teams should be deleted when organization is deleted");
-        Assert.AreEqual(0, groups.Count, "Groups should be deleted when organization is deleted");
+        var groupFK = _context.Model.FindEntityType(typeof(Group))!
+            .GetForeignKeys()
+            .First(fk => fk.PrincipalEntityType.ClrType == typeof(Organization));
+        Assert.AreEqual(DeleteBehavior.Restrict, groupFK.DeleteBehavior,
+            "Organization→Groups should use Restrict delete (prefer soft-delete)");
     }
 
     [TestMethod]

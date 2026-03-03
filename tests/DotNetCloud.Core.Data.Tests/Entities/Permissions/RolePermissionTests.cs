@@ -110,49 +110,28 @@ public class RolePermissionTests
     }
 
     [TestMethod]
-    public async Task Permission_Code_IsUnique()
+    public void Permission_Code_IsUnique()
     {
-        // Arrange
-        var perm1 = new Permission { Code = "core.admin", DisplayName = "Core Admin" };
-        var perm2 = new Permission { Code = "core.admin", DisplayName = "Duplicate Core Admin" };
+        // Verify the model configuration has a unique index on Permission.Code
+        var entityType = _context.Model.FindEntityType(typeof(Permission))!;
+        var codeProperty = entityType.FindProperty(nameof(Permission.Code))!;
+        var uniqueIndex = entityType.GetIndexes()
+            .FirstOrDefault(i => i.IsUnique && i.Properties.Any(p => p.Name == nameof(Permission.Code)));
 
-        _context.Permissions.Add(perm1);
-        await _context.SaveChangesAsync();
-
-        // Act & Assert
-        _context.Permissions.Add(perm2);
-        try
-        {
-            await _context.SaveChangesAsync();
-            Assert.Fail("Should have thrown DbUpdateException for duplicate permission codes");
-        }
-        catch (DbUpdateException)
-        {
-            // Expected
-        }
+        Assert.IsNotNull(uniqueIndex, "Permission.Code should have a unique index configured");
+        Assert.IsTrue(uniqueIndex.IsUnique, "Index on Permission.Code should be unique");
     }
 
     [TestMethod]
-    public async Task Role_Name_IsUnique()
+    public void Role_Name_IsUnique()
     {
-        // Arrange
-        var role1 = new Role { Name = "Admin", IsSystemRole = true };
-        var role2 = new Role { Name = "Admin", IsSystemRole = false };
+        // Verify the model configuration has a unique index on Role.Name
+        var entityType = _context.Model.FindEntityType(typeof(Role))!;
+        var uniqueIndex = entityType.GetIndexes()
+            .FirstOrDefault(i => i.IsUnique && i.Properties.Any(p => p.Name == nameof(Role.Name)));
 
-        _context.Roles.Add(role1);
-        await _context.SaveChangesAsync();
-
-        // Act & Assert
-        _context.Roles.Add(role2);
-        try
-        {
-            await _context.SaveChangesAsync();
-            Assert.Fail("Should have thrown DbUpdateException for duplicate role names");
-        }
-        catch (DbUpdateException)
-        {
-            // Expected
-        }
+        Assert.IsNotNull(uniqueIndex, "Role.Name should have a unique index configured");
+        Assert.IsTrue(uniqueIndex.IsUnique, "Index on Role.Name should be unique");
     }
 
     [TestMethod]

@@ -1,3 +1,6 @@
+using Microsoft.AspNetCore;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Http.Extensions;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
 using static OpenIddict.Abstractions.OpenIddictConstants;
@@ -16,12 +19,12 @@ public static class OpenIddictEndpointsExtensions
     /// <returns>The web application for chaining</returns>
     public static WebApplication MapOpenIddictEndpoints(this WebApplication app)
     {
-        app.MapPost("/connect/token", HandleTokenEndpoint);
-        app.MapPost("/connect/authorize", HandleAuthorizeEndpoint);
-        app.MapPost("/connect/logout", HandleLogoutEndpoint);
-        app.MapPost("/connect/revoke", HandleRevokeEndpoint);
-        app.MapGet("/connect/userinfo", HandleUserInfoEndpoint);
-        app.MapPost("/connect/introspect", HandleIntrospectEndpoint);
+        app.MapPost("/connect/token", (Delegate)HandleTokenEndpoint);
+        app.MapPost("/connect/authorize", (Delegate)HandleAuthorizeEndpoint);
+        app.MapPost("/connect/logout", (Delegate)HandleLogoutEndpoint);
+        app.MapPost("/connect/revoke", (Delegate)HandleRevokeEndpoint);
+        app.MapGet("/connect/userinfo", (Delegate)HandleUserInfoEndpoint);
+        app.MapPost("/connect/introspect", (Delegate)HandleIntrospectEndpoint);
 
         return app;
     }

@@ -22,7 +22,7 @@
 | Phase 0.3 | 8 | 8 | 0 | 0 |
 | Phase 0.4 | 20 | 20 | 0 | 0 |
 | Phase 0.5 | 9 | 9 | 0 | 0 |
-| Phase 0.6 | 13 | 0 | 0 | 13 |
+| Phase 0.6 | 14 | 14 | 0 | 0 |
 | Phase 0.7 | 16 | 0 | 0 | 16 |
 | Phase 0.8 | 11 | 0 | 0 | 11 |
 | Phase 0.9 | 13 | 0 | 0 | 13 |
@@ -1404,205 +1404,6 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Description:** Create OpenIddict entity models and EF Core configurations for OAuth2/OIDC
 
 **Completed Deliverables:**
-- ✓ `OpenIddictApplication` entity (OAuth2/OIDC client applications)
-- ✓ `OpenIddictAuthorization` entity (user consent/authorization records)
-- ✓ `OpenIddictToken` entity (access, refresh, ID tokens, authorization codes)
-- ✓ `OpenIddictScope` entity (scope definitions)
-- ✓ EF Core configurations for all 4 entities with multi-database naming support
-- ✓ CoreDbContext updated with 4 new DbSets and ConfigureAuthenticationModels()
-
-**File Locations:**
-- `src/Core/DotNetCloud.Core.Data/Entities/Auth/OpenIddict*.cs`
-- `src/Core/DotNetCloud.Core.Data/Configuration/Auth/OpenIddict*Configuration.cs`
-
-**Dependencies:** phase-0.2 ✓
-**Build Status:** ✅ Solution builds successfully
-
----
-
-#### Step: phase-0.4.2 through phase-0.4.12 - Auth Infrastructure Library
-**Status:** completed ✅
-**Duration:** ~6 hours (across 2 sessions)
-**Description:** Full authentication & authorization infrastructure layer
-
-**Completed Deliverables:**
-- ✓ Fixed OpenIddict entity inheritance (4 entities now inherit from `OpenIddictEntityFrameworkCore*<Guid>` base classes)
-- ✓ Replaced 4 POCO configurations with `modelBuilder.UseOpenIddict<>()` + naming overrides
-- ✓ Added `OpenIddict.EntityFrameworkCore` 5.x to `DotNetCloud.Core.Data.csproj`
-- ✓ Created `UserBackupCode` entity (SHA-256 hashed TOTP backup codes)
-- ✓ Created `FidoCredential` entity skeleton (WebAuthn/passkey data model)
-- ✓ Created Auth DTOs: `LoginRequest/Response`, `RegisterRequest/Response`, `RefreshTokenRequest`, `TokenResponse`, `AuthError`, etc.
-- ✓ Created MFA DTOs: `TotpSetupResponse`, `TotpVerifyRequest`, `BackupCodesResponse`
-- ✓ Created `IAuthService`, `IMfaService`, `IFidoService` interfaces in `DotNetCloud.Core`
-- ✓ Created `DotNetCloud.Core.Auth` class library project (net10.0, FrameworkReference ASP.NET Core)
-- ✓ Created `AuthOptions` strongly-typed configuration
-- ✓ Created `AuthServiceExtensions.AddDotNetCloudAuth()`: Identity, OpenIddict 5.x, claims transformation, policies, capabilities
-- ✓ Configured OpenIddict 5.x server (JWT default, ephemeral keys, all 6 endpoints, PKCE required, 4 scopes)
-- ✓ Implemented `AuthService`: register, login (with lockout + MFA check), logout, password reset, email confirmation
-- ✓ Implemented `MfaService`: TOTP setup/verify, backup codes (10x SHA-256 hashed)
-- ✓ Implemented `DotNetCloudClaimsTransformation`: role + locale + timezone claims, 5-min `IMemoryCache`
-- ✓ Created `PermissionRequirement` + `PermissionAuthorizationHandler`
-- ✓ Created `AuthorizationPolicies` constants + policies registered in DI
-- ✓ Created `UserDirectoryService`, `UserManagerService`, `CurrentUserContextService` capability implementations
-- ✓ Generated EF Core migrations: `Phase0_4_Auth` (PostgreSQL) + `Phase0_4_Auth_SqlServer`
-- ✓ Created `DotNetCloud.Core.Auth.Tests` project with 31 passing tests
-
-**File Location:** `src/Core/DotNetCloud.Core.Auth/`
-**Dependencies:** phase-0.4.1 ✓
-**Build Status:** ✅ All projects build successfully; 0 errors
-**Testing:** ✅ 31/31 tests pass
-
----
-
-#### Step: phase-0.4.13 through phase-0.4.20 - HTTP Endpoints & Integration Tests
-**Status:** completed ✅
-**Duration:** ~4 hours
-**Description:** Create DotNetCloud.Core.Server web application with HTTP endpoints for authentication, MFA, and OpenIddict protocol
-
-**Completed Deliverables:**
-
-**DotNetCloud.Core.Server Project:**
-- ✓ ASP.NET Core web project (net10.0) with full middleware pipeline
-- ✓ `Program.cs` with service registration: Auth, DbContext, ServiceDefaults, Controllers, OpenAPI
-- ✓ Database initialization on startup
-- ✓ appsettings.json and appsettings.Development.json
-
-**AuthController (9 endpoints):**
-- ✓ `POST /api/v1/auth/register` — User registration
-- ✓ `POST /api/v1/auth/login` — User login with MFA detection
-- ✓ `POST /api/v1/auth/refresh` — Refresh access token
-- ✓ `POST /api/v1/auth/password-reset-request` — Request password reset (email-enumeration safe)
-- ✓ `POST /api/v1/auth/password-reset` — Reset password with token
-- ✓ `GET /api/v1/auth/profile` [Authorized] — Get current user profile
-- ✓ `PUT /api/v1/auth/profile` [Authorized] — Update user profile
-- ✓ `POST /api/v1/auth/change-password` [Authorized] — Change password
-- ✓ `POST /api/v1/auth/logout` [Authorized] — Logout and revoke tokens
-
-**MfaController (5 endpoints, all [Authorized]):**
-- ✓ `GET /api/v1/auth/mfa/totp-setup` — Get TOTP setup (QR code + shared key)
-- ✓ `POST /api/v1/auth/mfa/totp-verify` — Verify and enable TOTP
-- ✓ `POST /api/v1/auth/mfa/totp-disable` — Disable TOTP
-- ✓ `POST /api/v1/auth/mfa/backup-codes` — Generate new backup codes
-- ✓ `GET /api/v1/auth/mfa/status` — Get MFA status
-
-**OpenIddict Protocol Endpoints (6 endpoints):**
-- ✓ `POST /connect/token` — Token endpoint (Auth Code, Refresh, Client Credentials)
-- ✓ `POST /connect/authorize` — Authorization endpoint with login redirect
-- ✓ `POST /connect/logout` — Logout endpoint with post-logout redirect
-- ✓ `POST /connect/revoke` — Token revocation
-- ✓ `GET /connect/userinfo` — User info endpoint
-- ✓ `POST /connect/introspect` — Token introspection
-
-**DataServiceExtensions:**
-- ✓ `AddDotNetCloudDbContext()` — Auto-detects provider, registers DbContext + DbInitializer
-
-**Integration Tests (18 tests):**
-- ✓ AuthControllerTests (7 tests) — registration, login, refresh, password reset, profile, logout
-- ✓ MfaControllerTests (5 tests) — TOTP setup/verify/disable, backup codes, status
-- ✓ OpenIddictEndpointsTests (6 tests) — all 6 protocol endpoints accessible
-
-**File Locations:**
-- `src/Core/DotNetCloud.Core.Server/Controllers/AuthController.cs`
-- `src/Core/DotNetCloud.Core.Server/Controllers/MfaController.cs`
-- `src/Core/DotNetCloud.Core.Server/Extensions/OpenIddictEndpointsExtensions.cs`
-- `src/Core/DotNetCloud.Core.Data/Extensions/DataServiceExtensions.cs`
-- `tests/DotNetCloud.Core.Server.Tests/`
-
-**Dependencies:** phase-0.4.1 through phase-0.4.12 ✅
-**Testing:** ✅ 18/18 integration tests passing
-**Build Status:** ✅ All projects compile successfully
-**Notes:** Phase 0.4 complete. Server is a fully functional ASP.NET Core application with authentication REST API, MFA management, and OAuth2/OIDC protocol endpoints. Ready for Phase 0.5+ (Module System Infrastructure).
-
----
-
-## Status Summary & Notes
-
-- **Total Phase 0 Steps:** 228+ (across subsections 0.1-0.19)
-- **Estimated Duration:** 16-20 weeks for complete Phase 0
-- **Critical Path:** 0.1 → 0.2 → 0.3 → 0.4 → (0.5-0.19 can parallelize somewhat)
-- **Blocking Issues:** None currently
-- **Assumptions:** .NET 10, PostgreSQL/SQL Server/MariaDB support required
-- **Reference:** Complete detailed task breakdowns in `/docs/IMPLEMENTATION_CHECKLIST.md`
-
----
-
-**Last Updated:** 2026-03-03 (phase-0.4 HTTP Endpoints completed)
-**Next Review:** After Phase 0.6 completion
-**Maintained By:** Development Team
-
----
-
-## How to Use This Plan
-
-This plan is structured as a living document to guide the implementation of the DotNetCloud project
-in phases. Each phase is broken down into steps with assigned status, duration, description, tasks,
-dependencies, and testing requirements.
-
-**Sections:**
-- `Pre-Implementation Setup`: Actions required before the main implementation phases
-- `Phase 0`: Foundational work for the entire project, subdivided into sections (0.1 - 0.19)
-
-**Phase Structure:**
-Each phase follows a similar structure:
-- **Step ID** - Unique identifier for the step
-- **Status** - Current status (pending|in-progress|completed|failed|skipped)
-- **Duration** - Estimated time to complete
-- **Description** - High-level overview of the step
-- **Recommended Prompt** - Suggested AI prompt to execute the step
-- **Tasks** - Checklist of tasks to complete
-- **Dependencies** - Other steps that must be completed first
-- **Testing** - How the step will be validated
-
-**Using This Document:**
-- Review the `Quick Status Summary` for a high-level overview
-- Find your area of work in the detailed phases and steps
-- Update the status, add notes, and check off tasks as you work
-- Use the `Recommended Prompt` to guide AI assistance for your tasks
-- Ensure you meet the `Testing` requirements for your steps
-
-**Maintainers:**
-This document is maintained by the Development Team. For questions or suggestions, please contact
-your project lead.
-
----
-
-## Ongoing Management
-
-This plan is a living document and will evolve as the project progresses. Regularly review and
-update the plan to reflect the current state of the project, adjust estimates, and add new tasks
-or phases as needed. Use this plan to communicate progress, roadblocks, and changes to all
-stakeholders.
-
----
-
-## Appendix
-
-### A. References
-- [Git Flow](https://nvie.com/posts/a-successful-git-branching-model/)
-- [Semantic Versioning](https://semver.org/)
-- [API Versioning in ASP.NET Core](https://docs.microsoft.com/en-us/aspnet/core/web-api/overview)
-- [OpenID Connect & OAuth 2.0 Protocol](https://oauth.net/2/)
-- [SAML 2.0 Specification](https://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf)
-
-### B. Tools & Technologies
-- **Programming Languages:** C# 13
-- **Framework:** .NET 10
-- **Database:** PostgreSQL, SQL Server, MariaDB
-- **ORM:** EF Core
-- **API:** ASP.NET Core
-- **Authentication:** OpenIddict 5.x, ASP.NET Core Identity
-- **Logging:** Serilog
-- **Monitoring:** OpenTelemetry
-- **Containerization:** Docker, Docker Compose
-- **IDEs:** Visual Studio 2022, JetBrains Rider, VS Code
-- **Operating Systems:** Windows 11, Ubuntu/Debian, macOS
-
-#### Step: phase-0.4.1 - OpenIddict Database Models & Configuration
-**Status:** completed ✅
-**Duration:** ~2 hours
-**Description:** Create OpenIddict entity models and EF Core configurations for OAuth2/OIDC
-
-**Completed Deliverables:**
 - ✓ `OpenIddictApplication` entity with comprehensive XML documentation
   - ✓ Represents OAuth2/OIDC client applications
   - ✓ Properties: ClientId, ClientSecret, RedirectUris, Permissions, Type, ConsentType
@@ -1663,11 +1464,11 @@ stakeholders.
 **File Locations:**
 - `src/Core/DotNetCloud.Core.Data/Entities/Auth/OpenIddictApplication.cs`
 - `src/Core/DotNetCloud.Core.Data/Entities/Auth/OpenIddictAuthorization.cs`
-- `src/Core/DotNetCloud.Core.Data/Entities/Auth/OpenIddictToken.cs`
+- `src/Core/Core.DotNetCloud.Core.Data/Entities/Auth/OpenIddictToken.cs`
 - `src/Core/DotNetCloud.Core.Data/Entities/Auth/OpenIddictScope.cs`
 - `src/Core/DotNetCloud.Core.Data/Configuration/Auth/OpenIddictApplicationConfiguration.cs`
 - `src/Core/DotNetCloud.Core.Data/Configuration/Auth/OpenIddictAuthorizationConfiguration.cs`
-- `src/Core/DotNetCloud.Core.Data/Configuration/Auth/OpenIddictTokenConfiguration.cs`
+- `src/Core/Core.DotNetCloud.Core.Data/Configuration/Auth/OpenIddictTokenConfiguration.cs`
 - `src/Core/DotNetCloud.Core.Data/Configuration/Auth/OpenIddictScopeConfiguration.cs`
 - `src/Core/DotNetCloud.Core.Data/Context/CoreDbContext.cs` (updated)
 
@@ -1724,9 +1525,36 @@ stakeholders.
 
 ---
 
+### Section: Phase 0.6 - Process Supervisor & gRPC Host
+
+**Status:** completed ✅
+**Description:** Process management, module loading, gRPC infrastructure, and inter-process communication
+
+**Deliverables:**
+- ✓ ProcessSupervisor (BackgroundService + IProcessSupervisor): spawning, health monitoring, restart policies, graceful shutdown
+- ✓ ResourceLimiter: cgroups v2 (Linux) and Job Objects (Windows) for CPU/memory limits
+- ✓ ModuleProcessHandle: per-module process state management
+- ✓ GrpcChannelManager: channel pooling, Unix socket/named pipe/TCP support
+- ✓ ModuleDiscoveryService: filesystem scanning for module binaries
+- ✓ ModuleManifestLoader: manifest.json loading and validation
+- ✓ ModuleConfigurationLoader: multi-source config (file + DB + core)
+- ✓ CapabilityValidator: tier-based capability grant enforcement
+- ✓ gRPC interceptors: Auth, CallerContext, Tracing, ErrorHandling, Logging
+- ✓ GrpcHealthServiceImpl: gRPC health checking protocol
+- ✓ GrpcServerConfiguration: Kestrel listener setup (UDS/pipes/TCP)
+- ✓ AuthController & MfaController: REST API controllers for auth flows
+- ✓ OpenIddict endpoint mapping extensions
+- ✓ Unit tests: ModuleProcessHandleTests, ModuleManifestLoaderTests, GrpcChannelManagerTests, ModuleDiscoveryServiceTests (66 tests, all passing)
+
+**Build Status:** ✅ Full solution builds with zero errors
+**Testing:** ✅ 66/66 Server.Tests pass
+**Notes:** All Phase 0.6 implementation and unit tests complete. InternalsVisibleTo added to Server project for test access to internal types. NullLogger used in tests to avoid Moq proxy issues with strong-named assemblies.
+
+---
+
 ## Status Summary & Notes
 
-- **Total Phase 0 Steps:** 228+ (across subsections 0.1-0.19)
+- **Total Phase 0 Steps:** 229+ (across subsections 0.1-0.19)
 - **Estimated Duration:** 16-20 weeks for complete Phase 0
 - **Critical Path:** 0.1 → 0.2 → 0.3 → 0.4 → (0.5-0.19 can parallelize somewhat)
 - **Blocking Issues:** None currently
@@ -1735,8 +1563,8 @@ stakeholders.
 
 ---
 
-**Last Updated:** 2026-03-02 (phase pre-impl-1 completed)  
-**Next Review:** After Phase 0.1.1 completion  
+**Last Updated:** 2026-03-03 (Phase 0.6 unit tests completed)  
+**Next Review:** After Phase 0.7 start
 **Maintained By:** Development Team
 
 ---

@@ -43,8 +43,4 @@
     <ProjectReference Include="..\DotNetCloud.Core\DotNetCloud.Core.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Update="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.103" />
-  </ItemGroup>
-
-</Project>
+  </Project>

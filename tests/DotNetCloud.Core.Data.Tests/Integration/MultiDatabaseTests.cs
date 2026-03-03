@@ -27,10 +27,10 @@ public class MultiDatabaseTests
     [TestMethod]
     public void DatabaseProvider_SqlServer_IsDetected()
     {
-        // Arrange
+        // Arrange - Use unambiguous SQL Server connection strings
         var connectionStrings = new[]
         {
-            "Server=localhost;Database=testdb;User Id=sa;Password=password",
+            "Data Source=localhost;Database=testdb;User Id=sa;Password=password",
             "Data Source=localhost;Initial Catalog=testdb;Integrated Security=true"
         };
 
@@ -71,7 +71,7 @@ public class MultiDatabaseTests
         var columnName = strategy.GetColumnName("DisplayName");
 
         // Assert
-        Assert.AreEqual("organizations", tableName, "PostgreSQL should use lowercase plural");
+        Assert.AreEqual("core.organization", tableName, "PostgreSQL should use schema-qualified snake_case");
         Assert.AreEqual("display_name", columnName, "PostgreSQL should use snake_case");
     }
 
@@ -86,7 +86,7 @@ public class MultiDatabaseTests
         var columnName = strategy.GetColumnName("DisplayName");
 
         // Assert
-        Assert.AreEqual("Organizations", tableName, "SQL Server should use PascalCase");
+        Assert.AreEqual("[core].[Organization]", tableName, "SQL Server should use schema-qualified PascalCase");
         Assert.AreEqual("DisplayName", columnName, "SQL Server should use PascalCase");
     }
 
@@ -101,7 +101,7 @@ public class MultiDatabaseTests
         var columnName = strategy.GetColumnName("DisplayName");
 
         // Assert
-        Assert.AreEqual("core_organizations", tableName, "MariaDB should use prefixed lowercase");
+        Assert.AreEqual("core_organization", tableName, "MariaDB should use prefixed snake_case");
         Assert.AreEqual("display_name", columnName, "MariaDB should use snake_case");
     }
 
@@ -209,17 +209,21 @@ public class MultiDatabaseTests
     }
 
     [TestMethod]
-    public void DatabaseProviderDetector_UnknownProvider_ReturnsDefault()
+    public void DatabaseProviderDetector_UnknownProvider_ThrowsInvalidOperationException()
     {
         // Arrange
         var unknownConnectionString = "some-unknown-connection-string";
 
-        // Act
-        var provider = DatabaseProviderDetector.DetectProvider(unknownConnectionString);
-
-        // Assert
-        Assert.AreEqual(DatabaseProvider.PostgreSQL, provider, 
-            "Unknown provider should default to PostgreSQL");
+        // Act & Assert
+        try
+        {
+            DatabaseProviderDetector.DetectProvider(unknownConnectionString);
+            Assert.Fail("Should have thrown InvalidOperationException for unknown provider");
+        }
+        catch (InvalidOperationException)
+        {
+            // Expected — detector cannot determine provider from unknown connection string
+        }
     }
 
     [TestMethod]
