@@ -1,0 +1,16 @@
+<div class="error-display">
+    <h2>Something went wrong</h2>
+    <p>@(Exception?.Message ?? "An unexpected error occurred.")</p>
+    @if (OnDismiss.HasDelegate)
+    {
+        <button class="btn btn-primary" @onclick="OnDismiss">Try Again</button>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Exception? Exception { get; set; }
+
+    [Parameter]
+    public EventCallback OnDismiss { get; set; }
+}

@@ -1,0 +1,106 @@
+@using Microsoft.AspNetCore.Components.Routing
+@using DotNetCloud.UI.Web.Services
+
+@inject ModuleUiRegistry ModuleRegistry
+@implements IDisposable
+
+<nav class="nav-menu">
+    <AuthorizeView>
+        <Authorized>
+            <ul class="nav-list">
+                <li class="nav-item">
+                    <NavLink href="/admin" Match="NavLinkMatch.All" class="nav-link">
+                        <span class="nav-icon">🏠</span>
+                        @if (!Collapsed)
+                        {
+                            <span class="nav-text">Dashboard</span>
+                        }
+                    </NavLink>
+                </li>
+                <li class="nav-item">
+                    <NavLink href="/admin/users" Match="NavLinkMatch.Prefix" class="nav-link">
+                        <span class="nav-icon">👥</span>
+                        @if (!Collapsed)
+                        {
+                            <span class="nav-text">Users</span>
+                        }
+                    </NavLink>
+                </li>
+                <li class="nav-item">
+                    <NavLink href="/admin/modules" Match="NavLinkMatch.Prefix" class="nav-link">
+                        <span class="nav-icon">📦</span>
+                        @if (!Collapsed)
+                        {
+                            <span class="nav-text">Modules</span>
+                        }
+                    </NavLink>
+                </li>
+                <li class="nav-item">
+                    <NavLink href="/admin/settings" Match="NavLinkMatch.Prefix" class="nav-link">
+                        <span class="nav-icon">⚙</span>
+                        @if (!Collapsed)
+                        {
+                            <span class="nav-text">Settings</span>
+                        }
+                    </NavLink>
+                </li>
+                <li class="nav-item">
+                    <NavLink href="/admin/health" Match="NavLinkMatch.Prefix" class="nav-link">
+                        <span class="nav-icon">💚</span>
+                        @if (!Collapsed)
+                        {
+                            <span class="nav-text">Health</span>
+                        }
+                    </NavLink>
+                </li>
+            </ul>
+
+            @if (ModuleRegistry.NavItems.Count > 0)
+            {
+                <div class="nav-separator"></div>
+                <ul class="nav-list">
+                    @foreach (var item in ModuleRegistry.NavItems)
+                    {
+                        <li class="nav-item">
+                            <NavLink href="@item.Href" Match="NavLinkMatch.Prefix" class="nav-link">
+                                <span class="nav-icon">@item.Icon</span>
+                                @if (!Collapsed)
+                                {
+                                    <span class="nav-text">@item.Label</span>
+                                }
+                            </NavLink>
+                        </li>
+                    }
+                </ul>
+            }
+        </Authorized>
+        <NotAuthorized>
+            <ul class="nav-list">
+                <li class="nav-item">
+                    <NavLink href="/auth/login" class="nav-link">
+                        <span class="nav-icon">🔑</span>
+                        @if (!Collapsed)
+                        {
+                            <span class="nav-text">Login</span>
+                        }
+                    </NavLink>
+                </li>
+            </ul>
+        </NotAuthorized>
+    </AuthorizeView>
+</nav>
+
+@code {
+    [Parameter]
+    public bool Collapsed { get; set; }
+
+    protected override void OnInitialized()
+    {
+        ModuleRegistry.OnChange += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        ModuleRegistry.OnChange -= StateHasChanged;
+    }
+}

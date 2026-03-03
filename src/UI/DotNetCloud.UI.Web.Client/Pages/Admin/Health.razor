@@ -1,0 +1,95 @@
+@page "/admin/health"
+@rendermode InteractiveAuto
+@attribute [Authorize]
+
+<PageTitle>System Health - DotNetCloud</PageTitle>
+
+<div class="page-header">
+    <h1>System Health</h1>
+    <button class="btn btn-outline" @onclick="RefreshAsync" disabled="@_loading">Refresh</button>
+</div>
+
+@if (_loading)
+{
+    <LoadingIndicator Message="Checking system health..." />
+}
+else if (_health is null)
+{
+    <div class="empty-state">
+        <p>Unable to retrieve health status.</p>
+    </div>
+}
+else
+{
+    <div class="health-overview">
+        <div class="health-status health-@_health.Status.ToLowerInvariant()">
+            <h2>Overall: @_health.Status</h2>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Component</th>
+                    <th>Status</th>
+                    <th>Duration</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var entry in _health.Entries)
+                {
+                    <tr>
+                        <td>@entry.Key</td>
+                        <td>
+                            <span class="badge badge-@GetBadgeClass(entry.Value.Status)">
+                                @entry.Value.Status
+                            </span>
+                        </td>
+                        <td>@entry.Value.Duration.TotalMilliseconds.ToString("F0") ms</td>
+                        <td>@(entry.Value.Description ?? "—")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+
+    private bool _loading = true;
+    private HealthReportDto? _health;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        _loading = true;
+        try
+        {
+            _health = await Api.GetHealthAsync();
+        }
+        catch
+        {
+            Toast.ShowError("Failed to load health status.");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string GetBadgeClass(string status) => status switch
+    {
+        "Healthy" => "success",
+        "Degraded" => "warning",
+        "Unhealthy" => "danger",
+        _ => "muted"
+    };
+}

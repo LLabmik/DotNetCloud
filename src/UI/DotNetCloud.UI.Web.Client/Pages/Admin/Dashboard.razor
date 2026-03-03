@@ -1,0 +1,96 @@
+@page "/admin"
+@rendermode InteractiveAuto
+@attribute [Authorize]
+
+<PageTitle>Dashboard - DotNetCloud</PageTitle>
+
+<h1>Dashboard</h1>
+
+@if (_loading)
+{
+    <LoadingIndicator Message="Loading dashboard..." />
+}
+else
+{
+    <div class="dashboard-grid">
+        <div class="dashboard-card">
+            <div class="card-icon">👥</div>
+            <div class="card-content">
+                <h3>Users</h3>
+                <p class="card-value">@_userCount</p>
+            </div>
+            <a href="/admin/users" class="card-link">Manage</a>
+        </div>
+
+        <div class="dashboard-card">
+            <div class="card-icon">📦</div>
+            <div class="card-content">
+                <h3>Modules</h3>
+                <p class="card-value">@_moduleCount</p>
+            </div>
+            <a href="/admin/modules" class="card-link">Manage</a>
+        </div>
+
+        <div class="dashboard-card">
+            <div class="card-icon">⚙</div>
+            <div class="card-content">
+                <h3>Settings</h3>
+                <p class="card-value">@_settingsCount</p>
+            </div>
+            <a href="/admin/settings" class="card-link">Manage</a>
+        </div>
+
+        <div class="dashboard-card @GetHealthClass()">
+            <div class="card-icon">💚</div>
+            <div class="card-content">
+                <h3>System Health</h3>
+                <p class="card-value">@(_health?.Status ?? "Unknown")</p>
+            </div>
+            <a href="/admin/health" class="card-link">Details</a>
+        </div>
+    </div>
+}
+
+@code {
+    [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
+
+    private bool _loading = true;
+    private int _userCount;
+    private int _moduleCount;
+    private int _settingsCount;
+    private HealthReportDto? _health;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var usersTask = Api.ListUsersAsync(page: 1, pageSize: 1);
+            var modulesTask = Api.ListModulesAsync();
+            var settingsTask = Api.ListSettingsAsync();
+            var healthTask = Api.GetHealthAsync();
+
+            await Task.WhenAll(usersTask, modulesTask, settingsTask, healthTask);
+
+            _userCount = usersTask.Result.TotalCount;
+            _moduleCount = modulesTask.Result.Count;
+            _settingsCount = settingsTask.Result.Count;
+            _health = healthTask.Result;
+        }
+        catch
+        {
+            // Dashboard is non-critical; show zeros on failure
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private string GetHealthClass() => _health?.Status switch
+    {
+        "Healthy" => "card-healthy",
+        "Degraded" => "card-degraded",
+        "Unhealthy" => "card-unhealthy",
+        _ => ""
+    };
+}

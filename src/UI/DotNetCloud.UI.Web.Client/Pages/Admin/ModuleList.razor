@@ -1,0 +1,159 @@
+@page "/admin/modules"
+@rendermode InteractiveAuto
+@attribute [Authorize]
+
+<PageTitle>Modules - DotNetCloud</PageTitle>
+
+<div class="page-header">
+    <h1>Modules</h1>
+</div>
+
+@if (_loading)
+{
+    <LoadingIndicator Message="Loading modules..." />
+}
+else if (_modules.Count == 0)
+{
+    <div class="empty-state">
+        <p>No modules installed.</p>
+    </div>
+}
+else
+{
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Version</th>
+                    <th>Status</th>
+                    <th>Installed</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var module in _modules)
+                {
+                    <tr>
+                        <td>
+                            <a href="/admin/modules/@Uri.EscapeDataString(module.Id)">@module.Name</a>
+                            <small class="text-muted">@module.Id</small>
+                        </td>
+                        <td>@module.Version</td>
+                        <td>
+                            <span class="badge badge-@GetStatusClass(module.Status)">@module.Status</span>
+                        </td>
+                        <td>@module.InstalledAt.ToString("yyyy-MM-dd")</td>
+                        <td class="actions">
+                            @if (module.Status == "Enabled")
+                            {
+                                <button class="btn btn-sm btn-warning" @onclick="() => StopModuleAsync(module.Id)"
+                                        disabled="@_actionInProgress">Stop</button>
+                                <button class="btn btn-sm btn-outline" @onclick="() => RestartModuleAsync(module.Id)"
+                                        disabled="@_actionInProgress">Restart</button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-sm btn-success" @onclick="() => StartModuleAsync(module.Id)"
+                                        disabled="@_actionInProgress">Start</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+
+    private bool _loading = true;
+    private bool _actionInProgress;
+    private IReadOnlyList<ModuleDto> _modules = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadModulesAsync();
+    }
+
+    private async Task LoadModulesAsync()
+    {
+        _loading = true;
+        try
+        {
+            _modules = await Api.ListModulesAsync();
+        }
+        catch
+        {
+            Toast.ShowError("Failed to load modules.");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task StartModuleAsync(string moduleId)
+    {
+        _actionInProgress = true;
+        try
+        {
+            if (await Api.StartModuleAsync(moduleId))
+            {
+                Toast.ShowSuccess($"Module '{moduleId}' started.");
+                await LoadModulesAsync();
+            }
+            else
+            {
+                Toast.ShowError($"Failed to start module '{moduleId}'.");
+            }
+        }
+        finally { _actionInProgress = false; }
+    }
+
+    private async Task StopModuleAsync(string moduleId)
+    {
+        _actionInProgress = true;
+        try
+        {
+            if (await Api.StopModuleAsync(moduleId))
+            {
+                Toast.ShowSuccess($"Module '{moduleId}' stopped.");
+                await LoadModulesAsync();
+            }
+            else
+            {
+                Toast.ShowError($"Failed to stop module '{moduleId}'.");
+            }
+        }
+        finally { _actionInProgress = false; }
+    }
+
+    private async Task RestartModuleAsync(string moduleId)
+    {
+        _actionInProgress = true;
+        try
+        {
+            if (await Api.RestartModuleAsync(moduleId))
+            {
+                Toast.ShowSuccess($"Module '{moduleId}' restarted.");
+                await LoadModulesAsync();
+            }
+            else
+            {
+                Toast.ShowError($"Failed to restart module '{moduleId}'.");
+            }
+        }
+        finally { _actionInProgress = false; }
+    }
+
+    private static string GetStatusClass(string status) => status switch
+    {
+        "Enabled" => "success",
+        "Disabled" => "muted",
+        "UpdateAvailable" => "warning",
+        _ => "muted"
+    };
+}

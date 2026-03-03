@@ -5,6 +5,9 @@ using DotNetCloud.Core.Server.Configuration;
 using DotNetCloud.Core.Server.Extensions;
 using DotNetCloud.Core.Server.Middleware;
 using DotNetCloud.Core.ServiceDefaults.Extensions;
+using DotNetCloud.UI.Web.Client.Services;
+using DotNetCloud.UI.Web.Services;
+using Microsoft.AspNetCore.Components;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,6 +27,21 @@ builder.Services.AddDotNetCloudDbContext(connectionString);
 
 // Add controllers
 builder.Services.AddControllers();
+
+// Add Blazor (InteractiveAuto = Server + WebAssembly)
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents()
+    .AddInteractiveWebAssemblyComponents();
+
+// Blazor UI services (server-side prerendering needs these too)
+builder.Services.AddSingleton<ModuleUiRegistry>();
+builder.Services.AddSingleton<ToastService>();
+builder.Services.AddScoped(sp =>
+{
+    var nav = sp.GetRequiredService<NavigationManager>();
+    return new HttpClient { BaseAddress = new Uri(nav.BaseUri) };
+});
+builder.Services.AddScoped<DotNetCloudApiClient>();
 
 // Add OpenAPI/Swagger with DotNetCloud configuration
 builder.Services.AddDotNetCloudOpenApi(builder.Configuration);
@@ -87,6 +105,10 @@ app.UseDotNetCloudRateLimiting();
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Serve static files (Blazor wwwroot, CSS, JS)
+app.UseStaticFiles();
+app.UseAntiforgery();
+
 // Map OpenIddict endpoints
 app.MapOpenIddictEndpoints();
 
@@ -95,5 +117,11 @@ app.MapControllers();
 
 // Map SignalR hub endpoints
 app.MapDotNetCloudHubs();
+
+// Map Blazor components (InteractiveAuto = Server + WebAssembly)
+app.MapRazorComponents<DotNetCloud.UI.Web.Components.App>()
+    .AddInteractiveServerRenderMode()
+    .AddInteractiveWebAssemblyRenderMode()
+    .AddAdditionalAssemblies(typeof(DotNetCloud.UI.Web.Client._Imports).Assembly);
 
 app.Run();

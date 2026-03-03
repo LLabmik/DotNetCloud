@@ -1,0 +1,64 @@
+@if (_visible)
+{
+    <div class="dialog-overlay" @onclick="OnCancel">
+        <div class="dialog" @onclick:stopPropagation="true">
+            <div class="dialog-header">
+                <h3>@Title</h3>
+            </div>
+            <div class="dialog-body">
+                <p>@Message</p>
+            </div>
+            <div class="dialog-footer">
+                <button class="btn btn-outline" @onclick="OnCancel">@CancelText</button>
+                <button class="btn @ConfirmButtonClass" @onclick="OnConfirmClicked">@ConfirmText</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _visible;
+    private TaskCompletionSource<bool>? _tcs;
+
+    [Parameter]
+    public string Title { get; set; } = "Confirm";
+
+    [Parameter]
+    public string Message { get; set; } = "Are you sure?";
+
+    [Parameter]
+    public string ConfirmText { get; set; } = "Confirm";
+
+    [Parameter]
+    public string CancelText { get; set; } = "Cancel";
+
+    [Parameter]
+    public string ConfirmButtonClass { get; set; } = "btn-danger";
+
+    /// <summary>
+    /// Shows the dialog and returns true if confirmed, false if cancelled.
+    /// </summary>
+    public Task<bool> ShowAsync(string? message = null, string? title = null)
+    {
+        if (message is not null) Message = message;
+        if (title is not null) Title = title;
+        _tcs = new TaskCompletionSource<bool>();
+        _visible = true;
+        StateHasChanged();
+        return _tcs.Task;
+    }
+
+    private void OnConfirmClicked()
+    {
+        _visible = false;
+        _tcs?.TrySetResult(true);
+        StateHasChanged();
+    }
+
+    private void OnCancel()
+    {
+        _visible = false;
+        _tcs?.TrySetResult(false);
+        StateHasChanged();
+    }
+}

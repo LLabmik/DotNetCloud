@@ -1,0 +1,122 @@
+@page "/auth/login"
+@using Microsoft.AspNetCore.Identity
+@using DotNetCloud.Core.Data.Entities.Identity
+@layout AuthLayout
+
+<PageTitle>Login - DotNetCloud</PageTitle>
+
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <span class="brand-icon">☁</span>
+            <h1>DotNetCloud</h1>
+            <p>Sign in to your account</p>
+        </div>
+
+        <EditForm Model="_model" OnValidSubmit="LoginAsync" FormName="login">
+            <DataAnnotationsValidator />
+
+            <div class="form-group">
+                <label for="email">Email</label>
+                <InputText id="email" class="input" @bind-Value="_model!.Email" placeholder="you@example.com" />
+                <ValidationMessage For="() => _model!.Email" />
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <InputText id="password" class="input" type="password" @bind-Value="_model!.Password" />
+                <ValidationMessage For="() => _model!.Password" />
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(_errorMessage))
+            {
+                <div class="alert alert-danger">@_errorMessage</div>
+            }
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary btn-full" disabled="@_submitting">
+                    @(_submitting ? "Signing in..." : "Sign In")
+                </button>
+            </div>
+        </EditForm>
+
+        <div class="auth-footer">
+            <a href="/auth/forgot-password">Forgot password?</a>
+            <span class="separator">|</span>
+            <a href="/auth/register">Create an account</a>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Inject] private SignInManager<ApplicationUser> SignInManager { get; set; } = default!;
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromForm]
+    private LoginFormModel? _model { get; set; }
+
+    private bool _submitting;
+    private string? _errorMessage;
+
+    protected override void OnInitialized()
+    {
+        _model ??= new();
+    }
+
+    private async Task LoginAsync()
+    {
+        _model ??= new();
+        _errorMessage = null;
+        _submitting = true;
+
+        try
+        {
+            var result = await SignInManager.PasswordSignInAsync(
+                _model.Email,
+                _model.Password,
+                isPersistent: true,
+                lockoutOnFailure: true);
+
+            if (result.Succeeded)
+            {
+                Navigation.NavigateTo(ReturnUrl ?? "/admin", forceLoad: true);
+                return;
+            }
+
+            if (result.IsLockedOut)
+            {
+                _errorMessage = "Account locked. Please try again later.";
+            }
+            else if (result.RequiresTwoFactor)
+            {
+                Navigation.NavigateTo("/auth/mfa-verify", forceLoad: true);
+                return;
+            }
+            else if (result.IsNotAllowed)
+            {
+                _errorMessage = "Login not allowed. Please confirm your email.";
+            }
+            else
+            {
+                _errorMessage = "Invalid email or password.";
+            }
+        }
+        catch
+        {
+            _errorMessage = "An error occurred. Please try again.";
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    private sealed class LoginFormModel
+    {
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+    }
+}

@@ -27,7 +27,7 @@
 | Phase 0.8 | 11 | 11 | 0 | 0 |
 | Phase 0.9 | 13 | 13 | 0 | 0 |
 | Phase 0.10 | 11 | 11 | 0 | 0 |
-| Phase 0.11 | 18 | 0 | 0 | 18 |
+| Phase 0.11 | 18 | 16 | 0 | 2 |
 | Phase 0.12 | 25 | 0 | 0 | 25 |
 | Phase 0.13 | 20 | 0 | 0 | 20 |
 | Phase 0.14 | 12 | 0 | 0 | 12 |
@@ -1734,6 +1734,66 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
+### Section: Phase 0.11 - Web UI Shell (Blazor)
+
+**Status:** completed ✅
+**Description:** Blazor InteractiveAuto web UI shell with two projects: `DotNetCloud.UI.Web` (server-side RCL with SSR auth pages, layouts, and App.razor) and `DotNetCloud.UI.Web.Client` (WebAssembly project with interactive admin pages). Uses InteractiveAuto render mode so components pre-render on the server then switch to WebAssembly. Includes complete admin dashboard, user management, module management, settings management, health monitoring, authentication pages (login, register, forgot password, reset password, MFA verification, logout), module plugin system for dynamic UI extension, light/dark theme toggle, toast notifications, confirmation dialogs, and responsive sidebar navigation.
+
+**Deliverables:**
+- ✓ `DotNetCloud.UI.Web` Razor Class Library (server-side root, SSR auth pages, layouts)
+  - ✓ `Components/App.razor` — root document with InteractiveAuto HeadOutlet and Routes
+  - ✓ `Components/Routes.razor` — router scanning both UI.Web and UI.Web.Client assemblies
+  - ✓ `Components/Layout/MainLayout.razor` — app shell with sidebar, topbar, dark mode, error boundary
+  - ✓ `Components/Layout/NavMenu.razor` — sidebar navigation with dynamic module items
+  - ✓ `Components/Layout/AuthLayout.razor` — minimal centered layout for auth pages
+  - ✓ `Components/Pages/Auth/Login.razor` — SSR login with SignInManager cookie auth
+  - ✓ `Components/Pages/Auth/Register.razor` — SSR registration with UserManager
+  - ✓ `Components/Pages/Auth/ForgotPassword.razor` — SSR forgot password flow
+  - ✓ `Components/Pages/Auth/ResetPassword.razor` — SSR password reset with token
+  - ✓ `Components/Pages/Auth/MfaVerify.razor` — SSR TOTP verification
+  - ✓ `Components/Pages/Auth/Logout.razor` — SSR sign-out and redirect
+  - ✓ `Components/Shared/RedirectToLogin.razor` — unauthorized redirect helper
+  - ✓ `Components/Shared/ErrorDisplay.razor` — error boundary content
+  - ✓ `Components/Shared/ModulePageHost.razor` — dynamic component loader for modules
+  - ✓ `Services/ModuleUiRegistry.cs` — module nav item and page registration
+  - ✓ `wwwroot/css/app.css` — complete CSS theme (500+ lines, light/dark, responsive)
+- ✓ `DotNetCloud.UI.Web.Client` WebAssembly project (interactive admin pages)
+  - ✓ `Program.cs` — WASM host builder with auth, HttpClient, API client, ToastService
+  - ✓ `Services/DotNetCloudApiClient.cs` — typed HTTP client for all REST API endpoints
+  - ✓ `Services/ToastService.cs` — toast notification state management
+  - ✓ `Shared/ToastContainer.razor` — toast notification display
+  - ✓ `Shared/LoadingIndicator.razor` — spinner with optional message
+  - ✓ `Shared/ConfirmDialog.razor` — async confirmation dialog
+  - ✓ `Pages/Admin/Dashboard.razor` — summary cards (users, modules, settings, health)
+  - ✓ `Pages/Admin/ModuleList.razor` — module table with start/stop/restart actions
+  - ✓ `Pages/Admin/ModuleDetail.razor` — module info, capabilities, events, actions
+  - ✓ `Pages/Admin/UserList.razor` — paginated user table with search
+  - ✓ `Pages/Admin/UserDetail.razor` — user profile, roles, disable/enable/delete/reset
+  - ✓ `Pages/Admin/UserCreate.razor` — create user form via RegisterRequest
+  - ✓ `Pages/Admin/UserEdit.razor` — edit user profile form
+  - ✓ `Pages/Admin/Settings.razor` — settings table with inline edit dialog
+  - ✓ `Pages/Admin/Health.razor` — system health report with per-component status
+- ✓ Server integration in `DotNetCloud.Core.Server/Program.cs`
+  - ✓ `AddRazorComponents().AddInteractiveServerComponents().AddInteractiveWebAssemblyComponents()`
+  - ✓ `MapRazorComponents<App>().AddInteractiveServerRenderMode().AddInteractiveWebAssemblyRenderMode()`
+  - ✓ Server-side DI for ModuleUiRegistry, ToastService, HttpClient, DotNetCloudApiClient
+  - ✓ `Microsoft.AspNetCore.Components.WebAssembly.Server` package added
+  - ✓ Static files, antiforgery middleware configured
+- ☐ Backup/restore settings page (deferred to Phase 0.13 CLI)
+- ☐ Brand assets/logos (deferred — placeholder emoji icons used)
+
+**File Locations:**
+- `src/UI/DotNetCloud.UI.Web/` — Server-side RCL (17 files)
+- `src/UI/DotNetCloud.UI.Web.Client/` — WebAssembly project (15 files)
+- `src/Core/DotNetCloud.Core.Server/Program.cs` (modified — Blazor integration)
+- `src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj` (modified — UI project refs + WASM server pkg)
+
+**Build Status:** ✅ Full solution builds with zero errors, zero warnings
+**Testing:** ✅ 539/539 tests pass (108 Core + 186 Server + 69 Auth + 176 Data)
+**Notes:** InteractiveAuto chosen per project requirements. Auth pages use SSR (need HttpContext for cookie sign-in via SignInManager). Admin pages use InteractiveAuto via HttpClient-based API calls so they work in both server prerendering and WebAssembly contexts. Module plugin system allows future modules to register nav items and page components dynamically via ModuleUiRegistry.
+
+---
+
 ## Status Summary & Notes
 
 - **Total Phase 0 Steps:** 229+ (across subsections 0.1-0.19)
@@ -1745,8 +1805,8 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
-**Last Updated:** 2025-07-19 (Phase 0.10 User & Admin Management completed)  
-**Next Review:** After Phase 0.11 start
+**Last Updated:** 2025-07-19 (Phase 0.11 Web UI Shell completed)  
+**Next Review:** After Phase 0.12 start
 **Maintained By:** Development Team
 
 ---

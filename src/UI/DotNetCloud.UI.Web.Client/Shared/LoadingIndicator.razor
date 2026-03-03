@@ -1,0 +1,18 @@
+@if (Visible)
+{
+    <div class="loading-indicator">
+        <div class="spinner"></div>
+        @if (!string.IsNullOrWhiteSpace(Message))
+        {
+            <p class="loading-message">@Message</p>
+        }
+    </div>
+}
+
+@code {
+    [Parameter]
+    public bool Visible { get; set; } = true;
+
+    [Parameter]
+    public string? Message { get; set; }
+}

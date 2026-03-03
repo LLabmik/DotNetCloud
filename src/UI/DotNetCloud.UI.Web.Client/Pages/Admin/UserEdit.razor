@@ -1,0 +1,121 @@
+@page "/admin/users/{UserId:guid}/edit"
+@rendermode InteractiveAuto
+@attribute [Authorize]
+
+<PageTitle>Edit User - DotNetCloud</PageTitle>
+
+@if (_loading)
+{
+    <LoadingIndicator Message="Loading user..." />
+}
+else if (_model is null)
+{
+    <div class="empty-state">
+        <p>User not found.</p>
+        <a href="/admin/users" class="btn btn-primary">Back to Users</a>
+    </div>
+}
+else
+{
+    <div class="page-header">
+        <h1>Edit User</h1>
+        <a href="/admin/users/@UserId" class="btn btn-outline">Back</a>
+    </div>
+
+    <div class="form-container">
+        <EditForm Model="_model" OnValidSubmit="SubmitAsync" FormName="edit-user">
+            <DataAnnotationsValidator />
+
+            <div class="form-group">
+                <label for="displayName">Display Name</label>
+                <InputText id="displayName" class="input" @bind-Value="_model.DisplayName" />
+            </div>
+
+            <div class="form-group">
+                <label for="locale">Locale</label>
+                <InputText id="locale" class="input" @bind-Value="_model.Locale" />
+            </div>
+
+            <div class="form-group">
+                <label for="timezone">Timezone</label>
+                <InputText id="timezone" class="input" @bind-Value="_model.Timezone" />
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(_errorMessage))
+            {
+                <div class="alert alert-danger">@_errorMessage</div>
+            }
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary" disabled="@_submitting">
+                    @(_submitting ? "Saving..." : "Save Changes")
+                </button>
+            </div>
+        </EditForm>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid UserId { get; set; }
+    [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+
+    private bool _loading = true;
+    private bool _submitting;
+    private string? _errorMessage;
+    private UpdateUserDto? _model;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var user = await Api.GetUserAsync(UserId);
+            if (user is not null)
+            {
+                _model = new UpdateUserDto
+                {
+                    DisplayName = user.DisplayName,
+                    Locale = user.Locale,
+                    Timezone = user.Timezone
+                };
+            }
+        }
+        catch
+        {
+            Toast.ShowError("Failed to load user.");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_model is null) return;
+        _errorMessage = null;
+        _submitting = true;
+        try
+        {
+            var result = await Api.UpdateUserAsync(UserId, _model);
+            if (result is not null)
+            {
+                Toast.ShowSuccess("User updated.");
+                Nav.NavigateTo($"/admin/users/{UserId}");
+            }
+            else
+            {
+                _errorMessage = "Failed to update user.";
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _errorMessage = "Failed to communicate with the server.";
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+}

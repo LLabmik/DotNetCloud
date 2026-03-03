@@ -1,0 +1,187 @@
+@page "/admin/modules/{ModuleId}"
+@rendermode InteractiveAuto
+@attribute [Authorize]
+
+<PageTitle>Module Details - DotNetCloud</PageTitle>
+
+@if (_loading)
+{
+    <LoadingIndicator Message="Loading module details..." />
+}
+else if (_module is null)
+{
+    <div class="empty-state">
+        <p>Module not found.</p>
+        <a href="/admin/modules" class="btn btn-primary">Back to Modules</a>
+    </div>
+}
+else
+{
+    <div class="page-header">
+        <h1>@_module.Name</h1>
+        <a href="/admin/modules" class="btn btn-outline">Back</a>
+    </div>
+
+    <div class="detail-grid">
+        <div class="detail-section">
+            <h2>Information</h2>
+            <dl class="detail-list">
+                <dt>Module ID</dt>
+                <dd>@_module.Id</dd>
+                <dt>Version</dt>
+                <dd>@_module.Version</dd>
+                <dt>Status</dt>
+                <dd><span class="badge badge-@GetStatusClass(_module.Status)">@_module.Status</span></dd>
+                <dt>Installed</dt>
+                <dd>@_module.InstalledAt.ToString("yyyy-MM-dd HH:mm")</dd>
+                @if (!string.IsNullOrWhiteSpace(_module.Description))
+                {
+                    <dt>Description</dt>
+                    <dd>@_module.Description</dd>
+                }
+            </dl>
+        </div>
+
+        <div class="detail-section">
+            <h2>Actions</h2>
+            <div class="action-buttons">
+                @if (_module.Status == "Enabled")
+                {
+                    <button class="btn btn-warning" @onclick="StopAsync" disabled="@_actionInProgress">Stop</button>
+                    <button class="btn btn-outline" @onclick="RestartAsync" disabled="@_actionInProgress">Restart</button>
+                }
+                else
+                {
+                    <button class="btn btn-success" @onclick="StartAsync" disabled="@_actionInProgress">Start</button>
+                }
+            </div>
+        </div>
+
+        @if (_module.RequiredCapabilities.Count > 0)
+        {
+            <div class="detail-section">
+                <h2>Required Capabilities</h2>
+                <ul class="tag-list">
+                    @foreach (var cap in _module.RequiredCapabilities)
+                    {
+                        <li class="tag">@cap</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @if (_module.GrantedCapabilities.Count > 0)
+        {
+            <div class="detail-section">
+                <h2>Granted Capabilities</h2>
+                <ul class="tag-list">
+                    @foreach (var grant in _module.GrantedCapabilities)
+                    {
+                        <li class="tag tag-granted">@grant.CapabilityName</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @if (_module.PublishedEvents.Count > 0)
+        {
+            <div class="detail-section">
+                <h2>Published Events</h2>
+                <ul class="tag-list">
+                    @foreach (var evt in _module.PublishedEvents)
+                    {
+                        <li class="tag tag-event">@evt</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @if (_module.SubscribedEvents.Count > 0)
+        {
+            <div class="detail-section">
+                <h2>Subscribed Events</h2>
+                <ul class="tag-list">
+                    @foreach (var evt in _module.SubscribedEvents)
+                    {
+                        <li class="tag tag-event">@evt</li>
+                    }
+                </ul>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public string ModuleId { get; set; } = string.Empty;
+    [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+
+    private bool _loading = true;
+    private bool _actionInProgress;
+    private ModuleDto? _module;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _module = await Api.GetModuleAsync(ModuleId);
+        }
+        catch
+        {
+            Toast.ShowError("Failed to load module details.");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task StartAsync()
+    {
+        _actionInProgress = true;
+        if (await Api.StartModuleAsync(ModuleId))
+        {
+            Toast.ShowSuccess("Module started.");
+            await LoadAsync();
+        }
+        else Toast.ShowError("Failed to start module.");
+        _actionInProgress = false;
+    }
+
+    private async Task StopAsync()
+    {
+        _actionInProgress = true;
+        if (await Api.StopModuleAsync(ModuleId))
+        {
+            Toast.ShowSuccess("Module stopped.");
+            await LoadAsync();
+        }
+        else Toast.ShowError("Failed to stop module.");
+        _actionInProgress = false;
+    }
+
+    private async Task RestartAsync()
+    {
+        _actionInProgress = true;
+        if (await Api.RestartModuleAsync(ModuleId))
+        {
+            Toast.ShowSuccess("Module restarted.");
+            await LoadAsync();
+        }
+        else Toast.ShowError("Failed to restart module.");
+        _actionInProgress = false;
+    }
+
+    private static string GetStatusClass(string status) => status switch
+    {
+        "Enabled" => "success",
+        "Disabled" => "muted",
+        _ => "warning"
+    };
+}

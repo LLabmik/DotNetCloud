@@ -1,0 +1,132 @@
+@page "/admin/users"
+@rendermode InteractiveAuto
+@attribute [Authorize]
+
+<PageTitle>Users - DotNetCloud</PageTitle>
+
+<div class="page-header">
+    <h1>Users</h1>
+    <a href="/admin/users/create" class="btn btn-primary">Create User</a>
+</div>
+
+<div class="toolbar">
+    <input type="text" class="input" placeholder="Search users..."
+           @bind="_search" @bind:event="oninput" @bind:after="SearchAsync" />
+</div>
+
+@if (_loading)
+{
+    <LoadingIndicator Message="Loading users..." />
+}
+else
+{
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Display Name</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Last Login</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_result.Items.Count == 0)
+                {
+                    <tr>
+                        <td colspan="6" class="text-center">No users found.</td>
+                    </tr>
+                }
+                @foreach (var user in _result.Items)
+                {
+                    <tr>
+                        <td>
+                            <a href="/admin/users/@user.Id">@user.DisplayName</a>
+                        </td>
+                        <td>@user.Email</td>
+                        <td>
+                            <span class="badge badge-@(user.IsActive ? "success" : "muted")">
+                                @(user.IsActive ? "Active" : "Disabled")
+                            </span>
+                        </td>
+                        <td>@user.CreatedAt.ToString("yyyy-MM-dd")</td>
+                        <td>@(user.LastLoginAt?.ToString("yyyy-MM-dd HH:mm") ?? "Never")</td>
+                        <td class="actions">
+                            <a href="/admin/users/@user.Id/edit" class="btn btn-sm btn-outline">Edit</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (_result.TotalPages > 1)
+    {
+        <div class="pagination">
+            <button class="btn btn-sm btn-outline" disabled="@(_page <= 1)" @onclick="PreviousPage">Previous</button>
+            <span class="pagination-info">Page @_page of @_result.TotalPages (@_result.TotalCount total)</span>
+            <button class="btn btn-sm btn-outline" disabled="@(_page >= _result.TotalPages)" @onclick="NextPage">Next</button>
+        </div>
+    }
+}
+
+@code {
+    [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+
+    private bool _loading = true;
+    private int _page = 1;
+    private string _search = string.Empty;
+    private PaginatedResult<UserDto> _result = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsersAsync();
+    }
+
+    private async Task LoadUsersAsync()
+    {
+        _loading = true;
+        try
+        {
+            _result = await Api.ListUsersAsync(
+                page: _page,
+                pageSize: 25,
+                search: string.IsNullOrWhiteSpace(_search) ? null : _search);
+        }
+        catch
+        {
+            Toast.ShowError("Failed to load users.");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SearchAsync()
+    {
+        _page = 1;
+        await LoadUsersAsync();
+    }
+
+    private async Task PreviousPage()
+    {
+        if (_page > 1)
+        {
+            _page--;
+            await LoadUsersAsync();
+        }
+    }
+
+    private async Task NextPage()
+    {
+        if (_page < _result.TotalPages)
+        {
+            _page++;
+            await LoadUsersAsync();
+        }
+    }
+}

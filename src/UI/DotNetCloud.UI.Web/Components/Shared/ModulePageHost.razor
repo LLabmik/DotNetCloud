@@ -1,0 +1,35 @@
+@using DotNetCloud.UI.Web.Services
+
+@inject ModuleUiRegistry ModuleRegistry
+
+@if (_componentType is not null)
+{
+    <DynamicComponent Type="_componentType" Parameters="Parameters" />
+}
+else
+{
+    <div class="empty-state">
+        <p>Module page "@RouteKey" is not registered.</p>
+    </div>
+}
+
+@code {
+    /// <summary>
+    /// The route key identifying the module page to render (e.g., "files.browser").
+    /// </summary>
+    [Parameter, EditorRequired]
+    public string RouteKey { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Optional parameters to pass to the dynamic component.
+    /// </summary>
+    [Parameter]
+    public IDictionary<string, object>? Parameters { get; set; }
+
+    private Type? _componentType;
+
+    protected override void OnParametersSet()
+    {
+        _componentType = ModuleRegistry.GetPage(RouteKey);
+    }
+}

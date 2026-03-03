@@ -1,0 +1,183 @@
+@page "/admin/settings"
+@rendermode InteractiveAuto
+@attribute [Authorize]
+
+<PageTitle>Settings - DotNetCloud</PageTitle>
+
+<div class="page-header">
+    <h1>System Settings</h1>
+</div>
+
+<div class="toolbar">
+    <input type="text" class="input" placeholder="Filter by module..."
+           @bind="_moduleFilter" @bind:event="oninput" @bind:after="LoadSettingsAsync" />
+</div>
+
+@if (_loading)
+{
+    <LoadingIndicator Message="Loading settings..." />
+}
+else
+{
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Module</th>
+                    <th>Key</th>
+                    <th>Value</th>
+                    <th>Description</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_settings.Count == 0)
+                {
+                    <tr>
+                        <td colspan="5" class="text-center">No settings found.</td>
+                    </tr>
+                }
+                @foreach (var setting in _settings)
+                {
+                    <tr>
+                        <td><code>@setting.Module</code></td>
+                        <td><code>@setting.Key</code></td>
+                        <td>
+                            @if (setting.IsSensitive)
+                            {
+                                <span class="text-muted">••••••••</span>
+                            }
+                            else
+                            {
+                                <span>@Truncate(setting.Value, 60)</span>
+                            }
+                        </td>
+                        <td>@(setting.Description ?? "—")</td>
+                        <td class="actions">
+                            <button class="btn btn-sm btn-outline" @onclick="() => EditSetting(setting)">Edit</button>
+                            <button class="btn btn-sm btn-danger" @onclick="() => DeleteSettingAsync(setting)"
+                                    disabled="@_actionInProgress">Delete</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (_editing is not null)
+{
+    <div class="dialog-overlay" @onclick="CancelEdit">
+        <div class="dialog dialog-wide" @onclick:stopPropagation="true">
+            <div class="dialog-header">
+                <h3>Edit Setting</h3>
+            </div>
+            <div class="dialog-body">
+                <div class="form-group">
+                    <label>Module</label>
+                    <input type="text" class="input" value="@_editing.Module" disabled />
+                </div>
+                <div class="form-group">
+                    <label>Key</label>
+                    <input type="text" class="input" value="@_editing.Key" disabled />
+                </div>
+                <div class="form-group">
+                    <label>Value</label>
+                    <textarea class="input" rows="3" @bind="_editValue"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <input type="text" class="input" @bind="_editDescription" />
+                </div>
+            </div>
+            <div class="dialog-footer">
+                <button class="btn btn-outline" @onclick="CancelEdit">Cancel</button>
+                <button class="btn btn-primary" @onclick="SaveSettingAsync" disabled="@_actionInProgress">Save</button>
+            </div>
+        </div>
+    </div>
+}
+
+<ConfirmDialog @ref="_confirmDialog" />
+
+@code {
+    [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+
+    private bool _loading = true;
+    private bool _actionInProgress;
+    private string _moduleFilter = string.Empty;
+    private IReadOnlyList<SystemSettingDto> _settings = [];
+    private SystemSettingDto? _editing;
+    private string _editValue = string.Empty;
+    private string _editDescription = string.Empty;
+    private ConfirmDialog _confirmDialog = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSettingsAsync();
+    }
+
+    private async Task LoadSettingsAsync()
+    {
+        _loading = true;
+        try
+        {
+            _settings = await Api.ListSettingsAsync(
+                string.IsNullOrWhiteSpace(_moduleFilter) ? null : _moduleFilter);
+        }
+        catch
+        {
+            Toast.ShowError("Failed to load settings.");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void EditSetting(SystemSettingDto setting)
+    {
+        _editing = setting;
+        _editValue = setting.Value;
+        _editDescription = setting.Description ?? string.Empty;
+    }
+
+    private void CancelEdit() => _editing = null;
+
+    private async Task SaveSettingAsync()
+    {
+        if (_editing is null) return;
+        _actionInProgress = true;
+        var dto = new UpsertSystemSettingDto
+        {
+            Value = _editValue,
+            Description = string.IsNullOrWhiteSpace(_editDescription) ? null : _editDescription
+        };
+        if (await Api.UpsertSettingAsync(_editing.Module, _editing.Key, dto))
+        {
+            Toast.ShowSuccess("Setting updated.");
+            _editing = null;
+            await LoadSettingsAsync();
+        }
+        else Toast.ShowError("Failed to update setting.");
+        _actionInProgress = false;
+    }
+
+    private async Task DeleteSettingAsync(SystemSettingDto setting)
+    {
+        if (!await _confirmDialog.ShowAsync($"Delete setting '{setting.Module}.{setting.Key}'?", "Delete Setting"))
+            return;
+        _actionInProgress = true;
+        if (await Api.DeleteSettingAsync(setting.Module, setting.Key))
+        {
+            Toast.ShowSuccess("Setting deleted.");
+            await LoadSettingsAsync();
+        }
+        else Toast.ShowError("Failed to delete setting.");
+        _actionInProgress = false;
+    }
+
+    private static string Truncate(string value, int maxLength) =>
+        value.Length > maxLength ? string.Concat(value.AsSpan(0, maxLength), "...") : value;
+}

@@ -1,0 +1,68 @@
+@inherits LayoutComponentBase
+
+<div class="app-container @(_darkMode ? "dark-mode" : "")">
+    <nav class="sidebar @(_collapsed ? "collapsed" : "")">
+        <div class="sidebar-header">
+            <a href="/" class="brand">
+                <span class="brand-icon">☁</span>
+                @if (!_collapsed)
+                {
+                    <span class="brand-text">DotNetCloud</span>
+                }
+            </a>
+            <button class="sidebar-toggle" @onclick="ToggleSidebar" title="Toggle sidebar">
+                <span class="toggle-icon">@(_collapsed ? "▶" : "◀")</span>
+            </button>
+        </div>
+        <NavMenu Collapsed="_collapsed" />
+    </nav>
+
+    <div class="main-content">
+        <header class="topbar">
+            <div class="topbar-left">
+                <h1 class="page-title">@_pageTitle</h1>
+            </div>
+            <div class="topbar-right">
+                <button class="theme-toggle" @onclick="ToggleTheme" title="Toggle theme">
+                    @(_darkMode ? "☀" : "🌙")
+                </button>
+                <AuthorizeView>
+                    <Authorized>
+                        <div class="user-menu">
+                            <span class="user-name">@context.User.Identity?.Name</span>
+                            <a href="auth/logout" class="btn btn-sm btn-outline">Logout</a>
+                        </div>
+                    </Authorized>
+                </AuthorizeView>
+            </div>
+        </header>
+
+        <main class="page-content">
+            <article class="content-area">
+                <ErrorBoundary @ref="_errorBoundary">
+                    <ChildContent>
+                        @Body
+                    </ChildContent>
+                    <ErrorContent Context="ex">
+                        <ErrorDisplay Exception="ex" OnDismiss="RecoverError" />
+                    </ErrorContent>
+                </ErrorBoundary>
+            </article>
+        </main>
+
+        <ToastContainer />
+    </div>
+</div>
+
+@code {
+    private bool _collapsed;
+    private bool _darkMode;
+    private string _pageTitle = "DotNetCloud";
+    private ErrorBoundary? _errorBoundary;
+
+    private void ToggleSidebar() => _collapsed = !_collapsed;
+
+    private void ToggleTheme() => _darkMode = !_darkMode;
+
+    private void RecoverError() => _errorBoundary?.Recover();
+}

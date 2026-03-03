@@ -1,0 +1,136 @@
+@page "/auth/register"
+@using Microsoft.AspNetCore.Identity
+@using DotNetCloud.Core.Data.Entities.Identity
+@layout AuthLayout
+
+<PageTitle>Register - DotNetCloud</PageTitle>
+
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <span class="brand-icon">☁</span>
+            <h1>DotNetCloud</h1>
+            <p>Create your account</p>
+        </div>
+
+        <EditForm Model="_model" OnValidSubmit="RegisterAsync" FormName="register">
+            <DataAnnotationsValidator />
+
+            <div class="form-group">
+                <label for="email">Email</label>
+                <InputText id="email" class="input" @bind-Value="_model!.Email" placeholder="you@example.com" />
+                <ValidationMessage For="() => _model!.Email" />
+            </div>
+
+            <div class="form-group">
+                <label for="displayName">Display Name</label>
+                <InputText id="displayName" class="input" @bind-Value="_model!.DisplayName" placeholder="Your name" />
+                <ValidationMessage For="() => _model!.DisplayName" />
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <InputText id="password" class="input" type="password" @bind-Value="_model!.Password" />
+                <ValidationMessage For="() => _model!.Password" />
+            </div>
+
+            <div class="form-group">
+                <label for="confirmPassword">Confirm Password</label>
+                <InputText id="confirmPassword" class="input" type="password" @bind-Value="_model!.ConfirmPassword" />
+                <ValidationMessage For="() => _model!.ConfirmPassword" />
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(_errorMessage))
+            {
+                <div class="alert alert-danger">@_errorMessage</div>
+            }
+
+            @if (_success)
+            {
+                <div class="alert alert-success">Account created! <a href="/auth/login">Sign in</a>.</div>
+            }
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary btn-full" disabled="@_submitting">
+                    @(_submitting ? "Creating account..." : "Create Account")
+                </button>
+            </div>
+        </EditForm>
+
+        <div class="auth-footer">
+            <span>Already have an account?</span>
+            <a href="/auth/login">Sign in</a>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private RegisterFormModel? _model { get; set; }
+
+    private bool _submitting;
+    private bool _success;
+    private string? _errorMessage;
+
+    protected override void OnInitialized()
+    {
+        _model ??= new();
+    }
+
+    private async Task RegisterAsync()
+    {
+        _model ??= new();
+        _errorMessage = null;
+        _success = false;
+
+        if (_model.Password != _model.ConfirmPassword)
+        {
+            _errorMessage = "Passwords do not match.";
+            return;
+        }
+
+        _submitting = true;
+        try
+        {
+            var user = new ApplicationUser
+            {
+                UserName = _model.Email,
+                Email = _model.Email,
+                DisplayName = _model.DisplayName,
+                Locale = "en-US",
+                Timezone = "UTC",
+                CreatedAt = DateTime.UtcNow,
+                IsActive = true
+            };
+
+            var result = await UserManager.CreateAsync(user, _model.Password);
+            if (result.Succeeded)
+            {
+                _success = true;
+                _model = new RegisterFormModel();
+            }
+            else
+            {
+                _errorMessage = string.Join(" ", result.Errors.Select(e => e.Description));
+            }
+        }
+        catch
+        {
+            _errorMessage = "An error occurred. Please try again.";
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    private sealed class RegisterFormModel
+    {
+        public string Email { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public string ConfirmPassword { get; set; } = string.Empty;
+    }
+}

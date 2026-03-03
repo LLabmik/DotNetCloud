@@ -1,0 +1,92 @@
+@page "/admin/users/create"
+@rendermode InteractiveAuto
+@attribute [Authorize]
+
+<PageTitle>Create User - DotNetCloud</PageTitle>
+
+<div class="page-header">
+    <h1>Create User</h1>
+    <a href="/admin/users" class="btn btn-outline">Back</a>
+</div>
+
+<div class="form-container">
+    <EditForm Model="_model" OnValidSubmit="SubmitAsync" FormName="create-user">
+        <DataAnnotationsValidator />
+
+        <div class="form-group">
+            <label for="email">Email</label>
+            <InputText id="email" class="input" @bind-Value="_model.Email" />
+            <ValidationMessage For="() => _model.Email" />
+        </div>
+
+        <div class="form-group">
+            <label for="displayName">Display Name</label>
+            <InputText id="displayName" class="input" @bind-Value="_model.DisplayName" />
+            <ValidationMessage For="() => _model.DisplayName" />
+        </div>
+
+        <div class="form-group">
+            <label for="password">Password</label>
+            <InputText id="password" class="input" type="password" @bind-Value="_model.Password" />
+            <ValidationMessage For="() => _model.Password" />
+        </div>
+
+        <div class="form-group">
+            <label for="locale">Locale</label>
+            <InputText id="locale" class="input" @bind-Value="_model.Locale" />
+        </div>
+
+        <div class="form-group">
+            <label for="timezone">Timezone</label>
+            <InputText id="timezone" class="input" @bind-Value="_model.Timezone" />
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <div class="alert alert-danger">@_errorMessage</div>
+        }
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary" disabled="@_submitting">
+                @(_submitting ? "Creating..." : "Create User")
+            </button>
+        </div>
+    </EditForm>
+</div>
+
+@code {
+    [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+
+    private RegisterRequest _model = new() { Locale = "en-US", Timezone = "UTC" };
+    private bool _submitting;
+    private string? _errorMessage;
+
+    private async Task SubmitAsync()
+    {
+        _errorMessage = null;
+        _submitting = true;
+        try
+        {
+            var result = await Api.CreateUserAsync(_model);
+            if (result.Success)
+            {
+                Toast.ShowSuccess("User created successfully.");
+                Nav.NavigateTo("/admin/users");
+            }
+            else
+            {
+                _errorMessage = "Failed to create user. Please check the form and try again.";
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _errorMessage = "Failed to communicate with the server.";
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+}
