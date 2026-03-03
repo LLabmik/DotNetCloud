@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using System.Net;
 using System.Text.Json;
+using DotNetCloud.Core.Errors;
 
 namespace DotNetCloud.Core.ServiceDefaults.Middleware;
 
@@ -117,7 +118,7 @@ public class GlobalExceptionHandlerMiddleware
                 "INVALID_ARGUMENT",
                 exception.Message),
 
-            InvalidOperationException => (
+            System.InvalidOperationException => (
                 (int)HttpStatusCode.Conflict,
                 "INVALID_OPERATION",
                 exception.Message),

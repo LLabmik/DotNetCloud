@@ -146,10 +146,7 @@ public static class TelemetryConfigurationExtensions
                         opts.RecordException = true;
                     })
                     // gRPC instrumentation
-                    .AddGrpcClientInstrumentation(opts =>
-                    {
-                        opts.RecordException = true;
-                    })
+                    .AddGrpcClientInstrumentation()
                     // Built-in sources
                     .AddSource("Microsoft.AspNetCore.Hosting")
                     .AddSource("Microsoft.AspNetCore.Server.Kestrel")

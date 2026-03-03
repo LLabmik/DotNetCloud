@@ -48,16 +48,30 @@ public class DbInitializerTests
     public void Constructor_WithNullContext_ThrowsArgumentNullException()
     {
         // Arrange & Act & Assert
-        Assert.ThrowsException<ArgumentNullException>(() =>
-            new DbInitializer(null!, _mockLogger.Object));
+        try
+        {
+            _ = new DbInitializer(null!, _mockLogger.Object);
+            Assert.Fail("Expected ArgumentNullException");
+        }
+        catch (ArgumentNullException)
+        {
+            // Expected
+        }
     }
 
     [TestMethod]
     public void Constructor_WithNullLogger_ThrowsArgumentNullException()
     {
         // Arrange & Act & Assert
-        Assert.ThrowsException<ArgumentNullException>(() =>
-            new DbInitializer(_context, null!));
+        try
+        {
+            _ = new DbInitializer(_context, null!);
+            Assert.Fail("Expected ArgumentNullException");
+        }
+        catch (ArgumentNullException)
+        {
+            // Expected
+        }
     }
 
     [TestMethod]

@@ -26,11 +26,18 @@ public class CallerContextTests
     }
 
     [TestMethod]
-    [ExpectedException(typeof(ArgumentException))]
     public void Constructor_WithEmptyUserId_ThrowsArgumentException()
     {
-        // Arrange & Act
-        _ = new CallerContext(Guid.Empty, Array.Empty<string>(), CallerType.User);
+        // Arrange & Act & Assert
+        try
+        {
+            _ = new CallerContext(Guid.Empty, Array.Empty<string>(), CallerType.User);
+            Assert.Fail("Expected ArgumentException");
+        }
+        catch (ArgumentException)
+        {
+            // Expected
+        }
     }
 
     [TestMethod]
@@ -220,12 +227,19 @@ public class CallerContextTests
     }
 
     [TestMethod]
-    [ExpectedException(typeof(ArgumentException))]
     public void CreateSystemContext_ThrowsArgumentException()
     {
         // Note: CreateSystemContext tries to use Guid.Empty, which violates validation
         // This is a bug in the implementation that the test has exposed
-        _ = CallerContext.CreateSystemContext();
+        try
+        {
+            _ = CallerContext.CreateSystemContext();
+            Assert.Fail("Expected ArgumentException");
+        }
+        catch (ArgumentException)
+        {
+            // Expected
+        }
     }
 
     [TestMethod]
@@ -260,11 +274,18 @@ public class CallerContextTests
     }
 
     [TestMethod]
-    [ExpectedException(typeof(ArgumentException))]
     public void CreateModuleContext_WithEmptyModuleId_ThrowsArgumentException()
     {
-        // Act
-        _ = CallerContext.CreateModuleContext(Guid.Empty);
+        // Act & Assert
+        try
+        {
+            _ = CallerContext.CreateModuleContext(Guid.Empty);
+            Assert.Fail("Expected ArgumentException");
+        }
+        catch (ArgumentException)
+        {
+            // Expected
+        }
     }
 
     [TestMethod]

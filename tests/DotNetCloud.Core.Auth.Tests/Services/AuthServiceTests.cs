@@ -94,16 +94,30 @@ public class AuthServiceTests
             }));
 
         // Act & Assert
-        await Assert.ThrowsExceptionAsync<InvalidOperationException>(
-            () => _service.RegisterAsync(request, SystemCaller));
+        try
+        {
+            await _service.RegisterAsync(request, SystemCaller);
+            Assert.Fail("Expected InvalidOperationException");
+        }
+        catch (InvalidOperationException)
+        {
+            // Expected
+        }
     }
 
     [TestMethod]
     public async Task RegisterAsync_NullRequest_ThrowsArgumentNullException()
     {
         // Act & Assert
-        await Assert.ThrowsExceptionAsync<ArgumentNullException>(
-            () => _service.RegisterAsync(null!, SystemCaller));
+        try
+        {
+            await _service.RegisterAsync(null!, SystemCaller);
+            Assert.Fail("Expected ArgumentNullException");
+        }
+        catch (ArgumentNullException)
+        {
+            // Expected
+        }
     }
 
     // ---------------------------------------------------------------------------
@@ -148,8 +162,15 @@ public class AuthServiceTests
         _userManagerMock.Setup(m => m.FindByEmailAsync(request.Email)).ReturnsAsync((ApplicationUser?)null);
 
         // Act & Assert
-        await Assert.ThrowsExceptionAsync<UnauthorizedAccessException>(
-            () => _service.LoginAsync(request, SystemCaller));
+        try
+        {
+            await _service.LoginAsync(request, SystemCaller);
+            Assert.Fail("Expected UnauthorizedAccessException");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Expected
+        }
     }
 
     [TestMethod]
@@ -171,8 +192,15 @@ public class AuthServiceTests
         _userManagerMock.Setup(m => m.AccessFailedAsync(user)).ReturnsAsync(IdentityResult.Success);
 
         // Act & Assert
-        await Assert.ThrowsExceptionAsync<UnauthorizedAccessException>(
-            () => _service.LoginAsync(request, SystemCaller));
+        try
+        {
+            await _service.LoginAsync(request, SystemCaller);
+            Assert.Fail("Expected UnauthorizedAccessException");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Expected
+        }
     }
 
     [TestMethod]
@@ -192,8 +220,15 @@ public class AuthServiceTests
         _userManagerMock.Setup(m => m.IsLockedOutAsync(user)).ReturnsAsync(true);
 
         // Act & Assert
-        await Assert.ThrowsExceptionAsync<UnauthorizedAccessException>(
-            () => _service.LoginAsync(request, SystemCaller));
+        try
+        {
+            await _service.LoginAsync(request, SystemCaller);
+            Assert.Fail("Expected UnauthorizedAccessException");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Expected
+        }
     }
 
     [TestMethod]
@@ -212,8 +247,15 @@ public class AuthServiceTests
         _userManagerMock.Setup(m => m.FindByEmailAsync(request.Email)).ReturnsAsync(user);
 
         // Act & Assert
-        await Assert.ThrowsExceptionAsync<UnauthorizedAccessException>(
-            () => _service.LoginAsync(request, SystemCaller));
+        try
+        {
+            await _service.LoginAsync(request, SystemCaller);
+            Assert.Fail("Expected UnauthorizedAccessException");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Expected
+        }
     }
 
     [TestMethod]
@@ -230,11 +272,33 @@ public class AuthServiceTests
         _userManagerMock.Setup(m => m.GetTwoFactorEnabledAsync(user)).ReturnsAsync(true);
 
         // Act
-        var ex = await Assert.ThrowsExceptionAsync<InvalidOperationException>(
-            () => _service.LoginAsync(request, SystemCaller));
+        var ex = await GetMfaRequiredExceptionAsync();
 
         // Assert
         Assert.AreEqual("MFA_REQUIRED", ex.Message);
+    }
+
+    private async Task<InvalidOperationException> GetMfaRequiredExceptionAsync()
+    {
+        try
+        {
+            var user = new ApplicationUser { Id = Guid.NewGuid(), DisplayName = "MFA User", Email = "mfa@example.com", IsActive = true };
+            var request = new LoginRequest { Email = "mfa@example.com", Password = "P@ssw0rd!" };
+
+            _userManagerMock.Setup(m => m.FindByEmailAsync(request.Email)).ReturnsAsync(user);
+            _userManagerMock.Setup(m => m.IsLockedOutAsync(user)).ReturnsAsync(false);
+            _userManagerMock.Setup(m => m.CheckPasswordAsync(user, request.Password)).ReturnsAsync(true);
+            _userManagerMock.Setup(m => m.ResetAccessFailedCountAsync(user)).ReturnsAsync(IdentityResult.Success);
+            _userManagerMock.Setup(m => m.GetTwoFactorEnabledAsync(user)).ReturnsAsync(true);
+
+            await _service.LoginAsync(request, SystemCaller);
+            Assert.Fail("Expected InvalidOperationException");
+            return null!;
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ex;
+        }
     }
 
     // ---------------------------------------------------------------------------

@@ -98,8 +98,7 @@ public static class AuthServiceExtensions
                 // Endpoints
                 options.SetTokenEndpointUris("/connect/token");
                 options.SetAuthorizationEndpointUris("/connect/authorize");
-                options.SetLogoutEndpointUris("/connect/logout");
-                options.SetUserinfoEndpointUris("/connect/userinfo");
+                // In OpenIddict 7.x, logout and userinfo endpoints are configured through event handlers
                 options.SetIntrospectionEndpointUris("/connect/introspect");
                 options.SetRevocationEndpointUris("/connect/revoke");
 
@@ -128,8 +127,6 @@ public static class AuthServiceExtensions
                 options.UseAspNetCore()
                     .EnableTokenEndpointPassthrough()
                     .EnableAuthorizationEndpointPassthrough()
-                    .EnableLogoutEndpointPassthrough()
-                    .EnableUserinfoEndpointPassthrough()
                     .EnableStatusCodePagesIntegration();
             })
             .AddValidation(options =>

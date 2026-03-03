@@ -1,5 +1,6 @@
 using Serilog;
 using Serilog.Context;
+using DotNetCloud.Core.Authorization;
 
 namespace DotNetCloud.Core.ServiceDefaults.Logging;
 
