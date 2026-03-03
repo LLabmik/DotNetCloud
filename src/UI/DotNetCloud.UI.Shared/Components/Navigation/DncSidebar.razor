@@ -1,0 +1,72 @@
+@using Microsoft.AspNetCore.Components.Routing
+
+<nav class="sidebar @(Collapsed ? "collapsed" : "")">
+    <div class="sidebar-header">
+        <a href="/" class="brand">
+            <span class="brand-icon">@BrandIcon</span>
+            @if (!Collapsed)
+            {
+                <span class="brand-text">@BrandText</span>
+            }
+        </a>
+        <button class="sidebar-toggle" @onclick="ToggleCollapsed" title="Toggle sidebar">
+            <span class="toggle-icon">@(Collapsed ? "▶" : "◀")</span>
+        </button>
+    </div>
+    <div class="nav-menu">
+        <ul class="nav-list">
+            @foreach (var item in Items)
+            {
+                <li class="nav-item">
+                    <NavLink href="@item.Href" Match="NavLinkMatch.Prefix" class="nav-link">
+                        @if (item.Icon is not null)
+                        {
+                            <span class="nav-icon">@item.Icon</span>
+                        }
+                        @if (!Collapsed)
+                        {
+                            <span class="nav-text">@item.Label</span>
+                        }
+                    </NavLink>
+                </li>
+            }
+        </ul>
+        @if (ExtraContent is not null)
+        {
+            <div class="nav-separator"></div>
+            @ExtraContent
+        }
+    </div>
+</nav>
+
+@code {
+    /// <summary>Brand icon (emoji or text) displayed at the top.</summary>
+    [Parameter]
+    public string BrandIcon { get; set; } = "☁";
+
+    /// <summary>Brand text displayed next to the icon.</summary>
+    [Parameter]
+    public string BrandText { get; set; } = "DotNetCloud";
+
+    /// <summary>Whether the sidebar is collapsed.</summary>
+    [Parameter]
+    public bool Collapsed { get; set; }
+
+    /// <summary>Two-way binding for collapsed state.</summary>
+    [Parameter]
+    public EventCallback<bool> CollapsedChanged { get; set; }
+
+    /// <summary>The navigation items to display.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<NavItem> Items { get; set; } = [];
+
+    /// <summary>Optional additional content rendered after the main nav items.</summary>
+    [Parameter]
+    public RenderFragment? ExtraContent { get; set; }
+
+    private async Task ToggleCollapsed()
+    {
+        Collapsed = !Collapsed;
+        await CollapsedChanged.InvokeAsync(Collapsed);
+    }
+}

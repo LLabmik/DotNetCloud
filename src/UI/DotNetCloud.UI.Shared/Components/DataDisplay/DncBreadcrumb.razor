@@ -1,0 +1,25 @@
+<nav class="breadcrumb" aria-label="breadcrumb">
+    <ol class="breadcrumb-list">
+        @for (var i = 0; i < Items.Count; i++)
+        {
+            var item = Items[i];
+            var isLast = i == Items.Count - 1;
+            <li class="breadcrumb-item @(isLast ? "active" : "")">
+                @if (isLast || item.Href is null)
+                {
+                    <span>@item.Label</span>
+                }
+                else
+                {
+                    <a href="@item.Href">@item.Label</a>
+                }
+            </li>
+        }
+    </ol>
+</nav>
+
+@code {
+    /// <summary>The breadcrumb trail items in order.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<BreadcrumbItem> Items { get; set; } = [];
+}

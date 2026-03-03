@@ -1,0 +1,40 @@
+@using DotNetCloud.UI.Shared.Components.Dialogs
+
+@if (Visible)
+{
+    <div class="alert alert-@Level.ToString().ToLowerInvariant()" role="alert">
+        <span class="alert-message">@ChildContent</span>
+        @if (Dismissible)
+        {
+            <button class="toast-close" @onclick="DismissAlert" aria-label="Close">&times;</button>
+        }
+    </div>
+}
+
+@code {
+    /// <summary>Alert content.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Alert severity level.</summary>
+    [Parameter]
+    public AlertLevel Level { get; set; } = AlertLevel.Warning;
+
+    /// <summary>Whether the alert is visible.</summary>
+    [Parameter]
+    public bool Visible { get; set; } = true;
+
+    /// <summary>Two-way binding for visibility.</summary>
+    [Parameter]
+    public EventCallback<bool> VisibleChanged { get; set; }
+
+    /// <summary>Whether the alert can be dismissed.</summary>
+    [Parameter]
+    public bool Dismissible { get; set; }
+
+    private async Task DismissAlert()
+    {
+        Visible = false;
+        await VisibleChanged.InvokeAsync(false);
+    }
+}

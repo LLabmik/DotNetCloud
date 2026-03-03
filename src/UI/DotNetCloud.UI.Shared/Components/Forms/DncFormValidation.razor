@@ -1,0 +1,10 @@
+<div class="validation-summary @CssClass">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+</div>
+
+@code {
+    /// <summary>Additional CSS class for the container.</summary>
+    [Parameter]
+    public string? CssClass { get; set; }
+}

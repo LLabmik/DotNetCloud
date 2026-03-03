@@ -1,0 +1,21 @@
+<div class="detail-section @CssClass">
+    @if (!string.IsNullOrWhiteSpace(Title))
+    {
+        <h2>@Title</h2>
+    }
+    @ChildContent
+</div>
+
+@code {
+    /// <summary>Panel heading text.</summary>
+    [Parameter]
+    public string? Title { get; set; }
+
+    /// <summary>Panel content.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Additional CSS class.</summary>
+    [Parameter]
+    public string? CssClass { get; set; }
+}

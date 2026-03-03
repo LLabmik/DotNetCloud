@@ -1,0 +1,43 @@
+<div class="pagination">
+    <button class="btn btn-sm btn-outline"
+            disabled="@(CurrentPage <= 1)"
+            @onclick="() => GoToPage(CurrentPage - 1)">
+        Previous
+    </button>
+    <span class="pagination-info">
+        Page @CurrentPage of @TotalPages
+        @if (TotalCount > 0)
+        {
+            <text> (@TotalCount total)</text>
+        }
+    </span>
+    <button class="btn btn-sm btn-outline"
+            disabled="@(CurrentPage >= TotalPages)"
+            @onclick="() => GoToPage(CurrentPage + 1)">
+        Next
+    </button>
+</div>
+
+@code {
+    /// <summary>Current page number (1-based).</summary>
+    [Parameter]
+    public int CurrentPage { get; set; } = 1;
+
+    /// <summary>Total number of pages.</summary>
+    [Parameter]
+    public int TotalPages { get; set; }
+
+    /// <summary>Total number of items across all pages.</summary>
+    [Parameter]
+    public int TotalCount { get; set; }
+
+    /// <summary>Raised when the page changes.</summary>
+    [Parameter]
+    public EventCallback<int> OnPageChanged { get; set; }
+
+    private async Task GoToPage(int page)
+    {
+        if (page < 1 || page > TotalPages) return;
+        await OnPageChanged.InvokeAsync(page);
+    }
+}

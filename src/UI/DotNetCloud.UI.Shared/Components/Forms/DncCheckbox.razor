@@ -1,0 +1,47 @@
+@using System.Linq.Expressions
+@inherits InputBase<bool>
+
+<div class="form-group form-group-check">
+    <label class="checkbox-label">
+        <input type="checkbox"
+               class="checkbox @CssClass"
+               disabled="@Disabled"
+               checked="@CurrentValue"
+               @onchange="OnCheckedChanged"
+               @attributes="AdditionalAttributes" />
+        @if (!string.IsNullOrWhiteSpace(Label))
+        {
+            <span>@Label</span>
+        }
+    </label>
+    @if (ValidationFor is not null)
+    {
+        <ValidationMessage For="ValidationFor" />
+    }
+</div>
+
+@code {
+    /// <summary>Label text displayed next to the checkbox.</summary>
+    [Parameter]
+    public string? Label { get; set; }
+
+    /// <summary>Whether the checkbox is disabled.</summary>
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>Expression for validation message binding.</summary>
+    [Parameter]
+    public Expression<Func<bool>>? ValidationFor { get; set; }
+
+    private void OnCheckedChanged(ChangeEventArgs e)
+    {
+        CurrentValue = (bool)(e.Value ?? false);
+    }
+
+    protected override bool TryParseValueFromString(string? value, out bool result, out string validationErrorMessage)
+    {
+        result = bool.TryParse(value, out var parsed) && parsed;
+        validationErrorMessage = string.Empty;
+        return true;
+    }
+}

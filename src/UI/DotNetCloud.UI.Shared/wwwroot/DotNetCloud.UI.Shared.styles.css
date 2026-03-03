@@ -1,0 +1,167 @@
+/* ============================================================
+   DotNetCloud.UI.Shared - Component Styles
+   Supplements the base app.css theme with styles for shared
+   reusable components.
+   ============================================================ */
+
+/* --- Checkbox & Radio --- */
+.form-group-check { display: flex; align-items: center; }
+.checkbox-label,
+.radio-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--color-text);
+}
+.checkbox,
+.radio {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--color-primary);
+    cursor: pointer;
+}
+.radio-group { display: flex; flex-direction: column; gap: 8px; }
+.radio-group-inline { flex-direction: row; gap: 16px; }
+
+/* --- Breadcrumb --- */
+.breadcrumb { margin-bottom: 16px; }
+.breadcrumb-list {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-size: 13px;
+    color: var(--color-text-secondary);
+}
+.breadcrumb-item + .breadcrumb-item::before {
+    content: "/";
+    margin-right: 4px;
+    color: var(--color-muted);
+}
+.breadcrumb-item a { color: var(--color-primary); }
+.breadcrumb-item.active { color: var(--color-text); font-weight: 500; }
+
+/* --- Tabs --- */
+.tabs { margin-bottom: 20px; }
+.tab-header {
+    display: flex;
+    border-bottom: 2px solid var(--color-border);
+    gap: 0;
+}
+.tab-btn {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: color var(--transition), border-color var(--transition);
+    margin-bottom: -2px;
+}
+.tab-btn:hover { color: var(--color-text); }
+.tab-btn.active {
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
+}
+.tab-content { padding: 16px 0; }
+
+/* --- Accordion --- */
+.accordion { margin-bottom: 16px; }
+.accordion-item {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    margin-bottom: 8px;
+    overflow: hidden;
+}
+.accordion-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 12px 16px;
+    background: var(--color-bg);
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-text);
+    transition: background var(--transition);
+}
+.accordion-header:hover { background: var(--color-border); }
+.accordion-icon { font-size: 10px; color: var(--color-muted); }
+.accordion-body { padding: 12px 16px; }
+.accordion-item.open .accordion-header { background: var(--color-surface); }
+
+/* --- Sortable table headers --- */
+.data-table th.sortable { cursor: pointer; user-select: none; }
+.data-table th.sortable:hover { background: var(--color-border); }
+.sort-indicator { margin-left: 4px; font-size: 10px; }
+
+/* --- Card --- */
+.dnc-card {
+    background: var(--color-surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}
+.dnc-card-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--color-border);
+}
+.dnc-card-header h3 { font-size: 16px; font-weight: 600; margin: 0; }
+.dnc-card-body { padding: 20px; }
+.dnc-card-footer {
+    padding: 12px 20px;
+    border-top: 1px solid var(--color-border);
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+/* --- Section --- */
+.dnc-section { margin-bottom: 24px; }
+
+/* --- Responsive Grid --- */
+.dnc-grid {
+    display: grid;
+    gap: 20px;
+}
+.dnc-grid-1 { grid-template-columns: 1fr; }
+.dnc-grid-2 { grid-template-columns: repeat(2, 1fr); }
+.dnc-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.dnc-grid-4 { grid-template-columns: repeat(4, 1fr); }
+
+@media (max-width: 768px) {
+    .dnc-grid-2,
+    .dnc-grid-3,
+    .dnc-grid-4 { grid-template-columns: 1fr; }
+    .tab-header { overflow-x: auto; }
+    .radio-group-inline { flex-direction: column; }
+}
+
+@media (max-width: 1024px) {
+    .dnc-grid-3 { grid-template-columns: repeat(2, 1fr); }
+    .dnc-grid-4 { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* --- Inline alert dismissible --- */
+.alert {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.alert-message { flex: 1; }
+
+/* --- Validation summary --- */
+.validation-summary .validation-errors {
+    color: var(--color-danger);
+    font-size: 13px;
+    margin-bottom: 12px;
+}
+.validation-summary .validation-errors li { margin-bottom: 4px; }

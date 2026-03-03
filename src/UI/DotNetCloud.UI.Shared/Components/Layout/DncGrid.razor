@@ -1,0 +1,17 @@
+<div class="dnc-grid dnc-grid-@Columns @CssClass">
+    @ChildContent
+</div>
+
+@code {
+    /// <summary>Number of columns (1-4). Maps to CSS grid classes.</summary>
+    [Parameter]
+    public int Columns { get; set; } = 1;
+
+    /// <summary>Grid content.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Additional CSS class.</summary>
+    [Parameter]
+    public string? CssClass { get; set; }
+}

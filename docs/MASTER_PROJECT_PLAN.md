@@ -28,7 +28,7 @@
 | Phase 0.9 | 13 | 13 | 0 | 0 |
 | Phase 0.10 | 11 | 11 | 0 | 0 |
 | Phase 0.11 | 18 | 16 | 0 | 2 |
-| Phase 0.12 | 25 | 0 | 0 | 25 |
+| Phase 0.12 | 25 | 25 | 0 | 0 |
 | Phase 0.13 | 20 | 0 | 0 | 20 |
 | Phase 0.14 | 12 | 0 | 0 | 12 |
 | Phase 0.15 | 11 | 11 | 0 | 0 |
@@ -1794,6 +1794,84 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
+### Phase 0.12: Shared UI Components
+
+#### Step: phase-0.12.1 - DotNetCloud.UI.Shared Project
+**Status:** completed ✅
+**Duration:** ~3 hours
+**Description:** Create reusable Blazor component library for the entire DotNetCloud UI
+
+**Completed Deliverables:**
+
+**Project Setup:**
+- ✓ Created `DotNetCloud.UI.Shared` Razor Class Library (RCL) project
+- ✓ Configured for WASM compatibility (`Microsoft.AspNetCore.Components.Web` package reference)
+- ✓ Added to solution, referenced from `DotNetCloud.UI.Web` and `DotNetCloud.UI.Web.Client`
+- ✓ Updated `_Imports.razor` in all three UI projects with shared component namespaces
+- ✓ CSS stylesheet linked in `App.razor` (`DotNetCloud.UI.Shared.styles.css`)
+
+**Form Components (7 components + 1 record):**
+- ✓ `DncInput` — text/password/email input with label, validation, and disabled state (inherits InputBase<string>)
+- ✓ `DncSelect` — dropdown select with default option text (inherits InputSelect<string>)
+- ✓ `DncCheckbox` — checkbox with label (inherits InputBase<bool>)
+- ✓ `DncRadioGroup` — radio button group with inline option, uses `RadioOption` record
+- ✓ `DncTextArea` — multiline text input with rows parameter (inherits InputTextArea)
+- ✓ `DncDatePicker` — date/datetime-local/month/time picker (inherits InputDate<DateTime?>)
+- ✓ `DncFormValidation` — DataAnnotationsValidator + ValidationSummary wrapper
+
+**Data Display Components (5 components + 3 supporting types):**
+- ✓ `DncDataTable<TItem>` — generic data table with sorting, pagination, custom templates, row click
+- ✓ `DataTableColumn<TItem>` — column definition with SortKey, Template, CssClass
+- ✓ `DncPaginator` — previous/next pagination with page info display
+- ✓ `DncBreadcrumb` — breadcrumb navigation trail using `BreadcrumbItem` record
+- ✓ `DncTabs` — tab header with two-way `ActiveTabId` binding, uses `TabItem` record
+- ✓ `DncAccordion` — collapsible sections with AllowMultiple option, uses `AccordionSection` class
+
+**Dialog Components (3 components + 1 enum):**
+- ✓ `DncModal` — generic modal with title, body, footer, overlay click dismiss
+- ✓ `DncConfirmDialog` — async ShowAsync returning bool, configurable button text/class
+- ✓ `DncAlertDialog` — alert with severity level, dismiss callback
+- ✓ `AlertLevel` enum (Success, Warning, Danger)
+
+**Navigation Components (4 components + 3 supporting types):**
+- ✓ `DncSidebar` — collapsible sidebar with brand icon/text, nav items, extra content slot
+- ✓ `DncTopBar` — header bar with title, left/right content slots
+- ✓ `DncMenu` — NavLink-based menu list using `NavItem` record
+- ✓ `DncButton` — button with Variant (Primary/Danger/Warning/Success/Outline), Size (Default/Small), Loading spinner
+- ✓ `ButtonVariant`, `ButtonSize` enums, `NavItem` record
+
+**Notification Components (5 components + 1 service):**
+- ✓ `DncToast` — toast container driven by `DncToastService` parameter
+- ✓ `DncToastService` — singleton service with ShowSuccess/Error/Warning/Info, auto-dismiss
+- ✓ `ToastMessage` record, `ToastLevel` enum
+- ✓ `DncAlert` — inline dismissible alert with AlertLevel
+- ✓ `DncBadge` — inline badge with variant (success/warning/danger/muted)
+- ✓ `DncLoadingIndicator` — spinner with optional message
+- ✓ `DncErrorDisplay` — error display with exception message and retry button
+
+**Layout Components (4 components):**
+- ✓ `DncCard` — card with optional title/header, body, footer
+- ✓ `DncPanel` — surface panel with title (maps to existing detail-section style)
+- ✓ `DncSection` — page section with title and action buttons slot
+- ✓ `DncGrid` — responsive grid with 1-4 columns, mobile collapse
+
+**Styling:**
+- ✓ `DotNetCloud.UI.Shared.styles.css` — component-specific styles (checkbox/radio, breadcrumb, tabs, accordion, sortable headers, card, grid, validation summary, responsive breakpoints)
+- ✓ Theme variables inherited from existing `app.css` custom properties
+- ✓ Responsive breakpoints at 768px and 1024px
+
+**File Locations:**
+- `src/UI/DotNetCloud.UI.Shared/` — 40 files (1 csproj, 1 _Imports, 1 CSS, 24 .razor, 7 .cs, 6 supporting types)
+- `src/UI/DotNetCloud.UI.Web/Components/App.razor` (modified — CSS link added)
+- `src/UI/DotNetCloud.UI.Web/_Imports.razor` (modified — shared namespaces)
+- `src/UI/DotNetCloud.UI.Web.Client/_Imports.razor` (modified — shared namespaces)
+
+**Build Status:** ✅ Full solution builds with zero errors, zero warnings (14 projects)
+**Testing:** ✅ 539/539 tests pass (no regressions)
+**Notes:** Existing Page components (ConfirmDialog, ToastContainer, LoadingIndicator) left intact in DotNetCloud.UI.Web.Client.Shared — shared library provides standardized replacements available for all new development. Components designed to work in both SSR and InteractiveAuto render modes.
+
+---
+
 ## Status Summary & Notes
 
 - **Total Phase 0 Steps:** 229+ (across subsections 0.1-0.19)
@@ -1805,8 +1883,8 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
-**Last Updated:** 2025-07-19 (Phase 0.11 Web UI Shell completed)  
-**Next Review:** After Phase 0.12 start
+**Last Updated:** 2025-07-19 (Phase 0.12 Shared UI Components completed)  
+**Next Review:** After Phase 0.13 start
 **Maintained By:** Development Team
 
 ---

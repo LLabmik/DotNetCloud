@@ -1,0 +1,48 @@
+<div class="tabs">
+    <div class="tab-header" role="tablist">
+        @foreach (var tab in Tabs)
+        {
+            <button class="tab-btn @(tab.Id == ActiveTabId ? "active" : "")"
+                    role="tab"
+                    aria-selected="@(tab.Id == ActiveTabId)"
+                    @onclick="() => SetActiveTab(tab.Id)">
+                @tab.Label
+            </button>
+        }
+    </div>
+    <div class="tab-content" role="tabpanel">
+        @ChildContent
+    </div>
+</div>
+
+@code {
+    /// <summary>The tab definitions.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<TabItem> Tabs { get; set; } = [];
+
+    /// <summary>The currently active tab ID.</summary>
+    [Parameter]
+    public string? ActiveTabId { get; set; }
+
+    /// <summary>Raised when the active tab changes.</summary>
+    [Parameter]
+    public EventCallback<string> ActiveTabIdChanged { get; set; }
+
+    /// <summary>Content rendered inside the active tab panel.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (string.IsNullOrEmpty(ActiveTabId) && Tabs.Count > 0)
+        {
+            ActiveTabId = Tabs[0].Id;
+        }
+    }
+
+    private async Task SetActiveTab(string tabId)
+    {
+        ActiveTabId = tabId;
+        await ActiveTabIdChanged.InvokeAsync(tabId);
+    }
+}

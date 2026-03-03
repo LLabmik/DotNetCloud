@@ -1,0 +1,59 @@
+@if (_visible)
+{
+    <div class="dialog-overlay" @onclick="Dismiss">
+        <div class="dialog" @onclick:stopPropagation="true">
+            <div class="dialog-header">
+                <h3>@Title</h3>
+            </div>
+            <div class="dialog-body">
+                <div class="alert alert-@Level.ToString().ToLowerInvariant()">
+                    @Message
+                </div>
+            </div>
+            <div class="dialog-footer">
+                <button class="btn btn-primary" @onclick="Dismiss">@DismissText</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _visible;
+
+    /// <summary>Dialog title.</summary>
+    [Parameter]
+    public string Title { get; set; } = "Alert";
+
+    /// <summary>Alert message.</summary>
+    [Parameter]
+    public string Message { get; set; } = string.Empty;
+
+    /// <summary>Alert level controlling styling.</summary>
+    [Parameter]
+    public AlertLevel Level { get; set; } = AlertLevel.Warning;
+
+    /// <summary>Text for the dismiss button.</summary>
+    [Parameter]
+    public string DismissText { get; set; } = "OK";
+
+    /// <summary>Raised when the alert is dismissed.</summary>
+    [Parameter]
+    public EventCallback OnDismissed { get; set; }
+
+    /// <summary>Shows the alert dialog.</summary>
+    public void Show(string? message = null, string? title = null, AlertLevel? level = null)
+    {
+        if (message is not null) Message = message;
+        if (title is not null) Title = title;
+        if (level is not null) Level = level.Value;
+        _visible = true;
+        StateHasChanged();
+    }
+
+    private async Task Dismiss()
+    {
+        _visible = false;
+        await OnDismissed.InvokeAsync();
+        StateHasChanged();
+    }
+}

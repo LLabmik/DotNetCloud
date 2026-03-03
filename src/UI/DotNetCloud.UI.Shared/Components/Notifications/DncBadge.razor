@@ -1,0 +1,15 @@
+<span class="badge badge-@Variant @CssClass">@ChildContent</span>
+
+@code {
+    /// <summary>Badge color variant (success, warning, danger, muted).</summary>
+    [Parameter]
+    public string Variant { get; set; } = "muted";
+
+    /// <summary>Additional CSS class.</summary>
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    /// <summary>Badge content.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}

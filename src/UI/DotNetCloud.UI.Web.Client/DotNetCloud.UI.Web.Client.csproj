@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Core\DotNetCloud.Core\DotNetCloud.Core.csproj" />
+    <ProjectReference Include="..\DotNetCloud.UI.Shared\DotNetCloud.UI.Shared.csproj" />
   </ItemGroup>
 
 </Project>

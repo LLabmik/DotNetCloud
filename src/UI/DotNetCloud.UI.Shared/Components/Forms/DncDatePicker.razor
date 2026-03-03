@@ -1,0 +1,45 @@
+@using System.Linq.Expressions
+@inherits InputDate<DateTime?>
+
+<div class="form-group">
+    @if (!string.IsNullOrWhiteSpace(Label))
+    {
+        <label for="@_id">@Label</label>
+    }
+    <input id="@_id"
+           type="@Type"
+           class="input @CssClass"
+           disabled="@Disabled"
+           value="@CurrentValueAsString"
+           @onchange="OnDateChanged"
+           @attributes="AdditionalAttributes" />
+    @if (ValidationFor is not null)
+    {
+        <ValidationMessage For="ValidationFor" />
+    }
+</div>
+
+@code {
+    private string _id = $"dnc-datepicker-{Guid.NewGuid():N}";
+
+    /// <summary>Label text displayed above the date picker.</summary>
+    [Parameter]
+    public string? Label { get; set; }
+
+    /// <summary>Whether the date picker is disabled.</summary>
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>Input type: "date", "datetime-local", "month", or "time".</summary>
+    [Parameter]
+    public new string Type { get; set; } = "date";
+
+    /// <summary>Expression for validation message binding.</summary>
+    [Parameter]
+    public Expression<Func<DateTime?>>? ValidationFor { get; set; }
+
+    private void OnDateChanged(ChangeEventArgs e)
+    {
+        CurrentValueAsString = e.Value?.ToString();
+    }
+}

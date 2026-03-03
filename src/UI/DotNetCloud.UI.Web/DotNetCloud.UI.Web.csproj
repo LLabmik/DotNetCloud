@@ -20,6 +20,7 @@
     <ProjectReference Include="..\..\Core\DotNetCloud.Core.Auth\DotNetCloud.Core.Auth.csproj" />
     <ProjectReference Include="..\..\Core\DotNetCloud.Core.Data\DotNetCloud.Core.Data.csproj" />
     <ProjectReference Include="..\DotNetCloud.UI.Web.Client\DotNetCloud.UI.Web.Client.csproj" />
+    <ProjectReference Include="..\DotNetCloud.UI.Shared\DotNetCloud.UI.Shared.csproj" />
   </ItemGroup>
 
 </Project>

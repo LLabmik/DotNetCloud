@@ -1,0 +1,28 @@
+@using Microsoft.AspNetCore.Components.Routing
+
+<ul class="nav-list @CssClass">
+    @foreach (var item in Items)
+    {
+        <li class="nav-item">
+            <NavLink href="@item.Href"
+                     Match="@(item.Href == "/" ? NavLinkMatch.All : NavLinkMatch.Prefix)"
+                     class="nav-link">
+                @if (item.Icon is not null)
+                {
+                    <span class="nav-icon">@item.Icon</span>
+                }
+                <span class="nav-text">@item.Label</span>
+            </NavLink>
+        </li>
+    }
+</ul>
+
+@code {
+    /// <summary>The menu items.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<NavItem> Items { get; set; } = [];
+
+    /// <summary>Additional CSS class.</summary>
+    [Parameter]
+    public string? CssClass { get; set; }
+}
