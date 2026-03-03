@@ -4,6 +4,9 @@
   <PropertyGroup>
     <BaseIntermediateOutputPath>$(MSBuildProjectDir)bin\obj\</BaseIntermediateOutputPath>
     <BaseOutputPath>$(MSBuildProjectDir)bin\</BaseOutputPath>
+    <!-- Prevent test SDK and other targets from overriding output paths -->
+    <_UseCustomIntermediateOutputPath>true</_UseCustomIntermediateOutputPath>
+    <DisablePathNormalization>true</DisablePathNormalization>
   </PropertyGroup>
 
   <!-- Common properties for all projects -->

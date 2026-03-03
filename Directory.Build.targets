@@ -1,10 +1,13 @@
 <Project>
   <!-- Shared targets for all projects -->
   
-  <!-- Ensure consistent output -->
+  <!-- Lock output paths after all SDK targets import -->
+  <!-- These must match Directory.Build.props exactly to prevent MSB3539 warning -->
   <PropertyGroup>
-    <BaseOutputPath>$(MSBuildThisFileDirectory)bin\$(Configuration)\</BaseOutputPath>
-    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)obj\$(Configuration)\</BaseIntermediateOutputPath>
+    <BaseIntermediateOutputPath>$(MSBuildProjectDir)bin\obj\</BaseIntermediateOutputPath>
+    <BaseOutputPath>$(MSBuildProjectDir)bin\</BaseOutputPath>
+    <_UseCustomIntermediateOutputPath>true</_UseCustomIntermediateOutputPath>
+    <DisablePathNormalization>true</DisablePathNormalization>
   </PropertyGroup>
 
   <!-- Code analysis targets -->
@@ -19,12 +22,6 @@
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
 
-  <!-- Common test dependencies -->
-  <ItemGroup Condition="'$(IsTestProject)' == 'true'">
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.9.0" />
-    <PackageReference Include="MSTest.TestAdapter" Version="3.1.1" />
-    <PackageReference Include="MSTest.TestFramework" Version="3.1.1" />
-    <PackageReference Include="coverlet.collector" Version="6.0.0" />
-    <PackageReference Include="Moq" Version="4.20.70" />
-  </ItemGroup>
+  <!-- Test packages removed: Use PackageReference in individual .csproj files instead -->
+  <!-- This prevents duplicate package warnings (NU1504) -->
 </Project>
