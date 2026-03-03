@@ -1,12 +1,17 @@
 using DotNetCloud.Core.Auth.Extensions;
 using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Initialization;
+using DotNetCloud.Core.Server.Configuration;
 using DotNetCloud.Core.Server.Extensions;
+using DotNetCloud.Core.Server.Middleware;
 using DotNetCloud.Core.ServiceDefaults.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add service defaults (logging, telemetry, health checks, CORS, etc.)
+// Configure Kestrel (HTTPS/TLS, HTTP/2, listener addresses, limits)
+builder.ConfigureKestrel();
+
+// Add service defaults (logging, telemetry, health checks)
 builder.AddDotNetCloudServiceDefaults();
 
 // Add authentication and authorization
@@ -20,12 +25,33 @@ builder.Services.AddDotNetCloudDbContext(connectionString);
 // Add controllers
 builder.Services.AddControllers();
 
-// Add OpenAPI/Swagger
-builder.Services.AddOpenApi();
+// Add OpenAPI/Swagger with DotNetCloud configuration
+builder.Services.AddDotNetCloudOpenApi(builder.Configuration);
+
+// Add API versioning
+builder.Services.AddDotNetCloudApiVersioning(builder.Configuration);
+
+// Add CORS with enhanced configuration
+builder.Services.AddDotNetCloudCors(builder.Configuration);
+
+// Add rate limiting
+builder.Services.AddDotNetCloudRateLimiting(builder.Configuration);
+
+// Configure forwarded headers for reverse proxy support
+builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders =
+        Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
+        Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto |
+        Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedHost;
+});
 
 var app = builder.Build();
 
-// Apply middleware
+// Forwarded headers (must be first for reverse proxy support)
+app.UseForwardedHeaders();
+
+// Apply middleware (security headers, exception handler, request logging)
 app.UseDotNetCloudMiddleware();
 
 // Map health checks
@@ -38,13 +64,22 @@ using (var scope = app.Services.CreateScope())
     await dbInitializer.InitializeAsync();
 }
 
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-    app.UseSwaggerUI(options => options.SwaggerEndpoint("/openapi/v1.json", "v1"));
-}
+// OpenAPI/Swagger UI (development only)
+app.UseDotNetCloudOpenApi();
+
+// API versioning middleware (deprecation warnings, version negotiation)
+app.UseApiVersioning();
+
+// Response envelope middleware (wraps API responses in standard format)
+app.UseResponseEnvelope();
+
+// CORS
+app.UseCors(CorsConfiguration.PolicyName);
 
 app.UseHttpsRedirection();
+
+// Rate limiting
+app.UseDotNetCloudRateLimiting();
 
 app.UseAuthentication();
 app.UseAuthorization();

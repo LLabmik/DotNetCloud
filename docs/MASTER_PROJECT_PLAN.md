@@ -23,7 +23,7 @@
 | Phase 0.4 | 20 | 20 | 0 | 0 |
 | Phase 0.5 | 9 | 9 | 0 | 0 |
 | Phase 0.6 | 14 | 14 | 0 | 0 |
-| Phase 0.7 | 16 | 0 | 0 | 16 |
+| Phase 0.7 | 16 | 16 | 0 | 0 |
 | Phase 0.8 | 11 | 0 | 0 | 11 |
 | Phase 0.9 | 13 | 0 | 0 | 13 |
 | Phase 0.10 | 11 | 0 | 0 | 11 |
@@ -1552,6 +1552,33 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
+### Section: Phase 0.7 - Web Server & API Foundation
+
+**Status:** completed ✅
+**Description:** Full ASP.NET Core web server infrastructure including Kestrel configuration, reverse proxy support, API versioning, response envelope, error handling, rate limiting, OpenAPI/Swagger, and CORS.
+
+**Deliverables:**
+- ✓ KestrelConfiguration: configurable HTTPS/TLS, HTTP/2, listener addresses, request limits, connection limits
+- ✓ ReverseProxyTemplates: nginx, Apache mod_proxy, and IIS ANCM (web.config) template generators with configuration validation
+- ✓ Reverse proxy documentation (docs/development/REVERSE_PROXY.md)
+- ✓ ApiVersionMiddleware: URL-based versioning (/api/v1/, /api/v2/), version negotiation, deprecation warnings (X-Api-Deprecated, Sunset headers)
+- ✓ ApiVersion class: parsing, comparison, equality for semantic API versions
+- ✓ ResponseEnvelopeMiddleware: wraps API responses in ApiSuccessResponse/ApiErrorResponse envelope, path-based include/exclude, already-enveloped detection
+- ✓ Error handling: GlobalExceptionHandlerMiddleware (pre-existing Phase 0.4), 50+ standard ErrorCodes, stack trace handling (dev vs prod)
+- ✓ RateLimitingConfiguration: per-IP global limits, per-user authenticated limits, per-module limits, configurable windows, rejection response with Retry-After headers
+- ✓ OpenApiConfiguration: Microsoft.AspNetCore.OpenApi document generation with document transformer, Swagger UI with deep linking/filtering
+- ✓ CorsConfiguration: configurable origin whitelist, allowed methods/headers, exposed headers (rate limit + versioning headers), credentials, preflight caching
+- ✓ ForwardedHeaders support for reverse proxy X-Forwarded-For/Proto/Host
+- ✓ Updated Program.cs pipeline: Kestrel → ForwardedHeaders → Middleware → HealthChecks → OpenAPI → Versioning → Envelope → CORS → RateLimiting → Auth → Controllers
+- ✓ Updated appsettings.json and appsettings.Development.json with all new configuration sections
+- ✓ Unit tests: ApiVersionTests, ApiVersionMiddlewareTests, ReverseProxyTemplatesTests, KestrelOptionsTests, ResponseEnvelopeMiddlewareTests, RateLimitingOptionsTests, CorsOptionsTests (64 new tests, all passing)
+
+**Build Status:** ✅ Full solution builds with zero errors
+**Testing:** ✅ 130/130 Server.Tests pass (66 existing + 64 new)
+**Notes:** All Phase 0.7 implementation complete. Uses built-in .NET 10 Microsoft.AspNetCore.OpenApi for schema generation (not Swashbuckle SwaggerGen) due to Microsoft.OpenApi v2.0.0 breaking changes. Swashbuckle UI retained for developer experience.
+
+---
+
 ## Status Summary & Notes
 
 - **Total Phase 0 Steps:** 229+ (across subsections 0.1-0.19)
@@ -1563,8 +1590,8 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
-**Last Updated:** 2026-03-03 (Phase 0.6 unit tests completed)  
-**Next Review:** After Phase 0.7 start
+**Last Updated:** 2025-07-18 (Phase 0.7 Web Server & API Foundation completed)  
+**Next Review:** After Phase 0.8 start
 **Maintained By:** Development Team
 
 ---
