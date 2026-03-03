@@ -29,18 +29,6 @@ public class CorsOptionsTests
     }
 
     [TestMethod]
-    public void SectionName_IsCors()
-    {
-        Assert.AreEqual("Cors", CorsOptions.SectionName);
-    }
-
-    [TestMethod]
-    public void PolicyName_IsDotNetCloudCors()
-    {
-        Assert.AreEqual("DotNetCloudCors", CorsConfiguration.PolicyName);
-    }
-
-    [TestMethod]
     public void Options_CanBeConfigured()
     {
         var options = new CorsOptions

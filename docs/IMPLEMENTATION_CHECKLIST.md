@@ -573,35 +573,35 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 **Real-time messaging infrastructure**
 
 #### SignalR Configuration
-- [ ] Configure SignalR services
-- [ ] Set up connection tracking
-- [ ] Configure reconnection policies
-- [ ] Set up keep-alive intervals
+- ✓ Configure SignalR services
+- ✓ Set up connection tracking
+- ✓ Configure reconnection policies
+- ✓ Set up keep-alive intervals
 
 #### Core Hub Implementation
-- [ ] Create base SignalR hub with authentication/authorization
-- [ ] Implement connection lifecycle handlers
-- [ ] Create user connection tracking
-- [ ] Implement connection grouping per channel/room
+- ✓ Create base SignalR hub with authentication/authorization
+- ✓ Implement connection lifecycle handlers
+- ✓ Create user connection tracking
+- ✓ Implement connection grouping per channel/room
 
 #### Real-Time Broadcast Infrastructure
-- [ ] Create `IRealtimeBroadcaster` capability interface:
-  - [ ] `Task BroadcastAsync(string group, object message)`
-  - [ ] `Task SendToUserAsync(Guid userId, object message)`
-  - [ ] `Task SendToRoleAsync(string role, object message)`
-- [ ] Implement broadcast service in core
-- [ ] Create module notification interface
+- ✓ Create `IRealtimeBroadcaster` capability interface:
+  - ✓ `Task BroadcastAsync(string group, string eventName, object message)`
+  - ✓ `Task SendToUserAsync(Guid userId, string eventName, object message)`
+  - ✓ `Task SendToRoleAsync(string role, string eventName, object message)`
+- ✓ Implement broadcast service in core
+- ✓ Create module notification interface
 
 #### Presence Tracking
-- [ ] Implement presence update mechanism
-- [ ] Track online/offline status
-- [ ] Create last seen timestamps
-- [ ] Implement presence queries
+- ✓ Implement presence update mechanism
+- ✓ Track online/offline status
+- ✓ Create last seen timestamps
+- ✓ Implement presence queries
 
 #### WebSocket Configuration
-- [ ] Configure WebSocket support
-- [ ] Set up WebSocket keep-alive
-- [ ] Configure connection limits
+- ✓ Configure WebSocket support
+- ✓ Set up WebSocket keep-alive
+- ✓ Configure connection limits
 
 ---
 

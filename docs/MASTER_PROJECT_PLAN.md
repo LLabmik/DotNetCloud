@@ -24,7 +24,7 @@
 | Phase 0.5 | 9 | 9 | 0 | 0 |
 | Phase 0.6 | 14 | 14 | 0 | 0 |
 | Phase 0.7 | 16 | 16 | 0 | 0 |
-| Phase 0.8 | 11 | 0 | 0 | 11 |
+| Phase 0.8 | 11 | 11 | 0 | 0 |
 | Phase 0.9 | 13 | 0 | 0 | 13 |
 | Phase 0.10 | 11 | 0 | 0 | 11 |
 | Phase 0.11 | 18 | 0 | 0 | 18 |
@@ -1579,6 +1579,45 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
+### Section: Phase 0.8 - Real-Time Communication (SignalR)
+
+**Status:** completed ✅
+**Description:** SignalR real-time communication infrastructure including hub, connection tracking, presence, broadcasting, and WebSocket configuration.
+
+**Deliverables:**
+- ✓ IRealtimeBroadcaster capability interface (Public tier): BroadcastAsync, SendToUserAsync, SendToRoleAsync, AddToGroupAsync, RemoveFromGroupAsync
+- ✓ IPresenceTracker capability interface (Public tier): IsOnlineAsync, GetOnlineStatusAsync, GetLastSeenAsync, GetOnlineUsersAsync, GetActiveConnectionCountAsync
+- ✓ RealtimeDtos: UserPresenceDto, RealtimeMessageDto
+- ✓ PresenceEvents: UserConnectedEvent, UserDisconnectedEvent
+- ✓ SignalROptions: configurable keep-alive, client timeout, handshake timeout, message sizes, transport toggles, hub path, connection limits, presence cleanup interval
+- ✓ UserConnectionTracker: thread-safe user-to-connectionId mapping with multi-device support, first/last connection detection
+- ✓ CoreHub: [Authorize] SignalR hub with OnConnectedAsync/OnDisconnectedAsync lifecycle, JoinGroupAsync/LeaveGroupAsync, PingAsync heartbeat, UserOnline/UserOffline broadcasts
+- ✓ PresenceService: IPresenceTracker implementation with ConcurrentDictionary last-seen tracking, delegates online status to UserConnectionTracker
+- ✓ RealtimeBroadcasterService: IRealtimeBroadcaster implementation using IHubContext<CoreHub>, role-based groups via "role:{roleName}" convention
+- ✓ SignalRServiceExtensions: AddDotNetCloudSignalR (DI registration), MapDotNetCloudHubs (hub endpoint + transport config)
+- ✓ Program.cs integration: SignalR services registered, hub mapped after controllers
+- ✓ appsettings.json/Development.json updated with SignalR configuration section
+- ✓ Unit tests: UserConnectionTrackerTests (20), PresenceServiceTests (11), SignalROptionsTests (13), RealtimeBroadcasterServiceTests (18) — 62 new tests
+
+**File Locations:**
+- `src/Core/DotNetCloud.Core/Capabilities/IRealtimeBroadcaster.cs`
+- `src/Core/DotNetCloud.Core/Capabilities/IPresenceTracker.cs`
+- `src/Core/DotNetCloud.Core/DTOs/RealtimeDtos.cs`
+- `src/Core/DotNetCloud.Core/Events/PresenceEvents.cs`
+- `src/Core/DotNetCloud.Core.Server/Configuration/SignalRConfiguration.cs`
+- `src/Core/DotNetCloud.Core.Server/RealTime/UserConnectionTracker.cs`
+- `src/Core/DotNetCloud.Core.Server/RealTime/CoreHub.cs`
+- `src/Core/DotNetCloud.Core.Server/RealTime/PresenceService.cs`
+- `src/Core/DotNetCloud.Core.Server/RealTime/RealtimeBroadcasterService.cs`
+- `src/Core/DotNetCloud.Core.Server/Extensions/SignalRServiceExtensions.cs`
+- `tests/DotNetCloud.Core.Server.Tests/RealTime/*.cs` (4 test files)
+
+**Build Status:** ✅ Full solution builds with zero errors
+**Testing:** ✅ 192/192 Server.Tests pass (130 existing + 62 new)
+**Notes:** All Phase 0.8 implementation complete. SignalR hub lives in the core process; modules use IRealtimeBroadcaster capability interface to push real-time messages without depending on SignalR directly. Presence tracking is in-memory (suitable for single-server deployments; Redis backplane can be added later for scale-out).
+
+---
+
 ## Status Summary & Notes
 
 - **Total Phase 0 Steps:** 229+ (across subsections 0.1-0.19)
@@ -1590,8 +1629,8 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
-**Last Updated:** 2025-07-18 (Phase 0.7 Web Server & API Foundation completed)  
-**Next Review:** After Phase 0.8 start
+**Last Updated:** 2025-07-18 (Phase 0.8 Real-Time Communication completed)  
+**Next Review:** After Phase 0.9 start
 **Maintained By:** Development Team
 
 ---

@@ -148,8 +148,8 @@ public class SoftDeleteTests
 
         // Verify the Team entity has a query filter configured (InMemory doesn't apply it on Include)
         var teamEntityType = _context.Model.FindEntityType(typeof(Team))!;
-        var queryFilter = teamEntityType.GetQueryFilter();
-        Assert.IsNotNull(queryFilter, "Team entity should have a query filter configured for soft-delete");
+        var queryFilters = teamEntityType.GetDeclaredQueryFilters();
+        Assert.IsTrue(queryFilters.Any(), "Team entity should have a query filter configured for soft-delete");
 
         // Verify direct Team queries do apply the filter
         var activeTeams = await _context.Teams.ToListAsync();

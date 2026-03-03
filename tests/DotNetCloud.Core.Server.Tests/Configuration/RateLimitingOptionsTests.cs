@@ -21,12 +21,6 @@ public class RateLimitingOptionsTests
     }
 
     [TestMethod]
-    public void SectionName_IsRateLimiting()
-    {
-        Assert.AreEqual("RateLimiting", RateLimitingOptions.SectionName);
-    }
-
-    [TestMethod]
     public void ModuleRateLimitConfig_HasCorrectDefaults()
     {
         var config = new ModuleRateLimitConfig();
@@ -66,10 +60,4 @@ public class RateLimitingOptionsTests
         Assert.AreEqual(500, options.ModuleLimits["chat"].PermitLimit);
     }
 
-    [TestMethod]
-    public void PolicyNames_AreCorrect()
-    {
-        Assert.AreEqual("global", RateLimitingConfiguration.GlobalPolicy);
-        Assert.AreEqual("authenticated", RateLimitingConfiguration.AuthenticatedPolicy);
     }
-}

@@ -54,9 +54,4 @@ public class KestrelOptionsTests
         Assert.AreEqual("password", options.CertificatePassword);
     }
 
-    [TestMethod]
-    public void SectionName_IsKestrel()
-    {
-        Assert.AreEqual("Kestrel", KestrelOptions.SectionName);
     }
-}

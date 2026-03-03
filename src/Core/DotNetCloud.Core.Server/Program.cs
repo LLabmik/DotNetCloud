@@ -37,6 +37,9 @@ builder.Services.AddDotNetCloudCors(builder.Configuration);
 // Add rate limiting
 builder.Services.AddDotNetCloudRateLimiting(builder.Configuration);
 
+// Add SignalR real-time communication
+builder.Services.AddDotNetCloudSignalR(builder.Configuration);
+
 // Configure forwarded headers for reverse proxy support
 builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(options =>
 {
@@ -89,5 +92,8 @@ app.MapOpenIddictEndpoints();
 
 // Map API controllers
 app.MapControllers();
+
+// Map SignalR hub endpoints
+app.MapDotNetCloudHubs();
 
 app.Run();
