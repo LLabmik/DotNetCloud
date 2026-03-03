@@ -1,0 +1,70 @@
+@namespace DotNetCloud.Modules.Example.UI
+
+@* 
+    Example module page - Demonstrates how modules provide Blazor UI components
+    that the core web shell can load dynamically via the module plugin system.
+*@
+
+<div class="example-module-page">
+    <div class="page-header">
+        <h1>Example Notes</h1>
+        <p class="text-muted">Reference module demonstrating notes management.</p>
+    </div>
+
+    <div class="example-actions">
+        <button class="btn btn-primary" @onclick="ShowCreateForm">
+            + New Note
+        </button>
+    </div>
+
+    @if (_showForm)
+    {
+        <ExampleNoteForm OnSave="HandleNoteSaved" OnCancel="HideCreateForm" />
+    }
+
+    @if (_notes.Count == 0 && !_showForm)
+    {
+        <div class="empty-state">
+            <p>No notes yet. Create your first note!</p>
+        </div>
+    }
+    else
+    {
+        <div class="notes-grid">
+            @foreach (var note in _notes)
+            {
+                <ExampleNoteDisplay Note="note" OnDelete="HandleNoteDeleted" />
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private readonly List<NoteViewModel> _notes = [];
+    private bool _showForm;
+
+    private void ShowCreateForm() => _showForm = true;
+    private void HideCreateForm() => _showForm = false;
+
+    private void HandleNoteSaved(NoteViewModel note)
+    {
+        _notes.Insert(0, note);
+        _showForm = false;
+    }
+
+    private void HandleNoteDeleted(Guid noteId)
+    {
+        _notes.RemoveAll(n => n.Id == noteId);
+    }
+
+    /// <summary>
+    /// View model for displaying notes in the UI.
+    /// </summary>
+    public sealed record NoteViewModel
+    {
+        public Guid Id { get; init; }
+        public string Title { get; init; } = string.Empty;
+        public string Content { get; init; } = string.Empty;
+        public DateTime CreatedAt { get; init; }
+    }
+}

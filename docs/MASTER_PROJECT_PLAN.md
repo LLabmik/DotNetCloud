@@ -30,7 +30,7 @@
 | Phase 0.11 | 18 | 16 | 0 | 2 |
 | Phase 0.12 | 25 | 25 | 0 | 0 |
 | Phase 0.13 | 20 | 20 | 0 | 0 |
-| Phase 0.14 | 12 | 0 | 0 | 12 |
+| Phase 0.14 | 18 | 18 | 0 | 0 |
 | Phase 0.15 | 11 | 11 | 0 | 0 |
 | Phase 0.16 | 9 | 0 | 0 | 9 |
 | Phase 0.17 | 10 | 0 | 0 | 10 |
@@ -1956,6 +1956,76 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
+### Phase 0.14: Example Module Reference
+
+#### Step: phase-0.14.1 - Example Module Reference Implementation
+**Status:** completed ✅
+**Duration:** ~2 hours
+**Description:** Create a complete reference implementation of a DotNetCloud module demonstrating lifecycle, capabilities, events, gRPC, data access, and Blazor UI.
+
+**Deliverables:**
+- ✓ `DotNetCloud.Modules.Example` project (core logic, Razor SDK):
+  - ✓ `ExampleModuleManifest` implementing `IModuleManifest` (id: dotnetcloud.example, capabilities: INotificationService + IStorageProvider)
+  - ✓ `ExampleModule` implementing `IModuleLifecycle` (full lifecycle: Initialize, Start, Stop, Dispose)
+  - ✓ `ExampleNote` domain model (Id, Title, Content, CreatedByUserId, timestamps)
+  - ✓ `NoteCreatedEvent` and `NoteDeletedEvent` domain events implementing `IEvent`
+  - ✓ `NoteCreatedEventHandler` implementing `IEventHandler<NoteCreatedEvent>`
+  - ✓ `CreateNoteAsync` method demonstrating event publishing via `IEventBus`
+  - ✓ Blazor UI components: `ExampleNotesPage.razor`, `ExampleNoteForm.razor`, `ExampleNoteDisplay.razor`
+- ✓ `DotNetCloud.Modules.Example.Data` project (EF Core):
+  - ✓ `ExampleDbContext` with `DbSet<ExampleNote>`
+  - ✓ `ExampleNoteConfiguration` entity type configuration (fluent API, indexes, constraints)
+- ✓ `DotNetCloud.Modules.Example.Host` project (gRPC host):
+  - ✓ `example_service.proto` defining CreateNote, GetNote, ListNotes, DeleteNote RPCs
+  - ✓ `ExampleGrpcService` implementing module-specific gRPC CRUD operations
+  - ✓ `ExampleLifecycleService` implementing `ModuleLifecycle.ModuleLifecycleBase` (Initialize, Start, Stop, HealthCheck, GetManifest)
+  - ✓ `ExampleHealthCheck` implementing `IHealthCheck`
+  - ✓ `Program.cs` entry point with gRPC, health check, and DI configuration
+- ✓ `manifest.json` for filesystem module discovery
+- ✓ Module-specific `README.md` with project structure, key concepts, and creation guide
+- ✓ All 3 projects added to `DotNetCloud.sln`
+- ✓ `DotNetCloud.Modules.Example.Tests` project (MSTest, Moq):
+  - ✓ `ExampleModuleManifestTests` — 10 tests (Id, Name, Version, capabilities, events, IModuleManifest)
+  - ✓ `ExampleModuleTests` — 22 tests (lifecycle, notes CRUD, event pub/sub, error states)
+  - ✓ `ExampleNoteTests` — 10 tests (Id generation, defaults, record semantics)
+  - ✓ `EventTests` — 5 tests (NoteCreatedEvent, NoteDeletedEvent, IEvent, record semantics)
+  - ✓ `NoteCreatedEventHandlerTests` — 4 tests (IEventHandler interface, logging, cancellation)
+
+**File Locations:**
+- `src/Modules/Example/DotNetCloud.Modules.Example/DotNetCloud.Modules.Example.csproj` — core logic project
+- `src/Modules/Example/DotNetCloud.Modules.Example/ExampleModuleManifest.cs` — module manifest
+- `src/Modules/Example/DotNetCloud.Modules.Example/ExampleModule.cs` — IModuleLifecycle implementation
+- `src/Modules/Example/DotNetCloud.Modules.Example/Models/ExampleNote.cs` — domain model
+- `src/Modules/Example/DotNetCloud.Modules.Example/Events/NoteCreatedEvent.cs` — domain event
+- `src/Modules/Example/DotNetCloud.Modules.Example/Events/NoteDeletedEvent.cs` — domain event
+- `src/Modules/Example/DotNetCloud.Modules.Example/Events/NoteCreatedEventHandler.cs` — event handler
+- `src/Modules/Example/DotNetCloud.Modules.Example/UI/ExampleNotesPage.razor` — notes page component
+- `src/Modules/Example/DotNetCloud.Modules.Example/UI/ExampleNoteForm.razor` — form component
+- `src/Modules/Example/DotNetCloud.Modules.Example/UI/ExampleNoteDisplay.razor` — display component
+- `src/Modules/Example/DotNetCloud.Modules.Example.Data/DotNetCloud.Modules.Example.Data.csproj` — data project
+- `src/Modules/Example/DotNetCloud.Modules.Example.Data/ExampleDbContext.cs` — module DbContext
+- `src/Modules/Example/DotNetCloud.Modules.Example.Data/Configuration/ExampleNoteConfiguration.cs` — EF config
+- `src/Modules/Example/DotNetCloud.Modules.Example.Host/DotNetCloud.Modules.Example.Host.csproj` — host project
+- `src/Modules/Example/DotNetCloud.Modules.Example.Host/Protos/example_service.proto` — gRPC contract
+- `src/Modules/Example/DotNetCloud.Modules.Example.Host/Services/ExampleGrpcService.cs` — gRPC service
+- `src/Modules/Example/DotNetCloud.Modules.Example.Host/Services/ExampleLifecycleService.cs` — lifecycle gRPC
+- `src/Modules/Example/DotNetCloud.Modules.Example.Host/Services/ExampleHealthCheck.cs` — health check
+- `src/Modules/Example/DotNetCloud.Modules.Example.Host/Program.cs` — host entry point
+- `src/Modules/Example/manifest.json` — filesystem manifest
+- `src/Modules/Example/README.md` — module documentation
+- `tests/DotNetCloud.Modules.Example.Tests/DotNetCloud.Modules.Example.Tests.csproj` — test project
+- `tests/DotNetCloud.Modules.Example.Tests/ExampleModuleManifestTests.cs` — manifest tests
+- `tests/DotNetCloud.Modules.Example.Tests/ExampleModuleTests.cs` — module lifecycle tests
+- `tests/DotNetCloud.Modules.Example.Tests/ExampleNoteTests.cs` — model tests
+- `tests/DotNetCloud.Modules.Example.Tests/EventTests.cs` — event tests
+- `tests/DotNetCloud.Modules.Example.Tests/NoteCreatedEventHandlerTests.cs` — handler tests
+
+**Build Status:** ✅ Full solution builds with zero errors, zero warnings (19 projects)
+**Testing:** ✅ 656/656 tests pass (605 existing + 51 new Example module tests)
+**Notes:** Module demonstrates all key integration points: IModuleLifecycle, IModuleManifest, IEvent/IEventHandler, IEventBus pub/sub, gRPC ModuleLifecycle service, module-owned DbContext (separate from CoreDbContext), and Blazor Razor components loaded via module plugin system. Host uses in-memory database for standalone development. The manifest.json enables filesystem-based module discovery by the core supervisor. Fixed ExampleLifecycleService to use CallerContext.CreateSystemContext() instead of direct constructor with Guid.Empty.
+
+---
+
 ## Status Summary & Notes
 
 - **Total Phase 0 Steps:** 229+ (across subsections 0.1-0.19)
@@ -1967,8 +2037,8 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
-**Last Updated:** 2025-07-19 (Phase 0.13 CLI Management Tool completed)  
-**Next Review:** After Phase 0.14 start
+**Last Updated:** 2025-07-19 (Phase 0.14 Example Module Reference completed)  
+**Next Review:** After Phase 0.15 start
 **Maintained By:** Development Team
 
 ---

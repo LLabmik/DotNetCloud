@@ -1,0 +1,17 @@
+{
+  "id": "dotnetcloud.example",
+  "name": "Example",
+  "version": "1.0.0",
+  "description": "Reference implementation of a DotNetCloud module. Demonstrates lifecycle management, capability usage, event publishing, gRPC services, and Blazor UI components.",
+  "author": "DotNetCloud",
+  "requiredCapabilities": [
+    "INotificationService",
+    "IStorageProvider"
+  ],
+  "publishedEvents": [
+    "NoteCreatedEvent",
+    "NoteDeletedEvent"
+  ],
+  "subscribedEvents": [],
+  "minCoreVersion": "1.0.0"
+}

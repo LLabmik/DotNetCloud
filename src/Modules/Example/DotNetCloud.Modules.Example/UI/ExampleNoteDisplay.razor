@@ -1,0 +1,35 @@
+@namespace DotNetCloud.Modules.Example.UI
+
+@* 
+    Displays a single note card.
+    Demonstrates Blazor component parameters, event callbacks, and conditional rendering.
+*@
+
+<div class="note-card card">
+    <div class="card-body">
+        <h4 class="card-title">@Note.Title</h4>
+        @if (!string.IsNullOrWhiteSpace(Note.Content))
+        {
+            <p class="card-text">@Note.Content</p>
+        }
+        <small class="text-muted">Created @Note.CreatedAt.ToString("yyyy-MM-dd HH:mm")</small>
+    </div>
+    <div class="card-footer">
+        <button class="btn btn-sm btn-danger" @onclick="HandleDelete">
+            Delete
+        </button>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public ExampleNotesPage.NoteViewModel Note { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<Guid> OnDelete { get; set; }
+
+    private async Task HandleDelete()
+    {
+        await OnDelete.InvokeAsync(Note.Id);
+    }
+}

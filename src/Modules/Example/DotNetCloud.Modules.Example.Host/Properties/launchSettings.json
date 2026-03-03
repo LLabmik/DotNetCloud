@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "DotNetCloud.Modules.Example.Host": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:50992;http://localhost:50993"
+    }
+  }
+}

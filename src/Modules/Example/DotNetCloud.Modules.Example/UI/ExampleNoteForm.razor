@@ -1,0 +1,102 @@
+@namespace DotNetCloud.Modules.Example.UI
+
+@* 
+    Form component for creating a new note.
+    Demonstrates simple Blazor form binding and validation.
+*@
+
+<div class="note-form card">
+    <div class="card-header">
+        <h3>Create Note</h3>
+    </div>
+    <div class="card-body">
+        <div class="form-group">
+            <label for="noteTitle">Title</label>
+            <input id="noteTitle"
+                   type="text"
+                   class="form-control"
+                   @bind="_title"
+                   placeholder="Enter note title" />
+        </div>
+        <div class="form-group">
+            <label for="noteContent">Content</label>
+            <textarea id="noteContent"
+                      class="form-control"
+                      rows="4"
+                      @bind="_content"
+                      placeholder="Write your note here..."></textarea>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="alert alert-danger">@_error</div>
+        }
+
+        <div class="form-actions">
+            <button class="btn btn-primary" @onclick="HandleSave" disabled="@_saving">
+                @if (_saving)
+                {
+                    <span>Saving...</span>
+                }
+                else
+                {
+                    <span>Save</span>
+                }
+            </button>
+            <button class="btn btn-secondary" @onclick="HandleCancel" disabled="@_saving">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public EventCallback<ExampleNotesPage.NoteViewModel> OnSave { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    private string _title = string.Empty;
+    private string _content = string.Empty;
+    private string? _error;
+    private bool _saving;
+
+    private async Task HandleSave()
+    {
+        _error = null;
+
+        if (string.IsNullOrWhiteSpace(_title))
+        {
+            _error = "Title is required.";
+            return;
+        }
+
+        _saving = true;
+
+        try
+        {
+            var note = new ExampleNotesPage.NoteViewModel
+            {
+                Id = Guid.NewGuid(),
+                Title = _title.Trim(),
+                Content = _content.Trim(),
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await OnSave.InvokeAsync(note);
+
+            _title = string.Empty;
+            _content = string.Empty;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task HandleCancel()
+    {
+        await OnCancel.InvokeAsync();
+    }
+}

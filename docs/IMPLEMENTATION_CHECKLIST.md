@@ -859,34 +859,42 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 **Reference implementation of a module**
 
 #### Module Structure
-- [ ] Create `DotNetCloud.Modules.Example` (core logic)
-- [ ] Create `DotNetCloud.Modules.Example.Data` (EF Core context)
-- [ ] Create `DotNetCloud.Modules.Example.Host` (gRPC host)
+- ✓ Create `DotNetCloud.Modules.Example` (core logic)
+- ✓ Create `DotNetCloud.Modules.Example.Data` (EF Core context)
+- ✓ Create `DotNetCloud.Modules.Example.Host` (gRPC host)
 
 #### Module Implementation
-- [ ] Create `ExampleModuleManifest` implementing `IModuleManifest`
-- [ ] Create example data model
-- [ ] Create `ExampleDbContext` extending `DbContext`
-- [ ] Implement module initialization
-- [ ] Create example API endpoints
-- [ ] Create example capability interface usage
-- [ ] Create example event publishing/subscription
+- ✓ Create `ExampleModuleManifest` implementing `IModuleManifest`
+- ✓ Create example data model
+- ✓ Create `ExampleDbContext` extending `DbContext`
+- ✓ Implement module initialization
+- ✓ Create example API endpoints
+- ✓ Create example capability interface usage
+- ✓ Create example event publishing/subscription
 
 #### Blazor UI Components
-- [ ] Create example module page
-- [ ] Create example data display
-- [ ] Create example form
+- ✓ Create example module page
+- ✓ Create example data display
+- ✓ Create example form
 
 #### gRPC Service
-- [ ] Define `.proto` service
-- [ ] Implement gRPC service
-- [ ] Create health check implementation
+- ✓ Define `.proto` service
+- ✓ Implement gRPC service
+- ✓ Create health check implementation
 
 #### Documentation
-- [ ] Create inline code documentation
-- [ ] Write module-specific README
-- [ ] Document manifest and capabilities
-- [ ] Provide example usage patterns
+- ✓ Create inline code documentation
+- ✓ Write module-specific README
+- ✓ Document manifest and capabilities
+- ✓ Provide example usage patterns
+
+#### Unit Tests
+- ✓ Create `DotNetCloud.Modules.Example.Tests` project with MSTest
+- ✓ `ExampleModuleManifestTests` — 10 tests (Id, Name, Version, capabilities, events, IModuleManifest)
+- ✓ `ExampleModuleTests` — 22 tests (lifecycle, notes CRUD, event pub/sub, error states)
+- ✓ `ExampleNoteTests` — 10 tests (Id generation, defaults, record semantics)
+- ✓ `EventTests` — 5 tests (NoteCreatedEvent, NoteDeletedEvent, IEvent interface, record semantics)
+- ✓ `NoteCreatedEventHandlerTests` — 4 tests (IEventHandler interface, logging, cancellation)
 
 ---
 
