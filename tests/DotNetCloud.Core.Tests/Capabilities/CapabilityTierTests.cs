@@ -12,29 +12,41 @@ public class CapabilityTierTests
     [TestMethod]
     public void CapabilityTier_Public_HasCorrectValue()
     {
+        // Act
+        var publicValue = (int)CapabilityTier.Public;
+
         // Assert
-        Assert.AreEqual(0, (int)CapabilityTier.Public);
+        Assert.AreEqual(0, publicValue);
     }
 
     [TestMethod]
     public void CapabilityTier_Restricted_HasCorrectValue()
     {
+        // Act
+        var restrictedValue = (int)CapabilityTier.Restricted;
+
         // Assert
-        Assert.AreEqual(1, (int)CapabilityTier.Restricted);
+        Assert.AreEqual(1, restrictedValue);
     }
 
     [TestMethod]
     public void CapabilityTier_Privileged_HasCorrectValue()
     {
+        // Act
+        var privilegedValue = (int)CapabilityTier.Privileged;
+
         // Assert
-        Assert.AreEqual(2, (int)CapabilityTier.Privileged);
+        Assert.AreEqual(2, privilegedValue);
     }
 
     [TestMethod]
     public void CapabilityTier_Forbidden_HasCorrectValue()
     {
+        // Act
+        var forbiddenValue = (int)CapabilityTier.Forbidden;
+
         // Assert
-        Assert.AreEqual(3, (int)CapabilityTier.Forbidden);
+        Assert.AreEqual(3, forbiddenValue);
     }
 
     [TestMethod]
@@ -48,24 +60,33 @@ public class CapabilityTierTests
     }
 
     [TestMethod]
-    public void CapabilityTier_CanCompare_Public_LessThan_Restricted()
+    public void CapabilityTier_ComparePublicAndRestricted()
     {
+        // Act
+        var comparison = CapabilityTier.Public.CompareTo(CapabilityTier.Restricted);
+
         // Assert
-        Assert.IsTrue(CapabilityTier.Public < CapabilityTier.Restricted);
+        Assert.IsTrue(comparison < 0);
     }
 
     [TestMethod]
-    public void CapabilityTier_CanCompare_Restricted_LessThan_Privileged()
+    public void CapabilityTier_CompareRestrictedAndPrivileged()
     {
+        // Act
+        var comparison = CapabilityTier.Restricted.CompareTo(CapabilityTier.Privileged);
+
         // Assert
-        Assert.IsTrue(CapabilityTier.Restricted < CapabilityTier.Privileged);
+        Assert.IsTrue(comparison < 0);
     }
 
     [TestMethod]
-    public void CapabilityTier_CanCompare_Privileged_LessThan_Forbidden()
+    public void CapabilityTier_ComparePrivilegedAndForbidden()
     {
+        // Act
+        var comparison = CapabilityTier.Privileged.CompareTo(CapabilityTier.Forbidden);
+
         // Assert
-        Assert.IsTrue(CapabilityTier.Privileged < CapabilityTier.Forbidden);
+        Assert.IsTrue(comparison < 0);
     }
 
     [TestMethod]

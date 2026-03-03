@@ -12,17 +12,20 @@ public class PermissionDtosTests
     [TestMethod]
     public void PermissionDto_CanBeCreated()
     {
-        // Arrange & Act
+        // Arrange
+        var permissionId = Guid.NewGuid();
+
+        // Act
         var permission = new PermissionDto
         {
-            Id = Guid.NewGuid(),
+            Id = permissionId,
             Code = "files.upload",
             DisplayName = "Upload Files",
             Module = "files"
         };
 
         // Assert
-        Assert.IsNotNull(permission.Id);
+        Assert.AreEqual(permissionId, permission.Id);
         Assert.AreEqual("files.upload", permission.Code);
         Assert.AreEqual("Upload Files", permission.DisplayName);
     }
@@ -72,15 +75,18 @@ public class RoleDtosTests
     [TestMethod]
     public void RoleDto_CanBeCreated()
     {
-        // Arrange & Act
+        // Arrange
+        var roleId = Guid.NewGuid();
+
+        // Act
         var role = new RoleDto
         {
-            Id = Guid.NewGuid(),
+            Id = roleId,
             Name = "Administrator"
         };
 
         // Assert
-        Assert.IsNotNull(role.Id);
+        Assert.AreEqual(roleId, role.Id);
         Assert.AreEqual("Administrator", role.Name);
     }
 

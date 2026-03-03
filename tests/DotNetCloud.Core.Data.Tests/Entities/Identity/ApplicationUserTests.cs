@@ -23,7 +23,7 @@ public class ApplicationUserTests
         Assert.AreEqual("en-US", user.Locale, "Default locale should be en-US");
         Assert.AreEqual("UTC", user.Timezone, "Default timezone should be UTC");
         Assert.IsTrue(user.IsActive, "Default IsActive should be true");
-        Assert.IsNotNull(user.CreatedAt, "CreatedAt should be set");
+        Assert.AreNotEqual(DateTime.MinValue, user.CreatedAt, "CreatedAt should be set");
         Assert.IsNull(user.LastLoginAt, "LastLoginAt should be null by default");
         Assert.IsNull(user.AvatarUrl, "AvatarUrl should be null by default");
     }

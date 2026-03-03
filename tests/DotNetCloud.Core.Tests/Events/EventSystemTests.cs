@@ -34,8 +34,8 @@ public class EventSystemTests
 
         // Assert
         Assert.IsInstanceOfType(@event, typeof(IEvent));
-        Assert.IsNotNull(@event.EventId);
-        Assert.IsNotNull(@event.CreatedAt);
+        Assert.AreNotEqual(Guid.Empty, @event.EventId);
+        Assert.IsTrue(@event.CreatedAt > DateTime.MinValue);
     }
 
     [TestMethod]
