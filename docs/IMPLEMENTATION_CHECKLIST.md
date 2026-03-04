@@ -1501,128 +1501,126 @@ This phase implements the core Files module, which is the primary public-facing 
 **Core file management business logic**
 
 #### File Service
-- ☐ Create `IFileService` interface:
-  - ☐ `Task<FileNodeDto> GetNodeAsync(Guid nodeId, CallerContext caller)`
-  - ☐ `Task<PagedResult<FileNodeDto>> ListNodesAsync(Guid? parentId, int page, int pageSize, string sortBy, bool sortDesc, CallerContext caller)`
-  - ☐ `Task<FileNodeDto> CreateFolderAsync(CreateFolderDto dto, CallerContext caller)`
-  - ☐ `Task<FileNodeDto> RenameAsync(Guid nodeId, RenameNodeDto dto, CallerContext caller)`
-  - ☐ `Task<FileNodeDto> MoveAsync(Guid nodeId, MoveNodeDto dto, CallerContext caller)`
-  - ☐ `Task<FileNodeDto> CopyAsync(Guid nodeId, MoveNodeDto dto, CallerContext caller)`
-  - ☐ `Task DeleteAsync(Guid nodeId, CallerContext caller)` (soft-delete to trash)
-  - ☐ `Task<FileNodeDto> ToggleFavoriteAsync(Guid nodeId, CallerContext caller)`
-  - ☐ `Task<IReadOnlyList<FileNodeDto>> GetFavoritesAsync(CallerContext caller)`
-  - ☐ `Task<IReadOnlyList<FileNodeDto>> SearchAsync(string query, Guid? folderId, CallerContext caller)`
-  - ☐ `Task<IReadOnlyList<FileNodeDto>> GetRecentAsync(int count, CallerContext caller)`
-- ☐ Implement `FileService`
-- ☐ Add authorization checks (ownership, share permissions)
-- ☐ Validate name uniqueness within parent folder
-- ☐ Update materialized paths on move operations
-- ☐ Enforce depth limits for folder nesting
+- ✓ Create `IFileService` interface:
+  - ✓ `Task<FileNodeDto> GetNodeAsync(Guid nodeId, CallerContext caller)`
+  - ✓ `Task<IReadOnlyList<FileNodeDto>> ListChildrenAsync(Guid folderId, CallerContext caller)`
+  - ✓ `Task<FileNodeDto> CreateFolderAsync(CreateFolderDto dto, CallerContext caller)`
+  - ✓ `Task<FileNodeDto> RenameAsync(Guid nodeId, RenameNodeDto dto, CallerContext caller)`
+  - ✓ `Task<FileNodeDto> MoveAsync(Guid nodeId, MoveNodeDto dto, CallerContext caller)`
+  - ✓ `Task<FileNodeDto> CopyAsync(Guid nodeId, Guid targetParentId, CallerContext caller)`
+  - ✓ `Task DeleteAsync(Guid nodeId, CallerContext caller)` (soft-delete to trash)
+  - ✓ `Task<FileNodeDto> ToggleFavoriteAsync(Guid nodeId, CallerContext caller)`
+  - ✓ `Task<IReadOnlyList<FileNodeDto>> ListFavoritesAsync(CallerContext caller)`
+  - ✓ `Task<PagedResult<FileNodeDto>> SearchAsync(string query, int page, int pageSize, CallerContext caller)`
+  - ✓ `Task<IReadOnlyList<FileNodeDto>> ListRootAsync(CallerContext caller)`
+- ✓ Implement `FileService`
+- ✓ Add authorization checks (ownership, share permissions)
+- ✓ Validate name uniqueness within parent folder
+- ✓ Update materialized paths on move operations
+- ✓ Enforce depth limits for folder nesting
 
 #### Chunked Upload Service
-- ☐ Create `IChunkedUploadService` interface:
-  - ☐ `Task<UploadSessionDto> InitiateUploadAsync(InitiateUploadDto dto, CallerContext caller)`
-  - ☐ `Task UploadChunkAsync(Guid sessionId, string chunkHash, ReadOnlyMemory<byte> data, CallerContext caller)`
-  - ☐ `Task<FileNodeDto> CompleteUploadAsync(Guid sessionId, CallerContext caller)`
-  - ☐ `Task CancelUploadAsync(Guid sessionId, CallerContext caller)`
-  - ☐ `Task<UploadSessionDto> GetSessionStatusAsync(Guid sessionId, CallerContext caller)`
-- ☐ Implement `ChunkedUploadService`:
-  - ☐ Check server-side chunk store for existing hashes (deduplication)
-  - ☐ Write missing chunks to storage via `IFileStorageEngine`
-  - ☐ Create `FileVersion` and `FileVersionChunk` records on completion
-  - ☐ Update `FileNode` (size, hash, version) on completion
-  - ☐ Enforce quota checks before accepting uploads
+- ✓ Create `IChunkedUploadService` interface:
+  - ✓ `Task<UploadSessionDto> InitiateUploadAsync(InitiateUploadDto dto, CallerContext caller)`
+  - ✓ `Task UploadChunkAsync(Guid sessionId, string chunkHash, ReadOnlyMemory<byte> data, CallerContext caller)`
+  - ✓ `Task<FileNodeDto> CompleteUploadAsync(Guid sessionId, CallerContext caller)`
+  - ✓ `Task CancelUploadAsync(Guid sessionId, CallerContext caller)`
+  - ✓ `Task<UploadSessionDto> GetSessionAsync(Guid sessionId, CallerContext caller)`
+- ✓ Implement `ChunkedUploadService`:
+  - ✓ Check server-side chunk store for existing hashes (deduplication)
+  - ✓ Write missing chunks to storage via `IFileStorageEngine`
+  - ✓ Create `FileVersion` and `FileVersionChunk` records on completion
+  - ✓ Update `FileNode` (size, hash, version) on completion
+  - ✓ Enforce quota checks before accepting uploads
 
 #### Download Service
-- ☐ Create `IDownloadService` interface:
-  - ☐ `Task<Stream> DownloadFileAsync(Guid nodeId, CallerContext caller)`
-  - ☐ `Task<Stream> DownloadVersionAsync(Guid nodeId, int versionNumber, CallerContext caller)`
-  - ☐ `Task<Stream> DownloadChunkAsync(string chunkHash, CallerContext caller)`
-  - ☐ `Task<byte[]> GetChunkManifestAsync(Guid nodeId, CallerContext caller)` (for sync clients)
-- ☐ Implement `DownloadService`:
-  - ☐ Reconstruct file from chunks in sequence order
-  - ☐ Support range requests for partial downloads
-  - ☐ Validate access permissions (owner or shared)
+- ✓ Create `IDownloadService` interface:
+  - ✓ `Task<Stream> DownloadCurrentAsync(Guid fileNodeId, CallerContext caller)`
+  - ✓ `Task<Stream> DownloadVersionAsync(Guid fileVersionId, CallerContext caller)`
+- ✓ Implement `DownloadService`:
+  - ✓ Reconstruct file from chunks in sequence order via `ConcatenatedStream`
+  - ☐ Support range requests for partial downloads (deferred)
+  - ☐ Validate access permissions (owner or shared) (deferred to API layer)
 
 #### Version Service
-- ☐ Create `IVersionService` interface:
-  - ☐ `Task<IReadOnlyList<FileVersionDto>> ListVersionsAsync(Guid nodeId, CallerContext caller)`
-  - ☐ `Task<FileVersionDto> GetVersionAsync(Guid nodeId, int versionNumber, CallerContext caller)`
-  - ☐ `Task<FileNodeDto> RestoreVersionAsync(Guid nodeId, int versionNumber, CallerContext caller)`
-  - ☐ `Task DeleteVersionAsync(Guid nodeId, int versionNumber, CallerContext caller)`
-  - ☐ `Task LabelVersionAsync(Guid nodeId, int versionNumber, string label, CallerContext caller)`
-- ☐ Implement `VersionService`:
-  - ☐ Restore creates a new version with the old content
-  - ☐ Update chunk reference counts on version deletion
-  - ☐ Enforce configurable version retention limits
+- ✓ Create `IVersionService` interface:
+  - ✓ `Task<IReadOnlyList<FileVersionDto>> ListVersionsAsync(Guid fileNodeId, CallerContext caller)`
+  - ✓ `Task<FileVersionDto?> GetVersionAsync(Guid versionId, CallerContext caller)`
+  - ✓ `Task<FileVersionDto> RestoreVersionAsync(Guid fileNodeId, Guid versionId, CallerContext caller)`
+  - ✓ `Task DeleteVersionAsync(Guid versionId, CallerContext caller)`
+  - ✓ `Task<FileVersionDto> LabelVersionAsync(Guid versionId, string label, CallerContext caller)`
+- ✓ Implement `VersionService`:
+  - ✓ Restore creates a new version with the old content
+  - ✓ Update chunk reference counts on version deletion
+  - ☐ Enforce configurable version retention limits (deferred)
 
 #### Share Service
-- ☐ Create `IShareService` interface:
-  - ☐ `Task<FileShareDto> CreateShareAsync(Guid nodeId, CreateShareDto dto, CallerContext caller)`
-  - ☐ `Task<IReadOnlyList<FileShareDto>> ListSharesAsync(Guid nodeId, CallerContext caller)`
-  - ☐ `Task DeleteShareAsync(Guid shareId, CallerContext caller)`
-  - ☐ `Task<FileShareDto> UpdateShareAsync(Guid shareId, UpdateShareDto dto, CallerContext caller)`
-  - ☐ `Task<FileNodeDto> GetSharedNodeAsync(string linkToken, string? password)`
-  - ☐ `Task<IReadOnlyList<FileNodeDto>> GetSharedWithMeAsync(CallerContext caller)`
-  - ☐ `Task IncrementDownloadCountAsync(Guid shareId)`
-- ☐ Implement `ShareService`:
-  - ☐ Generate cryptographically random link tokens
-  - ☐ Hash link passwords with bcrypt/Argon2
-  - ☐ Check download limits and expiration on public links
-  - ☐ Publish `FileSharedEvent` on share creation
-  - ☐ Send notifications to share recipients
+- ✓ Create `IShareService` interface:
+  - ✓ `Task<FileShareDto> CreateShareAsync(Guid fileNodeId, CreateShareDto dto, CallerContext caller)`
+  - ✓ `Task<IReadOnlyList<FileShareDto>> GetSharesAsync(Guid fileNodeId, CallerContext caller)`
+  - ✓ `Task DeleteShareAsync(Guid shareId, CallerContext caller)`
+  - ✓ `Task<FileShareDto> UpdateShareAsync(Guid shareId, UpdateShareDto dto, CallerContext caller)`
+  - ✓ `Task<FileShareDto?> ResolvePublicLinkAsync(string linkToken, string? password)`
+  - ✓ `Task<IReadOnlyList<FileShareDto>> GetSharedWithMeAsync(CallerContext caller)`
+  - ✓ `Task IncrementDownloadCountAsync(Guid shareId)`
+- ✓ Implement `ShareService`:
+  - ✓ Generate cryptographically random link tokens
+  - ✓ Hash link passwords with ASP.NET Identity PasswordHasher
+  - ✓ Check download limits and expiration on public links
+  - ✓ Publish `FileSharedEvent` on share creation
+  - ☐ Send notifications to share recipients (deferred to notification integration)
 
 #### Trash Service
-- ☐ Create `ITrashService` interface:
-  - ☐ `Task<PagedResult<TrashItemDto>> ListTrashAsync(int page, int pageSize, CallerContext caller)`
-  - ☐ `Task<FileNodeDto> RestoreFromTrashAsync(Guid nodeId, CallerContext caller)`
-  - ☐ `Task PermanentDeleteAsync(Guid nodeId, CallerContext caller)`
-  - ☐ `Task EmptyTrashAsync(CallerContext caller)`
-  - ☐ `Task<long> GetTrashSizeAsync(CallerContext caller)`
-- ☐ Implement `TrashService`:
-  - ☐ Restore to original parent folder (or root if parent was deleted)
-  - ☐ Cascade permanent delete to versions, chunks, shares, tags, comments
-  - ☐ Decrement chunk reference counts; garbage-collect unreferenced chunks
-  - ☐ Publish `FileRestoredEvent` on restore
-  - ☐ Auto-cleanup expired trash items (configurable retention period)
+- ✓ Create `ITrashService` interface:
+  - ✓ `Task<IReadOnlyList<TrashItemDto>> ListTrashAsync(CallerContext caller)`
+  - ✓ `Task<FileNodeDto> RestoreAsync(Guid nodeId, CallerContext caller)`
+  - ✓ `Task PermanentDeleteAsync(Guid nodeId, CallerContext caller)`
+  - ✓ `Task EmptyTrashAsync(CallerContext caller)`
+  - ✓ `Task RestoreAllAsync(CallerContext caller)`
+- ✓ Implement `TrashService`:
+  - ✓ Restore to original parent folder (or root if parent was deleted)
+  - ✓ Cascade permanent delete to versions, chunks, shares, tags, comments
+  - ✓ Decrement chunk reference counts; garbage-collect unreferenced chunks
+  - ✓ Publish `FileRestoredEvent` on restore and `FileDeletedEvent` on permanent delete
+  - ✓ Auto-cleanup expired trash items (30-day retention via TrashCleanupService)
 
 #### Quota Service
-- ☐ Create `IQuotaService` interface:
-  - ☐ `Task<QuotaDto> GetQuotaAsync(CallerContext caller)`
-  - ☐ `Task<QuotaDto> GetQuotaForUserAsync(Guid userId, CallerContext caller)` (admin)
-  - ☐ `Task SetQuotaAsync(Guid userId, long maxBytes, CallerContext caller)` (admin)
-  - ☐ `Task RecalculateQuotaAsync(Guid userId, CallerContext caller)`
-  - ☐ `Task<bool> HasSufficientQuotaAsync(Guid userId, long additionalBytes)`
-- ☐ Implement `QuotaService`:
-  - ☐ Calculate used bytes from all non-deleted `FileNode` entries
-  - ☐ Enforce quota before uploads (pre-check in chunked upload service)
-  - ☐ Send warning notifications at 80% and 95% usage
+- ✓ Create `IQuotaService` interface:
+  - ✓ `Task<QuotaDto> GetQuotaAsync(Guid userId, CallerContext caller)`
+  - ✓ `Task<QuotaDto> SetQuotaAsync(Guid userId, long maxBytes, CallerContext caller)`
+  - ✓ `Task RecalculateAsync(Guid userId, CancellationToken cancellationToken)`
+  - ✓ `Task<bool> HasSufficientQuotaAsync(Guid userId, long requiredBytes, CancellationToken cancellationToken)`
+- ✓ Implement `QuotaService`:
+  - ✓ Calculate used bytes from all non-deleted `FileNode` entries
+  - ✓ Enforce quota before uploads (pre-check in chunked upload service)
+  - ☐ Send warning notifications at 80% and 95% usage (deferred to notification integration)
 
 #### Tag Service
-- ☐ Create `ITagService` interface:
-  - ☐ `Task<IReadOnlyList<string>> AddTagAsync(Guid nodeId, string tagName, string? color, CallerContext caller)`
-  - ☐ `Task RemoveTagAsync(Guid nodeId, string tagName, CallerContext caller)`
-  - ☐ `Task<IReadOnlyList<FileNodeDto>> GetNodesByTagAsync(string tagName, CallerContext caller)`
-  - ☐ `Task<IReadOnlyList<string>> ListUserTagsAsync(CallerContext caller)`
-- ☐ Implement `TagService`
+- ✓ Create `ITagService` interface:
+  - ✓ `Task<FileTagDto> AddTagAsync(Guid fileNodeId, string name, string? color, CallerContext caller)`
+  - ✓ `Task RemoveTagAsync(Guid fileNodeId, Guid tagId, CallerContext caller)`
+  - ✓ `Task<IReadOnlyList<FileTagDto>> GetTagsAsync(Guid fileNodeId, CallerContext caller)`
+  - ✓ `Task<IReadOnlyList<FileNodeDto>> GetNodesByTagAsync(string tagName, CallerContext caller)`
+- ✓ Implement `TagService`
 
 #### Comment Service
-- ☐ Create `ICommentService` interface:
-  - ☐ `Task<FileCommentDto> AddCommentAsync(Guid nodeId, string content, Guid? parentCommentId, CallerContext caller)`
-  - ☐ `Task<FileCommentDto> EditCommentAsync(Guid commentId, string content, CallerContext caller)`
-  - ☐ `Task DeleteCommentAsync(Guid commentId, CallerContext caller)`
-  - ☐ `Task<IReadOnlyList<FileCommentDto>> ListCommentsAsync(Guid nodeId, CallerContext caller)`
-- ☐ Implement `CommentService`
+- ✓ Create `ICommentService` interface:
+  - ✓ `Task<FileCommentDto> AddCommentAsync(Guid fileNodeId, string content, Guid? parentCommentId, CallerContext caller)`
+  - ✓ `Task<FileCommentDto> EditCommentAsync(Guid commentId, string content, CallerContext caller)`
+  - ✓ `Task DeleteCommentAsync(Guid commentId, CallerContext caller)`
+  - ✓ `Task<IReadOnlyList<FileCommentDto>> GetCommentsAsync(Guid fileNodeId, CallerContext caller)`
+  - ✓ `Task<FileCommentDto?> GetCommentAsync(Guid commentId, CallerContext caller)`
+- ✓ Implement `CommentService`
 
 #### Background Services
-- ☐ Create `UploadSessionCleanupService` (IHostedService):
-  - ☐ Periodically expire stale upload sessions
-  - ☐ Delete orphaned chunks from expired sessions
-- ☐ Create `TrashCleanupService` (IHostedService):
-  - ☐ Permanently delete items older than configured retention period
-  - ☐ Garbage-collect unreferenced chunks (reference count = 0)
-- ☐ Create `QuotaRecalculationService` (IHostedService):
-  - ☐ Periodically recalculate storage usage per user
+- ✓ Create `UploadSessionCleanupService` (IHostedService):
+  - ✓ Periodically expire stale upload sessions
+  - ✓ Delete orphaned chunks from expired sessions
+- ✓ Create `TrashCleanupService` (IHostedService):
+  - ✓ Permanently delete items older than configured retention period
+  - ✓ Garbage-collect unreferenced chunks (reference count = 0)
+- ✓ Create `QuotaRecalculationService` (IHostedService):
+  - ✓ Periodically recalculate storage usage per user
 
 ---
 

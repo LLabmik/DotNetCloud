@@ -1,0 +1,36 @@
+using DotNetCloud.Modules.Files.Data.Services;
+using DotNetCloud.Modules.Files.Data.Services.Background;
+using DotNetCloud.Modules.Files.Services;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace DotNetCloud.Modules.Files.Data;
+
+/// <summary>
+/// Extension methods for registering Files module services in the DI container.
+/// </summary>
+public static class FilesServiceRegistration
+{
+    /// <summary>
+    /// Registers all Files module service implementations in the DI container.
+    /// </summary>
+    public static IServiceCollection AddFilesServices(this IServiceCollection services)
+    {
+        // Database-backed services (Scoped)
+        services.AddScoped<IFileService, FileService>();
+        services.AddScoped<IChunkedUploadService, ChunkedUploadService>();
+        services.AddScoped<IDownloadService, DownloadService>();
+        services.AddScoped<IVersionService, VersionService>();
+        services.AddScoped<IShareService, ShareService>();
+        services.AddScoped<ITrashService, TrashService>();
+        services.AddScoped<IQuotaService, QuotaService>();
+        services.AddScoped<ITagService, TagService>();
+        services.AddScoped<ICommentService, CommentService>();
+
+        // Background services
+        services.AddHostedService<UploadSessionCleanupService>();
+        services.AddHostedService<TrashCleanupService>();
+        services.AddHostedService<QuotaRecalculationService>();
+
+        return services;
+    }
+}

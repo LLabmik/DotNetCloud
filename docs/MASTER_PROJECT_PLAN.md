@@ -36,7 +36,7 @@
 | Phase 0.17 | 10 | 10 | 0 | 0 |
 | Phase 0.18 | 8 | 8 | 0 | 0 |
 | Phase 0.19 | 9 | 9 | 0 | 0 |
-| Phase 1 | 20 | 2 | 0 | 18 |
+| Phase 1 | 20 | 5 | 0 | 15 |
 | Phase 2.1 | 6 | 6 | 0 | 0 |
 | Phase 2.2 | 4 | 4 | 0 | 0 |
 | Phase 2.3 | 7 | 2 | 0 | 5 |
@@ -2393,6 +2393,99 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - **Blocking Issues:** MariaDB (Pomelo .NET 10 support pending)
 - **Assumptions:** .NET 10, PostgreSQL/SQL Server/MariaDB support required
 - **Reference:** Complete detailed task breakdowns in `/docs/IMPLEMENTATION_CHECKLIST.md`
+
+---
+
+## Phase 1: Files (Public Launch)
+
+**Goal:** File upload/download/browse/share + working desktop sync client.
+**Expected Duration:** 8-12 weeks
+**Milestone:** Full file management across web, desktop, with sync, sharing, and Collabora integration.
+
+---
+
+### Step: phase-1.1 - Files Core Abstractions & Data Models
+**Status:** completed ✅
+**Duration:** ~1 week (actual)
+**Description:** Create Files module projects, domain models (FileNode, FileVersion, FileChunk, FileShare, FileTag, FileComment, FileQuota, ChunkedUploadSession, FileVersionChunk), DTOs, events, and FilesModuleManifest.
+
+**Deliverables:**
+- ✓ Create project structure (Files, Files.Data, Files.Host, Files.Tests) — 4 projects added to solution
+- ✓ Create FilesModuleManifest implementing IModuleManifest
+- ✓ Create domain models (FileNode, FileVersion, FileChunk, FileShare, FileTag, FileComment, FileQuota, ChunkedUploadSession, FileVersionChunk) — 9 entities
+- ✓ Create enums (FileNodeType, ShareType, SharePermission, UploadSessionStatus) — 4 enums
+- ✓ Create DTOs for all entities (FileNodeDto, FileVersionDto, FileShareDto, etc.)
+- ✓ Create events (FileUploadedEvent, FileMovedEvent, FileDeletedEvent, FileSharedEvent, FileRestoredEvent) — 5 events
+
+**Dependencies:** Phase 0 (complete)
+**Blocking Issues:** None
+**Notes:** Phase 1.1 complete. All models, DTOs, events, and manifest follow core module patterns.
+
+---
+
+### Step: phase-1.2 - Files Database & Data Access Layer
+**Status:** completed ✅
+**Duration:** ~1 week (actual)
+**Description:** Create FilesDbContext, entity configurations, IFileStorageEngine/LocalFileStorageEngine, ContentHasher, and database initialization.
+
+**Deliverables:**
+- ✓ Create entity configurations for all 9 entities with indexes, FKs, query filters
+- ✓ Create FilesDbContext with all DbSets and naming strategy
+- ✓ Create IFileStorageEngine interface and LocalFileStorageEngine implementation
+- ✓ Create ContentHasher (SHA-256)
+- ✓ Create FilesDbInitializer
+
+**Dependencies:** phase-1.1
+**Blocking Issues:** None
+**Notes:** Phase 1.2 complete. Soft-delete query filters on FileNode and FileComment. Materialized path indexing for tree queries. Content-addressable chunk storage with SHA-256 hashing.
+
+---
+
+### Step: phase-1.3 - Files Business Logic & Services
+**Status:** completed ✅
+**Duration:** ~2 weeks (actual)
+**Description:** Implement 9 service interfaces with implementations, 3 background services, and DI registration for the Files module business logic layer.
+
+**Deliverables:**
+- ✓ Create PagedResult<T> generic DTO and FilesErrorCodes constants
+- ✓ Implement IFileService and FileService (tree ops, authorization, materialized path updates, soft-delete, copy, search, favorites)
+- ✓ Implement IChunkedUploadService and ChunkedUploadService (dedup via chunk hash lookup, quota pre-check, hash verification, version creation)
+- ✓ Implement IDownloadService and DownloadService (ConcatenatedStream for lazy chunk reassembly)
+- ✓ Implement IVersionService and VersionService (version history, restore creates new version, refcount management)
+- ✓ Implement IShareService and ShareService (user/team/public-link sharing, crypto tokens, password hashing, expiry/download limits)
+- ✓ Implement ITrashService and TrashService (restore to original parent or root, cascading permanent delete, chunk GC)
+- ✓ Implement IQuotaService and QuotaService (storage quota CRUD, recalculation)
+- ✓ Implement ITagService and TagService (tag CRUD, duplicate prevention)
+- ✓ Implement ICommentService and CommentService (threaded comments, soft-delete, reply counts)
+- ✓ Create UploadSessionCleanupService (1h interval, expire stale sessions)
+- ✓ Create TrashCleanupService (6h interval, purge >30d trash, GC unreferenced chunks)
+- ✓ Create QuotaRecalculationService (24h interval, per-user recalculation)
+- ✓ Create FilesServiceRegistration (DI wiring: 9 scoped services + 3 hosted background services)
+- ✓ 298 unit tests passing (9 test files covering all services)
+
+**Dependencies:** phase-1.2
+**Blocking Issues:** None
+**Notes:** Phase 1.3 complete. All 9 services are `internal sealed class` with `InternalsVisibleTo` for test access. Services follow CallerContext authorization pattern (owner-or-system checks). FileService enforces MaxDepth=50 and name uniqueness within parent. ShareService uses RandomNumberGenerator for link tokens and ASP.NET Identity PasswordHasher for link passwords. TrashService cascades permanent delete through shares→tags→comments→versions→chunks→node with refcount management. 850 total solution tests pass (no regressions). Some items deferred: range request downloads, version retention limits, notification integration.
+
+---
+
+### Step: phase-1.4 - Files REST API Endpoints
+**Status:** pending
+**Duration:** ~1-2 weeks
+**Description:** Create REST controllers for file/folder CRUD, upload/download, sharing, versioning, trash, tags, comments, and search.
+
+**Deliverables:**
+- ☐ Create FilesController (CRUD, tree navigation, search, favorites)
+- ☐ Create UploadController (chunked upload initiation, chunk upload, completion)
+- ☐ Create DownloadController (file download, version download, range requests)
+- ☐ Create ShareController (CRUD, public link resolution)
+- ☐ Create VersionController (list, restore, label, delete)
+- ☐ Create TrashController (list, restore, permanent delete, empty)
+- ☐ Create TagController and CommentController
+
+**Dependencies:** phase-1.3
+**Blocking Issues:** None
+**Notes:** All endpoints under /api/v1/files/ namespace. Follow response envelope pattern.
 
 ---
 

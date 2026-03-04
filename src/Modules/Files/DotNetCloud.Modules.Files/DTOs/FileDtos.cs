@@ -275,3 +275,54 @@ public sealed record TrashItemDto
     /// <summary>Original parent folder path.</summary>
     public string? OriginalPath { get; init; }
 }
+
+/// <summary>
+/// Request DTO for updating an existing share.
+/// </summary>
+public sealed record UpdateShareDto
+{
+    /// <summary>New permission level (null = keep current).</summary>
+    public string? Permission { get; init; }
+
+    /// <summary>New expiration date (null = keep current).</summary>
+    public DateTime? ExpiresAt { get; init; }
+
+    /// <summary>New max downloads (null = keep current).</summary>
+    public int? MaxDownloads { get; init; }
+
+    /// <summary>New password for public link (null = keep current, empty = remove).</summary>
+    public string? LinkPassword { get; init; }
+
+    /// <summary>Updated note.</summary>
+    public string? Note { get; init; }
+}
+
+/// <summary>
+/// Response DTO for a file comment.
+/// </summary>
+public sealed record FileCommentDto
+{
+    /// <summary>Comment ID.</summary>
+    public required Guid Id { get; init; }
+
+    /// <summary>File node ID.</summary>
+    public Guid FileNodeId { get; init; }
+
+    /// <summary>Parent comment ID (null for top-level).</summary>
+    public Guid? ParentCommentId { get; init; }
+
+    /// <summary>Comment text content.</summary>
+    public required string Content { get; init; }
+
+    /// <summary>User who wrote the comment.</summary>
+    public Guid CreatedByUserId { get; init; }
+
+    /// <summary>When the comment was created.</summary>
+    public DateTime CreatedAt { get; init; }
+
+    /// <summary>When the comment was last edited (null if never).</summary>
+    public DateTime? UpdatedAt { get; init; }
+
+    /// <summary>Number of replies.</summary>
+    public int ReplyCount { get; init; }
+}
