@@ -32,7 +32,7 @@
 | Phase 0.13 | 20 | 20 | 0 | 0 |
 | Phase 0.14 | 18 | 18 | 0 | 0 |
 | Phase 0.15 | 12 | 12 | 0 | 0 |
-| Phase 0.16 | 9 | 0 | 0 | 9 |
+| Phase 0.16 | 12 | 11 | 0 | 1 |
 | Phase 0.17 | 10 | 0 | 0 | 10 |
 | Phase 0.18 | 8 | 0 | 0 | 8 |
 | Phase 0.19 | 9 | 0 | 0 | 9 |
@@ -2187,6 +2187,38 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
+### Phase 0.16: Internationalization (i18n) Infrastructure
+
+#### Step: phase-0.16.1 - i18n Infrastructure Setup
+**Status:** completed ✅
+**Duration:** ~2 hours
+**Description:** Full internationalization infrastructure for Blazor Web App with InteractiveAuto render mode. Supports both server-side (cookie-based) and client-side (localStorage-based) culture persistence.
+
+**Deliverables:**
+- ✓ `SupportedCultures.cs` — centralized culture registry with 7 cultures (en-US, es-ES, de-DE, fr-FR, pt-BR, ja-JP, zh-CN)
+- ✓ `TranslationKeys.cs` — constant classes for Common, Auth, Errors, Validation, Admin string keys
+- ✓ `SharedResources.cs` — marker class for `IStringLocalizer<SharedResources>`
+- ✓ `SharedResources.resx` — default English strings (50+ entries: UI, auth, admin, errors, validation)
+- ✓ `SharedResources.es.resx` — Spanish translations (all entries)
+- ✓ `CultureSelector.razor` — Blazor component with dual persistence (localStorage + cookie redirect)
+- ✓ `CultureController.cs` — ASP.NET Core controller for localization cookie via redirect
+- ✓ Server-side: `AddLocalization()`, `UseRequestLocalization` with `SupportedCultures` config
+- ✓ Client-side (WASM): `AddLocalization()`, JS interop culture read from localStorage, `BlazorWebAssemblyLoadAllGlobalizationData`
+- ✓ `App.razor` — dynamic `html lang` attribute, `blazorCulture` JS interop, cookie persistence via `CookieRequestCultureProvider`
+- ✓ `MainLayout.razor` — CultureSelector integrated in topbar with `InteractiveAuto` render mode
+- ✓ All `_Imports.razor` files updated with `Microsoft.Extensions.Localization`, `DotNetCloud.Core.Localization`, `DotNetCloud.UI.Shared.Resources`
+- ✓ `Microsoft.Extensions.Localization` package added to `DotNetCloud.UI.Shared` and `DotNetCloud.UI.Web.Client`
+- ✓ `DotNetCloud.UI.Shared` → `DotNetCloud.Core` project reference added
+- ✓ `docs/architecture/internationalization.md` — comprehensive i18n guide
+- ✓ `SupportedCulturesTests` — 11 tests (DefaultCulture, All array, DisplayNames, GetCultureInfos, BCP-47 validation)
+- ✓ `TranslationKeysTests` — 13 tests (nested class structure, non-empty constants, global uniqueness, expected key values)
+- ✓ `CultureControllerTests` — 15 tests (cookie setting, redirect behavior, empty/null guards, all supported cultures)
+- ☐ Weblate translation workflow (deferred to later phase)
+
+**Notes:** Full i18n infrastructure in place with 45 unit tests. Culture selection works for both SSR and CSR via dual persistence (cookie + localStorage). Spanish translation included as reference. Additional languages can be added by creating `.resx` files and registering in `SupportedCultures`. Weblate integration deferred. All 739 tests pass (0 failures, 6 skipped SQL Server Docker tests).
+
+---
+
 ## Status Summary & Notes
 
 - **Total Phase 0 Steps:** 229+ (across subsections 0.1-0.19)
@@ -2198,8 +2230,8 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
-**Last Updated:** 2026-03-03 (Phase 0.15 Testing Infrastructure completed — integration tests, CallerContext bug fix, Program.cs conversion)  
-**Next Review:** After Phase 0.16 start
+**Last Updated:** 2026-03-03 (Phase 0.16 Internationalization Infrastructure completed — i18n setup, resource files, CultureSelector, dual culture persistence, 45 unit tests)
+**Next Review:** After Phase 0.17 start
 **Maintained By:** Development Team
 
 ---

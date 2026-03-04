@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <!-- Common UI strings -->
+  <data name="AppName" xml:space="preserve">
+    <value>DotNetCloud</value>
+  </data>
+  <data name="Save" xml:space="preserve">
+    <value>Guardar</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="Delete" xml:space="preserve">
+    <value>Eliminar</value>
+  </data>
+  <data name="Edit" xml:space="preserve">
+    <value>Editar</value>
+  </data>
+  <data name="Create" xml:space="preserve">
+    <value>Crear</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>Cerrar</value>
+  </data>
+  <data name="Confirm" xml:space="preserve">
+    <value>Confirmar</value>
+  </data>
+  <data name="Search" xml:space="preserve">
+    <value>Buscar…</value>
+  </data>
+  <data name="Loading" xml:space="preserve">
+    <value>Cargando…</value>
+  </data>
+  <data name="NoResults" xml:space="preserve">
+    <value>No se encontraron resultados.</value>
+  </data>
+  <data name="Yes" xml:space="preserve">
+    <value>Sí</value>
+  </data>
+  <data name="No" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="Submit" xml:space="preserve">
+    <value>Enviar</value>
+  </data>
+  <data name="Back" xml:space="preserve">
+    <value>Atrás</value>
+  </data>
+  <data name="Next" xml:space="preserve">
+    <value>Siguiente</value>
+  </data>
+  <data name="Previous" xml:space="preserve">
+    <value>Anterior</value>
+  </data>
+  <data name="Refresh" xml:space="preserve">
+    <value>Actualizar</value>
+  </data>
+  <data name="Actions" xml:space="preserve">
+    <value>Acciones</value>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>Configuración</value>
+  </data>
+  <data name="Dashboard" xml:space="preserve">
+    <value>Panel</value>
+  </data>
+  <data name="Logout" xml:space="preserve">
+    <value>Cerrar sesión</value>
+  </data>
+  <data name="SelectLocale" xml:space="preserve">
+    <value>Seleccione su idioma:</value>
+  </data>
+  <!-- Authentication strings -->
+  <data name="Auth_Login" xml:space="preserve">
+    <value>Iniciar sesión</value>
+  </data>
+  <data name="Auth_Register" xml:space="preserve">
+    <value>Registrarse</value>
+  </data>
+  <data name="Auth_Email" xml:space="preserve">
+    <value>Correo electrónico</value>
+  </data>
+  <data name="Auth_Password" xml:space="preserve">
+    <value>Contraseña</value>
+  </data>
+  <data name="Auth_ConfirmPassword" xml:space="preserve">
+    <value>Confirmar contraseña</value>
+  </data>
+  <data name="Auth_DisplayName" xml:space="preserve">
+    <value>Nombre para mostrar</value>
+  </data>
+  <data name="Auth_ForgotPassword" xml:space="preserve">
+    <value>¿Olvidó su contraseña?</value>
+  </data>
+  <data name="Auth_ResetPassword" xml:space="preserve">
+    <value>Restablecer contraseña</value>
+  </data>
+  <data name="Auth_MfaVerification" xml:space="preserve">
+    <value>Autenticación de dos factores</value>
+  </data>
+  <data name="Auth_RememberMe" xml:space="preserve">
+    <value>Recordarme</value>
+  </data>
+  <!-- Admin strings -->
+  <data name="Admin_Users" xml:space="preserve">
+    <value>Usuarios</value>
+  </data>
+  <data name="Admin_Modules" xml:space="preserve">
+    <value>Módulos</value>
+  </data>
+  <data name="Admin_SystemSettings" xml:space="preserve">
+    <value>Configuración del sistema</value>
+  </data>
+  <data name="Admin_Health" xml:space="preserve">
+    <value>Estado</value>
+  </data>
+  <data name="Admin_StartModule" xml:space="preserve">
+    <value>Iniciar</value>
+  </data>
+  <data name="Admin_StopModule" xml:space="preserve">
+    <value>Detener</value>
+  </data>
+  <data name="Admin_RestartModule" xml:space="preserve">
+    <value>Reiniciar</value>
+  </data>
+  <!-- Error strings -->
+  <data name="Error_Unexpected" xml:space="preserve">
+    <value>Ocurrió un error inesperado. Inténtelo de nuevo más tarde.</value>
+  </data>
+  <data name="Error_NotFound" xml:space="preserve">
+    <value>El recurso solicitado no fue encontrado.</value>
+  </data>
+  <data name="Error_Unauthorized" xml:space="preserve">
+    <value>No está autorizado para acceder a este recurso.</value>
+  </data>
+  <data name="Error_Forbidden" xml:space="preserve">
+    <value>El acceso a este recurso está prohibido.</value>
+  </data>
+  <data name="Error_ValidationFailed" xml:space="preserve">
+    <value>Ocurrieron uno o más errores de validación.</value>
+  </data>
+  <data name="Error_Connection" xml:space="preserve">
+    <value>No se pudo conectar al servidor. Verifique su conexión.</value>
+  </data>
+  <data name="Error_SessionExpired" xml:space="preserve">
+    <value>Su sesión ha expirado. Inicie sesión nuevamente.</value>
+  </data>
+  <data name="Error_ServerError" xml:space="preserve">
+    <value>Ocurrió un error en el servidor. Inténtelo de nuevo más tarde.</value>
+  </data>
+  <!-- Validation strings -->
+  <data name="Validation_Required" xml:space="preserve">
+    <value>{0} es obligatorio.</value>
+  </data>
+  <data name="Validation_InvalidEmail" xml:space="preserve">
+    <value>Ingrese una dirección de correo electrónico válida.</value>
+  </data>
+  <data name="Validation_PasswordTooShort" xml:space="preserve">
+    <value>La contraseña debe tener al menos {0} caracteres.</value>
+  </data>
+  <data name="Validation_PasswordMismatch" xml:space="preserve">
+    <value>Las contraseñas no coinciden.</value>
+  </data>
+  <data name="Validation_MaxLength" xml:space="preserve">
+    <value>{0} no debe exceder {1} caracteres.</value>
+  </data>
+  <data name="Validation_MinLength" xml:space="preserve">
+    <value>{0} debe tener al menos {1} caracteres.</value>
+  </data>
+  <data name="Validation_InvalidFormat" xml:space="preserve">
+    <value>{0} tiene un formato no válido.</value>
+  </data>
+</root>

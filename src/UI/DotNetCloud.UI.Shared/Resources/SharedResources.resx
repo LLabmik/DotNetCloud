@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <!-- Common UI strings -->
+  <data name="AppName" xml:space="preserve">
+    <value>DotNetCloud</value>
+  </data>
+  <data name="Save" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="Delete" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Edit" xml:space="preserve">
+    <value>Edit</value>
+  </data>
+  <data name="Create" xml:space="preserve">
+    <value>Create</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="Confirm" xml:space="preserve">
+    <value>Confirm</value>
+  </data>
+  <data name="Search" xml:space="preserve">
+    <value>Search…</value>
+  </data>
+  <data name="Loading" xml:space="preserve">
+    <value>Loading…</value>
+  </data>
+  <data name="NoResults" xml:space="preserve">
+    <value>No results found.</value>
+  </data>
+  <data name="Yes" xml:space="preserve">
+    <value>Yes</value>
+  </data>
+  <data name="No" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="Submit" xml:space="preserve">
+    <value>Submit</value>
+  </data>
+  <data name="Back" xml:space="preserve">
+    <value>Back</value>
+  </data>
+  <data name="Next" xml:space="preserve">
+    <value>Next</value>
+  </data>
+  <data name="Previous" xml:space="preserve">
+    <value>Previous</value>
+  </data>
+  <data name="Refresh" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="Actions" xml:space="preserve">
+    <value>Actions</value>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Dashboard" xml:space="preserve">
+    <value>Dashboard</value>
+  </data>
+  <data name="Logout" xml:space="preserve">
+    <value>Logout</value>
+  </data>
+  <data name="SelectLocale" xml:space="preserve">
+    <value>Select your locale:</value>
+  </data>
+  <!-- Authentication strings -->
+  <data name="Auth_Login" xml:space="preserve">
+    <value>Log In</value>
+  </data>
+  <data name="Auth_Register" xml:space="preserve">
+    <value>Register</value>
+  </data>
+  <data name="Auth_Email" xml:space="preserve">
+    <value>Email</value>
+  </data>
+  <data name="Auth_Password" xml:space="preserve">
+    <value>Password</value>
+  </data>
+  <data name="Auth_ConfirmPassword" xml:space="preserve">
+    <value>Confirm Password</value>
+  </data>
+  <data name="Auth_DisplayName" xml:space="preserve">
+    <value>Display Name</value>
+  </data>
+  <data name="Auth_ForgotPassword" xml:space="preserve">
+    <value>Forgot your password?</value>
+  </data>
+  <data name="Auth_ResetPassword" xml:space="preserve">
+    <value>Reset Password</value>
+  </data>
+  <data name="Auth_MfaVerification" xml:space="preserve">
+    <value>Two-Factor Authentication</value>
+  </data>
+  <data name="Auth_RememberMe" xml:space="preserve">
+    <value>Remember me</value>
+  </data>
+  <!-- Admin strings -->
+  <data name="Admin_Users" xml:space="preserve">
+    <value>Users</value>
+  </data>
+  <data name="Admin_Modules" xml:space="preserve">
+    <value>Modules</value>
+  </data>
+  <data name="Admin_SystemSettings" xml:space="preserve">
+    <value>System Settings</value>
+  </data>
+  <data name="Admin_Health" xml:space="preserve">
+    <value>Health</value>
+  </data>
+  <data name="Admin_StartModule" xml:space="preserve">
+    <value>Start</value>
+  </data>
+  <data name="Admin_StopModule" xml:space="preserve">
+    <value>Stop</value>
+  </data>
+  <data name="Admin_RestartModule" xml:space="preserve">
+    <value>Restart</value>
+  </data>
+  <!-- Error strings -->
+  <data name="Error_Unexpected" xml:space="preserve">
+    <value>An unexpected error occurred. Please try again later.</value>
+  </data>
+  <data name="Error_NotFound" xml:space="preserve">
+    <value>The requested resource was not found.</value>
+  </data>
+  <data name="Error_Unauthorized" xml:space="preserve">
+    <value>You are not authorized to access this resource.</value>
+  </data>
+  <data name="Error_Forbidden" xml:space="preserve">
+    <value>Access to this resource is forbidden.</value>
+  </data>
+  <data name="Error_ValidationFailed" xml:space="preserve">
+    <value>One or more validation errors occurred.</value>
+  </data>
+  <data name="Error_Connection" xml:space="preserve">
+    <value>Unable to connect to the server. Please check your connection.</value>
+  </data>
+  <data name="Error_SessionExpired" xml:space="preserve">
+    <value>Your session has expired. Please log in again.</value>
+  </data>
+  <data name="Error_ServerError" xml:space="preserve">
+    <value>A server error occurred. Please try again later.</value>
+  </data>
+  <!-- Validation strings -->
+  <data name="Validation_Required" xml:space="preserve">
+    <value>{0} is required.</value>
+  </data>
+  <data name="Validation_InvalidEmail" xml:space="preserve">
+    <value>Please enter a valid email address.</value>
+  </data>
+  <data name="Validation_PasswordTooShort" xml:space="preserve">
+    <value>Password must be at least {0} characters long.</value>
+  </data>
+  <data name="Validation_PasswordMismatch" xml:space="preserve">
+    <value>Passwords do not match.</value>
+  </data>
+  <data name="Validation_MaxLength" xml:space="preserve">
+    <value>{0} must not exceed {1} characters.</value>
+  </data>
+  <data name="Validation_MinLength" xml:space="preserve">
+    <value>{0} must be at least {1} characters long.</value>
+  </data>
+  <data name="Validation_InvalidFormat" xml:space="preserve">
+    <value>{0} has an invalid format.</value>
+  </data>
+</root>

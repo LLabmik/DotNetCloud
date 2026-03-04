@@ -23,6 +23,7 @@
                 <h1 class="page-title">@_pageTitle</h1>
             </div>
             <div class="topbar-right">
+                <CultureSelector @rendermode="InteractiveAuto" />
                 <button class="theme-toggle" @onclick="ToggleTheme" title="Toggle theme">
                     @(_darkMode ? "☀" : "🌙")
                 </button>

@@ -948,22 +948,28 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 
 ### i18n Setup
 
-- [ ] Create resource files structure (`Resources/*.resx`)
-- [ ] Configure `IStringLocalizer` dependency injection
-- [ ] Create translation key constants
-- [ ] Set up default language (English)
-- [ ] Implement user locale selection
-- [ ] Configure number/date/time formatting per locale
-- [ ] Create Blazor component for locale switching
-- [ ] Document translation contribution process
+- ✓ Create resource files structure (`Resources/*.resx`)
+- ✓ Configure `IStringLocalizer` dependency injection
+- ✓ Create translation key constants
+- ✓ Set up default language (English)
+- ✓ Implement user locale selection
+- ✓ Configure number/date/time formatting per locale
+- ✓ Create Blazor component for locale switching
+- ✓ Document translation contribution process
 
 ### Resource Files
 
-- [ ] Create core UI strings
-- [ ] Create error message strings
-- [ ] Create validation message strings
-- [ ] Create module strings (namespace per module)
-- [ ] Set up translation workflow (Weblate or similar)
+- ✓ Create core UI strings
+- ✓ Create error message strings
+- ✓ Create validation message strings
+- ✓ Create module strings (namespace per module)
+- ☐ Set up translation workflow (Weblate or similar)
+
+### Unit Tests
+
+- ✓ `SupportedCulturesTests` — 11 tests (DefaultCulture, All array, DisplayNames, GetCultureInfos, BCP-47 validation)
+- ✓ `TranslationKeysTests` — 13 tests (nested class structure, non-empty constants, global uniqueness, expected key values)
+- ✓ `CultureControllerTests` — 15 tests (cookie setting, redirect behavior, empty/null guards, all supported cultures)
 
 ---
 

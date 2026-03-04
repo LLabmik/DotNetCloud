@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Auth.Extensions;
 using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Initialization;
+using DotNetCloud.Core.Localization;
 using DotNetCloud.Core.Server.Configuration;
 using DotNetCloud.Core.Server.Extensions;
 using DotNetCloud.Core.Server.Middleware;
@@ -61,6 +62,9 @@ public class Program
 
         // Add controllers
         builder.Services.AddControllers();
+
+        // Add localization services for i18n support
+        builder.Services.AddLocalization();
 
         // Add Blazor (InteractiveAuto = Server + WebAssembly)
         builder.Services.AddRazorComponents()
@@ -149,6 +153,13 @@ public class Program
 
         // Map SignalR hub endpoints
         app.MapDotNetCloudHubs();
+
+        // Configure request localization (culture from cookie / Accept-Language header)
+        var localizationOptions = new RequestLocalizationOptions()
+            .SetDefaultCulture(SupportedCultures.DefaultCulture)
+            .AddSupportedCultures(SupportedCultures.All)
+            .AddSupportedUICultures(SupportedCultures.All);
+        app.UseRequestLocalization(localizationOptions);
 
         // Map Blazor components (InteractiveAuto = Server + WebAssembly)
         app.MapRazorComponents<DotNetCloud.UI.Web.Components.App>()
