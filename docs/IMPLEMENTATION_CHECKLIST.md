@@ -1571,7 +1571,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ `GET /api/v1/chat/channels/{channelId}/pins` — Get pinned messages
 
 #### File Sharing Endpoints
-- ☐ `POST /api/v1/chat/channels/{channelId}/messages/{messageId}/attachments` — Attach file to message
+- ✓ `POST /api/v1/chat/channels/{channelId}/messages/{messageId}/attachments` — Attach file to message
 - ✓ `GET /api/v1/chat/channels/{channelId}/files` — List files shared in channel
 
 ---
@@ -1973,11 +1973,11 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ `EventTests` — all event records, IEvent interface compliance (10 tests)
 - ✓ `EventHandlerTests` — handler logic, logging, cancellation (8 tests, in EventTests.cs)
 - ✓ `ChannelServiceTests` — CRUD operations, authorization checks, name uniqueness validation
-- [ ] `MessageServiceTests` — send, edit, delete, pagination, search
-- [ ] `ReactionServiceTests` — add, remove, duplicate handling
-- [ ] `PinServiceTests` — pin, unpin, list
-- [ ] `TypingIndicatorServiceTests` — notify, expire, list
-- [ ] `AnnouncementServiceTests` — CRUD, acknowledgement tracking
+- ✓ `MessageServiceTests` — send, edit, delete, pagination, search, mentions, attachments (29 tests)
+- ✓ `ReactionServiceTests` — add, remove, duplicate handling (7 tests)
+- ✓ `PinServiceTests` — pin, unpin, list (5 tests)
+- ✓ `TypingIndicatorServiceTests` — notify, expire, list (5 tests)
+- ✓ `AnnouncementServiceTests` — CRUD, acknowledgement tracking (18 tests)
 
 ### Integration Tests
 

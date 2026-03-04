@@ -48,7 +48,7 @@
 | Phase 2.9 | 3 | 0 | 0 | 3 |
 | Phase 2.10 | 8 | 0 | 0 | 8 |
 | Phase 2.11 | 3 | 3 | 0 | 0 |
-| Phase 2.12 | 2 | 1 | 0 | 1 |
+| Phase 2.12 | 2 | 1 | 1 | 0 |
 | Phase 2.13 | 3 | 0 | 0 | 3 |
 | Phase 3-9 | Summary | 0 | 0 | 1 |
 | Infrastructure | Summary | 0 | 0 | 1 |
@@ -2470,7 +2470,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ☐ Create MemberController (add/remove, role, notifications, read marker, unread counts)
 - ☐ Create MessageController (send, edit, delete, paginate, search)
 - ☐ Create ReactionController and PinController
-- ☐ Create file attachment endpoints
+- ✓ Create file attachment endpoints
 
 **Dependencies:** phase-2.3
 **Blocking Issues:** None
@@ -2612,16 +2612,23 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Description:** Create comprehensive unit tests and integration tests for all chat functionality.
 
 **Deliverables:**
-- ✓ Create unit tests — 78 tests passing across 4 test classes:
+- ✓ Create unit tests — 180 tests passing across 10 test classes:
   - ✓ ChatModuleManifestTests (10 tests: Id, Name, Version, capabilities, events, IModuleManifest)
   - ✓ ChatModuleTests (15 tests: lifecycle, event bus subscribe/unsubscribe, null check, manifest)
   - ✓ ModelTests (35 tests: Channel 10, Message 10, ChannelMember 7, MessageReaction 3, MessageMention 5)
   - ✓ EventTests (18 tests: 10 event records IEvent compliance + 8 event handler tests)
+  - ✓ ChannelServiceTests (CRUD, authorization, name uniqueness)
+  - ✓ MessageServiceTests (29 tests: send, edit, delete, pagination, search, mentions, attachments)
+  - ✓ ReactionServiceTests (7 tests: add, remove, duplicate, multi-user, grouping, validation)
+  - ✓ PinServiceTests (5 tests: pin, unpin, duplicate, non-pinned, empty list)
+  - ✓ TypingIndicatorServiceTests (5 tests: notify, empty, multi-user, channel isolation, cleanup)
+  - ✓ AnnouncementServiceTests (18 tests: CRUD, priority, acknowledgement tracking)
+  - ✓ MentionNotificationServiceTests
 - ☐ Create integration tests (REST API CRUD, SignalR real-time delivery, typing, presence, file attachment, announcements, push registration, multi-database)
 
 **Dependencies:** phase-2.1 through phase-2.11
 **Blocking Issues:** None
-**Notes:** Unit tests complete with 78/78 passing. Integration tests will be added as services and SignalR integration are implemented.
+**Notes:** Unit tests complete with 180/180 passing across all service, model, event, and module tests. Integration tests will be added as SignalR integration is implemented.
 
 ---
 

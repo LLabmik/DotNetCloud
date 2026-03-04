@@ -175,6 +175,27 @@ public sealed record EditMessageDto
 }
 
 /// <summary>
+/// Request DTO for attaching a file to an existing message.
+/// </summary>
+public sealed record CreateAttachmentDto
+{
+    /// <summary>File name to display.</summary>
+    public required string FileName { get; init; }
+
+    /// <summary>MIME type of the file.</summary>
+    public required string MimeType { get; init; }
+
+    /// <summary>File size in bytes.</summary>
+    public long FileSize { get; init; }
+
+    /// <summary>Thumbnail URL for image/video previews.</summary>
+    public string? ThumbnailUrl { get; init; }
+
+    /// <summary>Files module FileNode ID (if linked to a file in storage).</summary>
+    public Guid? FileNodeId { get; init; }
+}
+
+/// <summary>
 /// Response DTO representing a message attachment.
 /// </summary>
 public sealed record MessageAttachmentDto

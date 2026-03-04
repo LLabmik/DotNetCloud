@@ -410,4 +410,118 @@ public class MessageServiceTests
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
+
+    // ── Attachment tests ────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task WhenAddAttachmentThenAttachmentIsReturned()
+    {
+        var msg = await _service.SendMessageAsync(_channelId, new SendMessageDto { Content = "file here" }, _caller);
+
+        var dto = new CreateAttachmentDto { FileName = "report.pdf", MimeType = "application/pdf", FileSize = 1024 };
+        var result = await _service.AddAttachmentAsync(_channelId, msg.Id, dto, _caller);
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual("report.pdf", result.FileName);
+        Assert.AreEqual("application/pdf", result.MimeType);
+        Assert.AreEqual(1024, result.FileSize);
+    }
+
+    [TestMethod]
+    public async Task WhenAddAttachmentThenAttachmentIsPersistedInDb()
+    {
+        var msg = await _service.SendMessageAsync(_channelId, new SendMessageDto { Content = "file" }, _caller);
+
+        var dto = new CreateAttachmentDto { FileName = "img.png", MimeType = "image/png", FileSize = 2048 };
+        await _service.AddAttachmentAsync(_channelId, msg.Id, dto, _caller);
+
+        var attachments = await _db.MessageAttachments.Where(a => a.MessageId == msg.Id).ToListAsync();
+        Assert.AreEqual(1, attachments.Count);
+        Assert.AreEqual("img.png", attachments[0].FileName);
+    }
+
+    [TestMethod]
+    public async Task WhenAddMultipleAttachmentsThenSortOrderIncrements()
+    {
+        var msg = await _service.SendMessageAsync(_channelId, new SendMessageDto { Content = "files" }, _caller);
+
+        await _service.AddAttachmentAsync(_channelId, msg.Id,
+            new CreateAttachmentDto { FileName = "a.txt", MimeType = "text/plain", FileSize = 10 }, _caller);
+        await _service.AddAttachmentAsync(_channelId, msg.Id,
+            new CreateAttachmentDto { FileName = "b.txt", MimeType = "text/plain", FileSize = 20 }, _caller);
+
+        var attachments = await _db.MessageAttachments
+            .Where(a => a.MessageId == msg.Id)
+            .OrderBy(a => a.SortOrder)
+            .ToListAsync();
+
+        Assert.AreEqual(2, attachments.Count);
+        Assert.AreEqual(0, attachments[0].SortOrder);
+        Assert.AreEqual(1, attachments[1].SortOrder);
+    }
+
+    [TestMethod]
+    public async Task WhenAddAttachmentWithFileNodeIdThenFileNodeIdIsStored()
+    {
+        var msg = await _service.SendMessageAsync(_channelId, new SendMessageDto { Content = "linked" }, _caller);
+        var fileNodeId = Guid.NewGuid();
+
+        var dto = new CreateAttachmentDto { FileName = "doc.pdf", MimeType = "application/pdf", FileSize = 512, FileNodeId = fileNodeId };
+        var result = await _service.AddAttachmentAsync(_channelId, msg.Id, dto, _caller);
+
+        Assert.AreEqual(fileNodeId, result.FileNodeId);
+    }
+
+    [TestMethod]
+    public async Task WhenAddAttachmentByNonSenderThenThrows()
+    {
+        var msg = await _service.SendMessageAsync(_channelId, new SendMessageDto { Content = "mine" }, _caller);
+        var otherUser = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+
+        var dto = new CreateAttachmentDto { FileName = "hack.exe", MimeType = "application/octet-stream", FileSize = 999 };
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => _service.AddAttachmentAsync(_channelId, msg.Id, dto, otherUser));
+    }
+
+    [TestMethod]
+    public async Task WhenAddAttachmentToNonExistentMessageThenThrows()
+    {
+        var dto = new CreateAttachmentDto { FileName = "test.txt", MimeType = "text/plain", FileSize = 10 };
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _service.AddAttachmentAsync(_channelId, Guid.NewGuid(), dto, _caller));
+    }
+
+    [TestMethod]
+    public async Task WhenAddAttachmentWithEmptyFileNameThenThrows()
+    {
+        var msg = await _service.SendMessageAsync(_channelId, new SendMessageDto { Content = "test" }, _caller);
+
+        var dto = new CreateAttachmentDto { FileName = "", MimeType = "text/plain", FileSize = 10 };
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.AddAttachmentAsync(_channelId, msg.Id, dto, _caller));
+    }
+
+    [TestMethod]
+    public async Task WhenAddAttachmentWithEmptyMimeTypeThenThrows()
+    {
+        var msg = await _service.SendMessageAsync(_channelId, new SendMessageDto { Content = "test" }, _caller);
+
+        var dto = new CreateAttachmentDto { FileName = "test.txt", MimeType = "", FileSize = 10 };
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.AddAttachmentAsync(_channelId, msg.Id, dto, _caller));
+    }
+
+    [TestMethod]
+    public async Task WhenAddAttachmentThenGetMessageIncludesIt()
+    {
+        var msg = await _service.SendMessageAsync(_channelId, new SendMessageDto { Content = "attached" }, _caller);
+        await _service.AddAttachmentAsync(_channelId, msg.Id,
+            new CreateAttachmentDto { FileName = "photo.jpg", MimeType = "image/jpeg", FileSize = 4096 }, _caller);
+
+        var result = await _service.GetMessageAsync(msg.Id, _caller);
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual(1, result.Attachments.Count);
+        Assert.AreEqual("photo.jpg", result.Attachments[0].FileName);
+    }
 }

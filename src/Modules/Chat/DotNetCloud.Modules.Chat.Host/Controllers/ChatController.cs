@@ -449,6 +449,30 @@ public class ChatController : ControllerBase
 
     // ── File Sharing Endpoints ──────────────────────────────────────
 
+    /// <summary>Attaches a file to an existing message.</summary>
+    [HttpPost("channels/{channelId:guid}/messages/{messageId:guid}/attachments")]
+    public async Task<IActionResult> AddAttachmentAsync(
+        Guid channelId, Guid messageId, [FromBody] CreateAttachmentDto dto, [FromQuery] Guid userId)
+    {
+        try
+        {
+            var attachment = await _messageService.AddAttachmentAsync(channelId, messageId, dto, ToCaller(userId));
+            return Ok(Envelope(attachment));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ErrorEnvelope("VALIDATION_ERROR", ex.Message));
+        }
+        catch (InvalidOperationException)
+        {
+            return NotFound(ErrorEnvelope("CHAT_MESSAGE_NOT_FOUND", "Message not found."));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
     /// <summary>Lists files shared in a channel (via message attachments).</summary>
     [HttpGet("channels/{channelId:guid}/files")]
     public async Task<IActionResult> GetChannelFilesAsync(Guid channelId, [FromQuery] Guid userId)

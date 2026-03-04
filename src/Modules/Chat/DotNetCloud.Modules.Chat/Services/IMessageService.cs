@@ -25,6 +25,9 @@ public interface IMessageService
 
     /// <summary>Gets a single message by ID.</summary>
     Task<MessageDto?> GetMessageAsync(Guid messageId, CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>Attaches a file to an existing message.</summary>
+    Task<MessageAttachmentDto> AddAttachmentAsync(Guid channelId, Guid messageId, CreateAttachmentDto dto, CallerContext caller, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

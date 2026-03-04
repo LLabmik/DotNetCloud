@@ -247,6 +247,57 @@ internal sealed class MessageService : IMessageService
         return message is null ? null : ToMessageDto(message);
     }
 
+    /// <inheritdoc />
+    public async Task<MessageAttachmentDto> AddAttachmentAsync(Guid channelId, Guid messageId, CreateAttachmentDto dto, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+
+        if (string.IsNullOrWhiteSpace(dto.FileName))
+            throw new ArgumentException("File name is required.", nameof(dto));
+
+        if (string.IsNullOrWhiteSpace(dto.MimeType))
+            throw new ArgumentException("MIME type is required.", nameof(dto));
+
+        var message = await _db.Messages
+            .Include(m => m.Attachments)
+            .FirstOrDefaultAsync(m => m.Id == messageId && m.ChannelId == channelId, cancellationToken)
+            ?? throw new InvalidOperationException($"Message {messageId} not found in channel {channelId}.");
+
+        if (message.SenderUserId != caller.UserId)
+            throw new UnauthorizedAccessException("Only the message sender can add attachments.");
+
+        var nextSortOrder = message.Attachments.Count > 0
+            ? message.Attachments.Max(a => a.SortOrder) + 1
+            : 0;
+
+        var attachment = new MessageAttachment
+        {
+            MessageId = messageId,
+            FileName = dto.FileName,
+            MimeType = dto.MimeType,
+            FileSize = dto.FileSize,
+            ThumbnailUrl = dto.ThumbnailUrl,
+            FileNodeId = dto.FileNodeId,
+            SortOrder = nextSortOrder
+        };
+
+        _db.MessageAttachments.Add(attachment);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Attachment {AttachmentId} added to message {MessageId} in channel {ChannelId} by user {UserId}.",
+            attachment.Id, messageId, channelId, caller.UserId);
+
+        return new MessageAttachmentDto
+        {
+            Id = attachment.Id,
+            FileName = attachment.FileName,
+            MimeType = attachment.MimeType,
+            FileSize = attachment.FileSize,
+            ThumbnailUrl = attachment.ThumbnailUrl,
+            FileNodeId = attachment.FileNodeId
+        };
+    }
+
     /// <summary>
     /// Parses @mentions from message content and stores them in the database.
     /// Supports @all, @channel, and @username mentions.
