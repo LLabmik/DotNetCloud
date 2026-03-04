@@ -2054,32 +2054,32 @@ This phase implements the core Files module, which is the primary public-facing 
 **Share management and Files module administration**
 
 #### Share Management UI
-- ☐ Create comprehensive share dialog:
-  - ☐ Search users by name/email for sharing
-  - ☐ Search teams for sharing
-  - ☐ Search groups for sharing
-  - ☐ Show all existing shares for a node
-  - ☐ Inline permission change dropdown
-  - ☐ Inline share removal
-  - ☐ Public link section with toggle, copy, and settings
-- ☐ Create "Shared with me" view:
-  - ☐ List all files/folders shared with current user
-  - ☐ Group by share source (who shared)
-  - ☐ Show permission level
-  - ☐ Accept/decline share (optional)
-- ☐ Create "Shared by me" view:
-  - ☐ List all files/folders shared by current user
-  - ☐ Show share recipients and permissions
-  - ☐ Manage/revoke shares inline
+- ✓ Create comprehensive share dialog:
+  - ✓ Search users by name/email for sharing
+  - ✓ Search teams for sharing
+  - ✓ Search groups for sharing
+  - ✓ Show all existing shares for a node
+  - ✓ Inline permission change dropdown
+  - ✓ Inline share removal
+  - ✓ Public link section with toggle, copy, and settings
+- ✓ Create "Shared with me" view:
+  - ✓ List all files/folders shared with current user
+  - ✓ Group by share source (who shared)
+  - ✓ Show permission level
+  - ✓ Accept/decline share (optional)
+- ✓ Create "Shared by me" view:
+  - ✓ List all files/folders shared by current user
+  - ✓ Show share recipients and permissions
+  - ✓ Manage/revoke shares inline
 
 #### Files Module Admin Settings
-- ☐ Create admin settings page for Files module:
-  - ☐ Storage backend configuration
-  - ☐ Default quota management
-  - ☐ Trash auto-cleanup settings
-  - ☐ Version retention configuration
-  - ☐ Upload limits (max file size, allowed types)
-  - ☐ Collabora integration settings
+- ✓ Create admin settings page for Files module:
+  - ✓ Storage backend configuration
+  - ✓ Default quota management
+  - ✓ Trash auto-cleanup settings
+  - ✓ Version retention configuration
+  - ✓ Upload limits (max file size, allowed types)
+  - ✓ Collabora integration settings
 
 ---
 

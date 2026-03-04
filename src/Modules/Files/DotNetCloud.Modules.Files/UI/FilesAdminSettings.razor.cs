@@ -4,11 +4,19 @@ namespace DotNetCloud.Modules.Files.UI;
 
 /// <summary>
 /// Code-behind for the Files module admin settings page.
+/// Covers storage backend, quotas, trash cleanup, version retention,
+/// upload limits, and Collabora Online integration.
 /// </summary>
 public partial class FilesAdminSettings : ComponentBase
 {
     /// <summary>Raised when the user saves settings, passing the updated view model.</summary>
     [Parameter] public EventCallback<AdminSettingsViewModel> OnSettingsSaved { get; set; }
+
+    /// <summary>
+    /// Initializes the settings form with values supplied by the host page,
+    /// or defaults if no initial values are provided.
+    /// </summary>
+    [Parameter] public AdminSettingsViewModel? InitialSettings { get; set; }
 
     private AdminSettingsViewModel _settings = new();
     private bool _isSaving;
@@ -27,12 +35,6 @@ public partial class FilesAdminSettings : ComponentBase
     /// <summary>Error message to display, or empty if there is no error.</summary>
     protected string ErrorMessage => _errorMessage;
 
-    /// <summary>
-    /// Initializes the settings form with values supplied by the host page,
-    /// or defaults if no initial values are provided.
-    /// </summary>
-    [Parameter] public AdminSettingsViewModel? InitialSettings { get; set; }
-
     /// <inheritdoc />
     protected override void OnParametersSet()
     {
@@ -47,7 +49,18 @@ public partial class FilesAdminSettings : ComponentBase
                 MaxUploadMb = InitialSettings.MaxUploadMb,
                 AllowedExtensions = InitialSettings.AllowedExtensions,
                 BlockedExtensions = InitialSettings.BlockedExtensions,
-                StoragePath = InitialSettings.StoragePath
+                StoragePath = InitialSettings.StoragePath,
+                StorageBackend = InitialSettings.StorageBackend,
+                S3Endpoint = InitialSettings.S3Endpoint,
+                S3BucketName = InitialSettings.S3BucketName,
+                S3AccessKey = InitialSettings.S3AccessKey,
+                S3SecretKey = InitialSettings.S3SecretKey,
+                S3Region = InitialSettings.S3Region,
+                CollaboraEnabled = InitialSettings.CollaboraEnabled,
+                CollaboraUrl = InitialSettings.CollaboraUrl,
+                CollaboraUseBuiltIn = InitialSettings.CollaboraUseBuiltIn,
+                CollaboraAutoSaveIntervalSeconds = InitialSettings.CollaboraAutoSaveIntervalSeconds,
+                CollaboraMaxSessions = InitialSettings.CollaboraMaxSessions
             };
         }
     }
@@ -110,6 +123,52 @@ public partial class FilesAdminSettings : ComponentBase
         if (_settings.VersionRetentionDays < 0)
         {
             error = "Version retention cannot be negative.";
+            return false;
+        }
+
+        if (_settings.StorageBackend == "Local" && string.IsNullOrWhiteSpace(_settings.StoragePath))
+        {
+            error = "Storage root directory is required for local storage.";
+            return false;
+        }
+
+        if (_settings.StorageBackend == "S3")
+        {
+            if (string.IsNullOrWhiteSpace(_settings.S3Endpoint))
+            {
+                error = "S3 endpoint URL is required.";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(_settings.S3BucketName))
+            {
+                error = "S3 bucket name is required.";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(_settings.S3AccessKey))
+            {
+                error = "S3 access key is required.";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(_settings.S3SecretKey))
+            {
+                error = "S3 secret key is required.";
+                return false;
+            }
+        }
+
+        if (_settings.CollaboraEnabled && !_settings.CollaboraUseBuiltIn
+            && string.IsNullOrWhiteSpace(_settings.CollaboraUrl))
+        {
+            error = "Collabora Online server URL is required when not using the built-in instance.";
+            return false;
+        }
+
+        if (_settings.CollaboraEnabled && _settings.CollaboraAutoSaveIntervalSeconds < 30)
+        {
+            error = "Collabora auto-save interval must be at least 30 seconds.";
             return false;
         }
 

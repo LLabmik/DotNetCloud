@@ -1,0 +1,165 @@
+@namespace DotNetCloud.Modules.Files.UI
+
+@*
+    "Shared with me" view — displays all files and folders shared with the current user.
+    Groups items by the person who shared them, shows permission levels,
+    and supports accept/decline actions.
+    Code-behind: SharedWithMeView.razor.cs
+*@
+
+<div class="shared-view shared-with-me">
+    <div class="shared-view-header">
+        <h2>Shared with me</h2>
+        <div class="shared-view-actions">
+            <select class="form-control form-control-sm" @bind="GroupBy">
+                <option value="sharer">Group by sharer</option>
+                <option value="type">Group by type</option>
+                <option value="none">No grouping</option>
+            </select>
+        </div>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="loading-state" aria-live="polite">
+            <div class="loading-skeleton">
+                @for (var i = 0; i < 5; i++)
+                {
+                    <div class="skeleton-row">
+                        <div class="skeleton-icon"></div>
+                        <div class="skeleton-name"></div>
+                        <div class="skeleton-meta"></div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+    else if (Items.Count == 0)
+    {
+        <div class="empty-state" role="status">
+            <p class="empty-state-title">Nothing shared with you yet</p>
+            <p class="text-muted empty-state-hint">When others share files or folders with you, they'll appear here.</p>
+        </div>
+    }
+    else
+    {
+        @if (GroupBy == "sharer")
+        {
+            @foreach (var group in GroupedBySharer)
+            {
+                <section class="shared-group">
+                    <h3 class="shared-group-header">
+                        <span class="shared-group-icon" aria-hidden="true">[User]</span>
+                        @group.Key
+                        <span class="shared-group-count">(@group.Value.Count)</span>
+                    </h3>
+
+                    <ul class="shared-items-list">
+                        @foreach (var item in group.Value)
+                        {
+                            <li class="shared-item @(item.IsExpired ? "shared-item--expired" : "")">
+                                <div class="shared-item-icon">@GetNodeIcon(item)</div>
+                                <div class="shared-item-info">
+                                    <span class="shared-item-name">@item.NodeName</span>
+                                    <span class="shared-item-meta">
+                                        @if (item.NodeType == "File")
+                                        {
+                                            @FormatSize(item.Size)
+                                            <text> · </text>
+                                        }
+                                        @item.SharedAt.ToString("MMM d, yyyy")
+                                    </span>
+                                </div>
+                                <div class="shared-item-permission">
+                                    <span class="badge badge-permission badge-@item.Permission.ToLowerInvariant()">
+                                        @GetPermissionLabel(item.Permission)
+                                    </span>
+                                </div>
+                                @if (item.ExpiresAt.HasValue)
+                                {
+                                    <div class="shared-item-expiry">
+                                        @if (item.IsExpired)
+                                        {
+                                            <span class="badge badge-danger">Expired</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted" title="Expires @item.ExpiresAt.Value.ToString("g")">
+                                                Expires @FormatRelativeDate(item.ExpiresAt.Value)
+                                            </span>
+                                        }
+                                    </div>
+                                }
+                                <div class="shared-item-actions">
+                                    <button class="btn btn-sm btn-primary"
+                                            @onclick="() => OpenItem(item)"
+                                            title="Open">
+                                        Open
+                                    </button>
+                                    <button class="btn btn-sm btn-outline"
+                                            @onclick="() => DeclineShare(item)"
+                                            title="Remove from shared">
+                                        Decline
+                                    </button>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                </section>
+            }
+        }
+        else
+        {
+            <ul class="shared-items-list">
+                @foreach (var item in SortedItems)
+                {
+                    <li class="shared-item @(item.IsExpired ? "shared-item--expired" : "")">
+                        <div class="shared-item-icon">@GetNodeIcon(item)</div>
+                        <div class="shared-item-info">
+                            <span class="shared-item-name">@item.NodeName</span>
+                            <span class="shared-item-meta">
+                                Shared by @item.SharedByName ·
+                                @if (item.NodeType == "File")
+                                {
+                                    @FormatSize(item.Size)
+                                    <text> · </text>
+                                }
+                                @item.SharedAt.ToString("MMM d, yyyy")
+                            </span>
+                        </div>
+                        <div class="shared-item-permission">
+                            <span class="badge badge-permission badge-@item.Permission.ToLowerInvariant()">
+                                @GetPermissionLabel(item.Permission)
+                            </span>
+                        </div>
+                        @if (item.ExpiresAt.HasValue)
+                        {
+                            <div class="shared-item-expiry">
+                                @if (item.IsExpired)
+                                {
+                                    <span class="badge badge-danger">Expired</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">Expires @FormatRelativeDate(item.ExpiresAt.Value)</span>
+                                }
+                            </div>
+                        }
+                        <div class="shared-item-actions">
+                            <button class="btn btn-sm btn-primary"
+                                    @onclick="() => OpenItem(item)"
+                                    title="Open">
+                                Open
+                            </button>
+                            <button class="btn btn-sm btn-outline"
+                                    @onclick="() => DeclineShare(item)"
+                                    title="Remove from shared">
+                                Decline
+                            </button>
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+    }
+</div>

@@ -1,98 +1,264 @@
 @namespace DotNetCloud.Modules.Files.UI
 
 @*
-    Share dialog component - Creates and manages file/folder shares.
+    Comprehensive share dialog component — creates and manages file/folder shares.
+    Features:
+      • User / team / group search with autocomplete
+      • Shows all existing shares for a node with inline permission editing and removal
+      • Public link section with toggle, copy, password, max downloads, expiry
     Code-behind: ShareDialog.razor.cs
 *@
 
-<div class="share-dialog-overlay">
-    <div class="share-dialog">
+<div class="share-dialog-overlay" @onclick="HandleOverlayClick">
+    <div class="share-dialog" @onclick:stopPropagation>
         <div class="share-header">
             <h3>Share "@Node?.Name"</h3>
-            <button class="btn-icon" @onclick="OnClose">X</button>
+            <button class="btn-icon" @onclick="Close" aria-label="Close" title="Close">✕</button>
         </div>
 
         <div class="share-body">
-            <div class="share-type-selector">
-                <label>Share with:</label>
-                <select @bind="ShareType">
-                    <option value="User">User</option>
-                    <option value="Team">Team</option>
-                    <option value="PublicLink">Public Link</option>
-                </select>
-            </div>
+            @* ── New share section ─────────────────────────────────────────── *@
+            <section class="share-new-section">
+                <h4>Add people or teams</h4>
 
-            @if (ShareType == "User")
-            {
-                <div class="share-target">
-                    <label>User email or ID:</label>
-                    <input type="text" @bind="TargetId" placeholder="Enter user email or ID" />
-                </div>
-            }
-            else if (ShareType == "Team")
-            {
-                <div class="share-target">
-                    <label>Team:</label>
-                    <input type="text" @bind="TargetId" placeholder="Enter team name or ID" />
-                </div>
-            }
+                <div class="share-search-row">
+                    <div class="share-search-wrapper">
+                        <input type="text"
+                               class="form-control share-search-input"
+                               placeholder="Search users, teams, or groups…"
+                               @bind="SearchQuery"
+                               @bind:event="oninput"
+                               @bind:after="OnSearchInputAsync"
+                               @onkeydown="HandleSearchKeyDown"
+                               aria-label="Search for share recipients" />
 
-            <div class="share-permission">
-                <label>Permission:</label>
-                <select @bind="Permission">
-                    <option value="Read">View only</option>
-                    <option value="ReadWrite">Can edit</option>
-                    <option value="Full">Full access</option>
-                </select>
-            </div>
+                        @if (IsSearching)
+                        {
+                            <span class="share-search-spinner" aria-hidden="true">…</span>
+                        }
 
-            @if (ShareType == "PublicLink")
-            {
-                <div class="share-link-options">
-                    <div class="share-option">
-                        <label>Password (optional):</label>
-                        <input type="password" @bind="LinkPassword" placeholder="Set a password" />
+                        @if (SearchResults.Count > 0)
+                        {
+                            <ul class="share-search-results" role="listbox">
+                                @foreach (var result in SearchResults)
+                                {
+                                    <li class="share-search-result-item @(result.Id == SelectedSearchResult?.Id ? "selected" : "")"
+                                        role="option"
+                                        @onclick="() => SelectSearchResult(result)">
+                                        <span class="result-type-badge badge-@result.ResultType.ToLowerInvariant()">
+                                            @result.ResultType
+                                        </span>
+                                        <span class="result-name">@result.DisplayName</span>
+                                        @if (result.SecondaryText is not null)
+                                        {
+                                            <span class="result-secondary">@result.SecondaryText</span>
+                                        }
+                                    </li>
+                                }
+                            </ul>
+                        }
                     </div>
-                    <div class="share-option">
-                        <label>Max downloads:</label>
-                        <input type="number" @bind="MaxDownloads" min="0" placeholder="Unlimited" />
+
+                    <select class="form-control share-permission-select" @bind="NewSharePermission">
+                        <option value="Read">View only</option>
+                        <option value="ReadWrite">Can edit</option>
+                        <option value="Full">Full access</option>
+                    </select>
+                </div>
+
+                @if (SelectedSearchResult is not null)
+                {
+                    <div class="share-selected-recipient">
+                        <span class="badge badge-@SelectedSearchResult.ResultType.ToLowerInvariant()">
+                            @SelectedSearchResult.ResultType
+                        </span>
+                        <span>@SelectedSearchResult.DisplayName</span>
+                        <button class="btn-icon btn-sm" @onclick="ClearSelectedResult" title="Remove">✕</button>
+                    </div>
+                }
+
+                <div class="share-new-options">
+                    <div class="form-group-inline">
+                        <label for="newShareExpiry">Expires:</label>
+                        <select id="newShareExpiry" class="form-control form-control-sm" @bind="ExpirationDays">
+                            <option value="0">Never</option>
+                            <option value="1">1 day</option>
+                            <option value="7">7 days</option>
+                            <option value="30">30 days</option>
+                            <option value="90">90 days</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group-inline">
+                        <label for="newShareNote">Note:</label>
+                        <input id="newShareNote" type="text" class="form-control form-control-sm"
+                               @bind="Note" placeholder="Add a message (optional)" />
                     </div>
                 </div>
-            }
 
-            <div class="share-expiration">
-                <label>Expires:</label>
-                <select @bind="ExpirationDays">
-                    <option value="0">Never</option>
-                    <option value="1">1 day</option>
-                    <option value="7">7 days</option>
-                    <option value="30">30 days</option>
-                    <option value="90">90 days</option>
-                </select>
-            </div>
+                <button class="btn btn-primary btn-sm" @onclick="CreateShareAsync"
+                        disabled="@(SelectedSearchResult is null || IsCreatingShare)">
+                    @(IsCreatingShare ? "Sharing…" : "Share")
+                </button>
 
-            <div class="share-note">
-                <label>Note (optional):</label>
-                <input type="text" @bind="Note" placeholder="Add a message" />
-            </div>
+                @if (!string.IsNullOrEmpty(ShareErrorMessage))
+                {
+                    <p class="text-danger share-error" role="alert">@ShareErrorMessage</p>
+                }
+            </section>
+
+            @* ── Public link section ──────────────────────────────────────── *@
+            <section class="share-public-link-section">
+                <div class="share-public-link-header">
+                    <h4>Public link</h4>
+                    <label class="toggle-switch">
+                        <input type="checkbox" @bind="IsPublicLinkEnabled" @bind:after="OnPublicLinkToggleAsync" />
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                @if (IsPublicLinkEnabled)
+                {
+                    @if (PublicLinkShare is not null)
+                    {
+                        <div class="share-public-link-display">
+                            <div class="link-copy-row">
+                                <input type="text" class="form-control" value="@PublicLinkShare.LinkUrl" readonly
+                                       aria-label="Public link URL" />
+                                <button class="btn btn-sm btn-outline" @onclick="CopyPublicLink"
+                                        title="Copy link">
+                                    @(IsLinkCopied ? "Copied!" : "Copy")
+                                </button>
+                            </div>
+
+                            <div class="share-public-link-options">
+                                <div class="form-group-inline">
+                                    <label>Permission:</label>
+                                    <select class="form-control form-control-sm"
+                                            @bind="PublicLinkPermission"
+                                            @bind:after="UpdatePublicLinkAsync">
+                                        <option value="Read">View only</option>
+                                        <option value="ReadWrite">Can edit</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group-inline">
+                                    <label for="linkPassword">Password:</label>
+                                    <input id="linkPassword" type="password"
+                                           class="form-control form-control-sm"
+                                           @bind="LinkPassword"
+                                           placeholder="@(PublicLinkShare.HasPassword ? "(password set)" : "No password")" />
+                                    @if (!string.IsNullOrEmpty(LinkPassword))
+                                    {
+                                        <button class="btn btn-sm btn-outline" @onclick="SetLinkPasswordAsync">Set</button>
+                                    }
+                                    @if (PublicLinkShare.HasPassword)
+                                    {
+                                        <button class="btn btn-sm btn-outline btn-danger" @onclick="RemoveLinkPasswordAsync">Remove</button>
+                                    }
+                                </div>
+
+                                <div class="form-group-inline">
+                                    <label for="linkMaxDownloads">Max downloads:</label>
+                                    <input id="linkMaxDownloads" type="number"
+                                           class="form-control form-control-sm"
+                                           min="0" placeholder="Unlimited"
+                                           @bind="LinkMaxDownloads"
+                                           @bind:after="UpdatePublicLinkAsync" />
+                                </div>
+
+                                <div class="form-group-inline">
+                                    <label for="linkExpiry">Expires:</label>
+                                    <select id="linkExpiry" class="form-control form-control-sm"
+                                            @bind="LinkExpirationDays"
+                                            @bind:after="UpdatePublicLinkAsync">
+                                        <option value="0">Never</option>
+                                        <option value="1">1 day</option>
+                                        <option value="7">7 days</option>
+                                        <option value="30">30 days</option>
+                                        <option value="90">90 days</option>
+                                    </select>
+                                </div>
+
+                                <p class="text-muted share-link-stats">
+                                    @PublicLinkShare.DownloadCount downloads
+                                    @if (PublicLinkShare.MaxDownloads.HasValue)
+                                    {
+                                        <text> / @PublicLinkShare.MaxDownloads max</text>
+                                    }
+                                </p>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted">Creating public link…</p>
+                    }
+                }
+            </section>
+
+            @* ── Existing shares list ─────────────────────────────────────── *@
+            <section class="share-existing-section">
+                <h4>Current shares</h4>
+
+                @if (IsLoadingShares)
+                {
+                    <p class="text-muted">Loading shares…</p>
+                }
+                else if (ExistingShares.Count == 0)
+                {
+                    <p class="text-muted">Not shared with anyone yet.</p>
+                }
+                else
+                {
+                    <ul class="share-existing-list">
+                        @foreach (var share in ExistingShares)
+                        {
+                            @if (share.ShareType == "PublicLink")
+                            {
+                                continue;
+                            }
+
+                            <li class="share-existing-item @(share.IsExpired ? "share-expired" : "")">
+                                <div class="share-existing-info">
+                                    <span class="badge badge-@share.ShareType.ToLowerInvariant()">
+                                        @share.ShareType
+                                    </span>
+                                    <span class="share-recipient-name">@share.RecipientName</span>
+                                    @if (share.IsExpired)
+                                    {
+                                        <span class="badge badge-danger">Expired</span>
+                                    }
+                                    @if (share.Note is not null)
+                                    {
+                                        <span class="share-note-indicator" title="@share.Note">📝</span>
+                                    }
+                                </div>
+
+                                <div class="share-existing-actions">
+                                    <select class="form-control form-control-sm share-inline-permission"
+                                            value="@share.Permission"
+                                            @onchange="e => UpdateSharePermissionAsync(share, e.Value?.ToString() ?? share.Permission)">
+                                        <option value="Read">View only</option>
+                                        <option value="ReadWrite">Can edit</option>
+                                        <option value="Full">Full access</option>
+                                    </select>
+
+                                    <button class="btn-icon btn-sm btn-danger"
+                                            @onclick="() => RemoveShareAsync(share)"
+                                            title="Remove share">
+                                        ✕
+                                    </button>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                }
+            </section>
         </div>
 
         <div class="share-footer">
-            <button class="btn btn-primary" @onclick="CreateShare">
-                @(ShareType == "PublicLink" ? "Create Link" : "Share")
-            </button>
-            <button class="btn" @onclick="OnClose">Cancel</button>
+            <button class="btn" @onclick="Close">Done</button>
         </div>
-
-        @if (!string.IsNullOrEmpty(GeneratedLink))
-        {
-            <div class="share-link-result">
-                <label>Share link:</label>
-                <div class="link-display">
-                    <input type="text" value="@GeneratedLink" readonly />
-                    <button class="btn btn-sm" @onclick="CopyLink" title="Copy">Copy</button>
-                </div>
-            </div>
-        }
     </div>
 </div>

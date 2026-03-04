@@ -228,6 +228,123 @@ public sealed class FileTagViewModel
 }
 
 /// <summary>
+/// View model for displaying an existing share on a file or folder.
+/// </summary>
+public sealed class ShareViewModel
+{
+    /// <summary>Share ID.</summary>
+    public Guid Id { get; init; }
+
+    /// <summary>Share type: "User", "Team", "Group", or "PublicLink".</summary>
+    public string ShareType { get; init; } = string.Empty;
+
+    /// <summary>Display name of the share recipient (user name, team name, or "Public Link").</summary>
+    public string RecipientName { get; init; } = string.Empty;
+
+    /// <summary>Permission level: "Read", "ReadWrite", or "Full".</summary>
+    public string Permission { get; set; } = "Read";
+
+    /// <summary>Public link token (only for PublicLink shares).</summary>
+    public string? LinkToken { get; init; }
+
+    /// <summary>Full public link URL (only for PublicLink shares).</summary>
+    public string? LinkUrl { get; init; }
+
+    /// <summary>Whether the public link has a password set.</summary>
+    public bool HasPassword { get; init; }
+
+    /// <summary>Download count (for public links).</summary>
+    public int DownloadCount { get; init; }
+
+    /// <summary>Max downloads (for public links, null = unlimited).</summary>
+    public int? MaxDownloads { get; init; }
+
+    /// <summary>Expiration date (null = never).</summary>
+    public DateTime? ExpiresAt { get; init; }
+
+    /// <summary>When the share was created.</summary>
+    public DateTime CreatedAt { get; init; }
+
+    /// <summary>Note attached to the share.</summary>
+    public string? Note { get; init; }
+
+    /// <summary>Whether this share is expired.</summary>
+    public bool IsExpired => ExpiresAt.HasValue && ExpiresAt.Value < DateTime.UtcNow;
+}
+
+/// <summary>
+/// View model for an item in the "Shared with me" or "Shared by me" views.
+/// </summary>
+public sealed class SharedItemViewModel
+{
+    /// <summary>Share ID.</summary>
+    public Guid ShareId { get; init; }
+
+    /// <summary>The shared file or folder node ID.</summary>
+    public Guid NodeId { get; init; }
+
+    /// <summary>Display name of the file or folder.</summary>
+    public string NodeName { get; init; } = string.Empty;
+
+    /// <summary>Whether this is a "File" or "Folder".</summary>
+    public string NodeType { get; init; } = "File";
+
+    /// <summary>File size in bytes (0 for folders).</summary>
+    public long Size { get; init; }
+
+    /// <summary>MIME type (null for folders).</summary>
+    public string? MimeType { get; init; }
+
+    /// <summary>Share type: "User", "Team", "Group", or "PublicLink".</summary>
+    public string ShareType { get; init; } = string.Empty;
+
+    /// <summary>Permission level: "Read", "ReadWrite", or "Full".</summary>
+    public string Permission { get; init; } = "Read";
+
+    /// <summary>Display name of the person who shared (for "Shared with me").</summary>
+    public string SharedByName { get; init; } = string.Empty;
+
+    /// <summary>Display name of the recipient (for "Shared by me").</summary>
+    public string SharedWithName { get; init; } = string.Empty;
+
+    /// <summary>When the share was created.</summary>
+    public DateTime SharedAt { get; init; }
+
+    /// <summary>Expiration date (null = never).</summary>
+    public DateTime? ExpiresAt { get; init; }
+
+    /// <summary>Public link URL (only for PublicLink shares).</summary>
+    public string? LinkUrl { get; init; }
+
+    /// <summary>Download count (for public links).</summary>
+    public int DownloadCount { get; init; }
+
+    /// <summary>Max downloads (for public links, null = unlimited).</summary>
+    public int? MaxDownloads { get; init; }
+
+    /// <summary>Whether this share is expired.</summary>
+    public bool IsExpired => ExpiresAt.HasValue && ExpiresAt.Value < DateTime.UtcNow;
+}
+
+/// <summary>
+/// Search result item for user/team/group search in the share dialog.
+/// </summary>
+public sealed class ShareSearchResult
+{
+    /// <summary>Entity ID.</summary>
+    public Guid Id { get; init; }
+
+    /// <summary>Display name.</summary>
+    public string DisplayName { get; init; } = string.Empty;
+
+    /// <summary>Secondary text (e.g., email for users, member count for teams).</summary>
+    public string? SecondaryText { get; init; }
+
+    /// <summary>Result type: "User", "Team", or "Group".</summary>
+    public string ResultType { get; init; } = "User";
+}
+
+/// <summary>
 /// View model for the Files module admin settings page.
 /// </summary>
 public sealed class AdminSettingsViewModel
@@ -260,4 +377,37 @@ public sealed class AdminSettingsViewModel
 
     /// <summary>Absolute path to the storage root directory on the server.</summary>
     public string StoragePath { get; set; } = string.Empty;
+
+    /// <summary>Storage backend type: "Local" or "S3".</summary>
+    public string StorageBackend { get; set; } = "Local";
+
+    /// <summary>S3-compatible storage endpoint URL (only when StorageBackend is "S3").</summary>
+    public string S3Endpoint { get; set; } = string.Empty;
+
+    /// <summary>S3 bucket name.</summary>
+    public string S3BucketName { get; set; } = string.Empty;
+
+    /// <summary>S3 access key ID.</summary>
+    public string S3AccessKey { get; set; } = string.Empty;
+
+    /// <summary>S3 secret access key.</summary>
+    public string S3SecretKey { get; set; } = string.Empty;
+
+    /// <summary>S3 region.</summary>
+    public string S3Region { get; set; } = string.Empty;
+
+    /// <summary>Whether Collabora Online integration is enabled.</summary>
+    public bool CollaboraEnabled { get; set; }
+
+    /// <summary>Collabora Online server URL (e.g. "https://collabora.example.com").</summary>
+    public string CollaboraUrl { get; set; } = string.Empty;
+
+    /// <summary>Whether to use the built-in Collabora CODE instance.</summary>
+    public bool CollaboraUseBuiltIn { get; set; } = true;
+
+    /// <summary>Auto-save interval in seconds for Collabora editing sessions.</summary>
+    public int CollaboraAutoSaveIntervalSeconds { get; set; } = 300;
+
+    /// <summary>Maximum concurrent Collabora editing sessions (0 = unlimited).</summary>
+    public int CollaboraMaxSessions { get; set; }
 }

@@ -3,10 +3,31 @@
 @*
     File browser page — main UI for the Files module.
     Displays files and folders in grid/list view with breadcrumbs, drag-drop upload,
-    thumbnails in grid mode, and full-screen file preview with navigation.
+    thumbnails in grid mode, full-screen file preview with navigation,
+    and shared-with-me / shared-by-me views when those sidebar sections are active.
     Code-behind: FileBrowser.razor.cs
 *@
 
+@if (ActiveSection == FileSidebarSection.SharedWithMe)
+{
+    <SharedWithMeView
+        Items="SharedWithMeItems"
+        IsLoading="IsLoadingSharedItems"
+        OnOpenItem="HandleOpenSharedItem"
+        OnDeclineShare="HandleDeclineShare" />
+}
+else if (ActiveSection == FileSidebarSection.SharedByMe)
+{
+    <SharedByMeView
+        Items="SharedByMeItems"
+        IsLoading="IsLoadingSharedItems"
+        OnManageShare="HandleManageShare"
+        OnRevokeShare="HandleRevokeShare"
+        OnPermissionChanged="HandleSharePermissionChanged"
+        OnCopyLink="HandleCopyShareLink" />
+}
+else
+{
 <div class="files-browser @(IsBrowserDragging ? "files-browser--drag-over" : "")"
      @ondragenter="HandleBrowserDragEnter"
      @ondragleave="HandleBrowserDragLeave"
@@ -217,3 +238,4 @@
     }
 
 </div>
+}

@@ -48,7 +48,7 @@
 | Phase 1.10 | 24 | 24 | 0 | 0 |
 | Phase 1.11 | 8 | 8 | 0 | 0 |
 | Phase 1.12 | 17 | 12 | 0 | 5 |
-| Phase 1.13 | 4 | 0 | 0 | 4 |
+| Phase 1.13 | 4 | 4 | 0 | 0 |
 | Phase 1.14 | 32 | 0 | 0 | 32 |
 | Phase 1.15 | 25 | 0 | 0 | 25 |
 | Phase 1.16 | 20 | 0 | 0 | 20 |
@@ -2795,6 +2795,63 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Dependencies:** phase-1.11 (UI components), phase-1.3 (IChunkedUploadService interface)
 **Blocking Issues:** None
 **Notes:** Build: zero errors, zero warnings (full solution). 5 items deferred: folder drag-and-drop (JS DataTransfer), video thumbnail, PDF thumbnail, thumbnail API endpoint, and touch gestures. All deferred items have interface stubs or code comments in place for future wiring.
+
+---
+
+### Step: phase-1.13 - File Sharing & Settings UI
+**Status:** completed ✅
+**Duration:** ~1 session
+**Description:** Comprehensive share dialog rewrite with user/team/group search, existing share management, and public link settings. "Shared with me" and "Shared by me" views integrated into FileBrowser via ActiveSection routing. FilesAdminSettings expanded with storage backend selection (Local/S3), Collabora integration settings, and full validation.
+
+**Deliverables:**
+- ✓ `ShareDialog.razor` + `.razor.cs` — rewritten with comprehensive sharing UI
+  - ✓ Search users by name/email for sharing
+  - ✓ Search teams and groups for sharing
+  - ✓ Show all existing shares for a node with inline permission change and removal
+  - ✓ Public link section with toggle, copy button, password, max downloads, and expiry
+- ✓ `SharedWithMeView.razor` + `.razor.cs` — new "Shared with me" view
+  - ✓ Group items by share source (who shared)
+  - ✓ Permission badges (View only / Can edit / Full access)
+  - ✓ Accept/decline actions per item
+  - ✓ Relative date formatting for expiry
+  - ✓ Grouping selector (by sharer / by type / none)
+- ✓ `SharedByMeView.razor` + `.razor.cs` — new "Shared by me" view
+  - ✓ Sortable columns (Name, Date) with direction toggle
+  - ✓ Inline permission editing via dropdown
+  - ✓ Share revocation per item
+  - ✓ Copy public link button
+  - ✓ Download count / max downloads display
+  - ✓ `SharePermissionChangedEventArgs` event args class
+- ✓ `FilesAdminSettings.razor` + `.razor.cs` — expanded admin settings
+  - ✓ Storage backend selection (Local filesystem / S3-compatible)
+  - ✓ S3 configuration fields (endpoint, bucket, region, access key, secret key)
+  - ✓ Default quota management with hints
+  - ✓ Trash auto-cleanup with interval note
+  - ✓ Version retention with labeled-version protection note
+  - ✓ Upload limits (allowed/blocked extensions)
+  - ✓ Collabora Online integration (enable/disable, built-in vs external, auto-save interval, max sessions)
+  - ✓ Comprehensive validation for all conditional sections
+- ✓ `FileBrowser.razor` + `.razor.cs` — integrated shared views
+  - ✓ `ActiveSection` parameter controlling SharedWithMe/SharedByMe/AllFiles routing
+  - ✓ `SharedWithMeItems` and `SharedByMeItems` parameters
+  - ✓ Event callbacks for open, decline, manage, revoke, permission change, copy link
+- ✓ `ViewModels.cs` — `SharedItemViewModel`, `AdminSettingsViewModel` (already had all needed fields from Phase 1.11)
+
+**File Locations:**
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/ShareDialog.razor` (rewritten)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/ShareDialog.razor.cs` (rewritten)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/SharedWithMeView.razor` (new)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/SharedWithMeView.razor.cs` (new)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/SharedByMeView.razor` (new)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/SharedByMeView.razor.cs` (new)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/FilesAdminSettings.razor` (expanded)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/FilesAdminSettings.razor.cs` (expanded)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/FileBrowser.razor` (enhanced — shared view routing)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/FileBrowser.razor.cs` (enhanced — shared item parameters and handlers)
+
+**Dependencies:** phase-1.12 (UI components), phase-1.6 (sharing services)
+**Blocking Issues:** None
+**Notes:** Phase 1.13 complete. All 4 step groups implemented: comprehensive share dialog, shared-with-me view, shared-by-me view, and expanded admin settings. Build: zero errors, zero warnings. No new tests required (UI-only components). Components follow established patterns: EventCallback parameters, protected property accessors, code-behind partial classes.
 
 ---
 

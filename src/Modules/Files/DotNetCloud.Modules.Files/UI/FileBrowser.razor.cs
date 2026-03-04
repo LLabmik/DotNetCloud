@@ -5,6 +5,8 @@ namespace DotNetCloud.Modules.Files.UI;
 
 /// <summary>
 /// Code-behind for the file browser component.
+/// Handles file/folder listing, shared-with-me/shared-by-me views,
+/// upload, preview, sharing, and document editing.
 /// </summary>
 public partial class FileBrowser : ComponentBase
 {
@@ -14,6 +16,35 @@ public partial class FileBrowser : ComponentBase
     /// <summary>Base URL for the Files API (e.g., "https://cloud.example.com"), used for the document editor.</summary>
     [Parameter] public string ApiBaseUrl { get; set; } = string.Empty;
 
+    /// <summary>The currently active sidebar section, controlling which view is rendered.</summary>
+    [Parameter] public FileSidebarSection ActiveSection { get; set; } = FileSidebarSection.AllFiles;
+
+    /// <summary>Items shared with the current user (for the SharedWithMe view).</summary>
+    [Parameter] public IReadOnlyList<SharedItemViewModel> SharedWithMeItems { get; set; } = [];
+
+    /// <summary>Items shared by the current user (for the SharedByMe view).</summary>
+    [Parameter] public IReadOnlyList<SharedItemViewModel> SharedByMeItems { get; set; } = [];
+
+    /// <summary>Whether shared items are being loaded.</summary>
+    [Parameter] public bool IsLoadingSharedItems { get; set; }
+
+    /// <summary>Raised when the user opens a shared item.</summary>
+    [Parameter] public EventCallback<SharedItemViewModel> OnOpenSharedItem { get; set; }
+
+    /// <summary>Raised when the user declines a share from "Shared with me".</summary>
+    [Parameter] public EventCallback<SharedItemViewModel> OnDeclineShare { get; set; }
+
+    /// <summary>Raised when the user wants to manage a share from "Shared by me".</summary>
+    [Parameter] public EventCallback<SharedItemViewModel> OnManageShare { get; set; }
+
+    /// <summary>Raised when the user revokes a share from "Shared by me".</summary>
+    [Parameter] public EventCallback<SharedItemViewModel> OnRevokeShare { get; set; }
+
+    /// <summary>Raised when a share permission is changed inline from "Shared by me".</summary>
+    [Parameter] public EventCallback<SharePermissionChangedEventArgs> OnSharePermissionChanged { get; set; }
+
+    /// <summary>Raised when the user copies a public link from "Shared by me".</summary>
+    [Parameter] public EventCallback<SharedItemViewModel> OnCopyShareLink { get; set; }
 
     private List<FileNodeViewModel> _nodes = [];
     private readonly List<BreadcrumbItem> _breadcrumbs = [];
@@ -305,5 +336,43 @@ public partial class FileBrowser : ComponentBase
         if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
         if (bytes < 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0):F1} MB";
         return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
+    }
+
+    // ── Shared item event handlers ─────────────────────────────────────────────
+
+    /// <summary>Handles opening a shared item from the SharedWithMe or SharedByMe views.</summary>
+    protected async Task HandleOpenSharedItem(SharedItemViewModel item)
+    {
+        await OnOpenSharedItem.InvokeAsync(item);
+    }
+
+    /// <summary>Handles declining a share from the SharedWithMe view.</summary>
+    protected async Task HandleDeclineShare(SharedItemViewModel item)
+    {
+        await OnDeclineShare.InvokeAsync(item);
+    }
+
+    /// <summary>Handles managing a share from the SharedByMe view.</summary>
+    protected async Task HandleManageShare(SharedItemViewModel item)
+    {
+        await OnManageShare.InvokeAsync(item);
+    }
+
+    /// <summary>Handles revoking a share from the SharedByMe view.</summary>
+    protected async Task HandleRevokeShare(SharedItemViewModel item)
+    {
+        await OnRevokeShare.InvokeAsync(item);
+    }
+
+    /// <summary>Handles inline permission change from the SharedByMe view.</summary>
+    protected async Task HandleSharePermissionChanged(SharePermissionChangedEventArgs args)
+    {
+        await OnSharePermissionChanged.InvokeAsync(args);
+    }
+
+    /// <summary>Handles copying a public link from the SharedByMe view.</summary>
+    protected async Task HandleCopyShareLink(SharedItemViewModel item)
+    {
+        await OnCopyShareLink.InvokeAsync(item);
     }
 }

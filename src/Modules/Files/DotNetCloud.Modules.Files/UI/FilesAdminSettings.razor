@@ -2,8 +2,8 @@
 
 @*
     Files module admin settings page.
-    Allows administrators to configure storage quotas, retention policies,
-    upload limits, allowed/blocked extensions, and the storage root path.
+    Comprehensive administration for storage backend, quotas, retention policies,
+    upload limits, allowed/blocked extensions, storage path, and Collabora integration.
     Code-behind: FilesAdminSettings.razor.cs
 *@
 
@@ -27,12 +27,83 @@
     }
 
     <form @onsubmit="SaveSettings" @onsubmit:preventDefault>
+
+        @* ── Storage Backend ──────────────────────────────────────────── *@
         <section class="settings-section">
-            <h2 class="settings-section-title">Storage Quotas</h2>
+            <h2 class="settings-section-title">Storage Backend</h2>
+
+            <div class="form-group">
+                <label for="storageBackend" class="form-label">Storage type</label>
+                <p class="form-hint">Choose where uploaded files are stored.</p>
+                <select id="storageBackend" class="form-control" @bind="Settings.StorageBackend">
+                    <option value="Local">Local filesystem</option>
+                    <option value="S3">S3-compatible storage</option>
+                </select>
+            </div>
+
+            @if (Settings.StorageBackend == "Local")
+            {
+                <div class="form-group">
+                    <label for="storagePath" class="form-label">Storage root directory</label>
+                    <p class="form-hint">
+                        Absolute path to the directory where uploaded files are stored.
+                        The server process must have read/write access to this path.
+                    </p>
+                    <input id="storagePath" type="text" class="form-control"
+                           placeholder="/var/dotnetcloud/files"
+                           @bind="Settings.StoragePath" />
+                </div>
+            }
+            else
+            {
+                <div class="form-group">
+                    <label for="s3Endpoint" class="form-label">S3 endpoint URL</label>
+                    <p class="form-hint">
+                        The endpoint of your S3-compatible storage service
+                        (e.g. <code>https://s3.amazonaws.com</code> or <code>https://minio.local:9000</code>).
+                    </p>
+                    <input id="s3Endpoint" type="url" class="form-control"
+                           placeholder="https://s3.amazonaws.com"
+                           @bind="Settings.S3Endpoint" />
+                </div>
+
+                <div class="form-group">
+                    <label for="s3Bucket" class="form-label">Bucket name</label>
+                    <input id="s3Bucket" type="text" class="form-control"
+                           placeholder="dotnetcloud-files"
+                           @bind="Settings.S3BucketName" />
+                </div>
+
+                <div class="form-group">
+                    <label for="s3Region" class="form-label">Region</label>
+                    <input id="s3Region" type="text" class="form-control"
+                           placeholder="us-east-1"
+                           @bind="Settings.S3Region" />
+                </div>
+
+                <div class="form-group">
+                    <label for="s3AccessKey" class="form-label">Access key ID</label>
+                    <input id="s3AccessKey" type="text" class="form-control"
+                           placeholder="AKIA..."
+                           @bind="Settings.S3AccessKey" />
+                </div>
+
+                <div class="form-group">
+                    <label for="s3SecretKey" class="form-label">Secret access key</label>
+                    <input id="s3SecretKey" type="password" class="form-control"
+                           placeholder="Enter secret key"
+                           @bind="Settings.S3SecretKey" />
+                </div>
+            }
+        </section>
+
+        @* ── Default Quota Management ─────────────────────────────────── *@
+        <section class="settings-section">
+            <h2 class="settings-section-title">Default Quota Management</h2>
 
             <div class="form-group">
                 <label for="defaultQuotaGb" class="form-label">Default quota for new users (GB)</label>
-                <p class="form-hint">Set to 0 for unlimited storage.</p>
+                <p class="form-hint">Set to 0 for unlimited storage. Applies to all newly created user accounts.</p>
                 <input id="defaultQuotaGb" type="number" class="form-control"
                        min="0" step="0.5"
                        @bind="Settings.DefaultQuotaGb" />
@@ -40,30 +111,41 @@
 
             <div class="form-group">
                 <label for="maxUploadMb" class="form-label">Maximum upload size (MB)</label>
+                <p class="form-hint">
+                    Maximum file size for a single upload. Users will see an error if they try to upload a larger file.
+                </p>
                 <input id="maxUploadMb" type="number" class="form-control"
                        min="1" step="1"
                        @bind="Settings.MaxUploadMb" />
             </div>
         </section>
 
+        @* ── Trash Auto-Cleanup ───────────────────────────────────────── *@
         <section class="settings-section">
-            <h2 class="settings-section-title">Trash Retention</h2>
+            <h2 class="settings-section-title">Trash Auto-Cleanup</h2>
 
             <div class="form-group">
                 <label for="trashRetentionDays" class="form-label">Retain deleted files for (days)</label>
-                <p class="form-hint">Files in Trash are permanently deleted after this period.</p>
+                <p class="form-hint">
+                    Files in Trash are permanently deleted after this period.
+                    The cleanup runs automatically once per hour.
+                </p>
                 <input id="trashRetentionDays" type="number" class="form-control"
                        min="1" max="365"
                        @bind="Settings.TrashRetentionDays" />
             </div>
         </section>
 
+        @* ── Version Retention ────────────────────────────────────────── *@
         <section class="settings-section">
             <h2 class="settings-section-title">Version Retention</h2>
 
             <div class="form-group">
                 <label for="maxVersionsPerFile" class="form-label">Maximum versions per file</label>
-                <p class="form-hint">Set to 0 for unlimited versions. Oldest versions are deleted first when the limit is reached.</p>
+                <p class="form-hint">
+                    Set to 0 for unlimited versions. Oldest versions are deleted first when the limit is reached.
+                    Labeled versions are never automatically deleted.
+                </p>
                 <input id="maxVersionsPerFile" type="number" class="form-control"
                        min="0" max="1000"
                        @bind="Settings.MaxVersionsPerFile" />
@@ -71,15 +153,19 @@
 
             <div class="form-group">
                 <label for="versionRetentionDays" class="form-label">Retain old versions for (days)</label>
-                <p class="form-hint">Set to 0 to keep versions indefinitely.</p>
+                <p class="form-hint">
+                    Set to 0 to keep versions indefinitely.
+                    Versions older than this are automatically cleaned up.
+                </p>
                 <input id="versionRetentionDays" type="number" class="form-control"
                        min="0" max="3650"
                        @bind="Settings.VersionRetentionDays" />
             </div>
         </section>
 
+        @* ── Upload Limits (allowed file types) ───────────────────────── *@
         <section class="settings-section">
-            <h2 class="settings-section-title">Allowed File Types</h2>
+            <h2 class="settings-section-title">Upload Limits</h2>
 
             <div class="form-group">
                 <label for="allowedExtensions" class="form-label">Allowed extensions</label>
@@ -96,6 +182,7 @@
                 <label for="blockedExtensions" class="form-label">Blocked extensions</label>
                 <p class="form-hint">
                     Comma-separated list of forbidden file extensions (e.g. <code>exe,bat,sh</code>).
+                    These are always blocked regardless of the allowed list above.
                 </p>
                 <input id="blockedExtensions" type="text" class="form-control"
                        placeholder="e.g. exe,bat,sh"
@@ -103,19 +190,68 @@
             </div>
         </section>
 
+        @* ── Collabora Integration ────────────────────────────────────── *@
         <section class="settings-section">
-            <h2 class="settings-section-title">Storage Path</h2>
+            <h2 class="settings-section-title">Collabora Online Integration</h2>
 
             <div class="form-group">
-                <label for="storagePath" class="form-label">Storage root directory</label>
+                <label class="form-label">
+                    <input type="checkbox" @bind="Settings.CollaboraEnabled" />
+                    Enable Collabora Online document editing
+                </label>
                 <p class="form-hint">
-                    Absolute path to the directory where uploaded files are stored.
-                    The server process must have read/write access to this path.
+                    Allows users to edit documents (Word, Excel, PowerPoint) directly in the browser.
                 </p>
-                <input id="storagePath" type="text" class="form-control"
-                       placeholder="/var/dotnetcloud/files"
-                       @bind="Settings.StoragePath" />
             </div>
+
+            @if (Settings.CollaboraEnabled)
+            {
+                <div class="form-group">
+                    <label class="form-label">
+                        <input type="checkbox" @bind="Settings.CollaboraUseBuiltIn" />
+                        Use built-in Collabora CODE instance
+                    </label>
+                    <p class="form-hint">
+                        If disabled, you must provide your own Collabora Online server URL below.
+                    </p>
+                </div>
+
+                @if (!Settings.CollaboraUseBuiltIn)
+                {
+                    <div class="form-group">
+                        <label for="collaboraUrl" class="form-label">Collabora Online server URL</label>
+                        <p class="form-hint">
+                            The URL of your external Collabora Online instance
+                            (e.g. <code>https://collabora.example.com</code>).
+                        </p>
+                        <input id="collaboraUrl" type="url" class="form-control"
+                               placeholder="https://collabora.example.com"
+                               @bind="Settings.CollaboraUrl" />
+                    </div>
+                }
+
+                <div class="form-group">
+                    <label for="collaboraAutoSave" class="form-label">Auto-save interval (seconds)</label>
+                    <p class="form-hint">
+                        How frequently the document is automatically saved during editing.
+                        Lower values save more frequently but increase server load.
+                    </p>
+                    <input id="collaboraAutoSave" type="number" class="form-control"
+                           min="30" max="3600" step="30"
+                           @bind="Settings.CollaboraAutoSaveIntervalSeconds" />
+                </div>
+
+                <div class="form-group">
+                    <label for="collaboraMaxSessions" class="form-label">Maximum concurrent sessions</label>
+                    <p class="form-hint">
+                        Maximum number of simultaneous document editing sessions.
+                        Set to 0 for unlimited. Limits help manage server resources.
+                    </p>
+                    <input id="collaboraMaxSessions" type="number" class="form-control"
+                           min="0" max="1000"
+                           @bind="Settings.CollaboraMaxSessions" />
+                </div>
+            }
         </section>
 
         <div class="settings-footer">
