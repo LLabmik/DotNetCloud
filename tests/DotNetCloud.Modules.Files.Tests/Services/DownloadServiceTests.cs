@@ -6,7 +6,6 @@ using DotNetCloud.Modules.Files.Data.Services;
 using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
@@ -22,6 +21,9 @@ public class DownloadServiceTests
             .Options;
         return new FilesDbContext(options);
     }
+
+    private static DownloadService CreateService(FilesDbContext db, IFileStorageEngine? storage = null) =>
+        new(db, storage ?? Mock.Of<IFileStorageEngine>(), NullLogger<DownloadService>.Instance, new PermissionService(db));
 
     private static CallerContext UserCaller(Guid userId) => new(userId, Array.Empty<string>(), CallerType.User);
 
@@ -61,7 +63,7 @@ public class DownloadServiceTests
         storageMock.Setup(s => s.OpenReadStreamAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream(chunkData));
 
-        var service = new DownloadService(db, storageMock.Object, NullLoggerFactory.Instance.CreateLogger<DownloadService>());
+        var service = CreateService(db, storageMock.Object);
 
         await using var stream = await service.DownloadCurrentAsync(node.Id, UserCaller(userId));
 
@@ -80,7 +82,7 @@ public class DownloadServiceTests
         db.FileNodes.Add(folder);
         await db.SaveChangesAsync();
 
-        var service = new DownloadService(db, Mock.Of<IFileStorageEngine>(), NullLoggerFactory.Instance.CreateLogger<DownloadService>());
+        var service = CreateService(db);
 
         await Assert.ThrowsExactlyAsync<Core.Errors.InvalidOperationException>(
             () => service.DownloadCurrentAsync(folder.Id, UserCaller(userId)));
@@ -90,7 +92,7 @@ public class DownloadServiceTests
     public async Task DownloadCurrentAsync_NonExistentNode_ThrowsNotFoundException()
     {
         using var db = CreateContext();
-        var service = new DownloadService(db, Mock.Of<IFileStorageEngine>(), NullLoggerFactory.Instance.CreateLogger<DownloadService>());
+        var service = CreateService(db);
 
         await Assert.ThrowsExactlyAsync<NotFoundException>(
             () => service.DownloadCurrentAsync(Guid.NewGuid(), UserCaller(Guid.NewGuid())));
@@ -131,7 +133,7 @@ public class DownloadServiceTests
         storageMock.Setup(s => s.OpenReadStreamAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream(chunkData));
 
-        var service = new DownloadService(db, storageMock.Object, NullLoggerFactory.Instance.CreateLogger<DownloadService>());
+        var service = CreateService(db, storageMock.Object);
 
         await using var stream = await service.DownloadVersionAsync(version.Id, UserCaller(userId));
 
@@ -169,7 +171,7 @@ public class DownloadServiceTests
         db.FileVersionChunks.Add(new FileVersionChunk { FileVersionId = version.Id, FileChunkId = chunk2.Id, SequenceIndex = 1 });
         await db.SaveChangesAsync();
 
-        var service = new DownloadService(db, Mock.Of<IFileStorageEngine>(), NullLoggerFactory.Instance.CreateLogger<DownloadService>());
+        var service = CreateService(db);
         var manifest = await service.GetChunkManifestAsync(node.Id, UserCaller(userId));
 
         Assert.AreEqual(2, manifest.Count);
@@ -186,7 +188,7 @@ public class DownloadServiceTests
         db.FileNodes.Add(folder);
         await db.SaveChangesAsync();
 
-        var service = new DownloadService(db, Mock.Of<IFileStorageEngine>(), NullLoggerFactory.Instance.CreateLogger<DownloadService>());
+        var service = CreateService(db);
 
         await Assert.ThrowsExactlyAsync<Core.Errors.InvalidOperationException>(
             () => service.GetChunkManifestAsync(folder.Id, UserCaller(userId)));
@@ -196,7 +198,7 @@ public class DownloadServiceTests
     public async Task GetChunkManifestAsync_NonExistentNode_ThrowsNotFoundException()
     {
         using var db = CreateContext();
-        var service = new DownloadService(db, Mock.Of<IFileStorageEngine>(), NullLoggerFactory.Instance.CreateLogger<DownloadService>());
+        var service = CreateService(db);
 
         await Assert.ThrowsExactlyAsync<NotFoundException>(
             () => service.GetChunkManifestAsync(Guid.NewGuid(), UserCaller(Guid.NewGuid())));
@@ -211,7 +213,7 @@ public class DownloadServiceTests
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
 
-        var service = new DownloadService(db, Mock.Of<IFileStorageEngine>(), NullLoggerFactory.Instance.CreateLogger<DownloadService>());
+        var service = CreateService(db);
         var manifest = await service.GetChunkManifestAsync(node.Id, UserCaller(userId));
 
         Assert.AreEqual(0, manifest.Count);
@@ -233,7 +235,7 @@ public class DownloadServiceTests
         storageMock.Setup(s => s.OpenReadStreamAsync("chunks/ab/c1/abc123", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream(chunkData));
 
-        var service = new DownloadService(db, storageMock.Object, NullLoggerFactory.Instance.CreateLogger<DownloadService>());
+        var service = CreateService(db, storageMock.Object);
         var stream = await service.DownloadChunkByHashAsync("abc123", UserCaller(userId));
 
         Assert.IsNotNull(stream);
@@ -245,7 +247,7 @@ public class DownloadServiceTests
     public async Task DownloadChunkByHashAsync_NonExistentHash_ReturnsNull()
     {
         using var db = CreateContext();
-        var service = new DownloadService(db, Mock.Of<IFileStorageEngine>(), NullLoggerFactory.Instance.CreateLogger<DownloadService>());
+        var service = CreateService(db);
 
         var result = await service.DownloadChunkByHashAsync("nonexistent", UserCaller(Guid.NewGuid()));
 

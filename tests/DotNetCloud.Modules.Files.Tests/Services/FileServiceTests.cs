@@ -24,7 +24,7 @@ public class FileServiceTests
     }
 
     private static FileService CreateService(FilesDbContext db) =>
-        new(db, Mock.Of<IEventBus>(), NullLoggerFactory.Instance.CreateLogger<FileService>());
+        new(db, Mock.Of<IEventBus>(), NullLoggerFactory.Instance.CreateLogger<FileService>(), new PermissionService(db));
 
     private static CallerContext UserCaller(Guid userId) => new(userId, Array.Empty<string>(), CallerType.User);
 

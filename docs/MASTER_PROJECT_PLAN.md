@@ -36,7 +36,7 @@
 | Phase 0.17 | 10 | 10 | 0 | 0 |
 | Phase 0.18 | 8 | 8 | 0 | 0 |
 | Phase 0.19 | 9 | 9 | 0 | 0 |
-| Phase 1 | 20 | 6 | 0 | 14 |
+| Phase 1 | 21 | 7 | 0 | 14 |
 | Phase 2.1 | 6 | 6 | 0 | 0 |
 | Phase 2.2 | 4 | 4 | 0 | 0 |
 | Phase 2.3 | 7 | 2 | 0 | 5 |
@@ -2517,6 +2517,28 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Dependencies:** phase-1.4
 **Blocking Issues:** None
 **Notes:** Phase 1.5 complete. All 20 Phase 1.5 checklist items marked ✓. Many were already implemented in Phases 1.2–1.4 (chunking, hashing, dedup, progress tracking, session management). This phase added the remaining pieces: seekable stream for HTTP range requests, per-chunk endpoint for sync clients, deduplication metrics API, and explicit orphaned-chunk GC in the upload cleanup service. 830 total solution tests pass (no regressions).
+
+---
+
+### Step: phase-1.6 - File Sharing & Permissions
+**Status:** completed ✅
+**Duration:** ~1 week (actual)
+**Description:** Implement the sharing system, permission service with cascading, and anonymous public-link endpoint.
+
+**Deliverables:**
+- ✓ `FileShare`, `ShareType`, `SharePermission` domain models — already in place from Phase 1.1
+- ✓ `IShareService` / `ShareService` — CRUD + public link token generation, expiry, download limits, password hashing
+- ✓ `IPermissionService` / `PermissionService` — effective-permission resolution with owner fast-path and cascading ancestor shares
+- ✓ Permission enforcement in `FileService` — Read on GetNode/ListChildren/Copy-source; ReadWrite on CreateFolder/Rename/Move/Copy-target; Full on Delete
+- ✓ Permission enforcement in `DownloadService` — Read required for DownloadCurrent, DownloadVersion, GetChunkManifest
+- ✓ `ShareController` (CRUD) + `PublicShareController` (anonymous link resolve) + `MySharesController` (shares-with-me listing)
+- ✓ `FileSharedEvent` published on share creation
+- ✓ 14 new `PermissionServiceTests` covering ownership, direct shares, expiry, multi-share, and cascading; 361 Files tests total, 1085 solution tests (no regressions)
+- ☐ Notifications on public-link first access and share expiry (deferred)
+
+**Dependencies:** phase-1.5
+**Blocking Issues:** None
+**Notes:** Phase 1.6 complete. `IPermissionService.GetEffectivePermissionAsync` walks the materialized path to check ancestor shares, giving O(depth) cascading without recursive queries. Team/group share enforcement deferred until `CallerContext` is enriched with membership IDs. 1085 total solution tests pass.
 
 ---
 

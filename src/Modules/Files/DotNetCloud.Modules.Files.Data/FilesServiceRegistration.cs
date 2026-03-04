@@ -16,6 +16,7 @@ public static class FilesServiceRegistration
     public static IServiceCollection AddFilesServices(this IServiceCollection services)
     {
         // Database-backed services (Scoped)
+        services.AddScoped<IPermissionService, PermissionService>();
         services.AddScoped<IFileService, FileService>();
         services.AddScoped<IChunkedUploadService, ChunkedUploadService>();
         services.AddScoped<IDownloadService, DownloadService>();

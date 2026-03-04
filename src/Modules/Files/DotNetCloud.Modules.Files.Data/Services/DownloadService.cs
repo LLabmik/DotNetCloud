@@ -4,6 +4,7 @@ using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using SharePermission = DotNetCloud.Modules.Files.Models.SharePermission;
 
 namespace DotNetCloud.Modules.Files.Data.Services;
 
@@ -15,12 +16,14 @@ internal sealed class DownloadService : IDownloadService
     private readonly FilesDbContext _db;
     private readonly IFileStorageEngine _storageEngine;
     private readonly ILogger<DownloadService> _logger;
+    private readonly IPermissionService _permissions;
 
-    public DownloadService(FilesDbContext db, IFileStorageEngine storageEngine, ILogger<DownloadService> logger)
+    public DownloadService(FilesDbContext db, IFileStorageEngine storageEngine, ILogger<DownloadService> logger, IPermissionService permissions)
     {
         _db = db;
         _storageEngine = storageEngine;
         _logger = logger;
+        _permissions = permissions;
     }
 
     /// <inheritdoc />
@@ -32,6 +35,8 @@ internal sealed class DownloadService : IDownloadService
             .AsNoTracking()
             .FirstOrDefaultAsync(n => n.Id == fileNodeId, cancellationToken)
             ?? throw new NotFoundException("FileNode", fileNodeId);
+
+        await _permissions.RequirePermissionAsync(fileNodeId, caller, SharePermission.Read, cancellationToken);
 
         if (node.NodeType != FileNodeType.File)
             throw new Core.Errors.InvalidOperationException("Cannot download a folder.");
@@ -58,6 +63,8 @@ internal sealed class DownloadService : IDownloadService
             .FirstOrDefaultAsync(v => v.Id == fileVersionId, cancellationToken)
             ?? throw new NotFoundException("FileVersion", fileVersionId);
 
+        await _permissions.RequirePermissionAsync(version.FileNodeId, caller, SharePermission.Read, cancellationToken);
+
         return await BuildStreamFromVersionAsync(version.Id, cancellationToken);
     }
 
@@ -70,6 +77,8 @@ internal sealed class DownloadService : IDownloadService
             .AsNoTracking()
             .FirstOrDefaultAsync(n => n.Id == fileNodeId, cancellationToken)
             ?? throw new NotFoundException("FileNode", fileNodeId);
+
+        await _permissions.RequirePermissionAsync(fileNodeId, caller, SharePermission.Read, cancellationToken);
 
         if (node.NodeType != FileNodeType.File)
             throw new Core.Errors.InvalidOperationException("Cannot get chunk manifest for a folder.");

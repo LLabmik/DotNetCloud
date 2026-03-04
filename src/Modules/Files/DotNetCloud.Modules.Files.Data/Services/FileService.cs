@@ -5,6 +5,7 @@ using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Services;
+using SharePermission = DotNetCloud.Modules.Files.Models.SharePermission;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -21,12 +22,14 @@ internal sealed class FileService : IFileService
     private readonly FilesDbContext _db;
     private readonly IEventBus _eventBus;
     private readonly ILogger<FileService> _logger;
+    private readonly IPermissionService _permissions;
 
-    public FileService(FilesDbContext db, IEventBus eventBus, ILogger<FileService> logger)
+    public FileService(FilesDbContext db, IEventBus eventBus, ILogger<FileService> logger, IPermissionService permissions)
     {
         _db = db;
         _eventBus = eventBus;
         _logger = logger;
+        _permissions = permissions;
     }
 
     /// <inheritdoc />
@@ -46,7 +49,7 @@ internal sealed class FileService : IFileService
             if (parent.NodeType != FileNodeType.Folder)
                 throw new Core.Errors.ValidationException("ParentId", "Parent must be a folder.");
 
-            EnsureOwnerOrSystem(parent, caller);
+            await _permissions.RequirePermissionAsync(dto.ParentId.Value, caller, SharePermission.ReadWrite, cancellationToken);
             await ValidateNameUniqueAsync(dto.ParentId.Value, dto.Name, null, cancellationToken);
 
             parentPath = parent.MaterializedPath;
@@ -96,6 +99,11 @@ internal sealed class FileService : IFileService
         if (node is null)
             return null;
 
+        // Return null (rather than 403) to avoid leaking node existence.
+        var perm = await _permissions.GetEffectivePermissionAsync(nodeId, caller, cancellationToken);
+        if (perm is null)
+            return null;
+
         var childCount = node.NodeType == FileNodeType.Folder
             ? await _db.FileNodes.CountAsync(n => n.ParentId == nodeId, cancellationToken)
             : 0;
@@ -107,6 +115,8 @@ internal sealed class FileService : IFileService
     public async Task<IReadOnlyList<FileNodeDto>> ListChildrenAsync(Guid folderId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(caller);
+
+        await _permissions.RequirePermissionAsync(folderId, caller, SharePermission.Read, cancellationToken);
 
         var children = await _db.FileNodes
             .AsNoTracking()
@@ -145,7 +155,7 @@ internal sealed class FileService : IFileService
         var node = await _db.FileNodes.FindAsync([nodeId], cancellationToken)
             ?? throw new NotFoundException("FileNode", nodeId);
 
-        EnsureOwnerOrSystem(node, caller);
+        await _permissions.RequirePermissionAsync(nodeId, caller, SharePermission.ReadWrite, cancellationToken);
 
         if (node.ParentId.HasValue)
             await ValidateNameUniqueAsync(node.ParentId.Value, dto.Name, nodeId, cancellationToken);
@@ -171,13 +181,15 @@ internal sealed class FileService : IFileService
         var node = await _db.FileNodes.FindAsync([nodeId], cancellationToken)
             ?? throw new NotFoundException("FileNode", nodeId);
 
-        EnsureOwnerOrSystem(node, caller);
+        await _permissions.RequirePermissionAsync(nodeId, caller, SharePermission.ReadWrite, cancellationToken);
 
         var targetParent = await _db.FileNodes.FindAsync([dto.TargetParentId], cancellationToken)
             ?? throw new NotFoundException("FileNode", dto.TargetParentId);
 
         if (targetParent.NodeType != FileNodeType.Folder)
             throw new Core.Errors.ValidationException("TargetParentId", "Target must be a folder.");
+
+        await _permissions.RequirePermissionAsync(dto.TargetParentId, caller, SharePermission.ReadWrite, cancellationToken);
 
         // Prevent circular move: target cannot be self or a descendant
         if (dto.TargetParentId == nodeId)
@@ -247,11 +259,15 @@ internal sealed class FileService : IFileService
             .FirstOrDefaultAsync(n => n.Id == nodeId, cancellationToken)
             ?? throw new NotFoundException("FileNode", nodeId);
 
+        await _permissions.RequirePermissionAsync(nodeId, caller, SharePermission.Read, cancellationToken);
+
         var targetParent = await _db.FileNodes.FindAsync([targetParentId], cancellationToken)
             ?? throw new NotFoundException("FileNode", targetParentId);
 
         if (targetParent.NodeType != FileNodeType.Folder)
             throw new Core.Errors.ValidationException("TargetParentId", "Target must be a folder.");
+
+        await _permissions.RequirePermissionAsync(targetParentId, caller, SharePermission.ReadWrite, cancellationToken);
 
         var copyName = await GetCopyNameAsync(targetParentId, source.Name, cancellationToken);
 
@@ -294,7 +310,7 @@ internal sealed class FileService : IFileService
         var node = await _db.FileNodes.FindAsync([nodeId], cancellationToken)
             ?? throw new NotFoundException("FileNode", nodeId);
 
-        EnsureOwnerOrSystem(node, caller);
+        await _permissions.RequirePermissionAsync(nodeId, caller, SharePermission.Full, cancellationToken);
 
         node.IsDeleted = true;
         node.DeletedAt = DateTime.UtcNow;

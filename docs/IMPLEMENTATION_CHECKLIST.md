@@ -1752,30 +1752,30 @@ This phase implements the core Files module, which is the primary public-facing 
 **User, team, group, and public link sharing**
 
 #### Share Types
-- ☐ Implement User shares (share with specific user by ID)
-- ☐ Implement Team shares (share with all members of a team)
-- ☐ Implement Group shares (share with a cross-team group)
-- ☐ Implement PublicLink shares (generate shareable URL)
+- ✓ Implement User shares (share with specific user by ID)
+- ✓ Implement Team shares (share with all members of a team)
+- ✓ Implement Group shares (share with a cross-team group)
+- ✓ Implement PublicLink shares (generate shareable URL)
 
 #### Public Link Features
-- ☐ Generate cryptographically random link tokens
-- ☐ Optional password protection (hashed storage)
-- ☐ Download count tracking
-- ☐ Maximum download limits
-- ☐ Expiration dates
-- ☐ Public link access without authentication
+- ✓ Generate cryptographically random link tokens
+- ✓ Optional password protection (hashed storage)
+- ✓ Download count tracking
+- ✓ Maximum download limits
+- ✓ Expiration dates
+- ✓ Public link access without authentication (`PublicShareController`)
 
 #### Permission Enforcement
-- ☐ Enforce Read permission (view and download only)
-- ☐ Enforce ReadWrite permission (upload, rename, move within shared folder)
-- ☐ Enforce Full permission (all operations including re-share and delete)
-- ☐ Cascade folder share permissions to children
-- ☐ Validate permissions on every file operation
+- ✓ Enforce Read permission (view and download only)
+- ✓ Enforce ReadWrite permission (upload, rename, move within shared folder)
+- ✓ Enforce Full permission (all operations including re-share and delete)
+- ✓ Cascade folder share permissions to children
+- ✓ Validate permissions on every file operation (`IPermissionService`)
 
 #### Share Notifications
-- ☐ Notify users when files/folders are shared with them
-- ☐ Notify share creator on first access of public link
-- ☐ Send notification when share is about to expire
+- ✓ Notify users when files/folders are shared with them (via `FileSharedEvent`)
+- ☐ Notify share creator on first access of public link (deferred)
+- ☐ Send notification when share is about to expire (deferred)
 
 ---
 
