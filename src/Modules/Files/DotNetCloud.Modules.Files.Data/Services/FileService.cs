@@ -24,12 +24,15 @@ internal sealed class FileService : IFileService
     private readonly ILogger<FileService> _logger;
     private readonly IPermissionService _permissions;
 
-    public FileService(FilesDbContext db, IEventBus eventBus, ILogger<FileService> logger, IPermissionService permissions)
+    private readonly IQuotaService _quotaService;
+
+    public FileService(FilesDbContext db, IEventBus eventBus, ILogger<FileService> logger, IPermissionService permissions, IQuotaService quotaService)
     {
         _db = db;
         _eventBus = eventBus;
         _logger = logger;
         _permissions = permissions;
+        _quotaService = quotaService;
     }
 
     /// <inheritdoc />
@@ -269,6 +272,11 @@ internal sealed class FileService : IFileService
 
         await _permissions.RequirePermissionAsync(targetParentId, caller, SharePermission.ReadWrite, cancellationToken);
 
+        // Check quota before copying
+        var copySize = await CalculateSubtreeSizeAsync(nodeId, source, cancellationToken);
+        if (!await _quotaService.HasSufficientQuotaAsync(caller.UserId, copySize, cancellationToken))
+            throw new Core.Errors.ValidationException("Quota", "Insufficient storage quota to copy this item.");
+
         var copyName = await GetCopyNameAsync(targetParentId, source.Name, cancellationToken);
 
         var copy = new FileNode
@@ -295,6 +303,10 @@ internal sealed class FileService : IFileService
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        // Update quota for the copied content
+        if (copySize > 0)
+            await _quotaService.AdjustUsedBytesAsync(caller.UserId, copySize, cancellationToken);
 
         _logger.LogInformation("Node {SourceId} copied to {TargetParentId} as {CopyId} by {UserId}",
             nodeId, targetParentId, copy.Id, caller.UserId);
@@ -506,6 +518,23 @@ internal sealed class FileService : IFileService
                 await CopyChildrenAsync(child.Id, childCopy, caller, cancellationToken);
             }
         }
+    }
+
+    /// <summary>Returns the total file size of a node and all its non-deleted descendants.</summary>
+    private async Task<long> CalculateSubtreeSizeAsync(Guid nodeId, FileNode source, CancellationToken cancellationToken)
+    {
+        if (source.NodeType == FileNodeType.File)
+            return source.Size;
+
+        // Sum all non-deleted file nodes whose materialized path begins under this folder
+        var subtreeSize = await _db.FileNodes
+            .AsNoTracking()
+            .Where(n => n.MaterializedPath.StartsWith(source.MaterializedPath + "/")
+                        && n.NodeType == FileNodeType.File
+                        && !n.IsDeleted)
+            .SumAsync(n => n.Size, cancellationToken);
+
+        return subtreeSize;
     }
 
     private static void EnsureOwnerOrSystem(FileNode node, CallerContext caller)

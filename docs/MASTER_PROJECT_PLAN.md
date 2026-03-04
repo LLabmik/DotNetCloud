@@ -36,7 +36,26 @@
 | Phase 0.17 | 10 | 10 | 0 | 0 |
 | Phase 0.18 | 8 | 8 | 0 | 0 |
 | Phase 0.19 | 9 | 9 | 0 | 0 |
-| Phase 1 | 23 | 9 | 0 | 14 |
+| Phase 1.1 | 6 | 6 | 0 | 0 |
+| Phase 1.2 | 5 | 5 | 0 | 0 |
+| Phase 1.3 | 15 | 15 | 0 | 0 |
+| Phase 1.4 | 15 | 15 | 0 | 0 |
+| Phase 1.5 | 10 | 10 | 0 | 0 |
+| Phase 1.6 | 9 | 8 | 0 | 1 |
+| Phase 1.7 | 11 | 11 | 0 | 0 |
+| Phase 1.8 | 8 | 8 | 0 | 0 |
+| Phase 1.9 | 14 | 14 | 0 | 0 |
+| Phase 1.10 | 24 | 3 | 0 | 21 |
+| Phase 1.11 | 8 | 5 | 0 | 3 |
+| Phase 1.12 | 17 | 0 | 0 | 17 |
+| Phase 1.13 | 4 | 0 | 0 | 4 |
+| Phase 1.14 | 32 | 0 | 0 | 32 |
+| Phase 1.15 | 25 | 0 | 0 | 25 |
+| Phase 1.16 | 20 | 0 | 0 | 20 |
+| Phase 1.17 | 25 | 0 | 0 | 25 |
+| Phase 1.18 | 6 | 4 | 0 | 2 |
+| Phase 1.19 | 20 | 8 | 0 | 12 |
+| Phase 1.20 | 20 | 0 | 0 | 20 |
 | Phase 2.1 | 6 | 6 | 0 | 0 |
 | Phase 2.2 | 4 | 4 | 0 | 0 |
 | Phase 2.3 | 7 | 2 | 0 | 5 |
@@ -2584,6 +2603,32 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Dependencies:** phase-1.7
 **Blocking Issues:** None
 **Notes:** Phase 1.8 complete. Admin-configurable retention per organization deferred to admin UI phase. 381 total Files tests pass.
+
+---
+
+### Step: phase-1.9 - Storage Quotas & Limits
+**Status:** completed ✅
+**Duration:** ~1 day (actual)
+**Description:** Full quota enforcement, administration, notifications, and UI display. Real-time quota tracking on upload and copy, configurable trashed-items exclusion, event-based threshold notifications, admin listing endpoint, and FileBrowser progress bar.
+
+**Deliverables:**
+- ✓ `QuotaOptions` — configurable `DefaultQuotaBytes` (10 GB), `ExcludeTrashedFromQuota` (default false), `WarnAtPercent` (80%), `CriticalAtPercent` (95%), `RecalculationInterval` (24 h); bound from `Files:Quota`
+- ✓ `QuotaWarningEvent`, `QuotaCriticalEvent`, `QuotaExceededEvent` — published when thresholds crossed or quota exceeded
+- ✓ `FilesErrorCodes.QuotaExceeded` = `"FILES_QUOTA_EXCEEDED"` added
+- ✓ `IQuotaService` extended: `GetOrCreateQuotaAsync`, `GetAllQuotasAsync`, `AdjustUsedBytesAsync`
+- ✓ `QuotaService` updated: auto-creates quota with configurable default, publishes threshold events, respects `ExcludeTrashedFromQuota` via `IgnoreQueryFilters()`
+- ✓ `ChunkedUploadService.CompleteUploadAsync` calls `AdjustUsedBytesAsync` post-upload (increments by delta for new/updated files)
+- ✓ `FileService.CopyAsync` checks quota before copying (file or folder subtree size), increments quota on success
+- ✓ `QuotaController` new `GET /api/v1/files/quota/all` endpoint for admin quota listing; `GetCurrentAsync` uses `GetOrCreateQuotaAsync`
+- ✓ `QuotaRecalculationService` updated to delegate to `IQuotaService.RecalculateAsync` (picks up trashed exclusion and notifications); uses configurable `RecalculationInterval`
+- ✓ `FilesServiceRegistration` registers `QuotaOptions`
+- ✓ `QuotaViewModel` and `QuotaProgressBar` Blazor component added; `FileBrowser` exposes quota state
+- ✓ 15 new tests (QuotaServiceTests): `GetOrCreateQuotaAsync_*`, `GetAllQuotasAsync_*`, `AdjustUsedBytesAsync_*`, `RecalculateAsync_ExcludeTrash*`, event notification tests — 396 total Files tests, all passing
+- ✓ 1 new FileServiceTests: `CopyAsync_InsufficientQuota_ThrowsValidationException`
+
+**Dependencies:** phase-1.8
+**Blocking Issues:** None
+**Notes:** Phase 1.9 complete. `ExcludeTrashedFromQuota` works via `IgnoreQueryFilters()` since `FileNode` has a global soft-delete query filter. Quota increment on copy handles both file and folder subtrees via `CalculateSubtreeSizeAsync`. 396 total Files tests pass.
 
 ---
 

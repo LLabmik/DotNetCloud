@@ -153,10 +153,12 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         var storagePath = ContentHasher.GetFileStoragePath(contentHash);
 
         FileNode fileNode;
+        long quotaDelta;
         if (session.TargetFileNodeId.HasValue)
         {
             fileNode = await _db.FileNodes.FindAsync([session.TargetFileNodeId.Value], cancellationToken)
                 ?? throw new NotFoundException("FileNode", session.TargetFileNodeId.Value);
+            quotaDelta = session.TotalSize - fileNode.Size; // size delta for file update
             fileNode.Size = session.TotalSize;
             fileNode.ContentHash = contentHash;
             fileNode.StoragePath = storagePath;
@@ -196,6 +198,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
                 : $"{parentPath}/{fileNode.Id}";
 
             _db.FileNodes.Add(fileNode);
+            quotaDelta = session.TotalSize; // full size for new file
         }
 
         // Create file version
@@ -234,6 +237,10 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         session.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        // Update quota usage in real time
+        if (quotaDelta != 0)
+            await _quotaService.AdjustUsedBytesAsync(caller.UserId, quotaDelta, cancellationToken);
 
         await _eventBus.PublishAsync(new FileUploadedEvent
         {

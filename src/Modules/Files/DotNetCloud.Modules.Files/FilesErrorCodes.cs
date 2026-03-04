@@ -20,6 +20,9 @@ public static class FilesErrorCodes
     /// <summary>Insufficient storage quota.</summary>
     public const string InsufficientQuota = "FILES_INSUFFICIENT_QUOTA";
 
+    /// <summary>Storage quota has been exceeded.</summary>
+    public const string QuotaExceeded = "FILES_QUOTA_EXCEEDED";
+
     /// <summary>Upload session not found or expired.</summary>
     public const string SessionNotFound = "FILES_SESSION_NOT_FOUND";
 

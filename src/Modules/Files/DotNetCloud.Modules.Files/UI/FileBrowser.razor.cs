@@ -28,12 +28,14 @@ public partial class FileBrowser : ComponentBase
 #pragma warning disable CS0649
     private int _totalCount;
 #pragma warning restore CS0649
+    private QuotaViewModel? _quota;
 
     protected IReadOnlyList<FileNodeViewModel> Nodes => _nodes;
     protected IReadOnlyList<BreadcrumbItem> Breadcrumbs => _breadcrumbs;
     protected int SelectedCount => _selectedNodes.Count;
     protected Guid? CurrentFolderId => _currentFolderId;
     protected bool IsLoading => _isLoading;
+    protected QuotaViewModel? Quota => _quota;
     protected bool IsShowCreateFolder => _showCreateFolder;
     protected bool IsShowUploadDialog => _showUploadDialog;
     protected bool IsShowShareDialog => _showShareDialog;
@@ -45,6 +47,17 @@ public partial class FileBrowser : ComponentBase
     protected int PageSize => _pageSize;
     protected int TotalCount => _totalCount;
     protected int TotalPages => _totalCount > 0 ? (int)Math.Ceiling((double)_totalCount / _pageSize) : 1;
+
+    /// <summary>Updates the quota display with fresh data from the API.</summary>
+    protected void UpdateQuota(long usedBytes, long maxBytes, double usagePercent)
+    {
+        _quota = new QuotaViewModel
+        {
+            UsedBytes = usedBytes,
+            MaxBytes = maxBytes,
+            UsagePercent = usagePercent
+        };
+    }
 
     protected void NavigateToFolder(Guid? folderId)
     {

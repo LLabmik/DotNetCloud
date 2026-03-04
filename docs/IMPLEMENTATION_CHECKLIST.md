@@ -1850,25 +1850,25 @@ This phase implements the core Files module, which is the primary public-facing 
 **Per-user and per-organization storage limits**
 
 #### Quota Enforcement
-- ☐ Check quota before accepting file uploads
-- ☐ Check quota before file copy operations
-- ☐ Return clear error response when quota exceeded (`FILES_QUOTA_EXCEEDED`)
-- ☐ Exclude trashed items from quota calculation (configurable)
+- ✓ Check quota before accepting file uploads
+- ✓ Check quota before file copy operations
+- ✓ Return clear error response when quota exceeded (`FILES_QUOTA_EXCEEDED`)
+- ✓ Exclude trashed items from quota calculation (configurable)
 
 #### Quota Administration
-- ☐ Admin can set per-user quota limits
-- ☐ Admin can set default quota for new users
-- ☐ Admin can view quota usage across all users
-- ☐ Admin can force quota recalculation
+- ✓ Admin can set per-user quota limits
+- ✓ Admin can set default quota for new users
+- ✓ Admin can view quota usage across all users
+- ✓ Admin can force quota recalculation
 
 #### Quota Notifications
-- ☐ Warning notification at 80% usage
-- ☐ Critical notification at 95% usage
-- ☐ Notification when quota is exceeded (prevent further uploads)
+- ✓ Warning notification at 80% usage
+- ✓ Critical notification at 95% usage
+- ✓ Notification when quota is exceeded (prevent further uploads)
 
 #### Quota Display
-- ☐ Show quota usage in file browser UI (progress bar)
-- ☐ Show quota in admin user management
+- ✓ Show quota usage in file browser UI (progress bar)
+- ✓ Show quota in admin user management
 
 ---
 

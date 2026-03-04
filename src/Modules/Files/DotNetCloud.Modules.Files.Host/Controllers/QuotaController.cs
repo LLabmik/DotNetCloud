@@ -21,13 +21,23 @@ public class QuotaController : FilesControllerBase
     }
 
     /// <summary>
-    /// Gets the current user's storage quota.
+    /// Gets the current user's storage quota, creating a record with the default if needed.
     /// </summary>
     [HttpGet]
     public Task<IActionResult> GetCurrentAsync([FromQuery] Guid userId) => ExecuteAsync(async () =>
     {
-        var quota = await _quotaService.GetQuotaAsync(userId, ToCaller(userId));
+        var quota = await _quotaService.GetOrCreateQuotaAsync(userId, ToCaller(userId));
         return Ok(Envelope(quota));
+    });
+
+    /// <summary>
+    /// Returns quota records for all users (admin).
+    /// </summary>
+    [HttpGet("all")]
+    public Task<IActionResult> GetAllAsync([FromQuery] Guid userId) => ExecuteAsync(async () =>
+    {
+        var quotas = await _quotaService.GetAllQuotasAsync(ToCaller(userId));
+        return Ok(Envelope(quotas));
     });
 
     /// <summary>

@@ -5,6 +5,7 @@ using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Data.Services;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Models;
+using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -24,8 +25,8 @@ public class FileServiceTests
         return new FilesDbContext(options);
     }
 
-    private static FileService CreateService(FilesDbContext db) =>
-        new(db, Mock.Of<IEventBus>(), NullLoggerFactory.Instance.CreateLogger<FileService>(), new PermissionService(db));
+    private static FileService CreateService(FilesDbContext db, IQuotaService? quotaService = null) =>
+        new(db, Mock.Of<IEventBus>(), NullLoggerFactory.Instance.CreateLogger<FileService>(), new PermissionService(db), quotaService ?? Mock.Of<IQuotaService>());
 
     private static CallerContext UserCaller(Guid userId) => new(userId, Array.Empty<string>(), CallerType.User);
 
@@ -355,13 +356,38 @@ public class FileServiceTests
         db.FileNodes.AddRange(source, target);
         await db.SaveChangesAsync();
 
-        var service = CreateService(db);
+        var quotaMock = new Mock<IQuotaService>();
+        quotaMock.Setup(q => q.HasSufficientQuotaAsync(userId, It.IsAny<long>(), It.IsAny<CancellationToken>()))
+                 .ReturnsAsync(true);
+
+        var service = CreateService(db, quotaMock.Object);
         var result = await service.CopyAsync(source.Id, target.Id, UserCaller(userId));
 
         Assert.AreNotEqual(source.Id, result.Id);
         Assert.AreEqual("file.txt", result.Name);
         Assert.AreEqual(target.Id, result.ParentId);
         Assert.AreEqual(100, result.Size);
+    }
+
+    [TestMethod]
+    public async Task CopyAsync_InsufficientQuota_ThrowsValidationException()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var source = new FileNode { Name = "big.dat", NodeType = FileNodeType.File, OwnerId = userId, Size = 5000 };
+        source.MaterializedPath = $"/{source.Id}";
+        var target = new FileNode { Name = "Target", NodeType = FileNodeType.Folder, OwnerId = userId, Depth = 0 };
+        target.MaterializedPath = $"/{target.Id}";
+        db.FileNodes.AddRange(source, target);
+        await db.SaveChangesAsync();
+
+        var quotaMock = new Mock<IQuotaService>();
+        quotaMock.Setup(q => q.HasSufficientQuotaAsync(userId, It.IsAny<long>(), It.IsAny<CancellationToken>()))
+                 .ReturnsAsync(false);
+
+        var service = CreateService(db, quotaMock.Object);
+        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
+            () => service.CopyAsync(source.Id, target.Id, UserCaller(userId)));
     }
 
     [TestMethod]

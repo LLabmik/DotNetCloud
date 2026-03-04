@@ -1,31 +1,41 @@
-using DotNetCloud.Modules.Files.Models;
+using DotNetCloud.Modules.Files.Options;
+using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace DotNetCloud.Modules.Files.Data.Services.Background;
 
 /// <summary>
-/// Background service that recalculates storage quotas for all users daily.
+/// Background service that periodically recalculates storage quotas for all users.
+/// Interval and trashed-item inclusion are controlled via <see cref="QuotaOptions"/>.
 /// </summary>
 internal sealed class QuotaRecalculationService : BackgroundService
 {
-    private static readonly TimeSpan Interval = TimeSpan.FromHours(24);
-
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IOptions<QuotaOptions> _options;
     private readonly ILogger<QuotaRecalculationService> _logger;
 
-    public QuotaRecalculationService(IServiceScopeFactory scopeFactory, ILogger<QuotaRecalculationService> logger)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="QuotaRecalculationService"/> class.
+    /// </summary>
+    public QuotaRecalculationService(
+        IServiceScopeFactory scopeFactory,
+        IOptions<QuotaOptions> options,
+        ILogger<QuotaRecalculationService> logger)
     {
         _scopeFactory = scopeFactory;
+        _options = options;
         _logger = logger;
     }
 
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(Interval);
+        var interval = _options.Value.RecalculationInterval;
+        using var timer = new PeriodicTimer(interval);
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
@@ -48,28 +58,21 @@ internal sealed class QuotaRecalculationService : BackgroundService
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FilesDbContext>();
+        var quotaService = scope.ServiceProvider.GetRequiredService<IQuotaService>();
 
-        var quotas = await db.FileQuotas.ToListAsync(cancellationToken);
-        var now = DateTime.UtcNow;
+        var userIds = await db.FileQuotas
+            .AsNoTracking()
+            .Select(q => q.UserId)
+            .ToListAsync(cancellationToken);
+
         var count = 0;
-
-        foreach (var quota in quotas)
+        foreach (var userId in userIds)
         {
-            var usedBytes = await db.FileNodes
-                .AsNoTracking()
-                .Where(n => n.OwnerId == quota.UserId && n.NodeType == FileNodeType.File)
-                .SumAsync(n => n.Size, cancellationToken);
-
-            quota.UsedBytes = usedBytes;
-            quota.LastCalculatedAt = now;
-            quota.UpdatedAt = now;
+            await quotaService.RecalculateAsync(userId, cancellationToken);
             count++;
         }
 
         if (count > 0)
-        {
-            await db.SaveChangesAsync(cancellationToken);
             _logger.LogInformation("Recalculated quotas for {Count} users", count);
-        }
     }
 }

@@ -93,6 +93,30 @@ public sealed class UploadFileItem
 }
 
 /// <summary>
+/// View model for displaying the current user's storage quota in the file browser.
+/// </summary>
+public sealed class QuotaViewModel
+{
+    /// <summary>Used storage in bytes.</summary>
+    public long UsedBytes { get; init; }
+
+    /// <summary>Maximum storage in bytes (0 = unlimited).</summary>
+    public long MaxBytes { get; init; }
+
+    /// <summary>Usage percentage (0.0 – 100.0+).</summary>
+    public double UsagePercent { get; init; }
+
+    /// <summary>Whether the quota limit has been reached or exceeded.</summary>
+    public bool IsExceeded => MaxBytes > 0 && UsedBytes >= MaxBytes;
+
+    /// <summary>Whether usage is in the critical range (>= 95%).</summary>
+    public bool IsCritical => MaxBytes > 0 && UsagePercent >= 95.0;
+
+    /// <summary>Whether usage is in the warning range (>= 80%).</summary>
+    public bool IsWarning => MaxBytes > 0 && UsagePercent >= 80.0;
+}
+
+/// <summary>
 /// Status of a file upload operation.
 /// </summary>
 public enum UploadStatus

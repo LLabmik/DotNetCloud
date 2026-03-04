@@ -17,16 +17,18 @@ public static class FilesServiceRegistration
     /// </summary>
     public static IServiceCollection AddFilesServices(this IServiceCollection services, IConfiguration? configuration = null)
     {
-        // Version retention options (bind from configuration or use defaults)
+        // Bind options from configuration or use defaults
         if (configuration is not null)
         {
             services.Configure<VersionRetentionOptions>(configuration.GetSection(VersionRetentionOptions.SectionName));
             services.Configure<TrashRetentionOptions>(configuration.GetSection(TrashRetentionOptions.SectionName));
+            services.Configure<QuotaOptions>(configuration.GetSection(QuotaOptions.SectionName));
         }
         else
         {
             services.Configure<VersionRetentionOptions>(_ => { }); // use defaults
             services.Configure<TrashRetentionOptions>(_ => { }); // use defaults
+            services.Configure<QuotaOptions>(_ => { }); // use defaults
         }
 
         // Database-backed services (Scoped)
