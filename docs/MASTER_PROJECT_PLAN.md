@@ -38,7 +38,7 @@
 | Phase 0.19 | 9 | 9 | 0 | 0 |
 | Phase 1 | 20 | 0 | 0 | 20 |
 | Phase 2.1 | 6 | 6 | 0 | 0 |
-| Phase 2.2 | 4 | 2 | 0 | 2 |
+| Phase 2.2 | 4 | 4 | 0 | 0 |
 | Phase 2.3 | 7 | 1 | 0 | 6 |
 | Phase 2.4 | 5 | 0 | 0 | 5 |
 | Phase 2.5 | 4 | 0 | 0 | 4 |
@@ -2424,19 +2424,19 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Step: phase-2.2 - Chat Database & Data Access Layer
-**Status:** in-progress 🔄
+**Status:** completed ✅
 **Duration:** ~1 week
 **Description:** Create ChatDbContext, entity configurations, migrations, and database initialization.
 
 **Deliverables:**
-- ✓ Create entity configurations (Channel, ChannelMember, Message, MessageAttachment, MessageReaction, MessageMention, PinnedMessage) — 7 configurations with indexes, FKs, query filters
-- ✓ Create ChatDbContext with all DbSets and naming strategy — 7 DbSets
-- ☐ Create migrations (PostgreSQL, SQL Server)
-- ☐ Create ChatDbInitializer (seed default channels)
+- ✓ Create entity configurations (Channel, ChannelMember, Message, MessageAttachment, MessageReaction, MessageMention, PinnedMessage, Announcement, AnnouncementAcknowledgement) — 9 configurations with indexes, FKs, query filters
+- ✓ Create ChatDbContext with all DbSets and naming strategy — 9 DbSets
+- ✓ Create migrations (PostgreSQL `InitialCreate` + SQL Server `InitialCreate_SqlServer`) with `ChatDbContextDesignTimeFactory`
+- ✓ Create ChatDbInitializer — seeds `#general`, `#announcements`, `#random` channels per organization
 
 **Dependencies:** phase-2.1
 **Blocking Issues:** None
-**Notes:** Entity configurations and ChatDbContext complete. Migrations and initializer deferred to when business logic services are complete.
+**Notes:** Phase 2.2 complete. Design-time factory supports both PostgreSQL (default) and SQL Server (via `CHAT_DB_PROVIDER=SqlServer` env var). PostgreSQL migration uses `uuid`, `timestamp with time zone`, `boolean` types. SQL Server migration uses `uniqueidentifier`, `datetime2`, `nvarchar`, `bit` types. ChatDbInitializer seeds 3 default public channels with idempotent check. MariaDB migration deferred (Pomelo lacks .NET 10 support).
 
 ---
 

@@ -1442,17 +1442,17 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ `DbSet<PinnedMessage> PinnedMessages`
 - ✓ Apply table naming strategy (schema-based for PostgreSQL/SQL Server, prefix-based for MariaDB)
 - ✓ Configure automatic timestamps (`SentAt`, `JoinedAt`, etc.)
-- ☐ Create design-time factory for migrations
+- ✓ Create design-time factory for migrations
 
 #### Migrations
-- ☐ Create PostgreSQL initial migration
-- ☐ Create SQL Server initial migration
+- ✓ Create PostgreSQL initial migration
+- ✓ Create SQL Server initial migration
 - ☐ Create MariaDB initial migration (when Pomelo supports .NET 10)
 
 #### Database Initialization
-- ☐ Create `ChatDbInitializer`:
-  - ☐ Seed default system channels (e.g., `#general`, `#announcements`)
-  - ☐ Configure default channel settings
+- ✓ Create `ChatDbInitializer`:
+  - ✓ Seed default system channels (e.g., `#general`, `#announcements`)
+  - ✓ Configure default channel settings
 
 ---
 
