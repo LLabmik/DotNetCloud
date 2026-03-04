@@ -277,13 +277,13 @@ public class AuthController : ControllerBase
     private CallerContext BuildCallerContext()
     {
         var userIdClaim = User.FindFirst("sub")?.Value;
-        var userId = Guid.TryParse(userIdClaim, out var uid) ? uid : Guid.Empty;
-        var roles = User.FindAll("role").Select(c => c.Value).ToList();
+        if (!Guid.TryParse(userIdClaim, out var userId) || userId == Guid.Empty)
+        {
+            return CallerContext.CreateSystemContext();
+        }
 
-        return new CallerContext(
-            userId,
-            roles,
-            userId == Guid.Empty ? CallerType.System : CallerType.User);
+        var roles = User.FindAll("role").Select(c => c.Value).ToList();
+        return new CallerContext(userId, roles, CallerType.User);
     }
 }
 

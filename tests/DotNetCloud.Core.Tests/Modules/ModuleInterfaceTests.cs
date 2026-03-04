@@ -240,12 +240,8 @@ public class ModuleInterfaceTests
     [TestMethod]
     public void ModuleInitializationContext_HasSystemCaller()
     {
-        // Arrange - use a valid system caller GUID instead of CreateSystemContext which has a bug
-        var systemCallerId = Guid.NewGuid();
-        var systemCaller = new DotNetCloud.Core.Authorization.CallerContext(
-            systemCallerId,
-            Array.Empty<string>(),
-            DotNetCloud.Core.Authorization.CallerType.System);
+        // Arrange
+        var systemCaller = DotNetCloud.Core.Authorization.CallerContext.CreateSystemContext();
 
         var context = new ModuleInitializationContext
         {
@@ -263,12 +259,8 @@ public class ModuleInterfaceTests
     [TestMethod]
     public void ModuleInitializationContext_IsRecord()
     {
-        // Arrange - use a valid system caller GUID instead of CreateSystemContext which has a bug
-        var systemCallerId = Guid.NewGuid();
-        var systemCaller = new DotNetCloud.Core.Authorization.CallerContext(
-            systemCallerId,
-            Array.Empty<string>(),
-            DotNetCloud.Core.Authorization.CallerType.System);
+        // Arrange
+        var systemCaller = DotNetCloud.Core.Authorization.CallerContext.CreateSystemContext();
 
         var context1 = new ModuleInitializationContext
         {
@@ -292,11 +284,7 @@ public class ModuleInterfaceTests
 
     private static ModuleInitializationContext CreateTestInitializationContext()
     {
-        var systemCallerId = Guid.NewGuid();
-        var systemCaller = new DotNetCloud.Core.Authorization.CallerContext(
-            systemCallerId,
-            Array.Empty<string>(),
-            DotNetCloud.Core.Authorization.CallerType.System);
+        var systemCaller = DotNetCloud.Core.Authorization.CallerContext.CreateSystemContext();
 
         return new ModuleInitializationContext
         {

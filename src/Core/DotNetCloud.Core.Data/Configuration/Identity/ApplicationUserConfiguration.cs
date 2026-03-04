@@ -36,7 +36,7 @@ public class ApplicationUserConfiguration : IEntityTypeConfiguration<Application
         // CreatedAt required with default value
         builder.Property(u => u.CreatedAt)
             .IsRequired()
-            .HasDefaultValueSql("GETUTCDATE()"); // SQL Server, will be overridden by interceptor
+            .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
         // LastLoginAt optional
         builder.Property(u => u.LastLoginAt)

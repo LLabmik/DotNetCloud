@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="DotNetCloud.Core.Server.Tests" />
+    <InternalsVisibleTo Include="DotNetCloud.Integration.Tests" />
   </ItemGroup>
 
   <ItemGroup>

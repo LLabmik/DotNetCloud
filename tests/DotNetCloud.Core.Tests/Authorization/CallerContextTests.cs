@@ -227,19 +227,15 @@ public class CallerContextTests
     }
 
     [TestMethod]
-    public void CreateSystemContext_ThrowsArgumentException()
+    public void CreateSystemContext_CreatesContextWithEmptyUserId()
     {
-        // Note: CreateSystemContext tries to use Guid.Empty, which violates validation
-        // This is a bug in the implementation that the test has exposed
-        try
-        {
-            _ = CallerContext.CreateSystemContext();
-            Assert.Fail("Expected ArgumentException");
-        }
-        catch (ArgumentException)
-        {
-            // Expected
-        }
+        // Act
+        var context = CallerContext.CreateSystemContext();
+
+        // Assert
+        Assert.AreEqual(Guid.Empty, context.UserId);
+        Assert.AreEqual(CallerType.System, context.Type);
+        Assert.AreEqual(0, context.Roles.Count);
     }
 
     [TestMethod]

@@ -172,7 +172,7 @@ public sealed record CallerContext
     /// </exception>
     public CallerContext(Guid userId, IReadOnlyList<string> roles, CallerType type)
     {
-        Validate(userId, roles);
+        Validate(userId, roles, type);
 
         UserId = userId;
         Roles = roles ?? Array.Empty<string>();
@@ -323,12 +323,17 @@ public sealed record CallerContext
     /// </summary>
     /// <param name="userId">The caller's user ID.</param>
     /// <param name="roles">The caller's roles.</param>
+    /// <param name="type">The caller type; System callers are allowed to use Guid.Empty.</param>
     /// <exception cref="ArgumentException">
-    /// Thrown if validation fails.
+    /// Thrown when UserId is Guid.Empty for User or Module callers.
     /// </exception>
-    private static void Validate(Guid userId, IReadOnlyList<string>? roles)
+    private static void Validate(Guid userId, IReadOnlyList<string>? roles, CallerType type)
     {
-        // UserId must not be empty for explicit caller identification
+        // System callers legitimately use Guid.Empty (no specific identity)
+        if (type == CallerType.System)
+            return;
+
+        // User and Module callers must have an explicit identity
         if (userId == Guid.Empty)
             throw new ArgumentException("UserId cannot be empty.", nameof(userId));
     }
