@@ -36,7 +36,7 @@
 | Phase 0.17 | 10 | 10 | 0 | 0 |
 | Phase 0.18 | 8 | 8 | 0 | 0 |
 | Phase 0.19 | 9 | 9 | 0 | 0 |
-| Phase 1 | 21 | 7 | 0 | 14 |
+| Phase 1 | 22 | 8 | 0 | 14 |
 | Phase 2.1 | 6 | 6 | 0 | 0 |
 | Phase 2.2 | 4 | 4 | 0 | 0 |
 | Phase 2.3 | 7 | 2 | 0 | 5 |
@@ -2539,6 +2539,30 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Dependencies:** phase-1.5
 **Blocking Issues:** None
 **Notes:** Phase 1.6 complete. `IPermissionService.GetEffectivePermissionAsync` walks the materialized path to check ancestor shares, giving O(depth) cascading without recursive queries. Team/group share enforcement deferred until `CallerContext` is enriched with membership IDs. 1085 total solution tests pass.
+
+---
+
+### Step: phase-1.7 - File Versioning System
+**Status:** completed ✅
+**Duration:** ~1 week (actual)
+**Description:** Complete the file versioning system: version creation on upload, version history, restore to previous version with chunk reuse, and configurable retention policies enforced by a background cleanup service.
+
+**Deliverables:**
+- ✓ `FileVersion` + `FileVersionChunk` domain models — already in place from Phase 1.1
+- ✓ `IVersionService` / `VersionService` — list, get, get-by-number, restore, label, delete
+- ✓ Version created on every upload via `ChunkedUploadService.CompleteUploadAsync`
+- ✓ Chunks linked via `FileVersionChunk` with sequence index; reference counts maintained
+- ✓ `VersionController` REST API — 5 endpoints (list, get, restore, delete, label)
+- ✓ Download specific version via `GET /api/v1/files/{nodeId}/download?version=N`
+- ✓ `FileVersionRestoredEvent` published on version restore (new event, distinct from trash `FileRestoredEvent`)
+- ✓ `VersionRetentionOptions` — configurable `MaxVersionCount` (default 50) and `RetentionDays` (default 0 = disabled), bound from `Files:VersionRetention` config section
+- ✓ `VersionCleanupService` (IHostedService) — runs every 24 h, prunes oldest unlabeled versions exceeding max count, deletes unlabeled versions older than retention period, always keeps at least one version, never deletes labeled versions, decrements chunk reference counts
+- ✓ Register `VersionCleanupService` in `FilesServiceRegistration`
+- ✓ 11 new tests: 2 `FileVersionRestoredEvent` event tests, 1 event-publishing assertion in `VersionServiceTests`, 8 `VersionCleanupServiceTests` — 372 total Files tests, 1355 solution tests (no regressions)
+
+**Dependencies:** phase-1.6
+**Blocking Issues:** None
+**Notes:** Phase 1.7 complete. All 15 Phase 1.7 checklist items marked ✓. Most of the core versioning infrastructure (models, DB config, service interface/impl, REST controllers, download endpoint) was already in place from Phases 1.1–1.4. This phase added the missing pieces: `FileVersionRestoredEvent` with IEventBus publishing in `VersionService.RestoreVersionAsync`, `VersionRetentionOptions` (IOptions pattern), and `VersionCleanupService` background service enforcing max-count and time-based retention policies with labeled-version protection. 1355 total solution tests pass.
 
 ---
 

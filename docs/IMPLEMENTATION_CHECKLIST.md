@@ -1786,27 +1786,27 @@ This phase implements the core Files module, which is the primary public-facing 
 **File version history, restore, and retention**
 
 #### Version Creation
-- ☐ Create new version on every file content update
-- ☐ Link version to its constituent chunks via `FileVersionChunk`
-- ☐ Track version creator and timestamp
-- ☐ Support optional version labels (e.g., "Final draft")
+- ✓ Create new version on every file content update
+- ✓ Link version to its constituent chunks via `FileVersionChunk`
+- ✓ Track version creator and timestamp
+- ✓ Support optional version labels (e.g., "Final draft")
 
 #### Version Retrieval
-- ☐ List all versions of a file (newest first)
-- ☐ Download specific version content
-- ☐ Compare version metadata (size, date, author)
+- ✓ List all versions of a file (newest first)
+- ✓ Download specific version content
+- ✓ Compare version metadata (size, date, author)
 
 #### Version Restore
-- ☐ Restore creates a new version with old version's content
-- ☐ Reuse existing chunks (no duplicate storage)
-- ☐ Publish `FileRestoredEvent` on restore
+- ✓ Restore creates a new version with old version's content
+- ✓ Reuse existing chunks (no duplicate storage)
+- ✓ Publish `FileVersionRestoredEvent` on restore
 
 #### Version Retention
-- ☐ Configurable maximum version count per file
-- ☐ Configurable retention period (e.g., keep versions for 30 days)
-- ☐ Auto-cleanup oldest versions when limits exceeded
-- ☐ Never auto-delete labeled versions
-- ☐ Decrement chunk reference counts on version deletion
+- ✓ Configurable maximum version count per file
+- ✓ Configurable retention period (e.g., keep versions for 30 days)
+- ✓ Auto-cleanup oldest versions when limits exceeded
+- ✓ Never auto-delete labeled versions
+- ✓ Decrement chunk reference counts on version deletion
 
 ---
 

@@ -1,6 +1,8 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Errors;
+using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Files.DTOs;
+using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
@@ -14,11 +16,13 @@ namespace DotNetCloud.Modules.Files.Data.Services;
 internal sealed class VersionService : IVersionService
 {
     private readonly FilesDbContext _db;
+    private readonly IEventBus _eventBus;
     private readonly ILogger<VersionService> _logger;
 
-    public VersionService(FilesDbContext db, ILogger<VersionService> logger)
+    public VersionService(FilesDbContext db, IEventBus eventBus, ILogger<VersionService> logger)
     {
         _db = db;
+        _eventBus = eventBus;
         _logger = logger;
     }
 
@@ -118,6 +122,18 @@ internal sealed class VersionService : IVersionService
 
         _logger.LogInformation("File {FileNodeId} restored to version {SourceVersion} as v{NewVersion} by {UserId}",
             fileNodeId, sourceVersion.VersionNumber, newVersion.VersionNumber, caller.UserId);
+
+        await _eventBus.PublishAsync(new FileVersionRestoredEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            FileNodeId = fileNodeId,
+            FileName = node.Name,
+            SourceVersionId = sourceVersion.Id,
+            SourceVersionNumber = sourceVersion.VersionNumber,
+            NewVersionNumber = newVersion.VersionNumber,
+            RestoredByUserId = caller.UserId
+        }, caller, cancellationToken);
 
         return ToDto(newVersion);
     }

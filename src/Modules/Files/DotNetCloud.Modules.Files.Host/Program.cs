@@ -18,7 +18,7 @@ builder.Services.AddDbContext<FilesDbContext>(options =>
     options.UseInMemoryDatabase("FilesModule"));
 
 // Files module business logic services
-builder.Services.AddFilesServices();
+builder.Services.AddFilesServices(builder.Configuration);
 
 // File storage engine (local filesystem, configurable base path)
 var storagePath = builder.Configuration.GetValue<string>("Files:StoragePath")

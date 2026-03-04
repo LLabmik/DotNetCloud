@@ -1,7 +1,9 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Errors;
+using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Data.Services;
+using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -21,8 +23,8 @@ public class VersionServiceTests
         return new FilesDbContext(options);
     }
 
-    private static VersionService CreateService(FilesDbContext db) =>
-        new(db, NullLoggerFactory.Instance.CreateLogger<VersionService>());
+    private static VersionService CreateService(FilesDbContext db, IEventBus? eventBus = null) =>
+        new(db, eventBus ?? Mock.Of<IEventBus>(), NullLoggerFactory.Instance.CreateLogger<VersionService>());
 
     private static CallerContext UserCaller(Guid userId) => new(userId, Array.Empty<string>(), CallerType.User);
 
@@ -135,6 +137,30 @@ public class VersionServiceTests
         // Chunk refcount should have incremented
         var updatedChunk = await db.FileChunks.FindAsync(chunk.Id);
         Assert.AreEqual(2, updatedChunk!.ReferenceCount);
+    }
+
+    [TestMethod]
+    public async Task RestoreVersionAsync_PublishesFileVersionRestoredEvent()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var (node, version, _) = SeedFileWithVersion(db, userId);
+        await db.SaveChangesAsync();
+
+        var eventBusMock = new Mock<IEventBus>();
+        var service = CreateService(db, eventBusMock.Object);
+        var restored = await service.RestoreVersionAsync(node.Id, version.Id, UserCaller(userId));
+
+        eventBusMock.Verify(bus => bus.PublishAsync(
+            It.Is<FileVersionRestoredEvent>(e =>
+                e.FileNodeId == node.Id &&
+                e.SourceVersionId == version.Id &&
+                e.SourceVersionNumber == version.VersionNumber &&
+                e.NewVersionNumber == restored.VersionNumber &&
+                e.RestoredByUserId == userId),
+            It.IsAny<CallerContext>(),
+            It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [TestMethod]

@@ -87,6 +87,46 @@ public class EventTests
     }
 
     [TestMethod]
+    public void WhenFileVersionRestoredEventCreatedThenImplementsIEvent()
+    {
+        var evt = new FileVersionRestoredEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            FileNodeId = Guid.NewGuid(),
+            FileName = "report.pdf",
+            SourceVersionId = Guid.NewGuid(),
+            SourceVersionNumber = 2,
+            NewVersionNumber = 3,
+            RestoredByUserId = Guid.NewGuid()
+        };
+
+        Assert.IsInstanceOfType<IEvent>(evt);
+    }
+
+    [TestMethod]
+    public void WhenFileVersionRestoredEventCreatedThenVersionNumbersAreTracked()
+    {
+        var sourceId = Guid.NewGuid();
+
+        var evt = new FileVersionRestoredEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            FileNodeId = Guid.NewGuid(),
+            FileName = "doc.txt",
+            SourceVersionId = sourceId,
+            SourceVersionNumber = 5,
+            NewVersionNumber = 6,
+            RestoredByUserId = Guid.NewGuid()
+        };
+
+        Assert.AreEqual(sourceId, evt.SourceVersionId);
+        Assert.AreEqual(5, evt.SourceVersionNumber);
+        Assert.AreEqual(6, evt.NewVersionNumber);
+    }
+
+    [TestMethod]
     public void WhenFileUploadedEventCreatedThenPropertiesAreSet()
     {
         var eventId = Guid.NewGuid();
