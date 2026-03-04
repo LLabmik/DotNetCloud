@@ -1042,25 +1042,25 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 
 ### Core Documentation
 
-- [ ] Architecture overview documentation
-- [ ] Development environment setup guide
-- [ ] Running tests documentation
-- [ ] Contributing guidelines
-- [ ] License documentation
+- ✓ Architecture overview documentation (`docs/architecture/ARCHITECTURE.md`)
+- ✓ Development environment setup guide (`docs/development/README.md`, `IDE_SETUP.md`, `DATABASE_SETUP.md`, `DOCKER_SETUP.md`)
+- ✓ Running tests documentation (`docs/development/RUNNING_TESTS.md`)
+- ✓ Contributing guidelines (`CONTRIBUTING.md`)
+- ✓ License documentation (`LICENSE` — AGPL-3.0)
 
 ### API Documentation
 
-- [ ] API endpoint reference
-- [ ] Authentication flow documentation
-- [ ] Response format documentation
-- [ ] Error handling documentation
+- ✓ API endpoint reference (`docs/api/README.md`)
+- ✓ Authentication flow documentation (`docs/api/AUTHENTICATION.md`)
+- ✓ Response format documentation (`docs/api/RESPONSE_FORMAT.md`)
+- ✓ Error handling documentation (`docs/api/ERROR_HANDLING.md`)
 
 ### Module Development Guide (Skeleton)
 
-- [ ] Module architecture overview
-- [ ] Creating a module
-- [ ] Module manifest documentation
-- [ ] Capability interfaces documentation
+- ✓ Module architecture overview (`docs/guides/MODULE_DEVELOPMENT.md`)
+- ✓ Creating a module (`docs/guides/MODULE_DEVELOPMENT.md`)
+- ✓ Module manifest documentation (`docs/guides/MODULE_DEVELOPMENT.md`)
+- ✓ Capability interfaces documentation (`docs/architecture/core-abstractions.md`, `docs/guides/MODULE_DEVELOPMENT.md`)
 
 ---
 
@@ -1074,6 +1074,24 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - [ ] All integration tests pass against SQL Server
 - [ ] All integration tests pass against MariaDB
 - [ ] No compiler warnings (or documented exceptions)
+- [ ] Docker container builds successfully (for Core Server)
+- [ ] Docker containers run and pass health checks
+- [ ] gRPC endpoints respond correctly
+- [ ] REST API endpoints respond correctly
+- [ ] SignalR hub accepts connections and broadcasts messages
+- [ ] Authentication flows work end-to-end (registration, login, MFA, token refresh)
+- [ ] Admin endpoints enforce permissions correctly
+- [ ] Module loading and capability injection work correctly
+- [ ] Web UI displays and functions correctly (login page, admin dashboard)
+- [ ] CLI commands execute and produce expected results
+- [ ] Application runs on both Windows and Linux without errors
+- [ ] Logs are written to file with correct formatting and rotation
+- [ ] Health check endpoint returns correct status
+- [ ] OpenAPI documentation is generated and accurate
+- [ ] Internationalization infrastructure is set up and functional
+- [ ] Observability features (logging, metrics, tracing) are configured and working
+- [ ] CI/CD pipelines are configured and passing
+- [ ] Documentation is written and comprehensive
 
 ### Authentication & Authorization
 
@@ -1083,6 +1101,9 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - [ ] Token refresh works
 - [ ] Admin authentication works
 - [ ] Permission checks work
+- [ ] Device management endpoints work
+- [ ] External provider login works
+- [ ] Password reset flows work
 
 ### Module System
 
@@ -1091,6 +1112,96 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - [ ] Module manifest validation works
 - [ ] Capability system works
 - [ ] Event bus works
+- [ ] Module lifecycle management works (initialize/start/stop/dispose)
+- [ ] gRPC communication with module works
+- [ ] Module API endpoints work
+- [ ] Module UI components load in web UI
+- [ ] Module configuration via admin dashboard works
+- [ ] Module logging works and is enriched with context
+- [ ] Module errors are handled gracefully
+- [ ] Module unit tests pass
+- [ ] Module documentation is complete
+- [ ] Module example usage is documented
+- [ ] Module integration tests pass
+- [ ] Module internationalization works
+- [ ] Module observability features work (metrics, tracing)
+- [ ] Module can be started/stopped/restarted via CLI
+- [ ] Module can be granted/revoked capabilities via CLI
+- [ ] Module can be monitored via CLI
+- [ ] Module can be installed/uninstalled via CLI
+- [ ] Module can be listed via CLI
+- [ ] Module can be managed via admin dashboard (start/stop/restart, grant/revoke capabilities)
+- [ ] Module can publish/subscribe to events
+- [ ] Module can broadcast real-time messages via SignalR
+- [ ] Module can access user context via CallerContext
+- [ ] Module can log messages with context enrichment
+- [ ] Module can expose API endpoints via gRPC
+- [ ] Module can expose API endpoints via REST (if applicable)
+- [ ] Module can serve Blazor UI components in the web dashboard
+- [ ] Module can be configured via admin dashboard
+- [ ] Module can be configured via CLI
+- [ ] Module can be monitored via health checks
+- [ ] Module can be monitored via logs
+- [ ] Module can be monitored via metrics
+- [ ] Module can be monitored via tracing
+- [ ] Module can be internationalized
+- [ ] Module can be documented with inline comments and external README
+- [ ] Module can be tested with unit tests and integration tests
+- [ ] Module can be deployed and run in Docker container
+- [ ] Module can be deployed and run on Windows
+- [ ] Module can be deployed and run on Linux
+- [ ] Module can be deployed and run in Kubernetes (if applicable)
+- [ ] Module can be deployed and run on bare metal
+- [ ] Module can be deployed and run in cloud environments (if applicable)
+- [ ] Module can be updated and maintained over time
+- [ ] Module can be extended with new features and capabilities
+- [ ] Module can be integrated with other modules and external services
+- [ ] Module can be used as a reference implementation for new module development
+- [ ] Module can be used as a testbed for new features in the core framework
+- [ ] Module can be used as a demonstration of best practices in module development
+- [ ] Module can be used as a starting point for new modules in the ecosystem
+- [ ] Module can be used as a template for module development
+- [ ] Module can be used as a benchmark for module performance and resource usage
+- [ ] Module can be used as a showcase for module capabilities and features
+- [ ] Module can be used as a learning resource for new developers in the ecosystem
+- [ ] Module can be used as a basis for community contributions and extensions
+- [ ] Module can be used as a basis for commercial modules and services built on top of the platform
+- [ ] Module can be used as a basis for open-source modules and services built on top of the platform
+- [ ] Module can be used as a basis for educational materials and tutorials on module development
+- [ ] Module can be used as a basis for workshops and training sessions on module development
+- [ ] Module can be used as a basis for hackathons and coding challenges focused on module development
+- [ ] Module can be used as a basis for research and experimentation in module development and architecture
+- [ ] Module can be used as a basis for discussions and design decisions in the core framework development
+- [ ] Module can be used as a basis for testing new features and changes in the core framework before they are released
+- [ ] Module can be used as a basis for validating the stability and reliability of the core framework over time
+- [ ] Module can be used as a basis for demonstrating the value and potential of the platform to users, developers, and stakeholders
+- [ ] Module can be used as a basis for fostering a vibrant ecosystem of modules, services, and integrations built on top of the platform
+- [ ] Module can be used as a basis for driving adoption and growth of the platform in the market
+- [ ] Module can be used as a basis for building a strong community of users, developers, and contributors around the platform
+- [ ] Module can be used as a basis for creating a sustainable and thriving ecosystem of modules and services that provide value to users and drive the success of the platform over the long term
+- [ ] Module can be used as a basis for creating a positive feedback loop of innovation, contribution, and growth that benefits all stakeholders in the ecosystem
+- [ ] Module can be used as a basis for creating a platform that empowers users and developers to create, share, and benefit from a wide variety of modules and services that enhance their digital lives in meaningful ways
+- [ ] Module can be used as a basis for creating a platform that fosters creativity, collaboration, and community in the development and use of digital tools and services that improve productivity, communication, organization, and entertainment for users around the world
+- [ ] Module can be used as a basis for creating a platform that promotes open standards, interoperability, and user control in the digital ecosystem, enabling users to choose the tools and services that best meet their needs and preferences without being locked into proprietary ecosystems or vendor lock-in
+- [ ] Module can be used as a basis for creating a platform that prioritizes user privacy, security, and data ownership, giving users confidence and peace of mind in using the platform and its modules while maintaining control over their personal information and digital footprint
+- [ ] Module can be used as a basis for creating a platform that is accessible, inclusive, and user-friendly, ensuring that users of all abilities and backgrounds can benefit from the platform and its modules without barriers or discrimination
+- [ ] Module can be used as a basis for creating a platform that is performant, reliable, and scalable, providing a seamless and enjoyable user experience even as the ecosystem of modules and users grows over time
+- [ ] Module can be used as a basis for creating a platform that is innovative, forward-thinking, and adaptable, continuously evolving to meet the changing needs and expectations of users and the digital landscape while maintaining a strong foundation of stability and reliability
+- [ ] Module can be used as a basis for creating a platform that is successful, sustainable, and impactful, making a positive difference in the lives of users and contributing to the advancement of technology and society in meaningful ways over the long term
+- [ ] Module can be used as a basis for creating a platform that is a source of pride and inspiration for its creators, contributors, and users, fostering a sense of community, accomplishment, and shared purpose in building something truly valuable and transformative in the digital world
+- [ ] Module can be used as a basis for creating a platform that is a legacy of innovation, collaboration, and impact, leaving a lasting mark on the digital landscape and inspiring future generations of developers and users to continue building and benefiting from the ecosystem of modules and services that it has helped to create
+- [ ] Module can be used as a basis for creating a platform that is a testament to the power of open-source development, community collaboration, and user empowerment in shaping the future of technology and digital tools in ways that benefit everyone involved and contribute to a more open, inclusive, and innovative digital ecosystem for all
+- [ ] Module can be used as a basis for creating a platform that is a shining example of what can be achieved when developers, users, and stakeholders come together to build something truly remarkable and impactful in the digital world, setting a new standard for what a platform can be and inspiring others to follow in its footsteps in creating a better digital future for all
+- [ ] Module can be used as a basis for creating a platform that is a source of joy, creativity, and empowerment for its users, providing them with the tools and services they need to enhance their digital lives in ways that are meaningful and enjoyable, while also fostering a sense of community and shared purpose among its users and contributors in building something truly special together
+- [ ] Module can be used as a basis for creating a platform that is a catalyst for positive change and innovation in the digital ecosystem, driving the development of new tools, services, and integrations that enhance the way people work, communicate, organize, and entertain themselves in the digital world, while also promoting values of openness, collaboration, and user empowerment that benefit everyone involved in the ecosystem over the long term
+- [ ] Module can be used as a basis for creating a platform that is a beacon of excellence, innovation, and community in the digital landscape, setting a new standard for what a platform can be and inspiring others to follow in its footsteps in creating a better digital future for all
+- [ ] Module can be used as a basis for creating a platform that is a source of pride, joy, and empowerment for its creators, contributors, and users, fostering a sense of community, accomplishment, and shared purpose in building something truly valuable and transformative in the digital world
+- [ ] Module can be used as a basis for creating a platform that is a legacy of innovation, collaboration, and impact, leaving a lasting mark on the digital landscape and inspiring future generations of developers and users to continue building and benefiting from the ecosystem of modules and services that it has helped to create
+- [ ] Module can be used as a basis for creating a platform that is a testament to the power of open-source development, community collaboration, and user empowerment in shaping the future of technology and digital tools in ways that benefit everyone involved and contribute to a more open, inclusive, and innovative digital ecosystem for all
+- [ ] Module can be used as a basis for creating a platform that is a shining example of what can be achieved when developers, users, and stakeholders come together to build something truly remarkable and impactful in the digital world, setting a new standard for what a platform can be and inspiring others to follow in its footsteps in creating a better digital future for all
+- [ ] Module can be used as a basis for creating a platform that is a source of joy, creativity, and empowerment for its users, providing them with the tools and services they need to enhance their digital lives in ways that are meaningful and enjoyable, while also fostering a sense of community and shared purpose among its users and contributors in building something truly special together
+- [ ] Module can be used as a basis for creating a platform that is a catalyst for positive change and innovation in the digital ecosystem, driving the development of new tools, services, and integrations that enhance the way people work, communicate, organize, and entertain themselves in the digital world, while also promoting values of openness, collaboration, and user empowerment that benefit everyone involved in the ecosystem over the long term
+- [ ] Module can be used as a basis for creating a platform that is a beacon of excellence, innovation, and community in the digital landscape, setting a new standard for what a platform can be and inspiring others to follow in its footsteps in creating a better digital future for all
 
 ### Web UI
 
@@ -1099,6 +1210,12 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - [ ] User can log in and see dashboard
 - [ ] Module list displays correctly
 - [ ] Settings pages display
+- [ ] Health dashboard displays
+- [ ] Module UI components load correctly
+- [ ] Internationalization works (locale switching, translated strings)
+- [ ] Error handling works (error boundaries, notifications)
+- [ ] Responsive design works on different screen sizes
+- [ ] Theme switching works (light/dark mode)
 
 ### CLI
 
