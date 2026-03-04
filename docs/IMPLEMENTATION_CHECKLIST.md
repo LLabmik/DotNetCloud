@@ -1217,14 +1217,1299 @@ This phase implements the core Files module, which is the primary public-facing 
 5. Complete REST API with bulk operations
 6. Comprehensive documentation
 
-### Phase 1.1-1.20: [Detailed breakdown continues...]
+### Milestone Criteria
 
-> **Note:** Due to length constraints, detailed sections for Phases 1-9 follow the same structure as Phase 0. Each section includes:
-> - Subsystem breakdown (Database, Business Logic, API, UI, etc.)
-> - Individual task checklists
-> - Integration points
-> - Testing requirements
-> - Documentation needs
+- [ ] Files can be uploaded, downloaded, renamed, moved, copied, and deleted
+- [ ] Folders can be created, renamed, moved, and deleted
+- [ ] Chunked upload with content-hash deduplication works end-to-end
+- [ ] File versioning stores history and allows restore to previous versions
+- [ ] Sharing works for users, teams, groups, and public links with permissions
+- [ ] Trash bin supports soft-delete, restore, permanent delete, and auto-cleanup
+- [ ] Storage quotas enforce per-user limits and display usage
+- [ ] Collabora CODE integration enables browser-based document editing via WOPI
+- [ ] File browser Blazor UI supports grid/list view, drag-drop, preview, and sharing
+- [ ] Desktop sync client (SyncService + SyncTray) syncs files bidirectionally
+- [ ] Bulk operations (move, copy, delete) work via REST API
+- [ ] All unit and integration tests pass against PostgreSQL and SQL Server
+- [ ] gRPC communication with the Files module host works correctly
+- [ ] REST API documentation is generated via OpenAPI/Swagger
+- [ ] Admin can manage quotas and module settings via dashboard
+- [ ] Files sync between server and Windows desktop client
+
+---
+
+## Phase 1.1: Files Core Abstractions & Data Models
+
+### DotNetCloud.Modules.Files Project
+
+**Create file module project and core domain models**
+
+#### Project Setup
+- ✓ Create `DotNetCloud.Modules.Files` class library project
+- ✓ Create `DotNetCloud.Modules.Files.Data` class library project (EF Core)
+- ✓ Create `DotNetCloud.Modules.Files.Host` ASP.NET Core project (gRPC host)
+- ✓ Create `DotNetCloud.Modules.Files.Tests` test project (MSTest)
+- ✓ Add projects to `DotNetCloud.sln`
+- ✓ Configure project references and `InternalsVisibleTo`
+
+#### Files Module Manifest
+- ✓ Create `FilesModuleManifest` implementing `IModuleManifest`:
+  - ✓ `Id` → `"dotnetcloud.files"`
+  - ✓ `Name` → `"Files"`
+  - ✓ `Version` → `"1.0.0"`
+  - ✓ `RequiredCapabilities` → `INotificationService`, `IStorageProvider`, `IUserDirectory`, `ICurrentUserContext`
+  - ✓ `PublishedEvents` → `FileUploadedEvent`, `FileDeletedEvent`, `FileMovedEvent`, `FileSharedEvent`, `FileRestoredEvent`
+  - ✓ `SubscribedEvents` → (none)
+
+#### FileNode Model
+- ✓ Create `FileNode` entity:
+  - ✓ `Guid Id` primary key
+  - ✓ `string Name` property (display name)
+  - ✓ `FileNodeType NodeType` property (File, Folder)
+  - ✓ `string? MimeType` property (null for folders)
+  - ✓ `long Size` property (bytes, 0 for folders)
+  - ✓ `Guid? ParentId` FK (null for root-level nodes)
+  - ✓ `FileNode? Parent` navigation property
+  - ✓ `ICollection<FileNode> Children` navigation property
+  - ✓ `Guid OwnerId` FK
+  - ✓ `string MaterializedPath` property (efficient tree queries)
+  - ✓ `int Depth` property (tree depth)
+  - ✓ `string? ContentHash` property (SHA-256, null for folders)
+  - ✓ `int CurrentVersion` property
+  - ✓ `string? StoragePath` property (content-addressable)
+  - ✓ `bool IsDeleted` soft-delete flag
+  - ✓ `DateTime? DeletedAt` property
+  - ✓ `Guid? DeletedByUserId` property
+  - ✓ `Guid? OriginalParentId` property (restore target)
+  - ✓ `bool IsFavorite` property
+  - ✓ `DateTime CreatedAt` property
+  - ✓ `DateTime UpdatedAt` property
+- ✓ Create `FileNodeType` enum (File, Folder)
+
+#### FileVersion Model
+- ✓ Create `FileVersion` entity:
+  - ✓ `Guid Id` primary key
+  - ✓ `Guid FileNodeId` FK
+  - ✓ `int VersionNumber` property
+  - ✓ `long Size` property
+  - ✓ `string ContentHash` property (SHA-256)
+  - ✓ `string StoragePath` property (content-addressable)
+  - ✓ `string? MimeType` property
+  - ✓ `Guid CreatedByUserId` FK
+  - ✓ `DateTime CreatedAt` property
+  - ✓ `string? Label` property (optional version label)
+
+#### FileChunk Model
+- ✓ Create `FileChunk` entity:
+  - ✓ `Guid Id` primary key
+  - ✓ `string ChunkHash` property (SHA-256, deduplication key)
+  - ✓ `int Size` property (max 4MB)
+  - ✓ `string StoragePath` property
+  - ✓ `int ReferenceCount` property (for garbage collection)
+  - ✓ `DateTime CreatedAt` property
+  - ✓ `DateTime LastReferencedAt` property
+
+#### FileVersionChunk Model
+- ✓ Create `FileVersionChunk` entity:
+  - ✓ `Guid FileVersionId` FK
+  - ✓ `Guid FileChunkId` FK
+  - ✓ `int SequenceIndex` property (chunk order for file reconstruction)
+
+#### FileShare Model
+- ✓ Create `FileShare` entity:
+  - ✓ `Guid Id` primary key
+  - ✓ `Guid FileNodeId` FK
+  - ✓ `ShareType ShareType` property (User, Team, Group, PublicLink)
+  - ✓ `Guid? SharedWithUserId` FK
+  - ✓ `Guid? SharedWithTeamId` FK
+  - ✓ `Guid? SharedWithGroupId` FK
+  - ✓ `SharePermission Permission` property (Read, ReadWrite, Full)
+  - ✓ `string? LinkToken` property (public link URL token)
+  - ✓ `string? LinkPasswordHash` property
+  - ✓ `int? MaxDownloads` property
+  - ✓ `int DownloadCount` property
+  - ✓ `DateTime? ExpiresAt` property
+  - ✓ `Guid CreatedByUserId` FK
+  - ✓ `DateTime CreatedAt` property
+  - ✓ `string? Note` property
+- ✓ Create `ShareType` enum (User, Team, Group, PublicLink)
+- ✓ Create `SharePermission` enum (Read, ReadWrite, Full)
+
+#### FileTag Model
+- ✓ Create `FileTag` entity:
+  - ✓ `Guid Id` primary key
+  - ✓ `Guid FileNodeId` FK
+  - ✓ `string Name` property
+  - ✓ `string? Color` property (hex)
+  - ✓ `Guid CreatedByUserId` FK
+  - ✓ `DateTime CreatedAt` property
+
+#### FileComment Model
+- ✓ Create `FileComment` entity:
+  - ✓ `Guid Id` primary key
+  - ✓ `Guid FileNodeId` FK
+  - ✓ `Guid? ParentCommentId` FK (threaded replies)
+  - ✓ `ICollection<FileComment> Replies` navigation property
+  - ✓ `string Content` property (Markdown)
+  - ✓ `Guid CreatedByUserId` FK
+  - ✓ `DateTime CreatedAt` property
+  - ✓ `DateTime? UpdatedAt` property
+  - ✓ `bool IsDeleted` soft-delete flag
+
+#### FileQuota Model
+- ✓ Create `FileQuota` entity:
+  - ✓ `Guid Id` primary key
+  - ✓ `Guid UserId` FK
+  - ✓ `long MaxBytes` property (0 = unlimited)
+  - ✓ `long UsedBytes` property
+  - ✓ `DateTime LastCalculatedAt` property
+  - ✓ `DateTime CreatedAt` property
+  - ✓ `DateTime UpdatedAt` property
+  - ✓ Computed `UsagePercent` and `RemainingBytes` properties
+
+#### ChunkedUploadSession Model
+- ✓ Create `ChunkedUploadSession` entity:
+  - ✓ `Guid Id` primary key
+  - ✓ `Guid? TargetFileNodeId` FK (update existing file)
+  - ✓ `Guid? TargetParentId` FK (new file creation)
+  - ✓ `string FileName` property
+  - ✓ `long TotalSize` property
+  - ✓ `string? MimeType` property
+  - ✓ `int TotalChunks` property
+  - ✓ `int ReceivedChunks` property
+  - ✓ `string ChunkManifest` property (JSON-serialized ordered hash list)
+  - ✓ `Guid UserId` FK
+  - ✓ `UploadSessionStatus Status` property
+  - ✓ `DateTime CreatedAt`, `UpdatedAt`, `ExpiresAt` properties
+- ✓ Create `UploadSessionStatus` enum (InProgress, Completed, Failed, Expired)
+
+#### Data Transfer Objects (DTOs)
+- ✓ Create `FileNodeDto` (response: id, name, type, mime, size, parent, owner, version, favorite, hash, dates, tags)
+- ✓ Create `CreateFolderDto` (request: name, parentId)
+- ✓ Create `RenameNodeDto` (request: name)
+- ✓ Create `MoveNodeDto` (request: targetParentId)
+- ✓ Create `InitiateUploadDto` (request: fileName, parentId, totalSize, mimeType, chunkHashes)
+- ✓ Create `UploadSessionDto` (response: sessionId, existingChunks, missingChunks, expiresAt)
+- ✓ Create `FileVersionDto` (response: id, versionNumber, size, hash, mime, createdBy, createdAt, label)
+- ✓ Create `FileShareDto` (response: id, nodeId, shareType, targets, permission, link, expiry, downloads)
+- ✓ Create `CreateShareDto` (request: shareType, targets, permission, password, maxDownloads, expiry, note)
+- ✓ Create `QuotaDto` (response: userId, maxBytes, usedBytes, remainingBytes, usagePercent)
+- ✓ Create `TrashItemDto` (response: id, name, type, size, mime, deletedAt, deletedBy, originalPath)
+
+#### Event Definitions
+- ✓ Create `FileUploadedEvent` implementing `IEvent`
+- ✓ Create `FileDeletedEvent` implementing `IEvent`
+- ✓ Create `FileMovedEvent` implementing `IEvent`
+- ✓ Create `FileSharedEvent` implementing `IEvent`
+- ✓ Create `FileRestoredEvent` implementing `IEvent`
+
+#### Event Handlers
+- ✓ Create `FileUploadedEventHandler` implementing `IEventHandler<FileUploadedEvent>`
+
+#### Storage Engine Abstraction
+- ✓ Create `IFileStorageEngine` interface:
+  - ✓ `Task WriteChunkAsync(string storagePath, ReadOnlyMemory<byte> data, CancellationToken)`
+  - ✓ `Task<byte[]?> ReadChunkAsync(string storagePath, CancellationToken)`
+  - ✓ `Task<Stream?> OpenReadStreamAsync(string storagePath, CancellationToken)`
+  - ✓ `Task<bool> ExistsAsync(string storagePath, CancellationToken)`
+  - ✓ `Task DeleteAsync(string storagePath, CancellationToken)`
+  - ✓ `Task<long> GetTotalSizeAsync(CancellationToken)`
+- ✓ Create `LocalFileStorageEngine` implementation (disk-based)
+- ✓ Create `ContentHasher` utility (SHA-256 hashing)
+
+#### Files Module Lifecycle
+- ✓ Create `FilesModule` implementing `IModuleLifecycle`:
+  - ✓ `InitializeAsync` — register services, subscribe to events
+  - ✓ `StartAsync` — start background tasks
+  - ✓ `StopAsync` — drain active connections
+  - ✓ `DisposeAsync` — cleanup resources
+
+---
+
+## Phase 1.2: Files Database & Data Access Layer
+
+### DotNetCloud.Modules.Files.Data Project
+
+**Create EF Core database context and configurations**
+
+#### Entity Configurations
+- ✓ Create `FileNodeConfiguration` (IEntityTypeConfiguration):
+  - ✓ Table name via naming strategy (`files.file_nodes` / `files_file_nodes`)
+  - ✓ Index on `ParentId`
+  - ✓ Index on `OwnerId`
+  - ✓ Index on `MaterializedPath`
+  - ✓ Self-referencing FK (Parent ↔ Children)
+  - ✓ Soft-delete query filter
+- ✓ Create `FileVersionConfiguration`:
+  - ✓ FK to `FileNode`
+  - ✓ Index on (`FileNodeId`, `VersionNumber`)
+- ✓ Create `FileChunkConfiguration`:
+  - ✓ Unique index on `ChunkHash` (deduplication key)
+- ✓ Create `FileVersionChunkConfiguration`:
+  - ✓ Composite primary key (`FileVersionId`, `FileChunkId`, `SequenceIndex`)
+  - ✓ FK to `FileVersion`, FK to `FileChunk`
+- ✓ Create `FileShareConfiguration`:
+  - ✓ FK to `FileNode`
+  - ✓ Index on `SharedWithUserId`
+  - ✓ Unique index on `LinkToken`
+  - ✓ Index on `ExpiresAt`
+- ✓ Create `FileTagConfiguration`:
+  - ✓ FK to `FileNode`
+  - ✓ Unique index on (`FileNodeId`, `Name`, `CreatedByUserId`)
+- ✓ Create `FileCommentConfiguration`:
+  - ✓ FK to `FileNode`
+  - ✓ Self-referencing FK (ParentComment ↔ Replies)
+  - ✓ Index on `FileNodeId`
+  - ✓ Soft-delete query filter
+- ✓ Create `FileQuotaConfiguration`:
+  - ✓ Unique index on `UserId`
+- ✓ Create `ChunkedUploadSessionConfiguration`:
+  - ✓ Index on `UserId`
+  - ✓ Index on `Status`
+  - ✓ Index on `ExpiresAt`
+
+#### FilesDbContext
+- ✓ Create `FilesDbContext` class extending `DbContext`:
+  - ✓ `DbSet<FileNode> FileNodes`
+  - ✓ `DbSet<FileVersion> FileVersions`
+  - ✓ `DbSet<FileChunk> FileChunks`
+  - ✓ `DbSet<FileVersionChunk> FileVersionChunks`
+  - ✓ `DbSet<FileShare> FileShares`
+  - ✓ `DbSet<FileTag> FileTags`
+  - ✓ `DbSet<FileComment> FileComments`
+  - ✓ `DbSet<FileQuota> FileQuotas`
+  - ✓ `DbSet<ChunkedUploadSession> UploadSessions`
+- ✓ Apply all entity configurations in `OnModelCreating`
+
+#### Migrations
+- ☐ Create PostgreSQL initial migration
+- ☐ Create SQL Server initial migration
+- ☐ Create MariaDB initial migration (when Pomelo supports .NET 10)
+
+#### Database Initialization
+- ☐ Create `FilesDbInitializer`:
+  - ☐ Create default root folder per user
+  - ☐ Seed default quota settings from system configuration
+  - ☐ Create default tags (e.g., "Important", "Work", "Personal")
+
+---
+
+## Phase 1.3: Files Business Logic & Services
+
+### DotNetCloud.Modules.Files Project (Services)
+
+**Core file management business logic**
+
+#### File Service
+- ☐ Create `IFileService` interface:
+  - ☐ `Task<FileNodeDto> GetNodeAsync(Guid nodeId, CallerContext caller)`
+  - ☐ `Task<PagedResult<FileNodeDto>> ListNodesAsync(Guid? parentId, int page, int pageSize, string sortBy, bool sortDesc, CallerContext caller)`
+  - ☐ `Task<FileNodeDto> CreateFolderAsync(CreateFolderDto dto, CallerContext caller)`
+  - ☐ `Task<FileNodeDto> RenameAsync(Guid nodeId, RenameNodeDto dto, CallerContext caller)`
+  - ☐ `Task<FileNodeDto> MoveAsync(Guid nodeId, MoveNodeDto dto, CallerContext caller)`
+  - ☐ `Task<FileNodeDto> CopyAsync(Guid nodeId, MoveNodeDto dto, CallerContext caller)`
+  - ☐ `Task DeleteAsync(Guid nodeId, CallerContext caller)` (soft-delete to trash)
+  - ☐ `Task<FileNodeDto> ToggleFavoriteAsync(Guid nodeId, CallerContext caller)`
+  - ☐ `Task<IReadOnlyList<FileNodeDto>> GetFavoritesAsync(CallerContext caller)`
+  - ☐ `Task<IReadOnlyList<FileNodeDto>> SearchAsync(string query, Guid? folderId, CallerContext caller)`
+  - ☐ `Task<IReadOnlyList<FileNodeDto>> GetRecentAsync(int count, CallerContext caller)`
+- ☐ Implement `FileService`
+- ☐ Add authorization checks (ownership, share permissions)
+- ☐ Validate name uniqueness within parent folder
+- ☐ Update materialized paths on move operations
+- ☐ Enforce depth limits for folder nesting
+
+#### Chunked Upload Service
+- ☐ Create `IChunkedUploadService` interface:
+  - ☐ `Task<UploadSessionDto> InitiateUploadAsync(InitiateUploadDto dto, CallerContext caller)`
+  - ☐ `Task UploadChunkAsync(Guid sessionId, string chunkHash, ReadOnlyMemory<byte> data, CallerContext caller)`
+  - ☐ `Task<FileNodeDto> CompleteUploadAsync(Guid sessionId, CallerContext caller)`
+  - ☐ `Task CancelUploadAsync(Guid sessionId, CallerContext caller)`
+  - ☐ `Task<UploadSessionDto> GetSessionStatusAsync(Guid sessionId, CallerContext caller)`
+- ☐ Implement `ChunkedUploadService`:
+  - ☐ Check server-side chunk store for existing hashes (deduplication)
+  - ☐ Write missing chunks to storage via `IFileStorageEngine`
+  - ☐ Create `FileVersion` and `FileVersionChunk` records on completion
+  - ☐ Update `FileNode` (size, hash, version) on completion
+  - ☐ Enforce quota checks before accepting uploads
+
+#### Download Service
+- ☐ Create `IDownloadService` interface:
+  - ☐ `Task<Stream> DownloadFileAsync(Guid nodeId, CallerContext caller)`
+  - ☐ `Task<Stream> DownloadVersionAsync(Guid nodeId, int versionNumber, CallerContext caller)`
+  - ☐ `Task<Stream> DownloadChunkAsync(string chunkHash, CallerContext caller)`
+  - ☐ `Task<byte[]> GetChunkManifestAsync(Guid nodeId, CallerContext caller)` (for sync clients)
+- ☐ Implement `DownloadService`:
+  - ☐ Reconstruct file from chunks in sequence order
+  - ☐ Support range requests for partial downloads
+  - ☐ Validate access permissions (owner or shared)
+
+#### Version Service
+- ☐ Create `IVersionService` interface:
+  - ☐ `Task<IReadOnlyList<FileVersionDto>> ListVersionsAsync(Guid nodeId, CallerContext caller)`
+  - ☐ `Task<FileVersionDto> GetVersionAsync(Guid nodeId, int versionNumber, CallerContext caller)`
+  - ☐ `Task<FileNodeDto> RestoreVersionAsync(Guid nodeId, int versionNumber, CallerContext caller)`
+  - ☐ `Task DeleteVersionAsync(Guid nodeId, int versionNumber, CallerContext caller)`
+  - ☐ `Task LabelVersionAsync(Guid nodeId, int versionNumber, string label, CallerContext caller)`
+- ☐ Implement `VersionService`:
+  - ☐ Restore creates a new version with the old content
+  - ☐ Update chunk reference counts on version deletion
+  - ☐ Enforce configurable version retention limits
+
+#### Share Service
+- ☐ Create `IShareService` interface:
+  - ☐ `Task<FileShareDto> CreateShareAsync(Guid nodeId, CreateShareDto dto, CallerContext caller)`
+  - ☐ `Task<IReadOnlyList<FileShareDto>> ListSharesAsync(Guid nodeId, CallerContext caller)`
+  - ☐ `Task DeleteShareAsync(Guid shareId, CallerContext caller)`
+  - ☐ `Task<FileShareDto> UpdateShareAsync(Guid shareId, UpdateShareDto dto, CallerContext caller)`
+  - ☐ `Task<FileNodeDto> GetSharedNodeAsync(string linkToken, string? password)`
+  - ☐ `Task<IReadOnlyList<FileNodeDto>> GetSharedWithMeAsync(CallerContext caller)`
+  - ☐ `Task IncrementDownloadCountAsync(Guid shareId)`
+- ☐ Implement `ShareService`:
+  - ☐ Generate cryptographically random link tokens
+  - ☐ Hash link passwords with bcrypt/Argon2
+  - ☐ Check download limits and expiration on public links
+  - ☐ Publish `FileSharedEvent` on share creation
+  - ☐ Send notifications to share recipients
+
+#### Trash Service
+- ☐ Create `ITrashService` interface:
+  - ☐ `Task<PagedResult<TrashItemDto>> ListTrashAsync(int page, int pageSize, CallerContext caller)`
+  - ☐ `Task<FileNodeDto> RestoreFromTrashAsync(Guid nodeId, CallerContext caller)`
+  - ☐ `Task PermanentDeleteAsync(Guid nodeId, CallerContext caller)`
+  - ☐ `Task EmptyTrashAsync(CallerContext caller)`
+  - ☐ `Task<long> GetTrashSizeAsync(CallerContext caller)`
+- ☐ Implement `TrashService`:
+  - ☐ Restore to original parent folder (or root if parent was deleted)
+  - ☐ Cascade permanent delete to versions, chunks, shares, tags, comments
+  - ☐ Decrement chunk reference counts; garbage-collect unreferenced chunks
+  - ☐ Publish `FileRestoredEvent` on restore
+  - ☐ Auto-cleanup expired trash items (configurable retention period)
+
+#### Quota Service
+- ☐ Create `IQuotaService` interface:
+  - ☐ `Task<QuotaDto> GetQuotaAsync(CallerContext caller)`
+  - ☐ `Task<QuotaDto> GetQuotaForUserAsync(Guid userId, CallerContext caller)` (admin)
+  - ☐ `Task SetQuotaAsync(Guid userId, long maxBytes, CallerContext caller)` (admin)
+  - ☐ `Task RecalculateQuotaAsync(Guid userId, CallerContext caller)`
+  - ☐ `Task<bool> HasSufficientQuotaAsync(Guid userId, long additionalBytes)`
+- ☐ Implement `QuotaService`:
+  - ☐ Calculate used bytes from all non-deleted `FileNode` entries
+  - ☐ Enforce quota before uploads (pre-check in chunked upload service)
+  - ☐ Send warning notifications at 80% and 95% usage
+
+#### Tag Service
+- ☐ Create `ITagService` interface:
+  - ☐ `Task<IReadOnlyList<string>> AddTagAsync(Guid nodeId, string tagName, string? color, CallerContext caller)`
+  - ☐ `Task RemoveTagAsync(Guid nodeId, string tagName, CallerContext caller)`
+  - ☐ `Task<IReadOnlyList<FileNodeDto>> GetNodesByTagAsync(string tagName, CallerContext caller)`
+  - ☐ `Task<IReadOnlyList<string>> ListUserTagsAsync(CallerContext caller)`
+- ☐ Implement `TagService`
+
+#### Comment Service
+- ☐ Create `ICommentService` interface:
+  - ☐ `Task<FileCommentDto> AddCommentAsync(Guid nodeId, string content, Guid? parentCommentId, CallerContext caller)`
+  - ☐ `Task<FileCommentDto> EditCommentAsync(Guid commentId, string content, CallerContext caller)`
+  - ☐ `Task DeleteCommentAsync(Guid commentId, CallerContext caller)`
+  - ☐ `Task<IReadOnlyList<FileCommentDto>> ListCommentsAsync(Guid nodeId, CallerContext caller)`
+- ☐ Implement `CommentService`
+
+#### Background Services
+- ☐ Create `UploadSessionCleanupService` (IHostedService):
+  - ☐ Periodically expire stale upload sessions
+  - ☐ Delete orphaned chunks from expired sessions
+- ☐ Create `TrashCleanupService` (IHostedService):
+  - ☐ Permanently delete items older than configured retention period
+  - ☐ Garbage-collect unreferenced chunks (reference count = 0)
+- ☐ Create `QuotaRecalculationService` (IHostedService):
+  - ☐ Periodically recalculate storage usage per user
+
+---
+
+## Phase 1.4: Files REST API Endpoints
+
+### DotNetCloud.Modules.Files.Host Project (Controllers)
+
+**REST API for file operations**
+
+#### File & Folder Endpoints (FilesController)
+- ✓ `GET /api/v1/files` — List files/folders in directory (paginated, sorted)
+- ✓ `GET /api/v1/files/{nodeId}` — Get file/folder by ID
+- ✓ `POST /api/v1/files/folders` — Create folder
+- ✓ `PUT /api/v1/files/{nodeId}/rename` — Rename file/folder
+- ✓ `PUT /api/v1/files/{nodeId}/move` — Move file/folder
+- ✓ `POST /api/v1/files/{nodeId}/copy` — Copy file/folder
+- ✓ `DELETE /api/v1/files/{nodeId}` — Delete file/folder (soft-delete to trash)
+- ✓ `POST /api/v1/files/{nodeId}/favorite` — Toggle favorite
+- ☐ `GET /api/v1/files/favorites` — List favorites
+- ☐ `GET /api/v1/files/recent` — List recently modified files
+- ☐ `GET /api/v1/files/search` — Search files by name/content
+
+#### Upload Endpoints (FilesController)
+- ✓ `POST /api/v1/files/upload/initiate` — Initiate chunked upload session
+- ✓ `PUT /api/v1/files/upload/{sessionId}/chunks/{chunkHash}` — Upload a chunk
+- ✓ `POST /api/v1/files/upload/{sessionId}/complete` — Complete upload session
+- ☐ `DELETE /api/v1/files/upload/{sessionId}` — Cancel upload session
+- ☐ `GET /api/v1/files/upload/{sessionId}` — Get upload session status
+
+#### Download Endpoints (FilesController)
+- ✓ `GET /api/v1/files/{nodeId}/download` — Download file content
+- ☐ `GET /api/v1/files/{nodeId}/download?version={n}` — Download specific version
+- ☐ `GET /api/v1/files/{nodeId}/chunks` — Get chunk manifest (for sync clients)
+
+#### Version Endpoints (VersionController)
+- ✓ `GET /api/v1/files/{nodeId}/versions` — List file versions
+- ✓ `GET /api/v1/files/{nodeId}/versions/{versionNumber}` — Get specific version
+- ✓ `POST /api/v1/files/{nodeId}/versions/{versionNumber}/restore` — Restore version
+- ✓ `DELETE /api/v1/files/{nodeId}/versions/{versionNumber}` — Delete version
+- ☐ `PUT /api/v1/files/{nodeId}/versions/{versionNumber}/label` — Label a version
+
+#### Share Endpoints (ShareController)
+- ✓ `POST /api/v1/files/{nodeId}/shares` — Create share
+- ✓ `GET /api/v1/files/{nodeId}/shares` — List shares for node
+- ✓ `DELETE /api/v1/files/{nodeId}/shares/{shareId}` — Remove share
+- ✓ `PUT /api/v1/files/{nodeId}/shares/{shareId}` — Update share
+- ☐ `GET /api/v1/files/shared-with-me` — List files shared with current user
+- ☐ `GET /api/v1/files/public/{linkToken}` — Access public shared file/folder
+
+#### Trash Endpoints (TrashController)
+- ✓ `GET /api/v1/files/trash` — List trash items (paginated)
+- ✓ `POST /api/v1/files/trash/{nodeId}/restore` — Restore from trash
+- ✓ `DELETE /api/v1/files/trash/{nodeId}` — Permanently delete
+- ✓ `DELETE /api/v1/files/trash` — Empty trash
+- ☐ `GET /api/v1/files/trash/size` — Get total trash size
+
+#### Quota Endpoints
+- ☐ `GET /api/v1/files/quota` — Get current user's quota
+- ☐ `GET /api/v1/files/quota/{userId}` — Get specific user's quota (admin)
+- ☐ `PUT /api/v1/files/quota/{userId}` — Set user quota (admin)
+- ☐ `POST /api/v1/files/quota/{userId}/recalculate` — Force recalculation (admin)
+
+#### Tag Endpoints
+- ☐ `POST /api/v1/files/{nodeId}/tags` — Add tag to node
+- ☐ `DELETE /api/v1/files/{nodeId}/tags/{tagName}` — Remove tag from node
+- ☐ `GET /api/v1/files/tags` — List all user's tags
+- ☐ `GET /api/v1/files/tags/{tagName}` — List files with specific tag
+
+#### Comment Endpoints
+- ☐ `POST /api/v1/files/{nodeId}/comments` — Add comment
+- ☐ `GET /api/v1/files/{nodeId}/comments` — List comments
+- ☐ `PUT /api/v1/files/comments/{commentId}` — Edit comment
+- ☐ `DELETE /api/v1/files/comments/{commentId}` — Delete comment
+
+#### Bulk Operation Endpoints
+- ☐ `POST /api/v1/files/bulk/move` — Move multiple items
+- ☐ `POST /api/v1/files/bulk/copy` — Copy multiple items
+- ☐ `POST /api/v1/files/bulk/delete` — Delete multiple items (to trash)
+- ☐ `POST /api/v1/files/bulk/permanent-delete` — Permanently delete multiple items
+
+#### Sync Endpoints (for desktop/mobile clients)
+- ☐ `POST /api/v1/files/sync/reconcile` — Reconcile local state with server
+- ☐ `GET /api/v1/files/sync/changes?since={timestamp}` — Get changes since timestamp
+- ☐ `GET /api/v1/files/sync/tree?folderId={id}` — Get full folder tree with hashes
+
+---
+
+## Phase 1.5: Chunked Upload & Download Infrastructure
+
+### Chunked Transfer System
+
+**Content-hash deduplication and resumable transfers**
+
+#### Chunked Upload Pipeline
+- ☐ Implement file splitting into 4MB chunks (client-side and server-side)
+- ☐ Implement SHA-256 hashing per chunk
+- ☐ Implement chunk manifest generation (ordered list of hashes)
+- ☐ Server-side deduplication lookup (skip upload for existing chunks)
+- ☐ Track upload progress per session in `ChunkedUploadSession`
+- ☐ Resume interrupted uploads (only re-upload missing chunks)
+- ☐ Validate chunk integrity on receipt (hash verification)
+- ☐ Assemble file from chunks on completion (link `FileVersionChunk` records)
+
+#### Chunked Download Pipeline
+- ☐ Serve files as chunked streams for large files
+- ☐ Support HTTP range requests for partial downloads
+- ☐ Serve individual chunks by hash (for sync clients)
+- ☐ Serve chunk manifests for sync reconciliation
+
+#### Content-Hash Deduplication
+- ☐ Implement cross-user deduplication (identical chunks stored once)
+- ☐ Track chunk reference counts across file versions
+- ☐ Garbage-collect unreferenced chunks (reference count = 0)
+- ☐ Monitor deduplication savings in storage metrics
+
+#### Upload Session Management
+- ☐ Implement session creation with quota pre-check
+- ☐ Track session progress (received vs. total chunks)
+- ☐ Expire stale sessions (configurable TTL, default 24h)
+- ☐ Clean up orphaned chunks from failed sessions
+- ☐ Support concurrent chunk uploads within a session
+
+---
+
+## Phase 1.6: File Sharing & Permissions
+
+### Sharing System
+
+**User, team, group, and public link sharing**
+
+#### Share Types
+- ☐ Implement User shares (share with specific user by ID)
+- ☐ Implement Team shares (share with all members of a team)
+- ☐ Implement Group shares (share with a cross-team group)
+- ☐ Implement PublicLink shares (generate shareable URL)
+
+#### Public Link Features
+- ☐ Generate cryptographically random link tokens
+- ☐ Optional password protection (hashed storage)
+- ☐ Download count tracking
+- ☐ Maximum download limits
+- ☐ Expiration dates
+- ☐ Public link access without authentication
+
+#### Permission Enforcement
+- ☐ Enforce Read permission (view and download only)
+- ☐ Enforce ReadWrite permission (upload, rename, move within shared folder)
+- ☐ Enforce Full permission (all operations including re-share and delete)
+- ☐ Cascade folder share permissions to children
+- ☐ Validate permissions on every file operation
+
+#### Share Notifications
+- ☐ Notify users when files/folders are shared with them
+- ☐ Notify share creator on first access of public link
+- ☐ Send notification when share is about to expire
+
+---
+
+## Phase 1.7: File Versioning System
+
+### Version Management
+
+**File version history, restore, and retention**
+
+#### Version Creation
+- ☐ Create new version on every file content update
+- ☐ Link version to its constituent chunks via `FileVersionChunk`
+- ☐ Track version creator and timestamp
+- ☐ Support optional version labels (e.g., "Final draft")
+
+#### Version Retrieval
+- ☐ List all versions of a file (newest first)
+- ☐ Download specific version content
+- ☐ Compare version metadata (size, date, author)
+
+#### Version Restore
+- ☐ Restore creates a new version with old version's content
+- ☐ Reuse existing chunks (no duplicate storage)
+- ☐ Publish `FileRestoredEvent` on restore
+
+#### Version Retention
+- ☐ Configurable maximum version count per file
+- ☐ Configurable retention period (e.g., keep versions for 30 days)
+- ☐ Auto-cleanup oldest versions when limits exceeded
+- ☐ Never auto-delete labeled versions
+- ☐ Decrement chunk reference counts on version deletion
+
+---
+
+## Phase 1.8: Trash & Recovery
+
+### Trash Bin System
+
+**Soft-delete, restore, and permanent cleanup**
+
+#### Soft-Delete
+- ☐ Move items to trash (set `IsDeleted`, `DeletedAt`, `DeletedByUserId`)
+- ☐ Preserve original parent ID for restore (`OriginalParentId`)
+- ☐ Cascade soft-delete to children (folders)
+- ☐ Remove shares when item is trashed
+- ☐ Publish `FileDeletedEvent` on trash
+
+#### Restore
+- ☐ Restore to original parent folder
+- ☐ Handle case where original parent was also deleted (restore to root)
+- ☐ Restore child items when parent folder is restored
+- ☐ Re-validate name uniqueness in target folder on restore
+
+#### Permanent Delete
+- ☐ Delete file versions and their chunk mappings
+- ☐ Decrement chunk reference counts
+- ☐ Garbage-collect chunks with zero references
+- ☐ Delete tags, comments, and shares
+- ☐ Update user quota (reduce used bytes)
+
+#### Auto-Cleanup
+- ☐ Configurable trash retention period (default: 30 days)
+- ☐ Background service permanently deletes expired trash items
+- ☐ Admin can configure retention per organization
+
+---
+
+## Phase 1.9: Storage Quotas & Limits
+
+### Quota Management
+
+**Per-user and per-organization storage limits**
+
+#### Quota Enforcement
+- ☐ Check quota before accepting file uploads
+- ☐ Check quota before file copy operations
+- ☐ Return clear error response when quota exceeded (`FILES_QUOTA_EXCEEDED`)
+- ☐ Exclude trashed items from quota calculation (configurable)
+
+#### Quota Administration
+- ☐ Admin can set per-user quota limits
+- ☐ Admin can set default quota for new users
+- ☐ Admin can view quota usage across all users
+- ☐ Admin can force quota recalculation
+
+#### Quota Notifications
+- ☐ Warning notification at 80% usage
+- ☐ Critical notification at 95% usage
+- ☐ Notification when quota is exceeded (prevent further uploads)
+
+#### Quota Display
+- ☐ Show quota usage in file browser UI (progress bar)
+- ☐ Show quota in admin user management
+
+---
+
+## Phase 1.10: WOPI Host & Collabora Integration
+
+### WOPI Protocol Implementation
+
+**Browser-based document editing via Collabora CODE/Online**
+
+#### WOPI Endpoints
+- ✓ `GET /api/v1/wopi/files/{fileId}` — CheckFileInfo (file metadata)
+- ✓ `GET /api/v1/wopi/files/{fileId}/contents` — GetFile (download content)
+- ✓ `POST /api/v1/wopi/files/{fileId}/contents` — PutFile (save edited content)
+- ☐ Implement WOPI access token generation (per-user, per-file, time-limited)
+- ☐ Implement WOPI access token validation
+- ☐ Implement WOPI proof key validation (Collabora signature verification)
+
+#### WOPI Integration
+- ☐ Read file content from `IFileStorageEngine` in GetFile
+- ☐ Write saved content via chunked upload pipeline in PutFile
+- ☐ Create new file version on each PutFile save
+- ☐ Enforce permission checks via `CallerContext`
+- ☐ Support concurrent editing (Collabora handles OT internally)
+
+#### Collabora CODE Management
+- ☐ Implement Collabora CODE download and auto-installation in `dotnetcloud setup`
+- ☐ Create Collabora CODE process management under process supervisor
+- ☐ Implement WOPI discovery endpoint integration
+- ☐ Configure TLS/URL routing for Collabora
+- ☐ Create Collabora health check
+
+#### Collabora Configuration
+- ☐ Admin UI for Collabora server URL (built-in CODE vs. external)
+- ☐ Auto-save interval configuration
+- ☐ Maximum concurrent document sessions configuration
+- ☐ Supported file format configuration
+
+#### Blazor Integration
+- ☐ Create document editor component (iframe embedding Collabora UI)
+- ☐ Open supported documents in editor from file browser
+- ☐ Show "download to edit locally" for E2EE files
+- ☐ Display co-editing indicators (who is editing)
+
+---
+
+## Phase 1.11: File Browser Web UI (Blazor)
+
+### DotNetCloud.Modules.Files UI Components
+
+**Blazor file management interface**
+
+#### File Browser Component
+- ✓ Create `FileBrowser.razor` main component:
+  - ✓ Grid view (icon + name + size + date)
+  - ✓ List view (tabular with columns)
+  - ✓ View mode toggle (grid/list)
+  - ✓ Breadcrumb navigation
+  - ✓ Folder navigation (click to enter, back button)
+  - ✓ Multi-select (checkbox per item)
+  - ✓ Pagination (page controls, configurable page size)
+  - ☐ Sort by name, size, date, type (column header click)
+  - ☐ Right-click context menu (rename, move, copy, share, delete, download)
+  - ☐ Drag-and-drop file reordering / move to folder
+  - ☐ Empty state placeholder ("No files yet — upload or create a folder")
+  - ☐ Loading skeleton while fetching data
+
+#### File Upload Component
+- ✓ Create `FileUploadComponent.razor`:
+  - ✓ File selection button
+  - ☐ Drag-and-drop upload area
+  - ☐ Upload progress bar per file
+  - ☐ Multiple file upload support
+  - ☐ Upload queue management (pause, resume, cancel)
+  - ☐ Paste image upload (clipboard integration)
+  - ☐ Size validation before upload
+
+#### File Preview Component
+- ✓ Create `FilePreview.razor`:
+  - ☐ Image preview (inline display for common formats)
+  - ☐ Video preview (HTML5 video player)
+  - ☐ Audio preview (HTML5 audio player)
+  - ☐ PDF preview (embedded viewer)
+  - ☐ Text/code preview (syntax highlighting)
+  - ☐ Markdown preview (rendered HTML)
+  - ☐ Unsupported format fallback (download button)
+  - ☐ Navigation between files in same folder (prev/next)
+
+#### Share Dialog Component
+- ✓ Create `ShareDialog.razor`:
+  - ✓ User search for sharing
+  - ✓ Permission selection (Read, ReadWrite, Full)
+  - ✓ Public link generation
+  - ☐ Password protection toggle for public links
+  - ☐ Expiration date picker
+  - ☐ Max downloads input
+  - ☐ Copy link button
+  - ☐ Existing shares list with remove action
+
+#### Trash Bin Component
+- ✓ Create `TrashBin.razor`:
+  - ✓ List trashed items with deleted date
+  - ✓ Restore button per item
+  - ✓ Permanent delete button per item
+  - ✓ Empty trash button
+  - ☐ Trash size display
+  - ☐ Sort by name, date deleted, size
+  - ☐ Bulk restore / bulk delete
+
+#### Sidebar & Navigation
+- ☐ Create file browser sidebar:
+  - ☐ "All Files" navigation item
+  - ☐ "Favorites" navigation item
+  - ☐ "Recent" navigation item
+  - ☐ "Shared with me" navigation item
+  - ☐ "Shared by me" navigation item
+  - ☐ "Tags" navigation item (expandable tag list)
+  - ☐ "Trash" navigation item with item count badge
+  - ☐ Storage quota display (progress bar + text)
+
+#### Version History Panel
+- ☐ Create version history side panel:
+  - ☐ List versions with date, author, and size
+  - ☐ Download specific version
+  - ☐ Restore to specific version
+  - ☐ Add/edit version labels
+  - ☐ Delete old versions
+
+#### Settings & Admin UI
+- ☐ Create Files module settings page:
+  - ☐ Default quota for new users
+  - ☐ Trash retention period
+  - ☐ Version retention settings
+  - ☐ Maximum upload size
+  - ☐ Allowed/blocked file types
+  - ☐ Storage path configuration
+
+---
+
+## Phase 1.12: File Upload & Preview UI
+
+### Upload & Preview Enhancement
+
+**Advanced upload and preview capabilities**
+
+#### Drag-and-Drop Upload
+- ☐ Implement drag-and-drop zone on file browser
+- ☐ Visual indicator when dragging files over drop zone
+- ☐ Support folder drag-and-drop (recursive upload)
+- ☐ Show upload progress overlay on file browser
+
+#### Upload Progress Tracking
+- ☐ Create upload progress panel:
+  - ☐ Per-file progress bar (chunk-level accuracy)
+  - ☐ Overall upload progress
+  - ☐ Upload speed display
+  - ☐ Estimated time remaining
+  - ☐ Pause/resume per file
+  - ☐ Cancel per file
+  - ☐ Minimize/expand progress panel
+
+#### Thumbnail Generation
+- ☐ Generate thumbnails for image files on upload
+- ☐ Generate thumbnails for video files (first frame)
+- ☐ Generate thumbnails for PDF files (first page)
+- ☐ Cache thumbnails on server
+- ☐ Serve thumbnails via API endpoint
+- ☐ Display thumbnails in grid view
+
+#### Advanced Preview
+- ☐ Create full-screen preview mode
+- ☐ Support keyboard navigation (arrow keys, Escape)
+- ☐ Support touch gestures (swipe, pinch-zoom)
+- ☐ Display file metadata in preview (size, dates, tags)
+- ☐ Download button from preview
+- ☐ Share button from preview
+
+---
+
+## Phase 1.13: File Sharing & Settings UI
+
+### Sharing Interface & Module Settings
+
+**Share management and Files module administration**
+
+#### Share Management UI
+- ☐ Create comprehensive share dialog:
+  - ☐ Search users by name/email for sharing
+  - ☐ Search teams for sharing
+  - ☐ Search groups for sharing
+  - ☐ Show all existing shares for a node
+  - ☐ Inline permission change dropdown
+  - ☐ Inline share removal
+  - ☐ Public link section with toggle, copy, and settings
+- ☐ Create "Shared with me" view:
+  - ☐ List all files/folders shared with current user
+  - ☐ Group by share source (who shared)
+  - ☐ Show permission level
+  - ☐ Accept/decline share (optional)
+- ☐ Create "Shared by me" view:
+  - ☐ List all files/folders shared by current user
+  - ☐ Show share recipients and permissions
+  - ☐ Manage/revoke shares inline
+
+#### Files Module Admin Settings
+- ☐ Create admin settings page for Files module:
+  - ☐ Storage backend configuration
+  - ☐ Default quota management
+  - ☐ Trash auto-cleanup settings
+  - ☐ Version retention configuration
+  - ☐ Upload limits (max file size, allowed types)
+  - ☐ Collabora integration settings
+
+---
+
+## Phase 1.14: Client.Core — Shared Sync Engine
+
+### DotNetCloud.Client.Core Project
+
+**Shared library for all clients (sync engine, API, auth, local state)**
+
+#### Project Setup
+- ☐ Create `DotNetCloud.Client.Core` class library project
+- ☐ Add to `DotNetCloud.sln`
+- ☐ Configure dependencies (HttpClient, SQLite, System.IO, etc.)
+
+#### API Client
+- ☐ Create `IDotNetCloudApiClient` interface:
+  - ☐ Authentication (login, token refresh, logout)
+  - ☐ File operations (list, create, rename, move, copy, delete)
+  - ☐ Upload operations (initiate, upload chunk, complete)
+  - ☐ Download operations (file, version, chunk)
+  - ☐ Sync operations (reconcile, changes since, tree)
+  - ☐ Quota operations (get quota)
+- ☐ Implement `DotNetCloudApiClient` using `HttpClient`
+- ☐ Implement retry with exponential backoff
+- ☐ Handle rate limiting (429 responses, respect Retry-After header)
+
+#### OAuth2 PKCE Authentication
+- ☐ Implement OAuth2 Authorization Code with PKCE flow
+- ☐ Launch system browser for authentication
+- ☐ Handle redirect URI callback (localhost listener)
+- ☐ Store tokens securely (Windows DPAPI / Linux keyring)
+- ☐ Implement automatic token refresh
+- ☐ Handle token revocation
+
+#### Sync Engine
+- ☐ Create `ISyncEngine` interface:
+  - ☐ `Task SyncAsync(SyncContext context, CancellationToken cancellationToken)`
+  - ☐ `Task<SyncStatus> GetStatusAsync(SyncContext context)`
+  - ☐ `Task PauseAsync(SyncContext context)`
+  - ☐ `Task ResumeAsync(SyncContext context)`
+- ☐ Implement `SyncEngine`:
+  - ☐ `FileSystemWatcher` for instant change detection
+  - ☐ Periodic full scan as safety net (configurable interval, default 5 minutes)
+  - ☐ Reconcile local state with server state
+  - ☐ Detect local changes (new, modified, deleted, moved/renamed)
+  - ☐ Detect remote changes (poll server or SignalR push)
+  - ☐ Apply changes bidirectionally (upload local → server, download server → local)
+  - ☐ Conflict detection and resolution (conflict copy with guided notification)
+
+#### Chunked Transfer Client
+- ☐ Implement client-side file chunking (4MB chunks)
+- ☐ Implement client-side SHA-256 hashing per chunk
+- ☐ Implement client-side chunk manifest generation
+- ☐ Upload only missing chunks (deduplication)
+- ☐ Download only changed chunks (delta sync)
+- ☐ Resume interrupted transfers
+- ☐ Configurable concurrent chunk upload/download count
+
+#### Conflict Resolution
+- ☐ Detect conflicts (local and remote both modified since last sync)
+- ☐ Create conflict copies: `report (conflict - Ben - 2025-07-14).docx`
+- ☐ Notify user of conflicts (via SyncTray notification)
+- ☐ Preserve both versions (no silent data loss)
+
+#### Local State Database
+- ☐ Create SQLite database per sync context:
+  - ☐ File metadata table (path, hash, modified time, sync state)
+  - ☐ Pending operations queue (uploads, downloads, moves, deletes)
+  - ☐ Sync cursor/checkpoint (last sync timestamp or change token)
+  - ☐ Account configuration (server URL, user ID, token reference)
+- ☐ Implement state database access layer
+
+#### Selective Sync
+- ☐ Implement folder selection for sync (include/exclude)
+- ☐ Persist selective sync configuration per account
+- ☐ Skip excluded folders during sync operations
+- ☐ Handle server-side changes in excluded folders gracefully
+
+---
+
+## Phase 1.15: Client.SyncService — Background Sync Worker
+
+### DotNetCloud.Client.SyncService Project
+
+**Background sync service (Windows Service / systemd unit)**
+
+#### Project Setup
+- ☐ Create `DotNetCloud.Client.SyncService` .NET Worker Service project
+- ☐ Add to `DotNetCloud.sln`
+- ☐ Configure Windows Service support (`UseWindowsService()`)
+- ☐ Configure systemd support (`UseSystemd()`)
+
+#### Multi-User Support
+- ☐ Implement sync context management (one per OS-user + account pair)
+- ☐ Run as system-level service (single process, multiple contexts)
+- ☐ Data isolation: each context has own sync folder, state DB, auth token
+- ☐ Linux: drop privileges per context (UID/GID of target OS user)
+- ☐ Windows: impersonate OS user for file system operations
+
+#### IPC Server
+- ☐ Implement IPC server for SyncTray communication:
+  - ☐ Named Pipe on Windows
+  - ☐ Unix domain socket on Linux
+- ☐ IPC protocol:
+  - ☐ Identify caller by OS user identity
+  - ☐ Return only caller's sync contexts (no cross-user data)
+  - ☐ Commands: list-contexts, add-account, remove-account, get-status, pause, resume, sync-now
+  - ☐ Events: sync-progress, sync-complete, conflict-detected, error
+
+#### Sync Orchestration
+- ☐ Start sync engine per context on service start
+- ☐ Schedule periodic full syncs
+- ☐ Handle file system watcher events
+- ☐ Rate-limit sync operations (avoid overwhelming server)
+- ☐ Batch small changes before syncing (debounce)
+- ☐ Graceful shutdown (complete in-progress transfers, save state)
+
+#### Account Management
+- ☐ Add account (receive OAuth2 tokens from SyncTray, create sync context)
+- ☐ Remove account (stop sync, delete state DB, optionally delete local files)
+- ☐ Support multiple accounts per OS user (e.g., personal + work server)
+
+#### Error Handling & Recovery
+- ☐ Retry failed operations with exponential backoff
+- ☐ Handle network disconnection gracefully (queue changes, retry on reconnect)
+- ☐ Handle server errors (5xx — retry; 4xx — log and skip)
+- ☐ Handle disk full conditions (pause sync, notify user)
+- ☐ Log all sync activity with structured logging
+
+---
+
+## Phase 1.16: Client.SyncTray — Avalonia Tray App
+
+### DotNetCloud.Client.SyncTray Project
+
+**Tray icon, sync status, and settings for desktop users**
+
+#### Project Setup
+- ☐ Create `DotNetCloud.Client.SyncTray` Avalonia project
+- ☐ Add to `DotNetCloud.sln`
+- ☐ Configure tray icon support (Windows + Linux)
+- ☐ Configure single-instance enforcement
+
+#### Tray Icon
+- ☐ Display tray icon with sync status indicators:
+  - ☐ Idle (synced, green check)
+  - ☐ Syncing (animated spinner)
+  - ☐ Paused (yellow pause icon)
+  - ☐ Error (red exclamation)
+  - ☐ Offline (gray disconnected)
+- ☐ Show tooltip with sync summary (e.g., "3 files syncing, 2.5 GB free")
+
+#### Tray Context Menu
+- ☐ "Open sync folder" (opens file explorer at sync root)
+- ☐ "Open DotNetCloud in browser" (opens web UI)
+- ☐ "Sync now" (trigger immediate sync)
+- ☐ "Pause syncing" / "Resume syncing"
+- ☐ "Settings..." (open settings window)
+- ☐ "Quit"
+
+#### Settings Window
+- ☐ Account management:
+  - ☐ List connected accounts (server URL, user, status)
+  - ☐ Add account button (launches OAuth2 flow in browser)
+  - ☐ Remove account button
+  - ☐ Switch default account
+- ☐ Sync folder configuration:
+  - ☐ Change sync root folder
+  - ☐ Selective sync (folder tree with checkboxes)
+- ☐ General settings:
+  - ☐ Start on login (auto-start)
+  - ☐ Full scan interval
+  - ☐ Bandwidth limits (upload/download)
+  - ☐ Notification preferences
+
+#### Notifications
+- ☐ Show Windows toast / Linux libnotify notifications:
+  - ☐ Sync completed
+  - ☐ Conflict detected (with "Resolve" action)
+  - ☐ Error occurred (with details)
+  - ☐ Quota warning (80%, 95%)
+
+#### IPC Client
+- ☐ Connect to SyncService via Named Pipe / Unix socket
+- ☐ Receive real-time sync status updates
+- ☐ Send commands (pause, resume, sync-now, add-account, remove-account)
+- ☐ Handle SyncService unavailable (display "Service not running" status)
+
+---
+
+## Phase 1.17: Bulk Operations & Tags
+
+### Bulk Operations
+
+**Batch file operations for efficiency**
+
+#### Bulk Move
+- ☐ Accept list of node IDs and target folder ID
+- ☐ Validate all nodes exist and caller has permission
+- ☐ Move all nodes in a single transaction
+- ☐ Update materialized paths for all moved nodes
+- ☐ Return success/failure per node
+
+#### Bulk Copy
+- ☐ Accept list of node IDs and target folder ID
+- ☐ Deep-copy folders (recursive)
+- ☐ Reuse chunks for file copies (reference count increment only)
+- ☐ Return new node IDs for all copies
+- ☐ Enforce quota check for total copy size
+
+#### Bulk Delete
+- ☐ Accept list of node IDs
+- ☐ Soft-delete all to trash in a single transaction
+- ☐ Publish `FileDeletedEvent` per node
+
+#### Bulk Permanent Delete
+- ☐ Accept list of node IDs (from trash)
+- ☐ Permanent delete with chunk cleanup
+- ☐ Update quota per user
+
+### Tag System
+
+#### Tag Management
+- ☐ Create/assign tags to files and folders
+- ☐ Remove tags from files and folders
+- ☐ Tag color customization
+- ☐ List all files with a specific tag
+- ☐ List all user tags with usage counts
+
+#### Tag UI
+- ☐ Tag display on file items (colored badges)
+- ☐ Tag filter sidebar (click tag to filter view)
+- ☐ Tag autocomplete when adding tags
+- ☐ Bulk tag operations (add/remove tag from selected items)
+
+---
+
+## Phase 1.18: Files gRPC Host
+
+### DotNetCloud.Modules.Files.Host Project
+
+**gRPC service implementation for Files module**
+
+#### Proto Definitions
+- ☐ Create `files_service.proto`:
+  - ☐ `rpc ListNodes(ListNodesRequest) returns (ListNodesResponse)`
+  - ☐ `rpc GetNode(GetNodeRequest) returns (NodeResponse)`
+  - ☐ `rpc CreateFolder(CreateFolderRequest) returns (NodeResponse)`
+  - ☐ `rpc RenameNode(RenameNodeRequest) returns (NodeResponse)`
+  - ☐ `rpc MoveNode(MoveNodeRequest) returns (NodeResponse)`
+  - ☐ `rpc CopyNode(CopyNodeRequest) returns (NodeResponse)`
+  - ☐ `rpc DeleteNode(DeleteNodeRequest) returns (Empty)`
+  - ☐ `rpc InitiateUpload(InitiateUploadRequest) returns (UploadSessionResponse)`
+  - ☐ `rpc UploadChunk(UploadChunkRequest) returns (Empty)`
+  - ☐ `rpc CompleteUpload(CompleteUploadRequest) returns (NodeResponse)`
+  - ☐ `rpc DownloadFile(DownloadRequest) returns (stream DownloadChunk)`
+  - ☐ `rpc CreateShare(CreateShareRequest) returns (ShareResponse)`
+  - ☐ `rpc ListVersions(ListVersionsRequest) returns (ListVersionsResponse)`
+  - ☐ `rpc RestoreVersion(RestoreVersionRequest) returns (NodeResponse)`
+- ☐ Create `files_lifecycle.proto` (start, stop, health)
+
+#### gRPC Service Implementation
+- ✓ Create `FilesGrpcService` implementing the proto service
+- ✓ Create `FilesLifecycleService` for module lifecycle gRPC
+- ✓ Create `FilesHealthCheck` health check implementation
+
+#### Host Program
+- ✓ Configure `Program.cs`:
+  - ✓ Register EF Core `FilesDbContext`
+  - ✓ Register all file services
+  - ✓ Map gRPC services
+  - ✓ Map REST controllers
+  - ✓ Configure Serilog
+  - ✓ Configure OpenTelemetry
+
+---
+
+## Phase 1.19: Testing Infrastructure
+
+### Unit Tests
+
+#### DotNetCloud.Modules.Files.Tests
+
+- ✓ `FilesModuleManifestTests` — Id, Name, Version, capabilities, events (10 tests)
+- ✓ `FilesModuleTests` — lifecycle (initialize, start, stop, dispose) (18 tests)
+- ✓ `FileNodeTests` — model creation, defaults, properties, tree structure (15 tests)
+- ✓ `FileQuotaTests` — quota calculation, limits, remaining bytes (11 tests)
+- ✓ `EventTests` — all event records, IEvent interface compliance (10 tests)
+- ✓ `FileUploadedEventHandlerTests` — handler logic, logging, cancellation (4 tests)
+- ✓ `ContentHasherTests` — SHA-256 hashing, empty input, large data (15 tests)
+- ✓ `LocalFileStorageEngineTests` — read, write, delete, exists, stream, size (17 tests)
+- ☐ `FileServiceTests` — CRUD operations, authorization, name validation, materialized paths
+- ☐ `ChunkedUploadServiceTests` — initiate, upload chunk, complete, cancel, dedup, quota
+- ☐ `DownloadServiceTests` — file download, version download, chunk download, permissions
+- ☐ `VersionServiceTests` — list, get, restore, delete, label, retention
+- ☐ `ShareServiceTests` — create, list, delete, update, public link, password, expiry
+- ☐ `TrashServiceTests` — list, restore, permanent delete, empty, cascade, quota update
+- ☐ `QuotaServiceTests` — get, set, recalculate, enforcement, notifications
+- ☐ `TagServiceTests` — add, remove, list by tag, list user tags
+- ☐ `CommentServiceTests` — add, edit, delete, list, threaded replies
+- ☐ `BulkOperationTests` — bulk move, copy, delete, error handling per item
+
+### Integration Tests
+
+- ☐ Add Files API integration tests to `DotNetCloud.Integration.Tests`:
+  - ☐ File CRUD via REST API (create folder, upload file, rename, move, delete)
+  - ☐ Chunked upload end-to-end (initiate, upload chunks, complete, verify)
+  - ☐ Download file and verify content integrity
+  - ☐ Version create and restore
+  - ☐ Share create, access via public link, password validation
+  - ☐ Trash and restore workflow
+  - ☐ Quota enforcement (upload rejected when quota exceeded)
+  - ☐ Bulk operations (move, copy, delete)
+  - ☐ WOPI endpoint integration (CheckFileInfo, GetFile, PutFile)
+  - ☐ Sync endpoints (reconcile, changes since, tree)
+  - ☐ Multi-database tests (PostgreSQL, SQL Server)
+
+### Client Tests
+
+- ☐ Create `DotNetCloud.Client.Tests` project:
+  - ☐ Sync engine tests (change detection, reconciliation, conflict detection)
+  - ☐ Chunked transfer client tests (split, hash, upload, resume)
+  - ☐ API client tests (mock HTTP responses, retry logic, rate limiting)
+  - ☐ Local state database tests (SQLite operations)
+  - ☐ OAuth2 PKCE flow tests
+  - ☐ Selective sync tests (include/exclude logic)
+
+---
+
+## Phase 1.20: Documentation
+
+### Files Module Documentation
+
+- ☐ Create `docs/modules/files/README.md` — module overview and architecture
+- ☐ Create `docs/modules/files/API.md` — complete REST API reference with examples
+- ☐ Create `docs/modules/files/ARCHITECTURE.md` — data model, chunking strategy, dedup
+- ☐ Create `docs/modules/files/SHARING.md` — sharing types, permissions, public links
+- ☐ Create `docs/modules/files/VERSIONING.md` — version management and retention
+- ☐ Create `docs/modules/files/WOPI.md` — Collabora/WOPI integration guide
+- ☐ Create `docs/modules/files/SYNC.md` — desktop sync architecture and protocol
+- ☐ Create `src/Modules/Files/DotNetCloud.Modules.Files/README.md` — developer README
+
+### Desktop Client Documentation
+
+- ☐ Create `docs/clients/desktop/README.md` — SyncService + SyncTray overview
+- ☐ Create `docs/clients/desktop/SETUP.md` — installation and account setup
+- ☐ Create `docs/clients/desktop/SYNC_PROTOCOL.md` — sync engine internals
+- ☐ Create `docs/clients/desktop/TROUBLESHOOTING.md` — common issues and fixes
+
+### Admin Documentation
+
+- ☐ Create `docs/admin/files/CONFIGURATION.md` — storage, quotas, retention, upload limits
+- ☐ Create `docs/admin/files/COLLABORA.md` — Collabora CODE setup and administration
+- ☐ Create `docs/admin/files/BACKUP.md` — file data backup and restore procedures
+
+### User Documentation
+
+- ☐ Create `docs/user/files/GETTING_STARTED.md` — upload, browse, share, organize
+- ☐ Create `docs/user/files/SYNC_CLIENT.md` — install sync client, connect to server
+- ☐ Create `docs/user/files/DOCUMENT_EDITING.md` — online editing with Collabora
+
+### Inline Documentation
+
+- ☐ Add XML documentation (`///`) to all public types and methods
+- ☐ Add README to each Files project root
+
+---
+
+## Phase 1 Completion Checklist
+
+### Functionality Verification
+
+- ☐ All Files projects compile without errors
+- ☐ All unit tests pass
+- ☐ All integration tests pass against PostgreSQL
+- ☐ All integration tests pass against SQL Server
+- ☐ Files can be uploaded, downloaded, renamed, moved, copied, and deleted
+- ☐ Folders can be created, navigated, and managed
+- ☐ Chunked upload with content-hash deduplication works end-to-end
+- ☐ Interrupted uploads can be resumed
+- ☐ File versioning stores history and allows restore
+- ☐ Sharing works for users, teams, groups, and public links
+- ☐ Public links with password protection and download limits work
+- ☐ Trash bin supports soft-delete, restore, and permanent delete
+- ☐ Trash auto-cleanup permanently deletes expired items
+- ☐ Storage quotas enforce per-user limits
+- ☐ Quota warnings are sent at 80% and 95% usage
+- ☐ Collabora CODE integration enables browser-based document editing
+- ☐ WOPI endpoints respond correctly (CheckFileInfo, GetFile, PutFile)
+- ☐ File browser Blazor UI supports grid/list view, navigation, upload, and sharing
+- ☐ File preview works for images, video, audio, PDF, text/code, and Markdown
+- ☐ Drag-and-drop upload works in file browser
+- ☐ Tags can be added, removed, and filtered
+- ☐ Comments can be added, edited, deleted, and threaded
+- ☐ Bulk operations (move, copy, delete) work via REST API
+- ☐ Sync endpoints return correct change data for clients
+
+### Desktop Sync Client
+
+- ☐ SyncService installs as Windows Service and systemd unit
+- ☐ SyncService manages multiple sync contexts (multi-user, multi-account)
+- ☐ SyncTray displays correct sync status in tray icon
+- ☐ SyncTray settings allow account management and selective sync
+- ☐ Files sync bidirectionally between server and desktop
+- ☐ Conflict detection creates conflict copies (no data loss)
+- ☐ Sync resumes correctly after network disconnection
+- ☐ Sync handles large files (100MB+) via chunked transfer
+
+### Module System Integration
+
+- ☐ Files module loads via module system and responds to health checks
+- ☐ gRPC communication with Files module host works
+- ☐ Files module logs are enriched with context
+- ☐ Files module errors are handled gracefully
+- ☐ OpenAPI documentation is generated for Files API endpoints
+- ☐ Internationalization works for Files UI strings
+- ☐ Observability (logging, metrics, tracing) works for Files module
+
+### Security
+
+- ☐ All endpoints enforce authentication ([Authorize])
+- ☐ Permission checks enforce ownership and share access
+- ☐ Public link access works without authentication
+- ☐ Public link passwords are hashed (not stored in plain text)
+- ☐ WOPI tokens are scoped, signed, and time-limited
+- ☐ File path traversal attacks are blocked
+- ☐ Quota enforcement prevents storage abuse
+- ☐ Rate limiting applies to upload endpoints
 
 ---
 
