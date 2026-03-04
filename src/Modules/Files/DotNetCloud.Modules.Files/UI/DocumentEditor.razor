@@ -1,0 +1,64 @@
+@namespace DotNetCloud.Modules.Files.UI
+
+@*
+    Document editor component — embeds Collabora Online editor in an iframe via WOPI.
+    Shows loading state while token is being generated, error state if Collabora is unavailable,
+    and co-editing indicators when multiple users are editing.
+    Code-behind: DocumentEditor.razor.cs
+*@
+
+<div class="document-editor-container">
+    @if (IsLoading)
+    {
+        <div class="editor-loading">
+            <div class="spinner"></div>
+            <p>Opening document editor...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(ErrorMessage))
+    {
+        <div class="editor-error">
+            <p class="error-icon">[!]</p>
+            <p class="error-message">@ErrorMessage</p>
+            <div class="error-actions">
+                <button class="btn btn-primary" @onclick="RetryAsync">Retry</button>
+                <button class="btn" @onclick="DownloadInstead">Download to edit locally</button>
+                @if (OnClose.HasDelegate)
+                {
+                    <button class="btn" @onclick="OnClose">Close</button>
+                }
+            </div>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(EditorUrl))
+    {
+        <div class="editor-header">
+            <span class="editor-filename">@FileName</span>
+            @if (CoEditingUsers.Count > 0)
+            {
+                <span class="co-editing-indicator" title="@string.Join(", ", CoEditingUsers) also editing">
+                    @CoEditingUsers.Count other(s) editing
+                </span>
+            }
+            <div class="editor-actions">
+                @if (OnClose.HasDelegate)
+                {
+                    <button class="btn btn-sm" @onclick="OnClose" title="Close editor">Close</button>
+                }
+            </div>
+        </div>
+        <iframe class="collabora-frame"
+                src="@EditorUrl"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+                allow="clipboard-read; clipboard-write"
+                title="Document Editor - @FileName">
+        </iframe>
+    }
+    else
+    {
+        <div class="editor-unavailable">
+            <p>Online editing is not available.</p>
+            <button class="btn btn-primary" @onclick="DownloadInstead">Download to edit locally</button>
+        </div>
+    }
+</div>

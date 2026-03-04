@@ -45,7 +45,7 @@
 | Phase 1.7 | 11 | 11 | 0 | 0 |
 | Phase 1.8 | 8 | 8 | 0 | 0 |
 | Phase 1.9 | 14 | 14 | 0 | 0 |
-| Phase 1.10 | 24 | 3 | 0 | 21 |
+| Phase 1.10 | 24 | 14 | 0 | 10 |
 | Phase 1.11 | 8 | 5 | 0 | 3 |
 | Phase 1.12 | 17 | 0 | 0 | 17 |
 | Phase 1.13 | 4 | 0 | 0 | 4 |
@@ -2629,6 +2629,43 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Dependencies:** phase-1.8
 **Blocking Issues:** None
 **Notes:** Phase 1.9 complete. `ExcludeTrashedFromQuota` works via `IgnoreQueryFilters()` since `FileNode` has a global soft-delete query filter. Quota increment on copy handles both file and folder subtrees via `CalculateSubtreeSizeAsync`. 396 total Files tests pass.
+
+---
+
+### Step: phase-1.10 - WOPI Host & Collabora Integration
+**Status:** in-progress 🔄
+**Duration:** ~6 hours (actual, across sessions)
+**Description:** Implement WOPI protocol endpoints (CheckFileInfo, GetFile, PutFile) with HMAC-signed access tokens, Collabora discovery service, health check, and Blazor document editor component.
+
+**Deliverables:**
+- ✓ `CollaboraOptions` — configuration model (ServerUrl, WopiBaseUrl, TokenSigningKey, TokenLifetimeMinutes, Enabled, etc.)
+- ✓ `FilesErrorCodes` — WOPI-specific error codes (WopiTokenInvalid, WopiTokenExpired, WopiFileNotSupported, CollaboraUnavailable)
+- ✓ WOPI DTOs — `WopiCheckFileInfoResponse`, `WopiAccessTokenDto`, `WopiTokenPayload`, `WopiTokenContext`, `WopiFileContentResult`, `CollaboraDiscoveryResult`, `CollaboraAction`
+- ✓ `IWopiTokenService` — interface for HMAC-SHA256 token generation and validation
+- ✓ `IWopiService` — interface for CheckFileInfo, GetFile, PutFile operations
+- ✓ `ICollaboraDiscoveryService` — interface for WOPI discovery XML parsing, editor URL resolution, extension support
+- ✓ `WopiTokenService` — HMAC-SHA256 signed tokens with userId, fileId, permissions, expiry; Base64URL-safe encoding
+- ✓ `WopiService` — CheckFileInfo (permission-aware UserCanWrite), GetFile (via DownloadService), PutFile (chunk + version creation with deduplication)
+- ✓ `CollaboraDiscoveryService` — XML discovery parsing, cached results, editor URL construction, extension support queries
+- ✓ `CollaboraHealthCheck` — IHealthCheck implementation checking Collabora availability
+- ✓ `WopiController` — rewritten with token-validated WOPI endpoints, token generation endpoint, discovery endpoints
+- ✓ Service registration in `FilesServiceRegistration` — all WOPI/Collabora services, HttpClient("Collabora"), health check
+- ✓ `DocumentEditor.razor` + `.razor.cs` — Blazor component with iframe embedding, loading/error states, co-editing indicators, supported format detection
+- ✓ 34 unit tests — `WopiTokenServiceTests` (11), `WopiServiceTests` (14), `CollaboraDiscoveryServiceTests` (10) — all passing
+- ☐ WOPI proof key validation (Collabora signature verification) — deferred
+- ☐ Collabora CODE download/auto-installation in `dotnetcloud setup` — deferred
+- ☐ Collabora process management under process supervisor — deferred
+- ☐ TLS/URL routing for Collabora — deferred
+- ☐ Admin UI for Collabora configuration — deferred
+- ☐ Auto-save interval configuration — deferred
+- ☐ Max concurrent sessions configuration — deferred
+- ☐ Supported file format configuration — deferred
+- ☐ Open supported documents from file browser — deferred
+- ☐ Firebase Admin SDK credentials configuration — deferred
+
+**Dependencies:** phase-1.3 (services), phase-1.5 (chunking)
+**Blocking Issues:** None
+**Notes:** Core WOPI protocol fully implemented with signed token auth, chunk-based file storage, and deduplication. 430 total Files tests pass. Collabora management/admin features deferred to later iteration.
 
 ---
 

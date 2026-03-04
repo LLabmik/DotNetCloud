@@ -23,12 +23,14 @@ public static class FilesServiceRegistration
             services.Configure<VersionRetentionOptions>(configuration.GetSection(VersionRetentionOptions.SectionName));
             services.Configure<TrashRetentionOptions>(configuration.GetSection(TrashRetentionOptions.SectionName));
             services.Configure<QuotaOptions>(configuration.GetSection(QuotaOptions.SectionName));
+            services.Configure<CollaboraOptions>(configuration.GetSection(CollaboraOptions.SectionName));
         }
         else
         {
             services.Configure<VersionRetentionOptions>(_ => { }); // use defaults
             services.Configure<TrashRetentionOptions>(_ => { }); // use defaults
             services.Configure<QuotaOptions>(_ => { }); // use defaults
+            services.Configure<CollaboraOptions>(_ => { }); // use defaults
         }
 
         // Database-backed services (Scoped)
@@ -44,6 +46,20 @@ public static class FilesServiceRegistration
         services.AddScoped<ICommentService, CommentService>();
         services.AddScoped<ISyncService, SyncService>();
         services.AddScoped<IStorageMetricsService, StorageMetricsService>();
+
+        // WOPI / Collabora services (Scoped for DB access)
+        services.AddScoped<IWopiService, WopiService>();
+        services.AddScoped<IWopiTokenService, WopiTokenService>();
+
+        // Collabora discovery service (Singleton — caches discovery results)
+        services.AddSingleton<ICollaboraDiscoveryService, CollaboraDiscoveryService>();
+
+        // HTTP client for Collabora discovery
+        services.AddHttpClient("Collabora");
+
+        // Health check for Collabora
+        services.AddHealthChecks()
+            .AddCheck<CollaboraHealthCheck>("collabora_online");
 
         // Background services
         services.AddHostedService<UploadSessionCleanupService>();

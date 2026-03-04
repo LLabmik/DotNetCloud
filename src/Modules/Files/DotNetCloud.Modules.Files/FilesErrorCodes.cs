@@ -67,4 +67,19 @@ public static class FilesErrorCodes
 
     /// <summary>Cannot restore to original parent (deleted or missing).</summary>
     public const string RestoreParentMissing = "FILES_RESTORE_PARENT_MISSING";
+
+    /// <summary>WOPI access token is invalid or expired.</summary>
+    public const string WopiTokenInvalid = "FILES_WOPI_TOKEN_INVALID";
+
+    /// <summary>WOPI proof key validation failed.</summary>
+    public const string WopiProofKeyInvalid = "FILES_WOPI_PROOF_KEY_INVALID";
+
+    /// <summary>Collabora Online server is not available.</summary>
+    public const string CollaboraUnavailable = "FILES_COLLABORA_UNAVAILABLE";
+
+    /// <summary>File format is not supported for online editing.</summary>
+    public const string UnsupportedEditFormat = "FILES_UNSUPPORTED_EDIT_FORMAT";
+
+    /// <summary>Maximum concurrent editing sessions exceeded.</summary>
+    public const string MaxSessionsExceeded = "FILES_MAX_SESSIONS_EXCEEDED";
 }

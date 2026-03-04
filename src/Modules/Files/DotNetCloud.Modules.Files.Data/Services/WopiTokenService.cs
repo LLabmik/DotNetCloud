@@ -1,0 +1,194 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using DotNetCloud.Core.Authorization;
+using DotNetCloud.Modules.Files.DTOs;
+using DotNetCloud.Modules.Files.Models;
+using DotNetCloud.Modules.Files.Options;
+using DotNetCloud.Modules.Files.Services;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+namespace DotNetCloud.Modules.Files.Data.Services;
+
+/// <summary>
+/// Generates and validates WOPI access tokens using HMAC-SHA256 signatures.
+/// Tokens encode user ID, file ID, permissions, and expiry, signed with a secret key.
+/// </summary>
+internal sealed class WopiTokenService : IWopiTokenService
+{
+    private readonly FilesDbContext _db;
+    private readonly IPermissionService _permissionService;
+    private readonly ICollaboraDiscoveryService _discoveryService;
+    private readonly CollaboraOptions _options;
+    private readonly ILogger<WopiTokenService> _logger;
+    private readonly byte[] _signingKey;
+
+    public WopiTokenService(
+        FilesDbContext db,
+        IPermissionService permissionService,
+        ICollaboraDiscoveryService discoveryService,
+        IOptions<CollaboraOptions> options,
+        ILogger<WopiTokenService> logger)
+    {
+        _db = db;
+        _permissionService = permissionService;
+        _discoveryService = discoveryService;
+        _options = options.Value;
+        _logger = logger;
+        _signingKey = DeriveSigningKey(_options.TokenSigningKey);
+    }
+
+    /// <inheritdoc />
+    public async Task<WopiAccessTokenDto> GenerateTokenAsync(Guid fileId, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+
+        var node = await _db.FileNodes
+            .AsNoTracking()
+            .FirstOrDefaultAsync(n => n.Id == fileId && !n.IsDeleted, cancellationToken);
+
+        if (node is null)
+            throw new Core.Errors.NotFoundException($"File {fileId} not found.");
+
+        if (node.NodeType != FileNodeType.File)
+            throw new Core.Errors.InvalidOperationException("Cannot open a folder in the document editor.");
+
+        var permission = await _permissionService.GetEffectivePermissionAsync(fileId, caller, cancellationToken);
+        if (permission is null)
+            throw new Core.Errors.ForbiddenException("You do not have access to this file.");
+
+        bool canWrite = permission >= SharePermission.ReadWrite;
+
+        var expiresAt = DateTime.UtcNow.AddMinutes(_options.TokenLifetimeMinutes);
+        var payload = new WopiTokenPayload(caller.UserId, fileId, canWrite, expiresAt);
+        var token = CreateSignedToken(payload);
+
+        var extension = Path.GetExtension(node.Name)?.TrimStart('.') ?? string.Empty;
+        var editorUrlTemplate = await _discoveryService.GetEditorUrlAsync(extension, canWrite ? "edit" : "view", cancellationToken);
+
+        var wopiSrc = BuildWopiSrc(fileId);
+        var editorUrl = BuildEditorUrl(editorUrlTemplate, wopiSrc, token, expiresAt);
+
+        _logger.LogInformation("Generated WOPI token for file {FileId} ({FileName}), user {UserId}, canWrite={CanWrite}, expires={ExpiresAt}",
+            fileId, node.Name, caller.UserId, canWrite, expiresAt);
+
+        return new WopiAccessTokenDto
+        {
+            AccessToken = token,
+            AccessTokenTtl = new DateTimeOffset(expiresAt).ToUnixTimeMilliseconds(),
+            WopiSrc = wopiSrc,
+            EditorUrl = editorUrl
+        };
+    }
+
+    /// <inheritdoc />
+    public WopiTokenContext? ValidateToken(string accessToken, Guid fileId)
+    {
+        if (string.IsNullOrWhiteSpace(accessToken))
+            return null;
+
+        try
+        {
+            var parts = accessToken.Split('.');
+            if (parts.Length != 2)
+                return null;
+
+            var payloadBytes = Convert.FromBase64String(parts[0]);
+            var signatureBytes = Convert.FromBase64String(parts[1]);
+
+            // Verify signature
+            using var hmac = new HMACSHA256(_signingKey);
+            var expectedSignature = hmac.ComputeHash(payloadBytes);
+            if (!CryptographicOperations.FixedTimeEquals(signatureBytes, expectedSignature))
+            {
+                _logger.LogWarning("WOPI token signature validation failed for file {FileId}", fileId);
+                return null;
+            }
+
+            var payload = JsonSerializer.Deserialize<WopiTokenPayload>(payloadBytes);
+            if (payload is null)
+                return null;
+
+            // Verify file ID matches
+            if (payload.FileId != fileId)
+            {
+                _logger.LogWarning("WOPI token file ID mismatch: token={TokenFileId}, requested={RequestedFileId}",
+                    payload.FileId, fileId);
+                return null;
+            }
+
+            // Verify not expired
+            if (payload.ExpiresAt <= DateTime.UtcNow)
+            {
+                _logger.LogDebug("WOPI token expired for file {FileId}, user {UserId}", fileId, payload.UserId);
+                return null;
+            }
+
+            return new WopiTokenContext
+            {
+                UserId = payload.UserId,
+                FileId = payload.FileId,
+                CanWrite = payload.CanWrite,
+                ExpiresAt = payload.ExpiresAt
+            };
+        }
+        catch (Exception ex) when (ex is FormatException or JsonException)
+        {
+            _logger.LogWarning(ex, "WOPI token parsing failed for file {FileId}", fileId);
+            return null;
+        }
+    }
+
+    private string CreateSignedToken(WopiTokenPayload payload)
+    {
+        var payloadBytes = JsonSerializer.SerializeToUtf8Bytes(payload);
+        using var hmac = new HMACSHA256(_signingKey);
+        var signature = hmac.ComputeHash(payloadBytes);
+
+        return $"{Convert.ToBase64String(payloadBytes)}.{Convert.ToBase64String(signature)}";
+    }
+
+    private string BuildWopiSrc(Guid fileId)
+    {
+        var baseUrl = _options.WopiBaseUrl.TrimEnd('/');
+        return $"{baseUrl}/api/v1/wopi/files/{fileId}";
+    }
+
+    private static string BuildEditorUrl(string? editorUrlTemplate, string wopiSrc, string accessToken, DateTime expiresAt)
+    {
+        if (string.IsNullOrEmpty(editorUrlTemplate))
+            return string.Empty;
+
+        // Collabora editor URL template contains placeholders like <WOPI_SRC>
+        // Standard format: {editorUrl}?WOPISrc={wopiSrc}&access_token={token}&access_token_ttl={ttl}
+        var url = editorUrlTemplate;
+
+        // Remove template placeholders if present
+        var queryStart = url.IndexOf('?');
+        if (queryStart >= 0)
+        {
+            // Remove existing query parameters from template
+            var baseEditorUrl = url[..queryStart];
+            url = baseEditorUrl;
+        }
+
+        var ttl = new DateTimeOffset(expiresAt).ToUnixTimeMilliseconds();
+        return $"{url}?WOPISrc={Uri.EscapeDataString(wopiSrc)}&access_token={Uri.EscapeDataString(accessToken)}&access_token_ttl={ttl}";
+    }
+
+    private static byte[] DeriveSigningKey(string configuredKey)
+    {
+        if (!string.IsNullOrWhiteSpace(configuredKey) && configuredKey.Length >= 32)
+            return SHA256.HashData(Encoding.UTF8.GetBytes(configuredKey));
+
+        // Generate a random key if not configured (ephemeral — tokens won't survive restarts)
+        return RandomNumberGenerator.GetBytes(32);
+    }
+
+    /// <summary>
+    /// Internal token payload serialized to JSON and signed.
+    /// </summary>
+    private sealed record WopiTokenPayload(Guid UserId, Guid FileId, bool CanWrite, DateTime ExpiresAt);
+}

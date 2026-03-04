@@ -1,6 +1,6 @@
-using DotNetCloud.Modules.Files.Data;
+using DotNetCloud.Core.Authorization;
+using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace DotNetCloud.Modules.Files.Host.Controllers;
 
@@ -9,106 +9,168 @@ namespace DotNetCloud.Modules.Files.Host.Controllers;
 /// Enables Collabora Online/CODE to fetch and save files for browser-based document editing.
 /// </summary>
 /// <remarks>
-/// WOPI endpoints:
-/// - GET  /api/v1/wopi/files/{fileId}          → File info (CheckFileInfo)
-/// - GET  /api/v1/wopi/files/{fileId}/contents  → Download file (GetFile)
-/// - POST /api/v1/wopi/files/{fileId}/contents  → Save file (PutFile)
+/// WOPI protocol endpoints (called by Collabora, authenticated via access_token query parameter):
+/// - GET  /api/v1/wopi/files/{fileId}           → CheckFileInfo (file metadata)
+/// - GET  /api/v1/wopi/files/{fileId}/contents   → GetFile (download content)
+/// - POST /api/v1/wopi/files/{fileId}/contents   → PutFile (save edited content)
+///
+/// Token management endpoints (called by the DotNetCloud UI, authenticated via standard auth):
+/// - POST /api/v1/wopi/token/{fileId}            → Generate WOPI access token
+/// - GET  /api/v1/wopi/discovery                 → Check Collabora availability
 /// </remarks>
 [ApiController]
-[Route("api/v1/wopi/files")]
-public class WopiController : ControllerBase
+[Route("api/v1/wopi")]
+public class WopiController : FilesControllerBase
 {
-    private readonly FilesDbContext _db;
+    private readonly IWopiService _wopiService;
+    private readonly IWopiTokenService _tokenService;
+    private readonly ICollaboraDiscoveryService _discoveryService;
     private readonly ILogger<WopiController> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WopiController"/> class.
     /// </summary>
-    public WopiController(FilesDbContext db, ILogger<WopiController> logger)
+    public WopiController(
+        IWopiService wopiService,
+        IWopiTokenService tokenService,
+        ICollaboraDiscoveryService discoveryService,
+        ILogger<WopiController> logger)
     {
-        _db = db;
+        _wopiService = wopiService;
+        _tokenService = tokenService;
+        _discoveryService = discoveryService;
         _logger = logger;
     }
 
     /// <summary>
     /// WOPI CheckFileInfo — Returns metadata about a file.
     /// Called by Collabora when opening a document for editing.
+    /// Authenticated via the access_token query parameter.
     /// </summary>
-    [HttpGet("{fileId:guid}")]
-    public async Task<IActionResult> CheckFileInfoAsync(Guid fileId)
+    [HttpGet("files/{fileId:guid}")]
+    public async Task<IActionResult> CheckFileInfoAsync(Guid fileId, [FromQuery] string access_token)
     {
-        var node = await _db.FileNodes
-            .AsNoTracking()
-            .FirstOrDefaultAsync(n => n.Id == fileId);
+        var tokenContext = _tokenService.ValidateToken(access_token, fileId);
+        if (tokenContext is null)
+            return Unauthorized();
 
-        if (node is null)
+        var caller = ToCaller(tokenContext.UserId);
+        var result = await _wopiService.CheckFileInfoAsync(fileId, caller);
+
+        if (result is null)
             return NotFound();
 
-        // WOPI CheckFileInfo response
-        // See: https://learn.microsoft.com/en-us/microsoft-365/cloud-storage-partner-program/rest/files/checkfileinfo
-        return Ok(new
-        {
-            BaseFileName = node.Name,
-            OwnerId = node.OwnerId.ToString(),
-            Size = node.Size,
-            Version = node.CurrentVersion.ToString(),
-            UserCanWrite = true,
-            UserCanNotWriteRelative = false,
-            SupportsUpdate = true,
-            SupportsLocks = false,
-            SHA256 = node.ContentHash ?? string.Empty,
-            LastModifiedTime = node.UpdatedAt.ToString("O")
-        });
+        return Ok(result);
     }
 
     /// <summary>
-    /// WOPI GetFile — Returns the file content.
+    /// WOPI GetFile — Returns the file content as a byte stream.
     /// Called by Collabora to load a document for editing.
+    /// Authenticated via the access_token query parameter.
     /// </summary>
-    [HttpGet("{fileId:guid}/contents")]
-    public async Task<IActionResult> GetFileAsync(Guid fileId)
+    [HttpGet("files/{fileId:guid}/contents")]
+    public async Task<IActionResult> GetFileAsync(Guid fileId, [FromQuery] string access_token)
     {
-        var node = await _db.FileNodes
-            .AsNoTracking()
-            .FirstOrDefaultAsync(n => n.Id == fileId);
+        var tokenContext = _tokenService.ValidateToken(access_token, fileId);
+        if (tokenContext is null)
+            return Unauthorized();
 
-        if (node is null)
-            return NotFound();
+        var caller = ToCaller(tokenContext.UserId);
 
-        // In a full implementation, read the file from storage using node.StoragePath
-        // For now, return an empty response with the correct content type
-        _logger.LogInformation("WOPI GetFile: {FileId} ({FileName})", fileId, node.Name);
+        try
+        {
+            var result = await _wopiService.GetFileAsync(fileId, caller);
+            if (result is null)
+                return NotFound();
 
-        return File(Array.Empty<byte>(), node.MimeType ?? "application/octet-stream", node.Name);
+            var (content, mimeType, fileName) = result.Value;
+            return File(content, mimeType, fileName);
+        }
+        catch (Core.Errors.ForbiddenException)
+        {
+            return StatusCode(403);
+        }
     }
 
     /// <summary>
-    /// WOPI PutFile — Saves edited file content.
-    /// Called by Collabora when the user saves a document.
-    /// Creates a new file version.
+    /// WOPI PutFile — Saves edited file content from Collabora.
+    /// Creates a new file version using the chunked upload pipeline.
+    /// Authenticated via the access_token query parameter.
     /// </summary>
-    [HttpPost("{fileId:guid}/contents")]
-    public async Task<IActionResult> PutFileAsync(Guid fileId)
+    [HttpPost("files/{fileId:guid}/contents")]
+    public async Task<IActionResult> PutFileAsync(Guid fileId, [FromQuery] string access_token)
     {
-        var node = await _db.FileNodes.FindAsync(fileId);
-        if (node is null)
+        var tokenContext = _tokenService.ValidateToken(access_token, fileId);
+        if (tokenContext is null)
+            return Unauthorized();
+
+        if (!tokenContext.CanWrite)
+        {
+            _logger.LogWarning("WOPI PutFile denied: token for user {UserId} on file {FileId} is read-only",
+                tokenContext.UserId, fileId);
+            return StatusCode(403);
+        }
+
+        var caller = ToCaller(tokenContext.UserId);
+
+        try
+        {
+            await _wopiService.PutFileAsync(fileId, Request.Body, caller);
+            return Ok();
+        }
+        catch (Core.Errors.NotFoundException)
+        {
             return NotFound();
+        }
+        catch (Core.Errors.ForbiddenException)
+        {
+            return StatusCode(403);
+        }
+        catch (Core.Errors.InvalidOperationException ex)
+        {
+            return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+        }
+    }
 
-        // In a full implementation:
-        // 1. Read the request body
-        // 2. Chunk and hash the content
-        // 3. Store to disk
-        // 4. Create new FileVersion
-        // 5. Update node metadata
+    /// <summary>
+    /// Generates a WOPI access token for a file.
+    /// Called by the DotNetCloud UI before opening the Collabora editor.
+    /// Returns the token, editor URL, and expiry information.
+    /// </summary>
+    [HttpPost("token/{fileId:guid}")]
+    public Task<IActionResult> GenerateTokenAsync(Guid fileId, [FromQuery] Guid userId) => ExecuteAsync(async () =>
+    {
+        var token = await _tokenService.GenerateTokenAsync(fileId, ToCaller(userId));
+        return Ok(Envelope(token));
+    });
 
-        node.CurrentVersion++;
-        node.UpdatedAt = DateTime.UtcNow;
+    /// <summary>
+    /// Returns Collabora discovery information including available file formats and availability status.
+    /// </summary>
+    [HttpGet("discovery")]
+    public async Task<IActionResult> GetDiscoveryAsync()
+    {
+        var discovery = await _discoveryService.DiscoverAsync();
+        return Ok(Envelope(new
+        {
+            available = discovery.IsAvailable,
+            supportedExtensions = discovery.Actions
+                .Select(a => a.Extension)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Order()
+                .ToList(),
+            actionCount = discovery.Actions.Count,
+            fetchedAt = discovery.FetchedAt
+        }));
+    }
 
-        await _db.SaveChangesAsync();
-
-        _logger.LogInformation("WOPI PutFile: {FileId} ({FileName}) -> v{Version}",
-            fileId, node.Name, node.CurrentVersion);
-
-        return Ok();
+    /// <summary>
+    /// Checks whether a specific file extension is supported for online editing.
+    /// </summary>
+    [HttpGet("discovery/supports/{extension}")]
+    public async Task<IActionResult> CheckExtensionSupportAsync(string extension)
+    {
+        var isSupported = await _discoveryService.IsSupportedExtensionAsync(extension);
+        return Ok(Envelope(new { extension, supported = isSupported }));
     }
 }

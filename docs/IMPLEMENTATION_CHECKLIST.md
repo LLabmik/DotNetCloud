@@ -1882,23 +1882,23 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ `GET /api/v1/wopi/files/{fileId}` — CheckFileInfo (file metadata)
 - ✓ `GET /api/v1/wopi/files/{fileId}/contents` — GetFile (download content)
 - ✓ `POST /api/v1/wopi/files/{fileId}/contents` — PutFile (save edited content)
-- ☐ Implement WOPI access token generation (per-user, per-file, time-limited)
-- ☐ Implement WOPI access token validation
+- ✓ Implement WOPI access token generation (per-user, per-file, time-limited)
+- ✓ Implement WOPI access token validation
 - ☐ Implement WOPI proof key validation (Collabora signature verification)
 
 #### WOPI Integration
-- ☐ Read file content from `IFileStorageEngine` in GetFile
-- ☐ Write saved content via chunked upload pipeline in PutFile
-- ☐ Create new file version on each PutFile save
-- ☐ Enforce permission checks via `CallerContext`
-- ☐ Support concurrent editing (Collabora handles OT internally)
+- ✓ Read file content from `IFileStorageEngine` in GetFile
+- ✓ Write saved content via chunked upload pipeline in PutFile
+- ✓ Create new file version on each PutFile save
+- ✓ Enforce permission checks via `CallerContext`
+- ✓ Support concurrent editing (Collabora handles OT internally)
 
 #### Collabora CODE Management
 - ☐ Implement Collabora CODE download and auto-installation in `dotnetcloud setup`
 - ☐ Create Collabora CODE process management under process supervisor
-- ☐ Implement WOPI discovery endpoint integration
+- ✓ Implement WOPI discovery endpoint integration
 - ☐ Configure TLS/URL routing for Collabora
-- ☐ Create Collabora health check
+- ✓ Create Collabora health check
 
 #### Collabora Configuration
 - ☐ Admin UI for Collabora server URL (built-in CODE vs. external)
@@ -1907,10 +1907,10 @@ This phase implements the core Files module, which is the primary public-facing 
 - ☐ Supported file format configuration
 
 #### Blazor Integration
-- ☐ Create document editor component (iframe embedding Collabora UI)
+- ✓ Create document editor component (iframe embedding Collabora UI)
 - ☐ Open supported documents in editor from file browser
-- ☐ Show "download to edit locally" for E2EE files
-- ☐ Display co-editing indicators (who is editing)
+- ✓ Show "download to edit locally" for E2EE files
+- ✓ Display co-editing indicators (who is editing)
 
 ---
 
@@ -2371,6 +2371,9 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ `FileUploadedEventHandlerTests` — handler logic, logging, cancellation (4 tests)
 - ✓ `ContentHasherTests` — SHA-256 hashing, empty input, large data (15 tests)
 - ✓ `LocalFileStorageEngineTests` — read, write, delete, exists, stream, size (17 tests)
+- ✓ `WopiTokenServiceTests` — token generation, validation, tampering, expiry, permissions (11 tests)
+- ✓ `WopiServiceTests` — CheckFileInfo, GetFile, PutFile, permissions, deduplication (14 tests)
+- ✓ `CollaboraDiscoveryServiceTests` — XML parsing, proof keys, actions, extensions (10 tests)
 - ☐ `FileServiceTests` — CRUD operations, authorization, name validation, materialized paths
 - ☐ `ChunkedUploadServiceTests` — initiate, upload chunk, complete, cancel, dedup, quota
 - ☐ `DownloadServiceTests` — file download, version download, chunk download, permissions
