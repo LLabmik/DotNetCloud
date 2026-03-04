@@ -177,6 +177,18 @@ internal sealed class VersionService : IVersionService
             versionId, version.VersionNumber, caller.UserId);
     }
 
+    /// <inheritdoc />
+    public async Task<FileVersionDto?> GetVersionByNumberAsync(Guid fileNodeId, int versionNumber, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+
+        var version = await _db.FileVersions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(v => v.FileNodeId == fileNodeId && v.VersionNumber == versionNumber, cancellationToken);
+
+        return version is null ? null : ToDto(version);
+    }
+
     private static FileVersionDto ToDto(FileVersion v) => new()
     {
         Id = v.Id,

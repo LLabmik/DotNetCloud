@@ -22,4 +22,7 @@ public interface IVersionService
 
     /// <summary>Deletes a specific version (decrements chunk refcounts).</summary>
     Task DeleteVersionAsync(Guid versionId, CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>Gets a specific version by file node ID and version number.</summary>
+    Task<FileVersionDto?> GetVersionByNumberAsync(Guid fileNodeId, int versionNumber, CallerContext caller, CancellationToken cancellationToken = default);
 }

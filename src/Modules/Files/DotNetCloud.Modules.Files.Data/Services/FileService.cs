@@ -396,6 +396,23 @@ internal sealed class FileService : IFileService
         };
     }
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<FileNodeDto>> ListRecentAsync(int count, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+        if (count < 1) count = 10;
+        if (count > 100) count = 100;
+
+        var nodes = await _db.FileNodes
+            .AsNoTracking()
+            .Where(n => n.OwnerId == caller.UserId && n.NodeType == FileNodeType.File)
+            .OrderByDescending(n => n.UpdatedAt)
+            .Take(count)
+            .ToListAsync(cancellationToken);
+
+        return nodes.Select(n => ToDto(n)).ToList();
+    }
+
     private async Task ValidateNameUniqueAsync(Guid parentId, string name, Guid? excludeId, CancellationToken cancellationToken)
     {
         var query = _db.FileNodes.Where(n => n.ParentId == parentId && n.Name == name);

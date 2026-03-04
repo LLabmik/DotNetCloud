@@ -12,4 +12,7 @@ public interface IDownloadService
 
     /// <summary>Opens a stream that reconstructs a specific file version from chunks.</summary>
     Task<Stream> DownloadVersionAsync(Guid fileVersionId, CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>Gets the ordered list of chunk hashes for the latest version of a file.</summary>
+    Task<IReadOnlyList<string>> GetChunkManifestAsync(Guid fileNodeId, CallerContext caller, CancellationToken cancellationToken = default);
 }

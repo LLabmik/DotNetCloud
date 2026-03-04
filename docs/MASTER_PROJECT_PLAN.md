@@ -36,7 +36,7 @@
 | Phase 0.17 | 10 | 10 | 0 | 0 |
 | Phase 0.18 | 8 | 8 | 0 | 0 |
 | Phase 0.19 | 9 | 9 | 0 | 0 |
-| Phase 1 | 20 | 5 | 0 | 15 |
+| Phase 1 | 20 | 6 | 0 | 14 |
 | Phase 2.1 | 6 | 6 | 0 | 0 |
 | Phase 2.2 | 4 | 4 | 0 | 0 |
 | Phase 2.3 | 7 | 2 | 0 | 5 |
@@ -2470,22 +2470,30 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Step: phase-1.4 - Files REST API Endpoints
-**Status:** pending
+**Status:** completed ✅
 **Duration:** ~1-2 weeks
 **Description:** Create REST controllers for file/folder CRUD, upload/download, sharing, versioning, trash, tags, comments, and search.
 
 **Deliverables:**
-- ☐ Create FilesController (CRUD, tree navigation, search, favorites)
-- ☐ Create UploadController (chunked upload initiation, chunk upload, completion)
-- ☐ Create DownloadController (file download, version download, range requests)
-- ☐ Create ShareController (CRUD, public link resolution)
-- ☐ Create VersionController (list, restore, label, delete)
-- ☐ Create TrashController (list, restore, permanent delete, empty)
-- ☐ Create TagController and CommentController
+- ✓ Create FilesController (CRUD, tree navigation, search, favorites, recent, upload, download, chunk manifest, shared-with-me, public links)
+- ✓ Create VersionController (list, get by number, restore, delete, label)
+- ✓ Create ShareController (list, create, update, delete)
+- ✓ Create TrashController (list, restore, permanent delete, empty, size)
+- ✓ Create QuotaController (get, set, recalculate)
+- ✓ Create TagController (add, remove by name, list all, list by tag)
+- ✓ Create CommentController (add, list, edit, delete)
+- ✓ Create BulkController (move, copy, delete, permanent-delete)
+- ✓ Create SyncController (changes, tree, reconcile)
+- ✓ Create FilesControllerBase (envelope pattern, exception-to-HTTP mapping)
+- ✓ Create InProcessEventBus for standalone module operation
+- ✓ Create ISyncService + SyncService (change detection, tree snapshots, reconciliation)
+- ✓ Add new service methods: ListRecentAsync, GetVersionByNumberAsync, GetChunkManifestAsync, GetTrashSizeAsync, RemoveTagByNameAsync, GetAllUserTagsAsync
+- ✓ Update Program.cs with AddFilesServices(), IFileStorageEngine, IEventBus registrations
+- ✓ Add DTOs: BulkOperationDto, BulkResultDto, BulkItemResultDto, AddTagDto, AddCommentDto, EditCommentDto, SetQuotaDto, LabelVersionDto, SyncDtos
 
 **Dependencies:** phase-1.3
 **Blocking Issues:** None
-**Notes:** All endpoints under /api/v1/files/ namespace. Follow response envelope pattern.
+**Notes:** All 47 endpoints implemented under /api/v1/files/ namespace. Controllers refactored from direct DbContext to service layer via FilesControllerBase. PATCH methods changed to PUT per spec. All existing 298 tests pass.
 
 ---
 

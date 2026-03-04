@@ -296,4 +296,61 @@ public class FileServiceTests
         Assert.AreEqual(target.Id, result.ParentId);
         Assert.AreEqual(100, result.Size);
     }
+
+    [TestMethod]
+    public async Task ListRecentAsync_ReturnsRecentFilesOnly()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        db.FileNodes.Add(new FileNode { Name = "old.txt", NodeType = FileNodeType.File, OwnerId = userId, UpdatedAt = DateTime.UtcNow.AddDays(-10) });
+        db.FileNodes.Add(new FileNode { Name = "new.txt", NodeType = FileNodeType.File, OwnerId = userId, UpdatedAt = DateTime.UtcNow });
+        db.FileNodes.Add(new FileNode { Name = "Folder", NodeType = FileNodeType.Folder, OwnerId = userId, UpdatedAt = DateTime.UtcNow });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.ListRecentAsync(10, UserCaller(userId));
+
+        Assert.AreEqual(2, result.Count); // Only files, not folders
+        Assert.AreEqual("new.txt", result[0].Name); // Most recent first
+    }
+
+    [TestMethod]
+    public async Task ListRecentAsync_RespectsCountLimit()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        for (int i = 0; i < 5; i++)
+        {
+            db.FileNodes.Add(new FileNode
+            {
+                Name = $"file{i}.txt",
+                NodeType = FileNodeType.File,
+                OwnerId = userId,
+                UpdatedAt = DateTime.UtcNow.AddMinutes(-i)
+            });
+        }
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.ListRecentAsync(3, UserCaller(userId));
+
+        Assert.AreEqual(3, result.Count);
+    }
+
+    [TestMethod]
+    public async Task ListRecentAsync_OtherUsersFiles_NotIncluded()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var otherId = Guid.NewGuid();
+        db.FileNodes.Add(new FileNode { Name = "mine.txt", NodeType = FileNodeType.File, OwnerId = userId });
+        db.FileNodes.Add(new FileNode { Name = "theirs.txt", NodeType = FileNodeType.File, OwnerId = otherId });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.ListRecentAsync(10, UserCaller(userId));
+
+        Assert.AreEqual(1, result.Count);
+        Assert.AreEqual("mine.txt", result[0].Name);
+    }
 }

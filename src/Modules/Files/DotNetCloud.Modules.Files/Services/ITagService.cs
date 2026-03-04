@@ -19,6 +19,12 @@ public interface ITagService
 
     /// <summary>Lists all nodes with a specific tag name for a user.</summary>
     Task<IReadOnlyList<FileNodeDto>> GetNodesByTagAsync(string tagName, CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>Removes a tag from a node by tag name (instead of tag ID).</summary>
+    Task RemoveTagByNameAsync(Guid fileNodeId, string tagName, CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>Lists all distinct tag names used by the caller.</summary>
+    Task<IReadOnlyList<string>> GetAllUserTagsAsync(CallerContext caller, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

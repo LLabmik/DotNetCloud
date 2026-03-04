@@ -40,4 +40,7 @@ public interface IFileService
 
     /// <summary>Searches for files and folders by name.</summary>
     Task<PagedResult<FileNodeDto>> SearchAsync(string query, int page, int pageSize, CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>Lists the most recently updated files for the caller.</summary>
+    Task<IReadOnlyList<FileNodeDto>> ListRecentAsync(int count, CallerContext caller, CancellationToken cancellationToken = default);
 }

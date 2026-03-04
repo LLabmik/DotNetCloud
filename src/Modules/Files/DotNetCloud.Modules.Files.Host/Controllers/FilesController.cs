@@ -1,8 +1,6 @@
-using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.DTOs;
-using DotNetCloud.Modules.Files.Models;
+using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace DotNetCloud.Modules.Files.Host.Controllers;
 
@@ -10,306 +8,265 @@ namespace DotNetCloud.Modules.Files.Host.Controllers;
 /// REST API controller for file and folder operations.
 /// Provides CRUD, tree browsing, move, copy, upload, download, and favorites.
 /// </summary>
-[ApiController]
 [Route("api/v1/files")]
-public class FilesController : ControllerBase
+public class FilesController : FilesControllerBase
 {
-    private readonly FilesDbContext _db;
-    private readonly ILogger<FilesController> _logger;
+    private readonly IFileService _fileService;
+    private readonly IChunkedUploadService _uploadService;
+    private readonly IDownloadService _downloadService;
+    private readonly IVersionService _versionService;
+    private readonly IShareService _shareService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FilesController"/> class.
     /// </summary>
-    public FilesController(FilesDbContext db, ILogger<FilesController> logger)
+    public FilesController(
+        IFileService fileService,
+        IChunkedUploadService uploadService,
+        IDownloadService downloadService,
+        IVersionService versionService,
+        IShareService shareService)
     {
-        _db = db;
-        _logger = logger;
+        _fileService = fileService;
+        _uploadService = uploadService;
+        _downloadService = downloadService;
+        _versionService = versionService;
+        _shareService = shareService;
     }
 
     /// <summary>
     /// Lists files and folders in a directory.
     /// </summary>
-    /// <param name="parentId">Parent folder ID. Null for root.</param>
-    /// <param name="userId">Owner user ID.</param>
-    /// <param name="page">Page number (1-based).</param>
-    /// <param name="pageSize">Items per page (max 500).</param>
-    /// <param name="sortBy">Sort field: name, size, updated_at, created_at.</param>
-    /// <param name="sortDesc">Sort descending.</param>
     [HttpGet]
-    public async Task<IActionResult> ListAsync(
+    public Task<IActionResult> ListAsync(
         [FromQuery] Guid? parentId,
-        [FromQuery] Guid userId,
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 50,
-        [FromQuery] string sortBy = "name",
-        [FromQuery] bool sortDesc = false)
+        [FromQuery] Guid userId) => ExecuteAsync(async () =>
     {
-        var query = _db.FileNodes
-            .AsNoTracking()
-            .Where(n => n.OwnerId == userId && n.ParentId == parentId);
+        var caller = ToCaller(userId);
+        var nodes = parentId.HasValue
+            ? await _fileService.ListChildrenAsync(parentId.Value, caller)
+            : await _fileService.ListRootAsync(caller);
 
-        query = sortBy.ToLowerInvariant() switch
-        {
-            "size" => sortDesc ? query.OrderByDescending(n => n.Size) : query.OrderBy(n => n.Size),
-            "updated_at" => sortDesc ? query.OrderByDescending(n => n.UpdatedAt) : query.OrderBy(n => n.UpdatedAt),
-            "created_at" => sortDesc ? query.OrderByDescending(n => n.CreatedAt) : query.OrderBy(n => n.CreatedAt),
-            _ => sortDesc
-                ? query.OrderByDescending(n => n.NodeType).ThenByDescending(n => n.Name)
-                : query.OrderBy(n => n.NodeType).ThenBy(n => n.Name)
-        };
-
-        var totalCount = await query.CountAsync();
-        pageSize = Math.Clamp(pageSize, 1, 500);
-        page = Math.Max(page, 1);
-
-        var nodes = await query
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(n => ToDto(n))
-            .ToListAsync();
-
-        return Ok(new
-        {
-            success = true,
-            data = nodes,
-            pagination = new { page, pageSize, totalCount }
-        });
-    }
+        return Ok(Envelope(nodes));
+    });
 
     /// <summary>
     /// Gets a file or folder by ID.
     /// </summary>
     [HttpGet("{nodeId:guid}")]
-    public async Task<IActionResult> GetAsync(Guid nodeId)
+    public Task<IActionResult> GetAsync(Guid nodeId, [FromQuery] Guid userId) => ExecuteAsync(async () =>
     {
-        var node = await _db.FileNodes
-            .AsNoTracking()
-            .FirstOrDefaultAsync(n => n.Id == nodeId);
-
-        if (node is null)
-            return NotFound(new { success = false, error = "Node not found." });
-
-        return Ok(new { success = true, data = ToDto(node) });
-    }
+        var node = await _fileService.GetNodeAsync(nodeId, ToCaller(userId));
+        return node is null
+            ? NotFound(ErrorEnvelope("not_found", "Node not found."))
+            : Ok(Envelope(node));
+    });
 
     /// <summary>
     /// Creates a new folder.
     /// </summary>
     [HttpPost("folders")]
-    public async Task<IActionResult> CreateFolderAsync(
+    public Task<IActionResult> CreateFolderAsync(
         [FromBody] CreateFolderDto dto,
-        [FromQuery] Guid userId)
+        [FromQuery] Guid userId) => ExecuteAsync(async () =>
     {
-        if (string.IsNullOrWhiteSpace(dto.Name))
-            return BadRequest(new { success = false, error = "Folder name is required." });
-
-        string materializedPath;
-        int depth;
-
-        if (dto.ParentId.HasValue)
-        {
-            var parent = await _db.FileNodes
-                .AsNoTracking()
-                .FirstOrDefaultAsync(n => n.Id == dto.ParentId.Value && n.NodeType == FileNodeType.Folder);
-
-            if (parent is null)
-                return NotFound(new { success = false, error = "Parent folder not found." });
-
-            materializedPath = parent.MaterializedPath;
-            depth = parent.Depth + 1;
-        }
-        else
-        {
-            materializedPath = string.Empty;
-            depth = 0;
-        }
-
-        var folder = new FileNode
-        {
-            Name = dto.Name,
-            NodeType = FileNodeType.Folder,
-            OwnerId = userId,
-            ParentId = dto.ParentId,
-            Depth = depth
-        };
-        folder.MaterializedPath = string.IsNullOrEmpty(materializedPath)
-            ? $"/{folder.Id}"
-            : $"{materializedPath}/{folder.Id}";
-
-        _db.FileNodes.Add(folder);
-        await _db.SaveChangesAsync();
-
-        _logger.LogInformation("Folder {FolderId} '{Name}' created by user {UserId}", folder.Id, folder.Name, userId);
-
-        return Created($"/api/v1/files/{folder.Id}", new { success = true, data = ToDto(folder) });
-    }
+        var folder = await _fileService.CreateFolderAsync(dto, ToCaller(userId));
+        return Created($"/api/v1/files/{folder.Id}", Envelope(folder));
+    });
 
     /// <summary>
     /// Renames a file or folder.
     /// </summary>
-    [HttpPatch("{nodeId:guid}/rename")]
-    public async Task<IActionResult> RenameAsync(Guid nodeId, [FromBody] RenameNodeDto dto)
+    [HttpPut("{nodeId:guid}/rename")]
+    public Task<IActionResult> RenameAsync(Guid nodeId, [FromBody] RenameNodeDto dto, [FromQuery] Guid userId) => ExecuteAsync(async () =>
     {
-        if (string.IsNullOrWhiteSpace(dto.Name))
-            return BadRequest(new { success = false, error = "New name is required." });
-
-        var node = await _db.FileNodes.FindAsync(nodeId);
-        if (node is null)
-            return NotFound(new { success = false, error = "Node not found." });
-
-        node.Name = dto.Name;
-        node.UpdatedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
-
-        return Ok(new { success = true });
-    }
+        var node = await _fileService.RenameAsync(nodeId, dto, ToCaller(userId));
+        return Ok(Envelope(node));
+    });
 
     /// <summary>
     /// Moves a file or folder to a different parent.
     /// </summary>
-    [HttpPatch("{nodeId:guid}/move")]
-    public async Task<IActionResult> MoveAsync(Guid nodeId, [FromBody] MoveNodeDto dto)
+    [HttpPut("{nodeId:guid}/move")]
+    public Task<IActionResult> MoveAsync(Guid nodeId, [FromBody] MoveNodeDto dto, [FromQuery] Guid userId) => ExecuteAsync(async () =>
     {
-        var node = await _db.FileNodes.FindAsync(nodeId);
-        if (node is null)
-            return NotFound(new { success = false, error = "Node not found." });
-
-        var targetParent = await _db.FileNodes
-            .AsNoTracking()
-            .FirstOrDefaultAsync(n => n.Id == dto.TargetParentId && n.NodeType == FileNodeType.Folder);
-
-        if (targetParent is null)
-            return NotFound(new { success = false, error = "Target folder not found." });
-
-        if (node.NodeType == FileNodeType.Folder &&
-            targetParent.MaterializedPath.StartsWith(node.MaterializedPath, StringComparison.Ordinal))
-        {
-            return BadRequest(new { success = false, error = "Cannot move a folder into itself or a descendant." });
-        }
-
-        node.ParentId = dto.TargetParentId;
-        node.MaterializedPath = $"{targetParent.MaterializedPath}/{node.Id}";
-        node.Depth = targetParent.Depth + 1;
-        node.UpdatedAt = DateTime.UtcNow;
-
-        await _db.SaveChangesAsync();
-
-        return Ok(new { success = true });
-    }
+        var node = await _fileService.MoveAsync(nodeId, dto, ToCaller(userId));
+        return Ok(Envelope(node));
+    });
 
     /// <summary>
     /// Copies a file or folder to a target parent.
     /// </summary>
     [HttpPost("{nodeId:guid}/copy")]
-    public async Task<IActionResult> CopyAsync(Guid nodeId, [FromBody] MoveNodeDto dto, [FromQuery] Guid userId)
+    public Task<IActionResult> CopyAsync(Guid nodeId, [FromBody] MoveNodeDto dto, [FromQuery] Guid userId) => ExecuteAsync(async () =>
     {
-        var source = await _db.FileNodes
-            .AsNoTracking()
-            .FirstOrDefaultAsync(n => n.Id == nodeId);
-
-        if (source is null)
-            return NotFound(new { success = false, error = "Source node not found." });
-
-        var targetParent = await _db.FileNodes
-            .AsNoTracking()
-            .FirstOrDefaultAsync(n => n.Id == dto.TargetParentId && n.NodeType == FileNodeType.Folder);
-
-        if (targetParent is null)
-            return NotFound(new { success = false, error = "Target folder not found." });
-
-        var copy = new FileNode
-        {
-            Name = source.Name,
-            NodeType = source.NodeType,
-            MimeType = source.MimeType,
-            Size = source.Size,
-            ParentId = dto.TargetParentId,
-            OwnerId = userId,
-            ContentHash = source.ContentHash,
-            StoragePath = source.StoragePath,
-            CurrentVersion = 1,
-            Depth = targetParent.Depth + 1
-        };
-        copy.MaterializedPath = $"{targetParent.MaterializedPath}/{copy.Id}";
-
-        _db.FileNodes.Add(copy);
-        await _db.SaveChangesAsync();
-
-        return Created($"/api/v1/files/{copy.Id}", new { success = true, data = ToDto(copy) });
-    }
+        var copy = await _fileService.CopyAsync(nodeId, dto.TargetParentId, ToCaller(userId));
+        return Created($"/api/v1/files/{copy.Id}", Envelope(copy));
+    });
 
     /// <summary>
     /// Moves a file or folder to trash (soft-delete).
     /// </summary>
     [HttpDelete("{nodeId:guid}")]
-    public async Task<IActionResult> DeleteAsync(Guid nodeId, [FromQuery] Guid userId)
+    public Task<IActionResult> DeleteAsync(Guid nodeId, [FromQuery] Guid userId) => ExecuteAsync(async () =>
     {
-        var node = await _db.FileNodes
-            .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(n => n.Id == nodeId && !n.IsDeleted);
-
-        if (node is null)
-            return NotFound(new { success = false, error = "Node not found." });
-
-        node.IsDeleted = true;
-        node.DeletedAt = DateTime.UtcNow;
-        node.DeletedByUserId = userId;
-        node.OriginalParentId = node.ParentId;
-
-        await _db.SaveChangesAsync();
-
-        return Ok(new { success = true });
-    }
+        await _fileService.DeleteAsync(nodeId, ToCaller(userId));
+        return Ok(Envelope(new { deleted = true }));
+    });
 
     /// <summary>
     /// Toggles favorite status on a file or folder.
     /// </summary>
     [HttpPost("{nodeId:guid}/favorite")]
-    public async Task<IActionResult> ToggleFavoriteAsync(Guid nodeId)
+    public Task<IActionResult> ToggleFavoriteAsync(Guid nodeId, [FromQuery] Guid userId) => ExecuteAsync(async () =>
     {
-        var node = await _db.FileNodes.FindAsync(nodeId);
-        if (node is null)
-            return NotFound(new { success = false, error = "Node not found." });
-
-        node.IsFavorite = !node.IsFavorite;
-        node.UpdatedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
-
-        return Ok(new { success = true, data = new { isFavorite = node.IsFavorite } });
-    }
+        var node = await _fileService.ToggleFavoriteAsync(nodeId, ToCaller(userId));
+        return Ok(Envelope(new { isFavorite = node.IsFavorite }));
+    });
 
     /// <summary>
     /// Lists user's favorite files and folders.
     /// </summary>
     [HttpGet("favorites")]
-    public async Task<IActionResult> ListFavoritesAsync([FromQuery] Guid userId)
+    public Task<IActionResult> ListFavoritesAsync([FromQuery] Guid userId) => ExecuteAsync(async () =>
     {
-        var favorites = await _db.FileNodes
-            .AsNoTracking()
-            .Where(n => n.OwnerId == userId && n.IsFavorite)
-            .OrderBy(n => n.Name)
-            .Select(n => ToDto(n))
-            .ToListAsync();
+        var favorites = await _fileService.ListFavoritesAsync(ToCaller(userId));
+        return Ok(Envelope(favorites));
+    });
 
-        return Ok(new { success = true, data = favorites });
-    }
-
-    private static FileNodeDto ToDto(FileNode node)
+    /// <summary>
+    /// Lists recently updated files.
+    /// </summary>
+    [HttpGet("recent")]
+    public Task<IActionResult> ListRecentAsync([FromQuery] Guid userId, [FromQuery] int count = 20) => ExecuteAsync(async () =>
     {
-        return new FileNodeDto
+        var recent = await _fileService.ListRecentAsync(count, ToCaller(userId));
+        return Ok(Envelope(recent));
+    });
+
+    /// <summary>
+    /// Searches for files and folders by name.
+    /// </summary>
+    [HttpGet("search")]
+    public Task<IActionResult> SearchAsync(
+        [FromQuery] string query,
+        [FromQuery] Guid userId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20) => ExecuteAsync(async () =>
+    {
+        var result = await _fileService.SearchAsync(query, page, pageSize, ToCaller(userId));
+        return Ok(Envelope(result.Items, new { result.Page, result.PageSize, result.TotalCount, result.TotalPages }));
+    });
+
+    /// <summary>
+    /// Initiates a chunked upload session.
+    /// </summary>
+    [HttpPost("upload/initiate")]
+    public Task<IActionResult> InitiateUploadAsync([FromBody] InitiateUploadDto dto, [FromQuery] Guid userId) => ExecuteAsync(async () =>
+    {
+        var session = await _uploadService.InitiateUploadAsync(dto, ToCaller(userId));
+        return Created($"/api/v1/files/upload/{session.SessionId}", Envelope(session));
+    });
+
+    /// <summary>
+    /// Uploads a single chunk.
+    /// </summary>
+    [HttpPut("upload/{sessionId:guid}/chunks/{chunkHash}")]
+    public Task<IActionResult> UploadChunkAsync(Guid sessionId, string chunkHash, [FromQuery] Guid userId) => ExecuteAsync(async () =>
+    {
+        using var ms = new MemoryStream();
+        await Request.Body.CopyToAsync(ms);
+        await _uploadService.UploadChunkAsync(sessionId, chunkHash, ms.ToArray(), ToCaller(userId));
+        return Ok(Envelope(new { uploaded = true }));
+    });
+
+    /// <summary>
+    /// Completes an upload session.
+    /// </summary>
+    [HttpPost("upload/{sessionId:guid}/complete")]
+    public Task<IActionResult> CompleteUploadAsync(Guid sessionId, [FromQuery] Guid userId) => ExecuteAsync(async () =>
+    {
+        var node = await _uploadService.CompleteUploadAsync(sessionId, ToCaller(userId));
+        return Ok(Envelope(node));
+    });
+
+    /// <summary>
+    /// Cancels an upload session.
+    /// </summary>
+    [HttpDelete("upload/{sessionId:guid}")]
+    public Task<IActionResult> CancelUploadAsync(Guid sessionId, [FromQuery] Guid userId) => ExecuteAsync(async () =>
+    {
+        await _uploadService.CancelUploadAsync(sessionId, ToCaller(userId));
+        return Ok(Envelope(new { cancelled = true }));
+    });
+
+    /// <summary>
+    /// Gets the status of an upload session.
+    /// </summary>
+    [HttpGet("upload/{sessionId:guid}")]
+    public Task<IActionResult> GetUploadSessionAsync(Guid sessionId, [FromQuery] Guid userId) => ExecuteAsync(async () =>
+    {
+        var session = await _uploadService.GetSessionAsync(sessionId, ToCaller(userId));
+        return session is null
+            ? NotFound(ErrorEnvelope("not_found", "Upload session not found."))
+            : Ok(Envelope(session));
+    });
+
+    /// <summary>
+    /// Downloads a file. Optionally specify a version number.
+    /// </summary>
+    [HttpGet("{nodeId:guid}/download")]
+    public Task<IActionResult> DownloadAsync(Guid nodeId, [FromQuery] Guid userId, [FromQuery] int? version = null) => ExecuteAsync(async () =>
+    {
+        var caller = ToCaller(userId);
+
+        if (version.HasValue)
         {
-            Id = node.Id,
-            Name = node.Name,
-            NodeType = node.NodeType.ToString(),
-            MimeType = node.MimeType,
-            Size = node.Size,
-            ParentId = node.ParentId,
-            OwnerId = node.OwnerId,
-            CurrentVersion = node.CurrentVersion,
-            IsFavorite = node.IsFavorite,
-            ContentHash = node.ContentHash,
-            CreatedAt = node.CreatedAt,
-            UpdatedAt = node.UpdatedAt
-        };
-    }
+            var ver = await _versionService.GetVersionByNumberAsync(nodeId, version.Value, caller);
+            if (ver is null)
+                return NotFound(ErrorEnvelope("not_found", "Version not found."));
+
+            var stream = await _downloadService.DownloadVersionAsync(ver.Id, caller);
+            return File(stream, ver.MimeType ?? "application/octet-stream");
+        }
+
+        var node = await _fileService.GetNodeAsync(nodeId, caller);
+        if (node is null)
+            return NotFound(ErrorEnvelope("not_found", "Node not found."));
+
+        var downloadStream = await _downloadService.DownloadCurrentAsync(nodeId, caller);
+        return File(downloadStream, node.MimeType ?? "application/octet-stream", node.Name);
+    });
+
+    /// <summary>
+    /// Gets the chunk manifest (ordered hashes) for a file.
+    /// </summary>
+    [HttpGet("{nodeId:guid}/chunks")]
+    public Task<IActionResult> GetChunkManifestAsync(Guid nodeId, [FromQuery] Guid userId) => ExecuteAsync(async () =>
+    {
+        var manifest = await _downloadService.GetChunkManifestAsync(nodeId, ToCaller(userId));
+        return Ok(Envelope(manifest));
+    });
+
+    /// <summary>
+    /// Lists files shared with the current user.
+    /// </summary>
+    [HttpGet("shared-with-me")]
+    public Task<IActionResult> GetSharedWithMeAsync([FromQuery] Guid userId) => ExecuteAsync(async () =>
+    {
+        var shares = await _shareService.GetSharedWithMeAsync(ToCaller(userId));
+        return Ok(Envelope(shares));
+    });
+
+    /// <summary>
+    /// Resolves a public share link.
+    /// </summary>
+    [HttpGet("public/{linkToken}")]
+    public Task<IActionResult> ResolvePublicLinkAsync(string linkToken, [FromQuery] string? password = null) => ExecuteAsync(async () =>
+    {
+        var share = await _shareService.ResolvePublicLinkAsync(linkToken, password);
+        return share is null
+            ? NotFound(ErrorEnvelope("not_found", "Public link not found or expired."))
+            : Ok(Envelope(share));
+    });
 }

@@ -1,101 +1,89 @@
-using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.DTOs;
-using DotNetCloud.Modules.Files.Models;
+using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace DotNetCloud.Modules.Files.Host.Controllers;
 
 /// <summary>
 /// REST API controller for file version management.
 /// </summary>
-[ApiController]
 [Route("api/v1/files/{nodeId:guid}/versions")]
-public class VersionController : ControllerBase
+public class VersionController : FilesControllerBase
 {
-    private readonly FilesDbContext _db;
-    private readonly ILogger<VersionController> _logger;
+    private readonly IVersionService _versionService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="VersionController"/> class.
     /// </summary>
-    public VersionController(FilesDbContext db, ILogger<VersionController> logger)
+    public VersionController(IVersionService versionService)
     {
-        _db = db;
-        _logger = logger;
+        _versionService = versionService;
     }
 
     /// <summary>
     /// Lists all versions of a file.
     /// </summary>
     [HttpGet]
-    public async Task<IActionResult> ListAsync(Guid nodeId)
+    public Task<IActionResult> ListAsync(Guid nodeId, [FromQuery] Guid userId) => ExecuteAsync(async () =>
     {
-        var versions = await _db.FileVersions
-            .AsNoTracking()
-            .Where(v => v.FileNodeId == nodeId)
-            .OrderByDescending(v => v.VersionNumber)
-            .Select(v => new FileVersionDto
-            {
-                Id = v.Id,
-                VersionNumber = v.VersionNumber,
-                Size = v.Size,
-                ContentHash = v.ContentHash,
-                MimeType = v.MimeType,
-                CreatedByUserId = v.CreatedByUserId,
-                CreatedAt = v.CreatedAt,
-                Label = v.Label
-            })
-            .ToListAsync();
+        var versions = await _versionService.ListVersionsAsync(nodeId, ToCaller(userId));
+        return Ok(Envelope(versions));
+    });
 
-        return Ok(new { success = true, data = versions });
-    }
+    /// <summary>
+    /// Gets a specific version by version number.
+    /// </summary>
+    [HttpGet("{versionNumber:int}")]
+    public Task<IActionResult> GetAsync(Guid nodeId, int versionNumber, [FromQuery] Guid userId) => ExecuteAsync(async () =>
+    {
+        var version = await _versionService.GetVersionByNumberAsync(nodeId, versionNumber, ToCaller(userId));
+        return version is null
+            ? NotFound(ErrorEnvelope("not_found", "Version not found."))
+            : Ok(Envelope(version));
+    });
 
     /// <summary>
     /// Restores a file to a previous version.
-    /// Creates a new version with the content from the specified version.
     /// </summary>
     [HttpPost("{versionNumber:int}/restore")]
-    public async Task<IActionResult> RestoreAsync(Guid nodeId, int versionNumber, [FromQuery] Guid userId)
+    public Task<IActionResult> RestoreAsync(Guid nodeId, int versionNumber, [FromQuery] Guid userId) => ExecuteAsync(async () =>
     {
-        var version = await _db.FileVersions
-            .AsNoTracking()
-            .FirstOrDefaultAsync(v => v.FileNodeId == nodeId && v.VersionNumber == versionNumber);
-
+        var caller = ToCaller(userId);
+        var version = await _versionService.GetVersionByNumberAsync(nodeId, versionNumber, caller);
         if (version is null)
-            return NotFound(new { success = false, error = "Version not found." });
+            return NotFound(ErrorEnvelope("not_found", "Version not found."));
 
-        var node = await _db.FileNodes.FindAsync(nodeId);
-        if (node is null)
-            return NotFound(new { success = false, error = "File not found." });
+        var restored = await _versionService.RestoreVersionAsync(nodeId, version.Id, caller);
+        return Ok(Envelope(restored));
+    });
 
-        var maxVersion = await _db.FileVersions
-            .Where(v => v.FileNodeId == nodeId)
-            .MaxAsync(v => v.VersionNumber);
+    /// <summary>
+    /// Deletes a specific version.
+    /// </summary>
+    [HttpDelete("{versionNumber:int}")]
+    public Task<IActionResult> DeleteAsync(Guid nodeId, int versionNumber, [FromQuery] Guid userId) => ExecuteAsync(async () =>
+    {
+        var caller = ToCaller(userId);
+        var version = await _versionService.GetVersionByNumberAsync(nodeId, versionNumber, caller);
+        if (version is null)
+            return NotFound(ErrorEnvelope("not_found", "Version not found."));
 
-        var restoredVersion = new FileVersion
-        {
-            FileNodeId = nodeId,
-            VersionNumber = maxVersion + 1,
-            Size = version.Size,
-            ContentHash = version.ContentHash,
-            StoragePath = version.StoragePath,
-            MimeType = version.MimeType,
-            CreatedByUserId = userId,
-            Label = $"Restored from v{version.VersionNumber}"
-        };
-        _db.FileVersions.Add(restoredVersion);
+        await _versionService.DeleteVersionAsync(version.Id, caller);
+        return Ok(Envelope(new { deleted = true }));
+    });
 
-        node.ContentHash = version.ContentHash;
-        node.StoragePath = version.StoragePath;
-        node.Size = version.Size;
-        node.CurrentVersion = restoredVersion.VersionNumber;
-        node.UpdatedAt = DateTime.UtcNow;
+    /// <summary>
+    /// Labels a version with a descriptive name.
+    /// </summary>
+    [HttpPut("{versionNumber:int}/label")]
+    public Task<IActionResult> LabelAsync(Guid nodeId, int versionNumber, [FromBody] LabelVersionDto dto, [FromQuery] Guid userId) => ExecuteAsync(async () =>
+    {
+        var caller = ToCaller(userId);
+        var version = await _versionService.GetVersionByNumberAsync(nodeId, versionNumber, caller);
+        if (version is null)
+            return NotFound(ErrorEnvelope("not_found", "Version not found."));
 
-        await _db.SaveChangesAsync();
-
-        _logger.LogInformation("File {NodeId} restored to version {Version}", nodeId, versionNumber);
-
-        return Ok(new { success = true, data = new { newVersion = restoredVersion.VersionNumber } });
-    }
+        var labeled = await _versionService.LabelVersionAsync(version.Id, dto.Label, caller);
+        return Ok(Envelope(labeled));
+    });
 }

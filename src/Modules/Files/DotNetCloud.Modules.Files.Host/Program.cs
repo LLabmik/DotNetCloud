@@ -1,6 +1,8 @@
+using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Files;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Host.Services;
+using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,6 +16,18 @@ builder.Services.AddSingleton<FilesModule>();
 // In production, modules use the database configured by the core server
 builder.Services.AddDbContext<FilesDbContext>(options =>
     options.UseInMemoryDatabase("FilesModule"));
+
+// Files module business logic services
+builder.Services.AddFilesServices();
+
+// File storage engine (local filesystem, configurable base path)
+var storagePath = builder.Configuration.GetValue<string>("Files:StoragePath")
+    ?? Path.Combine(builder.Environment.ContentRootPath, "storage");
+builder.Services.AddSingleton<IFileStorageEngine>(sp =>
+    new LocalFileStorageEngine(storagePath, sp.GetRequiredService<ILogger<LocalFileStorageEngine>>()));
+
+// In-process event bus for standalone operation
+builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
 
 // gRPC
 builder.Services.AddGrpc();

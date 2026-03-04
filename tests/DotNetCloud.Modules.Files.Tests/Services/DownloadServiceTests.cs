@@ -157,4 +157,80 @@ public class DownloadServiceTests
 
         Assert.AreEqual("Hello World!", result);
     }
+
+    [TestMethod]
+    public async Task GetChunkManifestAsync_ReturnsOrderedHashes()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+
+        var node = new FileNode { Name = "file.txt", NodeType = FileNodeType.File, OwnerId = userId };
+        db.FileNodes.Add(node);
+
+        var chunk1 = new FileChunk { ChunkHash = "aaa111", StoragePath = "chunks/aa/a1/aaa111", Size = 100 };
+        var chunk2 = new FileChunk { ChunkHash = "bbb222", StoragePath = "chunks/bb/b2/bbb222", Size = 200 };
+        db.FileChunks.AddRange(chunk1, chunk2);
+
+        var version = new FileVersion
+        {
+            FileNodeId = node.Id,
+            VersionNumber = 1,
+            Size = 300,
+            ContentHash = "manifest",
+            StoragePath = "files/test",
+            CreatedByUserId = userId
+        };
+        db.FileVersions.Add(version);
+
+        db.FileVersionChunks.Add(new FileVersionChunk { FileVersionId = version.Id, FileChunkId = chunk1.Id, SequenceIndex = 0 });
+        db.FileVersionChunks.Add(new FileVersionChunk { FileVersionId = version.Id, FileChunkId = chunk2.Id, SequenceIndex = 1 });
+        await db.SaveChangesAsync();
+
+        var service = new DownloadService(db, Mock.Of<IFileStorageEngine>(), NullLoggerFactory.Instance.CreateLogger<DownloadService>());
+        var manifest = await service.GetChunkManifestAsync(node.Id, UserCaller(userId));
+
+        Assert.AreEqual(2, manifest.Count);
+        Assert.AreEqual("aaa111", manifest[0]);
+        Assert.AreEqual("bbb222", manifest[1]);
+    }
+
+    [TestMethod]
+    public async Task GetChunkManifestAsync_Folder_ThrowsInvalidOperationException()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var folder = new FileNode { Name = "Folder", NodeType = FileNodeType.Folder, OwnerId = userId };
+        db.FileNodes.Add(folder);
+        await db.SaveChangesAsync();
+
+        var service = new DownloadService(db, Mock.Of<IFileStorageEngine>(), NullLoggerFactory.Instance.CreateLogger<DownloadService>());
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.InvalidOperationException>(
+            () => service.GetChunkManifestAsync(folder.Id, UserCaller(userId)));
+    }
+
+    [TestMethod]
+    public async Task GetChunkManifestAsync_NonExistentNode_ThrowsNotFoundException()
+    {
+        using var db = CreateContext();
+        var service = new DownloadService(db, Mock.Of<IFileStorageEngine>(), NullLoggerFactory.Instance.CreateLogger<DownloadService>());
+
+        await Assert.ThrowsExactlyAsync<NotFoundException>(
+            () => service.GetChunkManifestAsync(Guid.NewGuid(), UserCaller(Guid.NewGuid())));
+    }
+
+    [TestMethod]
+    public async Task GetChunkManifestAsync_NoVersions_ReturnsEmpty()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var node = new FileNode { Name = "empty.txt", NodeType = FileNodeType.File, OwnerId = userId };
+        db.FileNodes.Add(node);
+        await db.SaveChangesAsync();
+
+        var service = new DownloadService(db, Mock.Of<IFileStorageEngine>(), NullLoggerFactory.Instance.CreateLogger<DownloadService>());
+        var manifest = await service.GetChunkManifestAsync(node.Id, UserCaller(userId));
+
+        Assert.AreEqual(0, manifest.Count);
+    }
 }

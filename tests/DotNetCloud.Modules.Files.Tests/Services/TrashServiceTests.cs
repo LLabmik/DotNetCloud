@@ -193,4 +193,58 @@ public class TrashServiceTests
         var activeNode = await db.FileNodes.FirstAsync();
         Assert.AreEqual("keep.txt", activeNode.Name);
     }
+
+    [TestMethod]
+    public async Task GetTrashSizeAsync_ReturnsSumOfDeletedSizes()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var d1 = CreateDeletedNode(userId);
+        d1.Size = 1000;
+        var d2 = CreateDeletedNode(userId);
+        d2.Size = 2500;
+        d2.Name = "other.txt";
+        db.FileNodes.AddRange(d1, d2);
+        // Active node should not be counted
+        db.FileNodes.Add(new FileNode { Name = "active.txt", OwnerId = userId, Size = 9999 });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var size = await service.GetTrashSizeAsync(UserCaller(userId));
+
+        Assert.AreEqual(3500, size);
+    }
+
+    [TestMethod]
+    public async Task GetTrashSizeAsync_NoTrash_ReturnsZero()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        db.FileNodes.Add(new FileNode { Name = "active.txt", OwnerId = userId, Size = 500 });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var size = await service.GetTrashSizeAsync(UserCaller(userId));
+
+        Assert.AreEqual(0, size);
+    }
+
+    [TestMethod]
+    public async Task GetTrashSizeAsync_OtherUsersTrash_NotCounted()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var otherId = Guid.NewGuid();
+        var mine = CreateDeletedNode(userId);
+        mine.Size = 100;
+        var theirs = CreateDeletedNode(otherId);
+        theirs.Size = 9999;
+        db.FileNodes.AddRange(mine, theirs);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var size = await service.GetTrashSizeAsync(UserCaller(userId));
+
+        Assert.AreEqual(100, size);
+    }
 }

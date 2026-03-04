@@ -217,6 +217,18 @@ internal sealed class TrashService : ITrashService
             caller.UserId, trashItems.Count);
     }
 
+    /// <inheritdoc />
+    public async Task<long> GetTrashSizeAsync(CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+
+        return await _db.FileNodes
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(n => n.IsDeleted && n.OwnerId == caller.UserId)
+            .SumAsync(n => n.Size, cancellationToken);
+    }
+
     private async Task PermanentDeleteNodeAsync(FileNode node, CancellationToken cancellationToken)
     {
         // Delete shares

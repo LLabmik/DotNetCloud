@@ -61,6 +61,37 @@ internal sealed class DownloadService : IDownloadService
         return await BuildStreamFromVersionAsync(version.Id, cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<string>> GetChunkManifestAsync(Guid fileNodeId, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+
+        var node = await _db.FileNodes
+            .AsNoTracking()
+            .FirstOrDefaultAsync(n => n.Id == fileNodeId, cancellationToken)
+            ?? throw new NotFoundException("FileNode", fileNodeId);
+
+        if (node.NodeType != FileNodeType.File)
+            throw new Core.Errors.InvalidOperationException("Cannot get chunk manifest for a folder.");
+
+        var latestVersion = await _db.FileVersions
+            .AsNoTracking()
+            .Where(v => v.FileNodeId == fileNodeId)
+            .OrderByDescending(v => v.VersionNumber)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (latestVersion is null)
+            return [];
+
+        return await _db.FileVersionChunks
+            .AsNoTracking()
+            .Include(vc => vc.FileChunk)
+            .Where(vc => vc.FileVersionId == latestVersion.Id)
+            .OrderBy(vc => vc.SequenceIndex)
+            .Select(vc => vc.FileChunk!.ChunkHash)
+            .ToListAsync(cancellationToken);
+    }
+
     private async Task<Stream> BuildStreamFromVersionAsync(Guid versionId, CancellationToken cancellationToken)
     {
         var versionChunks = await _db.FileVersionChunks

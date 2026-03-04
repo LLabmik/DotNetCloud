@@ -1639,72 +1639,72 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ `POST /api/v1/files/{nodeId}/copy` — Copy file/folder
 - ✓ `DELETE /api/v1/files/{nodeId}` — Delete file/folder (soft-delete to trash)
 - ✓ `POST /api/v1/files/{nodeId}/favorite` — Toggle favorite
-- ☐ `GET /api/v1/files/favorites` — List favorites
-- ☐ `GET /api/v1/files/recent` — List recently modified files
-- ☐ `GET /api/v1/files/search` — Search files by name/content
+- ✓ `GET /api/v1/files/favorites` — List favorites
+- ✓ `GET /api/v1/files/recent` — List recently modified files
+- ✓ `GET /api/v1/files/search` — Search files by name/content
 
 #### Upload Endpoints (FilesController)
 - ✓ `POST /api/v1/files/upload/initiate` — Initiate chunked upload session
 - ✓ `PUT /api/v1/files/upload/{sessionId}/chunks/{chunkHash}` — Upload a chunk
 - ✓ `POST /api/v1/files/upload/{sessionId}/complete` — Complete upload session
-- ☐ `DELETE /api/v1/files/upload/{sessionId}` — Cancel upload session
-- ☐ `GET /api/v1/files/upload/{sessionId}` — Get upload session status
+- ✓ `DELETE /api/v1/files/upload/{sessionId}` — Cancel upload session
+- ✓ `GET /api/v1/files/upload/{sessionId}` — Get upload session status
 
 #### Download Endpoints (FilesController)
 - ✓ `GET /api/v1/files/{nodeId}/download` — Download file content
-- ☐ `GET /api/v1/files/{nodeId}/download?version={n}` — Download specific version
-- ☐ `GET /api/v1/files/{nodeId}/chunks` — Get chunk manifest (for sync clients)
+- ✓ `GET /api/v1/files/{nodeId}/download?version={n}` — Download specific version
+- ✓ `GET /api/v1/files/{nodeId}/chunks` — Get chunk manifest (for sync clients)
 
 #### Version Endpoints (VersionController)
 - ✓ `GET /api/v1/files/{nodeId}/versions` — List file versions
 - ✓ `GET /api/v1/files/{nodeId}/versions/{versionNumber}` — Get specific version
 - ✓ `POST /api/v1/files/{nodeId}/versions/{versionNumber}/restore` — Restore version
 - ✓ `DELETE /api/v1/files/{nodeId}/versions/{versionNumber}` — Delete version
-- ☐ `PUT /api/v1/files/{nodeId}/versions/{versionNumber}/label` — Label a version
+- ✓ `PUT /api/v1/files/{nodeId}/versions/{versionNumber}/label` — Label a version
 
 #### Share Endpoints (ShareController)
 - ✓ `POST /api/v1/files/{nodeId}/shares` — Create share
 - ✓ `GET /api/v1/files/{nodeId}/shares` — List shares for node
 - ✓ `DELETE /api/v1/files/{nodeId}/shares/{shareId}` — Remove share
 - ✓ `PUT /api/v1/files/{nodeId}/shares/{shareId}` — Update share
-- ☐ `GET /api/v1/files/shared-with-me` — List files shared with current user
-- ☐ `GET /api/v1/files/public/{linkToken}` — Access public shared file/folder
+- ✓ `GET /api/v1/files/shared-with-me` — List files shared with current user
+- ✓ `GET /api/v1/files/public/{linkToken}` — Access public shared file/folder
 
 #### Trash Endpoints (TrashController)
 - ✓ `GET /api/v1/files/trash` — List trash items (paginated)
 - ✓ `POST /api/v1/files/trash/{nodeId}/restore` — Restore from trash
 - ✓ `DELETE /api/v1/files/trash/{nodeId}` — Permanently delete
 - ✓ `DELETE /api/v1/files/trash` — Empty trash
-- ☐ `GET /api/v1/files/trash/size` — Get total trash size
+- ✓ `GET /api/v1/files/trash/size` — Get total trash size
 
-#### Quota Endpoints
-- ☐ `GET /api/v1/files/quota` — Get current user's quota
-- ☐ `GET /api/v1/files/quota/{userId}` — Get specific user's quota (admin)
-- ☐ `PUT /api/v1/files/quota/{userId}` — Set user quota (admin)
-- ☐ `POST /api/v1/files/quota/{userId}/recalculate` — Force recalculation (admin)
+#### Quota Endpoints (QuotaController)
+- ✓ `GET /api/v1/files/quota` — Get current user's quota
+- ✓ `GET /api/v1/files/quota/{userId}` — Get specific user's quota (admin)
+- ✓ `PUT /api/v1/files/quota/{userId}` — Set user quota (admin)
+- ✓ `POST /api/v1/files/quota/{userId}/recalculate` — Force recalculation (admin)
 
-#### Tag Endpoints
-- ☐ `POST /api/v1/files/{nodeId}/tags` — Add tag to node
-- ☐ `DELETE /api/v1/files/{nodeId}/tags/{tagName}` — Remove tag from node
-- ☐ `GET /api/v1/files/tags` — List all user's tags
-- ☐ `GET /api/v1/files/tags/{tagName}` — List files with specific tag
+#### Tag Endpoints (TagController)
+- ✓ `POST /api/v1/files/{nodeId}/tags` — Add tag to node
+- ✓ `DELETE /api/v1/files/{nodeId}/tags/{tagName}` — Remove tag from node
+- ✓ `GET /api/v1/files/tags` — List all user's tags
+- ✓ `GET /api/v1/files/tags/{tagName}` — List files with specific tag
 
-#### Comment Endpoints
-- ☐ `POST /api/v1/files/{nodeId}/comments` — Add comment
-- ☐ `GET /api/v1/files/{nodeId}/comments` — List comments
-- ☐ `PUT /api/v1/files/comments/{commentId}` — Edit comment
-- ☐ `DELETE /api/v1/files/comments/{commentId}` — Delete comment
+#### Comment Endpoints (CommentController)
+- ✓ `POST /api/v1/files/{nodeId}/comments` — Add comment
+- ✓ `GET /api/v1/files/{nodeId}/comments` — List comments
+- ✓ `PUT /api/v1/files/comments/{commentId}` — Edit comment
+- ✓ `DELETE /api/v1/files/comments/{commentId}` — Delete comment
 
-#### Bulk Operation Endpoints
-- ☐ `POST /api/v1/files/bulk/move` — Move multiple items
-- ☐ `POST /api/v1/files/bulk/copy` — Copy multiple items
-- ☐ `POST /api/v1/files/bulk/delete` — Delete multiple items (to trash)
-- ☐ `POST /api/v1/files/bulk/permanent-delete` — Permanently delete multiple items
+#### Bulk Operation Endpoints (BulkController)
+- ✓ `POST /api/v1/files/bulk/move` — Move multiple items
+- ✓ `POST /api/v1/files/bulk/copy` — Copy multiple items
+- ✓ `POST /api/v1/files/bulk/delete` — Delete multiple items (to trash)
+- ✓ `POST /api/v1/files/bulk/permanent-delete` — Permanently delete multiple items
 
-#### Sync Endpoints (for desktop/mobile clients)
-- ☐ `POST /api/v1/files/sync/reconcile` — Reconcile local state with server
-- ☐ `GET /api/v1/files/sync/changes?since={timestamp}` — Get changes since timestamp
-- ☐ `GET /api/v1/files/sync/tree?folderId={id}` — Get full folder tree with hashes
+#### Sync Endpoints (SyncController)
+- ✓ `POST /api/v1/files/sync/reconcile` — Reconcile local state with server
+- ✓ `GET /api/v1/files/sync/changes?since={timestamp}` — Get changes since timestamp
+- ✓ `GET /api/v1/files/sync/tree?folderId={id}` — Get full folder tree with hashes
 
 ---
 

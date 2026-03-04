@@ -1,0 +1,269 @@
+using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Errors;
+using DotNetCloud.Modules.Files.DTOs;
+using DotNetCloud.Modules.Files.Models;
+using DotNetCloud.Modules.Files.Services;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+
+namespace DotNetCloud.Modules.Files.Data.Services;
+
+/// <summary>
+/// Provides sync operations for desktop/mobile clients.
+/// </summary>
+internal sealed class SyncService : ISyncService
+{
+    private readonly FilesDbContext _db;
+    private readonly ILogger<SyncService> _logger;
+
+    public SyncService(FilesDbContext db, ILogger<SyncService> logger)
+    {
+        _db = db;
+        _logger = logger;
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<SyncChangeDto>> GetChangesSinceAsync(DateTime since, Guid? folderId, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+
+        // Active nodes updated since the given time
+        var activeQuery = _db.FileNodes
+            .AsNoTracking()
+            .Where(n => n.OwnerId == caller.UserId && n.UpdatedAt >= since);
+
+        if (folderId.HasValue)
+            activeQuery = activeQuery.Where(n => n.ParentId == folderId.Value || n.Id == folderId.Value);
+
+        var activeChanges = await activeQuery
+            .Select(n => new SyncChangeDto
+            {
+                NodeId = n.Id,
+                Name = n.Name,
+                NodeType = n.NodeType.ToString(),
+                ParentId = n.ParentId,
+                ContentHash = n.ContentHash,
+                Size = n.Size,
+                UpdatedAt = n.UpdatedAt,
+                IsDeleted = false
+            })
+            .ToListAsync(cancellationToken);
+
+        // Deleted nodes since the given time
+        var deletedQuery = _db.FileNodes
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(n => n.OwnerId == caller.UserId && n.IsDeleted && n.DeletedAt >= since);
+
+        if (folderId.HasValue)
+            deletedQuery = deletedQuery.Where(n => n.ParentId == folderId.Value || n.Id == folderId.Value);
+
+        var deletedChanges = await deletedQuery
+            .Select(n => new SyncChangeDto
+            {
+                NodeId = n.Id,
+                Name = n.Name,
+                NodeType = n.NodeType.ToString(),
+                ParentId = n.ParentId,
+                ContentHash = n.ContentHash,
+                Size = n.Size,
+                UpdatedAt = n.UpdatedAt,
+                IsDeleted = true,
+                DeletedAt = n.DeletedAt
+            })
+            .ToListAsync(cancellationToken);
+
+        var allChanges = activeChanges.Concat(deletedChanges)
+            .OrderByDescending(c => c.UpdatedAt)
+            .ToList();
+
+        return allChanges;
+    }
+
+    /// <inheritdoc />
+    public async Task<SyncTreeNodeDto> GetFolderTreeAsync(Guid? folderId, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+
+        if (folderId.HasValue)
+        {
+            var folder = await _db.FileNodes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(n => n.Id == folderId.Value && n.OwnerId == caller.UserId, cancellationToken)
+                ?? throw new NotFoundException("FileNode", folderId.Value);
+
+            return await BuildTreeNodeAsync(folder, caller.UserId, cancellationToken);
+        }
+
+        // Build a virtual root containing all root-level nodes
+        var rootNodes = await _db.FileNodes
+            .AsNoTracking()
+            .Where(n => n.OwnerId == caller.UserId && n.ParentId == null)
+            .OrderBy(n => n.NodeType)
+            .ThenBy(n => n.Name)
+            .ToListAsync(cancellationToken);
+
+        var children = new List<SyncTreeNodeDto>();
+        foreach (var node in rootNodes)
+        {
+            children.Add(await BuildTreeNodeAsync(node, caller.UserId, cancellationToken));
+        }
+
+        return new SyncTreeNodeDto
+        {
+            NodeId = Guid.Empty,
+            Name = "/",
+            NodeType = "Folder",
+            Size = 0,
+            UpdatedAt = DateTime.UtcNow,
+            Children = children
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task<SyncReconcileResultDto> ReconcileAsync(SyncReconcileRequestDto request, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(caller);
+
+        // Build server state map
+        var serverQuery = _db.FileNodes
+            .AsNoTracking()
+            .Where(n => n.OwnerId == caller.UserId);
+
+        if (request.FolderId.HasValue)
+        {
+            var folder = await _db.FileNodes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(n => n.Id == request.FolderId.Value, cancellationToken);
+
+            if (folder is not null)
+            {
+                serverQuery = serverQuery.Where(n =>
+                    n.Id == request.FolderId.Value ||
+                    n.MaterializedPath.StartsWith(folder.MaterializedPath + "/"));
+            }
+        }
+
+        var serverNodes = await serverQuery.ToListAsync(cancellationToken);
+        var serverMap = serverNodes.ToDictionary(n => n.Id);
+
+        // Also get deleted nodes
+        var deletedNodes = await _db.FileNodes
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(n => n.OwnerId == caller.UserId && n.IsDeleted)
+            .Select(n => n.Id)
+            .ToHashSetAsync(cancellationToken);
+
+        var clientMap = request.ClientNodes.ToDictionary(c => c.NodeId);
+        var actions = new List<SyncActionDto>();
+
+        // Server has it, client doesn't → Download
+        foreach (var serverNode in serverNodes)
+        {
+            if (!clientMap.ContainsKey(serverNode.Id))
+            {
+                actions.Add(new SyncActionDto
+                {
+                    NodeId = serverNode.Id,
+                    Action = "Download",
+                    Reason = "New on server"
+                });
+            }
+        }
+
+        foreach (var clientNode in request.ClientNodes)
+        {
+            if (deletedNodes.Contains(clientNode.NodeId))
+            {
+                // Server deleted it → client should delete
+                actions.Add(new SyncActionDto
+                {
+                    NodeId = clientNode.NodeId,
+                    Action = "Delete",
+                    Reason = "Deleted on server"
+                });
+            }
+            else if (serverMap.TryGetValue(clientNode.NodeId, out var serverNode))
+            {
+                // Both have it — compare hashes
+                if (clientNode.ContentHash != serverNode.ContentHash)
+                {
+                    if (clientNode.UpdatedAt > serverNode.UpdatedAt)
+                    {
+                        actions.Add(new SyncActionDto
+                        {
+                            NodeId = clientNode.NodeId,
+                            Action = "Upload",
+                            Reason = "Client is newer"
+                        });
+                    }
+                    else if (clientNode.UpdatedAt < serverNode.UpdatedAt)
+                    {
+                        actions.Add(new SyncActionDto
+                        {
+                            NodeId = clientNode.NodeId,
+                            Action = "Download",
+                            Reason = "Server is newer"
+                        });
+                    }
+                    else
+                    {
+                        actions.Add(new SyncActionDto
+                        {
+                            NodeId = clientNode.NodeId,
+                            Action = "Conflict",
+                            Reason = "Same timestamp but different content"
+                        });
+                    }
+                }
+            }
+            else
+            {
+                // Client has it, server doesn't and it's not deleted → Upload
+                actions.Add(new SyncActionDto
+                {
+                    NodeId = clientNode.NodeId,
+                    Action = "Upload",
+                    Reason = "New on client"
+                });
+            }
+        }
+
+        _logger.LogInformation("Sync reconcile for {UserId}: {ActionCount} actions produced", caller.UserId, actions.Count);
+
+        return new SyncReconcileResultDto { Actions = actions };
+    }
+
+    private async Task<SyncTreeNodeDto> BuildTreeNodeAsync(FileNode node, Guid ownerId, CancellationToken cancellationToken)
+    {
+        var children = new List<SyncTreeNodeDto>();
+
+        if (node.NodeType == FileNodeType.Folder)
+        {
+            var childNodes = await _db.FileNodes
+                .AsNoTracking()
+                .Where(n => n.ParentId == node.Id && n.OwnerId == ownerId)
+                .OrderBy(n => n.NodeType)
+                .ThenBy(n => n.Name)
+                .ToListAsync(cancellationToken);
+
+            foreach (var child in childNodes)
+            {
+                children.Add(await BuildTreeNodeAsync(child, ownerId, cancellationToken));
+            }
+        }
+
+        return new SyncTreeNodeDto
+        {
+            NodeId = node.Id,
+            Name = node.Name,
+            NodeType = node.NodeType.ToString(),
+            ContentHash = node.ContentHash,
+            Size = node.Size,
+            UpdatedAt = node.UpdatedAt,
+            Children = children
+        };
+    }
+}

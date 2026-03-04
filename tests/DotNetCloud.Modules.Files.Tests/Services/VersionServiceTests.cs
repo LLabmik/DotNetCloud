@@ -220,4 +220,77 @@ public class VersionServiceTests
         await Assert.ThrowsExactlyAsync<Core.Errors.InvalidOperationException>(
             () => service.DeleteVersionAsync(version.Id, UserCaller(userId)));
     }
+
+    [TestMethod]
+    public async Task GetVersionByNumberAsync_ExistingVersion_ReturnsDto()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        var version = new FileVersion
+        {
+            FileNodeId = nodeId,
+            VersionNumber = 3,
+            Size = 500,
+            ContentHash = "hash3",
+            StoragePath = "path3",
+            CreatedByUserId = userId,
+            Label = "Release"
+        };
+        db.FileVersions.Add(version);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.GetVersionByNumberAsync(nodeId, 3, UserCaller(userId));
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual(3, result.VersionNumber);
+        Assert.AreEqual("Release", result.Label);
+        Assert.AreEqual(500, result.Size);
+    }
+
+    [TestMethod]
+    public async Task GetVersionByNumberAsync_WrongVersionNumber_ReturnsNull()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        db.FileVersions.Add(new FileVersion
+        {
+            FileNodeId = nodeId,
+            VersionNumber = 1,
+            Size = 100,
+            ContentHash = "hash",
+            StoragePath = "path",
+            CreatedByUserId = userId
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.GetVersionByNumberAsync(nodeId, 99, UserCaller(userId));
+
+        Assert.IsNull(result);
+    }
+
+    [TestMethod]
+    public async Task GetVersionByNumberAsync_WrongFileNode_ReturnsNull()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        db.FileVersions.Add(new FileVersion
+        {
+            FileNodeId = Guid.NewGuid(),
+            VersionNumber = 1,
+            Size = 100,
+            ContentHash = "hash",
+            StoragePath = "path",
+            CreatedByUserId = userId
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.GetVersionByNumberAsync(Guid.NewGuid(), 1, UserCaller(userId));
+
+        Assert.IsNull(result);
+    }
 }

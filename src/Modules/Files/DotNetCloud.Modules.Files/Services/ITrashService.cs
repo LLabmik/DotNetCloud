@@ -22,4 +22,7 @@ public interface ITrashService
 
     /// <summary>Empties the entire trash for the caller.</summary>
     Task EmptyTrashAsync(CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>Gets the total size of all items in the caller's trash.</summary>
+    Task<long> GetTrashSizeAsync(CallerContext caller, CancellationToken cancellationToken = default);
 }

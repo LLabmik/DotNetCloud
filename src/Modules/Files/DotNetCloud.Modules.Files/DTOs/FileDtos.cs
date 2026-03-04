@@ -298,6 +298,102 @@ public sealed record UpdateShareDto
 }
 
 /// <summary>
+/// Request DTO for a bulk operation on multiple nodes.
+/// </summary>
+public sealed record BulkOperationDto
+{
+    /// <summary>List of node IDs to operate on.</summary>
+    public required IReadOnlyList<Guid> NodeIds { get; init; }
+
+    /// <summary>Target parent folder ID (for move/copy operations).</summary>
+    public Guid? TargetParentId { get; init; }
+}
+
+/// <summary>
+/// Response DTO for a bulk operation result.
+/// </summary>
+public sealed record BulkResultDto
+{
+    /// <summary>Total number of items processed.</summary>
+    public int TotalCount { get; init; }
+
+    /// <summary>Number of successful operations.</summary>
+    public int SuccessCount { get; init; }
+
+    /// <summary>Number of failed operations.</summary>
+    public int FailureCount { get; init; }
+
+    /// <summary>Per-item results.</summary>
+    public required IReadOnlyList<BulkItemResultDto> Results { get; init; }
+}
+
+/// <summary>
+/// Result for a single item in a bulk operation.
+/// </summary>
+public sealed record BulkItemResultDto
+{
+    /// <summary>Node ID that was operated on.</summary>
+    public Guid NodeId { get; init; }
+
+    /// <summary>Whether the operation succeeded.</summary>
+    public bool Success { get; init; }
+
+    /// <summary>Error message if the operation failed.</summary>
+    public string? Error { get; init; }
+}
+
+/// <summary>
+/// Request DTO for adding a tag to a node.
+/// </summary>
+public sealed record AddTagDto
+{
+    /// <summary>Tag name.</summary>
+    public required string Name { get; init; }
+
+    /// <summary>Optional tag color (hex).</summary>
+    public string? Color { get; init; }
+}
+
+/// <summary>
+/// Request DTO for adding a comment to a node.
+/// </summary>
+public sealed record AddCommentDto
+{
+    /// <summary>Comment text content.</summary>
+    public required string Content { get; init; }
+
+    /// <summary>Parent comment ID for threaded replies (null for top-level).</summary>
+    public Guid? ParentCommentId { get; init; }
+}
+
+/// <summary>
+/// Request DTO for editing a comment.
+/// </summary>
+public sealed record EditCommentDto
+{
+    /// <summary>Updated comment text content.</summary>
+    public required string Content { get; init; }
+}
+
+/// <summary>
+/// Request DTO for setting a user's storage quota.
+/// </summary>
+public sealed record SetQuotaDto
+{
+    /// <summary>Maximum storage in bytes (0 = unlimited).</summary>
+    public long MaxBytes { get; init; }
+}
+
+/// <summary>
+/// Request DTO for labeling a file version.
+/// </summary>
+public sealed record LabelVersionDto
+{
+    /// <summary>Label text for the version.</summary>
+    public required string Label { get; init; }
+}
+
+/// <summary>
 /// Response DTO for a file comment.
 /// </summary>
 public sealed record FileCommentDto

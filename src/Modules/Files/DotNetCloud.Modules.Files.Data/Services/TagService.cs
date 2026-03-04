@@ -120,6 +120,36 @@ internal sealed class TagService : ITagService
             .ToListAsync(cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<string>> GetAllUserTagsAsync(CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+
+        return await _db.FileTags
+            .AsNoTracking()
+            .Where(t => t.CreatedByUserId == caller.UserId)
+            .Select(t => t.Name)
+            .Distinct()
+            .OrderBy(n => n)
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task RemoveTagByNameAsync(Guid fileNodeId, string tagName, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+        ArgumentException.ThrowIfNullOrWhiteSpace(tagName);
+
+        var tag = await _db.FileTags
+            .FirstOrDefaultAsync(t => t.FileNodeId == fileNodeId && t.Name == tagName && t.CreatedByUserId == caller.UserId, cancellationToken)
+            ?? throw new NotFoundException("FileTag", tagName);
+
+        _db.FileTags.Remove(tag);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Tag '{TagName}' removed from node {NodeId} by {UserId}", tagName, fileNodeId, caller.UserId);
+    }
+
     private static void EnsureOwnerOrSystem(FileNode node, CallerContext caller)
     {
         if (caller.Type == CallerType.System)
