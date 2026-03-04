@@ -1,0 +1,98 @@
+@namespace DotNetCloud.Modules.Files.UI
+
+@*
+    Share dialog component - Creates and manages file/folder shares.
+    Code-behind: ShareDialog.razor.cs
+*@
+
+<div class="share-dialog-overlay">
+    <div class="share-dialog">
+        <div class="share-header">
+            <h3>Share "@Node?.Name"</h3>
+            <button class="btn-icon" @onclick="OnClose">X</button>
+        </div>
+
+        <div class="share-body">
+            <div class="share-type-selector">
+                <label>Share with:</label>
+                <select @bind="ShareType">
+                    <option value="User">User</option>
+                    <option value="Team">Team</option>
+                    <option value="PublicLink">Public Link</option>
+                </select>
+            </div>
+
+            @if (ShareType == "User")
+            {
+                <div class="share-target">
+                    <label>User email or ID:</label>
+                    <input type="text" @bind="TargetId" placeholder="Enter user email or ID" />
+                </div>
+            }
+            else if (ShareType == "Team")
+            {
+                <div class="share-target">
+                    <label>Team:</label>
+                    <input type="text" @bind="TargetId" placeholder="Enter team name or ID" />
+                </div>
+            }
+
+            <div class="share-permission">
+                <label>Permission:</label>
+                <select @bind="Permission">
+                    <option value="Read">View only</option>
+                    <option value="ReadWrite">Can edit</option>
+                    <option value="Full">Full access</option>
+                </select>
+            </div>
+
+            @if (ShareType == "PublicLink")
+            {
+                <div class="share-link-options">
+                    <div class="share-option">
+                        <label>Password (optional):</label>
+                        <input type="password" @bind="LinkPassword" placeholder="Set a password" />
+                    </div>
+                    <div class="share-option">
+                        <label>Max downloads:</label>
+                        <input type="number" @bind="MaxDownloads" min="0" placeholder="Unlimited" />
+                    </div>
+                </div>
+            }
+
+            <div class="share-expiration">
+                <label>Expires:</label>
+                <select @bind="ExpirationDays">
+                    <option value="0">Never</option>
+                    <option value="1">1 day</option>
+                    <option value="7">7 days</option>
+                    <option value="30">30 days</option>
+                    <option value="90">90 days</option>
+                </select>
+            </div>
+
+            <div class="share-note">
+                <label>Note (optional):</label>
+                <input type="text" @bind="Note" placeholder="Add a message" />
+            </div>
+        </div>
+
+        <div class="share-footer">
+            <button class="btn btn-primary" @onclick="CreateShare">
+                @(ShareType == "PublicLink" ? "Create Link" : "Share")
+            </button>
+            <button class="btn" @onclick="OnClose">Cancel</button>
+        </div>
+
+        @if (!string.IsNullOrEmpty(GeneratedLink))
+        {
+            <div class="share-link-result">
+                <label>Share link:</label>
+                <div class="link-display">
+                    <input type="text" value="@GeneratedLink" readonly />
+                    <button class="btn btn-sm" @onclick="CopyLink" title="Copy">Copy</button>
+                </div>
+            </div>
+        }
+    </div>
+</div>

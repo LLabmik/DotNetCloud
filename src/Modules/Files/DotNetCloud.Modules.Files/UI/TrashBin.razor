@@ -1,0 +1,57 @@
+@namespace DotNetCloud.Modules.Files.UI
+
+@*
+    Trash bin page - Lists deleted files with restore and permanent delete options.
+    Code-behind: TrashBin.razor.cs
+*@
+
+<div class="trash-bin-page">
+    <div class="page-header">
+        <h1>Trash</h1>
+        @if (TrashedItems.Count > 0)
+        {
+            <button class="btn btn-danger btn-sm" @onclick="EmptyTrash">
+                Empty Trash (@TrashedItems.Count items)
+            </button>
+        }
+    </div>
+
+    @if (TrashedItems.Count == 0)
+    {
+        <div class="empty-state">
+            <p>Trash is empty</p>
+            <p class="text-muted">Deleted files will appear here for 30 days before permanent deletion.</p>
+        </div>
+    }
+    else
+    {
+        <div class="trash-list">
+            @foreach (var item in TrashedItems)
+            {
+                <div class="trash-item">
+                    <div class="file-icon">
+                        @(item.NodeType == "Folder" ? "[Folder]" : "[File]")
+                    </div>
+                    <div class="file-info">
+                        <span class="file-name">@item.Name</span>
+                        <span class="file-meta">
+                            Deleted @item.DeletedAt?.ToString("MMM d, yyyy HH:mm")
+                            @if (item.Size > 0)
+                            {
+                                <text> - @FormatSize(item.Size)</text>
+                            }
+                        </span>
+                    </div>
+                    <div class="trash-actions">
+                        <button class="btn btn-sm" @onclick="() => RestoreItem(item.Id)">
+                            Restore
+                        </button>
+                        <button class="btn btn-sm btn-danger" @onclick="() => PurgeItem(item.Id)">
+                            Delete Forever
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>

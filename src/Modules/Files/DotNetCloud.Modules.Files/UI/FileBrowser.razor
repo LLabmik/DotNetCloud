@@ -1,0 +1,132 @@
+@namespace DotNetCloud.Modules.Files.UI
+
+@*
+    File browser page - Main UI for the Files module.
+    Displays files and folders in a grid/list view with breadcrumbs,
+    drag-drop upload, and action buttons.
+    Code-behind: FileBrowser.razor.cs
+*@
+
+<div class="files-browser">
+    <div class="files-header">
+        <h1>Files</h1>
+        <div class="files-header-actions">
+            <button class="btn btn-sm" @onclick="ToggleViewMode" title="Toggle view">
+                @GetViewToggleLabel()
+            </button>
+        </div>
+    </div>
+
+    <nav class="files-breadcrumbs" aria-label="File path">
+        <ol>
+            <li>
+                <a href="#" @onclick="() => NavigateToFolder(null)" @onclick:preventDefault>Home</a>
+            </li>
+            @foreach (var crumb in Breadcrumbs)
+            {
+                <li>
+                    <span class="separator">/</span>
+                    <a href="#" @onclick="() => NavigateToFolder(crumb.Id)" @onclick:preventDefault>
+                        @crumb.Name
+                    </a>
+                </li>
+            }
+        </ol>
+    </nav>
+
+    <div class="files-actions">
+        <button class="btn btn-primary btn-sm" @onclick="ShowCreateFolderDialog">New Folder</button>
+        <button class="btn btn-primary btn-sm" @onclick="ShowUploadDialog">Upload</button>
+        @if (SelectedCount > 0)
+        {
+            <span class="selection-info">@SelectedCount selected</span>
+            <button class="btn btn-sm btn-danger" @onclick="DeleteSelected">Delete</button>
+            <button class="btn btn-sm" @onclick="ClearSelection">Clear</button>
+        }
+    </div>
+
+    @if (IsShowUploadDialog)
+    {
+        <FileUploadComponent
+            ParentId="CurrentFolderId"
+            OnUploadComplete="HandleUploadComplete"
+            OnCancel="HideUploadDialog" />
+    }
+
+    @if (IsShowCreateFolder)
+    {
+        <div class="create-folder-dialog">
+            <input type="text" @bind="NewFolderName" placeholder="Folder name"
+                   @onkeydown="HandleFolderKeyDown" />
+            <button class="btn btn-primary btn-sm" @onclick="CreateFolder">Create</button>
+            <button class="btn btn-sm" @onclick="HideCreateFolder">Cancel</button>
+        </div>
+    }
+
+    @if (IsLoading)
+    {
+        <div class="loading-state">
+            <p>Loading files...</p>
+        </div>
+    }
+    else if (Nodes.Count == 0)
+    {
+        <div class="empty-state">
+            <p>This folder is empty</p>
+            <p class="text-muted">Upload files or create a folder to get started.</p>
+        </div>
+    }
+    else
+    {
+        <div class="@GetFilesContainerClass()">
+            @foreach (var node in Nodes)
+            {
+                <div class="file-item @(IsSelected(node.Id) ? "selected" : "")"
+                     @onclick="() => HandleNodeClick(node)"
+                     @ondblclick="() => HandleNodeDoubleClick(node)">
+                    <div class="file-icon">@GetNodeIcon(node)</div>
+                    <div class="file-info">
+                        <span class="file-name" title="@node.Name">@node.Name</span>
+                        <span class="file-meta">
+                            @if (node.NodeType == "File")
+                            {
+                                @FormatSize(node.Size)
+                            }
+                            <text> </text>@node.UpdatedAt.ToString("MMM d, yyyy")
+                        </span>
+                    </div>
+                    <div class="file-actions">
+                        <button class="btn-icon" @onclick:stopPropagation
+                                @onclick="() => ToggleFavorite(node.Id)"
+                                title="@(node.IsFavorite ? "Unfavorite" : "Favorite")">
+                            @(node.IsFavorite ? "*" : "o")
+                        </button>
+                        <button class="btn-icon" @onclick:stopPropagation
+                                @onclick="() => ShowShareDialog(node)" title="Share">Share</button>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @if (TotalCount > PageSize)
+        {
+            <div class="files-pagination">
+                <button class="btn btn-sm" disabled="@(CurrentPage <= 1)"
+                        @onclick="PreviousPage">Previous</button>
+                <span>Page @CurrentPage of @TotalPages</span>
+                <button class="btn btn-sm" disabled="@(CurrentPage >= TotalPages)"
+                        @onclick="NextPage">Next</button>
+            </div>
+        }
+    }
+
+    @if (IsShowShareDialog && ShareTargetNode is not null)
+    {
+        <ShareDialog Node="ShareTargetNode" OnClose="HideShareDialog" />
+    }
+
+    @if (IsShowPreview && PreviewNode is not null)
+    {
+        <FilePreview Node="PreviewNode" OnClose="HidePreview" />
+    }
+</div>

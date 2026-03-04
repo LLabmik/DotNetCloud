@@ -1,0 +1,54 @@
+@namespace DotNetCloud.Modules.Files.UI
+
+@*
+    File upload component with drag-drop and progress tracking.
+    Code-behind: FileUploadComponent.razor.cs
+*@
+
+<div class="file-upload-overlay">
+    <div class="file-upload-dialog">
+        <div class="file-upload-header">
+            <h3>Upload Files</h3>
+            <button class="btn-icon" @onclick="OnCancel">X</button>
+        </div>
+
+        <div class="file-upload-dropzone @(IsDragging ? "dragging" : "")"
+             @ondragenter="HandleDragEnter"
+             @ondragleave="HandleDragLeave"
+             @ondragover:preventDefault>
+            <p>Drag and drop files here</p>
+            <p class="text-muted">or</p>
+            <label class="btn btn-primary btn-sm">
+                Browse Files
+                <InputFile OnChange="HandleFileSelected" multiple style="display: none;" />
+            </label>
+        </div>
+
+        @if (Files.Count > 0)
+        {
+            <div class="file-upload-list">
+                @foreach (var file in Files)
+                {
+                    <div class="upload-item">
+                        <span class="upload-name" title="@file.Name">@file.Name</span>
+                        <span class="upload-size">@FormatSize(file.Size)</span>
+                        <div class="upload-progress">
+                            <div class="progress-bar" style="width: @(file.Progress)%"></div>
+                        </div>
+                        <span class="upload-status">@GetStatusLabel(file.Status, file.Progress)</span>
+                    </div>
+                }
+            </div>
+
+            <div class="file-upload-footer">
+                <button class="btn btn-primary" @onclick="StartUpload"
+                        disabled="@IsUploading">
+                    @(IsUploading ? "Uploading..." : "Upload All")
+                </button>
+                <button class="btn" @onclick="ClearFiles" disabled="@IsUploading">
+                    Clear
+                </button>
+            </div>
+        }
+    </div>
+</div>

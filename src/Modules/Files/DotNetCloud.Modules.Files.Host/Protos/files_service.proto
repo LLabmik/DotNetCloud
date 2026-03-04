@@ -1,0 +1,390 @@
+syntax = "proto3";
+
+option csharp_namespace = "DotNetCloud.Modules.Files.Host.Protos";
+
+package dotnetcloud.files;
+
+// FilesService: gRPC service for the Files module.
+// The core server calls these RPCs to interact with the Files module.
+service FilesService {
+  // Creates a new folder.
+  rpc CreateFolder (CreateFolderRequest) returns (CreateFolderResponse);
+
+  // Lists children of a folder (or root).
+  rpc ListNodes (ListNodesRequest) returns (ListNodesResponse);
+
+  // Gets a file or folder by ID.
+  rpc GetNode (GetNodeRequest) returns (GetNodeResponse);
+
+  // Renames a file or folder.
+  rpc RenameNode (RenameNodeRequest) returns (RenameNodeResponse);
+
+  // Moves a file or folder to a different parent.
+  rpc MoveNode (MoveNodeRequest) returns (MoveNodeResponse);
+
+  // Copies a file or folder.
+  rpc CopyNode (CopyNodeRequest) returns (CopyNodeResponse);
+
+  // Moves a file or folder to trash (soft-delete).
+  rpc DeleteNode (DeleteNodeRequest) returns (DeleteNodeResponse);
+
+  // Lists items in the trash bin.
+  rpc ListTrash (ListTrashRequest) returns (ListTrashResponse);
+
+  // Restores a trashed item.
+  rpc RestoreNode (RestoreNodeRequest) returns (RestoreNodeResponse);
+
+  // Permanently deletes a trashed item.
+  rpc PurgeNode (PurgeNodeRequest) returns (PurgeNodeResponse);
+
+  // Empties the trash bin.
+  rpc EmptyTrash (EmptyTrashRequest) returns (EmptyTrashResponse);
+
+  // Initiates a chunked upload session.
+  rpc InitiateUpload (InitiateUploadRequest) returns (InitiateUploadResponse);
+
+  // Uploads a single chunk.
+  rpc UploadChunk (UploadChunkRequest) returns (UploadChunkResponse);
+
+  // Completes a chunked upload (assembles the file).
+  rpc CompleteUpload (CompleteUploadRequest) returns (CompleteUploadResponse);
+
+  // Downloads file content.
+  rpc DownloadFile (DownloadFileRequest) returns (stream DownloadFileResponse);
+
+  // Lists file versions.
+  rpc ListVersions (ListVersionsRequest) returns (ListVersionsResponse);
+
+  // Restores a file to a previous version.
+  rpc RestoreVersion (RestoreVersionRequest) returns (RestoreVersionResponse);
+
+  // Creates a share.
+  rpc CreateShare (CreateShareRequest) returns (CreateShareResponse);
+
+  // Lists shares for a node.
+  rpc ListShares (ListSharesRequest) returns (ListSharesResponse);
+
+  // Revokes a share.
+  rpc RevokeShare (RevokeShareRequest) returns (RevokeShareResponse);
+
+  // Gets the user's storage quota.
+  rpc GetQuota (GetQuotaRequest) returns (GetQuotaResponse);
+
+  // Toggles favorite status on a node.
+  rpc ToggleFavorite (ToggleFavoriteRequest) returns (ToggleFavoriteResponse);
+}
+
+// --- CreateFolder ---
+
+message CreateFolderRequest {
+  string name = 1;
+  string parent_id = 2;  // empty string = root
+  string user_id = 3;
+}
+
+message CreateFolderResponse {
+  bool success = 1;
+  string error_message = 2;
+  FileNodeMessage node = 3;
+}
+
+// --- ListNodes ---
+
+message ListNodesRequest {
+  string parent_id = 1;  // empty string = root
+  string user_id = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+  string sort_by = 5;      // name, size, updated_at, created_at
+  bool sort_desc = 6;
+}
+
+message ListNodesResponse {
+  repeated FileNodeMessage nodes = 1;
+  int32 total_count = 2;
+}
+
+// --- GetNode ---
+
+message GetNodeRequest {
+  string node_id = 1;
+  string user_id = 2;
+}
+
+message GetNodeResponse {
+  bool found = 1;
+  FileNodeMessage node = 2;
+}
+
+// --- RenameNode ---
+
+message RenameNodeRequest {
+  string node_id = 1;
+  string new_name = 2;
+  string user_id = 3;
+}
+
+message RenameNodeResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+// --- MoveNode ---
+
+message MoveNodeRequest {
+  string node_id = 1;
+  string target_parent_id = 2;
+  string user_id = 3;
+}
+
+message MoveNodeResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+// --- CopyNode ---
+
+message CopyNodeRequest {
+  string node_id = 1;
+  string target_parent_id = 2;
+  string user_id = 3;
+}
+
+message CopyNodeResponse {
+  bool success = 1;
+  string error_message = 2;
+  FileNodeMessage copied_node = 3;
+}
+
+// --- DeleteNode (to trash) ---
+
+message DeleteNodeRequest {
+  string node_id = 1;
+  string user_id = 2;
+}
+
+message DeleteNodeResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+// --- Trash ---
+
+message ListTrashRequest {
+  string user_id = 1;
+}
+
+message ListTrashResponse {
+  repeated FileNodeMessage nodes = 1;
+}
+
+message RestoreNodeRequest {
+  string node_id = 1;
+  string user_id = 2;
+}
+
+message RestoreNodeResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message PurgeNodeRequest {
+  string node_id = 1;
+  string user_id = 2;
+}
+
+message PurgeNodeResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message EmptyTrashRequest {
+  string user_id = 1;
+}
+
+message EmptyTrashResponse {
+  bool success = 1;
+  int32 purged_count = 2;
+}
+
+// --- Chunked Upload ---
+
+message InitiateUploadRequest {
+  string file_name = 1;
+  string parent_id = 2;
+  int64 total_size = 3;
+  string mime_type = 4;
+  repeated string chunk_hashes = 5;
+  string user_id = 6;
+}
+
+message InitiateUploadResponse {
+  bool success = 1;
+  string error_message = 2;
+  string session_id = 3;
+  repeated string existing_chunks = 4;
+  repeated string missing_chunks = 5;
+}
+
+message UploadChunkRequest {
+  string session_id = 1;
+  string chunk_hash = 2;
+  bytes chunk_data = 3;
+}
+
+message UploadChunkResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message CompleteUploadRequest {
+  string session_id = 1;
+  string user_id = 2;
+}
+
+message CompleteUploadResponse {
+  bool success = 1;
+  string error_message = 2;
+  FileNodeMessage node = 3;
+}
+
+// --- Download ---
+
+message DownloadFileRequest {
+  string node_id = 1;
+  string user_id = 2;
+  int32 version_number = 3;  // 0 = latest
+}
+
+message DownloadFileResponse {
+  bytes chunk_data = 1;
+}
+
+// --- Versions ---
+
+message ListVersionsRequest {
+  string node_id = 1;
+  string user_id = 2;
+}
+
+message ListVersionsResponse {
+  repeated FileVersionMessage versions = 1;
+}
+
+message RestoreVersionRequest {
+  string node_id = 1;
+  int32 version_number = 2;
+  string user_id = 3;
+}
+
+message RestoreVersionResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+// --- Shares ---
+
+message CreateShareRequest {
+  string node_id = 1;
+  string share_type = 2;   // User, Team, Group, PublicLink
+  string shared_with_id = 3;  // user, team, or group ID
+  string permission = 4;   // Read, ReadWrite, Full
+  string link_password = 5;
+  int32 max_downloads = 6;
+  string expires_at = 7;   // ISO 8601
+  string note = 8;
+  string user_id = 9;      // acting user
+}
+
+message CreateShareResponse {
+  bool success = 1;
+  string error_message = 2;
+  FileShareMessage share = 3;
+}
+
+message ListSharesRequest {
+  string node_id = 1;
+  string user_id = 2;
+}
+
+message ListSharesResponse {
+  repeated FileShareMessage shares = 1;
+}
+
+message RevokeShareRequest {
+  string share_id = 1;
+  string user_id = 2;
+}
+
+message RevokeShareResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+// --- Quota ---
+
+message GetQuotaRequest {
+  string user_id = 1;
+}
+
+message GetQuotaResponse {
+  int64 max_bytes = 1;
+  int64 used_bytes = 2;
+  int64 remaining_bytes = 3;
+  double usage_percent = 4;
+}
+
+// --- Favorites ---
+
+message ToggleFavoriteRequest {
+  string node_id = 1;
+  string user_id = 2;
+}
+
+message ToggleFavoriteResponse {
+  bool success = 1;
+  bool is_favorite = 2;
+}
+
+// --- Shared Messages ---
+
+message FileNodeMessage {
+  string id = 1;
+  string name = 2;
+  string node_type = 3;    // File or Folder
+  string mime_type = 4;
+  int64 size = 5;
+  string parent_id = 6;
+  string owner_id = 7;
+  int32 current_version = 8;
+  bool is_favorite = 9;
+  string content_hash = 10;
+  string created_at = 11;
+  string updated_at = 12;
+  int32 child_count = 13;
+}
+
+message FileVersionMessage {
+  string id = 1;
+  int32 version_number = 2;
+  int64 size = 3;
+  string content_hash = 4;
+  string mime_type = 5;
+  string created_by_user_id = 6;
+  string created_at = 7;
+  string label = 8;
+}
+
+message FileShareMessage {
+  string id = 1;
+  string node_id = 2;
+  string share_type = 3;
+  string shared_with_id = 4;
+  string permission = 5;
+  string link_token = 6;
+  string expires_at = 7;
+  int32 download_count = 8;
+  int32 max_downloads = 9;
+  string created_at = 10;
+  string note = 11;
+}
