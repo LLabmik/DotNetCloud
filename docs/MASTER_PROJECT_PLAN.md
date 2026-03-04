@@ -2497,6 +2497,29 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
+### Step: phase-1.5 - Chunked Upload & Download Infrastructure
+**Status:** completed ✅
+**Duration:** ~1 week
+**Description:** Complete the chunked transfer infrastructure: seekable ConcatenatedStream for HTTP range requests, per-chunk download by hash for sync clients, storage deduplication metrics, and orphaned chunk GC in upload session cleanup.
+
+**Deliverables:**
+- ✓ Make `ConcatenatedStream` seekable (implements `CanSeek`, `Position`, `Seek()`) — enables ASP.NET Core range processing
+- ✓ Enable HTTP range requests in `FilesController.DownloadAsync` (`enableRangeProcessing: true`)
+- ✓ Add `DownloadChunkByHashAsync` to `IDownloadService` + `DownloadService`
+- ✓ Add `GET /api/v1/files/chunks/{chunkHash}` endpoint for sync client per-chunk downloads
+- ✓ Create `IStorageMetricsService` + `StorageMetricsService` (physical vs. logical bytes, deduplication savings, chunk/version counts)
+- ✓ Create `StorageMetricsController` with `GET /api/v1/files/storage/metrics`
+- ✓ Add `StorageMetricsDto` with `PhysicalStorageBytes`, `LogicalStorageBytes`, `DeduplicationSavingsBytes`, `TotalUniqueChunks`, `TotalVersions`, `TotalFiles`
+- ✓ Enhance `UploadSessionCleanupService` to GC orphaned chunks (ReferenceCount = 0) alongside session expiry
+- ✓ Register `IStorageMetricsService` in `FilesServiceRegistration`
+- ✓ 25 new unit tests: seekable stream seeking/position, chunk-by-hash download, storage metrics (dedup savings, orphaned exclusion), session cleanup GC — 347 total Files tests
+
+**Dependencies:** phase-1.4
+**Blocking Issues:** None
+**Notes:** Phase 1.5 complete. All 20 Phase 1.5 checklist items marked ✓. Many were already implemented in Phases 1.2–1.4 (chunking, hashing, dedup, progress tracking, session management). This phase added the remaining pieces: seekable stream for HTTP range requests, per-chunk endpoint for sync clients, deduplication metrics API, and explicit orphaned-chunk GC in the upload cleanup service. 830 total solution tests pass (no regressions).
+
+---
+
 ## Phase 2: Chat & Notifications
 
 **Goal:** Real-time messaging + Android app.

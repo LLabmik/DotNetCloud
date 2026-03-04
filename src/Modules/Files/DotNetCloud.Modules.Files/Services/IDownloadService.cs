@@ -15,4 +15,10 @@ public interface IDownloadService
 
     /// <summary>Gets the ordered list of chunk hashes for the latest version of a file.</summary>
     Task<IReadOnlyList<string>> GetChunkManifestAsync(Guid fileNodeId, CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Opens a read stream for a single chunk by its SHA-256 hash.
+    /// Returns null if the chunk is not found.
+    /// </summary>
+    Task<Stream?> DownloadChunkByHashAsync(string chunkHash, CallerContext caller, CancellationToken cancellationToken = default);
 }

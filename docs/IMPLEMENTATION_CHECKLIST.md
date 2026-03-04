@@ -1715,33 +1715,33 @@ This phase implements the core Files module, which is the primary public-facing 
 **Content-hash deduplication and resumable transfers**
 
 #### Chunked Upload Pipeline
-- ☐ Implement file splitting into 4MB chunks (client-side and server-side)
-- ☐ Implement SHA-256 hashing per chunk
-- ☐ Implement chunk manifest generation (ordered list of hashes)
-- ☐ Server-side deduplication lookup (skip upload for existing chunks)
-- ☐ Track upload progress per session in `ChunkedUploadSession`
-- ☐ Resume interrupted uploads (only re-upload missing chunks)
-- ☐ Validate chunk integrity on receipt (hash verification)
-- ☐ Assemble file from chunks on completion (link `FileVersionChunk` records)
+- ✓ Implement file splitting into 4MB chunks (client-side and server-side) — `ContentHasher.ChunkAndHashAsync`, `DefaultChunkSize = 4MB`
+- ✓ Implement SHA-256 hashing per chunk — `ContentHasher.ComputeHash`
+- ✓ Implement chunk manifest generation (ordered list of hashes) — `ContentHasher.ComputeManifestHash`
+- ✓ Server-side deduplication lookup (skip upload for existing chunks) — `ChunkedUploadService.InitiateUploadAsync`
+- ✓ Track upload progress per session in `ChunkedUploadSession` — `ReceivedChunks`/`TotalChunks` fields
+- ✓ Resume interrupted uploads (only re-upload missing chunks) — `GetSessionAsync` returns `MissingChunks`
+- ✓ Validate chunk integrity on receipt (hash verification) — `UploadChunkAsync` verifies SHA-256 before storing
+- ✓ Assemble file from chunks on completion (link `FileVersionChunk` records) — `CompleteUploadAsync`
 
 #### Chunked Download Pipeline
-- ☐ Serve files as chunked streams for large files
-- ☐ Support HTTP range requests for partial downloads
-- ☐ Serve individual chunks by hash (for sync clients)
-- ☐ Serve chunk manifests for sync reconciliation
+- ✓ Serve files as chunked streams for large files — `DownloadService` + seekable `ConcatenatedStream`
+- ✓ Support HTTP range requests for partial downloads — `ConcatenatedStream` is seekable; `FilesController.DownloadAsync` uses `enableRangeProcessing: true`
+- ✓ Serve individual chunks by hash (for sync clients) — `DownloadChunkByHashAsync` + `GET /api/v1/files/chunks/{chunkHash}`
+- ✓ Serve chunk manifests for sync reconciliation — `GetChunkManifestAsync` + `GET /api/v1/files/{nodeId}/chunks`
 
 #### Content-Hash Deduplication
-- ☐ Implement cross-user deduplication (identical chunks stored once)
-- ☐ Track chunk reference counts across file versions
-- ☐ Garbage-collect unreferenced chunks (reference count = 0)
-- ☐ Monitor deduplication savings in storage metrics
+- ✓ Implement cross-user deduplication (identical chunks stored once) — shared `FileChunks` table keyed by hash
+- ✓ Track chunk reference counts across file versions — `FileChunk.ReferenceCount` incremented/decremented
+- ✓ Garbage-collect unreferenced chunks (reference count = 0) — `TrashCleanupService` + `UploadSessionCleanupService` GC pass
+- ✓ Monitor deduplication savings in storage metrics — `IStorageMetricsService` + `GET /api/v1/files/storage/metrics`
 
 #### Upload Session Management
-- ☐ Implement session creation with quota pre-check
-- ☐ Track session progress (received vs. total chunks)
-- ☐ Expire stale sessions (configurable TTL, default 24h)
-- ☐ Clean up orphaned chunks from failed sessions
-- ☐ Support concurrent chunk uploads within a session
+- ✓ Implement session creation with quota pre-check — `InitiateUploadAsync` calls `IQuotaService.HasSufficientQuotaAsync`
+- ✓ Track session progress (received vs. total chunks) — `ReceivedChunks`/`TotalChunks` updated on each `UploadChunkAsync`
+- ✓ Expire stale sessions (configurable TTL, default 24h) — `UploadSessionCleanupService` 1h interval
+- ✓ Clean up orphaned chunks from failed sessions — `UploadSessionCleanupService` GC pass deletes chunks with `ReferenceCount = 0`
+- ✓ Support concurrent chunk uploads within a session — chunk uniqueness enforced via DB; no session-level locking needed
 
 ---
 

@@ -142,23 +142,6 @@ public class DownloadServiceTests
     }
 
     [TestMethod]
-    public async Task ConcatenatedStream_MultipleChunks_ConcatenatesCorrectly()
-    {
-        var streams = new List<Stream>
-        {
-            new MemoryStream(Encoding.UTF8.GetBytes("Hello ")),
-            new MemoryStream(Encoding.UTF8.GetBytes("World")),
-            new MemoryStream(Encoding.UTF8.GetBytes("!"))
-        };
-
-        await using var concat = new ConcatenatedStream(streams);
-        using var reader = new StreamReader(concat);
-        var result = await reader.ReadToEndAsync();
-
-        Assert.AreEqual("Hello World!", result);
-    }
-
-    [TestMethod]
     public async Task GetChunkManifestAsync_ReturnsOrderedHashes()
     {
         using var db = CreateContext();
@@ -232,5 +215,167 @@ public class DownloadServiceTests
         var manifest = await service.GetChunkManifestAsync(node.Id, UserCaller(userId));
 
         Assert.AreEqual(0, manifest.Count);
+    }
+
+    // --- Phase 1.5: Chunk-by-hash download ---
+
+    [TestMethod]
+    public async Task DownloadChunkByHashAsync_ExistingChunk_ReturnsStream()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var chunkData = Encoding.UTF8.GetBytes("chunk content");
+        var chunk = new FileChunk { ChunkHash = "abc123", StoragePath = "chunks/ab/c1/abc123", Size = chunkData.Length, ReferenceCount = 1 };
+        db.FileChunks.Add(chunk);
+        await db.SaveChangesAsync();
+
+        var storageMock = new Mock<IFileStorageEngine>();
+        storageMock.Setup(s => s.OpenReadStreamAsync("chunks/ab/c1/abc123", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MemoryStream(chunkData));
+
+        var service = new DownloadService(db, storageMock.Object, NullLoggerFactory.Instance.CreateLogger<DownloadService>());
+        var stream = await service.DownloadChunkByHashAsync("abc123", UserCaller(userId));
+
+        Assert.IsNotNull(stream);
+        using var reader = new StreamReader(stream);
+        Assert.AreEqual("chunk content", await reader.ReadToEndAsync());
+    }
+
+    [TestMethod]
+    public async Task DownloadChunkByHashAsync_NonExistentHash_ReturnsNull()
+    {
+        using var db = CreateContext();
+        var service = new DownloadService(db, Mock.Of<IFileStorageEngine>(), NullLoggerFactory.Instance.CreateLogger<DownloadService>());
+
+        var result = await service.DownloadChunkByHashAsync("nonexistent", UserCaller(Guid.NewGuid()));
+
+        Assert.IsNull(result);
+    }
+
+    // --- Phase 1.5: ConcatenatedStream seeking ---
+
+    [TestMethod]
+    public void ConcatenatedStream_CanSeek_WhenAllInnerStreamsAreSeekable()
+    {
+        var streams = new List<Stream>
+        {
+            new MemoryStream(Encoding.UTF8.GetBytes("Hello ")),
+            new MemoryStream(Encoding.UTF8.GetBytes("World"))
+        };
+
+        using var concat = new ConcatenatedStream(streams);
+
+        Assert.IsTrue(concat.CanSeek);
+    }
+
+    [TestMethod]
+    public void ConcatenatedStream_Length_SumsAllInnerStreams()
+    {
+        var streams = new List<Stream>
+        {
+            new MemoryStream(Encoding.UTF8.GetBytes("Hello ")),  // 6 bytes
+            new MemoryStream(Encoding.UTF8.GetBytes("World"))    // 5 bytes
+        };
+
+        using var concat = new ConcatenatedStream(streams);
+
+        Assert.AreEqual(11, concat.Length);
+    }
+
+    [TestMethod]
+    public async Task ConcatenatedStream_SeekToMiddle_ReadsFromCorrectPosition()
+    {
+        var streams = new List<Stream>
+        {
+            new MemoryStream(Encoding.UTF8.GetBytes("Hello ")),  // 0-5
+            new MemoryStream(Encoding.UTF8.GetBytes("World!"))   // 6-11
+        };
+
+        using var concat = new ConcatenatedStream(streams);
+
+        // Seek to position 6 (start of second stream)
+        concat.Seek(6, SeekOrigin.Begin);
+
+        Assert.AreEqual(6, concat.Position);
+
+        using var reader = new StreamReader(concat);
+        var result = await reader.ReadToEndAsync();
+        Assert.AreEqual("World!", result);
+    }
+
+    [TestMethod]
+    public async Task ConcatenatedStream_SeekToBeginning_ReadsFromStart()
+    {
+        var streams = new List<Stream>
+        {
+            new MemoryStream(Encoding.UTF8.GetBytes("Hello ")),
+            new MemoryStream(Encoding.UTF8.GetBytes("World!"))
+        };
+
+        using var concat = new ConcatenatedStream(streams);
+
+        // Read part first, then seek back to beginning
+        var buf = new byte[6];
+        await concat.ReadExactlyAsync(buf);
+
+        concat.Seek(0, SeekOrigin.Begin);
+        Assert.AreEqual(0, concat.Position);
+
+        using var reader = new StreamReader(concat);
+        var result = await reader.ReadToEndAsync();
+        Assert.AreEqual("Hello World!", result);
+    }
+
+    [TestMethod]
+    public async Task ConcatenatedStream_SeekIntoFirstStream_ReadsPartially()
+    {
+        var streams = new List<Stream>
+        {
+            new MemoryStream(Encoding.UTF8.GetBytes("Hello ")),  // 0-5
+            new MemoryStream(Encoding.UTF8.GetBytes("World!"))   // 6-11
+        };
+
+        using var concat = new ConcatenatedStream(streams);
+
+        // Seek to position 3 (middle of first stream)
+        concat.Seek(3, SeekOrigin.Begin);
+
+        using var reader = new StreamReader(concat);
+        var result = await reader.ReadToEndAsync();
+        Assert.AreEqual("lo World!", result);
+    }
+
+    [TestMethod]
+    public async Task ConcatenatedStream_MultipleChunks_ConcatenatesCorrectly()
+    {
+        var streams = new List<Stream>
+        {
+            new MemoryStream(Encoding.UTF8.GetBytes("Hello ")),
+            new MemoryStream(Encoding.UTF8.GetBytes("World")),
+            new MemoryStream(Encoding.UTF8.GetBytes("!"))
+        };
+
+        await using var concat = new ConcatenatedStream(streams);
+        using var reader = new StreamReader(concat);
+        var result = await reader.ReadToEndAsync();
+
+        Assert.AreEqual("Hello World!", result);
+    }
+
+    [TestMethod]
+    public void ConcatenatedStream_Position_TracksReadProgress()
+    {
+        var streams = new List<Stream>
+        {
+            new MemoryStream(Encoding.UTF8.GetBytes("Hello ")),
+            new MemoryStream(Encoding.UTF8.GetBytes("World!"))
+        };
+
+        using var concat = new ConcatenatedStream(streams);
+        Assert.AreEqual(0, concat.Position);
+
+        var buf = new byte[4];
+        concat.ReadExactly(buf, 0, 4);
+        Assert.AreEqual(4, concat.Position);
     }
 }

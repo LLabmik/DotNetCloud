@@ -92,6 +92,22 @@ internal sealed class DownloadService : IDownloadService
             .ToListAsync(cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task<Stream?> DownloadChunkByHashAsync(string chunkHash, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+        ArgumentException.ThrowIfNullOrWhiteSpace(chunkHash);
+
+        var chunk = await _db.FileChunks
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.ChunkHash == chunkHash, cancellationToken);
+
+        if (chunk is null)
+            return null;
+
+        return await _storageEngine.OpenReadStreamAsync(chunk.StoragePath, cancellationToken);
+    }
+
     private async Task<Stream> BuildStreamFromVersionAsync(Guid versionId, CancellationToken cancellationToken)
     {
         var versionChunks = await _db.FileVersionChunks
@@ -130,12 +146,14 @@ internal sealed class DownloadService : IDownloadService
 
 /// <summary>
 /// A read-only stream that concatenates multiple inner streams in sequence.
+/// Supports seeking when all inner streams are seekable.
 /// Disposes all inner streams when disposed.
 /// </summary>
 internal sealed class ConcatenatedStream : Stream
 {
     private readonly IReadOnlyList<Stream> _streams;
     private int _currentIndex;
+    private long _position;
 
     public ConcatenatedStream(IReadOnlyList<Stream> streams)
     {
@@ -146,7 +164,7 @@ internal sealed class ConcatenatedStream : Stream
     public override bool CanRead => true;
 
     /// <inheritdoc />
-    public override bool CanSeek => false;
+    public override bool CanSeek => _streams.Count == 0 || _streams.All(s => s.CanSeek);
 
     /// <inheritdoc />
     public override bool CanWrite => false;
@@ -157,8 +175,60 @@ internal sealed class ConcatenatedStream : Stream
     /// <inheritdoc />
     public override long Position
     {
-        get => throw new NotSupportedException();
-        set => throw new NotSupportedException();
+        get => _position;
+        set => Seek(value, SeekOrigin.Begin);
+    }
+
+    /// <inheritdoc />
+    public override long Seek(long offset, SeekOrigin origin)
+    {
+        if (!CanSeek)
+            throw new NotSupportedException("One or more inner streams do not support seeking.");
+
+        var length = Length;
+        long targetPosition = origin switch
+        {
+            SeekOrigin.Begin => offset,
+            SeekOrigin.Current => _position + offset,
+            SeekOrigin.End => length + offset,
+            _ => throw new ArgumentOutOfRangeException(nameof(origin))
+        };
+
+        if (targetPosition < 0)
+            throw new IOException("Cannot seek before the beginning of the stream.");
+
+        targetPosition = Math.Min(targetPosition, length);
+
+        if (_streams.Count == 0)
+        {
+            _position = targetPosition;
+            return _position;
+        }
+
+        // Find which inner stream contains the target position
+        long accumulated = 0;
+        for (var i = 0; i < _streams.Count; i++)
+        {
+            var streamLen = _streams[i].Length;
+            var isLast = i == _streams.Count - 1;
+
+            if (targetPosition <= accumulated + streamLen || isLast)
+            {
+                _currentIndex = i;
+                _streams[i].Seek(targetPosition - accumulated, SeekOrigin.Begin);
+
+                // Reset subsequent streams to their beginning so they're read correctly next
+                for (var j = i + 1; j < _streams.Count; j++)
+                    _streams[j].Seek(0, SeekOrigin.Begin);
+
+                break;
+            }
+
+            accumulated += streamLen;
+        }
+
+        _position = targetPosition;
+        return _position;
     }
 
     /// <inheritdoc />
@@ -177,6 +247,7 @@ internal sealed class ConcatenatedStream : Stream
             totalRead += read;
         }
 
+        _position += totalRead;
         return totalRead;
     }
 
@@ -197,6 +268,7 @@ internal sealed class ConcatenatedStream : Stream
             totalRead += read;
         }
 
+        _position += totalRead;
         return totalRead;
     }
 
@@ -216,14 +288,12 @@ internal sealed class ConcatenatedStream : Stream
             totalRead += read;
         }
 
+        _position += totalRead;
         return totalRead;
     }
 
     /// <inheritdoc />
     public override void Flush() { }
-
-    /// <inheritdoc />
-    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
 
     /// <inheritdoc />
     public override void SetLength(long value) => throw new NotSupportedException();

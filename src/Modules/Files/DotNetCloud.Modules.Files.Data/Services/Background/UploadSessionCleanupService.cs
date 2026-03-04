@@ -1,4 +1,5 @@
 using DotNetCloud.Modules.Files.Models;
+using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -45,14 +46,15 @@ internal sealed class UploadSessionCleanupService : BackgroundService
         }
     }
 
-    private async Task CleanupAsync(CancellationToken cancellationToken)
+    internal async Task CleanupAsync(CancellationToken cancellationToken)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FilesDbContext>();
+        var storageEngine = scope.ServiceProvider.GetRequiredService<IFileStorageEngine>();
 
         var now = DateTime.UtcNow;
 
-        // Expire stale sessions
+        // Expire stale in-progress sessions
         var expiredSessions = await db.UploadSessions
             .Where(s => s.Status == UploadSessionStatus.InProgress && s.ExpiresAt < now)
             .ToListAsync(cancellationToken);
@@ -67,6 +69,32 @@ internal sealed class UploadSessionCleanupService : BackgroundService
         {
             await db.SaveChangesAsync(cancellationToken);
             _logger.LogInformation("Expired {Count} stale upload sessions", expiredSessions.Count);
+        }
+
+        // GC orphaned chunks: chunks with no file version references (ReferenceCount = 0)
+        // These arise from sessions that were cancelled, expired, or had network failures
+        var orphanChunks = await db.FileChunks
+            .Where(c => c.ReferenceCount <= 0)
+            .ToListAsync(cancellationToken);
+
+        foreach (var chunk in orphanChunks)
+        {
+            try
+            {
+                await storageEngine.DeleteAsync(chunk.StoragePath, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to delete orphan chunk storage at {Path}", chunk.StoragePath);
+            }
+
+            db.FileChunks.Remove(chunk);
+        }
+
+        if (orphanChunks.Count > 0)
+        {
+            await db.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Garbage-collected {Count} orphaned chunks from failed upload sessions", orphanChunks.Count);
         }
     }
 }

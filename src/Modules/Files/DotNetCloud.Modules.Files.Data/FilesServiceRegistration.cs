@@ -26,6 +26,7 @@ public static class FilesServiceRegistration
         services.AddScoped<ITagService, TagService>();
         services.AddScoped<ICommentService, CommentService>();
         services.AddScoped<ISyncService, SyncService>();
+        services.AddScoped<IStorageMetricsService, StorageMetricsService>();
 
         // Background services
         services.AddHostedService<UploadSessionCleanupService>();

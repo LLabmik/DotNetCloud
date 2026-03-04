@@ -235,7 +235,7 @@ public class FilesController : FilesControllerBase
             return NotFound(ErrorEnvelope("not_found", "Node not found."));
 
         var downloadStream = await _downloadService.DownloadCurrentAsync(nodeId, caller);
-        return File(downloadStream, node.MimeType ?? "application/octet-stream", node.Name);
+        return File(downloadStream, node.MimeType ?? "application/octet-stream", node.Name, enableRangeProcessing: true);
     });
 
     /// <summary>
@@ -246,6 +246,18 @@ public class FilesController : FilesControllerBase
     {
         var manifest = await _downloadService.GetChunkManifestAsync(nodeId, ToCaller(userId));
         return Ok(Envelope(manifest));
+    });
+
+    /// <summary>
+    /// Downloads a raw chunk by its SHA-256 hash. Used by sync clients for efficient chunk retrieval.
+    /// </summary>
+    [HttpGet("chunks/{chunkHash}")]
+    public Task<IActionResult> DownloadChunkByHashAsync(string chunkHash, [FromQuery] Guid userId) => ExecuteAsync(async () =>
+    {
+        var stream = await _downloadService.DownloadChunkByHashAsync(chunkHash, ToCaller(userId));
+        return stream is null
+            ? NotFound(ErrorEnvelope("not_found", "Chunk not found."))
+            : File(stream, "application/octet-stream", enableRangeProcessing: false);
     });
 
     /// <summary>
