@@ -31,7 +31,6 @@ public class OrganizationMemberConfiguration : IEntityTypeConfiguration<Organiza
             .HasConversion(
                 v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => JsonSerializer.Deserialize<List<Guid>>(v, (JsonSerializerOptions?)null) ?? new List<Guid>())
-            .HasColumnType("jsonb")
             .HasDefaultValue(new List<Guid>());
 
         builder.Property(om => om.JoinedAt)
@@ -65,7 +64,7 @@ public class OrganizationMemberConfiguration : IEntityTypeConfiguration<Organiza
         builder.HasOne(om => om.User)
             .WithMany()
             .HasForeignKey(om => om.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(om => om.InvitedByUser)
             .WithMany()

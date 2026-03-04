@@ -49,7 +49,7 @@ public class GroupMemberConfiguration : IEntityTypeConfiguration<GroupMember>
         builder.HasOne(gm => gm.User)
             .WithMany()
             .HasForeignKey(gm => gm.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(gm => gm.AddedByUser)
             .WithMany()

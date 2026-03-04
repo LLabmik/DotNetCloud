@@ -266,6 +266,12 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
         ConfigureDeviceModels(modelBuilder);
         ConfigureModuleModels(modelBuilder);
         ConfigureAuthenticationModels(modelBuilder);
+
+        // Apply provider-specific JSON column types for serialized properties.
+        // PostgreSQL uses native 'jsonb'; SQL Server uses 'nvarchar(max)';
+        // MariaDB uses 'longtext'. Without this, EnsureCreated/migrations would
+        // emit the wrong DDL type for non-PostgreSQL providers.
+        ApplyJsonColumnTypes(modelBuilder);
     }
 
     /// <summary>
@@ -366,6 +372,33 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
         // Apply configurations for new auth entities
         modelBuilder.ApplyConfiguration(new UserBackupCodeConfiguration());
         modelBuilder.ApplyConfiguration(new FidoCredentialConfiguration());
+    }
+
+    /// <summary>
+    /// Applies provider-specific column types for JSON-serialized properties.
+    /// </summary>
+    /// <remarks>
+    /// Properties that store JSON (e.g., RoleIds as a serialized list) need different
+    /// column types per provider: <c>jsonb</c> for PostgreSQL (enables native JSON operators),
+    /// <c>nvarchar(max)</c> for SQL Server, and <c>longtext</c> for MariaDB.
+    /// </remarks>
+    private void ApplyJsonColumnTypes(ModelBuilder modelBuilder)
+    {
+        var columnType = _namingStrategy.Provider switch
+        {
+            Naming.DatabaseProvider.PostgreSQL => "jsonb",
+            Naming.DatabaseProvider.SqlServer => "nvarchar(max)",
+            Naming.DatabaseProvider.MariaDB => "longtext",
+            _ => "nvarchar(max)",
+        };
+
+        modelBuilder.Entity<OrganizationMember>()
+            .Property(om => om.RoleIds)
+            .HasColumnType(columnType);
+
+        modelBuilder.Entity<TeamMember>()
+            .Property(tm => tm.RoleIds)
+            .HasColumnType(columnType);
     }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

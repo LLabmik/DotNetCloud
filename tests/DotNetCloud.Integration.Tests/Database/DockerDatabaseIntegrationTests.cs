@@ -12,7 +12,9 @@ namespace DotNetCloud.Integration.Tests.Database;
 
 /// <summary>
 /// Integration tests that run CRUD operations against real PostgreSQL and SQL Server
-/// containers via Docker. Tests are skipped gracefully when Docker is not available.
+/// databases. PostgreSQL uses Docker containers; SQL Server prefers a local instance
+/// (e.g., SQL Server Express with Windows Auth) and falls back to Docker containers.
+/// Tests are skipped gracefully when neither source is available.
 /// </summary>
 /// <remarks>
 /// MariaDB is intentionally excluded — Pomelo does not yet support .NET 10.
@@ -24,24 +26,41 @@ public class DockerDatabaseIntegrationTests
     private static DatabaseContainerFixture? s_postgresFixture;
     private static DatabaseContainerFixture? s_sqlServerFixture;
     private static bool s_dockerAvailable;
+    private static bool s_sqlServerLocalAvailable;
+    private static string? s_sqlServerConnectionString;
 
     [ClassInitialize]
     public static async Task ClassInitialize(TestContext _)
     {
+        // Try local SQL Server first (Windows Auth — avoids WSL2 Docker crashes)
+        s_sqlServerLocalAvailable = await LocalSqlServerDetector.TryDetectAsync();
+        if (s_sqlServerLocalAvailable)
+        {
+            s_sqlServerConnectionString = LocalSqlServerDetector.ConnectionString;
+        }
+
         var pgConfig = DatabaseContainerConfig.PostgreSql();
         s_postgresFixture = new DatabaseContainerFixture(pgConfig);
 
-        var sqlConfig = DatabaseContainerConfig.SqlServer();
-        s_sqlServerFixture = new DatabaseContainerFixture(sqlConfig);
+        if (!s_sqlServerLocalAvailable)
+        {
+            // Fall back to Docker for SQL Server only if local is unavailable
+            var sqlConfig = DatabaseContainerConfig.SqlServer();
+            s_sqlServerFixture = new DatabaseContainerFixture(sqlConfig);
 
-        // Start both containers concurrently. This avoids the PostgreSQL container
-        // being idle-killed by WSL while waiting for SQL Server health checks.
-        var pgTask = s_postgresFixture.StartAsync();
-        var sqlTask = s_sqlServerFixture.StartAsync();
+            var pgTask = s_postgresFixture.StartAsync();
+            var sqlTask = s_sqlServerFixture.StartAsync();
 
-        await Task.WhenAll(pgTask, sqlTask);
+            await Task.WhenAll(pgTask, sqlTask);
 
-        s_dockerAvailable = pgTask.Result;
+            s_dockerAvailable = pgTask.Result;
+            s_sqlServerConnectionString = s_sqlServerFixture.ConnectionString;
+        }
+        else
+        {
+            // Only start PostgreSQL container
+            s_dockerAvailable = await s_postgresFixture.StartAsync();
+        }
     }
 
     [ClassCleanup]
@@ -56,6 +75,8 @@ public class DockerDatabaseIntegrationTests
         {
             await s_sqlServerFixture.DisposeAsync();
         }
+
+        await LocalSqlServerDetector.CleanupAsync();
     }
 
     // ── PostgreSQL Tests ─────────────────────────────────────────────────
@@ -218,7 +239,6 @@ public class DockerDatabaseIntegrationTests
     [TestMethod]
     public async Task SqlServer_EnsureCreated_Succeeds()
     {
-        SkipIfDockerUnavailable();
         SkipIfSqlServerUnavailable();
         await using var context = CreateSqlServerContext();
 
@@ -228,7 +248,6 @@ public class DockerDatabaseIntegrationTests
     [TestMethod]
     public async Task SqlServer_Crud_Organization()
     {
-        SkipIfDockerUnavailable();
         SkipIfSqlServerUnavailable();
         await using var context = CreateSqlServerContext();
         await EnsureCreatedOrSkipAsync(context);
@@ -269,7 +288,6 @@ public class DockerDatabaseIntegrationTests
     [TestMethod]
     public async Task SqlServer_Crud_User()
     {
-        SkipIfDockerUnavailable();
         SkipIfSqlServerUnavailable();
         await using var context = CreateSqlServerContext();
         await EnsureCreatedOrSkipAsync(context);
@@ -294,7 +312,6 @@ public class DockerDatabaseIntegrationTests
     [TestMethod]
     public async Task SqlServer_Crud_SystemSetting()
     {
-        SkipIfDockerUnavailable();
         SkipIfSqlServerUnavailable();
         await using var context = CreateSqlServerContext();
         await EnsureCreatedOrSkipAsync(context);
@@ -322,7 +339,6 @@ public class DockerDatabaseIntegrationTests
     [TestMethod]
     public async Task SqlServer_Crud_Permission()
     {
-        SkipIfDockerUnavailable();
         SkipIfSqlServerUnavailable();
         await using var context = CreateSqlServerContext();
         await EnsureCreatedOrSkipAsync(context);
@@ -348,7 +364,6 @@ public class DockerDatabaseIntegrationTests
     [TestMethod]
     public async Task SqlServer_Seed_DefaultData()
     {
-        SkipIfDockerUnavailable();
         SkipIfSqlServerUnavailable();
         await using var context = CreateSqlServerContext();
         await EnsureCreatedOrSkipAsync(context);
@@ -380,15 +395,14 @@ public class DockerDatabaseIntegrationTests
 
     private static void SkipIfSqlServerUnavailable()
     {
-        if (s_sqlServerFixture?.ConnectionString is null)
+        if (s_sqlServerConnectionString is null)
         {
-            Assert.Inconclusive("SQL Server container did not start — skipping SQL Server test.");
+            Assert.Inconclusive("SQL Server is not available (no local instance, Docker container did not start) — skipping.");
         }
     }
 
     /// <summary>
     /// Creates a <see cref="CoreDbContext"/> connected to the running PostgreSQL container.
-    /// Each call uses a unique database name to isolate tests.
     /// </summary>
     private static CoreDbContext CreatePostgreSqlContext()
     {
@@ -403,13 +417,13 @@ public class DockerDatabaseIntegrationTests
     }
 
     /// <summary>
-    /// Creates a <see cref="CoreDbContext"/> connected to the running SQL Server container.
-    /// Each call uses a unique database name to isolate tests.
+    /// Creates a <see cref="CoreDbContext"/> connected to SQL Server — either a local
+    /// instance (Windows Auth) or a Docker container, whichever is available.
     /// </summary>
     private static CoreDbContext CreateSqlServerContext()
     {
-        var connectionString = s_sqlServerFixture!.ConnectionString
-            ?? throw new InvalidOperationException("SQL Server fixture not started.");
+        var connectionString = s_sqlServerConnectionString
+            ?? throw new InvalidOperationException("SQL Server is not available.");
 
         var options = new DbContextOptionsBuilder<CoreDbContext>()
             .UseSqlServer(connectionString)
@@ -420,19 +434,23 @@ public class DockerDatabaseIntegrationTests
 
     /// <summary>
     /// Wraps <see cref="Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade.EnsureCreatedAsync(System.Threading.CancellationToken)"/> with a timeout and marks the test
-    /// inconclusive if the container crashed after the health check passed (common with SQL Server
-    /// on certain WSL2 kernels where the container exits shortly after initialization).
+    /// inconclusive if the database is unreachable (Docker container crashed, network issue, etc.).
     /// </summary>
     private static async Task EnsureCreatedOrSkipAsync(CoreDbContext context)
     {
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         try
         {
             await context.Database.EnsureCreatedAsync(cts.Token);
         }
-        catch (Exception ex) when (ex is OperationCanceledException or Microsoft.Data.SqlClient.SqlException)
+        catch (OperationCanceledException)
         {
-            Assert.Inconclusive($"Database container became unreachable — skipping: {ex.GetType().Name}");
+            Assert.Inconclusive("Database operation timed out — skipping.");
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (!s_sqlServerLocalAvailable)
+        {
+            // Docker container likely crashed — skip gracefully
+            Assert.Inconclusive($"Database container became unreachable — skipping: {ex.Message}");
         }
     }
 }

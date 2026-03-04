@@ -31,7 +31,6 @@ public class TeamMemberConfiguration : IEntityTypeConfiguration<TeamMember>
             .HasConversion(
                 v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => JsonSerializer.Deserialize<List<Guid>>(v, (JsonSerializerOptions?)null) ?? new List<Guid>())
-            .HasColumnType("jsonb")
             .HasDefaultValue(new List<Guid>());
 
         builder.Property(tm => tm.JoinedAt)
@@ -53,6 +52,6 @@ public class TeamMemberConfiguration : IEntityTypeConfiguration<TeamMember>
         builder.HasOne(tm => tm.User)
             .WithMany()
             .HasForeignKey(tm => tm.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

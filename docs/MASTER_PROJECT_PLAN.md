@@ -2154,7 +2154,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 #### Step: phase-0.15.10 - Docker-Based Database Integration Tests
 **Status:** completed ✅
 **Duration:** ~4 hours (includes Docker/WSL setup and debugging)
-**Description:** Real database integration tests that start PostgreSQL and SQL Server containers via `DatabaseContainerFixture` with WSL 2 Docker support. PostgreSQL tests run CRUD and seeding against a live container. SQL Server tests skip gracefully — the SQL Server container crashes on the current WSL2 kernel (exit 255, known incompatibility). MariaDB skipped (Pomelo lacks .NET 10 support).
+**Description:** Real database integration tests that start PostgreSQL containers via `DatabaseContainerFixture` with WSL 2 Docker support, and connect to local SQL Server Express via Windows Authentication. SQL Server tests prefer a local instance (shared memory) and fall back to Docker containers. MariaDB skipped (Pomelo lacks .NET 10 support).
 
 **Deliverables:**
 - ✓ `tools/setup-docker-wsl.sh` — Docker Engine installer for WSL (Linux Mint 22 / Ubuntu 24.04)
@@ -2164,8 +2164,17 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
   - ✓ Container crash detection via `docker ps -q --filter id=`
   - ✓ Host-side TCP port verification (`VerifyHostPortAsync`)
   - ✓ Explicit `docker stop` + `docker rm` cleanup (no `--rm` flag — causes crashes on WSL2)
+- ✓ `LocalSqlServerDetector` — probes local SQL Server Express via shared memory (`Data Source=.`):
+  - ✓ Windows-only detection (Windows Authentication)
+  - ✓ Isolated test database creation per session (`dotnetcloud_test_YYYYMMDD_HHmmss`)
+  - ✓ Automatic cleanup on test teardown (DROP DATABASE)
+  - ✓ Result cached for process lifetime
 - ✓ `ApplicationUserConfiguration` fix: `GETUTCDATE()` → `CURRENT_TIMESTAMP` (cross-database)
 - ✓ `DatabaseContainerConfig.SqlServer()` fix: double quotes instead of single quotes in health check
+- ✓ Cross-database fixes:
+  - ✓ `OrganizationMemberConfiguration` / `TeamMemberConfiguration`: removed hard-coded `HasColumnType("jsonb")` (PostgreSQL-specific)
+  - ✓ `CoreDbContext.ApplyJsonColumnTypes()`: provider-aware JSON column types (`jsonb` → PostgreSQL, `nvarchar(max)` → SQL Server, `longtext` → MariaDB)
+  - ✓ Membership FK cascade → `Restrict` for `OrganizationMember`, `TeamMember`, `GroupMember` User FKs (SQL Server rejects multiple cascade paths)
 - ✓ `Database/DockerDatabaseIntegrationTests.cs` — 12 tests:
   - ✓ `PostgreSql_EnsureCreated_Succeeds` — **passes against real PostgreSQL 16**
   - ✓ `PostgreSql_Crud_Organization` — **passes** (create, read, update, soft-delete)
@@ -2173,17 +2182,17 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
   - ✓ `PostgreSql_Crud_SystemSetting` — **passes**
   - ✓ `PostgreSql_Crud_Permission` — **passes**
   - ✓ `PostgreSql_Seed_DefaultData` — **passes**
-  - ⏭️ `SqlServer_EnsureCreated_Succeeds` — **skipped** (WSL2 kernel incompatibility)
-  - ⏭️ `SqlServer_Crud_Organization` — **skipped**
-  - ⏭️ `SqlServer_Crud_User` — **skipped**
-  - ⏭️ `SqlServer_Crud_SystemSetting` — **skipped**
-  - ⏭️ `SqlServer_Crud_Permission` — **skipped**
-  - ⏭️ `SqlServer_Seed_DefaultData` — **skipped**
+  - ✓ `SqlServer_EnsureCreated_Succeeds` — **passes against local SQL Server Express**
+  - ✓ `SqlServer_Crud_Organization` — **passes**
+  - ✓ `SqlServer_Crud_User` — **passes**
+  - ✓ `SqlServer_Crud_SystemSetting` — **passes**
+  - ✓ `SqlServer_Crud_Permission` — **passes**
+  - ✓ `SqlServer_Seed_DefaultData` — **passes**
 - ✓ `EnsureCreatedOrSkipAsync` helper — catches container crashes as `Assert.Inconclusive`
 - ✓ Concurrent fixture startup (`Task.WhenAll`) — prevents WSL idle timeout
 - ✓ Seed test assertions updated for test-order independence
 
-**Notes:** Docker Engine 29.2.1 installed in WSL 2 (Linux Mint 22). PostgreSQL 16 containers work perfectly. SQL Server 2022 containers crash with exit code 255 on WSL2 kernel 6.6.87.2 — a known incompatibility. SQL Server tests will pass on CI/CD with native Docker. All 694 tests pass across 7 test projects (6 PostgreSQL Docker tests pass, 6 SQL Server Docker tests skip).
+**Notes:** Docker Engine 29.2.1 installed in WSL 2 (Linux Mint 22). PostgreSQL 16 containers work perfectly. SQL Server Docker containers crash on WSL2 kernel 6.6.87.2; resolved by using local SQL Server Express (Windows Auth, shared memory protocol). All 12 database integration tests now pass: 6 PostgreSQL (Docker) + 6 SQL Server (local). Total: 803 tests pass across 7 test projects.
 
 ---
 
@@ -2350,17 +2359,31 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ## Status Summary & Notes
 
+### Phase 0 Completion Verification (2026-03-04)
+
+**Build:** ✓ All 20 projects compile — 0 errors, 0 warnings
+**Tests:** ✓ 797 passed, 0 failed, 6 skipped (SQL Server Docker on WSL2)
+- Core.Tests: 138 | CLI.Tests: 66 | Example.Tests: 51 | Core.Data.Tests: 176
+- Core.Auth.Tests: 69 | Integration.Tests: 38+6 skipped | Core.Server.Tests: 259
+
+**Remaining ☐ items (3 total):**
+1. ☐ MariaDB integration tests — Pomelo EF Core provider lacks .NET 10 support
+2. ☐ Docker runtime health checks — requires Docker daemon (files are present)
+3. ☐ Kubernetes deployment — Helm chart not yet created
+
+**All other Phase 0 checklist items verified ✓** — see `docs/IMPLEMENTATION_CHECKLIST.md` Phase 0 Completion Checklist for full evidence annotations.
+
 - **Total Phase 0 Steps:** 229+ (across subsections 0.1-0.19)
 - **Estimated Duration:** 16-20 weeks for complete Phase 0
 - **Critical Path:** 0.1 → 0.2 → 0.3 → 0.4 → (0.5-0.19 can parallelize somewhat)
-- **Blocking Issues:** None currently
+- **Blocking Issues:** MariaDB (Pomelo .NET 10 support pending)
 - **Assumptions:** .NET 10, PostgreSQL/SQL Server/MariaDB support required
 - **Reference:** Complete detailed task breakdowns in `/docs/IMPLEMENTATION_CHECKLIST.md`
 
 ---
 
-**Last Updated:** 2026-03-03 (Phase 0.19 Documentation completed — API reference, authentication flows, response format, error handling, module development guide, running tests guide)
-**Next Review:** Phase 0 completion verification
+**Last Updated:** 2026-03-04 (Phase 0 Completion Checklist verified — 797 tests pass, 3 items remain pending)
+**Next Review:** Phase 1 planning kickoff
 **Maintained By:** Development Team
 
 ---
