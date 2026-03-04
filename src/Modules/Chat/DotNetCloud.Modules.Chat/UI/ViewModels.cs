@@ -70,6 +70,12 @@ public sealed class MessageViewModel
 
     /// <summary>Attachments on this message.</summary>
     public List<AttachmentViewModel> Attachments { get; init; } = [];
+
+    /// <summary>Mentions parsed from this message.</summary>
+    public List<MentionViewModel> Mentions { get; init; } = [];
+
+    /// <summary>Whether this message mentions the current user (directly or via @all/@channel).</summary>
+    public bool IsMentioningCurrentUser { get; set; }
 }
 
 /// <summary>
@@ -106,6 +112,24 @@ public sealed class AttachmentViewModel
 
     /// <summary>Thumbnail URL for preview.</summary>
     public string? ThumbnailUrl { get; init; }
+}
+
+/// <summary>
+/// View model for an @mention in a message.
+/// </summary>
+public sealed class MentionViewModel
+{
+    /// <summary>Type of mention: "User", "Channel", or "All".</summary>
+    public string Type { get; init; } = "User";
+
+    /// <summary>Mentioned user ID. Null for @channel and @all.</summary>
+    public Guid? MentionedUserId { get; init; }
+
+    /// <summary>Start position in the message text.</summary>
+    public int StartIndex { get; init; }
+
+    /// <summary>Length of the mention text.</summary>
+    public int Length { get; init; }
 }
 
 /// <summary>

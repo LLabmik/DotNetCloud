@@ -1495,8 +1495,8 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ `Task<PagedResult<MessageDto>> SearchMessagesAsync(Guid channelId, string query, CallerContext caller)`
   - ✓ `Task<MessageDto> GetMessageAsync(Guid messageId, CallerContext caller)`
 - ✓ Implement `MessageService`
-- ☐ Parse mentions from message content (`@username`, `@channel`, `@all`)
-- ☐ Create mention notification dispatching
+- ✓ Parse mentions from message content (`@username`, `@channel`, `@all`)
+- ✓ Create mention notification dispatching
 - ✓ Enforce message length limits
 
 #### Reaction Service

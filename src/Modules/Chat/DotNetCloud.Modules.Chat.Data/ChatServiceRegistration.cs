@@ -22,6 +22,7 @@ public static class ChatServiceRegistration
         services.AddSingleton<ITypingIndicatorService, TypingIndicatorService>();
         services.AddSingleton<IChatRealtimeService, ChatRealtimeService>();
         services.AddScoped<IAnnouncementService, AnnouncementService>();
+        services.AddScoped<IMentionNotificationService, MentionNotificationService>();
 
         // Push notification providers and router
         services.AddSingleton<FcmPushProvider>();

@@ -6,6 +6,7 @@ using DotNetCloud.Modules.Chat.Models;
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using IUserDirectory = DotNetCloud.Core.Capabilities.IUserDirectory;
 
 namespace DotNetCloud.Modules.Chat.Data.Services;
 
@@ -16,13 +17,22 @@ internal sealed class MessageService : IMessageService
 {
     private readonly ChatDbContext _db;
     private readonly IEventBus _eventBus;
+    private readonly IUserDirectory? _userDirectory;
+    private readonly IMentionNotificationService? _mentionNotifier;
     private readonly ILogger<MessageService> _logger;
 
-    public MessageService(ChatDbContext db, IEventBus eventBus, ILogger<MessageService> logger)
+    public MessageService(
+        ChatDbContext db,
+        IEventBus eventBus,
+        ILogger<MessageService> logger,
+        IUserDirectory? userDirectory = null,
+        IMentionNotificationService? mentionNotifier = null)
     {
         _db = db;
         _eventBus = eventBus;
         _logger = logger;
+        _userDirectory = userDirectory;
+        _mentionNotifier = mentionNotifier;
     }
 
     /// <inheritdoc />
@@ -51,7 +61,7 @@ internal sealed class MessageService : IMessageService
         _db.Messages.Add(message);
 
         // Parse and store mentions
-        ParseAndStoreMentions(message);
+        var mentions = await ParseAndStoreMentionsAsync(message, cancellationToken);
 
         // Update channel activity
         var channel = await _db.Channels.FindAsync([channelId], cancellationToken);
@@ -72,6 +82,13 @@ internal sealed class MessageService : IMessageService
             Content = message.Content,
             MessageType = message.Type.ToString()
         }, caller, cancellationToken);
+
+        // Dispatch mention notifications after the message is persisted
+        if (mentions.Count > 0 && _mentionNotifier is not null)
+        {
+            await _mentionNotifier.DispatchMentionNotificationsAsync(
+                message.Id, channelId, caller.UserId, mentions, cancellationToken);
+        }
 
         return ToMessageDto(message);
     }
@@ -101,7 +118,7 @@ internal sealed class MessageService : IMessageService
             .Where(m => m.MessageId == messageId)
             .ToListAsync(cancellationToken);
         _db.MessageMentions.RemoveRange(oldMentions);
-        ParseAndStoreMentions(message);
+        var newMentions = await ParseAndStoreMentionsAsync(message, cancellationToken);
 
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -114,6 +131,13 @@ internal sealed class MessageService : IMessageService
             EditedByUserId = caller.UserId,
             NewContent = message.Content
         }, caller, cancellationToken);
+
+        // Dispatch mention notifications for new mentions after edit
+        if (newMentions.Count > 0 && _mentionNotifier is not null)
+        {
+            await _mentionNotifier.DispatchMentionNotificationsAsync(
+                message.Id, message.ChannelId, caller.UserId, newMentions, cancellationToken);
+        }
 
         return ToMessageDto(message);
     }
@@ -168,6 +192,7 @@ internal sealed class MessageService : IMessageService
             .Take(pageSize)
             .Include(m => m.Attachments)
             .Include(m => m.Reactions)
+            .Include(m => m.Mentions)
             .ToListAsync(cancellationToken);
 
         return new PagedMessageResult
@@ -197,6 +222,7 @@ internal sealed class MessageService : IMessageService
             .Take(pageSize)
             .Include(m => m.Attachments)
             .Include(m => m.Reactions)
+            .Include(m => m.Mentions)
             .ToListAsync(cancellationToken);
 
         return new PagedMessageResult
@@ -215,15 +241,22 @@ internal sealed class MessageService : IMessageService
             .AsNoTracking()
             .Include(m => m.Attachments)
             .Include(m => m.Reactions)
+            .Include(m => m.Mentions)
             .FirstOrDefaultAsync(m => m.Id == messageId, cancellationToken);
 
         return message is null ? null : ToMessageDto(message);
     }
 
-    private void ParseAndStoreMentions(Message message)
+    /// <summary>
+    /// Parses @mentions from message content and stores them in the database.
+    /// Supports @all, @channel, and @username mentions.
+    /// </summary>
+    private async Task<IReadOnlyList<MessageMention>> ParseAndStoreMentionsAsync(
+        Message message, CancellationToken cancellationToken)
     {
         var content = message.Content;
         var index = 0;
+        var mentions = new List<MessageMention>();
 
         while (index < content.Length)
         {
@@ -240,27 +273,52 @@ internal sealed class MessageService : IMessageService
 
             if (string.Equals(mentionText, "@all", StringComparison.OrdinalIgnoreCase))
             {
-                _db.MessageMentions.Add(new MessageMention
+                var mention = new MessageMention
                 {
                     MessageId = message.Id,
                     Type = MentionType.All,
                     StartIndex = atIndex,
                     Length = length
-                });
+                };
+                _db.MessageMentions.Add(mention);
+                mentions.Add(mention);
             }
             else if (string.Equals(mentionText, "@channel", StringComparison.OrdinalIgnoreCase))
             {
-                _db.MessageMentions.Add(new MessageMention
+                var mention = new MessageMention
                 {
                     MessageId = message.Id,
                     Type = MentionType.Channel,
                     StartIndex = atIndex,
                     Length = length
-                });
+                };
+                _db.MessageMentions.Add(mention);
+                mentions.Add(mention);
+            }
+            else if (mentionText.Length > 1 && _userDirectory is not null)
+            {
+                // Resolve @username against the user directory
+                var username = mentionText[1..]; // strip the '@'
+                var userId = await _userDirectory.FindUserIdByUsernameAsync(username, cancellationToken);
+                if (userId.HasValue)
+                {
+                    var mention = new MessageMention
+                    {
+                        MessageId = message.Id,
+                        MentionedUserId = userId.Value,
+                        Type = MentionType.User,
+                        StartIndex = atIndex,
+                        Length = length
+                    };
+                    _db.MessageMentions.Add(mention);
+                    mentions.Add(mention);
+                }
             }
 
             index = endIndex;
         }
+
+        return mentions;
     }
 
     private static MessageDto ToMessageDto(Message message)
@@ -292,7 +350,14 @@ internal sealed class MessageService : IMessageService
                     Emoji = g.Key,
                     Count = g.Count(),
                     UserIds = g.Select(r => r.UserId).ToList()
-                }).ToList()
+                }).ToList(),
+            Mentions = message.Mentions.Select(m => new MessageMentionDto
+            {
+                Type = m.Type.ToString(),
+                MentionedUserId = m.MentionedUserId,
+                StartIndex = m.StartIndex,
+                Length = m.Length
+            }).ToList()
         };
     }
 }

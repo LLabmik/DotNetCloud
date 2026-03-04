@@ -2448,7 +2448,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Deliverables:**
 - ✓ Implement IChannelService and ChannelService (CRUD, DM creation, authorization, channel name uniqueness validation)
 - ☐ Implement IChannelMemberService and ChannelMemberService (add/remove, roles, unread counts)
-- ☐ Implement IMessageService and MessageService (send, edit, delete, search, mention parsing)
+- ✓ Implement IMessageService and MessageService (send, edit, delete, search, mention parsing, mention notification dispatching)
 - ☐ Implement IReactionService and ReactionService
 - ☐ Implement IPinService and PinService
 - ☐ Implement ITypingIndicatorService (in-memory, time-expiring)
@@ -2456,7 +2456,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Dependencies:** phase-2.2
 **Blocking Issues:** None
-**Notes:** ChannelService complete with CRUD, authorization, DM resolution, and channel name uniqueness validation within organization. Uniqueness enforced via `ValidateChannelNameUniqueAsync` (DB query + `ValidationException`), applied on create and update. DM channels are excluded from uniqueness checks. ChatController catches `ValidationException` and returns 409 Conflict. ChatGrpcService.CreateChannel refactored to delegate to IChannelService (was bypassing it with direct DB access). Proto updated with `organization_id` field. 128 total chat tests pass (8 uniqueness tests). Service interfaces and remaining implementations are next.
+**Notes:** ChannelService complete with CRUD, authorization, DM resolution, and channel name uniqueness validation within organization. Uniqueness enforced via `ValidateChannelNameUniqueAsync` (DB query + `ValidationException`), applied on create and update. DM channels are excluded from uniqueness checks. ChatController catches `ValidationException` and returns 409 Conflict. ChatGrpcService.CreateChannel refactored to delegate to IChannelService (was bypassing it with direct DB access). Proto updated with `organization_id` field. MessageService complete with send/edit/delete/search/pagination, @username/@channel/@all mention parsing via IUserDirectory, and IMentionNotificationService for dispatching notifications (real-time + push). IUserDirectory enhanced with FindUserIdByUsernameAsync and GetDisplayNamesAsync. UserDirectoryService implementation added. Mention data now surfaced to clients: MessageMentionDto added, MessageDto.Mentions populated from DB, all query methods include Mentions navigation. MentionViewModel and IsMentioningCurrentUser added to MessageViewModel for Blazor UI. 153 total chat tests pass. Remaining: ChannelMemberService, ReactionService, PinService, TypingIndicatorService.
 
 ---
 

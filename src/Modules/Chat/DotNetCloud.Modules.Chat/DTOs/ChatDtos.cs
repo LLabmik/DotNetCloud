@@ -148,6 +148,9 @@ public sealed record MessageDto
 
     /// <summary>Reactions on this message.</summary>
     public IReadOnlyList<MessageReactionDto> Reactions { get; init; } = [];
+
+    /// <summary>@mentions parsed from this message.</summary>
+    public IReadOnlyList<MessageMentionDto> Mentions { get; init; } = [];
 }
 
 /// <summary>
@@ -208,6 +211,24 @@ public sealed record MessageReactionDto
 
     /// <summary>User IDs who reacted.</summary>
     public IReadOnlyList<Guid> UserIds { get; init; } = [];
+}
+
+/// <summary>
+/// Response DTO representing an @mention in a message.
+/// </summary>
+public sealed record MessageMentionDto
+{
+    /// <summary>Type of mention: "User", "Channel", or "All".</summary>
+    public required string Type { get; init; }
+
+    /// <summary>Mentioned user ID. Null for @channel and @all.</summary>
+    public Guid? MentionedUserId { get; init; }
+
+    /// <summary>Start position of the mention in the message text.</summary>
+    public int StartIndex { get; init; }
+
+    /// <summary>Length of the mention text.</summary>
+    public int Length { get; init; }
 }
 
 /// <summary>
