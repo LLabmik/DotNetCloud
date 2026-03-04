@@ -1,0 +1,219 @@
+# =============================================================================
+# DotNetCloud CI/CD Pipeline — Build & Test (Gitea Actions)
+# =============================================================================
+# Gitea Actions uses a syntax compatible with GitHub Actions.
+# Triggers: push to main, pull requests to main
+# Jobs:
+#   1. build        — Restore, compile, generate artifacts
+#   2. test         — Run unit tests with code coverage
+#   3. integration  — Multi-database integration tests (PostgreSQL, SQL Server)
+# =============================================================================
+
+name: Build & Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  DOTNET_VERSION: "10.0.x"
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  SOLUTION_FILE: DotNetCloud.sln
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ===========================================================================
+  # Job 1: Build
+  # ===========================================================================
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Build.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.SOLUTION_FILE }}
+
+      - name: Build solution
+        run: dotnet build ${{ env.SOLUTION_FILE }} --no-restore --configuration Release
+
+      - name: Publish Core Server
+        run: |
+          dotnet publish src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj \
+            --no-build \
+            --configuration Release \
+            --output ./artifacts/server
+
+      - name: Publish CLI
+        run: |
+          dotnet publish src/CLI/DotNetCloud.CLI/DotNetCloud.CLI.csproj \
+            --no-build \
+            --configuration Release \
+            --output ./artifacts/cli
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotnetcloud-build-${{ github.sha }}
+          path: ./artifacts/
+          retention-days: 7
+
+  # ===========================================================================
+  # Job 2: Unit Tests with Coverage
+  # ===========================================================================
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Build.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.SOLUTION_FILE }}
+
+      - name: Run unit tests with coverage
+        run: |
+          dotnet test ${{ env.SOLUTION_FILE }} \
+            --no-restore \
+            --configuration Release \
+            --logger "trx;LogFileName=test-results.trx" \
+            --results-directory ./test-results \
+            --collect:"XPlat Code Coverage" \
+            --settings coverlet.runsettings \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura \
+               DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Exclude="[*.Tests]*" \
+               DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.ExcludeByFile="**/Migrations/**"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.sha }}
+          path: ./test-results/
+          retention-days: 7
+
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports-${{ github.sha }}
+          path: ./**/coverage.cobertura.xml
+          retention-days: 7
+
+  # ===========================================================================
+  # Job 3: Integration Tests (Multi-Database)
+  # ===========================================================================
+  integration:
+    name: Integration Tests (${{ matrix.database }})
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [postgresql, sqlserver]
+        include:
+          - database: postgresql
+            db_image: postgres:16
+            db_port: 5432
+            connection_string: "Host=localhost;Port=5432;Database=dotnetcloud_integration;Username=dotnetcloud_test;Password=TestPassword123!"
+          - database: sqlserver
+            db_image: mcr.microsoft.com/mssql/server:2022-latest
+            db_port: 1433
+            connection_string: "Server=localhost,1433;Database=dotnetcloud_integration;User Id=sa;Password=TestPassword123!;TrustServerCertificate=true"
+
+    services:
+      database:
+        image: ${{ matrix.db_image }}
+        env:
+          POSTGRES_USER: ${{ matrix.database == 'postgresql' && 'dotnetcloud_test' || '' }}
+          POSTGRES_PASSWORD: ${{ matrix.database == 'postgresql' && 'TestPassword123!' || '' }}
+          POSTGRES_DB: ${{ matrix.database == 'postgresql' && 'dotnetcloud_integration' || '' }}
+          ACCEPT_EULA: ${{ matrix.database == 'sqlserver' && 'Y' || '' }}
+          MSSQL_SA_PASSWORD: ${{ matrix.database == 'sqlserver' && 'TestPassword123!' || '' }}
+          MSSQL_PID: ${{ matrix.database == 'sqlserver' && 'Developer' || '' }}
+        ports:
+          - ${{ matrix.db_port }}:${{ matrix.db_port }}
+        options: >-
+          --health-cmd "${{ matrix.database == 'postgresql' && 'pg_isready -U dotnetcloud_test' || '/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P TestPassword123! -C -Q \"SELECT 1\"' }}"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Build.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.SOLUTION_FILE }}
+
+      - name: Run integration tests
+        env:
+          ConnectionStrings__DefaultConnection: ${{ matrix.connection_string }}
+          Database__Provider: ${{ matrix.database }}
+        run: |
+          dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj \
+            --no-restore \
+            --configuration Release \
+            --logger "trx;LogFileName=integration-${{ matrix.database }}.trx" \
+            --results-directory ./test-results
+
+      - name: Upload integration test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-results-${{ matrix.database }}-${{ github.sha }}
+          path: ./test-results/
+          retention-days: 7

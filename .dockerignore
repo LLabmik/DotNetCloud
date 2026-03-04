@@ -1,0 +1,50 @@
+# =============================================================================
+# DotNetCloud — Docker Build Exclusions
+# =============================================================================
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE / Editor
+.vs
+.vscode
+.idea
+*.user
+*.suo
+*.sln.docstates
+
+# Build output
+**/bin/
+**/obj/
+**/out/
+artifacts/
+
+# Documentation (not needed in image)
+docs/
+*.md
+LICENSE
+
+# CI/CD
+.github/
+.gitea/
+
+# Tools & scripts
+tools/
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Test results & coverage
+**/TestResults/
+**/test-results/
+**/coverage/
+**/*.trx
+**/coverage.cobertura.xml

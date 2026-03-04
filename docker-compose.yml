@@ -1,0 +1,98 @@
+# =============================================================================
+# DotNetCloud — Docker Compose (Local Development & Deployment)
+# =============================================================================
+# Usage:
+#   docker compose up -d                    # Start all services
+#   docker compose up -d dotnetcloud db     # Start server + PostgreSQL only
+#   docker compose --profile sqlserver up   # Include SQL Server
+#   docker compose down                     # Stop all services
+#   docker compose logs -f dotnetcloud      # Follow server logs
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # DotNetCloud Core Server
+  # ---------------------------------------------------------------------------
+  dotnetcloud:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dotnetcloud-server
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=dotnetcloud;Username=dotnetcloud;Password=dotnetcloud_dev_password"
+      Database__Provider: postgresql
+      Serilog__WriteTo__1__Args__path: /app/logs/dotnetcloud-.log
+    volumes:
+      - dotnetcloud-data:/app/data
+      - dotnetcloud-logs:/app/logs
+      - dotnetcloud-modules:/app/modules
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health/live"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL (Default Database)
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: dotnetcloud-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: dotnetcloud
+      POSTGRES_PASSWORD: dotnetcloud_dev_password
+      POSTGRES_DB: dotnetcloud
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dotnetcloud"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # SQL Server (Optional — activate with: --profile sqlserver)
+  # ---------------------------------------------------------------------------
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: dotnetcloud-sqlserver
+    profiles:
+      - sqlserver
+    ports:
+      - "1433:1433"
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "DotNetCloud_Dev_123!"
+      MSSQL_PID: Developer
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'DotNetCloud_Dev_123!' -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:
+    driver: local
+  sqlserver-data:
+    driver: local
+  dotnetcloud-data:
+    driver: local
+  dotnetcloud-logs:
+    driver: local
+  dotnetcloud-modules:
+    driver: local

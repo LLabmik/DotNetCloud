@@ -34,7 +34,7 @@
 | Phase 0.15 | 12 | 12 | 0 | 0 |
 | Phase 0.16 | 12 | 11 | 0 | 1 |
 | Phase 0.17 | 10 | 10 | 0 | 0 |
-| Phase 0.18 | 8 | 0 | 0 | 8 |
+| Phase 0.18 | 8 | 8 | 0 | 0 |
 | Phase 0.19 | 9 | 0 | 0 | 9 |
 | Phase 1-9 | Summary | 0 | 0 | 1 |
 | Infrastructure | Summary | 0 | 0 | 1 |
@@ -2274,6 +2274,48 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
+### Phase 0.18: CI/CD Pipeline Setup
+
+#### Step: phase-0.18.1 - CI/CD Pipeline Setup
+**Status:** completed ✅
+**Duration:** ~2 hours
+**Description:** Complete CI/CD pipeline infrastructure with build, test, multi-database integration, code coverage, Docker containerization, and packaging script skeletons for all target platforms.
+
+**Deliverables:**
+
+**CI/CD Workflows (GitHub Actions + Gitea Actions):**
+- ✓ `.github/workflows/build-test.yml` — GitHub Actions CI workflow
+- ✓ `.gitea/workflows/build-test.yml` — Gitea Actions CI workflow (mirrored)
+- ✓ **Build job:** restore, compile (Release), publish Core Server + CLI, upload artifacts (7-day retention)
+- ✓ **Unit test job:** MSTest with TRX logging, coverlet XPlat Code Coverage (Cobertura), exclude test projects + migrations
+- ✓ **Integration test job:** multi-database matrix (PostgreSQL 16, SQL Server 2022) via service containers
+- ✓ NuGet package caching (keyed by `.csproj` + `Directory.Build.props` hash)
+- ✓ Concurrency groups with cancel-in-progress for PR builds
+
+**Docker Containerization:**
+- ✓ `Dockerfile` — multi-stage build (restore → build → publish → runtime)
+  - ✓ .NET 10 SDK/ASP.NET base images
+  - ✓ Layer-cached NuGet restore (copy `.csproj` files first)
+  - ✓ Non-root user (`dotnetcloud:1000`) for security
+  - ✓ Health check via `curl` on `/health/live`
+  - ✓ Data/logs/modules volume directories
+- ✓ `docker-compose.yml` — local development & deployment
+  - ✓ Core Server service with PostgreSQL dependency
+  - ✓ PostgreSQL 16 Alpine with health check
+  - ✓ SQL Server 2022 optional profile (`--profile sqlserver`)
+  - ✓ Named volumes for data, logs, modules, database storage
+- ✓ `.dockerignore` — exclude Git, IDE, build output, docs, CI/CD, test results
+
+**Packaging Scripts (Skeletons):**
+- ✓ `tools/packaging/build-deb.ps1` — Debian package skeleton (publish, DEBIAN/control, directory structure)
+- ✓ `tools/packaging/build-rpm.ps1` — RPM package skeleton (publish, .spec file, rpmbuild structure)
+- ✓ `tools/packaging/build-msi.ps1` — Windows MSI skeleton (publish win-x64, WiX v4 placeholder)
+- ✓ `tools/packaging/build-docker.ps1` — Docker image build script (functional: build, tag, optional push)
+
+**Notes:** Full CI/CD pipeline in place. Both GitHub Actions and Gitea Actions workflows are functionally identical, covering build, unit tests with coverage, and multi-database integration tests. Docker multi-stage build produces a minimal runtime image with non-root security. Packaging scripts provide the skeleton for `.deb`, `.rpm`, and MSI builds to be fleshed out in later infrastructure phases. Status badge documentation deferred. All existing tests continue to pass. Build verified successful.
+
+---
+
 ## Status Summary & Notes
 
 - **Total Phase 0 Steps:** 229+ (across subsections 0.1-0.19)
@@ -2285,8 +2327,8 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
-**Last Updated:** 2026-03-03 (Phase 0.17 Logging & Observability completed — health check tag-based filtering, Prometheus exporter, StartupHealthCheck, 58 unit tests, observability documentation)
-**Next Review:** After Phase 0.18 start
+**Last Updated:** 2026-03-03 (Phase 0.18 CI/CD Pipeline Setup completed — GitHub/Gitea Actions workflows, Dockerfile, docker-compose, packaging skeletons)
+**Next Review:** After Phase 0.19 start
 **Maintained By:** Development Team
 
 ---
