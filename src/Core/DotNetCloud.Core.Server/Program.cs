@@ -6,6 +6,7 @@ using DotNetCloud.Core.Server.Configuration;
 using DotNetCloud.Core.Server.Extensions;
 using DotNetCloud.Core.Server.Middleware;
 using DotNetCloud.Core.ServiceDefaults.Extensions;
+using DotNetCloud.Core.ServiceDefaults.Telemetry;
 using DotNetCloud.UI.Web.Client.Services;
 using DotNetCloud.UI.Web.Services;
 using Microsoft.AspNetCore.Components;
@@ -120,6 +121,9 @@ public class Program
 
         // Map health checks
         app.MapDotNetCloudHealthChecks();
+
+        // Map Prometheus metrics scraping endpoint (/metrics) when enabled
+        app.MapDotNetCloudPrometheus();
 
         // OpenAPI/Swagger UI (development only)
         app.UseDotNetCloudOpenApi();

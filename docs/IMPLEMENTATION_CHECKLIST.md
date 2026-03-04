@@ -977,27 +977,39 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 
 ### Logging Configuration
 
-- [ ] Configure Serilog in all projects
-- [ ] Set up log levels (Debug, Information, Warning, Error, Fatal)
-- [ ] Configure file logging:
-  - [ ] Log file rotation
-  - [ ] Retention policies
-- [ ] Set up structured logging
-- [ ] Create context enrichment (user ID, request ID, module)
+- ✓ Configure Serilog in all projects
+- ✓ Set up log levels (Debug, Information, Warning, Error, Fatal)
+- ✓ Configure file logging:
+  - ✓ Log file rotation
+  - ✓ Retention policies
+- ✓ Set up structured logging
+- ✓ Create context enrichment (user ID, request ID, module)
 
 ### Health Checks
 
-- [ ] Create `/health` endpoint returning module status
-- [ ] Implement liveness probe
-- [ ] Implement readiness probe
-- [ ] Add to admin dashboard
+- ✓ Create `/health` endpoint returning module status
+- ✓ Implement liveness probe
+- ✓ Implement readiness probe
+- ✓ Add to admin dashboard
 
 ### Metrics & Tracing
 
-- [ ] Configure OpenTelemetry collectors
-- [ ] Set up Prometheus metrics export (future phase)
-- [ ] Implement distributed tracing
-- [ ] Configure trace exporters
+- ✓ Configure OpenTelemetry collectors
+- ✓ Set up Prometheus metrics export (opt-in via `EnablePrometheusExporter` config)
+- ✓ Implement distributed tracing
+- ✓ Configure trace exporters
+
+### Unit Tests
+
+- ✓ `SerilogConfigurationTests` — 11 tests (defaults, log levels, file rotation, modules)
+- ✓ `ModuleLogFilterTests` — 9 tests (exclusion, module levels, precedence)
+- ✓ `LogEnricherTests` — 10 tests (property push/pop, context enrichment)
+- ✓ `TelemetryConfigurationTests` — 14 tests (options defaults, activity sources, Prometheus)
+- ✓ `HealthCheckTests` — 14 tests (StartupHealthCheck, ModuleHealthCheckResult, adapter, enum)
+
+### Documentation
+
+- ✓ Create `docs/architecture/observability.md` with comprehensive guide
 
 ---
 

@@ -419,7 +419,7 @@ public class DockerDatabaseIntegrationTests
     }
 
     /// <summary>
-    /// Wraps <see cref="DatabaseContext.EnsureCreatedAsync"/> with a timeout and marks the test
+    /// Wraps <see cref="Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade.EnsureCreatedAsync(System.Threading.CancellationToken)"/> with a timeout and marks the test
     /// inconclusive if the container crashed after the health check passed (common with SQL Server
     /// on certain WSL2 kernels where the container exits shortly after initialization).
     /// </summary>

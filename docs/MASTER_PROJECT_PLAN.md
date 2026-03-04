@@ -33,7 +33,7 @@
 | Phase 0.14 | 18 | 18 | 0 | 0 |
 | Phase 0.15 | 12 | 12 | 0 | 0 |
 | Phase 0.16 | 12 | 11 | 0 | 1 |
-| Phase 0.17 | 10 | 0 | 0 | 10 |
+| Phase 0.17 | 10 | 10 | 0 | 0 |
 | Phase 0.18 | 8 | 0 | 0 | 8 |
 | Phase 0.19 | 9 | 0 | 0 | 9 |
 | Phase 1-9 | Summary | 0 | 0 | 1 |
@@ -2219,6 +2219,61 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
+### Phase 0.17: Logging & Observability
+
+#### Step: phase-0.17.1 - Logging & Observability Implementation
+**Status:** completed ✅
+**Duration:** ~2 hours
+**Description:** Comprehensive observability infrastructure ensuring all logging, health checks, metrics, and tracing components are properly configured, tested, and documented across the entire platform.
+
+**Deliverables:**
+
+**Health Check Enhancements:**
+- ✓ `StartupHealthCheck` — readiness probe that reports Unhealthy until `MarkReady()` is called after initialization
+- ✓ Tag-based health check endpoint filtering:
+  - ✓ `/health` — full report (all registered checks)
+  - ✓ `/health/live` — liveness probe (only `live`-tagged checks, no external deps)
+  - ✓ `/health/ready` — readiness probe (`ready` + `database` + `module`-tagged checks)
+- ✓ JSON response writer for all health endpoints (status, duration, description, exception, data per entry)
+- ✓ `self` check (always healthy) registered with `live` tag
+- ✓ `startup` check registered with `ready` tag
+
+**Prometheus Metrics Exporter:**
+- ✓ `OpenTelemetry.Exporter.Prometheus.AspNetCore` 1.15.0-beta.1 package added
+- ✓ `EnablePrometheusExporter` option added to `TelemetryOptions` (default: false, opt-in)
+- ✓ `MapDotNetCloudPrometheus()` extension method — maps `/metrics` endpoint when enabled
+- ✓ Prometheus exporter wired into metrics pipeline in `ConfigureMetricsExporters`
+- ✓ `/metrics` endpoint mapped in `Program.cs` pipeline
+
+**Serilog Configuration (validated existing infrastructure):**
+- ✓ Serilog configured in `ServiceDefaultsExtensions.AddDotNetCloudServiceDefaults(WebApplicationBuilder)` via `UseDotNetCloudSerilog()`
+- ✓ Console sink (development: colored structured output; production: plain structured)
+- ✓ File sink (daily rolling, 31-day retention, 100MB per file, shared mode)
+- ✓ Log levels: Debug, Information, Warning, Error, Fatal (all supported)
+- ✓ Context enrichment: UserId, RequestId, ModuleName, OperationName, CallerContext via `LogEnricher`
+- ✓ Module-level filtering via `ModuleLogFilter` (exclusion + per-module levels)
+- ✓ Machine name, environment, process ID, thread ID auto-enrichment
+
+**appsettings Configuration:**
+- ✓ `appsettings.json` — Serilog section (file path, rotation, retention, structured format, module log levels)
+- ✓ `appsettings.json` — Telemetry section expanded (ServiceName, ServiceVersion, Prometheus, OTLP, additional sources/meters)
+- ✓ `appsettings.Development.json` — Serilog section (Debug level, 7-day retention, dev file path)
+- ✓ `appsettings.Development.json` — Telemetry section (console exporter off by default, Prometheus off)
+
+**Unit Tests (58 tests, all passing):**
+- ✓ `SerilogConfigurationTests` — 11 tests (defaults, log levels, file rotation, retention, modules)
+- ✓ `ModuleLogFilterTests` — 9 tests (exclusion, module levels, precedence, null params)
+- ✓ `LogEnricherTests` — 10 tests (property push/pop via CollectorSink, CallerContext, dispose cleanup)
+- ✓ `TelemetryConfigurationTests` — 14 tests (options defaults, activity sources, Prometheus, OTLP)
+- ✓ `HealthCheckTests` — 14 tests (StartupHealthCheck lifecycle, ModuleHealthCheckResult factories, adapter mapping, exception handling, enum values)
+
+**Documentation:**
+- ✓ `docs/architecture/observability.md` — comprehensive observability guide (logging, metrics, tracing, health checks, Kubernetes probes, configuration reference, architecture diagram)
+
+**Notes:** All observability infrastructure was already implemented in Phase 0.3 (Serilog, OpenTelemetry, health checks). Phase 0.17 enhanced the health check endpoints with proper tag-based liveness/readiness filtering, added the Prometheus metrics exporter (opt-in), added comprehensive appsettings configuration, created 58 unit tests covering all observability components, and documented the full observability architecture. All 797 tests pass (6 SQL Server Docker tests skipped as expected).
+
+---
+
 ## Status Summary & Notes
 
 - **Total Phase 0 Steps:** 229+ (across subsections 0.1-0.19)
@@ -2230,8 +2285,8 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
-**Last Updated:** 2026-03-03 (Phase 0.16 Internationalization Infrastructure completed — i18n setup, resource files, CultureSelector, dual culture persistence, 45 unit tests)
-**Next Review:** After Phase 0.17 start
+**Last Updated:** 2026-03-03 (Phase 0.17 Logging & Observability completed — health check tag-based filtering, Prometheus exporter, StartupHealthCheck, 58 unit tests, observability documentation)
+**Next Review:** After Phase 0.18 start
 **Maintained By:** Development Team
 
 ---

@@ -71,45 +71,53 @@ public class TranslationKeysTests
     [TestMethod]
     public void Common_ContainsExpectedKeys()
     {
-        Assert.AreEqual("AppName", TranslationKeys.Common.AppName);
-        Assert.AreEqual("Save", TranslationKeys.Common.Save);
-        Assert.AreEqual("Cancel", TranslationKeys.Common.Cancel);
-        Assert.AreEqual("Dashboard", TranslationKeys.Common.Dashboard);
-        Assert.AreEqual("Settings", TranslationKeys.Common.Settings);
-        Assert.AreEqual("Logout", TranslationKeys.Common.Logout);
+        AssertConstantValue(typeof(TranslationKeys.Common), nameof(TranslationKeys.Common.AppName), "AppName");
+        AssertConstantValue(typeof(TranslationKeys.Common), nameof(TranslationKeys.Common.Save), "Save");
+        AssertConstantValue(typeof(TranslationKeys.Common), nameof(TranslationKeys.Common.Cancel), "Cancel");
+        AssertConstantValue(typeof(TranslationKeys.Common), nameof(TranslationKeys.Common.Dashboard), "Dashboard");
+        AssertConstantValue(typeof(TranslationKeys.Common), nameof(TranslationKeys.Common.Settings), "Settings");
+        AssertConstantValue(typeof(TranslationKeys.Common), nameof(TranslationKeys.Common.Logout), "Logout");
     }
 
     [TestMethod]
     public void Auth_ContainsExpectedKeys()
     {
-        Assert.AreEqual("Auth_Login", TranslationKeys.Auth.Login);
-        Assert.AreEqual("Auth_Register", TranslationKeys.Auth.Register);
-        Assert.AreEqual("Auth_Email", TranslationKeys.Auth.Email);
-        Assert.AreEqual("Auth_Password", TranslationKeys.Auth.Password);
+        AssertConstantValue(typeof(TranslationKeys.Auth), nameof(TranslationKeys.Auth.Login), "Auth_Login");
+        AssertConstantValue(typeof(TranslationKeys.Auth), nameof(TranslationKeys.Auth.Register), "Auth_Register");
+        AssertConstantValue(typeof(TranslationKeys.Auth), nameof(TranslationKeys.Auth.Email), "Auth_Email");
+        AssertConstantValue(typeof(TranslationKeys.Auth), nameof(TranslationKeys.Auth.Password), "Auth_Password");
     }
 
     [TestMethod]
     public void Errors_ContainsExpectedKeys()
     {
-        Assert.AreEqual("Error_Unexpected", TranslationKeys.Errors.UnexpectedError);
-        Assert.AreEqual("Error_NotFound", TranslationKeys.Errors.NotFound);
-        Assert.AreEqual("Error_Unauthorized", TranslationKeys.Errors.Unauthorized);
+        AssertConstantValue(typeof(TranslationKeys.Errors), nameof(TranslationKeys.Errors.UnexpectedError), "Error_Unexpected");
+        AssertConstantValue(typeof(TranslationKeys.Errors), nameof(TranslationKeys.Errors.NotFound), "Error_NotFound");
+        AssertConstantValue(typeof(TranslationKeys.Errors), nameof(TranslationKeys.Errors.Unauthorized), "Error_Unauthorized");
     }
 
     [TestMethod]
     public void Validation_ContainsExpectedKeys()
     {
-        Assert.AreEqual("Validation_Required", TranslationKeys.Validation.Required);
-        Assert.AreEqual("Validation_InvalidEmail", TranslationKeys.Validation.InvalidEmail);
-        Assert.AreEqual("Validation_PasswordMismatch", TranslationKeys.Validation.PasswordMismatch);
+        AssertConstantValue(typeof(TranslationKeys.Validation), nameof(TranslationKeys.Validation.Required), "Validation_Required");
+        AssertConstantValue(typeof(TranslationKeys.Validation), nameof(TranslationKeys.Validation.InvalidEmail), "Validation_InvalidEmail");
+        AssertConstantValue(typeof(TranslationKeys.Validation), nameof(TranslationKeys.Validation.PasswordMismatch), "Validation_PasswordMismatch");
     }
 
     [TestMethod]
     public void Admin_ContainsExpectedKeys()
     {
-        Assert.AreEqual("Admin_Users", TranslationKeys.Admin.Users);
-        Assert.AreEqual("Admin_Modules", TranslationKeys.Admin.Modules);
-        Assert.AreEqual("Admin_Health", TranslationKeys.Admin.Health);
+        AssertConstantValue(typeof(TranslationKeys.Admin), nameof(TranslationKeys.Admin.Users), "Admin_Users");
+        AssertConstantValue(typeof(TranslationKeys.Admin), nameof(TranslationKeys.Admin.Modules), "Admin_Modules");
+        AssertConstantValue(typeof(TranslationKeys.Admin), nameof(TranslationKeys.Admin.Health), "Admin_Health");
+    }
+
+    private static void AssertConstantValue(Type type, string fieldName, string expectedValue)
+    {
+        var field = type.GetField(fieldName, BindingFlags.Public | BindingFlags.Static);
+        Assert.IsNotNull(field, $"{type.Name}.{fieldName} field not found");
+        var value = (string?)field.GetRawConstantValue();
+        Assert.AreEqual(expectedValue, value, $"{type.Name}.{fieldName} has unexpected value");
     }
 
     [TestMethod]

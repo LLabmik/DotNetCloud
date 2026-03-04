@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -43,6 +44,13 @@ public class TelemetryOptions
     /// Gets or sets whether to export to console (for development).
     /// </summary>
     public bool EnableConsoleExporter { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets whether to enable the Prometheus metrics scraping endpoint at <c>/metrics</c>.
+    /// When enabled, <see cref="TelemetryConfigurationExtensions.MapDotNetCloudPrometheus"/> must
+    /// also be called on the <see cref="WebApplication"/> to register the endpoint.
+    /// </summary>
+    public bool EnablePrometheusExporter { get; set; } = false;
 
     /// <summary>
     /// Gets or sets additional activity sources to trace.
@@ -187,6 +195,12 @@ public static class TelemetryConfigurationExtensions
                 otlpOptions.Endpoint = new Uri(options.OtlpEndpoint);
             });
         }
+
+        // Prometheus scraping endpoint
+        if (options.EnablePrometheusExporter)
+        {
+            metrics.AddPrometheusExporter();
+        }
     }
 
     private static void ConfigureTracingExporters(
@@ -208,6 +222,25 @@ public static class TelemetryConfigurationExtensions
                 otlpOptions.Endpoint = new Uri(options.OtlpEndpoint);
             });
         }
+    }
+
+    /// <summary>
+    /// Maps the Prometheus metrics scraping endpoint at <c>/metrics</c>.
+    /// Only has effect when <see cref="TelemetryOptions.EnablePrometheusExporter"/> is <c>true</c>.
+    /// </summary>
+    /// <param name="app">The web application.</param>
+    /// <returns>The web application for chaining.</returns>
+    public static WebApplication MapDotNetCloudPrometheus(this WebApplication app)
+    {
+        var options = new TelemetryOptions();
+        app.Configuration.GetSection("Telemetry").Bind(options);
+
+        if (options.EnablePrometheusExporter)
+        {
+            app.MapPrometheusScrapingEndpoint();
+        }
+
+        return app;
     }
 }
 

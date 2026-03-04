@@ -1,6 +1,10 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using DotNetCloud.Core.ServiceDefaults.HealthChecks;
 using DotNetCloud.Core.ServiceDefaults.Logging;
@@ -36,8 +40,14 @@ public static class ServiceDefaultsExtensions
             builder.Environment,
             configureTelemetry);
 
-        // Add health checks
-        builder.Services.AddHealthChecks();
+        // Add health checks with startup probe
+        var startupCheck = new StartupHealthCheck();
+        builder.Services.AddSingleton(startupCheck);
+        builder.Services.AddHealthChecks()
+            .AddCheck("self", () => HealthCheckResult.Healthy("Application is running."),
+                tags: ["live"])
+            .AddCheck<StartupHealthCheck>("startup",
+                tags: ["ready"]);
 
         return builder;
     }
@@ -64,8 +74,14 @@ public static class ServiceDefaultsExtensions
             builder.Environment,
             configureTelemetry);
 
-        // Add health checks
-        builder.Services.AddHealthChecks();
+        // Add health checks with startup probe
+        var startupCheck = new StartupHealthCheck();
+        builder.Services.AddSingleton(startupCheck);
+        builder.Services.AddHealthChecks()
+            .AddCheck("self", () => HealthCheckResult.Healthy("Application is running."),
+                tags: ["live"])
+            .AddCheck<StartupHealthCheck>("startup",
+                tags: ["ready"]);
 
         // Add CORS
         builder.Services.AddCors(options =>
@@ -131,18 +147,79 @@ public static class ServiceDefaultsExtensions
         return app;
     }
 
+    private static readonly JsonSerializerOptions HealthJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true
+    };
+
     /// <summary>
     /// Maps health check endpoints for the web application.
+    /// <list type="bullet">
+    /// <item><description><c>/health</c> — full status including all registered checks (modules, DB, etc.)</description></item>
+    /// <item><description><c>/health/live</c> — liveness probe; only self-diagnostic checks (no external dependencies)</description></item>
+    /// <item><description><c>/health/ready</c> — readiness probe; includes startup and dependency checks (DB, modules)</description></item>
+    /// </list>
     /// </summary>
     /// <param name="app">The web application.</param>
     /// <returns>The web application for chaining.</returns>
     public static WebApplication MapDotNetCloudHealthChecks(this WebApplication app)
     {
-        app.MapHealthChecks("/health");
-        app.MapHealthChecks("/health/ready");
-        app.MapHealthChecks("/health/live");
+        // Full health report (all checks)
+        app.MapHealthChecks("/health", new HealthCheckOptions
+        {
+            ResponseWriter = WriteHealthReportAsync
+        });
+
+        // Liveness probe — app is running (no external deps)
+        app.MapHealthChecks("/health/live", new HealthCheckOptions
+        {
+            Predicate = check => check.Tags.Contains("live"),
+            ResponseWriter = WriteHealthReportAsync
+        });
+
+        // Readiness probe — app + dependencies are ready
+        app.MapHealthChecks("/health/ready", new HealthCheckOptions
+        {
+            Predicate = check => check.Tags.Contains("ready") || check.Tags.Contains("database") || check.Tags.Contains("module"),
+            ResponseWriter = WriteHealthReportAsync
+        });
+
+        // Mark the application as ready after startup
+        var startupCheck = app.Services.GetService<StartupHealthCheck>();
+        startupCheck?.MarkReady();
 
         return app;
+    }
+
+    /// <summary>
+    /// Writes a JSON health report response with individual entry details.
+    /// </summary>
+    private static async Task WriteHealthReportAsync(HttpContext context, HealthReport report)
+    {
+        context.Response.ContentType = "application/json";
+
+        var entries = new Dictionary<string, object>();
+        foreach (var (name, entry) in report.Entries)
+        {
+            entries[name] = new
+            {
+                status = entry.Status.ToString(),
+                description = entry.Description,
+                duration = entry.Duration.TotalMilliseconds,
+                exception = entry.Exception?.Message,
+                data = entry.Data.Count > 0 ? entry.Data : null
+            };
+        }
+
+        var result = new
+        {
+            status = report.Status.ToString(),
+            totalDuration = report.TotalDuration.TotalMilliseconds,
+            entries
+        };
+
+        await JsonSerializer.SerializeAsync(context.Response.Body, result, HealthJsonOptions);
     }
 
     /// <summary>
@@ -156,11 +233,11 @@ public static class ServiceDefaultsExtensions
         IModuleHealthCheck moduleHealthCheck)
     {
         services.AddHealthChecks()
-            .Add(new Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckRegistration(
+            .Add(new HealthCheckRegistration(
                 name: $"module-{moduleHealthCheck.ModuleName}",
                 instance: new ModuleHealthCheckAdapter(moduleHealthCheck),
-                failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
-                tags: new[] { "module", moduleHealthCheck.ModuleName }));
+                failureStatus: HealthStatus.Unhealthy,
+                tags: ["module", moduleHealthCheck.ModuleName]));
 
         return services;
     }
@@ -178,11 +255,11 @@ public static class ServiceDefaultsExtensions
         params string[] tags)
     {
         services.AddHealthChecks()
-            .Add(new Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckRegistration(
+            .Add(new HealthCheckRegistration(
                 name: name,
                 factory: sp => new DatabaseHealthCheck(sp.GetRequiredService<IDbConnectionFactory>()),
-                failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
-                tags: tags.Any() ? tags : new[] { "database", "core" }));
+                failureStatus: HealthStatus.Unhealthy,
+                tags: tags.Length > 0 ? tags : ["database", "core"]));
 
         return services;
     }

@@ -13,7 +13,12 @@ public class SupportedCulturesTests
     [TestMethod]
     public void DefaultCulture_IsEnUs()
     {
-        Assert.AreEqual("en-US", SupportedCultures.DefaultCulture);
+        // Read via reflection to avoid MSTEST0032 (const-folding makes Assert trivially true)
+        var field = typeof(SupportedCultures).GetField(nameof(SupportedCultures.DefaultCulture),
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+        Assert.IsNotNull(field);
+        var value = (string?)field.GetRawConstantValue();
+        Assert.AreEqual("en-US", value);
     }
 
     [TestMethod]
