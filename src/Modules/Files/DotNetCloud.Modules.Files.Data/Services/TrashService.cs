@@ -74,6 +74,9 @@ internal sealed class TrashService : ITrashService
             restoreParentId = originalParent?.Id;
         }
 
+        // Resolve name conflicts in the target location (auto-rename if needed)
+        node.Name = await GetRestoreNameAsync(restoreParentId, node.OwnerId, node.Name, cancellationToken);
+
         // If original parent is gone, restore to root
         node.ParentId = restoreParentId;
         node.IsDeleted = false;
@@ -176,10 +179,16 @@ internal sealed class TrashService : ITrashService
             nodesToDelete.AddRange(descendants);
         }
 
+        var totalDeletedSize = nodesToDelete
+            .Where(n => n.NodeType == FileNodeType.File)
+            .Sum(n => n.Size);
+
         foreach (var n in nodesToDelete)
         {
             await PermanentDeleteNodeAsync(n, cancellationToken);
         }
+
+        await DecrementQuotaAsync(node.OwnerId, totalDeletedSize, cancellationToken);
 
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -206,10 +215,16 @@ internal sealed class TrashService : ITrashService
             .Where(n => n.IsDeleted && n.OwnerId == caller.UserId)
             .ToListAsync(cancellationToken);
 
+        var totalDeletedSize = trashItems
+            .Where(n => n.NodeType == FileNodeType.File)
+            .Sum(n => n.Size);
+
         foreach (var item in trashItems)
         {
             await PermanentDeleteNodeAsync(item, cancellationToken);
         }
+
+        await DecrementQuotaAsync(caller.UserId, totalDeletedSize, cancellationToken);
 
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -287,6 +302,42 @@ internal sealed class TrashService : ITrashService
             desc.IsDeleted = false;
             desc.DeletedAt = null;
             desc.DeletedByUserId = null;
+        }
+    }
+
+    private async Task<string> GetRestoreNameAsync(Guid? parentId, Guid ownerId, string originalName, CancellationToken cancellationToken)
+    {
+        var name = originalName;
+        var counter = 1;
+
+        while (true)
+        {
+            bool exists;
+            if (parentId.HasValue)
+                exists = await _db.FileNodes.AnyAsync(n => n.ParentId == parentId && n.Name == name, cancellationToken);
+            else
+                exists = await _db.FileNodes.AnyAsync(n => n.OwnerId == ownerId && n.ParentId == null && n.Name == name, cancellationToken);
+
+            if (!exists) break;
+
+            var ext = Path.GetExtension(originalName);
+            var baseName = Path.GetFileNameWithoutExtension(originalName);
+            name = $"{baseName} ({counter}){ext}";
+            counter++;
+        }
+
+        return name;
+    }
+
+    private async Task DecrementQuotaAsync(Guid userId, long bytes, CancellationToken cancellationToken)
+    {
+        if (bytes <= 0) return;
+
+        var quota = await _db.FileQuotas.FirstOrDefaultAsync(q => q.UserId == userId, cancellationToken);
+        if (quota is not null)
+        {
+            quota.UsedBytes = Math.Max(0, quota.UsedBytes - bytes);
+            quota.UpdatedAt = DateTime.UtcNow;
         }
     }
 

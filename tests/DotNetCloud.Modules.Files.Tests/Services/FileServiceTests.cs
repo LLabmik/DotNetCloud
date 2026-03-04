@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using FilesFileShare = DotNetCloud.Modules.Files.Models.FileShare;
 
 namespace DotNetCloud.Modules.Files.Tests.Services;
 
@@ -231,6 +232,72 @@ public class FileServiceTests
         var deleted = await db.FileNodes.IgnoreQueryFilters().FirstAsync(n => n.Id == node.Id);
         Assert.IsTrue(deleted.IsDeleted);
         Assert.IsNotNull(deleted.DeletedAt);
+    }
+
+    [TestMethod]
+    public async Task DeleteAsync_RemovesSharesWhenTrashing()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var node = new FileNode { Name = "shared.txt", NodeType = FileNodeType.File, OwnerId = userId };
+        node.MaterializedPath = $"/{node.Id}";
+        db.FileNodes.Add(node);
+
+        // Add a share for the node
+        db.FileShares.Add(new FilesFileShare
+        {
+            FileNodeId = node.Id,
+            ShareType = ShareType.User,
+            Permission = SharePermission.Read,
+            CreatedByUserId = userId,
+            SharedWithUserId = Guid.NewGuid()
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        await service.DeleteAsync(node.Id, UserCaller(userId));
+
+        // Share should be removed
+        Assert.AreEqual(0, await db.FileShares.CountAsync());
+    }
+
+    [TestMethod]
+    public async Task DeleteAsync_FolderWithSharedDescendants_RemovesAllShares()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+
+        var folder = new FileNode { Name = "Folder", NodeType = FileNodeType.Folder, OwnerId = userId, Depth = 0 };
+        folder.MaterializedPath = $"/{folder.Id}";
+        db.FileNodes.Add(folder);
+
+        var child = new FileNode { Name = "child.txt", NodeType = FileNodeType.File, OwnerId = userId, ParentId = folder.Id, Depth = 1 };
+        child.MaterializedPath = $"{folder.MaterializedPath}/{child.Id}";
+        db.FileNodes.Add(child);
+
+        db.FileShares.Add(new FilesFileShare
+        {
+            FileNodeId = folder.Id,
+            ShareType = ShareType.User,
+            Permission = SharePermission.Read,
+            CreatedByUserId = userId,
+            SharedWithUserId = Guid.NewGuid()
+        });
+        db.FileShares.Add(new FilesFileShare
+        {
+            FileNodeId = child.Id,
+            ShareType = ShareType.User,
+            Permission = SharePermission.Read,
+            CreatedByUserId = userId,
+            SharedWithUserId = Guid.NewGuid()
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        await service.DeleteAsync(folder.Id, UserCaller(userId));
+
+        // Both shares should be removed
+        Assert.AreEqual(0, await db.FileShares.CountAsync());
     }
 
     [TestMethod]

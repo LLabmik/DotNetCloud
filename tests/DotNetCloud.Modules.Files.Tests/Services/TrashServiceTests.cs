@@ -247,4 +247,154 @@ public class TrashServiceTests
 
         Assert.AreEqual(100, size);
     }
+
+    [TestMethod]
+    public async Task RestoreAsync_NameConflict_RenamesNode()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+
+        // Active node with the same name at root
+        db.FileNodes.Add(new FileNode { Name = "deleted.txt", NodeType = FileNodeType.File, OwnerId = userId });
+
+        // Deleted node with same name (OriginalParentId = null => restores to root)
+        var deleted = new FileNode
+        {
+            Name = "deleted.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            IsDeleted = true,
+            DeletedAt = DateTime.UtcNow,
+            DeletedByUserId = userId,
+            OriginalParentId = Guid.NewGuid() // non-existent parent -> goes to root
+        };
+        deleted.MaterializedPath = $"/{deleted.Id}";
+        db.FileNodes.Add(deleted);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.RestoreAsync(deleted.Id, UserCaller(userId));
+
+        // Should be renamed to avoid conflict
+        Assert.AreNotEqual("deleted.txt", result.Name);
+        Assert.IsTrue(result.Name.StartsWith("deleted"));
+    }
+
+    [TestMethod]
+    public async Task RestoreAsync_NoNameConflict_KeepsOriginalName()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var deleted = CreateDeletedNode(userId, Guid.NewGuid());
+        deleted.Name = "unique-file.txt";
+        db.FileNodes.Add(deleted);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.RestoreAsync(deleted.Id, UserCaller(userId));
+
+        Assert.AreEqual("unique-file.txt", result.Name);
+    }
+
+    [TestMethod]
+    public async Task PermanentDeleteAsync_UpdatesUserQuota()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var node = CreateDeletedNode(userId);
+        node.Size = 2048;
+        node.NodeType = FileNodeType.File;
+        db.FileNodes.Add(node);
+
+        db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 1_000_000, UsedBytes = 5000 });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        await service.PermanentDeleteAsync(node.Id, UserCaller(userId));
+
+        var quota = await db.FileQuotas.FirstAsync(q => q.UserId == userId);
+        Assert.AreEqual(2952L, quota.UsedBytes); // 5000 - 2048 = 2952
+    }
+
+    [TestMethod]
+    public async Task PermanentDeleteAsync_QuotaNotDecremented_BelowZero()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var node = CreateDeletedNode(userId);
+        node.Size = 99999;
+        node.NodeType = FileNodeType.File;
+        db.FileNodes.Add(node);
+
+        db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 1_000_000, UsedBytes = 100 });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        await service.PermanentDeleteAsync(node.Id, UserCaller(userId));
+
+        var quota = await db.FileQuotas.FirstAsync(q => q.UserId == userId);
+        Assert.AreEqual(0L, quota.UsedBytes); // clamped to 0
+    }
+
+    [TestMethod]
+    public async Task PermanentDeleteAsync_NoQuotaRecord_Succeeds()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var node = CreateDeletedNode(userId);
+        node.Size = 1024;
+        db.FileNodes.Add(node);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        // Should not throw even if no quota record exists
+        await service.PermanentDeleteAsync(node.Id, UserCaller(userId));
+
+        Assert.AreEqual(0, await db.FileNodes.IgnoreQueryFilters().CountAsync());
+    }
+
+    [TestMethod]
+    public async Task EmptyTrashAsync_UpdatesUserQuota()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+
+        var d1 = CreateDeletedNode(userId);
+        d1.Size = 1000;
+        d1.NodeType = FileNodeType.File;
+        var d2 = CreateDeletedNode(userId);
+        d2.Name = "other.txt";
+        d2.Size = 2000;
+        d2.NodeType = FileNodeType.File;
+        db.FileNodes.AddRange(d1, d2);
+
+        db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 1_000_000, UsedBytes = 10_000 });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        await service.EmptyTrashAsync(UserCaller(userId));
+
+        var quota = await db.FileQuotas.FirstAsync(q => q.UserId == userId);
+        Assert.AreEqual(7000L, quota.UsedBytes); // 10000 - 3000 = 7000
+    }
+
+    [TestMethod]
+    public async Task RestoreAllAsync_RestoresAllTopLevelItems()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var d1 = CreateDeletedNode(userId, Guid.NewGuid());
+        d1.Name = "file1.txt";
+        var d2 = CreateDeletedNode(userId, Guid.NewGuid());
+        d2.Name = "file2.txt";
+        db.FileNodes.AddRange(d1, d2);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        await service.RestoreAllAsync(UserCaller(userId));
+
+        var restored = await db.FileNodes.Where(n => n.OwnerId == userId).ToListAsync();
+        Assert.AreEqual(2, restored.Count);
+        Assert.IsTrue(restored.All(n => !n.IsDeleted));
+    }
 }

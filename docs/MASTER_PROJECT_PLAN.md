@@ -36,7 +36,7 @@
 | Phase 0.17 | 10 | 10 | 0 | 0 |
 | Phase 0.18 | 8 | 8 | 0 | 0 |
 | Phase 0.19 | 9 | 9 | 0 | 0 |
-| Phase 1 | 22 | 8 | 0 | 14 |
+| Phase 1 | 23 | 9 | 0 | 14 |
 | Phase 2.1 | 6 | 6 | 0 | 0 |
 | Phase 2.2 | 4 | 4 | 0 | 0 |
 | Phase 2.3 | 7 | 2 | 0 | 5 |
@@ -2563,6 +2563,27 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Dependencies:** phase-1.6
 **Blocking Issues:** None
 **Notes:** Phase 1.7 complete. All 15 Phase 1.7 checklist items marked ✓. Most of the core versioning infrastructure (models, DB config, service interface/impl, REST controllers, download endpoint) was already in place from Phases 1.1–1.4. This phase added the missing pieces: `FileVersionRestoredEvent` with IEventBus publishing in `VersionService.RestoreVersionAsync`, `VersionRetentionOptions` (IOptions pattern), and `VersionCleanupService` background service enforcing max-count and time-based retention policies with labeled-version protection. 1355 total solution tests pass.
+
+---
+
+### Step: phase-1.8 - Trash & Recovery
+**Status:** completed ✅
+**Duration:** ~1 day (actual)
+**Description:** Complete the trash/recovery system: remove shares on soft-delete, auto-rename on name conflict during restore, update user quota on permanent delete, and make trash retention configurable via `TrashRetentionOptions`.
+
+**Deliverables:**
+- ✓ `TrashRetentionOptions` — configurable `RetentionDays` (default 30) and `CleanupInterval` (default 6 h), bound from `Files:TrashRetention` config section
+- ✓ `TrashCleanupService` updated to use `IOptions<TrashRetentionOptions>` (replaces hardcoded statics); retention=0 disables auto-cleanup
+- ✓ `FileService.DeleteAsync` removes shares for soft-deleted node and all its descendants (trashed items should not remain shared)
+- ✓ `TrashService.RestoreAsync` auto-renames restored nodes if a name conflict exists in the target folder (mirrors `GetCopyNameAsync` pattern)
+- ✓ `TrashService.PermanentDeleteAsync` decrements `FileQuota.UsedBytes` after deletion (direct DB update, clamped to 0)
+- ✓ `TrashService.EmptyTrashAsync` decrements `FileQuota.UsedBytes` after bulk deletion
+- ✓ `FilesServiceRegistration` binds `TrashRetentionOptions` from configuration
+- ✓ 9 new tests: `DeleteAsync_RemovesSharesWhenTrashing`, `DeleteAsync_FolderWithSharedDescendants_RemovesAllShares`, `RestoreAsync_NameConflict_RenamesNode`, `RestoreAsync_NoNameConflict_KeepsOriginalName`, `PermanentDeleteAsync_UpdatesUserQuota`, `PermanentDeleteAsync_QuotaNotDecremented_BelowZero`, `PermanentDeleteAsync_NoQuotaRecord_Succeeds`, `EmptyTrashAsync_UpdatesUserQuota`, `RestoreAllAsync_RestoresAllTopLevelItems` — 381 total Files tests, all passing
+
+**Dependencies:** phase-1.7
+**Blocking Issues:** None
+**Notes:** Phase 1.8 complete. Admin-configurable retention per organization deferred to admin UI phase. 381 total Files tests pass.
 
 ---
 

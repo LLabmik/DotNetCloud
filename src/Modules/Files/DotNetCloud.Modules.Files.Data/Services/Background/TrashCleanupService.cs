@@ -1,34 +1,35 @@
 using DotNetCloud.Modules.Files.Models;
+using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace DotNetCloud.Modules.Files.Data.Services.Background;
 
 /// <summary>
-/// Background service that auto-purges trash items older than 30 days
-/// and garbage-collects unreferenced chunks. Runs every 6 hours.
+/// Background service that auto-purges trash items older than the configured retention period
+/// and garbage-collects unreferenced chunks.
 /// </summary>
 internal sealed class TrashCleanupService : BackgroundService
 {
-    private static readonly TimeSpan Interval = TimeSpan.FromHours(6);
-    private static readonly TimeSpan TrashRetention = TimeSpan.FromDays(30);
-
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<TrashCleanupService> _logger;
+    private readonly TrashRetentionOptions _options;
 
-    public TrashCleanupService(IServiceScopeFactory scopeFactory, ILogger<TrashCleanupService> logger)
+    public TrashCleanupService(IServiceScopeFactory scopeFactory, ILogger<TrashCleanupService> logger, IOptions<TrashRetentionOptions> options)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _options = options.Value;
     }
 
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(Interval);
+        using var timer = new PeriodicTimer(_options.CleanupInterval);
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
@@ -53,24 +54,27 @@ internal sealed class TrashCleanupService : BackgroundService
         var db = scope.ServiceProvider.GetRequiredService<FilesDbContext>();
         var storageEngine = scope.ServiceProvider.GetRequiredService<IFileStorageEngine>();
 
-        var cutoff = DateTime.UtcNow - TrashRetention;
-
-        // Find items deleted more than 30 days ago
-        var expiredTrash = await db.FileNodes
-            .IgnoreQueryFilters()
-            .Where(n => n.IsDeleted && n.DeletedAt.HasValue && n.DeletedAt.Value < cutoff)
-            .ToListAsync(cancellationToken);
-
-        if (expiredTrash.Count > 0)
+        // Skip if retention is disabled
+        if (_options.RetentionDays > 0)
         {
-            foreach (var node in expiredTrash)
-            {
-                await PermanentDeleteNodeAsync(db, node, cancellationToken);
-            }
+            var cutoff = DateTime.UtcNow - TimeSpan.FromDays(_options.RetentionDays);
 
-            await db.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation("Auto-purged {Count} trash items older than {Days} days",
-                expiredTrash.Count, TrashRetention.TotalDays);
+            var expiredTrash = await db.FileNodes
+                .IgnoreQueryFilters()
+                .Where(n => n.IsDeleted && n.DeletedAt.HasValue && n.DeletedAt.Value < cutoff)
+                .ToListAsync(cancellationToken);
+
+            if (expiredTrash.Count > 0)
+            {
+                foreach (var node in expiredTrash)
+                {
+                    await PermanentDeleteNodeAsync(db, node, cancellationToken);
+                }
+
+                await db.SaveChangesAsync(cancellationToken);
+                _logger.LogInformation("Auto-purged {Count} trash items older than {Days} days",
+                    expiredTrash.Count, _options.RetentionDays);
+            }
         }
 
         // GC unreferenced chunks

@@ -19,9 +19,15 @@ public static class FilesServiceRegistration
     {
         // Version retention options (bind from configuration or use defaults)
         if (configuration is not null)
+        {
             services.Configure<VersionRetentionOptions>(configuration.GetSection(VersionRetentionOptions.SectionName));
+            services.Configure<TrashRetentionOptions>(configuration.GetSection(TrashRetentionOptions.SectionName));
+        }
         else
+        {
             services.Configure<VersionRetentionOptions>(_ => { }); // use defaults
+            services.Configure<TrashRetentionOptions>(_ => { }); // use defaults
+        }
 
         // Database-backed services (Scoped)
         services.AddScoped<IPermissionService, PermissionService>();

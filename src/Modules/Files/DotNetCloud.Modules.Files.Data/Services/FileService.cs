@@ -318,6 +318,9 @@ internal sealed class FileService : IFileService
         node.OriginalParentId = node.ParentId;
         node.ParentId = null;
 
+        // Collect all affected node IDs (for share removal)
+        var allNodeIds = new List<Guid> { nodeId };
+
         // Soft-delete descendants
         if (node.NodeType == FileNodeType.Folder)
         {
@@ -330,8 +333,15 @@ internal sealed class FileService : IFileService
                 desc.IsDeleted = true;
                 desc.DeletedAt = DateTime.UtcNow;
                 desc.DeletedByUserId = caller.UserId;
+                allNodeIds.Add(desc.Id);
             }
         }
+
+        // Remove shares for all affected nodes (trashed items should not remain shared)
+        var shares = await _db.FileShares
+            .Where(s => allNodeIds.Contains(s.FileNodeId))
+            .ToListAsync(cancellationToken);
+        _db.FileShares.RemoveRange(shares);
 
         await _db.SaveChangesAsync(cancellationToken);
 

@@ -1817,29 +1817,29 @@ This phase implements the core Files module, which is the primary public-facing 
 **Soft-delete, restore, and permanent cleanup**
 
 #### Soft-Delete
-- ☐ Move items to trash (set `IsDeleted`, `DeletedAt`, `DeletedByUserId`)
-- ☐ Preserve original parent ID for restore (`OriginalParentId`)
-- ☐ Cascade soft-delete to children (folders)
-- ☐ Remove shares when item is trashed
-- ☐ Publish `FileDeletedEvent` on trash
+- ✓ Move items to trash (set `IsDeleted`, `DeletedAt`, `DeletedByUserId`)
+- ✓ Preserve original parent ID for restore (`OriginalParentId`)
+- ✓ Cascade soft-delete to children (folders)
+- ✓ Remove shares when item is trashed
+- ✓ Publish `FileDeletedEvent` on trash
 
 #### Restore
-- ☐ Restore to original parent folder
-- ☐ Handle case where original parent was also deleted (restore to root)
-- ☐ Restore child items when parent folder is restored
-- ☐ Re-validate name uniqueness in target folder on restore
+- ✓ Restore to original parent folder
+- ✓ Handle case where original parent was also deleted (restore to root)
+- ✓ Restore child items when parent folder is restored
+- ✓ Re-validate name uniqueness in target folder on restore (auto-rename)
 
 #### Permanent Delete
-- ☐ Delete file versions and their chunk mappings
-- ☐ Decrement chunk reference counts
-- ☐ Garbage-collect chunks with zero references
-- ☐ Delete tags, comments, and shares
-- ☐ Update user quota (reduce used bytes)
+- ✓ Delete file versions and their chunk mappings
+- ✓ Decrement chunk reference counts
+- ✓ Garbage-collect chunks with zero references
+- ✓ Delete tags, comments, and shares
+- ✓ Update user quota (reduce used bytes)
 
 #### Auto-Cleanup
-- ☐ Configurable trash retention period (default: 30 days)
-- ☐ Background service permanently deletes expired trash items
-- ☐ Admin can configure retention per organization
+- ✓ Configurable trash retention period (default: 30 days) via `TrashRetentionOptions`
+- ✓ Background service permanently deletes expired trash items
+- ☐ Admin can configure retention per organization (deferred to admin UI phase)
 
 ---
 
