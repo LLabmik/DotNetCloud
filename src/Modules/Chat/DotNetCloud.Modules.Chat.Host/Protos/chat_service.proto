@@ -1,0 +1,190 @@
+syntax = "proto3";
+
+option csharp_namespace = "DotNetCloud.Modules.Chat.Host.Protos";
+
+package dotnetcloud.chat;
+
+// ChatService: gRPC service for the Chat module.
+// The core server calls these RPCs to interact with the Chat module.
+service ChatService {
+  // Creates a new channel.
+  rpc CreateChannel (CreateChannelRequest) returns (ChannelResponse);
+
+  // Gets a channel by ID.
+  rpc GetChannel (GetChannelRequest) returns (ChannelResponse);
+
+  // Lists channels the user belongs to.
+  rpc ListChannels (ListChannelsRequest) returns (ListChannelsResponse);
+
+  // Sends a message to a channel.
+  rpc SendMessage (SendMessageRequest) returns (MessageResponse);
+
+  // Gets paginated messages from a channel.
+  rpc GetMessages (GetMessagesRequest) returns (GetMessagesResponse);
+
+  // Edits an existing message.
+  rpc EditMessage (EditMessageRequest) returns (MessageResponse);
+
+  // Deletes a message (soft-delete).
+  rpc DeleteMessage (DeleteMessageRequest) returns (DeleteMessageResponse);
+
+  // Adds a reaction to a message.
+  rpc AddReaction (AddReactionRequest) returns (ReactionResponse);
+
+  // Removes a reaction from a message.
+  rpc RemoveReaction (RemoveReactionRequest) returns (ReactionResponse);
+
+  // Notifies that a user is typing in a channel.
+  rpc NotifyTyping (TypingRequest) returns (TypingResponse);
+}
+
+// --- CreateChannel ---
+
+message CreateChannelRequest {
+  string name = 1;
+  string description = 2;
+  string type = 3;       // Public, Private, DirectMessage, Group
+  string topic = 4;
+  string user_id = 5;
+  repeated string member_ids = 6;
+}
+
+message ChannelResponse {
+  bool success = 1;
+  string error_message = 2;
+  ChannelMessage channel = 3;
+}
+
+// --- GetChannel ---
+
+message GetChannelRequest {
+  string channel_id = 1;
+  string user_id = 2;
+}
+
+// --- ListChannels ---
+
+message ListChannelsRequest {
+  string user_id = 1;
+}
+
+message ListChannelsResponse {
+  repeated ChannelMessage channels = 1;
+}
+
+// --- SendMessage ---
+
+message SendMessageRequest {
+  string channel_id = 1;
+  string user_id = 2;
+  string content = 3;
+  string reply_to_message_id = 4;  // optional
+}
+
+message MessageResponse {
+  bool success = 1;
+  string error_message = 2;
+  ChatMessageMessage message = 3;
+}
+
+// --- GetMessages ---
+
+message GetMessagesRequest {
+  string channel_id = 1;
+  string user_id = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message GetMessagesResponse {
+  repeated ChatMessageMessage messages = 1;
+  int32 total_count = 2;
+}
+
+// --- EditMessage ---
+
+message EditMessageRequest {
+  string message_id = 1;
+  string user_id = 2;
+  string new_content = 3;
+}
+
+// --- DeleteMessage ---
+
+message DeleteMessageRequest {
+  string message_id = 1;
+  string user_id = 2;
+}
+
+message DeleteMessageResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+// --- Reactions ---
+
+message AddReactionRequest {
+  string message_id = 1;
+  string user_id = 2;
+  string emoji = 3;
+}
+
+message RemoveReactionRequest {
+  string message_id = 1;
+  string user_id = 2;
+  string emoji = 3;
+}
+
+message ReactionResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+// --- Typing ---
+
+message TypingRequest {
+  string channel_id = 1;
+  string user_id = 2;
+}
+
+message TypingResponse {
+  bool success = 1;
+}
+
+// --- Shared Messages ---
+
+message ChannelMessage {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string type = 4;
+  string topic = 5;
+  string avatar_url = 6;
+  bool is_archived = 7;
+  int32 member_count = 8;
+  string created_at = 9;
+  string last_activity_at = 10;
+  string created_by_user_id = 11;
+}
+
+message ChatMessageMessage {
+  string id = 1;
+  string channel_id = 2;
+  string sender_user_id = 3;
+  string content = 4;
+  string type = 5;
+  string sent_at = 6;
+  string edited_at = 7;
+  bool is_edited = 8;
+  string reply_to_message_id = 9;
+  repeated AttachmentMessage attachments = 10;
+}
+
+message AttachmentMessage {
+  string id = 1;
+  string file_name = 2;
+  string mime_type = 3;
+  int64 file_size = 4;
+  string thumbnail_url = 5;
+  string file_node_id = 6;
+}

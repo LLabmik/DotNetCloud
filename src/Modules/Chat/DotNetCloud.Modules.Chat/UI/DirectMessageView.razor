@@ -1,0 +1,45 @@
+@namespace DotNetCloud.Modules.Chat.UI
+
+@*
+    Direct message view — a streamlined chat view for 1:1 or small group conversations.
+    Code-behind: DirectMessageView.razor.cs
+*@
+
+<div class="chat-dm-view">
+    <div class="dm-header">
+        @if (OtherUser is not null)
+        {
+            <span class="status-dot @(OtherUser.Status == "Online" ? "online" : "offline")"></span>
+            @if (!string.IsNullOrEmpty(OtherUser.AvatarUrl))
+            {
+                <img class="dm-avatar" src="@OtherUser.AvatarUrl" alt="@OtherUser.DisplayName" />
+            }
+            else
+            {
+                <span class="avatar-placeholder">@GetInitials(OtherUser.DisplayName)</span>
+            }
+            <div class="dm-user-info">
+                <span class="dm-user-name">@OtherUser.DisplayName</span>
+                <span class="dm-user-status">@OtherUser.Status</span>
+            </div>
+        }
+    </div>
+
+    <div class="dm-messages">
+        <MessageList Messages="Messages"
+                     IsLoading="IsLoading"
+                     HasMoreMessages="HasMoreMessages"
+                     TypingUsers="TypingUsers"
+                     OnLoadMore="OnLoadMore"
+                     OnReactionToggle="OnReactionToggle" />
+    </div>
+
+    <div class="dm-composer">
+        <MessageComposer ChannelName="@OtherUser?.DisplayName"
+                         ReplyToMessage="ReplyToMessage"
+                         OnSend="OnSend"
+                         OnCancelReply="OnCancelReply"
+                         OnTyping="OnTyping"
+                         OnAttach="OnAttach" />
+    </div>
+</div>

@@ -36,7 +36,21 @@
 | Phase 0.17 | 10 | 10 | 0 | 0 |
 | Phase 0.18 | 8 | 8 | 0 | 0 |
 | Phase 0.19 | 9 | 9 | 0 | 0 |
-| Phase 1-9 | Summary | 0 | 0 | 1 |
+| Phase 1 | 20 | 0 | 0 | 20 |
+| Phase 2.1 | 6 | 6 | 0 | 0 |
+| Phase 2.2 | 4 | 2 | 0 | 2 |
+| Phase 2.3 | 7 | 1 | 0 | 6 |
+| Phase 2.4 | 5 | 0 | 0 | 5 |
+| Phase 2.5 | 4 | 0 | 0 | 4 |
+| Phase 2.6 | 4 | 0 | 0 | 4 |
+| Phase 2.7 | 4 | 0 | 0 | 4 |
+| Phase 2.8 | 11 | 4 | 0 | 7 |
+| Phase 2.9 | 3 | 0 | 0 | 3 |
+| Phase 2.10 | 8 | 0 | 0 | 8 |
+| Phase 2.11 | 3 | 3 | 0 | 0 |
+| Phase 2.12 | 2 | 1 | 0 | 1 |
+| Phase 2.13 | 3 | 0 | 0 | 3 |
+| Phase 3-9 | Summary | 0 | 0 | 1 |
 | Infrastructure | Summary | 0 | 0 | 1 |
 | Documentation | Summary | 0 | 0 | 1 |
 
@@ -2382,8 +2396,253 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
-**Last Updated:** 2026-03-04 (Phase 0 Completion Checklist verified — 797 tests pass, 3 items remain pending)
-**Next Review:** Phase 1 planning kickoff
+## Phase 2: Chat & Notifications
+
+**Goal:** Real-time messaging + Android app.
+**Expected Duration:** 10-14 weeks
+**Milestone:** Real-time chat across web, desktop, and Android.
+
+---
+
+### Step: phase-2.1 - Chat Core Abstractions & Data Models
+**Status:** completed ✅
+**Duration:** ~1 week (actual)
+**Description:** Create chat module projects, domain models (Channel, Message, Reaction, Mention, Attachment, PinnedMessage), DTOs, events, event handlers, and ChatModuleManifest.
+
+**Deliverables:**
+- ✓ Create project structure (Chat, Chat.Data, Chat.Host, Chat.Tests) — 4 projects added to solution
+- ✓ Create ChatModuleManifest implementing IModuleManifest (Id: dotnetcloud.chat, 4 capabilities, 5 published events, 1 subscribed event)
+- ✓ Create domain models (Channel, ChannelMember, Message, MessageAttachment, MessageReaction, MessageMention, PinnedMessage) — 7 entities
+- ✓ Create enums (ChannelType, ChannelMemberRole, MessageType, MentionType, NotificationPreference) — 5 enums
+- ✓ Create DTOs for all entities (ChannelDto, MessageDto, ChannelMemberDto, MessageAttachmentDto, and more)
+- ✓ Create events and event handlers (10 events: MessageSent/Edited/Deleted, ChannelCreated/Deleted/Archived, UserJoined/Left, ReactionAdded/Removed + 2 handlers)
+
+**Dependencies:** Phase 0 (complete), Phase 1 (FileNode reference for attachments)
+**Blocking Issues:** None
+**Notes:** Phase 2.1 complete. All models, DTOs, events, and manifest follow Files module patterns. 78 unit tests passing.
+
+---
+
+### Step: phase-2.2 - Chat Database & Data Access Layer
+**Status:** in-progress 🔄
+**Duration:** ~1 week
+**Description:** Create ChatDbContext, entity configurations, migrations, and database initialization.
+
+**Deliverables:**
+- ✓ Create entity configurations (Channel, ChannelMember, Message, MessageAttachment, MessageReaction, MessageMention, PinnedMessage) — 7 configurations with indexes, FKs, query filters
+- ✓ Create ChatDbContext with all DbSets and naming strategy — 7 DbSets
+- ☐ Create migrations (PostgreSQL, SQL Server)
+- ☐ Create ChatDbInitializer (seed default channels)
+
+**Dependencies:** phase-2.1
+**Blocking Issues:** None
+**Notes:** Entity configurations and ChatDbContext complete. Migrations and initializer deferred to when business logic services are complete.
+
+---
+
+### Step: phase-2.3 - Chat Business Logic & Services
+**Status:** in-progress 🔄
+**Duration:** ~2 weeks
+**Description:** Implement core chat services: ChannelService, MessageService, ReactionService, PinService, TypingIndicatorService, and ChatModule lifecycle.
+
+**Deliverables:**
+- ☐ Implement IChannelService and ChannelService (CRUD, DM creation, authorization)
+- ☐ Implement IChannelMemberService and ChannelMemberService (add/remove, roles, unread counts)
+- ☐ Implement IMessageService and MessageService (send, edit, delete, search, mention parsing)
+- ☐ Implement IReactionService and ReactionService
+- ☐ Implement IPinService and PinService
+- ☐ Implement ITypingIndicatorService (in-memory, time-expiring)
+- ✓ Create ChatModule implementing IModule (lifecycle management) — initialize/start/stop/dispose with event bus integration
+
+**Dependencies:** phase-2.2
+**Blocking Issues:** None
+**Notes:** ChatModule lifecycle complete with event bus subscribe/unsubscribe. Service interfaces and implementations are next.
+
+---
+
+### Step: phase-2.4 - Chat REST API Endpoints
+**Status:** pending
+**Duration:** ~1 week
+**Description:** Create REST controllers for channels, messages, reactions, pins, and file sharing.
+
+**Tasks:**
+- ☐ Create ChannelController (CRUD, archive, DM)
+- ☐ Create MemberController (add/remove, role, notifications, read marker, unread counts)
+- ☐ Create MessageController (send, edit, delete, paginate, search)
+- ☐ Create ReactionController and PinController
+- ☐ Create file attachment endpoints
+
+**Dependencies:** phase-2.3
+**Blocking Issues:** None
+**Notes:** All endpoints under /api/v1/chat/ namespace. Follow response envelope pattern.
+
+---
+
+### Step: phase-2.5 - SignalR Real-Time Chat Integration
+**Status:** pending
+**Duration:** ~1 week
+**Description:** Integrate chat with CoreHub for real-time message delivery, typing indicators, presence, and reactions.
+
+**Tasks:**
+- ☐ Register chat SignalR methods (SendMessage, EditMessage, DeleteMessage, StartTyping, StopTyping, MarkRead, AddReaction, RemoveReaction)
+- ☐ Implement server-to-client broadcasts (NewMessage, MessageEdited, MessageDeleted, TypingIndicator, ReactionUpdated, etc.)
+- ☐ Implement SignalR group management per channel membership
+- ☐ Extend presence tracking (Online, Away, DND, custom status)
+
+**Dependencies:** phase-2.3, Phase 0.8 (SignalR infrastructure)
+**Blocking Issues:** None
+**Notes:** SignalR hub lives in core process. Chat module communicates via IRealtimeBroadcaster capability.
+
+---
+
+### Step: phase-2.6 - Announcements Module
+**Status:** pending
+**Duration:** ~1 week
+**Description:** Create announcements module for organization-wide broadcasts with acknowledgement tracking.
+
+**Tasks:**
+- ☐ Create Announcement and AnnouncementAcknowledgement models
+- ☐ Create IAnnouncementService and implementation (CRUD, acknowledge, list acknowledgements)
+- ☐ Create REST endpoints (POST/GET/PUT/DELETE /api/v1/announcements, acknowledge, acknowledgements)
+- ☐ Create real-time broadcast via SignalR (new/urgent announcements)
+
+**Dependencies:** phase-2.5
+**Blocking Issues:** None
+**Notes:** Admin-only creation. Urgent announcements trigger visual/audio notifications.
+
+---
+
+### Step: phase-2.7 - Push Notifications Infrastructure
+**Status:** pending
+**Duration:** ~1-2 weeks
+**Description:** Implement push notification service with FCM and UnifiedPush providers, notification routing, and device management.
+
+**Tasks:**
+- ☐ Create IPushNotificationService interface and models (PushNotification, DeviceRegistration, PushProvider enum)
+- ☐ Implement FcmPushProvider (Firebase Admin SDK, HTTP v1 API, batch sending)
+- ☐ Implement UnifiedPushProvider (HTTP POST to distributor endpoint)
+- ☐ Create NotificationRouter (provider selection, user preferences, deduplication, queuing)
+
+**Dependencies:** phase-2.3
+**Blocking Issues:** None
+**Notes:** Android build flavors: googleplay (FCM) / fdroid (UnifiedPush only).
+
+---
+
+### Step: phase-2.8 - Chat Web UI (Blazor)
+**Status:** in-progress 🔄
+**Duration:** ~2-3 weeks
+**Description:** Create Blazor chat UI components: channel list, message list, composer, typing indicators, member panel, settings, DM view, and announcement components.
+
+**Deliverables:**
+- ✓ Create ChannelList.razor (sidebar, unread counts, search/filter, create channel dialog, active highlight)
+- ✓ Create ChannelHeader.razor (name, topic, member count, member list toggle, search)
+- ✓ Create MessageList.razor (avatars, timestamps, reactions, attachments, typing indicator, infinite scroll, system messages, edited indicator)
+- ✓ Create MessageComposer.razor (emoji picker, file attach, reply-to preview, send/Enter, typing broadcast)
+- ☐ Create TypingIndicator.razor (animated dots, auto-expire)
+- ☐ Create MemberListPanel.razor (grouped by role, status, actions)
+- ☐ Create ChannelSettingsDialog.razor (edit, members, notifications, archive/delete)
+- ☐ Create DirectMessageView.razor (user search, DM list, group DM)
+- ☐ Create ChatNotificationBadge.razor (total unread, real-time update)
+- ☐ Create AnnouncementBanner.razor, AnnouncementList.razor, AnnouncementEditor.razor
+- ☐ Register chat UI components with ModuleUiRegistry
+
+**Dependencies:** phase-2.5, Phase 0.11 (Blazor shell), Phase 0.12 (shared UI components)
+**Blocking Issues:** None
+**Notes:** Core chat UI components complete (ChannelList, ChannelHeader, MessageList, MessageComposer + ViewModels + _Imports). Remaining components depend on SignalR integration and announcements module.
+
+---
+
+### Step: phase-2.9 - Desktop Client Chat Integration
+**Status:** pending
+**Duration:** ~1 week
+**Description:** Add chat notifications, tray icon badges, and quick reply to the existing SyncTray desktop application.
+
+**Tasks:**
+- ☐ Add chat notification popups (Windows toast / Linux libnotify) with DND/mute support
+- ☐ Implement tray icon unread badge (different for mentions vs. regular messages)
+- ☐ Add quick reply popup from notification (optional)
+
+**Dependencies:** phase-2.5, Phase 1 (SyncTray exists)
+**Blocking Issues:** Phase 1 must be complete (desktop client exists)
+**Notes:** Click notification opens chat in web browser.
+
+---
+
+### Step: phase-2.10 - Android MAUI App
+**Status:** pending
+**Duration:** ~3-4 weeks
+**Description:** Create Android MAUI app with authentication, chat UI, SignalR real-time, push notifications, offline support, and photo auto-upload.
+
+**Tasks:**
+- ☐ Create DotNetCloud.Clients.Android MAUI project (build flavors: googleplay/fdroid)
+- ☐ Implement authentication (OAuth2/OIDC, token storage, refresh)
+- ☐ Create chat UI views (channel list, message list, composer, channel details)
+- ☐ Implement SignalR client with background connection (foreground service, Doze mode)
+- ☐ Integrate push notifications (FCM for googleplay, UnifiedPush for fdroid)
+- ☐ Implement offline support (local cache, message queue, sync on reconnect)
+- ☐ Create photo auto-upload (MediaStore observer, chunked upload, WiFi/battery config)
+- ☐ Configure distribution (Google Play, F-Droid, direct APK)
+
+**Dependencies:** phase-2.5, phase-2.7
+**Blocking Issues:** None
+**Notes:** Largest step in Phase 2. Can parallelize UI work and push notification work.
+
+---
+
+### Step: phase-2.11 - Chat Module gRPC Host
+**Status:** completed ✅
+**Duration:** ~0.5 weeks (actual)
+**Description:** Create gRPC service definitions and implementation for chat module inter-process communication.
+
+**Deliverables:**
+- ✓ Create chat_service.proto (10 RPCs: CreateChannel, GetChannel, ListChannels, SendMessage, GetMessages, EditMessage, DeleteMessage, AddReaction, RemoveReaction, NotifyTyping)
+- ✓ Implement ChatGrpcService (full CRUD), ChatLifecycleService (init/start/stop/health/manifest), ChatHealthCheck (ASP.NET Core IHealthCheck)
+- ✓ Configure Program.cs (InMemory ChatDbContext, gRPC services, REST controllers, health checks)
+
+**Dependencies:** phase-2.3, Phase 0.6 (gRPC infrastructure)
+**Blocking Issues:** None
+**Notes:** Complete. ChatController REST API also created with channels, messages, and members endpoints.
+
+---
+
+### Step: phase-2.12 - Testing Infrastructure
+**Status:** in-progress 🔄
+**Duration:** ~1-2 weeks
+**Description:** Create comprehensive unit tests and integration tests for all chat functionality.
+
+**Deliverables:**
+- ✓ Create unit tests — 78 tests passing across 4 test classes:
+  - ✓ ChatModuleManifestTests (10 tests: Id, Name, Version, capabilities, events, IModuleManifest)
+  - ✓ ChatModuleTests (15 tests: lifecycle, event bus subscribe/unsubscribe, null check, manifest)
+  - ✓ ModelTests (35 tests: Channel 10, Message 10, ChannelMember 7, MessageReaction 3, MessageMention 5)
+  - ✓ EventTests (18 tests: 10 event records IEvent compliance + 8 event handler tests)
+- ☐ Create integration tests (REST API CRUD, SignalR real-time delivery, typing, presence, file attachment, announcements, push registration, multi-database)
+
+**Dependencies:** phase-2.1 through phase-2.11
+**Blocking Issues:** None
+**Notes:** Unit tests complete with 78/78 passing. Integration tests will be added as services and SignalR integration are implemented.
+
+---
+
+### Step: phase-2.13 - Documentation
+**Status:** pending
+**Duration:** ~1 week
+**Description:** Create comprehensive documentation for chat module, Android app, and push notifications.
+
+**Tasks:**
+- ☐ Create chat module docs (README, API reference, architecture, real-time events, push notifications)
+- ☐ Create Android app docs (README, setup, distribution)
+- ☐ Add XML documentation to all public types
+
+**Dependencies:** phase-2.1 through phase-2.12
+**Blocking Issues:** None
+**Notes:** Complete before Phase 2 sign-off.
+
+---
+
+**Last Updated:** 2026-03-05 (Phase 2.1 complete, 2.2/2.3/2.8/2.11/2.12 in progress)
+**Next Review:** Phase 2.3 service implementations
 **Maintained By:** Development Team
 
 ---

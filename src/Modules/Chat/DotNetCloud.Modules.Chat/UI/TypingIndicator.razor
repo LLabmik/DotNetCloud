@@ -1,0 +1,18 @@
+@namespace DotNetCloud.Modules.Chat.UI
+
+@*
+    Animated typing indicator — displays who is typing with pulsing dots.
+    Code-behind: TypingIndicator.razor.cs
+*@
+
+@if (TypingUsers.Count > 0)
+{
+    <div class="chat-typing-indicator">
+        <div class="typing-dots">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+        </div>
+        <span class="typing-text">@GetTypingText()</span>
+    </div>
+}

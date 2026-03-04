@@ -1,0 +1,50 @@
+@namespace DotNetCloud.Modules.Chat.UI
+
+@*
+    Announcement list — displays all announcements with filters.
+    Code-behind: AnnouncementList.razor.cs
+*@
+
+<div class="announcement-list">
+    <div class="announcement-list-header">
+        <h2>Announcements</h2>
+        @if (CanCreate)
+        {
+            <button class="btn btn-primary btn-sm" @onclick="() => OnCreate.InvokeAsync()">New</button>
+        }
+    </div>
+
+    @if (Announcements.Count == 0)
+    {
+        <div class="empty-state">
+            <p>No announcements yet</p>
+        </div>
+    }
+    else
+    {
+        @foreach (var announcement in Announcements)
+        {
+            <div class="announcement-card @($"priority-{announcement.Priority.ToLowerInvariant()}")">
+                <div class="announcement-card-header">
+                    <span class="priority-indicator">
+                        @(announcement.Priority == "Urgent" ? "🔴" : announcement.Priority == "Important" ? "🟡" : "📢")
+                    </span>
+                    <h3>@announcement.Title</h3>
+                    @if (announcement.IsPinned)
+                    {
+                        <span class="pinned-badge">📌</span>
+                    }
+                </div>
+                <div class="announcement-card-body">@announcement.Content</div>
+                <div class="announcement-card-footer">
+                    <span class="announcement-date">@announcement.PublishedAt.ToString("MMM d, yyyy")</span>
+                    @if (announcement.RequiresAcknowledgement)
+                    {
+                        <span class="ack-count">@announcement.AcknowledgementCount acknowledged</span>
+                    }
+                    <button class="btn btn-sm" @onclick="() => SelectAnnouncement(announcement.Id)">View</button>
+                </div>
+            </div>
+        }
+    }
+</div>

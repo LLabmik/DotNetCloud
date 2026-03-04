@@ -1,0 +1,50 @@
+@namespace DotNetCloud.Modules.Chat.UI
+
+@*
+    Channel settings dialog — edit channel metadata, manage members, notifications, archive/delete.
+    Code-behind: ChannelSettingsDialog.razor.cs
+*@
+
+@if (IsVisible)
+{
+    <div class="dialog-overlay" @onclick="Close">
+        <div class="dialog channel-settings-dialog" @onclick:stopPropagation="true">
+            <div class="dialog-header">
+                <h2>Channel Settings</h2>
+                <button class="btn btn-sm" @onclick="Close">✕</button>
+            </div>
+
+            <div class="dialog-body">
+                <div class="settings-section">
+                    <label>Channel Name</label>
+                    <input type="text" @bind="EditName" />
+                </div>
+
+                <div class="settings-section">
+                    <label>Topic</label>
+                    <input type="text" @bind="EditTopic" placeholder="Set a topic" />
+                </div>
+
+                <div class="settings-section">
+                    <label>Description</label>
+                    <textarea @bind="EditDescription" rows="3" placeholder="Describe this channel"></textarea>
+                </div>
+
+                <div class="settings-section">
+                    <label>Notifications</label>
+                    <select @bind="NotificationPref">
+                        <option value="All">All messages</option>
+                        <option value="Mentions">Mentions only</option>
+                        <option value="None">None</option>
+                    </select>
+                </div>
+
+                <div class="settings-actions">
+                    <button class="btn btn-primary" @onclick="SaveChanges">Save</button>
+                    <button class="btn btn-warning" @onclick="ArchiveChannel">Archive</button>
+                    <button class="btn btn-danger" @onclick="DeleteChannel">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}

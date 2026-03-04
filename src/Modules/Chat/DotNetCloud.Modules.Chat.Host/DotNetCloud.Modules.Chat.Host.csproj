@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DotNetCloud.Modules.Chat.Host</RootNamespace>
+    <AssemblyName>dotnetcloud.chat</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Grpc.AspNetCore" Version="2.71.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Include="Protos\chat_service.proto" GrpcServices="Server" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DotNetCloud.Modules.Chat\DotNetCloud.Modules.Chat.csproj" />
+    <ProjectReference Include="..\DotNetCloud.Modules.Chat.Data\DotNetCloud.Modules.Chat.Data.csproj" />
+    <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
+  </ItemGroup>
+
+</Project>

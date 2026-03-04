@@ -1,0 +1,36 @@
+@namespace DotNetCloud.Modules.Chat.UI
+
+@*
+    Channel header - Displays channel name, topic, member count, and actions.
+    Code-behind: ChannelHeader.razor.cs
+*@
+
+<div class="chat-channel-header">
+    @if (Channel is not null)
+    {
+        <div class="channel-info">
+            <span class="channel-icon">@(Channel.Type == "Private" ? "🔒" : "#")</span>
+            <h2 class="channel-name">@Channel.Name</h2>
+            @if (!string.IsNullOrEmpty(Channel.Topic))
+            {
+                <span class="channel-topic">@Channel.Topic</span>
+            }
+        </div>
+
+        <div class="channel-actions">
+            <span class="member-count" title="Members">👥 @Channel.MemberCount</span>
+            <button class="btn btn-sm" @onclick="ToggleMemberList" title="Toggle member list">
+                Members
+            </button>
+            <button class="btn btn-sm" @onclick="OnSearchClick" title="Search messages">
+                🔍
+            </button>
+        </div>
+    }
+    else
+    {
+        <div class="channel-info">
+            <h2 class="channel-name">Select a channel</h2>
+        </div>
+    }
+</div>

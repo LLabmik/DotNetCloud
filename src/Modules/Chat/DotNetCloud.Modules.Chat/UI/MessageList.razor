@@ -1,0 +1,108 @@
+@namespace DotNetCloud.Modules.Chat.UI
+
+@*
+    Message list - Displays messages in the selected channel with reactions and attachments.
+    Code-behind: MessageList.razor.cs
+*@
+
+<div class="chat-message-list" @ref="MessageListRef">
+    @if (IsLoading)
+    {
+        <div class="loading-state">
+            <p>Loading messages...</p>
+        </div>
+    }
+    else if (Messages.Count == 0)
+    {
+        <div class="empty-state">
+            <p>No messages yet</p>
+            <p class="text-muted">Be the first to send a message!</p>
+        </div>
+    }
+    else
+    {
+        @if (HasMoreMessages)
+        {
+            <div class="load-more">
+                <button class="btn btn-sm" @onclick="LoadMoreMessages">Load older messages</button>
+            </div>
+        }
+
+        @foreach (var message in Messages)
+        {
+            <div class="message-item @(message.Type == "System" ? "system-message" : "")">
+                @if (message.Type == "System")
+                {
+                    <div class="system-content">@message.Content</div>
+                }
+                else
+                {
+                    <div class="message-avatar">
+                        @if (!string.IsNullOrEmpty(message.SenderAvatarUrl))
+                        {
+                            <img src="@message.SenderAvatarUrl" alt="@message.SenderName" />
+                        }
+                        else
+                        {
+                            <span class="avatar-placeholder">@GetInitials(message.SenderName)</span>
+                        }
+                    </div>
+
+                    <div class="message-body">
+                        <div class="message-header">
+                            <span class="sender-name">@message.SenderName</span>
+                            <span class="message-time">@FormatTime(message.SentAt)</span>
+                            @if (message.IsEdited)
+                            {
+                                <span class="edited-indicator">(edited)</span>
+                            }
+                        </div>
+
+                        @if (message.ReplyToMessageId.HasValue)
+                        {
+                            <div class="reply-indicator">
+                                <span>↩ Reply</span>
+                            </div>
+                        }
+
+                        <div class="message-content">@message.Content</div>
+
+                        @if (message.Attachments.Count > 0)
+                        {
+                            <div class="message-attachments">
+                                @foreach (var attachment in message.Attachments)
+                                {
+                                    <div class="attachment-item">
+                                        <span class="attachment-icon">📎</span>
+                                        <span class="attachment-name">@attachment.FileName</span>
+                                        <span class="attachment-size">@FormatSize(attachment.FileSize)</span>
+                                    </div>
+                                }
+                            </div>
+                        }
+
+                        @if (message.Reactions.Count > 0)
+                        {
+                            <div class="message-reactions">
+                                @foreach (var reaction in message.Reactions)
+                                {
+                                    <button class="reaction-badge @(reaction.HasReacted ? "reacted" : "")"
+                                            @onclick="() => ToggleReaction(message.Id, reaction.Emoji)">
+                                        @reaction.Emoji @reaction.Count
+                                    </button>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    }
+
+    @if (TypingUsers.Count > 0)
+    {
+        <div class="typing-indicator">
+            @GetTypingText()
+        </div>
+    }
+</div>

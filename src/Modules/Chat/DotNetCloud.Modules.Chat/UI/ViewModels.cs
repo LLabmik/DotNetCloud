@@ -1,0 +1,171 @@
+namespace DotNetCloud.Modules.Chat.UI;
+
+/// <summary>
+/// View model for displaying a channel in the sidebar.
+/// </summary>
+public sealed class ChannelViewModel
+{
+    /// <summary>Channel ID.</summary>
+    public Guid Id { get; init; }
+
+    /// <summary>Display name.</summary>
+    public string Name { get; init; } = string.Empty;
+
+    /// <summary>Channel type (Public, Private, DirectMessage, Group).</summary>
+    public string Type { get; init; } = "Public";
+
+    /// <summary>Channel topic.</summary>
+    public string? Topic { get; init; }
+
+    /// <summary>Unread message count.</summary>
+    public int UnreadCount { get; set; }
+
+    /// <summary>Unread mention count.</summary>
+    public int MentionCount { get; set; }
+
+    /// <summary>Whether the channel is currently active/selected.</summary>
+    public bool IsActive { get; set; }
+
+    /// <summary>Last activity timestamp.</summary>
+    public DateTime? LastActivityAt { get; init; }
+
+    /// <summary>Number of members.</summary>
+    public int MemberCount { get; init; }
+}
+
+/// <summary>
+/// View model for displaying a message in the chat view.
+/// </summary>
+public sealed class MessageViewModel
+{
+    /// <summary>Message ID.</summary>
+    public Guid Id { get; init; }
+
+    /// <summary>Sender user ID.</summary>
+    public Guid SenderUserId { get; init; }
+
+    /// <summary>Sender display name.</summary>
+    public string SenderName { get; init; } = string.Empty;
+
+    /// <summary>Sender avatar URL.</summary>
+    public string? SenderAvatarUrl { get; init; }
+
+    /// <summary>Message content (Markdown).</summary>
+    public string Content { get; init; } = string.Empty;
+
+    /// <summary>Message type.</summary>
+    public string Type { get; init; } = "Text";
+
+    /// <summary>Sent timestamp.</summary>
+    public DateTime SentAt { get; init; }
+
+    /// <summary>Whether the message has been edited.</summary>
+    public bool IsEdited { get; init; }
+
+    /// <summary>ID of the message this replies to.</summary>
+    public Guid? ReplyToMessageId { get; init; }
+
+    /// <summary>Reactions grouped by emoji.</summary>
+    public List<ReactionViewModel> Reactions { get; init; } = [];
+
+    /// <summary>Attachments on this message.</summary>
+    public List<AttachmentViewModel> Attachments { get; init; } = [];
+}
+
+/// <summary>
+/// View model for a grouped reaction display.
+/// </summary>
+public sealed class ReactionViewModel
+{
+    /// <summary>Emoji character or code.</summary>
+    public string Emoji { get; init; } = string.Empty;
+
+    /// <summary>Number of users who reacted.</summary>
+    public int Count { get; init; }
+
+    /// <summary>Whether the current user has this reaction.</summary>
+    public bool HasReacted { get; set; }
+}
+
+/// <summary>
+/// View model for a message attachment.
+/// </summary>
+public sealed class AttachmentViewModel
+{
+    /// <summary>Attachment ID.</summary>
+    public Guid Id { get; init; }
+
+    /// <summary>File name.</summary>
+    public string FileName { get; init; } = string.Empty;
+
+    /// <summary>MIME type.</summary>
+    public string MimeType { get; init; } = string.Empty;
+
+    /// <summary>File size in bytes.</summary>
+    public long FileSize { get; init; }
+
+    /// <summary>Thumbnail URL for preview.</summary>
+    public string? ThumbnailUrl { get; init; }
+}
+
+/// <summary>
+/// View model for a channel member.
+/// </summary>
+public sealed class MemberViewModel
+{
+    /// <summary>User ID.</summary>
+    public Guid UserId { get; init; }
+
+    /// <summary>Display name.</summary>
+    public string DisplayName { get; init; } = string.Empty;
+
+    /// <summary>Avatar URL.</summary>
+    public string? AvatarUrl { get; init; }
+
+    /// <summary>Role in the channel.</summary>
+    public string Role { get; init; } = "Member";
+
+    /// <summary>Presence status.</summary>
+    public string Status { get; init; } = "Offline";
+}
+
+/// <summary>
+/// View model for a typing indicator.
+/// </summary>
+public sealed record TypingUserViewModel(Guid UserId, string DisplayName);
+
+/// <summary>
+/// View model for displaying an announcement.
+/// </summary>
+public sealed class AnnouncementViewModel
+{
+    /// <summary>Announcement ID.</summary>
+    public Guid Id { get; init; }
+
+    /// <summary>Title.</summary>
+    public string Title { get; init; } = string.Empty;
+
+    /// <summary>Content (Markdown).</summary>
+    public string Content { get; init; } = string.Empty;
+
+    /// <summary>Priority: Normal, Important, Urgent.</summary>
+    public string Priority { get; init; } = "Normal";
+
+    /// <summary>Published timestamp.</summary>
+    public DateTime PublishedAt { get; init; }
+
+    /// <summary>Optional expiry timestamp.</summary>
+    public DateTime? ExpiresAt { get; init; }
+
+    /// <summary>Whether the announcement is pinned.</summary>
+    public bool IsPinned { get; init; }
+
+    /// <summary>Whether acknowledgement is required.</summary>
+    public bool RequiresAcknowledgement { get; init; }
+
+    /// <summary>Number of acknowledgements.</summary>
+    public int AcknowledgementCount { get; init; }
+
+    /// <summary>Author display name.</summary>
+    public string AuthorName { get; init; } = string.Empty;
+}

@@ -168,6 +168,8 @@ public class ContentHasherTests
     [TestMethod]
     public void WhenDefaultChunkSizeThenIs4MB()
     {
+#pragma warning disable MSTEST0032 // Canary test guards the compile-time constant value
         Assert.AreEqual(4 * 1024 * 1024, ContentHasher.DefaultChunkSize);
+#pragma warning restore MSTEST0032
     }
 }

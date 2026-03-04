@@ -1,0 +1,54 @@
+@namespace DotNetCloud.Modules.Chat.UI
+
+@*
+    Message composer - Input area for composing and sending chat messages.
+    Supports reply-to, file attachments, emoji, and @mention autocomplete.
+    Code-behind: MessageComposer.razor.cs
+*@
+
+<div class="chat-message-composer">
+    @if (ReplyToMessage is not null)
+    {
+        <div class="reply-preview">
+            <span class="reply-label">Replying to <strong>@ReplyToMessage.SenderName</strong></span>
+            <span class="reply-content">@TruncateContent(ReplyToMessage.Content)</span>
+            <button class="btn-close" @onclick="CancelReply" title="Cancel reply">✕</button>
+        </div>
+    }
+
+    <div class="composer-input-row">
+        <button class="btn btn-sm composer-action" @onclick="OnAttachClick" title="Attach file">
+            📎
+        </button>
+
+        <div class="composer-input-wrapper">
+            <textarea class="composer-input"
+                      @bind="MessageText"
+                      @bind:event="oninput"
+                      @onkeydown="HandleKeyDown"
+                      placeholder="@GetPlaceholder()"
+                      rows="1"></textarea>
+        </div>
+
+        <button class="btn btn-sm composer-action" @onclick="ToggleEmojiPicker" title="Emoji">
+            😀
+        </button>
+
+        <button class="btn btn-sm btn-primary composer-send"
+                @onclick="SendMessage"
+                disabled="@IsSendDisabled"
+                title="Send message">
+            ➤
+        </button>
+    </div>
+
+    @if (IsShowEmojiPicker)
+    {
+        <div class="emoji-picker">
+            @foreach (var emoji in CommonEmojis)
+            {
+                <button class="emoji-btn" @onclick="() => InsertEmoji(emoji)">@emoji</button>
+            }
+        </div>
+    }
+</div>

@@ -63,7 +63,7 @@ public class ShareController : ControllerBase
         if (!Enum.TryParse<SharePermission>(dto.Permission, true, out var permission))
             permission = SharePermission.Read;
 
-        var share = new FileShare
+        var share = new Models.FileShare
         {
             FileNodeId = nodeId,
             ShareType = shareType,
@@ -115,7 +115,7 @@ public class ShareController : ControllerBase
         return Ok(new { success = true });
     }
 
-    private static FileShareDto ToDto(FileShare share)
+    private static FileShareDto ToDto(Models.FileShare share)
     {
         return new FileShareDto
         {

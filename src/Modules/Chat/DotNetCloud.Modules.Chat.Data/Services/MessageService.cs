@@ -1,0 +1,298 @@
+using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Events;
+using DotNetCloud.Modules.Chat.DTOs;
+using DotNetCloud.Modules.Chat.Events;
+using DotNetCloud.Modules.Chat.Models;
+using DotNetCloud.Modules.Chat.Services;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+
+namespace DotNetCloud.Modules.Chat.Data.Services;
+
+/// <summary>
+/// Manages chat messages: sending, editing, deleting, searching, and mention parsing.
+/// </summary>
+internal sealed class MessageService : IMessageService
+{
+    private readonly ChatDbContext _db;
+    private readonly IEventBus _eventBus;
+    private readonly ILogger<MessageService> _logger;
+
+    public MessageService(ChatDbContext db, IEventBus eventBus, ILogger<MessageService> logger)
+    {
+        _db = db;
+        _eventBus = eventBus;
+        _logger = logger;
+    }
+
+    /// <inheritdoc />
+    public async Task<MessageDto> SendMessageAsync(Guid channelId, SendMessageDto dto, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+
+        if (string.IsNullOrWhiteSpace(dto.Content))
+            throw new ArgumentException("Message content is required.", nameof(dto));
+
+        var isMember = await _db.ChannelMembers
+            .AnyAsync(m => m.ChannelId == channelId && m.UserId == caller.UserId, cancellationToken);
+
+        if (!isMember)
+            throw new UnauthorizedAccessException($"User {caller.UserId} is not a member of channel {channelId}.");
+
+        var message = new Message
+        {
+            ChannelId = channelId,
+            SenderUserId = caller.UserId,
+            Content = dto.Content,
+            Type = dto.ReplyToMessageId.HasValue ? MessageType.Reply : MessageType.Text,
+            ReplyToMessageId = dto.ReplyToMessageId
+        };
+
+        _db.Messages.Add(message);
+
+        // Parse and store mentions
+        ParseAndStoreMentions(message);
+
+        // Update channel activity
+        var channel = await _db.Channels.FindAsync([channelId], cancellationToken);
+        if (channel is not null)
+        {
+            channel.LastActivityAt = DateTime.UtcNow;
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _eventBus.PublishAsync(new MessageSentEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            MessageId = message.Id,
+            ChannelId = channelId,
+            SenderUserId = caller.UserId,
+            Content = message.Content,
+            MessageType = message.Type.ToString()
+        }, caller, cancellationToken);
+
+        return ToMessageDto(message);
+    }
+
+    /// <inheritdoc />
+    public async Task<MessageDto> EditMessageAsync(Guid messageId, EditMessageDto dto, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+
+        if (string.IsNullOrWhiteSpace(dto.Content))
+            throw new ArgumentException("Message content is required.", nameof(dto));
+
+        var message = await _db.Messages
+            .Include(m => m.Attachments)
+            .FirstOrDefaultAsync(m => m.Id == messageId, cancellationToken)
+            ?? throw new InvalidOperationException($"Message {messageId} not found.");
+
+        if (message.SenderUserId != caller.UserId)
+            throw new UnauthorizedAccessException("Only the message sender can edit a message.");
+
+        message.Content = dto.Content;
+        message.EditedAt = DateTime.UtcNow;
+        message.IsEdited = true;
+
+        // Re-parse mentions
+        var oldMentions = await _db.MessageMentions
+            .Where(m => m.MessageId == messageId)
+            .ToListAsync(cancellationToken);
+        _db.MessageMentions.RemoveRange(oldMentions);
+        ParseAndStoreMentions(message);
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _eventBus.PublishAsync(new MessageEditedEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            MessageId = message.Id,
+            ChannelId = message.ChannelId,
+            EditedByUserId = caller.UserId,
+            NewContent = message.Content
+        }, caller, cancellationToken);
+
+        return ToMessageDto(message);
+    }
+
+    /// <inheritdoc />
+    public async Task DeleteMessageAsync(Guid messageId, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        var message = await _db.Messages.FindAsync([messageId], cancellationToken)
+            ?? throw new InvalidOperationException($"Message {messageId} not found.");
+
+        // Sender or channel admin/owner can delete
+        if (message.SenderUserId != caller.UserId)
+        {
+            var membership = await _db.ChannelMembers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(m => m.ChannelId == message.ChannelId && m.UserId == caller.UserId, cancellationToken);
+
+            if (membership is null || membership.Role == ChannelMemberRole.Member)
+                throw new UnauthorizedAccessException("Only the message sender or a channel admin/owner can delete a message.");
+        }
+
+        message.IsDeleted = true;
+        message.DeletedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _eventBus.PublishAsync(new MessageDeletedEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            MessageId = message.Id,
+            ChannelId = message.ChannelId,
+            DeletedByUserId = caller.UserId
+        }, caller, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<PagedMessageResult> GetMessagesAsync(Guid channelId, int page, int pageSize, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var query = _db.Messages
+            .AsNoTracking()
+            .Where(m => m.ChannelId == channelId)
+            .OrderByDescending(m => m.SentAt);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var messages = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Include(m => m.Attachments)
+            .Include(m => m.Reactions)
+            .ToListAsync(cancellationToken);
+
+        return new PagedMessageResult
+        {
+            Items = messages.Select(ToMessageDto).ToList(),
+            Page = page,
+            PageSize = pageSize,
+            TotalItems = totalCount
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task<PagedMessageResult> SearchMessagesAsync(Guid channelId, string query, int page, int pageSize, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var dbQuery = _db.Messages
+            .AsNoTracking()
+            .Where(m => m.ChannelId == channelId && m.Content.Contains(query))
+            .OrderByDescending(m => m.SentAt);
+
+        var totalCount = await dbQuery.CountAsync(cancellationToken);
+
+        var messages = await dbQuery
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Include(m => m.Attachments)
+            .Include(m => m.Reactions)
+            .ToListAsync(cancellationToken);
+
+        return new PagedMessageResult
+        {
+            Items = messages.Select(ToMessageDto).ToList(),
+            Page = page,
+            PageSize = pageSize,
+            TotalItems = totalCount
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task<MessageDto?> GetMessageAsync(Guid messageId, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        var message = await _db.Messages
+            .AsNoTracking()
+            .Include(m => m.Attachments)
+            .Include(m => m.Reactions)
+            .FirstOrDefaultAsync(m => m.Id == messageId, cancellationToken);
+
+        return message is null ? null : ToMessageDto(message);
+    }
+
+    private void ParseAndStoreMentions(Message message)
+    {
+        var content = message.Content;
+        var index = 0;
+
+        while (index < content.Length)
+        {
+            var atIndex = content.IndexOf('@', index);
+            if (atIndex < 0)
+                break;
+
+            var endIndex = atIndex + 1;
+            while (endIndex < content.Length && !char.IsWhiteSpace(content[endIndex]) && content[endIndex] != '@')
+                endIndex++;
+
+            var mentionText = content[atIndex..endIndex];
+            var length = endIndex - atIndex;
+
+            if (string.Equals(mentionText, "@all", StringComparison.OrdinalIgnoreCase))
+            {
+                _db.MessageMentions.Add(new MessageMention
+                {
+                    MessageId = message.Id,
+                    Type = MentionType.All,
+                    StartIndex = atIndex,
+                    Length = length
+                });
+            }
+            else if (string.Equals(mentionText, "@channel", StringComparison.OrdinalIgnoreCase))
+            {
+                _db.MessageMentions.Add(new MessageMention
+                {
+                    MessageId = message.Id,
+                    Type = MentionType.Channel,
+                    StartIndex = atIndex,
+                    Length = length
+                });
+            }
+
+            index = endIndex;
+        }
+    }
+
+    private static MessageDto ToMessageDto(Message message)
+    {
+        return new MessageDto
+        {
+            Id = message.Id,
+            ChannelId = message.ChannelId,
+            SenderUserId = message.SenderUserId,
+            Content = message.Content,
+            Type = message.Type.ToString(),
+            SentAt = message.SentAt,
+            EditedAt = message.EditedAt,
+            IsEdited = message.IsEdited,
+            ReplyToMessageId = message.ReplyToMessageId,
+            Attachments = message.Attachments.Select(a => new MessageAttachmentDto
+            {
+                Id = a.Id,
+                FileName = a.FileName,
+                MimeType = a.MimeType,
+                FileSize = a.FileSize,
+                ThumbnailUrl = a.ThumbnailUrl,
+                FileNodeId = a.FileNodeId
+            }).ToList(),
+            Reactions = message.Reactions
+                .GroupBy(r => r.Emoji)
+                .Select(g => new MessageReactionDto
+                {
+                    Emoji = g.Key,
+                    Count = g.Count(),
+                    UserIds = g.Select(r => r.UserId).ToList()
+                }).ToList()
+        };
+    }
+}

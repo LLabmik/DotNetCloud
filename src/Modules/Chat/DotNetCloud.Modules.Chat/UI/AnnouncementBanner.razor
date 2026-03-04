@@ -1,0 +1,28 @@
+@namespace DotNetCloud.Modules.Chat.UI
+
+@*
+    Announcement banner — displays urgent/important announcements at the top of the view.
+    Code-behind: AnnouncementBanner.razor.cs
+*@
+
+@if (Announcement is not null)
+{
+    <div class="announcement-banner @($"priority-{Announcement.Priority.ToLowerInvariant()}")">
+        <div class="announcement-banner-content">
+            <span class="announcement-icon">
+                @(Announcement.Priority == "Urgent" ? "🔴" : Announcement.Priority == "Important" ? "🟡" : "📢")
+            </span>
+            <div class="announcement-text">
+                <strong>@Announcement.Title</strong>
+                <span class="announcement-body">@TruncateContent(Announcement.Content)</span>
+            </div>
+        </div>
+        <div class="announcement-banner-actions">
+            @if (Announcement.RequiresAcknowledgement && !IsAcknowledged)
+            {
+                <button class="btn btn-sm btn-primary" @onclick="Acknowledge">Acknowledge</button>
+            }
+            <button class="btn btn-sm" @onclick="Dismiss">✕</button>
+        </div>
+    </div>
+}

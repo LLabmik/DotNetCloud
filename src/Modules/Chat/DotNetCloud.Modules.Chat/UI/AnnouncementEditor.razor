@@ -1,0 +1,60 @@
+@namespace DotNetCloud.Modules.Chat.UI
+
+@*
+    Announcement editor — create or edit an announcement.
+    Code-behind: AnnouncementEditor.razor.cs
+*@
+
+@if (IsVisible)
+{
+    <div class="dialog-overlay" @onclick="Cancel">
+        <div class="dialog announcement-editor-dialog" @onclick:stopPropagation="true">
+            <div class="dialog-header">
+                <h2>@(IsEditing ? "Edit Announcement" : "New Announcement")</h2>
+                <button class="btn btn-sm" @onclick="Cancel">✕</button>
+            </div>
+
+            <div class="dialog-body">
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" @bind="Title" placeholder="Announcement title" />
+                </div>
+
+                <div class="form-group">
+                    <label>Content</label>
+                    <textarea @bind="Content" rows="6" placeholder="Write your announcement (Markdown supported)"></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Priority</label>
+                        <select @bind="Priority">
+                            <option value="Normal">Normal</option>
+                            <option value="Important">Important</option>
+                            <option value="Urgent">Urgent</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Expires At</label>
+                        <input type="datetime-local" @bind="ExpiresAt" />
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" @bind="RequiresAcknowledgement" />
+                        Require acknowledgement
+                    </label>
+                </div>
+            </div>
+
+            <div class="dialog-footer">
+                <button class="btn" @onclick="Cancel">Cancel</button>
+                <button class="btn btn-primary" @onclick="Save" disabled="@IsSaveDisabled">
+                    @(IsEditing ? "Update" : "Publish")
+                </button>
+            </div>
+        </div>
+    </div>
+}

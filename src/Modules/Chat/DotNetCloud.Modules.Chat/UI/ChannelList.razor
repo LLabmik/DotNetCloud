@@ -1,0 +1,76 @@
+@namespace DotNetCloud.Modules.Chat.UI
+
+@*
+    Channel list sidebar - Displays channels grouped by type with unread badges.
+    Code-behind: ChannelList.razor.cs
+*@
+
+<div class="chat-channel-list">
+    <div class="channel-list-header">
+        <h2>Chat</h2>
+        <button class="btn btn-sm btn-primary" @onclick="ShowCreateChannel" title="Create channel">+</button>
+    </div>
+
+    <div class="channel-search">
+        <input type="text" placeholder="Search channels..." @bind="SearchQuery" @bind:event="oninput" />
+    </div>
+
+    @if (IsShowCreateChannel)
+    {
+        <div class="create-channel-dialog">
+            <input type="text" @bind="NewChannelName" placeholder="Channel name" />
+            <select @bind="NewChannelType">
+                <option value="Public">Public</option>
+                <option value="Private">Private</option>
+            </select>
+            <button class="btn btn-primary btn-sm" @onclick="CreateChannel">Create</button>
+            <button class="btn btn-sm" @onclick="HideCreateChannel">Cancel</button>
+        </div>
+    }
+
+    @if (FilteredChannels.Count == 0)
+    {
+        <div class="empty-state">
+            <p>No channels yet</p>
+        </div>
+    }
+    else
+    {
+        <div class="channel-group">
+            <h3>Channels</h3>
+            @foreach (var channel in FilteredChannels.Where(c => c.Type is "Public" or "Private"))
+            {
+                <div class="channel-item @(channel.IsActive ? "active" : "")"
+                     @onclick="() => SelectChannel(channel)">
+                    <span class="channel-icon">@(channel.Type == "Private" ? "🔒" : "#")</span>
+                    <span class="channel-name">@channel.Name</span>
+                    @if (channel.UnreadCount > 0)
+                    {
+                        <span class="badge @(channel.MentionCount > 0 ? "badge-mention" : "badge-unread")">
+                            @channel.UnreadCount
+                        </span>
+                    }
+                </div>
+            }
+        </div>
+
+        @if (FilteredChannels.Any(c => c.Type is "DirectMessage" or "Group"))
+        {
+            <div class="channel-group">
+                <h3>Direct Messages</h3>
+                @foreach (var channel in FilteredChannels.Where(c => c.Type is "DirectMessage" or "Group"))
+                {
+                    <div class="channel-item @(channel.IsActive ? "active" : "")"
+                         @onclick="() => SelectChannel(channel)">
+                        <span class="channel-icon">💬</span>
+                        <span class="channel-name">@channel.Name</span>
+                        @if (channel.UnreadCount > 0)
+                        {
+                            <span class="badge badge-unread">@channel.UnreadCount</span>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>

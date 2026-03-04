@@ -1,0 +1,64 @@
+@namespace DotNetCloud.Modules.Chat.UI
+
+@*
+    Member list panel — displays channel members grouped by role and online status.
+    Code-behind: MemberListPanel.razor.cs
+*@
+
+<div class="chat-member-panel">
+    <div class="member-panel-header">
+        <h3>Members (@Members.Count)</h3>
+        <button class="btn btn-sm" @onclick="() => OnClose.InvokeAsync()" title="Close">✕</button>
+    </div>
+
+    @if (Members.Count == 0)
+    {
+        <div class="empty-state"><p>No members</p></div>
+    }
+    else
+    {
+        var online = Members.Where(m => m.Status is "Online" or "Away").ToList();
+        var offline = Members.Where(m => m.Status is "Offline" or "DoNotDisturb").ToList();
+
+        @if (online.Count > 0)
+        {
+            <div class="member-group">
+                <h4>Online — @online.Count</h4>
+                @foreach (var member in online)
+                {
+                    <div class="member-item">
+                        <span class="status-dot @(member.Status == "Online" ? "online" : "away")"></span>
+                        @if (!string.IsNullOrEmpty(member.AvatarUrl))
+                        {
+                            <img class="member-avatar" src="@member.AvatarUrl" alt="@member.DisplayName" />
+                        }
+                        else
+                        {
+                            <span class="avatar-placeholder">@GetInitials(member.DisplayName)</span>
+                        }
+                        <span class="member-name">@member.DisplayName</span>
+                        @if (member.Role is "Owner" or "Admin")
+                        {
+                            <span class="role-badge">@member.Role</span>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        @if (offline.Count > 0)
+        {
+            <div class="member-group">
+                <h4>Offline — @offline.Count</h4>
+                @foreach (var member in offline)
+                {
+                    <div class="member-item offline">
+                        <span class="status-dot offline"></span>
+                        <span class="avatar-placeholder">@GetInitials(member.DisplayName)</span>
+                        <span class="member-name">@member.DisplayName</span>
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>

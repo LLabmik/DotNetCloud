@@ -87,10 +87,10 @@ public class DockerDatabaseIntegrationTests
         SkipIfDockerUnavailable();
         await using var context = CreatePostgreSqlContext();
 
-        var created = await context.Database.EnsureCreatedAsync();
-
-        // EnsureCreated returns true when the database was just created
-        Assert.IsTrue(created, "EnsureCreatedAsync should create the schema");
+        // EnsureCreated returns true when schema is freshly created, false when
+        // it already exists. Other tests in this class may run first and create
+        // the schema, so we only verify the call completes without error.
+        await context.Database.EnsureCreatedAsync();
     }
 
     [TestMethod]

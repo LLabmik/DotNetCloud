@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "DotNetCloud.Modules.Chat.Host": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:63362;http://localhost:63364"
+    }
+  }
+}

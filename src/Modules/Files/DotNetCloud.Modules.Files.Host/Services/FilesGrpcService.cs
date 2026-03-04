@@ -812,7 +812,7 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
             return new CreateShareResponse { Success = false, ErrorMessage = "Node not found." };
         }
 
-        var share = new FileShare
+        var share = new Models.FileShare
         {
             FileNodeId = nodeId,
             ShareType = shareType,
@@ -1000,7 +1000,7 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         };
     }
 
-    private static FileShareMessage ToShareMessage(FileShare share)
+    private static FileShareMessage ToShareMessage(Models.FileShare share)
     {
         var sharedWithId = share.SharedWithUserId?.ToString()
             ?? share.SharedWithTeamId?.ToString()

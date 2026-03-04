@@ -1234,14 +1234,823 @@ This phase implements the core Files module, which is the primary public-facing 
 
 **Expected Duration:** 10-14 weeks
 
-### Subsystems to Implement
+### Phase 2 Overview
 
-1. Chat module (channels, DMs, typing, presence, file sharing)
-2. Announcements module
-3. Chat UI (web, desktop, Android)
-4. Android MAUI app
-5. Push notifications (FCM/UnifiedPush)
-6. SignalR real-time delivery
+This phase implements real-time chat, announcements, push notifications, and the Android client. It includes:
+
+1. Chat module (channels, DMs, typing indicators, presence, file sharing in chat)
+2. Announcements module (organization-wide broadcasts)
+3. Chat Web UI (Blazor)
+4. Desktop client chat integration
+5. Android MAUI app (chat, push notifications)
+6. Push notifications (FCM / UnifiedPush)
+7. SignalR real-time delivery integration
+8. Comprehensive testing and documentation
+
+### Milestone Criteria
+
+- [ ] Users can create channels and send/receive messages in real time
+- [ ] Direct messages work between two users
+- [ ] Typing indicators and presence (online/offline/away) display correctly
+- [ ] Files can be shared inline in chat messages
+- [ ] Announcements can be posted and viewed organization-wide
+- [ ] Push notifications reach Android devices (FCM and UnifiedPush)
+- [ ] Android MAUI app connects, authenticates, and displays chat
+- [ ] Desktop client shows chat notifications
+- [ ] All unit and integration tests pass
+- [ ] Chat works across web, desktop, and Android simultaneously
+
+---
+
+## Phase 2.1: Chat Core Abstractions & Data Models
+
+### DotNetCloud.Modules.Chat Project
+
+**Create chat module project and core domain models**
+
+#### Project Setup
+- ✓ Create `DotNetCloud.Modules.Chat` class library project
+- ✓ Create `DotNetCloud.Modules.Chat.Data` class library project (EF Core)
+- ✓ Create `DotNetCloud.Modules.Chat.Host` ASP.NET Core project (gRPC host)
+- ✓ Create `DotNetCloud.Modules.Chat.Tests` test project (MSTest)
+- ✓ Add projects to `DotNetCloud.sln`
+- ✓ Configure project references and `InternalsVisibleTo`
+
+#### Chat Module Manifest
+- ✓ Create `ChatModuleManifest` implementing `IModuleManifest`:
+  - ✓ `Id` → `"dotnetcloud.chat"`
+  - ✓ `Name` → `"Chat"`
+  - ✓ `Version` → `"1.0.0"`
+  - ✓ `RequiredCapabilities` → `INotificationService`, `IUserDirectory`, `ICurrentUserContext`, `IRealtimeBroadcaster`
+  - ✓ `PublishedEvents` → `MessageSentEvent`, `ChannelCreatedEvent`, `ChannelDeletedEvent`, `UserJoinedChannelEvent`, `UserLeftChannelEvent`
+  - ✓ `SubscribedEvents` → `FileUploadedEvent` (for file sharing in chat)
+
+#### Channel Model
+- ✓ Create `Channel` entity:
+  - ✓ `Guid Id` primary key
+  - ✓ `string Name` property
+  - ✓ `string? Description` property
+  - ✓ `ChannelType Type` property (Public, Private, DirectMessage, Group)
+  - ✓ `Guid? OrganizationId` FK (null for DMs)
+  - ✓ `Guid CreatedByUserId` FK
+  - ✓ `DateTime CreatedAt` property
+  - ✓ `DateTime? LastActivityAt` property
+  - ✓ `bool IsArchived` property
+  - ✓ `string? AvatarUrl` property
+  - ✓ `string? Topic` property
+  - ✓ Soft-delete support (`IsDeleted`, `DeletedAt`)
+- ✓ Create `ChannelType` enum (Public, Private, DirectMessage, Group)
+
+#### Channel Member Model
+- ✓ Create `ChannelMember` entity:
+  - ✓ `Guid Id` primary key
+  - ✓ `Guid ChannelId` FK
+  - ✓ `Guid UserId` FK
+  - ✓ `ChannelMemberRole Role` property (Owner, Admin, Member)
+  - ✓ `DateTime JoinedAt` property
+  - ✓ `DateTime? LastReadAt` property (for unread tracking)
+  - ✓ `Guid? LastReadMessageId` FK (for precise unread marker)
+  - ✓ `bool IsMuted` property
+  - ✓ `bool IsPinned` property
+  - ✓ `NotificationPreference NotificationPref` property
+  - ✓ Unique constraint: (`ChannelId`, `UserId`)
+- ✓ Create `ChannelMemberRole` enum (Owner, Admin, Member)
+- ✓ Create `NotificationPreference` enum (All, Mentions, None)
+
+#### Message Model
+- ✓ Create `Message` entity:
+  - ✓ `Guid Id` primary key
+  - ✓ `Guid ChannelId` FK
+  - ✓ `Guid SenderUserId` FK
+  - ✓ `string Content` property (Markdown-supported text)
+  - ✓ `MessageType Type` property (Text, System, FileShare, Reply)
+  - ✓ `DateTime SentAt` property
+  - ✓ `DateTime? EditedAt` property
+  - ✓ `bool IsEdited` property
+  - ✓ `Guid? ReplyToMessageId` FK (threaded replies)
+  - ✓ `Message? ReplyToMessage` navigation property
+  - ✓ Soft-delete support (`IsDeleted`, `DeletedAt`)
+- ✓ Create `MessageType` enum (Text, System, FileShare, Reply)
+
+#### Message Attachment Model
+- ✓ Create `MessageAttachment` entity:
+  - ✓ `Guid Id` primary key
+  - ✓ `Guid MessageId` FK
+  - ✓ `Guid? FileNodeId` FK (reference to Files module `FileNode`)
+  - ✓ `string FileName` property
+  - ✓ `string MimeType` property
+  - ✓ `long FileSize` property
+  - ✓ `string? ThumbnailUrl` property
+  - ✓ `int SortOrder` property
+
+#### Reaction Model
+- ✓ Create `MessageReaction` entity:
+  - ✓ `Guid Id` primary key
+  - ✓ `Guid MessageId` FK
+  - ✓ `Guid UserId` FK
+  - ✓ `string Emoji` property (Unicode emoji or custom emoji code)
+  - ✓ `DateTime ReactedAt` property
+  - ✓ Unique constraint: (`MessageId`, `UserId`, `Emoji`)
+
+#### Mention Model
+- ✓ Create `MessageMention` entity:
+  - ✓ `Guid Id` primary key
+  - ✓ `Guid MessageId` FK
+  - ✓ `Guid? MentionedUserId` FK (null for @channel/@all)
+  - ✓ `MentionType Type` property (User, Channel, All)
+  - ✓ `int StartIndex` property (position in message text)
+  - ✓ `int Length` property
+- ✓ Create `MentionType` enum (User, Channel, All)
+
+#### Pinned Message Model
+- ✓ Create `PinnedMessage` entity:
+  - ✓ `Guid Id` primary key
+  - ✓ `Guid ChannelId` FK
+  - ✓ `Guid MessageId` FK
+  - ✓ `Guid PinnedByUserId` FK
+  - ✓ `DateTime PinnedAt` property
+
+#### Data Transfer Objects (DTOs)
+- ✓ Create `ChannelDto`, `CreateChannelDto`, `UpdateChannelDto`
+- ✓ Create `ChannelMemberDto`, `AddChannelMemberDto`
+- ✓ Create `MessageDto`, `SendMessageDto`, `EditMessageDto`
+- ✓ Create `MessageAttachmentDto`
+- ✓ Create `MessageReactionDto`
+- ✓ Create `TypingIndicatorDto`
+- ✓ Create `PresenceDto`
+- ✓ Create `UnreadCountDto`
+
+#### Event Definitions
+- ✓ Create `MessageSentEvent` implementing `IEvent`
+- ✓ Create `MessageEditedEvent` implementing `IEvent`
+- ✓ Create `MessageDeletedEvent` implementing `IEvent`
+- ✓ Create `ChannelCreatedEvent` implementing `IEvent`
+- ✓ Create `ChannelDeletedEvent` implementing `IEvent`
+- ✓ Create `ChannelArchivedEvent` implementing `IEvent`
+- ✓ Create `UserJoinedChannelEvent` implementing `IEvent`
+- ✓ Create `UserLeftChannelEvent` implementing `IEvent`
+- ✓ Create `ReactionAddedEvent` implementing `IEvent`
+- ✓ Create `ReactionRemovedEvent` implementing `IEvent`
+
+#### Event Handlers
+- ✓ Create `MessageSentEventHandler` implementing `IEventHandler<MessageSentEvent>`
+- ✓ Create `ChannelCreatedEventHandler` implementing `IEventHandler<ChannelCreatedEvent>`
+
+---
+
+## Phase 2.2: Chat Database & Data Access Layer
+
+### DotNetCloud.Modules.Chat.Data Project
+
+**Create EF Core database context and configurations**
+
+#### Entity Configurations
+- ✓ Create `ChannelConfiguration` (IEntityTypeConfiguration)
+  - ✓ Table name via naming strategy (`chat.channels` / `chat_channels`)
+  - ✓ Index on `OrganizationId`
+  - ✓ Index on `Type`
+  - ✓ Soft-delete query filter
+- ✓ Create `ChannelMemberConfiguration`
+  - ✓ Composite unique index on (`ChannelId`, `UserId`)
+  - ✓ FK relationships to `Channel`
+- ✓ Create `MessageConfiguration`
+  - ✓ Index on (`ChannelId`, `SentAt`) for efficient channel message loading
+  - ✓ Index on `SenderUserId`
+  - ✓ FK to `Channel`, FK to `ReplyToMessage` (self-referencing)
+  - ✓ Soft-delete query filter
+- ✓ Create `MessageAttachmentConfiguration`
+  - ✓ FK to `Message`
+  - ✓ Index on `FileNodeId`
+- ✓ Create `MessageReactionConfiguration`
+  - ✓ Composite unique index on (`MessageId`, `UserId`, `Emoji`)
+  - ✓ FK to `Message`
+- ✓ Create `MessageMentionConfiguration`
+  - ✓ FK to `Message`
+  - ✓ Index on `MentionedUserId`
+- ✓ Create `PinnedMessageConfiguration`
+  - ✓ FK to `Channel`, FK to `Message`
+  - ✓ Unique index on (`ChannelId`, `MessageId`)
+
+#### ChatDbContext
+- ✓ Create `ChatDbContext` class extending `DbContext`:
+  - ✓ `DbSet<Channel> Channels`
+  - ✓ `DbSet<ChannelMember> ChannelMembers`
+  - ✓ `DbSet<Message> Messages`
+  - ✓ `DbSet<MessageAttachment> MessageAttachments`
+  - ✓ `DbSet<MessageReaction> MessageReactions`
+  - ✓ `DbSet<MessageMention> MessageMentions`
+  - ✓ `DbSet<PinnedMessage> PinnedMessages`
+- ✓ Apply table naming strategy (schema-based for PostgreSQL/SQL Server, prefix-based for MariaDB)
+- ✓ Configure automatic timestamps (`SentAt`, `JoinedAt`, etc.)
+- ☐ Create design-time factory for migrations
+
+#### Migrations
+- ☐ Create PostgreSQL initial migration
+- ☐ Create SQL Server initial migration
+- ☐ Create MariaDB initial migration (when Pomelo supports .NET 10)
+
+#### Database Initialization
+- ☐ Create `ChatDbInitializer`:
+  - ☐ Seed default system channels (e.g., `#general`, `#announcements`)
+  - ☐ Configure default channel settings
+
+---
+
+## Phase 2.3: Chat Business Logic & Services
+
+### DotNetCloud.Modules.Chat Project (Services)
+
+**Core chat business logic**
+
+#### Channel Service
+- ✓ Create `IChannelService` interface:
+  - ✓ `Task<ChannelDto> CreateChannelAsync(CreateChannelDto dto, CallerContext caller)`
+  - ✓ `Task<ChannelDto> GetChannelAsync(Guid channelId, CallerContext caller)`
+  - ✓ `Task<IReadOnlyList<ChannelDto>> ListChannelsAsync(CallerContext caller)`
+  - ✓ `Task<ChannelDto> UpdateChannelAsync(Guid channelId, UpdateChannelDto dto, CallerContext caller)`
+  - ✓ `Task DeleteChannelAsync(Guid channelId, CallerContext caller)`
+  - ✓ `Task ArchiveChannelAsync(Guid channelId, CallerContext caller)`
+  - ✓ `Task<ChannelDto> GetOrCreateDirectMessageAsync(Guid otherUserId, CallerContext caller)`
+- ✓ Implement `ChannelService`
+- ✓ Add authorization checks (owner/admin for updates/deletes)
+- ☐ Validate channel name uniqueness within organization
+
+#### Channel Member Service
+- ✓ Create `IChannelMemberService` interface:
+  - ✓ `Task AddMemberAsync(Guid channelId, Guid userId, CallerContext caller)`
+  - ✓ `Task RemoveMemberAsync(Guid channelId, Guid userId, CallerContext caller)`
+  - ✓ `Task<IReadOnlyList<ChannelMemberDto>> ListMembersAsync(Guid channelId, CallerContext caller)`
+  - ✓ `Task UpdateMemberRoleAsync(Guid channelId, Guid userId, ChannelMemberRole role, CallerContext caller)`
+  - ✓ `Task UpdateNotificationPreferenceAsync(Guid channelId, NotificationPreference pref, CallerContext caller)`
+  - ✓ `Task MarkAsReadAsync(Guid channelId, Guid messageId, CallerContext caller)`
+  - ✓ `Task<IReadOnlyList<UnreadCountDto>> GetUnreadCountsAsync(CallerContext caller)`
+- ✓ Implement `ChannelMemberService`
+
+#### Message Service
+- ✓ Create `IMessageService` interface:
+  - ✓ `Task<MessageDto> SendMessageAsync(Guid channelId, SendMessageDto dto, CallerContext caller)`
+  - ✓ `Task<MessageDto> EditMessageAsync(Guid messageId, EditMessageDto dto, CallerContext caller)`
+  - ✓ `Task DeleteMessageAsync(Guid messageId, CallerContext caller)`
+  - ✓ `Task<PagedResult<MessageDto>> GetMessagesAsync(Guid channelId, int page, int pageSize, CallerContext caller)`
+  - ✓ `Task<PagedResult<MessageDto>> SearchMessagesAsync(Guid channelId, string query, CallerContext caller)`
+  - ✓ `Task<MessageDto> GetMessageAsync(Guid messageId, CallerContext caller)`
+- ✓ Implement `MessageService`
+- ☐ Parse mentions from message content (`@username`, `@channel`, `@all`)
+- ☐ Create mention notification dispatching
+- ✓ Enforce message length limits
+
+#### Reaction Service
+- ✓ Create `IReactionService` interface:
+  - ✓ `Task AddReactionAsync(Guid messageId, string emoji, CallerContext caller)`
+  - ✓ `Task RemoveReactionAsync(Guid messageId, string emoji, CallerContext caller)`
+  - ✓ `Task<IReadOnlyList<MessageReactionDto>> GetReactionsAsync(Guid messageId)`
+- ✓ Implement `ReactionService`
+
+#### Pin Service
+- ✓ Create `IPinService` interface:
+  - ✓ `Task PinMessageAsync(Guid channelId, Guid messageId, CallerContext caller)`
+  - ✓ `Task UnpinMessageAsync(Guid channelId, Guid messageId, CallerContext caller)`
+  - ✓ `Task<IReadOnlyList<MessageDto>> GetPinnedMessagesAsync(Guid channelId, CallerContext caller)`
+- ✓ Implement `PinService`
+
+#### Typing Indicator Service
+- ✓ Create `ITypingIndicatorService` interface:
+  - ✓ `Task NotifyTypingAsync(Guid channelId, CallerContext caller)`
+  - ✓ `Task<IReadOnlyList<TypingIndicatorDto>> GetTypingUsersAsync(Guid channelId)`
+- ✓ Implement `TypingIndicatorService` (in-memory, time-expiring)
+
+#### Chat Module Lifecycle
+- ✓ Create `ChatModule` implementing `IModule`:
+  - ✓ `InitializeAsync` — register services, subscribe to events
+  - ✓ `StartAsync` — start background tasks (typing indicator cleanup)
+  - ✓ `StopAsync` — drain active connections
+- ✓ Register all services in DI container
+
+---
+
+## Phase 2.4: Chat REST API Endpoints
+
+### DotNetCloud.Modules.Chat.Host Project (Controllers)
+
+**REST API for chat operations**
+
+#### Channel Endpoints
+- ✓ `POST /api/v1/chat/channels` — Create channel
+- ✓ `GET /api/v1/chat/channels` — List channels for current user
+- ✓ `GET /api/v1/chat/channels/{channelId}` — Get channel details
+- ✓ `PUT /api/v1/chat/channels/{channelId}` — Update channel
+- ✓ `DELETE /api/v1/chat/channels/{channelId}` — Delete channel
+- ✓ `POST /api/v1/chat/channels/{channelId}/archive` — Archive channel
+- ✓ `POST /api/v1/chat/channels/dm/{userId}` — Get or create DM channel
+
+#### Channel Member Endpoints
+- ✓ `POST /api/v1/chat/channels/{channelId}/members` — Add member
+- ✓ `DELETE /api/v1/chat/channels/{channelId}/members/{userId}` — Remove member
+- ✓ `GET /api/v1/chat/channels/{channelId}/members` — List members
+- ✓ `PUT /api/v1/chat/channels/{channelId}/members/{userId}/role` — Update member role
+- ✓ `PUT /api/v1/chat/channels/{channelId}/notifications` — Update notification preference
+- ✓ `POST /api/v1/chat/channels/{channelId}/read` — Mark channel as read
+- ✓ `GET /api/v1/chat/unread` — Get unread counts for all channels
+
+#### Message Endpoints
+- ✓ `POST /api/v1/chat/channels/{channelId}/messages` — Send message
+- ✓ `GET /api/v1/chat/channels/{channelId}/messages` — Get messages (paginated)
+- ✓ `GET /api/v1/chat/channels/{channelId}/messages/{messageId}` — Get single message
+- ✓ `PUT /api/v1/chat/channels/{channelId}/messages/{messageId}` — Edit message
+- ✓ `DELETE /api/v1/chat/channels/{channelId}/messages/{messageId}` — Delete message
+- ✓ `GET /api/v1/chat/channels/{channelId}/messages/search` — Search messages
+
+#### Reaction Endpoints
+- ✓ `POST /api/v1/chat/messages/{messageId}/reactions` — Add reaction
+- ✓ `DELETE /api/v1/chat/messages/{messageId}/reactions/{emoji}` — Remove reaction
+- ✓ `GET /api/v1/chat/messages/{messageId}/reactions` — Get reactions
+
+#### Pin Endpoints
+- ✓ `POST /api/v1/chat/channels/{channelId}/pins/{messageId}` — Pin message
+- ✓ `DELETE /api/v1/chat/channels/{channelId}/pins/{messageId}` — Unpin message
+- ✓ `GET /api/v1/chat/channels/{channelId}/pins` — Get pinned messages
+
+#### File Sharing Endpoints
+- ☐ `POST /api/v1/chat/channels/{channelId}/messages/{messageId}/attachments` — Attach file to message
+- ✓ `GET /api/v1/chat/channels/{channelId}/files` — List files shared in channel
+
+---
+
+## Phase 2.5: SignalR Real-Time Chat Integration
+
+### Real-Time Messaging via SignalR
+
+**Integrate chat module with core SignalR hub**
+
+#### Chat SignalR Methods
+- ☐ Register chat event handlers in `CoreHub`:
+  - ☐ `SendMessage(channelId, content, replyToId?)` — client sends message
+  - ☐ `EditMessage(messageId, newContent)` — client edits message
+  - ☐ `DeleteMessage(messageId)` — client deletes message
+  - ☐ `StartTyping(channelId)` — client starts typing
+  - ☐ `StopTyping(channelId)` — client stops typing
+  - ☐ `MarkRead(channelId, messageId)` — client marks channel as read
+  - ☐ `AddReaction(messageId, emoji)` — client adds reaction
+  - ☐ `RemoveReaction(messageId, emoji)` — client removes reaction
+
+#### Server-to-Client Broadcasts
+- ✓ `NewMessage(channelId, messageDto)` — broadcast to channel members
+- ✓ `MessageEdited(channelId, messageDto)` — broadcast edit
+- ✓ `MessageDeleted(channelId, messageId)` — broadcast deletion
+- ✓ `TypingIndicator(channelId, userId, displayName)` — broadcast typing
+- ✓ `ReactionUpdated(channelId, messageId, reactions)` — broadcast reaction change
+- ✓ `ChannelUpdated(channelDto)` — broadcast channel metadata change
+- ✓ `MemberJoined(channelId, memberDto)` — broadcast new member
+- ✓ `MemberLeft(channelId, userId)` — broadcast member removal
+- ✓ `UnreadCountUpdated(channelId, count)` — broadcast unread count
+
+#### Connection Group Management
+- ✓ Add users to SignalR groups per channel membership
+- ✓ Remove users from groups when leaving channels
+- ☐ Update groups on channel creation/deletion
+- ☐ Handle reconnection (re-join all channel groups)
+
+#### Presence Integration
+- ✓ Extend existing presence tracking for chat-specific status:
+  - ✓ Online, Away, Do Not Disturb, Offline
+  - ☐ Custom status message support
+- ✓ Broadcast presence changes to relevant channel members
+- ☐ Create `PresenceChangedEvent` for cross-module awareness
+
+---
+
+## Phase 2.6: Announcements Module
+
+### DotNetCloud.Modules.Announcements
+
+**Organization-wide broadcast announcements**
+
+#### Announcement Model
+- ✓ Create `Announcement` entity:
+  - ✓ `Guid Id` primary key
+  - ✓ `Guid OrganizationId` FK
+  - ✓ `Guid AuthorUserId` FK
+  - ✓ `string Title` property
+  - ✓ `string Content` property (Markdown)
+  - ✓ `AnnouncementPriority Priority` property (Normal, Important, Urgent)
+  - ✓ `DateTime PublishedAt` property
+  - ✓ `DateTime? ExpiresAt` property
+  - ✓ `bool IsPinned` property
+  - ✓ `bool RequiresAcknowledgement` property
+  - ✓ Soft-delete support
+- ✓ Create `AnnouncementPriority` enum (Normal, Important, Urgent)
+
+#### Announcement Acknowledgement
+- ✓ Create `AnnouncementAcknowledgement` entity:
+  - ✓ `Guid Id` primary key
+  - ✓ `Guid AnnouncementId` FK
+  - ✓ `Guid UserId` FK
+  - ✓ `DateTime AcknowledgedAt` property
+  - ✓ Unique constraint: (`AnnouncementId`, `UserId`)
+
+#### Announcement Service
+- ✓ Create `IAnnouncementService` interface:
+  - ✓ `Task<AnnouncementDto> CreateAsync(CreateAnnouncementDto dto, CallerContext caller)`
+  - ✓ `Task<IReadOnlyList<AnnouncementDto>> ListAsync(CallerContext caller)`
+  - ✓ `Task<AnnouncementDto> GetAsync(Guid id, CallerContext caller)`
+  - ✓ `Task UpdateAsync(Guid id, UpdateAnnouncementDto dto, CallerContext caller)`
+  - ✓ `Task DeleteAsync(Guid id, CallerContext caller)`
+  - ✓ `Task AcknowledgeAsync(Guid id, CallerContext caller)`
+  - ✓ `Task<IReadOnlyList<AnnouncementAcknowledgementDto>> GetAcknowledgementsAsync(Guid id, CallerContext caller)`
+- ✓ Implement `AnnouncementService`
+
+#### Announcement Endpoints
+- ✓ `POST /api/v1/announcements` — Create announcement (admin)
+- ✓ `GET /api/v1/announcements` — List announcements
+- ✓ `GET /api/v1/announcements/{id}` — Get announcement
+- ✓ `PUT /api/v1/announcements/{id}` — Update announcement (admin)
+- ✓ `DELETE /api/v1/announcements/{id}` — Delete announcement (admin)
+- ✓ `POST /api/v1/announcements/{id}/acknowledge` — Acknowledge announcement
+- ✓ `GET /api/v1/announcements/{id}/acknowledgements` — List who acknowledged
+
+#### Real-Time Announcements
+- ☐ Broadcast new announcements via SignalR to all connected users
+- ☐ Broadcast urgent announcements with visual/audio notification
+- ☐ Update announcement badge counts in real time
+
+---
+
+## Phase 2.7: Push Notifications Infrastructure
+
+### Push Notification Service
+
+**FCM and UnifiedPush support for mobile clients**
+
+#### Notification Abstractions
+- ✓ Create `IPushNotificationService` interface:
+  - ✓ `Task SendAsync(Guid userId, PushNotification notification)`
+  - ✓ `Task SendToMultipleAsync(IEnumerable<Guid> userIds, PushNotification notification)`
+  - ✓ `Task RegisterDeviceAsync(Guid userId, DeviceRegistration registration)`
+  - ✓ `Task UnregisterDeviceAsync(Guid userId, string deviceToken)`
+- ✓ Create `PushNotification` model:
+  - ✓ `string Title` property
+  - ✓ `string Body` property
+  - ✓ `string? ImageUrl` property
+  - ✓ `Dictionary<string, string> Data` property (custom payload)
+  - ✓ `NotificationCategory Category` property
+- ✓ Create `DeviceRegistration` model:
+  - ✓ `string Token` property
+  - ✓ `PushProvider Provider` property (FCM, UnifiedPush)
+  - ✓ `string? Endpoint` property (UnifiedPush endpoint URL)
+- ✓ Create `PushProvider` enum (FCM, UnifiedPush)
+- ✓ Create `NotificationCategory` enum (ChatMessage, ChatMention, Announcement, FileShared, System)
+
+#### FCM Provider
+- ✓ Create `FcmPushProvider` implementing `IPushNotificationService`:
+  - ☐ Configure Firebase Admin SDK credentials
+  - ✓ Implement message sending via FCM HTTP v1 API
+  - ☐ Handle token refresh and invalid token cleanup
+  - ☐ Implement batch sending for efficiency
+- ☐ Create FCM configuration model
+- ☐ Add admin UI for FCM credential management
+
+#### UnifiedPush Provider
+- ✓ Create `UnifiedPushProvider` implementing `IPushNotificationService`:
+  - ✓ Implement HTTP POST to UnifiedPush distributor endpoint
+  - ✓ Handle endpoint URL registration
+  - ☐ Implement error handling and retries
+- ☐ Create UnifiedPush configuration model
+
+#### Notification Routing
+- ✓ Create `NotificationRouter`:
+  - ✓ Route notifications based on user's registered device provider
+  - ✓ Support multiple devices per user
+  - ☐ Respect user notification preferences (per-channel mute, DND)
+  - ☐ Implement notification deduplication (don't notify if user is online)
+- ☐ Create notification queue for reliability (background processing)
+
+#### Push Notification Endpoints
+- [ ] `POST /api/v1/notifications/devices/register` — Register device for push
+- [ ] `DELETE /api/v1/notifications/devices/{deviceToken}` — Unregister device
+- [ ] `GET /api/v1/notifications/preferences` — Get notification preferences
+- [ ] `PUT /api/v1/notifications/preferences` — Update notification preferences
+
+---
+
+## Phase 2.8: Chat Web UI (Blazor)
+
+### DotNetCloud.Modules.Chat UI Components
+
+**Blazor chat interface for the web application**
+
+#### Channel List Component
+- ✓ Create `ChannelList.razor` sidebar component:
+  - ✓ Display public, private, and DM channels
+  - ✓ Show unread message counts and badges
+  - ✓ Highlight active channel
+  - ✓ Show channel search/filter
+  - ✓ Display channel creation button
+  - [ ] Show user presence indicators
+  - [ ] Support drag-to-reorder pinned channels
+
+#### Channel Header Component
+- ✓ Create `ChannelHeader.razor`:
+  - ✓ Display channel name, topic, and member count
+  - [ ] Show channel actions (edit, archive, leave, pin/unpin)
+  - ✓ Display member list toggle button
+  - ✓ Show search button for in-channel search
+
+#### Message List Component
+- ✓ Create `MessageList.razor`:
+  - ✓ Display messages with sender avatar, name, and timestamp
+  - [ ] Support Markdown rendering in messages
+  - [ ] Show inline file previews (images, documents)
+  - ✓ Display reply threads (indented/linked)
+  - ✓ Show message reactions with emoji counts
+  - ✓ Support infinite scroll (load older messages)
+  - [ ] Show "new messages" divider line
+  - ✓ Display system messages (user joined, left, etc.)
+  - ✓ Show edited indicator on edited messages
+
+#### Message Composer Component
+- ✓ Create `MessageComposer.razor`:
+  - [ ] Rich text input with Markdown toolbar
+  - [ ] `@mention` autocomplete (users and channels)
+  - ✓ Emoji picker
+  - ✓ File attachment button (integrates with Files module upload)
+  - ✓ Reply-to message preview
+  - ✓ Send button and Enter key handling
+  - ✓ Typing indicator broadcast on input
+  - [ ] Paste image support (auto-upload)
+
+#### Typing Indicator Component
+- ✓ Create `TypingIndicator.razor`:
+  - ✓ Show "User is typing..." or "User1, User2 are typing..."
+  - ✓ Animate typing dots
+  - ✓ Auto-expire after timeout
+
+#### Member List Panel
+- ✓ Create `MemberListPanel.razor`:
+  - ✓ Display channel members grouped by role (Owner, Admin, Member)
+  - ✓ Show online/offline/away status per member
+  - ☐ Support member actions (promote, demote, remove)
+  - ☐ Display member profile popup on click
+
+#### Channel Settings Dialog
+- ✓ Create `ChannelSettingsDialog.razor`:
+  - ✓ Edit channel name, description, topic
+  - ☐ Manage members (add/remove/change role)
+  - ✓ Configure notification preferences
+  - ✓ Delete/archive channel option
+  - ☐ Show channel creation date and creator
+
+#### Direct Message View
+- ✓ Create `DirectMessageView.razor`:
+  - ☐ User search for starting new DM
+  - ✓ Display DM conversations list
+  - ✓ Show user online status
+  - ☐ Group DM support (2+ users)
+
+#### Chat Notification Badge
+- ✓ Create `ChatNotificationBadge.razor`:
+  - ✓ Display total unread count in navigation
+  - ☐ Update in real time via SignalR
+  - ✓ Distinguish mentions from regular messages
+
+#### Announcement Components
+- ✓ Create `AnnouncementBanner.razor`:
+  - ✓ Display active announcements at top of chat
+  - ✓ Show priority indicators (Normal, Important, Urgent)
+  - ✓ Acknowledge button for required acknowledgements
+  - ✓ Dismiss/collapse functionality
+- ✓ Create `AnnouncementList.razor`:
+  - ✓ List all announcements with pagination
+  - ☐ Filter by priority and date
+  - ✓ Show acknowledgement status
+- ✓ Create `AnnouncementEditor.razor` (admin):
+  - ✓ Rich text editor for announcement content
+  - ✓ Priority selection
+  - ✓ Expiry date picker
+  - ✓ Require acknowledgement toggle
+  - ☐ Preview before publishing
+
+---
+
+## Phase 2.9: Desktop Client Chat Integration
+
+### DotNetCloud.Clients.SyncTray Chat Features
+
+**Add chat functionality to the existing desktop tray application**
+
+#### Desktop Chat Notifications
+- [ ] Add chat notification popups (Windows toast / Linux libnotify)
+- [ ] Display message preview in notification
+- [ ] Click notification to open chat in web browser
+- [ ] Support notification grouping per channel
+- [ ] Respect DND/mute settings
+
+#### Tray Icon Badge
+- [ ] Show unread message count on tray icon
+- [ ] Different badge for mentions vs. regular messages
+- [ ] Clear badge when messages are read (via SignalR sync)
+
+#### Quick Reply (Optional)
+- [ ] Add quick reply popup from notification
+- [ ] Send reply via REST API
+- [ ] Show typing indicator while composing
+
+---
+
+## Phase 2.10: Android MAUI App
+
+### DotNetCloud.Clients.Android Project
+
+**Android app using .NET MAUI**
+
+#### Project Setup
+- [ ] Create `DotNetCloud.Clients.Android` .NET MAUI project
+- [ ] Configure Android-specific settings (minimum SDK, target SDK)
+- [ ] Set up build flavors: `googleplay` (FCM) and `fdroid` (UnifiedPush)
+- [ ] Add to solution file
+- [ ] Configure app icon and splash screen
+
+#### Authentication
+- [ ] Create login screen
+- [ ] Implement OAuth2/OIDC authentication flow (system browser redirect)
+- [ ] Implement token storage (Android Keystore)
+- [ ] Implement token refresh
+- [ ] Support multiple server connections
+
+#### Chat UI
+- [ ] Create channel list view (tabs: Channels, DMs)
+- [ ] Create message list view with RecyclerView-style virtualization
+- [ ] Create message composer with:
+  - [ ] Text input
+  - [ ] Emoji picker
+  - [ ] File attachment (camera, gallery, file picker)
+  - [ ] `@mention` autocomplete
+- [ ] Create channel details view (members, settings)
+- [ ] Implement pull-to-refresh for message history
+- [ ] Support dark/light theme
+
+#### Real-Time Connection
+- [ ] Implement SignalR client connection
+- [ ] Handle connection lifecycle (connect, reconnect, disconnect)
+- [ ] Background connection management (Android foreground service)
+- [ ] Handle Doze mode and battery optimization
+
+#### Push Notifications
+- [ ] Integrate Firebase Cloud Messaging (FCM) for `googleplay` flavor
+- [ ] Integrate UnifiedPush for `fdroid` flavor
+- [ ] Create notification channels (Chat, Mentions, Announcements)
+- [ ] Implement notification tap handlers (open specific chat)
+- [ ] Display notification badges on app icon
+
+#### Offline Support
+- [ ] Cache recent messages locally (SQLite or LiteDB)
+- [ ] Queue outgoing messages when offline
+- [ ] Sync on reconnection
+- [ ] Display cached data while loading
+
+#### Photo Auto-Upload (File Integration)
+- [ ] Detect new photos via MediaStore content observer
+- [ ] Upload via Files module API (chunked upload)
+- [ ] Configurable: WiFi only, battery threshold
+- [ ] Progress notification during upload
+
+#### Android Distribution
+- [ ] Configure Google Play Store build (signed APK/AAB)
+- [ ] Configure F-Droid build (reproducible, no proprietary deps)
+- [ ] Create direct APK download option
+- [ ] Write app store listing description
+
+---
+
+## Phase 2.11: Chat Module gRPC Host
+
+### DotNetCloud.Modules.Chat.Host Project
+
+**gRPC service implementation for chat module**
+
+#### Proto Definitions
+- ✓ Create `chat_service.proto`:
+  - ✓ `rpc CreateChannel(CreateChannelRequest) returns (ChannelResponse)`
+  - ✓ `rpc GetChannel(GetChannelRequest) returns (ChannelResponse)`
+  - ✓ `rpc ListChannels(ListChannelsRequest) returns (ListChannelsResponse)`
+  - ✓ `rpc SendMessage(SendMessageRequest) returns (MessageResponse)`
+  - ✓ `rpc GetMessages(GetMessagesRequest) returns (GetMessagesResponse)`
+  - ✓ `rpc EditMessage(EditMessageRequest) returns (MessageResponse)`
+  - ✓ `rpc DeleteMessage(DeleteMessageRequest) returns (Empty)`
+  - ✓ `rpc AddReaction(AddReactionRequest) returns (Empty)`
+  - ✓ `rpc RemoveReaction(RemoveReactionRequest) returns (Empty)`
+  - ✓ `rpc NotifyTyping(TypingRequest) returns (Empty)`
+- ✓ Create `chat_lifecycle.proto` (start, stop, health) — lifecycle RPCs included in ChatLifecycleService
+
+#### gRPC Service Implementation
+- ✓ Create `ChatGrpcService` implementing the proto service
+- ✓ Create `ChatLifecycleService` for module lifecycle gRPC
+- ✓ Create `ChatHealthCheck` health check implementation
+
+#### Host Program
+- ✓ Configure `Program.cs`:
+  - ✓ Register EF Core `ChatDbContext`
+  - ✓ Register all chat services
+  - ✓ Map gRPC services
+  - ✓ Map REST controllers
+  - ✓ Configure Serilog
+  - ✓ Configure OpenTelemetry
+
+---
+
+## Phase 2.12: Testing Infrastructure
+
+### Unit Tests
+
+#### DotNetCloud.Modules.Chat.Tests
+
+- ✓ `ChatModuleManifestTests` — Id, Name, Version, capabilities, events (10 tests)
+- ✓ `ChatModuleTests` — lifecycle (initialize, start, stop, dispose) (15 tests)
+- ✓ `ChannelTests` — model creation, defaults, validation (10 tests, in ModelTests.cs)
+- ✓ `MessageTests` — model creation, defaults, soft delete (10 tests, in ModelTests.cs)
+- ✓ `ChannelMemberTests` — role enum, notification preferences (7 tests, in ModelTests.cs)
+- ✓ `MessageReactionTests` — uniqueness, emoji validation (3 tests, in ModelTests.cs)
+- ✓ `MessageMentionTests` — mention types, index/length validation (5 tests, in ModelTests.cs)
+- ✓ `EventTests` — all event records, IEvent interface compliance (10 tests)
+- ✓ `EventHandlerTests` — handler logic, logging, cancellation (8 tests, in EventTests.cs)
+- [ ] `ChannelServiceTests` — CRUD operations, authorization checks
+- [ ] `MessageServiceTests` — send, edit, delete, pagination, search
+- [ ] `ReactionServiceTests` — add, remove, duplicate handling
+- [ ] `PinServiceTests` — pin, unpin, list
+- [ ] `TypingIndicatorServiceTests` — notify, expire, list
+- [ ] `AnnouncementServiceTests` — CRUD, acknowledgement tracking
+
+### Integration Tests
+
+- [ ] Add chat API integration tests to `DotNetCloud.Integration.Tests`:
+  - [ ] Channel CRUD via REST API
+  - [ ] Message send/receive via REST API
+  - [ ] SignalR real-time message delivery
+  - [ ] Typing indicator via SignalR
+  - [ ] Presence tracking accuracy
+  - [ ] File attachment via chat + Files module
+  - [ ] Announcement CRUD and acknowledgement
+  - [ ] Push notification registration
+  - [ ] Multi-database tests (PostgreSQL, SQL Server)
+
+---
+
+## Phase 2.13: Documentation
+
+### Chat Module Documentation
+
+- [ ] Create `docs/modules/chat/README.md` — module overview
+- [ ] Create `docs/modules/chat/API.md` — complete API reference
+- [ ] Create `docs/modules/chat/ARCHITECTURE.md` — data model and flow diagrams
+- [ ] Create `docs/modules/chat/REAL_TIME.md` — SignalR event reference
+- [ ] Create `docs/modules/chat/PUSH_NOTIFICATIONS.md` — FCM/UnifiedPush setup guide
+- [ ] Create `src/Modules/Chat/DotNetCloud.Modules.Chat/README.md` — developer README
+
+### Android App Documentation
+
+- [ ] Create `docs/clients/android/README.md` — app overview and build instructions
+- [ ] Create `docs/clients/android/SETUP.md` — development environment setup
+- [ ] Create `docs/clients/android/DISTRIBUTION.md` — store listing and F-Droid setup
+
+### Inline Documentation
+- [ ] Add XML documentation (`///`) to all public types and methods
+- [ ] Add README to each chat project root
+
+---
+
+## Phase 2 Completion Checklist
+
+### Functionality Verification
+
+- [ ] All chat projects compile without errors
+- [ ] All unit tests pass
+- [ ] All integration tests pass against PostgreSQL
+- [ ] All integration tests pass against SQL Server
+- [ ] Channels can be created, updated, and deleted
+- [ ] Messages can be sent, edited, and deleted in real time
+- [ ] Direct messages work between users
+- [ ] Typing indicators display correctly
+- [ ] Presence (online/offline/away/DND) works
+- [ ] Reactions can be added and removed
+- [ ] Messages can be pinned and unpinned
+- [ ] File attachments work in chat messages
+- [ ] Message search returns correct results
+- [ ] Unread counts track accurately
+- [ ] Announcements can be created and acknowledged
+- [ ] Push notifications reach Android devices (FCM)
+- [ ] Push notifications reach Android devices (UnifiedPush)
+- [ ] Android app authenticates and displays chat
+- [ ] Desktop client shows chat notifications
+- [ ] Chat Web UI loads and functions correctly
+- [ ] Markdown rendering works in messages
+- [ ] `@mention` notifications work
+- [ ] Real-time chat across web, desktop, and Android simultaneously
+- [ ] Module loads via module system and responds to health checks
+- [ ] gRPC communication with chat module works
+- [ ] Chat module logs are enriched with context
+- [ ] Chat module errors are handled gracefully
+- [ ] OpenAPI documentation is generated for chat endpoints
+- [ ] Internationalization works for chat UI strings
+- [ ] Observability (logging, metrics, tracing) works for chat module
 
 ---
 

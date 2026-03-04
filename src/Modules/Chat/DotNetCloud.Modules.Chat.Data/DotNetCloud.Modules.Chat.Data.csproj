@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DotNetCloud.Modules.Chat.Data</RootNamespace>
+    <AssemblyName>DotNetCloud.Modules.Chat.Data</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="DotNetCloud.Modules.Chat.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.3" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DotNetCloud.Modules.Chat\DotNetCloud.Modules.Chat.csproj" />
+    <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Data\DotNetCloud.Core.Data.csproj" />
+  </ItemGroup>
+
+</Project>

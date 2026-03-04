@@ -1,0 +1,20 @@
+@namespace DotNetCloud.Modules.Chat.UI
+
+@*
+    Chat notification badge — displays unread count in navigation/header.
+    Code-behind: ChatNotificationBadge.razor.cs
+*@
+
+@if (TotalUnread > 0)
+{
+    <span class="chat-notification-badge @(HasMentions ? "has-mentions" : "")">
+        @if (TotalUnread > 99)
+        {
+            <text>99+</text>
+        }
+        else
+        {
+            @TotalUnread
+        }
+    </span>
+}
