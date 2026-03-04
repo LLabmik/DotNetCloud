@@ -271,4 +271,34 @@ public class ChannelServiceTests
         await Assert.ThrowsAsync<ValidationException>(
             () => _service.CreateChannelAsync(dto2, _caller));
     }
+
+    [TestMethod]
+    public async Task WhenDuplicateNameThenValidationExceptionContainsNameField()
+    {
+        var orgId = Guid.NewGuid();
+        var dto1 = new CreateChannelDto { Name = "general", Type = "Public", OrganizationId = orgId };
+        await _service.CreateChannelAsync(dto1, _caller);
+
+        var dto2 = new CreateChannelDto { Name = "general", Type = "Public", OrganizationId = orgId };
+        var ex = await Assert.ThrowsAsync<ValidationException>(
+            () => _service.CreateChannelAsync(dto2, _caller));
+
+        Assert.IsTrue(ex.Errors.ContainsKey("Name"));
+        Assert.IsTrue(ex.Errors["Name"].Count > 0);
+    }
+
+    [TestMethod]
+    public async Task WhenUpdateToDuplicateNameThenValidationExceptionContainsNameField()
+    {
+        var orgId = Guid.NewGuid();
+        await _service.CreateChannelAsync(
+            new CreateChannelDto { Name = "general", Type = "Public", OrganizationId = orgId }, _caller);
+        var channel2 = await _service.CreateChannelAsync(
+            new CreateChannelDto { Name = "random", Type = "Public", OrganizationId = orgId }, _caller);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(
+            () => _service.UpdateChannelAsync(channel2.Id, new UpdateChannelDto { Name = "general" }, _caller));
+
+        Assert.IsTrue(ex.Errors.ContainsKey("Name"));
+    }
 }

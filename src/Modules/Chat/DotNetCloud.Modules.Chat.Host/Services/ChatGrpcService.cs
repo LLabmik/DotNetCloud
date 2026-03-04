@@ -1,6 +1,9 @@
+using DotNetCloud.Core.Authorization;
 using DotNetCloud.Modules.Chat.Data;
+using DotNetCloud.Modules.Chat.DTOs;
 using DotNetCloud.Modules.Chat.Host.Protos;
 using DotNetCloud.Modules.Chat.Models;
+using DotNetCloud.Modules.Chat.Services;
 using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -14,14 +17,16 @@ namespace DotNetCloud.Modules.Chat.Host.Services;
 public sealed class ChatGrpcService : ChatService.ChatServiceBase
 {
     private readonly ChatDbContext _db;
+    private readonly IChannelService _channelService;
     private readonly ILogger<ChatGrpcService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ChatGrpcService"/> class.
     /// </summary>
-    public ChatGrpcService(ChatDbContext db, ILogger<ChatGrpcService> logger)
+    public ChatGrpcService(ChatDbContext db, IChannelService channelService, ILogger<ChatGrpcService> logger)
     {
         _db = db;
+        _channelService = channelService;
         _logger = logger;
     }
 
@@ -29,60 +34,45 @@ public sealed class ChatGrpcService : ChatService.ChatServiceBase
     public override async Task<ChannelResponse> CreateChannel(
         CreateChannelRequest request, ServerCallContext context)
     {
-        if (string.IsNullOrWhiteSpace(request.Name))
-        {
-            return new ChannelResponse { Success = false, ErrorMessage = "Channel name is required." };
-        }
-
         if (!Guid.TryParse(request.UserId, out var userId))
         {
             return new ChannelResponse { Success = false, ErrorMessage = "Invalid user ID format." };
         }
 
-        if (!Enum.TryParse<ChannelType>(request.Type, ignoreCase: true, out var channelType))
-        {
-            return new ChannelResponse { Success = false, ErrorMessage = "Invalid channel type." };
-        }
+        Guid? organizationId = string.IsNullOrEmpty(request.OrganizationId)
+            ? null
+            : Guid.TryParse(request.OrganizationId, out var orgId) ? orgId : null;
 
-        var channel = new Channel
+        var memberIds = request.MemberIds
+            .Where(id => Guid.TryParse(id, out _))
+            .Select(Guid.Parse)
+            .ToList();
+
+        var dto = new CreateChannelDto
         {
             Name = request.Name,
             Description = string.IsNullOrEmpty(request.Description) ? null : request.Description,
-            Type = channelType,
+            Type = request.Type,
             Topic = string.IsNullOrEmpty(request.Topic) ? null : request.Topic,
-            CreatedByUserId = userId
+            OrganizationId = organizationId,
+            MemberIds = memberIds
         };
 
-        _db.Channels.Add(channel);
-
-        // Add creator as owner
-        _db.ChannelMembers.Add(new ChannelMember
+        try
         {
-            ChannelId = channel.Id,
-            UserId = userId,
-            Role = ChannelMemberRole.Owner
-        });
+            var result = await _channelService.CreateChannelAsync(
+                dto, new CallerContext(userId, ["user"], CallerType.User), context.CancellationToken);
 
-        // Add initial members
-        foreach (var memberIdStr in request.MemberIds)
-        {
-            if (Guid.TryParse(memberIdStr, out var memberId) && memberId != userId)
+            return new ChannelResponse
             {
-                _db.ChannelMembers.Add(new ChannelMember
-                {
-                    ChannelId = channel.Id,
-                    UserId = memberId,
-                    Role = ChannelMemberRole.Member
-                });
-            }
+                Success = true,
+                Channel = ToChannelMessage(result)
+            };
         }
-
-        await _db.SaveChangesAsync(context.CancellationToken);
-
-        _logger.LogInformation("Channel {ChannelId} '{Name}' ({Type}) created by user {UserId}",
-            channel.Id, channel.Name, channel.Type, userId);
-
-        return new ChannelResponse { Success = true, Channel = ToChannelMessage(channel, 1 + request.MemberIds.Count) };
+        catch (Exception ex) when (ex is ArgumentException or DotNetCloud.Core.Errors.ValidationException)
+        {
+            return new ChannelResponse { Success = false, ErrorMessage = ex.Message };
+        }
     }
 
     /// <inheritdoc />
@@ -340,6 +330,24 @@ public sealed class ChatGrpcService : ChatService.ChatServiceBase
         // Typing indicators are handled in-memory; no persistence needed
         _logger.LogDebug("User {UserId} typing in channel {ChannelId}", request.UserId, request.ChannelId);
         return Task.FromResult(new TypingResponse { Success = true });
+    }
+
+    private static ChannelMessage ToChannelMessage(ChannelDto dto)
+    {
+        return new ChannelMessage
+        {
+            Id = dto.Id.ToString(),
+            Name = dto.Name,
+            Description = dto.Description ?? string.Empty,
+            Type = dto.Type,
+            Topic = dto.Topic ?? string.Empty,
+            AvatarUrl = dto.AvatarUrl ?? string.Empty,
+            IsArchived = dto.IsArchived,
+            MemberCount = dto.MemberCount,
+            CreatedAt = dto.CreatedAt.ToString("O"),
+            LastActivityAt = dto.LastActivityAt?.ToString("O") ?? string.Empty,
+            CreatedByUserId = dto.CreatedByUserId.ToString()
+        };
     }
 
     private static ChannelMessage ToChannelMessage(Channel channel, int memberCount)

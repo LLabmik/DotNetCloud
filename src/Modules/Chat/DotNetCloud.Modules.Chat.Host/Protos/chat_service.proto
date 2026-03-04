@@ -47,6 +47,7 @@ message CreateChannelRequest {
   string topic = 4;
   string user_id = 5;
   repeated string member_ids = 6;
+  string organization_id = 7;  // Optional: organization this channel belongs to
 }
 
 message ChannelResponse {

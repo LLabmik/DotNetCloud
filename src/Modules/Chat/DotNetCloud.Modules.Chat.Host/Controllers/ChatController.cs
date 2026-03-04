@@ -4,6 +4,8 @@ using DotNetCloud.Modules.Chat.Models;
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.AspNetCore.Mvc;
 
+using ValidationException = DotNetCloud.Core.Errors.ValidationException;
+
 namespace DotNetCloud.Modules.Chat.Host.Controllers;
 
 /// <summary>
@@ -63,6 +65,10 @@ public class ChatController : ControllerBase
             var channel = await _channelService.CreateChannelAsync(dto, ToCaller(userId));
             return CreatedAtAction(nameof(GetChannelAsync), new { channelId = channel.Id }, Envelope(channel));
         }
+        catch (ValidationException ex)
+        {
+            return Conflict(ErrorEnvelope("DUPLICATE_CHANNEL_NAME", ex.Message));
+        }
         catch (ArgumentException ex)
         {
             return BadRequest(ErrorEnvelope("VALIDATION_ERROR", ex.Message));
@@ -96,6 +102,10 @@ public class ChatController : ControllerBase
         {
             var channel = await _channelService.UpdateChannelAsync(channelId, dto, ToCaller(userId));
             return Ok(Envelope(channel));
+        }
+        catch (ValidationException ex)
+        {
+            return Conflict(ErrorEnvelope("DUPLICATE_CHANNEL_NAME", ex.Message));
         }
         catch (InvalidOperationException)
         {

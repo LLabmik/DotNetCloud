@@ -1972,7 +1972,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ `MessageMentionTests` — mention types, index/length validation (5 tests, in ModelTests.cs)
 - ✓ `EventTests` — all event records, IEvent interface compliance (10 tests)
 - ✓ `EventHandlerTests` — handler logic, logging, cancellation (8 tests, in EventTests.cs)
-- [ ] `ChannelServiceTests` — CRUD operations, authorization checks
+- ✓ `ChannelServiceTests` — CRUD operations, authorization checks, name uniqueness validation
 - [ ] `MessageServiceTests` — send, edit, delete, pagination, search
 - [ ] `ReactionServiceTests` — add, remove, duplicate handling
 - [ ] `PinServiceTests` — pin, unpin, list

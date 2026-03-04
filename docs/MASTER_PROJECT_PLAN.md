@@ -2456,7 +2456,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Dependencies:** phase-2.2
 **Blocking Issues:** None
-**Notes:** ChannelService complete with CRUD, authorization, DM resolution, and channel name uniqueness validation within organization. Uniqueness enforced via `ValidateChannelNameUniqueAsync` (DB query + `ValidationException`), applied on create and update. DM channels are excluded from uniqueness checks. 6 new unit tests added (126 total chat tests pass). Service interfaces and remaining implementations are next.
+**Notes:** ChannelService complete with CRUD, authorization, DM resolution, and channel name uniqueness validation within organization. Uniqueness enforced via `ValidateChannelNameUniqueAsync` (DB query + `ValidationException`), applied on create and update. DM channels are excluded from uniqueness checks. ChatController catches `ValidationException` and returns 409 Conflict. ChatGrpcService.CreateChannel refactored to delegate to IChannelService (was bypassing it with direct DB access). Proto updated with `organization_id` field. 128 total chat tests pass (8 uniqueness tests). Service interfaces and remaining implementations are next.
 
 ---
 
