@@ -1,13 +1,29 @@
 @namespace DotNetCloud.Modules.Files.UI
 
 @*
-    File browser page - Main UI for the Files module.
-    Displays files and folders in a grid/list view with breadcrumbs,
-    drag-drop upload, and action buttons.
+    File browser page — main UI for the Files module.
+    Displays files and folders in grid/list view with breadcrumbs, drag-drop upload,
+    thumbnails in grid mode, and full-screen file preview with navigation.
     Code-behind: FileBrowser.razor.cs
 *@
 
-<div class="files-browser">
+<div class="files-browser @(IsBrowserDragging ? "files-browser--drag-over" : "")"
+     @ondragenter="HandleBrowserDragEnter"
+     @ondragleave="HandleBrowserDragLeave"
+     @ondragover:preventDefault
+     @ondrop="HandleBrowserDrop">
+
+    @* Drop overlay shown when dragging files over the browser *@
+    @if (IsBrowserDragging)
+    {
+        <div class="browser-drop-overlay" aria-label="Drop files to upload">
+            <div class="browser-drop-message">
+                <span class="browser-drop-icon">[Upload]</span>
+                <p>Drop files to upload to this folder</p>
+            </div>
+        </div>
+    }
+
     <div class="files-header">
         <h1>Files</h1>
         <div class="files-header-actions">
@@ -57,7 +73,7 @@
     {
         <div class="create-folder-dialog">
             <input type="text" @bind="NewFolderName" placeholder="Folder name"
-                   @onkeydown="HandleFolderKeyDown" />
+                   @onkeydown="HandleFolderKeyDown" autofocus />
             <button class="btn btn-primary btn-sm" @onclick="CreateFolder">Create</button>
             <button class="btn btn-sm" @onclick="HideCreateFolder">Cancel</button>
         </div>
@@ -82,6 +98,7 @@
     {
         <div class="empty-state" role="status">
             <p class="empty-state-title">No files yet — upload or create a folder</p>
+            <p class="text-muted empty-state-hint">You can also drag and drop files anywhere on this page.</p>
             <div class="empty-state-actions">
                 <button class="btn btn-primary btn-sm" @onclick="ShowCreateFolderDialog">New Folder</button>
                 <button class="btn btn-primary btn-sm" @onclick="ShowUploadDialog">Upload</button>
@@ -121,7 +138,19 @@
                 <div class="file-item @(IsSelected(node.Id) ? "selected" : "")"
                      @onclick="() => HandleNodeClick(node)"
                      @ondblclick="() => HandleNodeDoubleClick(node)">
-                    <div class="file-icon">@GetNodeIcon(node)</div>
+
+                    <div class="file-icon">
+                        @if (_viewMode == ViewMode.Grid && node.ThumbnailUrl is not null)
+                        {
+                            <img src="@node.ThumbnailUrl" alt="" class="file-thumbnail"
+                                 loading="lazy" />
+                        }
+                        else
+                        {
+                            @GetNodeIcon(node)
+                        }
+                    </div>
+
                     <div class="file-info">
                         <span class="file-name" title="@node.Name">@node.Name</span>
                         <span class="file-meta">
@@ -132,11 +161,12 @@
                             <text> </text>@node.UpdatedAt.ToString("MMM d, yyyy")
                         </span>
                     </div>
+
                     <div class="file-actions">
                         <button class="btn-icon" @onclick:stopPropagation
                                 @onclick="() => ToggleFavorite(node.Id)"
                                 title="@(node.IsFavorite ? "Unfavorite" : "Favorite")">
-                            @(node.IsFavorite ? "*" : "o")
+                            @(node.IsFavorite ? "★" : "☆")
                         </button>
                         <button class="btn-icon" @onclick:stopPropagation
                                 @onclick="() => ShowShareDialog(node)" title="Share">Share</button>
@@ -164,7 +194,13 @@
 
     @if (IsShowPreview && PreviewNode is not null)
     {
-        <FilePreview Node="PreviewNode" OnClose="HidePreview" />
+        <FilePreview
+            Node="PreviewNode"
+            AllNodes="SortedNodes"
+            ApiBaseUrl="ApiBaseUrl"
+            OnClose="HidePreview"
+            OnShare="HandlePreviewShare"
+            OnDownload="HandlePreviewDownload" />
     }
 
     @if (IsShowDocumentEditor && EditorNode is not null)
@@ -179,4 +215,5 @@
                 OnDownload="HideDocumentEditor" />
         </div>
     }
+
 </div>

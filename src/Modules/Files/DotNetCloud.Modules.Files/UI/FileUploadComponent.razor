@@ -1,7 +1,8 @@
 @namespace DotNetCloud.Modules.Files.UI
 
 @*
-    File upload component with drag-drop and progress tracking.
+    File upload dialog with drag-drop file selection and chunked upload progress.
+    While uploading, the file list is replaced by an UploadProgressPanel.
     Code-behind: FileUploadComponent.razor.cs
 *@
 
@@ -9,46 +10,61 @@
     <div class="file-upload-dialog">
         <div class="file-upload-header">
             <h3>Upload Files</h3>
-            <button class="btn-icon" @onclick="OnCancel">X</button>
+            <button class="btn-icon" @onclick="OnCancel" title="Close">✕</button>
         </div>
 
-        <div class="file-upload-dropzone @(IsDragging ? "dragging" : "")"
-             @ondragenter="HandleDragEnter"
-             @ondragleave="HandleDragLeave"
-             @ondragover:preventDefault>
-            <p>Drag and drop files here</p>
-            <p class="text-muted">or</p>
-            <label class="btn btn-primary btn-sm">
-                Browse Files
-                <InputFile OnChange="HandleFileSelected" multiple style="display: none;" />
-            </label>
-        </div>
+        @if (!IsUploading)
+        {
+            <div class="file-upload-dropzone @(IsDragging ? "dragging" : "")"
+                 @ondragenter="HandleDragEnter"
+                 @ondragleave="HandleDragLeave"
+                 @ondragover:preventDefault>
+                <span class="dropzone-icon">[Upload]</span>
+                <p>Drag and drop files here</p>
+                <p class="text-muted">or</p>
+                <label class="btn btn-primary btn-sm">
+                    Browse Files
+                    <InputFile OnChange="HandleFileSelected" multiple style="display:none;" />
+                </label>
+                <p class="text-muted text-xs">Hold Shift or Ctrl to select multiple files</p>
+            </div>
+        }
 
         @if (Files.Count > 0)
         {
-            <div class="file-upload-list">
-                @foreach (var file in Files)
-                {
-                    <div class="upload-item">
-                        <span class="upload-name" title="@file.Name">@file.Name</span>
-                        <span class="upload-size">@FormatSize(file.Size)</span>
-                        <div class="upload-progress">
-                            <div class="progress-bar" style="width: @(file.Progress)%"></div>
+            @if (IsUploading)
+            {
+                <UploadProgressPanel
+                    Files="Files"
+                    OnPause="PauseUpload"
+                    OnResume="ResumeUpload"
+                    OnCancel="CancelUpload"
+                    OnClose="ClearFiles" />
+            }
+            else
+            {
+                <div class="file-upload-list">
+                    @foreach (var file in Files)
+                    {
+                        <div class="upload-item @(file.IsCancelled ? "upload-item--cancelled" : "")">
+                            <span class="upload-name" title="@file.Name">@file.Name</span>
+                            <span class="upload-size">@FormatSize(file.Size)</span>
+                            <button class="btn-icon btn-xs upload-remove"
+                                    @onclick="() => RemoveFile(file)" title="Remove">✕</button>
                         </div>
-                        <span class="upload-status">@GetStatusLabel(file.Status, file.Progress)</span>
-                    </div>
-                }
-            </div>
+                    }
+                </div>
+            }
 
-            <div class="file-upload-footer">
-                <button class="btn btn-primary" @onclick="StartUpload"
-                        disabled="@IsUploading">
-                    @(IsUploading ? "Uploading..." : "Upload All")
-                </button>
-                <button class="btn" @onclick="ClearFiles" disabled="@IsUploading">
-                    Clear
-                </button>
-            </div>
+            @if (!IsUploading)
+            {
+                <div class="file-upload-footer">
+                    <button class="btn btn-primary" @onclick="StartUpload">
+                        Upload @(Files.Count == 1 ? "1 File" : $"{Files.Count} Files")
+                    </button>
+                    <button class="btn" @onclick="ClearFiles">Clear</button>
+                </div>
+            }
         }
     </div>
 </div>

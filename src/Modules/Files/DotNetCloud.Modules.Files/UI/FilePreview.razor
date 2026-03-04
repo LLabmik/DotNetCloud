@@ -1,45 +1,93 @@
 @namespace DotNetCloud.Modules.Files.UI
 
 @*
-    File preview component - Shows preview for images, text, PDF, and other file types.
+    Full-screen file preview modal.
+    Supports images, video, audio, PDF, text/code, and markdown (via iframe embed).
+    Keyboard shortcuts: Escape = close, ← → = navigate between files.
     Code-behind: FilePreview.razor.cs
 *@
 
-<div class="file-preview-overlay" @onclick="OnClose">
+<div class="file-preview-overlay" tabindex="-1" @ref="_overlayRef"
+     @onkeydown="HandleKeyDown" @onclick="OnClose">
     <div class="file-preview-dialog" @onclick:stopPropagation>
+
         <div class="preview-header">
-            <h3>@Node?.Name</h3>
+            <div class="preview-title">
+                <span class="preview-file-icon">@GetFileIcon(DisplayNode?.MimeType)</span>
+                <h3 title="@DisplayNode?.Name">@DisplayNode?.Name</h3>
+            </div>
             <div class="preview-actions">
-                <button class="btn btn-sm" @onclick="Download" title="Download">Download</button>
-                <button class="btn-icon" @onclick="OnClose" title="Close">X</button>
+                @if (ShowShareButton)
+                {
+                    <button class="btn btn-sm" @onclick="Share" title="Share this file">Share</button>
+                }
+                <button class="btn btn-sm" @onclick="Download" title="Download file">Download</button>
+                <button class="btn-icon" @onclick="OnClose" title="Close preview (Esc)">✕</button>
             </div>
         </div>
 
         <div class="preview-body">
-            @if (IsImage)
+            @if (DisplayNode is null)
             {
-                <div class="preview-image">
-                    <p class="text-muted">Image preview would render here</p>
-                    <p>@Node?.Name</p>
+                <div class="preview-empty">
+                    <p>No file selected.</p>
                 </div>
             }
-            else if (IsText)
+            else if (IsImage)
             {
-                <div class="preview-text">
-                    <pre>Text file content would be loaded and displayed here.</pre>
+                <div class="preview-image-container">
+                    <img src="@GetContentUrl()" alt="@DisplayNode.Name" class="preview-image"
+                         loading="lazy" />
+                </div>
+            }
+            else if (IsVideo)
+            {
+                <div class="preview-video-container">
+                    <video src="@GetContentUrl()" controls preload="metadata"
+                           class="preview-video">
+                        Your browser does not support the video element.
+                    </video>
+                </div>
+            }
+            else if (IsAudio)
+            {
+                <div class="preview-audio-container">
+                    <div class="preview-audio-art">
+                        <span class="preview-audio-icon">@GetFileIcon(DisplayNode.MimeType)</span>
+                        <p class="preview-audio-name">@DisplayNode.Name</p>
+                        <p class="text-muted">@FormatSize(DisplayNode.Size)</p>
+                    </div>
+                    <audio src="@GetContentUrl()" controls preload="metadata"
+                           class="preview-audio">
+                        Your browser does not support the audio element.
+                    </audio>
                 </div>
             }
             else if (IsPdf)
             {
-                <div class="preview-pdf">
-                    <p>PDF viewer would be embedded here</p>
-                    <p class="text-muted">@Node?.Name</p>
+                <div class="preview-pdf-container">
+                    <iframe src="@GetContentUrl()" title="@DisplayNode.Name"
+                            class="preview-pdf-frame"></iframe>
+                </div>
+            }
+            else if (IsText || IsCode || IsMarkdown)
+            {
+                <div class="preview-text-container">
+                    <div class="preview-text-toolbar">
+                        <span class="preview-text-lang">
+                            @(IsMarkdown ? "Markdown" : IsCode ? GetCodeLanguage(DisplayNode.Name) : "Plain text")
+                        </span>
+                    </div>
+                    <iframe src="@GetContentUrl()" title="@DisplayNode.Name"
+                            class="preview-text-frame" sandbox="allow-same-origin"></iframe>
                 </div>
             }
             else if (IsDocument)
             {
                 <div class="preview-document">
-                    <p>Open in Collabora for editing</p>
+                    <span class="preview-doc-icon">@GetFileIcon(DisplayNode.MimeType)</span>
+                    <p class="preview-doc-name">@DisplayNode.Name</p>
+                    <p class="text-muted">Open in the document editor to view or edit this file.</p>
                     <button class="btn btn-primary" @onclick="OpenInCollabora">
                         Open in Editor
                     </button>
@@ -48,19 +96,50 @@
             else
             {
                 <div class="preview-unsupported">
-                    <p>@GetFileIcon(Node?.MimeType) Preview not available</p>
-                    <p class="text-muted">
-                        @Node?.Name - @FormatSize(Node?.Size ?? 0)
-                    </p>
-                    <button class="btn btn-primary" @onclick="Download">Download</button>
+                    <span class="preview-unsupported-icon">@GetFileIcon(DisplayNode.MimeType)</span>
+                    <p class="preview-unsupported-name">@DisplayNode.Name</p>
+                    <p class="text-muted">Preview is not available for this file type.</p>
+                    <button class="btn btn-primary" @onclick="Download">Download File</button>
                 </div>
             }
         </div>
 
         <div class="preview-footer">
-            <span class="file-info-detail">
-                Type: @(Node?.MimeType ?? "Unknown") - Size: @FormatSize(Node?.Size ?? 0)
-            </span>
+            <div class="preview-nav-area preview-nav-area--left">
+                @if (CanGoPrev)
+                {
+                    <button class="btn-icon preview-nav-btn" @onclick="GoPrev"
+                            title="Previous file (←)">←</button>
+                }
+            </div>
+
+            <div class="preview-metadata">
+                @if (DisplayNode is not null)
+                {
+                    <span class="file-meta-chip">@(DisplayNode.MimeType ?? "Unknown type")</span>
+                    <span class="file-meta-sep">·</span>
+                    <span class="file-meta-chip">@FormatSize(DisplayNode.Size)</span>
+                    @if (DisplayNode.UpdatedAt != default)
+                    {
+                        <span class="file-meta-sep">·</span>
+                        <span class="file-meta-chip">Modified @DisplayNode.UpdatedAt.ToString("MMM d, yyyy")</span>
+                    }
+                    @if (AllNodes is not null)
+                    {
+                        <span class="file-meta-sep">·</span>
+                        <span class="file-meta-chip">@(CurrentIndex + 1) of @NavigableFiles.Count</span>
+                    }
+                }
+            </div>
+
+            <div class="preview-nav-area preview-nav-area--right">
+                @if (CanGoNext)
+                {
+                    <button class="btn-icon preview-nav-btn" @onclick="GoNext"
+                            title="Next file (→)">→</button>
+                }
+            </div>
         </div>
+
     </div>
 </div>

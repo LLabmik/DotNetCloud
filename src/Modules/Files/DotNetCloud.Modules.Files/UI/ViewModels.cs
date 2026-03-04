@@ -28,6 +28,12 @@ public sealed class FileNodeViewModel
 
     /// <summary>Last modified timestamp.</summary>
     public DateTime UpdatedAt { get; init; }
+
+    /// <summary>
+    /// URL to a server-generated thumbnail image, or <c>null</c> if no thumbnail is available
+    /// (e.g. for folders or unsupported file types). Populated from the thumbnail API.
+    /// </summary>
+    public string? ThumbnailUrl { get; init; }
 }
 
 /// <summary>
@@ -90,6 +96,18 @@ public sealed class UploadFileItem
 
     /// <summary>Upload progress percentage (0-100).</summary>
     public int Progress { get; set; }
+
+    /// <summary>Current upload throughput in bytes per second (updated during upload).</summary>
+    public double SpeedBytesPerSecond { get; set; }
+
+    /// <summary>Estimated seconds remaining for this file (null when unknown).</summary>
+    public double? EtaSeconds { get; set; }
+
+    /// <summary>Whether the upload has been paused by the user.</summary>
+    public bool IsPaused { get; set; }
+
+    /// <summary>Whether the upload has been cancelled by the user.</summary>
+    public bool IsCancelled { get; set; }
 }
 
 /// <summary>
@@ -131,7 +149,10 @@ public enum UploadStatus
     Complete,
 
     /// <summary>Upload failed.</summary>
-    Failed
+    Failed,
+
+    /// <summary>Upload paused by the user.</summary>
+    Paused
 }
 
 /// <summary>

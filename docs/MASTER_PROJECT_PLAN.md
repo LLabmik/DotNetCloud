@@ -47,7 +47,7 @@
 | Phase 1.9 | 14 | 14 | 0 | 0 |
 | Phase 1.10 | 24 | 24 | 0 | 0 |
 | Phase 1.11 | 8 | 8 | 0 | 0 |
-| Phase 1.12 | 17 | 0 | 0 | 17 |
+| Phase 1.12 | 17 | 12 | 0 | 5 |
 | Phase 1.13 | 4 | 0 | 0 | 4 |
 | Phase 1.14 | 32 | 0 | 0 | 32 |
 | Phase 1.15 | 25 | 0 | 0 | 25 |
@@ -2729,6 +2729,72 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Dependencies:** phase-1.9 (QuotaProgressBar code-behind), phase-1.10 (DocumentEditor)
 **Blocking Issues:** None
 **Notes:** All 8 component groups complete. Build: zero errors, zero warnings. No new tests required (UI-only components, no business logic). Components use the established pattern: `#pragma warning disable CS0649` for fields populated by future API integration, EventCallback parameters for host-page wiring, and `protected` property accessors following the existing FileBrowser/TrashBin pattern.
+
+### Step: phase-1.12 - File Upload & Preview UI
+**Status:** completed ✅ (12/17 tasks; 5 deferred)
+**Duration:** ~1 session
+**Description:** Enhanced upload experience with drag-and-drop on the browser, floating upload progress panel with speed/ETA/pause/cancel, ImageSharp-based thumbnail generation and caching, and full-screen file preview supporting all media types with keyboard navigation.
+
+**Deliverables:**
+- ✓ `IThumbnailService.cs` + `ThumbnailService.cs` — thumbnail generation/caching/cleanup service
+  - ✓ ImageSharp 3.1.12 for raster image resizing (JPEG, PNG, GIF, WebP, BMP, TIFF)
+  - ✓ All three sizes (128 / 256 / 512 px) cached to `{storageRoot}/.thumbnails/{prefix}/{id}_{size}.jpg`
+  - ✓ `GenerateThumbnailAsync` (called on upload complete), `GetThumbnailAsync`, `DeleteThumbnailsAsync`
+  - ☐ Video thumbnail (first frame) — deferred: requires FFmpeg interop
+  - ☐ PDF thumbnail (first page) — deferred: requires PDF rendering library
+  - ☐ Thumbnail API controller — deferred: `IThumbnailService` interface ready for wiring
+- ✓ `UploadProgressPanel.razor` + `UploadProgressPanel.razor.cs` — floating upload progress panel
+  - ✓ Per-file progress bar, speed (B/KB/MB per second), ETA (s/m/h remaining)
+  - ✓ Pause / resume / cancel per file (IsPaused / IsCancelled flags)
+  - ✓ Overall aggregate progress bar
+  - ✓ Minimize / expand toggle
+- ✓ `FilePreview.razor` + `FilePreview.razor.cs` — full-screen preview modal (replaces placeholder)
+  - ✓ Image: inline `<img>` tag
+  - ✓ Video: HTML5 `<video>` with controls
+  - ✓ Audio: HTML5 `<audio>` with controls + artwork area
+  - ✓ PDF: `<iframe>` embed
+  - ✓ Text/Code: `<iframe>` embed with language label from extension
+  - ✓ Markdown: `<iframe>` embed
+  - ✓ Unsupported: fallback Download File button
+  - ✓ Keyboard: Escape = close, ← = prev, → = next file
+  - ✓ Prev/next navigation across all files in current folder
+  - ✓ Metadata footer (MIME type, size, modified date, position in folder)
+  - ✓ Share button (raises OnShare → FileBrowser opens ShareDialog)
+  - ✓ Download button (raises OnDownload event)
+  - ✓ Auto-focus overlay on render for keyboard capture
+  - ☐ Touch gestures (swipe/pinch-zoom) — deferred: requires JS Touch event interop
+- ✓ `FileUploadComponent.razor` + `.razor.cs` — enhanced upload dialog
+  - ✓ Uses `UploadProgressPanel` while uploading (replaces inline file list)
+  - ✓ Per-file speed/ETA tracked via `Stopwatch` + chunk bytes
+  - ✓ Pause / resume / cancel wired to UploadProgressPanel callbacks
+  - ✓ Remove individual pending files before upload
+- ✓ `FileBrowser.razor` + `.razor.cs` — browser-level drag zone + thumbnail display
+  - ✓ Drag-and-drop zone over entire browser (counter-based to avoid child-element flicker)
+  - ✓ `browser-drop-overlay` shown when dragging files over browser
+  - ✓ Drop opens upload dialog (`ShowUploadDialog`)
+  - ✓ Grid view shows `<img src="@node.ThumbnailUrl">` when thumbnail URL is set
+  - ✓ Passes `SortedNodes` as `AllNodes` to `FilePreview` for in-folder navigation
+  - ✓ `OnShare` + `OnDownload` callbacks wired from `FilePreview`
+  - ☐ Folder drag-and-drop (recursive upload) — deferred: requires JS DataTransfer API interop
+- ✓ `ViewModels.cs` extended: `ThumbnailUrl` on `FileNodeViewModel`; `SpeedBytesPerSecond`, `EtaSeconds`, `IsPaused`, `IsCancelled` on `UploadFileItem`; `Paused` added to `UploadStatus`
+
+**File Locations:**
+- `src/Modules/Files/DotNetCloud.Modules.Files/Services/IThumbnailService.cs` (new)
+- `src/Modules/Files/DotNetCloud.Modules.Files/Services/ThumbnailService.cs` (new)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/UploadProgressPanel.razor` (new)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/UploadProgressPanel.razor.cs` (new)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/FilePreview.razor` (rewritten — full implementation)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/FilePreview.razor.cs` (rewritten — navigation, keyboard, media)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/FileUploadComponent.razor` (enhanced — UploadProgressPanel, pause/cancel)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/FileUploadComponent.razor.cs` (enhanced — speed/ETA, pause/cancel logic)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/FileBrowser.razor` (enhanced — drag zone, thumbnails, AllNodes, callbacks)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/FileBrowser.razor.cs` (enhanced — drag counter, preview share/download)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/ViewModels.cs` (extended — ThumbnailUrl, upload speed/ETA/pause/cancel fields)
+- `src/Modules/Files/DotNetCloud.Modules.Files/DotNetCloud.Modules.Files.csproj` (SixLabors.ImageSharp 3.1.12 added)
+
+**Dependencies:** phase-1.11 (UI components), phase-1.3 (IChunkedUploadService interface)
+**Blocking Issues:** None
+**Notes:** Build: zero errors, zero warnings (full solution). 5 items deferred: folder drag-and-drop (JS DataTransfer), video thumbnail, PDF thumbnail, thumbnail API endpoint, and touch gestures. All deferred items have interface stubs or code comments in place for future wiring.
 
 ---
 

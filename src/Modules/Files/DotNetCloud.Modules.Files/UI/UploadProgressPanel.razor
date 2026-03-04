@@ -1,0 +1,79 @@
+@namespace DotNetCloud.Modules.Files.UI
+
+@*
+    Floating upload progress panel — shows per-file progress, speed, ETA, and controls.
+    Appears in the bottom-right corner while files are uploading.
+    Code-behind: UploadProgressPanel.razor.cs
+*@
+
+<div class="upload-panel @(IsMinimized ? "upload-panel--minimized" : "")">
+    <div class="upload-panel-header">
+        <span class="upload-panel-title">
+            @if (OverallProgress < 100 && ActiveCount > 0)
+            {
+                @($"Uploading {ActiveCount} file{(ActiveCount == 1 ? "" : "s")}...")
+            }
+            else if (Files.Count > 0)
+            {
+                @("Upload complete")
+            }
+            else
+            {
+                @("No uploads")
+            }
+        </span>
+        <div class="upload-panel-controls">
+            <span class="upload-panel-percent-summary">@OverallProgress%</span>
+            <button class="btn-icon" @onclick="ToggleMinimize"
+                    title="@(IsMinimized ? "Expand" : "Minimize")">
+                @(IsMinimized ? "+" : "−")
+            </button>
+            <button class="btn-icon" @onclick="ClosePanel" title="Close">✕</button>
+        </div>
+    </div>
+
+    @if (!IsMinimized)
+    {
+        <div class="upload-panel-overall">
+            <div class="progress-bar-track">
+                <div class="progress-bar-fill @(OverallProgress >= 100 ? "progress-bar-fill--success" : "")"
+                     style="width: @(OverallProgress)%"></div>
+            </div>
+        </div>
+
+        <div class="upload-panel-files">
+            @foreach (var file in Files)
+            {
+                <div class="upload-panel-file @(file.Status == UploadStatus.Failed ? "upload-panel-file--error" : "")">
+                    <div class="upload-file-header">
+                        <span class="upload-file-name" title="@file.Name">@TruncateName(file.Name)</span>
+                        <div class="upload-file-controls">
+                            @if (file.Status == UploadStatus.Uploading)
+                            {
+                                <button class="btn-icon btn-xs" @onclick="() => PauseFile(file)"
+                                        title="Pause">⏸</button>
+                            }
+                            else if (file.Status == UploadStatus.Paused)
+                            {
+                                <button class="btn-icon btn-xs" @onclick="() => ResumeFile(file)"
+                                        title="Resume">▶</button>
+                            }
+                            @if (file.Status is UploadStatus.Pending or UploadStatus.Uploading or UploadStatus.Paused)
+                            {
+                                <button class="btn-icon btn-xs" @onclick="() => CancelFile(file)"
+                                        title="Cancel">✕</button>
+                            }
+                        </div>
+                    </div>
+                    <div class="upload-file-progress">
+                        <div class="progress-bar-track progress-bar-track--sm">
+                            <div class="progress-bar-fill @GetProgressClass(file.Status)"
+                                 style="width: @(file.Progress)%"></div>
+                        </div>
+                        <span class="upload-file-status-label">@GetStatusLabel(file)</span>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>

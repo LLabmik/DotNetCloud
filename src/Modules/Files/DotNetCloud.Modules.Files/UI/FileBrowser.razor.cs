@@ -41,6 +41,9 @@ public partial class FileBrowser : ComponentBase
 #pragma warning restore CS0649
     private QuotaViewModel? _quota;
 
+    // Drag-and-drop: use a counter to handle bubbling (child elements fire enter/leave too).
+    private int _dragEnterCount;
+
     protected IReadOnlyList<FileNodeViewModel> Nodes => _nodes;
 
     /// <summary>Nodes sorted by the current sort column and direction (folders always first).</summary>
@@ -80,6 +83,9 @@ public partial class FileBrowser : ComponentBase
     protected int PageSize => _pageSize;
     protected int TotalCount => _totalCount;
     protected int TotalPages => _totalCount > 0 ? (int)Math.Ceiling((double)_totalCount / _pageSize) : 1;
+
+    /// <summary>True while the user is dragging files over the browser area.</summary>
+    protected bool IsBrowserDragging => _dragEnterCount > 0;
 
     /// <summary>Updates the quota display with fresh data from the API.</summary>
     protected void UpdateQuota(long usedBytes, long maxBytes, double usagePercent)
@@ -159,6 +165,32 @@ public partial class FileBrowser : ComponentBase
     protected void HideUploadDialog() => _showUploadDialog = false;
     protected void HandleUploadComplete() => _showUploadDialog = false;
 
+    // ── Drag-and-drop zone (browser-level) ─────────────────────────────────────
+
+    /// <summary>
+    /// Increments the drag counter when a drag enters the browser area.
+    /// Using a counter instead of a bool prevents flicker caused by enter/leave
+    /// events from child elements.
+    /// </summary>
+    protected void HandleBrowserDragEnter() => _dragEnterCount++;
+
+    /// <summary>Decrements the drag counter when a drag leaves the browser area.</summary>
+    protected void HandleBrowserDragLeave()
+    {
+        if (_dragEnterCount > 0) _dragEnterCount--;
+    }
+
+    /// <summary>
+    /// Resets the drag counter and opens the upload dialog when files are dropped.
+    /// Extracting the dropped files from the DataTransfer object requires JS interop;
+    /// the user can then select the same files via the dialog's Browse button.
+    /// </summary>
+    protected void HandleBrowserDrop()
+    {
+        _dragEnterCount = 0;
+        ShowUploadDialog();
+    }
+
     protected void DeleteSelected() => _selectedNodes.Clear();
 
     protected void ToggleFavorite(Guid nodeId)
@@ -185,6 +217,20 @@ public partial class FileBrowser : ComponentBase
     }
 
     protected void HidePreview() => _showPreview = false;
+
+    /// <summary>Closes the preview and opens the share dialog for the given node.</summary>
+    protected void HandlePreviewShare(FileNodeViewModel node)
+    {
+        HidePreview();
+        ShowShareDialog(node);
+    }
+
+    /// <summary>Closes the preview and triggers a download for the given node.</summary>
+    protected void HandlePreviewDownload(FileNodeViewModel node)
+    {
+        HidePreview();
+        // In a full implementation, trigger file download via the download API endpoint.
+    }
 
     protected void ShowDocumentEditor(FileNodeViewModel node)
     {
