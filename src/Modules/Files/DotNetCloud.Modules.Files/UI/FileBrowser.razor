@@ -129,4 +129,17 @@
     {
         <FilePreview Node="PreviewNode" OnClose="HidePreview" />
     }
+
+    @if (IsShowDocumentEditor && EditorNode is not null)
+    {
+        <div class="document-editor-overlay">
+            <DocumentEditor
+                FileId="EditorNode.Id"
+                FileName="EditorNode.Name"
+                UserId="UserId"
+                ApiBaseUrl="ApiBaseUrl"
+                OnClose="HideDocumentEditor"
+                OnDownload="HideDocumentEditor" />
+        </div>
+    }
 </div>

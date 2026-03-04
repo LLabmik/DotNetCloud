@@ -140,6 +140,25 @@ internal sealed class CliConfig
         "dotnetcloud", "backups");
 
     /// <summary>
+    /// How Collabora Online is configured: None, BuiltIn, or External.
+    /// </summary>
+    public string CollaboraMode { get; set; } = "None";
+
+    /// <summary>
+    /// URL of an externally-managed Collabora Online server.
+    /// Used when <see cref="CollaboraMode"/> is "External".
+    /// </summary>
+    public string CollaboraUrl { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Directory where the built-in Collabora CODE is installed.
+    /// Used when <see cref="CollaboraMode"/> is "BuiltIn".
+    /// </summary>
+    public string CollaboraDirectory { get; set; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "dotnetcloud", "collabora");
+
+    /// <summary>
     /// When the setup wizard was last run.
     /// </summary>
     public DateTime? SetupCompletedAt { get; set; }

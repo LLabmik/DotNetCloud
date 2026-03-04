@@ -25,7 +25,7 @@
                 <button class="btn" @onclick="DownloadInstead">Download to edit locally</button>
                 @if (OnClose.HasDelegate)
                 {
-                    <button class="btn" @onclick="OnClose">Close</button>
+                    <button class="btn" @onclick="CloseEditorAsync">Close</button>
                 }
             </div>
         </div>
@@ -43,7 +43,7 @@
             <div class="editor-actions">
                 @if (OnClose.HasDelegate)
                 {
-                    <button class="btn btn-sm" @onclick="OnClose" title="Close editor">Close</button>
+                    <button class="btn btn-sm" @onclick="CloseEditorAsync" title="Close editor">Close</button>
                 }
             </div>
         </div>

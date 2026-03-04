@@ -45,7 +45,7 @@
 | Phase 1.7 | 11 | 11 | 0 | 0 |
 | Phase 1.8 | 8 | 8 | 0 | 0 |
 | Phase 1.9 | 14 | 14 | 0 | 0 |
-| Phase 1.10 | 24 | 14 | 0 | 10 |
+| Phase 1.10 | 24 | 24 | 0 | 0 |
 | Phase 1.11 | 8 | 5 | 0 | 3 |
 | Phase 1.12 | 17 | 0 | 0 | 17 |
 | Phase 1.13 | 4 | 0 | 0 | 4 |
@@ -2633,8 +2633,8 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Step: phase-1.10 - WOPI Host & Collabora Integration
-**Status:** in-progress 🔄
-**Duration:** ~6 hours (actual, across sessions)
+**Status:** completed ✅
+**Duration:** ~8 hours (actual, across sessions)
 **Description:** Implement WOPI protocol endpoints (CheckFileInfo, GetFile, PutFile) with HMAC-signed access tokens, Collabora discovery service, health check, and Blazor document editor component.
 
 **Deliverables:**
@@ -2652,20 +2652,19 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Service registration in `FilesServiceRegistration` — all WOPI/Collabora services, HttpClient("Collabora"), health check
 - ✓ `DocumentEditor.razor` + `.razor.cs` — Blazor component with iframe embedding, loading/error states, co-editing indicators, supported format detection
 - ✓ 34 unit tests — `WopiTokenServiceTests` (11), `WopiServiceTests` (14), `CollaboraDiscoveryServiceTests` (10) — all passing
-- ☐ WOPI proof key validation (Collabora signature verification) — deferred
-- ☐ Collabora CODE download/auto-installation in `dotnetcloud setup` — deferred
-- ☐ Collabora process management under process supervisor — deferred
-- ☐ TLS/URL routing for Collabora — deferred
-- ☐ Admin UI for Collabora configuration — deferred
-- ☐ Auto-save interval configuration — deferred
-- ☐ Max concurrent sessions configuration — deferred
-- ☐ Supported file format configuration — deferred
-- ☐ Open supported documents from file browser — deferred
-- ☐ Firebase Admin SDK credentials configuration — deferred
+- ✓ WOPI proof key validation — `IWopiProofKeyValidator` / `WopiProofKeyValidator` with RSA-SHA256 using `X-WOPI-Proof` headers; supports current-key, old-key, and rotation; 10 tests
+- ✓ Max concurrent sessions — `IWopiSessionTracker` / `WopiSessionTracker` singleton; `TryBeginSession` / `HeartbeatSession` / `EndSession`; 9 tests; `DELETE /api/v1/wopi/token/{fileId}` session-close endpoint
+- ✓ Supported file format configuration — `CollaboraOptions.SupportedMimeTypes` filters `IsSupportedExtensionAsync`
+- ✓ Open supported documents from file browser — `FileBrowser` double-click invokes `DocumentEditor` for supported extensions; `ApiBaseUrl`/`UserId` parameters added
+- ✓ `DocumentEditor.razor.cs` real HTTP integration — `LoadEditorAsync` calls `POST /api/v1/wopi/token/{fileId}` via injected `HttpClient`; `CloseEditorAsync` calls `DELETE` to release session
+- ✓ Collabora CODE download/auto-installation — `CollaboraInstallCommand` (`dotnetcloud install collabora`); cross-platform download+extract with progress; setup wizard step 9
+- ✓ Collabora process management — `ICollaboraProcessManager` / `CollaboraProcessManager` BackgroundService; start/stop/health monitor; exponential backoff restart; `UseBuiltInCollabora`/`CollaboraInstallDirectory`/`CollaboraExecutablePath` added to `CollaboraOptions` and `CliConfig`
+- ✓ TLS/URL routing for Collabora — `GenerateNginxConfigWithCollabora` and `GenerateApacheConfigWithCollabora` in `ReverseProxyTemplates`; full location blocks for `/browser`, `/hosting/discovery`, `/cool/` WebSocket paths
+- ✓ Admin UI for Collabora configuration — `/admin/collabora` Blazor page; Collabora health badge; all `CollaboraOptions` fields editable; proxy config snippet generator (nginx / Apache)
 
 **Dependencies:** phase-1.3 (services), phase-1.5 (chunking)
 **Blocking Issues:** None
-**Notes:** Core WOPI protocol fully implemented with signed token auth, chunk-based file storage, and deduplication. 430 total Files tests pass. Collabora management/admin features deferred to later iteration.
+**Notes:** Phase 1.10 fully complete. WOPI protocol with RSA-SHA256 proof key validation, session tracking, MIME filtering, full Blazor integration. Collabora process management (BackgroundService), CLI install command (`dotnetcloud install collabora`), setup wizard step 9, reverse proxy templates (nginx/Apache with Collabora location blocks), and `/admin/collabora` admin UI. 450 total Files tests pass.
 
 ---
 

@@ -51,7 +51,7 @@ public class CollaboraDiscoveryServiceTests
     }
 
     [TestMethod]
-    public void ParseDiscoveryXml_WithProofKey_ExtractsKeys()
+    public void ParseDiscoveryXml_WithProofKey_ExtractsKeyValues()
     {
         var xml = """
             <wopi-discovery>
@@ -60,14 +60,19 @@ public class CollaboraDiscoveryServiceTests
                   <action name="edit" ext="docx" urlsrc="https://collabora:9980/browser/dist/cool.html?"/>
                 </app>
               </net-zone>
-              <proof-key value="current-key" oldvalue="old-key"/>
+              <proof-key modulus="mod-value" exponent="exp-value" value="current-spki"
+                         oldmodulus="old-mod" oldexponent="old-exp" old-value="old-spki"/>
             </wopi-discovery>
             """;
 
         var result = CollaboraDiscoveryService.ParseDiscoveryXml(xml);
 
-        Assert.AreEqual("current-key", result.ProofKey);
-        Assert.AreEqual("old-key", result.OldProofKey);
+        // ProofKey/OldProofKey carry the modulus (legacy fields)
+        Assert.AreEqual("mod-value", result.ProofKey);
+        Assert.AreEqual("old-mod", result.OldProofKey);
+        // ProofKeyValue/OldProofKeyValue carry the SubjectPublicKeyInfo for RSA verification
+        Assert.AreEqual("current-spki", result.ProofKeyValue);
+        Assert.AreEqual("old-spki", result.OldProofKeyValue);
     }
 
     [TestMethod]

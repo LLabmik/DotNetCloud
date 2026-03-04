@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using Microsoft.AspNetCore.Components;
 
 namespace DotNetCloud.Modules.Files.UI;
@@ -26,6 +27,9 @@ public partial class DocumentEditor : ComponentBase
     /// <summary>Callback to trigger file download instead of inline editing.</summary>
     [Parameter] public EventCallback OnDownload { get; set; }
 
+    /// <summary>Injected HttpClient for calling the WOPI token endpoint.</summary>
+    [Inject] private HttpClient Http { get; set; } = default!;
+
     /// <summary>The editor iframe URL (set after successful token generation).</summary>
     protected string? EditorUrl { get; set; }
 
@@ -48,7 +52,8 @@ public partial class DocumentEditor : ComponentBase
     }
 
     /// <summary>
-    /// Generates a WOPI access token and constructs the editor URL.
+    /// Generates a WOPI access token by calling POST /api/v1/wopi/token/{fileId}
+    /// and sets <see cref="EditorUrl"/> from the response.
     /// </summary>
     private async Task LoadEditorAsync()
     {
@@ -58,25 +63,24 @@ public partial class DocumentEditor : ComponentBase
 
         try
         {
-            // In a full implementation, this would call the WOPI token endpoint via HttpClient:
-            // POST /api/v1/wopi/token/{fileId}?userId={userId}
-            // Response: { success: true, data: { accessToken, accessTokenTtl, wopiSrc, editorUrl } }
-            //
-            // For now, construct the URL pattern that will be used:
             var tokenEndpoint = $"{ApiBaseUrl.TrimEnd('/')}/api/v1/wopi/token/{FileId}?userId={UserId}";
+            var response = await Http.PostAsync(tokenEndpoint, content: null);
 
-            // Placeholder: in a real Blazor app this would use an injected HttpClient
-            // var response = await Http.PostAsync(tokenEndpoint, null);
-            // var result = await response.Content.ReadFromJsonAsync<WopiTokenResponse>();
-            // EditorUrl = result.Data.EditorUrl;
+            if (!response.IsSuccessStatusCode)
+            {
+                ErrorMessage = $"Could not open the document editor (HTTP {(int)response.StatusCode}).";
+                return;
+            }
 
-            // Signal that the component is ready but needs real HTTP integration
-            EditorUrl = null;
-            ErrorMessage = null;
+            var result = await response.Content.ReadFromJsonAsync<WopiTokenEnvelope>();
+            EditorUrl = result?.Data?.EditorUrl;
 
-            await Task.CompletedTask;
+            if (string.IsNullOrEmpty(EditorUrl))
+            {
+                ErrorMessage = "The document editor is not available for this file format.";
+            }
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
             ErrorMessage = $"Failed to open document editor: {ex.Message}";
         }
@@ -97,13 +101,37 @@ public partial class DocumentEditor : ComponentBase
     }
 
     /// <summary>
-    /// Triggers file download instead of inline editing.
+    /// Triggers file download instead of inline editing and signals the editor to close.
     /// </summary>
     protected async Task DownloadInstead()
     {
         if (OnDownload.HasDelegate)
         {
             await OnDownload.InvokeAsync();
+        }
+    }
+
+    /// <summary>
+    /// Notifies the server that the editing session has ended, freeing a concurrent session slot.
+    /// </summary>
+    protected async Task CloseEditorAsync()
+    {
+        if (!string.IsNullOrEmpty(ApiBaseUrl) && FileId != Guid.Empty && UserId != Guid.Empty)
+        {
+            try
+            {
+                await Http.DeleteAsync(
+                    $"{ApiBaseUrl.TrimEnd('/')}/api/v1/wopi/token/{FileId}?userId={UserId}");
+            }
+            catch (HttpRequestException)
+            {
+                // Best-effort: session will expire naturally via the server-side timeout
+            }
+        }
+
+        if (OnClose.HasDelegate)
+        {
+            await OnClose.InvokeAsync();
         }
     }
 
@@ -124,5 +152,24 @@ public partial class DocumentEditor : ComponentBase
             "xls" or "xlsx" or "ods" or "csv" or
             // Impress
             "ppt" or "pptx" or "odp";
+    }
+
+    /// <summary>
+    /// Response envelope for the WOPI token endpoint.
+    /// </summary>
+    private sealed class WopiTokenEnvelope
+    {
+        public WopiTokenData? Data { get; set; }
+    }
+
+    /// <summary>
+    /// Token data returned by POST /api/v1/wopi/token/{fileId}.
+    /// </summary>
+    private sealed class WopiTokenData
+    {
+        public string? EditorUrl { get; set; }
+        public string? AccessToken { get; set; }
+        public long AccessTokenTtl { get; set; }
+        public string? WopiSrc { get; set; }
     }
 }

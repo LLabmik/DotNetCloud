@@ -96,11 +96,23 @@ public sealed record CollaboraDiscoveryResult
     /// <summary>All available actions from Collabora.</summary>
     public IReadOnlyList<CollaboraAppAction> Actions { get; init; } = [];
 
-    /// <summary>The Collabora proof key (public key for signature verification).</summary>
+    /// <summary>The Collabora proof key modulus (legacy; prefer <see cref="ProofKeyValue"/>).</summary>
     public string? ProofKey { get; init; }
 
-    /// <summary>The Collabora old proof key (for key rotation).</summary>
+    /// <summary>The Collabora old proof key modulus (legacy; prefer <see cref="OldProofKeyValue"/>).</summary>
     public string? OldProofKey { get; init; }
+
+    /// <summary>
+    /// The Collabora current proof key as Base64-encoded SubjectPublicKeyInfo DER bytes.
+    /// Used for RSA-SHA256 signature verification of X-WOPI-Proof headers.
+    /// </summary>
+    public string? ProofKeyValue { get; init; }
+
+    /// <summary>
+    /// The Collabora previous proof key as Base64-encoded SubjectPublicKeyInfo DER bytes.
+    /// Used during key rotation to validate in-flight requests signed with the old key.
+    /// </summary>
+    public string? OldProofKeyValue { get; init; }
 
     /// <summary>When this discovery data was fetched.</summary>
     public DateTime FetchedAt { get; init; } = DateTime.UtcNow;

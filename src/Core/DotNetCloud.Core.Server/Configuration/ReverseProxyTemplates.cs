@@ -229,6 +229,181 @@ public static class ReverseProxyTemplates
     }
 
     /// <summary>
+    /// Generates an nginx configuration that proxies both DotNetCloud and a Collabora Online server.
+    /// </summary>
+    /// <param name="serverName">The primary server hostname (for DotNetCloud).</param>
+    /// <param name="upstreamPort">The DotNetCloud upstream port.</param>
+    /// <param name="collaboraUpstream">
+    /// The Collabora Online server address (host:port or full URL, e.g., "127.0.0.1:9980").
+    /// If null or empty, the Collabora block is omitted.
+    /// </param>
+    /// <param name="enableSsl">Whether to include SSL configuration.</param>
+    /// <returns>The nginx configuration template string.</returns>
+    public static string GenerateNginxConfigWithCollabora(
+        string serverName = "dotnetcloud.example.com",
+        int upstreamPort = 5080,
+        string? collaboraUpstream = "127.0.0.1:9980",
+        bool enableSsl = true)
+    {
+        var baseConfig = GenerateNginxConfig(serverName, upstreamPort, enableSsl);
+
+        if (string.IsNullOrWhiteSpace(collaboraUpstream))
+            return baseConfig;
+
+        // Collabora requires specific proxy configuration:
+        // - /browser/ serves editor static assets
+        // - /hosting/discovery serves the WOPI discovery XML
+        // - /cool/ (or /lool/) is the WebSocket endpoint for real-time editing
+        var collaboraBlock = $$"""
+
+            # -------------------------------------------------------
+            # Collabora Online (CODE) reverse proxy
+            # Collabora server: {{collaboraUpstream}}
+            # -------------------------------------------------------
+            upstream collabora {
+                server {{collaboraUpstream}};
+            }
+
+            server {
+                listen 80;
+                listen [::]:80;
+            {{(enableSsl ? $"""
+                listen 443 ssl http2;
+                listen [::]:443 ssl http2;
+                ssl_certificate /etc/ssl/certs/dotnetcloud.crt;
+                ssl_certificate_key /etc/ssl/private/dotnetcloud.key;
+                ssl_protocols TLSv1.2 TLSv1.3;
+                ssl_ciphers HIGH:!aNULL:!MD5;
+            """ : "")}}
+                server_name {{serverName}};
+
+                # WOPI discovery (Collabora reads this to register supported formats)
+                location /hosting/discovery {
+                    proxy_pass https://collabora;
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                }
+
+                # Collabora capabilities endpoint
+                location /hosting/capabilities {
+                    proxy_pass https://collabora;
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                }
+
+                # Collabora editor static assets
+                location /browser {
+                    proxy_pass https://collabora;
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                }
+
+                # Collabora real-time WebSocket editing endpoint
+                location ~ ^/cool/(.*)/ws$ {
+                    proxy_pass https://collabora;
+                    proxy_http_version 1.1;
+                    proxy_set_header Upgrade $http_upgrade;
+                    proxy_set_header Connection "upgrade";
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                    proxy_read_timeout 3600s;
+                    proxy_send_timeout 3600s;
+                }
+
+                # Collabora admin console WebSocket
+                location ^~ /cool {
+                    proxy_pass https://collabora;
+                    proxy_http_version 1.1;
+                    proxy_set_header Upgrade $http_upgrade;
+                    proxy_set_header Connection "upgrade";
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                }
+            }
+            """;
+
+        return baseConfig + collaboraBlock;
+    }
+
+    /// <summary>
+    /// Generates an Apache configuration that proxies both DotNetCloud and a Collabora Online server.
+    /// </summary>
+    /// <param name="serverName">The primary server hostname.</param>
+    /// <param name="upstreamPort">The DotNetCloud upstream port.</param>
+    /// <param name="collaboraUpstream">The Collabora Online server address (e.g., "https://127.0.0.1:9980").</param>
+    /// <param name="enableSsl">Whether to include SSL configuration.</param>
+    /// <returns>The Apache configuration template string.</returns>
+    public static string GenerateApacheConfigWithCollabora(
+        string serverName = "dotnetcloud.example.com",
+        int upstreamPort = 5080,
+        string? collaboraUpstream = "https://127.0.0.1:9980",
+        bool enableSsl = true)
+    {
+        var baseConfig = GenerateApacheConfig(serverName, upstreamPort, enableSsl);
+
+        if (string.IsNullOrWhiteSpace(collaboraUpstream))
+            return baseConfig;
+
+        var port = enableSsl ? 443 : 80;
+
+        var collaboraBlock = $$"""
+
+
+            # -------------------------------------------------------
+            # Collabora Online (CODE) virtual host
+            # -------------------------------------------------------
+            <VirtualHost *:{{port}}>
+                ServerName {{serverName}}
+
+                # Required modules: mod_proxy mod_proxy_http mod_proxy_wstunnel mod_rewrite mod_ssl
+
+            {{(enableSsl ? """
+                SSLEngine on
+                SSLCertificateFile /etc/ssl/certs/dotnetcloud.crt
+                SSLCertificateKeyFile /etc/ssl/private/dotnetcloud.key
+                SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1
+                SSLProxyEngine on
+                SSLProxyVerify none
+            """ : "")}}
+                # WOPI discovery and capabilities
+                ProxyPass /hosting/ {{collaboraUpstream}}/hosting/
+                ProxyPassReverse /hosting/ {{collaboraUpstream}}/hosting/
+
+                # Collabora editor static assets
+                ProxyPass /browser {{collaboraUpstream}}/browser
+                ProxyPassReverse /browser {{collaboraUpstream}}/browser
+
+                # Collabora WebSocket real-time editing
+                RewriteEngine On
+                RewriteCond %{HTTP:Upgrade} websocket [NC]
+                RewriteCond %{HTTP:Connection} upgrade [NC]
+                RewriteRule ^/cool/(.*)/ws$ wss://{{(collaboraUpstream.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ? collaboraUpstream[8..] : collaboraUpstream)}}/cool/$1/ws [P,L]
+
+                ProxyPass /cool {{collaboraUpstream}}/cool
+                ProxyPassReverse /cool {{collaboraUpstream}}/cool
+
+                RequestHeader set X-Forwarded-Proto "https" env=HTTPS
+                ProxyTimeout 3600
+
+                ErrorLog ${APACHE_LOG_DIR}/collabora-error.log
+                CustomLog ${APACHE_LOG_DIR}/collabora-access.log combined
+            </VirtualHost>
+            """;
+
+        return baseConfig + collaboraBlock;
+    }
+
+    /// <summary>
     /// Validates a reverse proxy configuration by checking required elements.
     /// </summary>
     /// <param name="proxyType">The type of proxy (nginx, apache, iis).</param>

@@ -1884,7 +1884,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ `POST /api/v1/wopi/files/{fileId}/contents` — PutFile (save edited content)
 - ✓ Implement WOPI access token generation (per-user, per-file, time-limited)
 - ✓ Implement WOPI access token validation
-- ☐ Implement WOPI proof key validation (Collabora signature verification)
+- ✓ Implement WOPI proof key validation (Collabora signature verification)
 
 #### WOPI Integration
 - ✓ Read file content from `IFileStorageEngine` in GetFile
@@ -1894,21 +1894,21 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Support concurrent editing (Collabora handles OT internally)
 
 #### Collabora CODE Management
-- ☐ Implement Collabora CODE download and auto-installation in `dotnetcloud setup`
-- ☐ Create Collabora CODE process management under process supervisor
+- ✓ Implement Collabora CODE download and auto-installation in `dotnetcloud setup` + `dotnetcloud install collabora`
+- ✓ Create Collabora CODE process management under process supervisor (`CollaboraProcessManager` BackgroundService)
 - ✓ Implement WOPI discovery endpoint integration
-- ☐ Configure TLS/URL routing for Collabora
+- ✓ Configure TLS/URL routing for Collabora (`ReverseProxyTemplates.GenerateNginxConfigWithCollabora`, `GenerateApacheConfigWithCollabora`)
 - ✓ Create Collabora health check
 
 #### Collabora Configuration
-- ☐ Admin UI for Collabora server URL (built-in CODE vs. external)
-- ☐ Auto-save interval configuration
-- ☐ Maximum concurrent document sessions configuration
-- ☐ Supported file format configuration
+- ✓ Admin UI for Collabora server URL (built-in CODE vs. external) — `/admin/collabora` Blazor page
+- ✓ Auto-save interval configuration (`CollaboraOptions.AutoSaveIntervalSeconds`)
+- ✓ Maximum concurrent document sessions configuration (`IWopiSessionTracker`)
+- ✓ Supported file format configuration (`CollaboraOptions.SupportedMimeTypes` filtering)
 
 #### Blazor Integration
 - ✓ Create document editor component (iframe embedding Collabora UI)
-- ☐ Open supported documents in editor from file browser
+- ✓ Open supported documents in editor from file browser
 - ✓ Show "download to edit locally" for E2EE files
 - ✓ Display co-editing indicators (who is editing)
 

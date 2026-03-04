@@ -130,6 +130,16 @@ internal sealed class CollaboraDiscoveryService : ICollaboraDiscoveryService
             return false;
 
         var normalizedExt = extension.TrimStart('.').ToLowerInvariant();
+
+        // If a MIME type allow-list is configured, only allow extensions whose MIME type is listed
+        if (_options.SupportedMimeTypes.Count > 0)
+        {
+            return discovery.Actions.Any(a =>
+                string.Equals(a.Extension, normalizedExt, StringComparison.OrdinalIgnoreCase) &&
+                a.MimeType is not null &&
+                _options.SupportedMimeTypes.Contains(a.MimeType, StringComparer.OrdinalIgnoreCase));
+        }
+
         return discovery.Actions.Any(a =>
             string.Equals(a.Extension, normalizedExt, StringComparison.OrdinalIgnoreCase));
     }
@@ -157,15 +167,20 @@ internal sealed class CollaboraDiscoveryService : ICollaboraDiscoveryService
 
         string? proofKey = null;
         string? oldProofKey = null;
+        string? proofKeyValue = null;
+        string? oldProofKeyValue = null;
 
         // Parse proof-key element
         var proofKeyElement = doc.Root?.Element("proof-key");
         if (proofKeyElement is not null)
         {
-            proofKey = proofKeyElement.Attribute("value")?.Value
-                       ?? proofKeyElement.Attribute("modulus")?.Value;
-            oldProofKey = proofKeyElement.Attribute("oldvalue")?.Value
-                          ?? proofKeyElement.Attribute("oldmodulus")?.Value;
+            // Modulus attributes (legacy/fallback)
+            proofKey = proofKeyElement.Attribute("modulus")?.Value;
+            oldProofKey = proofKeyElement.Attribute("oldmodulus")?.Value;
+
+            // SubjectPublicKeyInfo values — used for RSA-SHA256 proof verification
+            proofKeyValue = proofKeyElement.Attribute("value")?.Value;
+            oldProofKeyValue = proofKeyElement.Attribute("old-value")?.Value;
         }
 
         // Parse net-zone/app/action elements
@@ -204,6 +219,8 @@ internal sealed class CollaboraDiscoveryService : ICollaboraDiscoveryService
             Actions = actions,
             ProofKey = proofKey,
             OldProofKey = oldProofKey,
+            ProofKeyValue = proofKeyValue,
+            OldProofKeyValue = oldProofKeyValue,
             FetchedAt = DateTime.UtcNow
         };
     }

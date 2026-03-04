@@ -8,6 +8,13 @@ namespace DotNetCloud.Modules.Files.UI;
 /// </summary>
 public partial class FileBrowser : ComponentBase
 {
+    /// <summary>The current user ID, used for opening the document editor.</summary>
+    [Parameter] public Guid UserId { get; set; }
+
+    /// <summary>Base URL for the Files API (e.g., "https://cloud.example.com"), used for the document editor.</summary>
+    [Parameter] public string ApiBaseUrl { get; set; } = string.Empty;
+
+
     private List<FileNodeViewModel> _nodes = [];
     private readonly List<BreadcrumbItem> _breadcrumbs = [];
     private readonly HashSet<Guid> _selectedNodes = [];
@@ -20,9 +27,11 @@ public partial class FileBrowser : ComponentBase
     private bool _showUploadDialog;
     private bool _showShareDialog;
     private bool _showPreview;
+    private bool _showDocumentEditor;
     private string _newFolderName = string.Empty;
     private FileNodeViewModel? _shareTargetNode;
     private FileNodeViewModel? _previewNode;
+    private FileNodeViewModel? _editorNode;
     private int _currentPage = 1;
     private int _pageSize = 50;
 #pragma warning disable CS0649
@@ -40,9 +49,11 @@ public partial class FileBrowser : ComponentBase
     protected bool IsShowUploadDialog => _showUploadDialog;
     protected bool IsShowShareDialog => _showShareDialog;
     protected bool IsShowPreview => _showPreview;
+    protected bool IsShowDocumentEditor => _showDocumentEditor;
     protected string NewFolderName { get => _newFolderName; set => _newFolderName = value; }
     protected FileNodeViewModel? ShareTargetNode => _shareTargetNode;
     protected FileNodeViewModel? PreviewNode => _previewNode;
+    protected FileNodeViewModel? EditorNode => _editorNode;
     protected int CurrentPage => _currentPage;
     protected int PageSize => _pageSize;
     protected int TotalCount => _totalCount;
@@ -87,6 +98,10 @@ public partial class FileBrowser : ComponentBase
         {
             _breadcrumbs.Add(new BreadcrumbItem(node.Id, node.Name));
             NavigateToFolder(node.Id);
+        }
+        else if (DocumentEditor.IsSupportedForEditing(node.Name))
+        {
+            ShowDocumentEditor(node);
         }
         else
         {
@@ -148,6 +163,18 @@ public partial class FileBrowser : ComponentBase
     }
 
     protected void HidePreview() => _showPreview = false;
+
+    protected void ShowDocumentEditor(FileNodeViewModel node)
+    {
+        _editorNode = node;
+        _showDocumentEditor = true;
+    }
+
+    protected void HideDocumentEditor()
+    {
+        _showDocumentEditor = false;
+        _editorNode = null;
+    }
 
     protected void ToggleViewMode()
     {

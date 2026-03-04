@@ -50,9 +50,13 @@ public static class FilesServiceRegistration
         // WOPI / Collabora services (Scoped for DB access)
         services.AddScoped<IWopiService, WopiService>();
         services.AddScoped<IWopiTokenService, WopiTokenService>();
+        services.AddScoped<IWopiProofKeyValidator, WopiProofKeyValidator>();
 
         // Collabora discovery service (Singleton — caches discovery results)
         services.AddSingleton<ICollaboraDiscoveryService, CollaboraDiscoveryService>();
+
+        // Session tracker (Singleton — in-memory concurrent session enforcement)
+        services.AddSingleton<IWopiSessionTracker, WopiSessionTracker>();
 
         // HTTP client for Collabora discovery
         services.AddHttpClient("Collabora");
@@ -60,6 +64,11 @@ public static class FilesServiceRegistration
         // Health check for Collabora
         services.AddHealthChecks()
             .AddCheck<CollaboraHealthCheck>("collabora_online");
+
+        // Collabora process manager (singleton BackgroundService — manages built-in CODE process)
+        services.AddSingleton<CollaboraProcessManager>();
+        services.AddSingleton<ICollaboraProcessManager>(sp => sp.GetRequiredService<CollaboraProcessManager>());
+        services.AddHostedService(sp => sp.GetRequiredService<CollaboraProcessManager>());
 
         // Background services
         services.AddHostedService<UploadSessionCleanupService>();

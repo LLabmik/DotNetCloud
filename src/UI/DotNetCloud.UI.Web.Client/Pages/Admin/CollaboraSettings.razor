@@ -1,0 +1,447 @@
+@page "/admin/collabora"
+@rendermode InteractiveAuto
+@attribute [Authorize]
+
+<PageTitle>Collabora Settings - DotNetCloud</PageTitle>
+
+<div class="page-header">
+    <h1>Collabora Online Settings</h1>
+    <div class="page-header-actions">
+        <a href="/admin/settings?module=dotnetcloud.files" class="btn btn-outline btn-sm">All File Settings</a>
+    </div>
+</div>
+
+<p class="text-muted">
+    Configure Collabora Online for browser-based document editing (Word, Excel, PowerPoint, and more).
+</p>
+
+@if (_loading)
+{
+    <LoadingIndicator Message="Loading Collabora settings..." />
+}
+else
+{
+    <div class="settings-grid">
+        <!-- Collabora Health Status -->
+        <section class="settings-section">
+            <h2>Status</h2>
+            <div class="health-row">
+                <span class="label">Collabora Online</span>
+                @if (_healthLoading)
+                {
+                    <span class="badge badge-muted">Checking...</span>
+                }
+                else
+                {
+                    <span class="badge badge-@(_collaboraHealthy ? "success" : "danger")">
+                        @(_collaboraHealthy ? "Available" : "Unavailable")
+                    </span>
+                }
+                <button class="btn btn-sm btn-outline" @onclick="RefreshHealthAsync" disabled="@_healthLoading">
+                    Refresh
+                </button>
+            </div>
+            <p class="hint">
+                @if (_collaboraHealthy)
+                {
+                    <text>Collabora Online is responding. Document editing is available.</text>
+                }
+                else
+                {
+                    <text>
+                        Collabora Online is not reachable. Check that the server URL is correct
+                        and that the Collabora process is running.
+                    </text>
+                }
+            </p>
+        </section>
+
+        <!-- Core Configuration -->
+        <section class="settings-section">
+            <h2>Connection</h2>
+
+            <div class="form-group">
+                <label>Enabled</label>
+                <input type="checkbox" @bind="_enabled" />
+                <span class="hint">Enable Collabora Online integration for document editing.</span>
+            </div>
+
+            <div class="form-group">
+                <label>Collabora Server URL</label>
+                <input type="url" class="input" @bind="_serverUrl"
+                       placeholder="https://collabora.example.com" />
+                <span class="hint">
+                    URL of your Collabora Online instance. For built-in CODE, use
+                    <code>https://localhost:9980</code>.
+                </span>
+            </div>
+
+            <div class="form-group">
+                <label>WOPI Base URL</label>
+                <input type="url" class="input" @bind="_wopiBaseUrl"
+                       placeholder="https://cloud.example.com" />
+                <span class="hint">
+                    Public URL of this DotNetCloud instance, used by Collabora to call back for file content.
+                    Must be reachable from the Collabora server.
+                </span>
+            </div>
+        </section>
+
+        <!-- Token Settings -->
+        <section class="settings-section">
+            <h2>Token &amp; Security</h2>
+
+            <div class="form-group">
+                <label>Token Signing Key</label>
+                <input type="password" class="input" @bind="_tokenSigningKey"
+                       placeholder="(leave empty to auto-generate)" />
+                <span class="hint">
+                    HMAC-SHA256 secret for signing WOPI access tokens. Must be at least 32 characters.
+                    Auto-generated (ephemeral) if not set — tokens will not survive server restarts.
+                </span>
+            </div>
+
+            <div class="form-group">
+                <label>Token Lifetime (minutes)</label>
+                <input type="number" class="input input-sm" min="5" max="1440"
+                       @bind="_tokenLifetimeMinutes" />
+                <span class="hint">How long a WOPI access token remains valid. Default: 480 (8 hours).</span>
+            </div>
+
+            <div class="form-group">
+                <label>Proof Key Validation</label>
+                <input type="checkbox" @bind="_enableProofKeyValidation" />
+                <span class="hint">
+                    Verify that WOPI requests originate from the trusted Collabora server using RSA-SHA256 signatures.
+                    Recommended in production.
+                </span>
+            </div>
+        </section>
+
+        <!-- Session & Editing Settings -->
+        <section class="settings-section">
+            <h2>Editing Settings</h2>
+
+            <div class="form-group">
+                <label>Auto-save Interval (seconds)</label>
+                <input type="number" class="input input-sm" min="10" max="3600"
+                       @bind="_autoSaveIntervalSeconds" />
+                <span class="hint">
+                    How often Collabora triggers a save (PutFile). Default: 300 (5 minutes).
+                </span>
+            </div>
+
+            <div class="form-group">
+                <label>Max Concurrent Sessions</label>
+                <input type="number" class="input input-sm" min="0"
+                       @bind="_maxConcurrentSessions" />
+                <span class="hint">
+                    Maximum number of simultaneous document editing sessions (0 = unlimited).
+                    Default: 20.
+                </span>
+            </div>
+
+            <div class="form-group">
+                <label>Supported MIME Types</label>
+                <textarea class="input" rows="4" @bind="_supportedMimeTypes"
+                          placeholder="(empty = all Collabora-supported types)"></textarea>
+                <span class="hint">
+                    Comma- or newline-separated list of MIME types allowed for online editing.
+                    Leave empty to allow all formats supported by your Collabora server.
+                    Example: <code>application/vnd.openxmlformats-officedocument.wordprocessingml.document</code>
+                </span>
+            </div>
+        </section>
+
+        <!-- Built-in Process Management -->
+        <section class="settings-section">
+            <h2>Built-in Collabora CODE</h2>
+            <p class="hint">
+                DotNetCloud can manage a locally-installed Collabora CODE process. Install it with:
+                <code>dotnetcloud install collabora</code>
+            </p>
+
+            <div class="form-group">
+                <label>Use Built-in Collabora CODE</label>
+                <input type="checkbox" @bind="_useBuiltInCollabora" />
+                <span class="hint">
+                    DotNetCloud will start and supervise a local Collabora process automatically.
+                </span>
+            </div>
+
+            <div class="form-group">
+                <label>Install Directory</label>
+                <input type="text" class="input" @bind="_collaboraInstallDirectory"
+                       placeholder="/opt/collaboraoffice" />
+                <span class="hint">Directory where Collabora CODE is installed.</span>
+            </div>
+
+            <div class="form-group">
+                <label>Executable Path (optional)</label>
+                <input type="text" class="input" @bind="_collaboraExecutablePath"
+                       placeholder="(auto-detect within install directory)" />
+                <span class="hint">
+                    Full path to coolwsd / coolwsd.exe. Leave empty to auto-detect within the install directory.
+                </span>
+            </div>
+
+            <div class="form-group">
+                <label>Max Restart Attempts</label>
+                <input type="number" class="input input-sm" min="0" @bind="_collaboraMaxRestartAttempts" />
+                <span class="hint">0 = unlimited restarts. Default: 5.</span>
+            </div>
+        </section>
+
+        <!-- Reverse Proxy Configuration -->
+        <section class="settings-section">
+            <h2>Reverse Proxy Configuration</h2>
+            <p class="hint">
+                Collabora Online requires specific nginx or Apache routing rules. Copy the snippet below
+                into your reverse proxy configuration.
+            </p>
+
+            <div class="form-group">
+                <label>Proxy Type</label>
+                <select class="input input-sm" @bind="_proxySnippetType">
+                    <option value="nginx">nginx</option>
+                    <option value="apache">Apache mod_proxy</option>
+                </select>
+            </div>
+
+            <details>
+                <summary>Show proxy configuration snippet</summary>
+                <pre class="code-block">@GetProxySnippet()</pre>
+            </details>
+        </section>
+    </div>
+
+    <div class="form-actions">
+        <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+            @(_saving ? "Saving..." : "Save Settings")
+        </button>
+    </div>
+}
+
+<ConfirmDialog @ref="_confirmDialog" />
+
+@code {
+    [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+
+    private const string Module = "dotnetcloud.files";
+
+    private bool _loading = true;
+    private bool _saving;
+    private bool _healthLoading;
+    private bool _collaboraHealthy;
+    private ConfirmDialog _confirmDialog = default!;
+
+    // Form fields (mirror CollaboraOptions properties)
+    private bool _enabled;
+    private string _serverUrl = string.Empty;
+    private string _wopiBaseUrl = string.Empty;
+    private string _tokenSigningKey = string.Empty;
+    private int _tokenLifetimeMinutes = 480;
+    private bool _enableProofKeyValidation = true;
+    private int _autoSaveIntervalSeconds = 300;
+    private int _maxConcurrentSessions = 20;
+    private string _supportedMimeTypes = string.Empty;
+    private bool _useBuiltInCollabora;
+    private string _collaboraInstallDirectory = string.Empty;
+    private string _collaboraExecutablePath = string.Empty;
+    private int _collaboraMaxRestartAttempts = 5;
+    private string _proxySnippetType = "nginx";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(LoadSettingsAsync(), RefreshHealthAsync());
+    }
+
+    private async Task LoadSettingsAsync()
+    {
+        _loading = true;
+        try
+        {
+            var settings = await Api.ListSettingsAsync(Module);
+            PopulateFields(settings);
+        }
+        catch
+        {
+            Toast.ShowError("Failed to load Collabora settings.");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void PopulateFields(IReadOnlyList<SystemSettingDto> settings)
+    {
+        _enabled = GetBool(settings, "Collabora:Enabled");
+        _serverUrl = GetString(settings, "Collabora:ServerUrl");
+        _wopiBaseUrl = GetString(settings, "Collabora:WopiBaseUrl");
+        _tokenSigningKey = GetString(settings, "Collabora:TokenSigningKey");
+        _tokenLifetimeMinutes = GetInt(settings, "Collabora:TokenLifetimeMinutes", 480);
+        _enableProofKeyValidation = GetBool(settings, "Collabora:EnableProofKeyValidation", defaultValue: true);
+        _autoSaveIntervalSeconds = GetInt(settings, "Collabora:AutoSaveIntervalSeconds", 300);
+        _maxConcurrentSessions = GetInt(settings, "Collabora:MaxConcurrentSessions", 20);
+        _supportedMimeTypes = GetString(settings, "Collabora:SupportedMimeTypes");
+        _useBuiltInCollabora = GetBool(settings, "Collabora:UseBuiltInCollabora");
+        _collaboraInstallDirectory = GetString(settings, "Collabora:CollaboraInstallDirectory");
+        _collaboraExecutablePath = GetString(settings, "Collabora:CollaboraExecutablePath");
+        _collaboraMaxRestartAttempts = GetInt(settings, "Collabora:CollaboraMaxRestartAttempts", 5);
+    }
+
+    private async Task RefreshHealthAsync()
+    {
+        _healthLoading = true;
+        try
+        {
+            var health = await Api.GetHealthAsync();
+            _collaboraHealthy = health?.Entries
+                .TryGetValue("collabora_online", out var entry) == true &&
+                string.Equals(entry.Status, "Healthy", StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            _collaboraHealthy = false;
+        }
+        finally
+        {
+            _healthLoading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            var tasks = new[]
+            {
+                Api.UpsertSettingAsync(Module, "Collabora:Enabled", Str(_enabled.ToString())),
+                Api.UpsertSettingAsync(Module, "Collabora:ServerUrl", Str(_serverUrl)),
+                Api.UpsertSettingAsync(Module, "Collabora:WopiBaseUrl", Str(_wopiBaseUrl)),
+                Api.UpsertSettingAsync(Module, "Collabora:TokenSigningKey",
+                    new UpsertSystemSettingDto { Value = _tokenSigningKey, IsSensitive = true }),
+                Api.UpsertSettingAsync(Module, "Collabora:TokenLifetimeMinutes", Str(_tokenLifetimeMinutes.ToString())),
+                Api.UpsertSettingAsync(Module, "Collabora:EnableProofKeyValidation", Str(_enableProofKeyValidation.ToString())),
+                Api.UpsertSettingAsync(Module, "Collabora:AutoSaveIntervalSeconds", Str(_autoSaveIntervalSeconds.ToString())),
+                Api.UpsertSettingAsync(Module, "Collabora:MaxConcurrentSessions", Str(_maxConcurrentSessions.ToString())),
+                Api.UpsertSettingAsync(Module, "Collabora:SupportedMimeTypes", Str(_supportedMimeTypes)),
+                Api.UpsertSettingAsync(Module, "Collabora:UseBuiltInCollabora", Str(_useBuiltInCollabora.ToString())),
+                Api.UpsertSettingAsync(Module, "Collabora:CollaboraInstallDirectory", Str(_collaboraInstallDirectory)),
+                Api.UpsertSettingAsync(Module, "Collabora:CollaboraExecutablePath", Str(_collaboraExecutablePath)),
+                Api.UpsertSettingAsync(Module, "Collabora:CollaboraMaxRestartAttempts", Str(_collaboraMaxRestartAttempts.ToString()))
+            };
+
+            var results = await Task.WhenAll(tasks);
+            if (results.All(r => r))
+                Toast.ShowSuccess("Collabora settings saved. Restart the Files module to apply changes.");
+            else
+                Toast.ShowError("Some settings could not be saved.");
+        }
+        catch
+        {
+            Toast.ShowError("Failed to save Collabora settings.");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private string GetProxySnippet() => _proxySnippetType switch
+    {
+        "apache" => GenerateApacheSnippet(),
+        _ => GenerateNginxSnippet()
+    };
+
+    private string GenerateNginxSnippet()
+    {
+        var upstream = string.IsNullOrWhiteSpace(_serverUrl)
+            ? "127.0.0.1:9980"
+            : ExtractHostPort(_serverUrl);
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("# Add these location blocks to your nginx server { } block:");
+        sb.AppendLine();
+        sb.AppendLine("location /hosting/discovery {");
+        sb.AppendLine("    proxy_pass https://" + upstream + ";");
+        sb.AppendLine("    proxy_set_header Host $host;");
+        sb.AppendLine("    proxy_set_header X-Forwarded-Proto $scheme;");
+        sb.AppendLine("}");
+        sb.AppendLine("location /browser {");
+        sb.AppendLine("    proxy_pass https://" + upstream + ";");
+        sb.AppendLine("    proxy_set_header Host $host;");
+        sb.AppendLine("    proxy_set_header X-Forwarded-Proto $scheme;");
+        sb.AppendLine("}");
+        sb.AppendLine("location ~ ^/cool/(.*)/ws$ {");
+        sb.AppendLine("    proxy_pass https://" + upstream + ";");
+        sb.AppendLine("    proxy_http_version 1.1;");
+        sb.AppendLine("    proxy_set_header Upgrade $http_upgrade;");
+        sb.AppendLine("    proxy_set_header Connection \"upgrade\";");
+        sb.AppendLine("    proxy_set_header Host $host;");
+        sb.AppendLine("    proxy_read_timeout 3600s;");
+        sb.AppendLine("}");
+        sb.AppendLine("location ^~ /cool {");
+        sb.AppendLine("    proxy_pass https://" + upstream + ";");
+        sb.AppendLine("    proxy_set_header Host $host;");
+        sb.AppendLine("    proxy_set_header X-Forwarded-Proto $scheme;");
+        sb.AppendLine("}");
+        return sb.ToString();
+    }
+
+    private string GenerateApacheSnippet()
+    {
+        var upstream = string.IsNullOrWhiteSpace(_serverUrl)
+            ? "https://127.0.0.1:9980"
+            : _serverUrl.TrimEnd('/');
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("# Add inside your <VirtualHost> block (requires mod_proxy_wstunnel):");
+        sb.AppendLine();
+        sb.AppendLine("ProxyPass /hosting/ " + upstream + "/hosting/");
+        sb.AppendLine("ProxyPassReverse /hosting/ " + upstream + "/hosting/");
+        sb.AppendLine("ProxyPass /browser " + upstream + "/browser");
+        sb.AppendLine("ProxyPassReverse /browser " + upstream + "/browser");
+        sb.AppendLine();
+        sb.AppendLine("RewriteEngine On");
+        sb.AppendLine("RewriteCond %{HTTP:Upgrade} websocket [NC]");
+        sb.AppendLine("RewriteRule ^/cool/(.*)/ws$ wss://" + ExtractHostPort(upstream) + "/cool/$1/ws [P,L]");
+        sb.AppendLine();
+        sb.AppendLine("ProxyPass /cool " + upstream + "/cool");
+        sb.AppendLine("ProxyPassReverse /cool " + upstream + "/cool");
+        return sb.ToString();
+    }
+
+    private static string ExtractHostPort(string url)
+    {
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            return uri.IsDefaultPort ? uri.Host : $"{uri.Host}:{uri.Port}";
+        return url;
+    }
+
+    // ---- Setting helpers ----
+
+    private static string GetString(IReadOnlyList<SystemSettingDto> settings, string key, string defaultValue = "")
+    {
+        var s = settings.FirstOrDefault(x => x.Key == key);
+        return s?.Value ?? defaultValue;
+    }
+
+    private static bool GetBool(IReadOnlyList<SystemSettingDto> settings, string key, bool defaultValue = false)
+    {
+        var val = GetString(settings, key);
+        return string.IsNullOrEmpty(val) ? defaultValue : bool.TryParse(val, out var b) ? b : defaultValue;
+    }
+
+    private static int GetInt(IReadOnlyList<SystemSettingDto> settings, string key, int defaultValue = 0)
+    {
+        var val = GetString(settings, key);
+        return string.IsNullOrEmpty(val) ? defaultValue : int.TryParse(val, out var i) ? i : defaultValue;
+    }
+
+    private static UpsertSystemSettingDto Str(string value, string? description = null) =>
+        new() { Value = value, Description = description };
+}

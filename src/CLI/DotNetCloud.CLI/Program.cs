@@ -18,6 +18,9 @@ rootCommand.Subcommands.Add(ModuleCommands.Create());
 // Component management
 rootCommand.Subcommands.Add(ComponentCommands.Create());
 
+// Collabora CODE installation
+rootCommand.Subcommands.Add(CollaboraInstallCommand.Create());
+
 // Log viewing
 rootCommand.Subcommands.Add(LogCommands.Create());
 

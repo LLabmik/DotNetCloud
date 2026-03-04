@@ -61,4 +61,37 @@ public sealed class CollaboraOptions
     /// Collabora discovery are accepted.
     /// </summary>
     public List<string> SupportedMimeTypes { get; set; } = [];
+
+    /// <summary>
+    /// Whether to use the built-in Collabora CODE instance managed by DotNetCloud.
+    /// When <c>true</c>, DotNetCloud will start and supervise a local Collabora process.
+    /// When <c>false</c>, <see cref="ServerUrl"/> must point to an externally-managed Collabora server.
+    /// Default: <c>false</c>.
+    /// </summary>
+    public bool UseBuiltInCollabora { get; set; }
+
+    /// <summary>
+    /// Directory where Collabora CODE is installed (used when <see cref="UseBuiltInCollabora"/> is <c>true</c>).
+    /// Example: "/opt/collaboraoffice" (Linux) or "C:\collabora" (Windows).
+    /// </summary>
+    public string CollaboraInstallDirectory { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Full path to the Collabora executable (coolwsd or coolwsd.exe).
+    /// When empty and <see cref="UseBuiltInCollabora"/> is true, DotNetCloud will try to locate
+    /// the executable within <see cref="CollaboraInstallDirectory"/>.
+    /// </summary>
+    public string CollaboraExecutablePath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Maximum number of restart attempts for the built-in Collabora process before giving up.
+    /// Default: 5.
+    /// </summary>
+    public int CollaboraMaxRestartAttempts { get; set; } = 5;
+
+    /// <summary>
+    /// Base delay in seconds for exponential backoff when restarting the Collabora process.
+    /// Default: 5 seconds.
+    /// </summary>
+    public int CollaboraRestartBackoffSeconds { get; set; } = 5;
 }
