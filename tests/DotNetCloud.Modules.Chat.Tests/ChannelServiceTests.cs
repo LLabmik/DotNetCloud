@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Chat.Data;
 using DotNetCloud.Modules.Chat.Data.Services;
@@ -190,5 +191,84 @@ public class ChannelServiceTests
         var result = await _service.CreateChannelAsync(dto, _caller);
 
         Assert.AreEqual(2, result.MemberCount);
+    }
+
+    [TestMethod]
+    public async Task WhenCreateChannelWithDuplicateNameInSameOrgThenThrows()
+    {
+        var orgId = Guid.NewGuid();
+        var dto1 = new CreateChannelDto { Name = "general", Type = "Public", OrganizationId = orgId };
+        await _service.CreateChannelAsync(dto1, _caller);
+
+        var dto2 = new CreateChannelDto { Name = "general", Type = "Public", OrganizationId = orgId };
+        await Assert.ThrowsAsync<ValidationException>(
+            () => _service.CreateChannelAsync(dto2, _caller));
+    }
+
+    [TestMethod]
+    public async Task WhenCreateChannelWithSameNameInDifferentOrgsThenSucceeds()
+    {
+        var orgId1 = Guid.NewGuid();
+        var orgId2 = Guid.NewGuid();
+        var dto1 = new CreateChannelDto { Name = "general", Type = "Public", OrganizationId = orgId1 };
+        var dto2 = new CreateChannelDto { Name = "general", Type = "Public", OrganizationId = orgId2 };
+
+        var result1 = await _service.CreateChannelAsync(dto1, _caller);
+        var result2 = await _service.CreateChannelAsync(dto2, _caller);
+
+        Assert.AreNotEqual(result1.Id, result2.Id);
+        Assert.AreEqual("general", result1.Name);
+        Assert.AreEqual("general", result2.Name);
+    }
+
+    [TestMethod]
+    public async Task WhenCreateDmWithDuplicateNameThenSucceeds()
+    {
+        var otherUserId1 = Guid.NewGuid();
+        var otherUserId2 = Guid.NewGuid();
+
+        var result1 = await _service.GetOrCreateDirectMessageAsync(otherUserId1, _caller);
+        var result2 = await _service.GetOrCreateDirectMessageAsync(otherUserId2, _caller);
+
+        Assert.AreNotEqual(result1.Id, result2.Id);
+    }
+
+    [TestMethod]
+    public async Task WhenUpdateChannelNameToDuplicateInSameOrgThenThrows()
+    {
+        var orgId = Guid.NewGuid();
+        var dto1 = new CreateChannelDto { Name = "general", Type = "Public", OrganizationId = orgId };
+        var dto2 = new CreateChannelDto { Name = "random", Type = "Public", OrganizationId = orgId };
+
+        await _service.CreateChannelAsync(dto1, _caller);
+        var channel2 = await _service.CreateChannelAsync(dto2, _caller);
+
+        var updateDto = new UpdateChannelDto { Name = "general" };
+        await Assert.ThrowsAsync<ValidationException>(
+            () => _service.UpdateChannelAsync(channel2.Id, updateDto, _caller));
+    }
+
+    [TestMethod]
+    public async Task WhenUpdateChannelNameToSameNameThenSucceeds()
+    {
+        var orgId = Guid.NewGuid();
+        var dto = new CreateChannelDto { Name = "general", Type = "Public", OrganizationId = orgId };
+        var created = await _service.CreateChannelAsync(dto, _caller);
+
+        var updateDto = new UpdateChannelDto { Name = "general" };
+        var result = await _service.UpdateChannelAsync(created.Id, updateDto, _caller);
+
+        Assert.AreEqual("general", result.Name);
+    }
+
+    [TestMethod]
+    public async Task WhenCreateChannelWithNullOrgThenUniquenessIsEnforcedWithinNullOrg()
+    {
+        var dto1 = new CreateChannelDto { Name = "general", Type = "Public", OrganizationId = null };
+        await _service.CreateChannelAsync(dto1, _caller);
+
+        var dto2 = new CreateChannelDto { Name = "general", Type = "Public", OrganizationId = null };
+        await Assert.ThrowsAsync<ValidationException>(
+            () => _service.CreateChannelAsync(dto2, _caller));
     }
 }

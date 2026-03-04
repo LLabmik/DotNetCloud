@@ -39,7 +39,7 @@
 | Phase 1 | 20 | 0 | 0 | 20 |
 | Phase 2.1 | 6 | 6 | 0 | 0 |
 | Phase 2.2 | 4 | 4 | 0 | 0 |
-| Phase 2.3 | 7 | 1 | 0 | 6 |
+| Phase 2.3 | 7 | 2 | 0 | 5 |
 | Phase 2.4 | 5 | 0 | 0 | 5 |
 | Phase 2.5 | 4 | 0 | 0 | 4 |
 | Phase 2.6 | 4 | 0 | 0 | 4 |
@@ -2446,7 +2446,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Description:** Implement core chat services: ChannelService, MessageService, ReactionService, PinService, TypingIndicatorService, and ChatModule lifecycle.
 
 **Deliverables:**
-- ☐ Implement IChannelService and ChannelService (CRUD, DM creation, authorization)
+- ✓ Implement IChannelService and ChannelService (CRUD, DM creation, authorization, channel name uniqueness validation)
 - ☐ Implement IChannelMemberService and ChannelMemberService (add/remove, roles, unread counts)
 - ☐ Implement IMessageService and MessageService (send, edit, delete, search, mention parsing)
 - ☐ Implement IReactionService and ReactionService
@@ -2456,7 +2456,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Dependencies:** phase-2.2
 **Blocking Issues:** None
-**Notes:** ChatModule lifecycle complete with event bus subscribe/unsubscribe. Service interfaces and implementations are next.
+**Notes:** ChannelService complete with CRUD, authorization, DM resolution, and channel name uniqueness validation within organization. Uniqueness enforced via `ValidateChannelNameUniqueAsync` (DB query + `ValidationException`), applied on create and update. DM channels are excluded from uniqueness checks. 6 new unit tests added (126 total chat tests pass). Service interfaces and remaining implementations are next.
 
 ---
 

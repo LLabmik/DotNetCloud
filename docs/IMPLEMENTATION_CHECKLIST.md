@@ -1473,7 +1473,7 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ `Task<ChannelDto> GetOrCreateDirectMessageAsync(Guid otherUserId, CallerContext caller)`
 - ✓ Implement `ChannelService`
 - ✓ Add authorization checks (owner/admin for updates/deletes)
-- ☐ Validate channel name uniqueness within organization
+- ✓ Validate channel name uniqueness within organization
 
 #### Channel Member Service
 - ✓ Create `IChannelMemberService` interface:

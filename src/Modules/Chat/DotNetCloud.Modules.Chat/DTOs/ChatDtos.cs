@@ -56,6 +56,9 @@ public sealed record CreateChannelDto
     /// <summary>Channel topic.</summary>
     public string? Topic { get; init; }
 
+    /// <summary>Organization this channel belongs to (null for DMs).</summary>
+    public Guid? OrganizationId { get; init; }
+
     /// <summary>Initial member user IDs (optional).</summary>
     public IReadOnlyList<Guid> MemberIds { get; init; } = [];
 }

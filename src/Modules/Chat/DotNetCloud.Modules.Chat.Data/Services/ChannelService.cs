@@ -7,6 +7,8 @@ using DotNetCloud.Modules.Chat.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
+using ValidationException = DotNetCloud.Core.Errors.ValidationException;
+
 namespace DotNetCloud.Modules.Chat.Data.Services;
 
 /// <summary>
@@ -37,12 +39,16 @@ internal sealed class ChannelService : IChannelService
         if (!Enum.TryParse<ChannelType>(dto.Type, ignoreCase: true, out var channelType))
             throw new ArgumentException($"Invalid channel type: {dto.Type}", nameof(dto));
 
+        if (channelType != ChannelType.DirectMessage)
+            await ValidateChannelNameUniqueAsync(dto.Name, dto.OrganizationId, excludeChannelId: null, cancellationToken);
+
         var channel = new Channel
         {
             Name = dto.Name,
             Description = dto.Description,
             Type = channelType,
             Topic = dto.Topic,
+            OrganizationId = dto.OrganizationId,
             CreatedByUserId = caller.UserId
         };
 
@@ -136,6 +142,9 @@ internal sealed class ChannelService : IChannelService
             ?? throw new InvalidOperationException($"Channel {channelId} not found.");
 
         await EnsureCallerIsAdminOrOwnerAsync(channelId, caller, cancellationToken);
+
+        if (dto.Name is not null && dto.Name != channel.Name && channel.Type != ChannelType.DirectMessage)
+            await ValidateChannelNameUniqueAsync(dto.Name, channel.OrganizationId, excludeChannelId: channelId, cancellationToken);
 
         if (dto.Name is not null)
             channel.Name = dto.Name;
@@ -234,6 +243,20 @@ internal sealed class ChannelService : IChannelService
         _logger.LogInformation("DM channel {ChannelId} created between {User1} and {User2}", channel.Id, caller.UserId, otherUserId);
 
         return ToChannelDto(channel, 2);
+    }
+
+    private async Task ValidateChannelNameUniqueAsync(string name, Guid? organizationId, Guid? excludeChannelId, CancellationToken cancellationToken)
+    {
+        var query = _db.Channels
+            .Where(c => c.Name == name
+                     && c.OrganizationId == organizationId
+                     && c.Type != ChannelType.DirectMessage);
+
+        if (excludeChannelId.HasValue)
+            query = query.Where(c => c.Id != excludeChannelId.Value);
+
+        if (await query.AnyAsync(cancellationToken))
+            throw new ValidationException("Name", $"A channel named '{name}' already exists in this organization.");
     }
 
     private async Task EnsureCallerIsAdminOrOwnerAsync(Guid channelId, CallerContext caller, CancellationToken cancellationToken)

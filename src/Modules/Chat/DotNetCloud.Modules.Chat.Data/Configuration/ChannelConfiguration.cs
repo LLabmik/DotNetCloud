@@ -43,6 +43,11 @@ public sealed class ChannelConfiguration : IEntityTypeConfiguration<Channel>
         builder.HasIndex(c => c.OrganizationId)
             .HasDatabaseName("ix_chat_channels_organization_id");
 
+        builder.HasIndex(c => new { c.OrganizationId, c.Name })
+            .IsUnique()
+            .HasDatabaseName("ix_chat_channels_org_name_unique")
+            .HasFilter(null);
+
         builder.HasIndex(c => c.Type)
             .HasDatabaseName("ix_chat_channels_type");
 
