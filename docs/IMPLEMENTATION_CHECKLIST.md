@@ -1482,15 +1482,15 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Apply all entity configurations in `OnModelCreating`
 
 #### Migrations
-- ☐ Create PostgreSQL initial migration
-- ☐ Create SQL Server initial migration
+- ✓ Create PostgreSQL initial migration
+- ✓ Create SQL Server initial migration
 - ☐ Create MariaDB initial migration (when Pomelo supports .NET 10)
 
 #### Database Initialization
-- ☐ Create `FilesDbInitializer`:
-  - ☐ Create default root folder per user
-  - ☐ Seed default quota settings from system configuration
-  - ☐ Create default tags (e.g., "Important", "Work", "Personal")
+- ✓ Create `FilesDbInitializer`:
+  - ✓ Create default root folder per user
+  - ✓ Seed default quota settings from system configuration
+  - ✓ Create default tags (e.g., "Important", "Work", "Personal")
 
 ---
 

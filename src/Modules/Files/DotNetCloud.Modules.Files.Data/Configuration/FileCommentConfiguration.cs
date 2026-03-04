@@ -33,6 +33,9 @@ public sealed class FileCommentConfiguration : IEntityTypeConfiguration<FileComm
             .HasForeignKey(c => c.ParentCommentId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // Soft-delete query filter
+        builder.HasQueryFilter(c => !c.IsDeleted);
+
         // Indexes
         builder.HasIndex(c => c.FileNodeId)
             .HasDatabaseName("ix_file_comments_file_node_id");
