@@ -46,7 +46,7 @@
 | Phase 1.8 | 8 | 8 | 0 | 0 |
 | Phase 1.9 | 14 | 14 | 0 | 0 |
 | Phase 1.10 | 24 | 24 | 0 | 0 |
-| Phase 1.11 | 8 | 5 | 0 | 3 |
+| Phase 1.11 | 8 | 8 | 0 | 0 |
 | Phase 1.12 | 17 | 0 | 0 | 17 |
 | Phase 1.13 | 4 | 0 | 0 | 4 |
 | Phase 1.14 | 32 | 0 | 0 | 32 |
@@ -2665,6 +2665,70 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Dependencies:** phase-1.3 (services), phase-1.5 (chunking)
 **Blocking Issues:** None
 **Notes:** Phase 1.10 fully complete. WOPI protocol with RSA-SHA256 proof key validation, session tracking, MIME filtering, full Blazor integration. Collabora process management (BackgroundService), CLI install command (`dotnetcloud install collabora`), setup wizard step 9, reverse proxy templates (nginx/Apache with Collabora location blocks), and `/admin/collabora` admin UI. 450 total Files tests pass.
+
+---
+
+### Step: phase-1.11 - File Browser Web UI (Blazor)
+**Status:** completed ✅
+**Duration:** ~2 hours
+**Description:** Complete Blazor file management interface for the Files module — sidebar navigation, version history panel, admin settings page, column sorting, trash sort/bulk/size, loading skeletons, and improved empty states.
+
+**Deliverables:**
+- ✓ `QuotaProgressBar.razor` — markup for the quota bar component (code-behind existed from Phase 1.9); colour-coded fill (normal / warning / critical / exceeded), ARIA progressbar role
+- ✓ `FileSidebar.razor` + `FileSidebar.razor.cs` — sidebar navigation component
+  - ✓ "All Files" navigation item
+  - ✓ "Favorites" navigation item
+  - ✓ "Recent" navigation item
+  - ✓ "Shared with me" navigation item
+  - ✓ "Shared by me" navigation item
+  - ✓ "Tags" navigation item with expandable tag list (colour dots, file counts)
+  - ✓ "Trash" navigation item with item count badge
+  - ✓ Storage quota display (`QuotaProgressBar` embedded at bottom)
+  - ✓ `FileSidebarSection` enum + `FileTagViewModel` view model added to `ViewModels.cs`
+- ✓ `VersionHistoryPanel.razor` + `VersionHistoryPanel.razor.cs` — version history side panel
+  - ✓ Lists versions with version number, date, author, size
+  - ✓ Download specific version (event callback)
+  - ✓ Restore to specific version (event callback)
+  - ✓ Add/edit version labels (inline edit, Enter/Escape keyboard shortcuts)
+  - ✓ Delete old versions (removed from list, event callback)
+  - ✓ `FileVersionViewModel` view model added to `ViewModels.cs`
+- ✓ `FilesAdminSettings.razor` + `FilesAdminSettings.razor.cs` — Files module settings page
+  - ✓ Default quota for new users (GB, 0 = unlimited)
+  - ✓ Trash retention period (days)
+  - ✓ Version retention settings (max versions + retention days)
+  - ✓ Maximum upload size (MB)
+  - ✓ Allowed/blocked file types (comma-separated extension lists)
+  - ✓ Storage root path configuration
+  - ✓ Client-side validation with inline error messages; Reset to Defaults button
+  - ✓ `AdminSettingsViewModel` view model added to `ViewModels.cs`
+- ✓ `FileBrowser.razor` / `.razor.cs` — column sort headers in list view
+  - ✓ Sort by Name, Type, Size, Date (column header click)
+  - ✓ `SortedNodes` computed property (folders always first); sort direction toggle
+  - ✓ Loading skeleton (8 skeleton rows while `IsLoading`)
+  - ✓ Empty state: "No files yet — upload or create a folder" with inline action buttons
+- ✓ `TrashBin.razor` / `.razor.cs` — enhanced trash bin
+  - ✓ Trash size display (total across all items)
+  - ✓ Sort by Name, Date deleted, Size (column header click + direction toggle)
+  - ✓ Per-row checkboxes and "Select all" toggle
+  - ✓ Bulk restore and bulk delete actions
+
+**File Locations:**
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/QuotaProgressBar.razor` (new)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/FileSidebar.razor` (new)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/FileSidebar.razor.cs` (new)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/VersionHistoryPanel.razor` (new)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/VersionHistoryPanel.razor.cs` (new)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/FilesAdminSettings.razor` (new)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/FilesAdminSettings.razor.cs` (new)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/ViewModels.cs` (extended — FileVersionViewModel, FileSidebarSection, FileTagViewModel, AdminSettingsViewModel)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/FileBrowser.razor` (enhanced — skeleton, empty state, list sort headers)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/FileBrowser.razor.cs` (enhanced — SortedNodes, SetSort, SortHeaderClass, SortIndicator)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/TrashBin.razor` (enhanced — sort headers, checkboxes, bulk actions, size)
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/TrashBin.razor.cs` (enhanced — SortedItems, bulk ops, TrashTotalSizeLabel)
+
+**Dependencies:** phase-1.9 (QuotaProgressBar code-behind), phase-1.10 (DocumentEditor)
+**Blocking Issues:** None
+**Notes:** All 8 component groups complete. Build: zero errors, zero warnings. No new tests required (UI-only components, no business logic). Components use the established pattern: `#pragma warning disable CS0649` for fields populated by future API integration, EventCallback parameters for host-page wiring, and `protected` property accessors following the existing FileBrowser/TrashBin pattern.
 
 ---
 

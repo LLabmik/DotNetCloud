@@ -1,0 +1,114 @@
+@namespace DotNetCloud.Modules.Files.UI
+
+@*
+    File browser sidebar - Navigation panel for the Files module.
+    Provides links to All Files, Favorites, Recent, Shared, Tags, and Trash,
+    plus a storage quota progress bar at the bottom.
+    Code-behind: FileSidebar.razor.cs
+*@
+
+<nav class="files-sidebar" aria-label="Files navigation">
+    <ul class="sidebar-nav-list">
+        <li class="sidebar-nav-item @IsActive(FileSidebarSection.AllFiles)">
+            <a href="#" class="sidebar-nav-link"
+               @onclick="() => Navigate(FileSidebarSection.AllFiles)"
+               @onclick:preventDefault>
+                <span class="nav-icon" aria-hidden="true">[Files]</span>
+                <span class="nav-label">All Files</span>
+            </a>
+        </li>
+
+        <li class="sidebar-nav-item @IsActive(FileSidebarSection.Favorites)">
+            <a href="#" class="sidebar-nav-link"
+               @onclick="() => Navigate(FileSidebarSection.Favorites)"
+               @onclick:preventDefault>
+                <span class="nav-icon" aria-hidden="true">[Star]</span>
+                <span class="nav-label">Favorites</span>
+            </a>
+        </li>
+
+        <li class="sidebar-nav-item @IsActive(FileSidebarSection.Recent)">
+            <a href="#" class="sidebar-nav-link"
+               @onclick="() => Navigate(FileSidebarSection.Recent)"
+               @onclick:preventDefault>
+                <span class="nav-icon" aria-hidden="true">[Clock]</span>
+                <span class="nav-label">Recent</span>
+            </a>
+        </li>
+
+        <li class="sidebar-nav-item @IsActive(FileSidebarSection.SharedWithMe)">
+            <a href="#" class="sidebar-nav-link"
+               @onclick="() => Navigate(FileSidebarSection.SharedWithMe)"
+               @onclick:preventDefault>
+                <span class="nav-icon" aria-hidden="true">[Inbox]</span>
+                <span class="nav-label">Shared with me</span>
+            </a>
+        </li>
+
+        <li class="sidebar-nav-item @IsActive(FileSidebarSection.SharedByMe)">
+            <a href="#" class="sidebar-nav-link"
+               @onclick="() => Navigate(FileSidebarSection.SharedByMe)"
+               @onclick:preventDefault>
+                <span class="nav-icon" aria-hidden="true">[Share]</span>
+                <span class="nav-label">Shared by me</span>
+            </a>
+        </li>
+
+        <li class="sidebar-nav-item sidebar-nav-item--expandable @IsActive(FileSidebarSection.Tags)">
+            <button class="sidebar-nav-link sidebar-nav-link--expandable"
+                    @onclick="ToggleTagsExpanded"
+                    aria-expanded="@IsTagsExpanded">
+                <span class="nav-icon" aria-hidden="true">[Tag]</span>
+                <span class="nav-label">Tags</span>
+                <span class="nav-chevron">@(IsTagsExpanded ? "▲" : "▼")</span>
+            </button>
+
+            @if (IsTagsExpanded)
+            {
+                <ul class="sidebar-tag-list" aria-label="Tags">
+                    @if (Tags.Count == 0)
+                    {
+                        <li class="sidebar-tag-empty">No tags yet</li>
+                    }
+                    else
+                    {
+                        @foreach (var tag in Tags)
+                        {
+                            <li class="sidebar-tag-item">
+                                <a href="#" class="sidebar-tag-link"
+                                   @onclick="() => NavigateToTag(tag)"
+                                   @onclick:preventDefault>
+                                    @if (tag.Color is not null)
+                                    {
+                                        <span class="tag-dot" style="background:@tag.Color" aria-hidden="true"></span>
+                                    }
+                                    <span class="tag-name">@tag.Name</span>
+                                    <span class="tag-count">@tag.FileCount</span>
+                                </a>
+                            </li>
+                        }
+                    }
+                </ul>
+            }
+        </li>
+
+        <li class="sidebar-nav-item @IsActive(FileSidebarSection.Trash)">
+            <a href="#" class="sidebar-nav-link"
+               @onclick="() => Navigate(FileSidebarSection.Trash)"
+               @onclick:preventDefault>
+                <span class="nav-icon" aria-hidden="true">[Trash]</span>
+                <span class="nav-label">Trash</span>
+                @if (TrashItemCount > 0)
+                {
+                    <span class="nav-badge" aria-label="@TrashItemCount items in trash">
+                        @(TrashItemCount > 99 ? "99+" : TrashItemCount.ToString())
+                    </span>
+                }
+            </a>
+        </li>
+    </ul>
+
+    <div class="sidebar-quota">
+        <QuotaProgressBar Quota="Quota" />
+    </div>
+</nav>

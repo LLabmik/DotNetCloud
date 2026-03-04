@@ -1,0 +1,109 @@
+@namespace DotNetCloud.Modules.Files.UI
+
+@*
+    Version history side panel - Lists all versions of the currently selected file.
+    Allows downloading, restoring, labelling, and deleting individual versions.
+    Code-behind: VersionHistoryPanel.razor.cs
+*@
+
+<div class="version-panel" role="complementary" aria-label="Version history">
+    <div class="version-panel-header">
+        <h3 class="version-panel-title">Version History</h3>
+        @if (FileName is not null)
+        {
+            <span class="version-panel-filename" title="@FileName">@FileName</span>
+        }
+        <button class="btn-icon" @onclick="OnClose" title="Close" aria-label="Close version history">X</button>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="version-panel-loading">
+            <p>Loading versions...</p>
+        </div>
+    }
+    else if (Versions.Count == 0)
+    {
+        <div class="version-panel-empty">
+            <p>No version history available.</p>
+            <p class="text-muted">Versions are saved automatically when you edit and save a file.</p>
+        </div>
+    }
+    else
+    {
+        <ol class="version-list" reversed>
+            @foreach (var version in Versions)
+            {
+                <li class="version-item @(version.IsCurrent ? "version-item--current" : "")">
+                    <div class="version-number" aria-label="Version @version.VersionNumber">
+                        v@version.VersionNumber
+                        @if (version.IsCurrent)
+                        {
+                            <span class="version-badge-current">Current</span>
+                        }
+                    </div>
+
+                    <div class="version-meta">
+                        @if (!string.IsNullOrEmpty(version.Label) || EditingLabelId == version.Id)
+                        {
+                            @if (EditingLabelId == version.Id)
+                            {
+                                <input class="version-label-input"
+                                       type="text"
+                                       value="@EditLabelValue"
+                                       @oninput="e => EditLabelValue = e.Value?.ToString() ?? string.Empty"
+                                       @onkeydown="HandleLabelKeyDown"
+                                       placeholder="Add label…"
+                                       aria-label="Version label" />
+                                <button class="btn btn-sm btn-primary" @onclick="SaveLabel">Save</button>
+                                <button class="btn btn-sm" @onclick="CancelEditLabel">Cancel</button>
+                            }
+                            else
+                            {
+                                <span class="version-label" @ondblclick="() => StartEditLabel(version)">
+                                    @version.Label
+                                </span>
+                                <button class="btn-icon btn-icon--small" title="Edit label"
+                                        @onclick="() => StartEditLabel(version)">✎</button>
+                            }
+                        }
+                        else if (EditingLabelId != version.Id)
+                        {
+                            <button class="btn-link version-add-label"
+                                    @onclick="() => StartEditLabel(version)">
+                                + Add label
+                            </button>
+                        }
+
+                        <span class="version-date" title="@version.CreatedAt.ToString("O")">
+                            @version.CreatedAt.ToString("MMM d, yyyy HH:mm")
+                        </span>
+                        <span class="version-author">@version.AuthorName</span>
+                        <span class="version-size">@FormatSize(version.SizeBytes)</span>
+                    </div>
+
+                    <div class="version-actions">
+                        <button class="btn btn-sm"
+                                @onclick="() => DownloadVersion(version)"
+                                title="Download this version">
+                            Download
+                        </button>
+                        @if (!version.IsCurrent)
+                        {
+                            <button class="btn btn-sm"
+                                    @onclick="() => RestoreVersion(version)"
+                                    title="Restore to this version">
+                                Restore
+                            </button>
+                            <button class="btn btn-sm btn-danger"
+                                    @onclick="() => DeleteVersion(version)"
+                                    title="Delete this version">
+                                Delete
+                            </button>
+                        }
+                    </div>
+                </li>
+            }
+        </ol>
+    }
+</div>

@@ -20,6 +20,8 @@ public partial class FileBrowser : ComponentBase
     private readonly HashSet<Guid> _selectedNodes = [];
     private Guid? _currentFolderId;
     private ViewMode _viewMode = ViewMode.Grid;
+    private string _sortColumn = "Name";
+    private bool _sortAscending = true;
     #pragma warning disable CS0649 // Fields assigned at runtime via future API integration
     private bool _isLoading;
 #pragma warning restore CS0649
@@ -40,6 +42,26 @@ public partial class FileBrowser : ComponentBase
     private QuotaViewModel? _quota;
 
     protected IReadOnlyList<FileNodeViewModel> Nodes => _nodes;
+
+    /// <summary>Nodes sorted by the current sort column and direction (folders always first).</summary>
+    protected IReadOnlyList<FileNodeViewModel> SortedNodes
+    {
+        get
+        {
+            IEnumerable<FileNodeViewModel> ordered = (_sortColumn, _sortAscending) switch
+            {
+                ("Name", true)  => _nodes.OrderBy(n => n.NodeType != "Folder").ThenBy(n => n.Name, StringComparer.OrdinalIgnoreCase),
+                ("Name", false) => _nodes.OrderBy(n => n.NodeType != "Folder").ThenByDescending(n => n.Name, StringComparer.OrdinalIgnoreCase),
+                ("Size", true)  => _nodes.OrderBy(n => n.NodeType != "Folder").ThenBy(n => n.Size),
+                ("Size", false) => _nodes.OrderBy(n => n.NodeType != "Folder").ThenByDescending(n => n.Size),
+                ("Date", true)  => _nodes.OrderBy(n => n.NodeType != "Folder").ThenBy(n => n.UpdatedAt),
+                ("Date", false) => _nodes.OrderBy(n => n.NodeType != "Folder").ThenByDescending(n => n.UpdatedAt),
+                ("Type", true)  => _nodes.OrderBy(n => n.NodeType != "Folder").ThenBy(n => n.MimeType),
+                _               => _nodes.OrderBy(n => n.NodeType != "Folder").ThenByDescending(n => n.MimeType),
+            };
+            return [.. ordered];
+        }
+    }
     protected IReadOnlyList<BreadcrumbItem> Breadcrumbs => _breadcrumbs;
     protected int SelectedCount => _selectedNodes.Count;
     protected Guid? CurrentFolderId => _currentFolderId;
@@ -175,6 +197,26 @@ public partial class FileBrowser : ComponentBase
         _showDocumentEditor = false;
         _editorNode = null;
     }
+
+    /// <summary>Sets the active sort column; toggles direction when already active.</summary>
+    protected void SetSort(string column)
+    {
+        if (_sortColumn == column)
+            _sortAscending = !_sortAscending;
+        else
+        {
+            _sortColumn = column;
+            _sortAscending = column != "Date";
+        }
+    }
+
+    /// <summary>Returns the CSS class for a list-view sort header (active/inactive).</summary>
+    protected string SortHeaderClass(string column) =>
+        _sortColumn == column ? "sort-header--active" : string.Empty;
+
+    /// <summary>Returns the sort direction indicator (▲/▼) for a column header.</summary>
+    protected string SortIndicator(string column) =>
+        _sortColumn != column ? string.Empty : _sortAscending ? "▲" : "▼";
 
     protected void ToggleViewMode()
     {

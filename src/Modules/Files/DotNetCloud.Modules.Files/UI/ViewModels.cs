@@ -133,3 +133,110 @@ public enum UploadStatus
     /// <summary>Upload failed.</summary>
     Failed
 }
+
+/// <summary>
+/// View model for a single file version in the version history panel.
+/// </summary>
+public sealed class FileVersionViewModel
+{
+    /// <summary>Unique version identifier.</summary>
+    public Guid Id { get; init; }
+
+    /// <summary>Sequential version number (1 = first version).</summary>
+    public int VersionNumber { get; init; }
+
+    /// <summary>Optional user-defined label for this version.</summary>
+    public string? Label { get; set; }
+
+    /// <summary>When this version was created.</summary>
+    public DateTime CreatedAt { get; init; }
+
+    /// <summary>Display name of the author who created this version.</summary>
+    public string AuthorName { get; init; } = string.Empty;
+
+    /// <summary>Size of this version in bytes.</summary>
+    public long SizeBytes { get; init; }
+
+    /// <summary>Whether this is the current active version.</summary>
+    public bool IsCurrent { get; init; }
+}
+
+/// <summary>
+/// Navigation sections available in the file browser sidebar.
+/// </summary>
+public enum FileSidebarSection
+{
+    /// <summary>Root file listing for the current user.</summary>
+    AllFiles,
+
+    /// <summary>Favorited files and folders.</summary>
+    Favorites,
+
+    /// <summary>Recently accessed files.</summary>
+    Recent,
+
+    /// <summary>Files shared with the current user.</summary>
+    SharedWithMe,
+
+    /// <summary>Files shared by the current user.</summary>
+    SharedByMe,
+
+    /// <summary>Files grouped by tag.</summary>
+    Tags,
+
+    /// <summary>Trash bin.</summary>
+    Trash
+}
+
+/// <summary>
+/// View model for a file tag shown in the sidebar tag list.
+/// </summary>
+public sealed class FileTagViewModel
+{
+    /// <summary>Unique tag identifier.</summary>
+    public Guid Id { get; init; }
+
+    /// <summary>Tag display name.</summary>
+    public string Name { get; init; } = string.Empty;
+
+    /// <summary>Optional CSS-compatible colour string (e.g. "#e74c3c").</summary>
+    public string? Color { get; init; }
+
+    /// <summary>Number of files carrying this tag.</summary>
+    public int FileCount { get; init; }
+}
+
+/// <summary>
+/// View model for the Files module admin settings page.
+/// </summary>
+public sealed class AdminSettingsViewModel
+{
+    /// <summary>Default storage quota for new users in gigabytes (0 = unlimited).</summary>
+    public double DefaultQuotaGb { get; set; } = 10.0;
+
+    /// <summary>Number of days before trashed files are permanently deleted.</summary>
+    public int TrashRetentionDays { get; set; } = 30;
+
+    /// <summary>Maximum number of versions to keep per file (0 = unlimited).</summary>
+    public int MaxVersionsPerFile { get; set; } = 50;
+
+    /// <summary>Number of days to retain old versions (0 = unlimited).</summary>
+    public int VersionRetentionDays { get; set; } = 365;
+
+    /// <summary>Maximum file upload size in megabytes.</summary>
+    public int MaxUploadMb { get; set; } = 100;
+
+    /// <summary>
+    /// Comma-separated list of allowed file extensions (e.g. "pdf,docx,png").
+    /// Empty means all extensions are allowed.
+    /// </summary>
+    public string AllowedExtensions { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Comma-separated list of blocked file extensions (e.g. "exe,bat,sh").
+    /// </summary>
+    public string BlockedExtensions { get; set; } = string.Empty;
+
+    /// <summary>Absolute path to the storage root directory on the server.</summary>
+    public string StoragePath { get; set; } = string.Empty;
+}

@@ -1,0 +1,130 @@
+@namespace DotNetCloud.Modules.Files.UI
+
+@*
+    Files module admin settings page.
+    Allows administrators to configure storage quotas, retention policies,
+    upload limits, allowed/blocked extensions, and the storage root path.
+    Code-behind: FilesAdminSettings.razor.cs
+*@
+
+<div class="admin-settings-page">
+    <div class="page-header">
+        <h1>Files — Admin Settings</h1>
+    </div>
+
+    @if (IsSaved)
+    {
+        <div class="alert alert-success" role="alert">
+            Settings saved successfully.
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(ErrorMessage))
+    {
+        <div class="alert alert-danger" role="alert">
+            @ErrorMessage
+        </div>
+    }
+
+    <form @onsubmit="SaveSettings" @onsubmit:preventDefault>
+        <section class="settings-section">
+            <h2 class="settings-section-title">Storage Quotas</h2>
+
+            <div class="form-group">
+                <label for="defaultQuotaGb" class="form-label">Default quota for new users (GB)</label>
+                <p class="form-hint">Set to 0 for unlimited storage.</p>
+                <input id="defaultQuotaGb" type="number" class="form-control"
+                       min="0" step="0.5"
+                       @bind="Settings.DefaultQuotaGb" />
+            </div>
+
+            <div class="form-group">
+                <label for="maxUploadMb" class="form-label">Maximum upload size (MB)</label>
+                <input id="maxUploadMb" type="number" class="form-control"
+                       min="1" step="1"
+                       @bind="Settings.MaxUploadMb" />
+            </div>
+        </section>
+
+        <section class="settings-section">
+            <h2 class="settings-section-title">Trash Retention</h2>
+
+            <div class="form-group">
+                <label for="trashRetentionDays" class="form-label">Retain deleted files for (days)</label>
+                <p class="form-hint">Files in Trash are permanently deleted after this period.</p>
+                <input id="trashRetentionDays" type="number" class="form-control"
+                       min="1" max="365"
+                       @bind="Settings.TrashRetentionDays" />
+            </div>
+        </section>
+
+        <section class="settings-section">
+            <h2 class="settings-section-title">Version Retention</h2>
+
+            <div class="form-group">
+                <label for="maxVersionsPerFile" class="form-label">Maximum versions per file</label>
+                <p class="form-hint">Set to 0 for unlimited versions. Oldest versions are deleted first when the limit is reached.</p>
+                <input id="maxVersionsPerFile" type="number" class="form-control"
+                       min="0" max="1000"
+                       @bind="Settings.MaxVersionsPerFile" />
+            </div>
+
+            <div class="form-group">
+                <label for="versionRetentionDays" class="form-label">Retain old versions for (days)</label>
+                <p class="form-hint">Set to 0 to keep versions indefinitely.</p>
+                <input id="versionRetentionDays" type="number" class="form-control"
+                       min="0" max="3650"
+                       @bind="Settings.VersionRetentionDays" />
+            </div>
+        </section>
+
+        <section class="settings-section">
+            <h2 class="settings-section-title">Allowed File Types</h2>
+
+            <div class="form-group">
+                <label for="allowedExtensions" class="form-label">Allowed extensions</label>
+                <p class="form-hint">
+                    Comma-separated list of permitted file extensions (e.g. <code>pdf,docx,png</code>).
+                    Leave empty to allow all types (subject to the blocked list below).
+                </p>
+                <input id="allowedExtensions" type="text" class="form-control"
+                       placeholder="Leave empty to allow all"
+                       @bind="Settings.AllowedExtensions" />
+            </div>
+
+            <div class="form-group">
+                <label for="blockedExtensions" class="form-label">Blocked extensions</label>
+                <p class="form-hint">
+                    Comma-separated list of forbidden file extensions (e.g. <code>exe,bat,sh</code>).
+                </p>
+                <input id="blockedExtensions" type="text" class="form-control"
+                       placeholder="e.g. exe,bat,sh"
+                       @bind="Settings.BlockedExtensions" />
+            </div>
+        </section>
+
+        <section class="settings-section">
+            <h2 class="settings-section-title">Storage Path</h2>
+
+            <div class="form-group">
+                <label for="storagePath" class="form-label">Storage root directory</label>
+                <p class="form-hint">
+                    Absolute path to the directory where uploaded files are stored.
+                    The server process must have read/write access to this path.
+                </p>
+                <input id="storagePath" type="text" class="form-control"
+                       placeholder="/var/dotnetcloud/files"
+                       @bind="Settings.StoragePath" />
+            </div>
+        </section>
+
+        <div class="settings-footer">
+            <button type="submit" class="btn btn-primary" disabled="@IsSaving">
+                @(IsSaving ? "Saving…" : "Save Settings")
+            </button>
+            <button type="button" class="btn" @onclick="ResetToDefaults">
+                Reset to Defaults
+            </button>
+        </div>
+    </form>
+</div>

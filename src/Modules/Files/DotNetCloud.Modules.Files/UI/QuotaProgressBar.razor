@@ -1,0 +1,21 @@
+@namespace DotNetCloud.Modules.Files.UI
+
+@*
+    Quota progress bar component - Displays storage usage as a colour-coded bar.
+    Code-behind: QuotaProgressBar.razor.cs
+*@
+
+@if (Quota is not null)
+{
+    <div class="quota-display">
+        <div class="quota-bar" role="progressbar"
+             aria-valuenow="@((int)Math.Min(100.0, Quota.UsagePercent))"
+             aria-valuemin="0" aria-valuemax="100"
+             aria-label="Storage usage">
+            <div class="quota-bar-fill @BarCssClass" style="@BarWidthStyle"></div>
+        </div>
+        <span class="quota-label @(Quota.IsExceeded ? "quota-exceeded" : Quota.IsCritical ? "quota-critical" : Quota.IsWarning ? "quota-warning" : "")">
+            @QuotaLabel
+        </span>
+    </div>
+}

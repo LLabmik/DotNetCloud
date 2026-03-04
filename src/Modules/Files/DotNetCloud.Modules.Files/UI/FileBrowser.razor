@@ -65,21 +65,58 @@
 
     @if (IsLoading)
     {
-        <div class="loading-state">
-            <p>Loading files...</p>
+        <div class="loading-state" aria-live="polite">
+            <div class="loading-skeleton">
+                @for (var i = 0; i < 8; i++)
+                {
+                    <div class="skeleton-row">
+                        <div class="skeleton-icon"></div>
+                        <div class="skeleton-name"></div>
+                        <div class="skeleton-meta"></div>
+                    </div>
+                }
+            </div>
         </div>
     }
     else if (Nodes.Count == 0)
     {
-        <div class="empty-state">
-            <p>This folder is empty</p>
-            <p class="text-muted">Upload files or create a folder to get started.</p>
+        <div class="empty-state" role="status">
+            <p class="empty-state-title">No files yet — upload or create a folder</p>
+            <div class="empty-state-actions">
+                <button class="btn btn-primary btn-sm" @onclick="ShowCreateFolderDialog">New Folder</button>
+                <button class="btn btn-primary btn-sm" @onclick="ShowUploadDialog">Upload</button>
+            </div>
         </div>
     }
     else
     {
+        @if (_viewMode == ViewMode.List)
+        {
+            <div class="files-list-header">
+                <div class="col-check"></div>
+                <div class="col-icon"></div>
+                <button class="col-name sort-header @SortHeaderClass("Name")"
+                        @onclick='() => SetSort("Name")'>
+                    Name @SortIndicator("Name")
+                </button>
+                <button class="col-type sort-header @SortHeaderClass("Type")"
+                        @onclick='() => SetSort("Type")'>
+                    Type @SortIndicator("Type")
+                </button>
+                <button class="col-size sort-header @SortHeaderClass("Size")"
+                        @onclick='() => SetSort("Size")'>
+                    Size @SortIndicator("Size")
+                </button>
+                <button class="col-date sort-header @SortHeaderClass("Date")"
+                        @onclick='() => SetSort("Date")'>
+                    Modified @SortIndicator("Date")
+                </button>
+                <div class="col-actions"></div>
+            </div>
+        }
+
         <div class="@GetFilesContainerClass()">
-            @foreach (var node in Nodes)
+            @foreach (var node in SortedNodes)
             {
                 <div class="file-item @(IsSelected(node.Id) ? "selected" : "")"
                      @onclick="() => HandleNodeClick(node)"

@@ -1929,43 +1929,43 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Folder navigation (click to enter, back button)
   - ✓ Multi-select (checkbox per item)
   - ✓ Pagination (page controls, configurable page size)
-  - ☐ Sort by name, size, date, type (column header click)
-  - ☐ Right-click context menu (rename, move, copy, share, delete, download)
-  - ☐ Drag-and-drop file reordering / move to folder
-  - ☐ Empty state placeholder ("No files yet — upload or create a folder")
-  - ☐ Loading skeleton while fetching data
+  - ✓ Sort by name, size, date, type (column header click)
+  - ☐ Right-click context menu (rename, move, copy, share, delete, download) — deferred: requires JS interop to position floating menu
+  - ☐ Drag-and-drop file reordering / move to folder — deferred: requires JS dragstart/dragover/drop interop + move API call
+  - ✓ Empty state placeholder ("No files yet — upload or create a folder")
+  - ✓ Loading skeleton while fetching data
 
 #### File Upload Component
 - ✓ Create `FileUploadComponent.razor`:
   - ✓ File selection button
-  - ☐ Drag-and-drop upload area
-  - ☐ Upload progress bar per file
-  - ☐ Multiple file upload support
-  - ☐ Upload queue management (pause, resume, cancel)
-  - ☐ Paste image upload (clipboard integration)
-  - ☐ Size validation before upload
+  - ✓ Drag-and-drop upload area
+  - ✓ Upload progress bar per file
+  - ✓ Multiple file upload support
+  - ☐ Upload queue management (pause, resume, cancel) — deferred: requires chunk-level cancellation tokens + JS interop to abort in-flight requests
+  - ☐ Paste image upload (clipboard integration) — deferred: requires JS interop for window paste event
+  - ☐ Size validation before upload — deferred: max upload size not yet exposed from config to UI layer
 
 #### File Preview Component
 - ✓ Create `FilePreview.razor`:
-  - ☐ Image preview (inline display for common formats)
-  - ☐ Video preview (HTML5 video player)
-  - ☐ Audio preview (HTML5 audio player)
-  - ☐ PDF preview (embedded viewer)
-  - ☐ Text/code preview (syntax highlighting)
-  - ☐ Markdown preview (rendered HTML)
-  - ☐ Unsupported format fallback (download button)
-  - ☐ Navigation between files in same folder (prev/next)
+  - ☐ Image preview (inline display for common formats) — deferred to Phase 1.12
+  - ☐ Video preview (HTML5 video player) — deferred to Phase 1.12
+  - ☐ Audio preview (HTML5 audio player) — deferred to Phase 1.12
+  - ☐ PDF preview (embedded viewer) — deferred to Phase 1.12
+  - ☐ Text/code preview (syntax highlighting) — deferred to Phase 1.12
+  - ☐ Markdown preview (rendered HTML) — deferred to Phase 1.12
+  - ☐ Unsupported format fallback (download button) — deferred to Phase 1.12
+  - ☐ Navigation between files in same folder (prev/next) — deferred to Phase 1.12
 
 #### Share Dialog Component
 - ✓ Create `ShareDialog.razor`:
   - ✓ User search for sharing
   - ✓ Permission selection (Read, ReadWrite, Full)
   - ✓ Public link generation
-  - ☐ Password protection toggle for public links
-  - ☐ Expiration date picker
-  - ☐ Max downloads input
-  - ☐ Copy link button
-  - ☐ Existing shares list with remove action
+  - ✓ Password protection toggle for public links
+  - ✓ Expiration date picker
+  - ✓ Max downloads input
+  - ✓ Copy link button
+  - ☐ Existing shares list with remove action — deferred: requires GET /api/v1/files/{id}/shares API client wiring
 
 #### Trash Bin Component
 - ✓ Create `TrashBin.razor`:
@@ -1973,37 +1973,37 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Restore button per item
   - ✓ Permanent delete button per item
   - ✓ Empty trash button
-  - ☐ Trash size display
-  - ☐ Sort by name, date deleted, size
-  - ☐ Bulk restore / bulk delete
+  - ✓ Trash size display
+  - ✓ Sort by name, date deleted, size
+  - ✓ Bulk restore / bulk delete
 
 #### Sidebar & Navigation
-- ☐ Create file browser sidebar:
-  - ☐ "All Files" navigation item
-  - ☐ "Favorites" navigation item
-  - ☐ "Recent" navigation item
-  - ☐ "Shared with me" navigation item
-  - ☐ "Shared by me" navigation item
-  - ☐ "Tags" navigation item (expandable tag list)
-  - ☐ "Trash" navigation item with item count badge
-  - ☐ Storage quota display (progress bar + text)
+- ✓ Create file browser sidebar (`FileSidebar.razor`):
+  - ✓ "All Files" navigation item
+  - ✓ "Favorites" navigation item
+  - ✓ "Recent" navigation item
+  - ✓ "Shared with me" navigation item
+  - ✓ "Shared by me" navigation item
+  - ✓ "Tags" navigation item (expandable tag list)
+  - ✓ "Trash" navigation item with item count badge
+  - ✓ Storage quota display (progress bar + text)
 
 #### Version History Panel
-- ☐ Create version history side panel:
-  - ☐ List versions with date, author, and size
-  - ☐ Download specific version
-  - ☐ Restore to specific version
-  - ☐ Add/edit version labels
-  - ☐ Delete old versions
+- ✓ Create version history side panel (`VersionHistoryPanel.razor`):
+  - ✓ List versions with date, author, and size
+  - ✓ Download specific version
+  - ✓ Restore to specific version
+  - ✓ Add/edit version labels
+  - ✓ Delete old versions
 
 #### Settings & Admin UI
-- ☐ Create Files module settings page:
-  - ☐ Default quota for new users
-  - ☐ Trash retention period
-  - ☐ Version retention settings
-  - ☐ Maximum upload size
-  - ☐ Allowed/blocked file types
-  - ☐ Storage path configuration
+- ✓ Create Files module settings page (`FilesAdminSettings.razor`):
+  - ✓ Default quota for new users
+  - ✓ Trash retention period
+  - ✓ Version retention settings
+  - ✓ Maximum upload size
+  - ✓ Allowed/blocked file types
+  - ✓ Storage path configuration
 
 ---
 
