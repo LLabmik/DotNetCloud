@@ -49,7 +49,7 @@
 | Phase 1.11 | 8 | 8 | 0 | 0 |
 | Phase 1.12 | 17 | 12 | 0 | 5 |
 | Phase 1.13 | 4 | 4 | 0 | 0 |
-| Phase 1.14 | 32 | 0 | 0 | 32 |
+| Phase 1.14 | 32 | 32 | 0 | 0 |
 | Phase 1.15 | 25 | 0 | 0 | 25 |
 | Phase 1.16 | 20 | 0 | 0 | 20 |
 | Phase 1.17 | 25 | 0 | 0 | 25 |
@@ -2852,6 +2852,106 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Dependencies:** phase-1.12 (UI components), phase-1.6 (sharing services)
 **Blocking Issues:** None
 **Notes:** Phase 1.13 complete. All 4 step groups implemented: comprehensive share dialog, shared-with-me view, shared-by-me view, and expanded admin settings. Build: zero errors, zero warnings. No new tests required (UI-only components). Components follow established patterns: EventCallback parameters, protected property accessors, code-behind partial classes.
+
+---
+
+### Step: phase-1.14 - Client.Core — Shared Sync Engine
+**Status:** completed ✅
+**Duration:** ~1 session
+**Description:** Created `DotNetCloud.Client.Core` shared client library with full sync engine, API client, OAuth2 PKCE auth, chunked transfer, conflict resolution, SQLite local state database, and selective sync configuration.
+
+**Deliverables:**
+- ✓ `DotNetCloud.Client.Core` class library project created; added to `DotNetCloud.sln`
+- ✓ `DotNetCloud.Client.Core.Tests` test project created; added to `DotNetCloud.sln`
+- ✓ **API Client** — `IDotNetCloudApiClient` interface + `DotNetCloudApiClient` implementation
+  - ✓ Authentication (exchange code, refresh token, revoke token)
+  - ✓ File operations (list, get, create folder, rename, move, copy, delete)
+  - ✓ Upload operations (initiate, upload chunk, complete)
+  - ✓ Download operations (file, version, chunk by hash, chunk manifest)
+  - ✓ Sync operations (changes since, folder tree, reconcile)
+  - ✓ Quota operations (get quota)
+  - ✓ Retry with exponential backoff (3 retries, 500ms base delay)
+  - ✓ Rate limiting — 429 handling with Retry-After header respect
+- ✓ **OAuth2 PKCE Authentication** — `IOAuth2Service` + `OAuth2Service`
+  - ✓ Authorization Code + PKCE flow (code verifier/challenge generation)
+  - ✓ System browser launch for authorization
+  - ✓ Localhost callback listener (HttpListener on port 52701, 5-minute timeout)
+  - ✓ Authorization code exchange for tokens
+  - ✓ Automatic token refresh
+  - ✓ Token revocation (access + refresh)
+- ✓ **Secure Token Storage** — `ITokenStore` + `EncryptedFileTokenStore`
+  - ✓ AES-GCM encryption with machine-derived key (cross-platform)
+  - ✓ Per-account key files (SHA-256 keyed filename)
+  - ✓ Save, load, delete operations
+- ✓ **Sync Engine** — `ISyncEngine` + `SyncEngine`
+  - ✓ `FileSystemWatcher` for instant change detection
+  - ✓ Periodic full scan (configurable interval, default 5 minutes)
+  - ✓ Remote change application (download, handle deletions)
+  - ✓ Local change application (upload pending operations)
+  - ✓ Conflict detection (local and remote both modified since last sync)
+  - ✓ Pause/resume support
+  - ✓ `StatusChanged` event for UI/tray notification
+  - ✓ `SyncContext`, `SyncStatus`, `SyncState` model classes
+- ✓ **Chunked Transfer Client** — `IChunkedTransferClient` + `ChunkedTransferClient`
+  - ✓ 4 MB chunk size
+  - ✓ SHA-256 hash per chunk
+  - ✓ Chunk manifest generation (upload deduplication — skip chunks server already has)
+  - ✓ Delta sync on download (per-chunk download by hash)
+  - ✓ Configurable concurrent chunk count (default 4)
+  - ✓ `TransferProgress` model for upload/download progress reporting
+- ✓ **Conflict Resolution** — `IConflictResolver` + `ConflictResolver`
+  - ✓ Conflict copy creation: `report (conflict - Ben - 2025-07-14).docx` pattern
+  - ✓ Auto-increment on duplicate conflict copies
+  - ✓ `ConflictDetected` event for user notification
+  - ✓ No silent data loss (both versions preserved)
+- ✓ **Local State Database** — `ILocalStateDb` + `LocalStateDb` (EF Core SQLite)
+  - ✓ `LocalFileRecord` table (path, node ID, hash, sync timestamps)
+  - ✓ `PendingOperationDbRow` table (upload/download queue)
+  - ✓ `SyncCheckpointRow` table (last sync timestamp)
+  - ✓ Upsert, remove, get-by-path, get-by-node-id operations
+  - ✓ Pending operation queue with upload/download counts
+- ✓ **Selective Sync** — `ISelectiveSyncConfig` + `SelectiveSyncConfig`
+  - ✓ Folder include/exclude rules per context
+  - ✓ Longest-match wins (most specific rule takes precedence)
+  - ✓ Per-context isolation
+  - ✓ JSON persistence (save/load)
+- ✓ `ClientCoreServiceExtensions.AddDotNetCloudClientCore()` DI registration
+- ✓ 53 unit tests: API client (6), token info (4), token store (4), sync engine (8), chunked transfer (3), conflict resolver (6), local state DB (11), selective sync (11) — all passing
+
+**File Locations:**
+- `src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj`
+- `src/Clients/DotNetCloud.Client.Core/ClientCoreServiceExtensions.cs`
+- `src/Clients/DotNetCloud.Client.Core/Api/IDotNetCloudApiClient.cs`
+- `src/Clients/DotNetCloud.Client.Core/Api/DotNetCloudApiClient.cs`
+- `src/Clients/DotNetCloud.Client.Core/Api/ApiModels.cs`
+- `src/Clients/DotNetCloud.Client.Core/Auth/IOAuth2Service.cs`
+- `src/Clients/DotNetCloud.Client.Core/Auth/OAuth2Service.cs`
+- `src/Clients/DotNetCloud.Client.Core/Auth/ITokenStore.cs`
+- `src/Clients/DotNetCloud.Client.Core/Auth/EncryptedFileTokenStore.cs`
+- `src/Clients/DotNetCloud.Client.Core/Auth/TokenInfo.cs`
+- `src/Clients/DotNetCloud.Client.Core/Sync/ISyncEngine.cs`
+- `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs`
+- `src/Clients/DotNetCloud.Client.Core/Sync/SyncContext.cs`
+- `src/Clients/DotNetCloud.Client.Core/Sync/SyncStatus.cs`
+- `src/Clients/DotNetCloud.Client.Core/Sync/SyncState.cs`
+- `src/Clients/DotNetCloud.Client.Core/Transfer/IChunkedTransferClient.cs`
+- `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs`
+- `src/Clients/DotNetCloud.Client.Core/Transfer/TransferProgress.cs`
+- `src/Clients/DotNetCloud.Client.Core/Conflict/IConflictResolver.cs`
+- `src/Clients/DotNetCloud.Client.Core/Conflict/ConflictResolver.cs`
+- `src/Clients/DotNetCloud.Client.Core/Conflict/ConflictInfo.cs`
+- `src/Clients/DotNetCloud.Client.Core/LocalState/ILocalStateDb.cs`
+- `src/Clients/DotNetCloud.Client.Core/LocalState/LocalStateDb.cs`
+- `src/Clients/DotNetCloud.Client.Core/LocalState/LocalStateDbContext.cs`
+- `src/Clients/DotNetCloud.Client.Core/LocalState/Entities/LocalFileRecord.cs`
+- `src/Clients/DotNetCloud.Client.Core/LocalState/Entities/PendingOperationRecord.cs`
+- `src/Clients/DotNetCloud.Client.Core/SelectiveSync/ISelectiveSyncConfig.cs`
+- `src/Clients/DotNetCloud.Client.Core/SelectiveSync/SelectiveSyncConfig.cs`
+- `tests/DotNetCloud.Client.Core.Tests/` (7 test files, 53 tests)
+
+**Dependencies:** phase-1.4 (chunked upload API), phase-1.5 (chunk download API), phase-1.9 (sync endpoints)
+**Blocking Issues:** None
+**Notes:** Phase 1.14 complete. All 32 checklist items implemented. `DotNetCloud.Client.Core` is a pure .NET library (no ASP.NET Core dependency) suitable for use in both the Avalonia desktop client and the MAUI mobile client. Token storage uses AES-GCM cross-platform encryption (Windows DPAPI can be layered on top by callers if desired). 53 tests pass; full solution builds 0 errors.
 
 ---
 

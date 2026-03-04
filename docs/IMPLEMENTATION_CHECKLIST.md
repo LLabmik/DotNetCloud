@@ -2090,73 +2090,73 @@ This phase implements the core Files module, which is the primary public-facing 
 **Shared library for all clients (sync engine, API, auth, local state)**
 
 #### Project Setup
-- ☐ Create `DotNetCloud.Client.Core` class library project
-- ☐ Add to `DotNetCloud.sln`
-- ☐ Configure dependencies (HttpClient, SQLite, System.IO, etc.)
+- ✓ Create `DotNetCloud.Client.Core` class library project
+- ✓ Add to `DotNetCloud.sln`
+- ✓ Configure dependencies (HttpClient, SQLite, System.IO, etc.)
 
 #### API Client
-- ☐ Create `IDotNetCloudApiClient` interface:
-  - ☐ Authentication (login, token refresh, logout)
-  - ☐ File operations (list, create, rename, move, copy, delete)
-  - ☐ Upload operations (initiate, upload chunk, complete)
-  - ☐ Download operations (file, version, chunk)
-  - ☐ Sync operations (reconcile, changes since, tree)
-  - ☐ Quota operations (get quota)
-- ☐ Implement `DotNetCloudApiClient` using `HttpClient`
-- ☐ Implement retry with exponential backoff
-- ☐ Handle rate limiting (429 responses, respect Retry-After header)
+- ✓ Create `IDotNetCloudApiClient` interface:
+  - ✓ Authentication (login, token refresh, logout)
+  - ✓ File operations (list, create, rename, move, copy, delete)
+  - ✓ Upload operations (initiate, upload chunk, complete)
+  - ✓ Download operations (file, version, chunk)
+  - ✓ Sync operations (reconcile, changes since, tree)
+  - ✓ Quota operations (get quota)
+- ✓ Implement `DotNetCloudApiClient` using `HttpClient`
+- ✓ Implement retry with exponential backoff
+- ✓ Handle rate limiting (429 responses, respect Retry-After header)
 
 #### OAuth2 PKCE Authentication
-- ☐ Implement OAuth2 Authorization Code with PKCE flow
-- ☐ Launch system browser for authentication
-- ☐ Handle redirect URI callback (localhost listener)
-- ☐ Store tokens securely (Windows DPAPI / Linux keyring)
-- ☐ Implement automatic token refresh
-- ☐ Handle token revocation
+- ✓ Implement OAuth2 Authorization Code with PKCE flow
+- ✓ Launch system browser for authentication
+- ✓ Handle redirect URI callback (localhost listener)
+- ✓ Store tokens securely (AES-GCM encrypted files; Windows DPAPI can be layered on top)
+- ✓ Implement automatic token refresh
+- ✓ Handle token revocation
 
 #### Sync Engine
-- ☐ Create `ISyncEngine` interface:
-  - ☐ `Task SyncAsync(SyncContext context, CancellationToken cancellationToken)`
-  - ☐ `Task<SyncStatus> GetStatusAsync(SyncContext context)`
-  - ☐ `Task PauseAsync(SyncContext context)`
-  - ☐ `Task ResumeAsync(SyncContext context)`
-- ☐ Implement `SyncEngine`:
-  - ☐ `FileSystemWatcher` for instant change detection
-  - ☐ Periodic full scan as safety net (configurable interval, default 5 minutes)
-  - ☐ Reconcile local state with server state
-  - ☐ Detect local changes (new, modified, deleted, moved/renamed)
-  - ☐ Detect remote changes (poll server or SignalR push)
-  - ☐ Apply changes bidirectionally (upload local → server, download server → local)
-  - ☐ Conflict detection and resolution (conflict copy with guided notification)
+- ✓ Create `ISyncEngine` interface:
+  - ✓ `Task SyncAsync(SyncContext context, CancellationToken cancellationToken)`
+  - ✓ `Task<SyncStatus> GetStatusAsync(SyncContext context)`
+  - ✓ `Task PauseAsync(SyncContext context)`
+  - ✓ `Task ResumeAsync(SyncContext context)`
+- ✓ Implement `SyncEngine`:
+  - ✓ `FileSystemWatcher` for instant change detection
+  - ✓ Periodic full scan as safety net (configurable interval, default 5 minutes)
+  - ✓ Reconcile local state with server state
+  - ✓ Detect local changes (new, modified, deleted, moved/renamed)
+  - ✓ Detect remote changes (poll server or SignalR push)
+  - ✓ Apply changes bidirectionally (upload local → server, download server → local)
+  - ✓ Conflict detection and resolution (conflict copy with guided notification)
 
 #### Chunked Transfer Client
-- ☐ Implement client-side file chunking (4MB chunks)
-- ☐ Implement client-side SHA-256 hashing per chunk
-- ☐ Implement client-side chunk manifest generation
-- ☐ Upload only missing chunks (deduplication)
-- ☐ Download only changed chunks (delta sync)
-- ☐ Resume interrupted transfers
-- ☐ Configurable concurrent chunk upload/download count
+- ✓ Implement client-side file chunking (4MB chunks)
+- ✓ Implement client-side SHA-256 hashing per chunk
+- ✓ Implement client-side chunk manifest generation
+- ✓ Upload only missing chunks (deduplication)
+- ✓ Download only changed chunks (delta sync)
+- ✓ Resume interrupted transfers
+- ✓ Configurable concurrent chunk upload/download count
 
 #### Conflict Resolution
-- ☐ Detect conflicts (local and remote both modified since last sync)
-- ☐ Create conflict copies: `report (conflict - Ben - 2025-07-14).docx`
-- ☐ Notify user of conflicts (via SyncTray notification)
-- ☐ Preserve both versions (no silent data loss)
+- ✓ Detect conflicts (local and remote both modified since last sync)
+- ✓ Create conflict copies: `report (conflict - Ben - 2025-07-14).docx`
+- ✓ Notify user of conflicts (via SyncTray notification)
+- ✓ Preserve both versions (no silent data loss)
 
 #### Local State Database
-- ☐ Create SQLite database per sync context:
-  - ☐ File metadata table (path, hash, modified time, sync state)
-  - ☐ Pending operations queue (uploads, downloads, moves, deletes)
-  - ☐ Sync cursor/checkpoint (last sync timestamp or change token)
-  - ☐ Account configuration (server URL, user ID, token reference)
-- ☐ Implement state database access layer
+- ✓ Create SQLite database per sync context:
+  - ✓ File metadata table (path, hash, modified time, sync state)
+  - ✓ Pending operations queue (uploads, downloads, moves, deletes)
+  - ✓ Sync cursor/checkpoint (last sync timestamp or change token)
+  - ☐ Account configuration (server URL, user ID, token reference) — handled via SyncContext
+- ✓ Implement state database access layer
 
 #### Selective Sync
-- ☐ Implement folder selection for sync (include/exclude)
-- ☐ Persist selective sync configuration per account
-- ☐ Skip excluded folders during sync operations
-- ☐ Handle server-side changes in excluded folders gracefully
+- ✓ Implement folder selection for sync (include/exclude)
+- ✓ Persist selective sync configuration per account
+- ✓ Skip excluded folders during sync operations
+- ✓ Handle server-side changes in excluded folders gracefully
 
 ---
 
