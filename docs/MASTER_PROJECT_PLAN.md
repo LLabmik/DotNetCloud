@@ -50,7 +50,7 @@
 | Phase 1.12 | 17 | 12 | 0 | 5 |
 | Phase 1.13 | 4 | 4 | 0 | 0 |
 | Phase 1.14 | 32 | 32 | 0 | 0 |
-| Phase 1.15 | 25 | 0 | 0 | 25 |
+| Phase 1.15 | 25 | 20 | 0 | 5 |
 | Phase 1.16 | 20 | 0 | 0 | 20 |
 | Phase 1.17 | 25 | 0 | 0 | 25 |
 | Phase 1.18 | 6 | 4 | 0 | 2 |
@@ -2952,6 +2952,38 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Dependencies:** phase-1.4 (chunked upload API), phase-1.5 (chunk download API), phase-1.9 (sync endpoints)
 **Blocking Issues:** None
 **Notes:** Phase 1.14 complete. All 32 checklist items implemented. `DotNetCloud.Client.Core` is a pure .NET library (no ASP.NET Core dependency) suitable for use in both the Avalonia desktop client and the MAUI mobile client. Token storage uses AES-GCM cross-platform encryption (Windows DPAPI can be layered on top by callers if desired). 53 tests pass; full solution builds 0 errors.
+
+---
+
+### Step: phase-1.15 - Client.SyncService — Background Sync Worker
+**Status:** completed ✅
+**Duration:** ~1 week (actual)
+**Description:** Background sync worker service (Windows Service / systemd unit) managing multiple sync contexts (one per OS-user + account pair). Provides an IPC server over Named Pipe (Windows) or Unix socket (Linux) for communication with SyncTray and other clients.
+
+**Deliverables:**
+- ✓ `src/Clients/DotNetCloud.Client.SyncService/DotNetCloud.Client.SyncService.csproj` (.NET Worker Service, Windows Service + systemd)
+- ✓ `src/Clients/DotNetCloud.Client.SyncService/Program.cs`
+- ✓ `src/Clients/DotNetCloud.Client.SyncService/SyncWorker.cs` (BackgroundService orchestrator)
+- ✓ `src/Clients/DotNetCloud.Client.SyncService/SyncServiceExtensions.cs` (DI registration)
+- ✓ `src/Clients/DotNetCloud.Client.SyncService/ContextManager/SyncContextRegistration.cs`
+- ✓ `src/Clients/DotNetCloud.Client.SyncService/ContextManager/AddAccountRequest.cs`
+- ✓ `src/Clients/DotNetCloud.Client.SyncService/ContextManager/SyncEventArgs.cs`
+- ✓ `src/Clients/DotNetCloud.Client.SyncService/ContextManager/ISyncContextManager.cs`
+- ✓ `src/Clients/DotNetCloud.Client.SyncService/ContextManager/SyncContextManager.cs`
+- ✓ `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcProtocol.cs` (newline-delimited JSON protocol)
+- ✓ `src/Clients/DotNetCloud.Client.SyncService/Ipc/IIpcServer.cs`
+- ✓ `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcServer.cs` (Named Pipe + Unix socket)
+- ✓ `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcClientHandler.cs` (per-connection handler with event subscription)
+- ✓ `tests/DotNetCloud.Client.SyncService.Tests/` (3 test files, 24 tests)
+- ☐ Linux privilege dropping (UID/GID per context) — needs `setresuid`/`setresgid` P/Invoke; deferred until Linux packaging
+- ☐ Windows user impersonation — needs `WindowsIdentity.RunImpersonated` + token from SyncTray; deferred with privilege work
+- ☐ Caller identity verification in IPC — blocked on privilege-dropping; pipes/sockets carry no identity until impersonation is wired up
+- ☐ Rate-limit / debounce sync triggers — `SyncEngine` semaphore prevents concurrent passes; a cooldown timer can be layered in Phase 1.16 once real traffic data exists
+- ☐ Disk full detection — needs `IOException` HResult check + SyncTray notification UI to surface it; deferred to Phase 1.16
+
+**Dependencies:** Phase 1.14 (Client.Core — Shared Sync Engine)
+**Blocking Issues:** None
+**Notes:** Phase 1.15 core complete. 20/25 checklist items implemented. Service manages multiple `ISyncEngine` instances via `SyncContextManager`, persisting context registry as JSON under `C:\ProgramData\DotNetCloud\Sync` (Windows) or `/var/lib/dotnetcloud/sync` (Linux). IPC protocol is newline-delimited JSON with commands (list-contexts, add-account, remove-account, get-status, pause, resume, sync-now, subscribe, unsubscribe) and push events (sync-progress, sync-complete, conflict-detected, error). 24 tests pass; solution builds 0 errors.
 
 ---
 

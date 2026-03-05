@@ -2167,47 +2167,47 @@ This phase implements the core Files module, which is the primary public-facing 
 **Background sync service (Windows Service / systemd unit)**
 
 #### Project Setup
-- ☐ Create `DotNetCloud.Client.SyncService` .NET Worker Service project
-- ☐ Add to `DotNetCloud.sln`
-- ☐ Configure Windows Service support (`UseWindowsService()`)
-- ☐ Configure systemd support (`UseSystemd()`)
+- ✓ Create `DotNetCloud.Client.SyncService` .NET Worker Service project
+- ✓ Add to `DotNetCloud.sln`
+- ✓ Configure Windows Service support (`AddWindowsService()`)
+- ✓ Configure systemd support (`AddSystemd()`)
 
 #### Multi-User Support
-- ☐ Implement sync context management (one per OS-user + account pair)
-- ☐ Run as system-level service (single process, multiple contexts)
-- ☐ Data isolation: each context has own sync folder, state DB, auth token
-- ☐ Linux: drop privileges per context (UID/GID of target OS user)
-- ☐ Windows: impersonate OS user for file system operations
+- ✓ Implement sync context management (one per OS-user + account pair)
+- ✓ Run as system-level service (single process, multiple contexts)
+- ✓ Data isolation: each context has own sync folder, state DB, auth token
+- ☐ Linux: drop privileges per context (UID/GID of target OS user) — requires `setresuid`/`setresgid` P/Invoke; deferred until the service is packaged for Linux deployment
+- ☐ Windows: impersonate OS user for file system operations — requires `WindowsIdentity.RunImpersonated`; deferred until SyncTray passes a user token via IPC
 
 #### IPC Server
-- ☐ Implement IPC server for SyncTray communication:
-  - ☐ Named Pipe on Windows
-  - ☐ Unix domain socket on Linux
-- ☐ IPC protocol:
-  - ☐ Identify caller by OS user identity
-  - ☐ Return only caller's sync contexts (no cross-user data)
-  - ☐ Commands: list-contexts, add-account, remove-account, get-status, pause, resume, sync-now
-  - ☐ Events: sync-progress, sync-complete, conflict-detected, error
+- ✓ Implement IPC server for SyncTray communication:
+  - ✓ Named Pipe on Windows
+  - ✓ Unix domain socket on Linux
+- ✓ IPC protocol:
+  - ☐ Identify caller by OS user identity — requires `PipeStream.GetImpersonationLevel` (Windows) or peer-credential socket option (Linux); deferred with privilege-dropping work above
+  - ☐ Return only caller's sync contexts (no cross-user data) — blocked on caller-identity check above
+  - ✓ Commands: list-contexts, add-account, remove-account, get-status, pause, resume, sync-now
+  - ✓ Events: sync-progress, sync-complete, conflict-detected, error
 
 #### Sync Orchestration
-- ☐ Start sync engine per context on service start
-- ☐ Schedule periodic full syncs
-- ☐ Handle file system watcher events
-- ☐ Rate-limit sync operations (avoid overwhelming server)
-- ☐ Batch small changes before syncing (debounce)
-- ☐ Graceful shutdown (complete in-progress transfers, save state)
+- ✓ Start sync engine per context on service start
+- ✓ Schedule periodic full syncs
+- ✓ Handle file system watcher events
+- ☐ Rate-limit sync operations (avoid overwhelming server) — `SyncEngine` already serialises passes with a semaphore; a token-bucket or per-context cooldown can be added in Phase 1.16 once real traffic patterns are known
+- ☐ Batch small changes before syncing (debounce) — FileSystemWatcher events fire immediately; a short delay + coalescing timer should be added to `SyncEngine` in Phase 1.16 to avoid chatty syncs during rapid saves
+- ✓ Graceful shutdown (complete in-progress transfers, save state)
 
 #### Account Management
-- ☐ Add account (receive OAuth2 tokens from SyncTray, create sync context)
-- ☐ Remove account (stop sync, delete state DB, optionally delete local files)
-- ☐ Support multiple accounts per OS user (e.g., personal + work server)
+- ✓ Add account (receive OAuth2 tokens from SyncTray, create sync context)
+- ✓ Remove account (stop sync, delete state DB, optionally delete local files)
+- ✓ Support multiple accounts per OS user (e.g., personal + work server)
 
 #### Error Handling & Recovery
-- ☐ Retry failed operations with exponential backoff
-- ☐ Handle network disconnection gracefully (queue changes, retry on reconnect)
-- ☐ Handle server errors (5xx — retry; 4xx — log and skip)
-- ☐ Handle disk full conditions (pause sync, notify user)
-- ☐ Log all sync activity with structured logging
+- ✓ Retry failed operations with exponential backoff
+- ✓ Handle network disconnection gracefully (queue changes, retry on reconnect)
+- ✓ Handle server errors (5xx — retry; 4xx — log and skip)
+- ☐ Handle disk full conditions (pause sync, notify user) — requires catching `IOException` with `HResult == 0x70` (ERROR_DISK_FULL) and surfacing it as a `SyncError` IPC event; deferred until SyncTray notification UI exists to display it
+- ✓ Log all sync activity with structured logging
 
 ---
 
