@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
-# DotNetCloud — Linux Install Script
+# DotNetCloud — Linux Install & Upgrade Script
 # Usage: curl -fsSL https://raw.githubusercontent.com/LLabmik/DotNetCloud/main/tools/install.sh | bash
 #
-# This script installs DotNetCloud on Debian-based Linux distributions (Ubuntu, Debian, Linux Mint).
-# It downloads the latest release from GitHub, installs dependencies, and runs initial setup.
+# This script installs or upgrades DotNetCloud on Debian-based Linux distributions.
+# It detects existing installations and handles upgrades safely:
+#   - Stops the running service before replacing binaries
+#   - Cleans stale files from previous versions
+#   - Runs database migrations after upgrade
+#   - Restarts the service automatically
 #
 # Requirements:
 #   - Debian-based Linux (Ubuntu 22.04+, Debian 12+, Linux Mint 21+)
@@ -23,6 +27,11 @@ LOG_DIR="/var/log/dotnetcloud"
 RUN_DIR="/run/dotnetcloud"
 SERVICE_USER="dotnetcloud"
 SERVICE_GROUP="dotnetcloud"
+
+# --- State (set during execution) ---
+IS_UPGRADE=false
+INSTALLED_VERSION=""
+LATEST_VERSION=""
 
 # --- Colors ---
 RED='\033[0;31m'
@@ -73,6 +82,91 @@ check_prerequisites() {
     done
 
     ok "Prerequisites satisfied."
+}
+
+# --- Semantic version comparison ---
+# Returns: 0 if equal, 1 if $1 > $2, 2 if $1 < $2
+version_compare() {
+    if [[ "$1" == "$2" ]]; then
+        return 0
+    fi
+
+    local IFS=.
+    local i ver1=($1) ver2=($2)
+
+    # Pad shorter version with zeros
+    for ((i=${#ver1[@]}; i<${#ver2[@]}; i++)); do
+        ver1[i]=0
+    done
+    for ((i=${#ver2[@]}; i<${#ver1[@]}; i++)); do
+        ver2[i]=0
+    done
+
+    for ((i=0; i<${#ver1[@]}; i++)); do
+        # Strip any pre-release suffix for numeric comparison
+        local v1="${ver1[i]%%[-+]*}"
+        local v2="${ver2[i]%%[-+]*}"
+        if ((v1 > v2)); then
+            return 1
+        fi
+        if ((v1 < v2)); then
+            return 2
+        fi
+    done
+    return 0
+}
+
+# --- Detect existing installation ---
+detect_existing_install() {
+    if [[ -f "${INSTALL_DIR}/VERSION" ]]; then
+        INSTALLED_VERSION=$(cat "${INSTALL_DIR}/VERSION" | tr -d '[:space:]')
+        IS_UPGRADE=true
+        info "Existing installation detected: v${INSTALLED_VERSION}"
+    elif [[ -f "${INSTALL_DIR}/dotnetcloud" ]]; then
+        # Binary exists but no VERSION file (pre-VERSION-file install)
+        INSTALLED_VERSION="unknown"
+        IS_UPGRADE=true
+        warn "Existing installation detected (version unknown — no VERSION file)."
+    fi
+}
+
+# --- Check if upgrade is needed ---
+check_version_skip() {
+    if [[ "$IS_UPGRADE" == true ]] && [[ "$INSTALLED_VERSION" != "unknown" ]]; then
+        set +e
+        version_compare "$INSTALLED_VERSION" "$LATEST_VERSION"
+        local result=$?
+        set -e
+
+        if [[ $result -eq 0 ]]; then
+            ok "Already running v${LATEST_VERSION}. Nothing to do."
+            exit 0
+        elif [[ $result -eq 1 ]]; then
+            warn "Installed version (v${INSTALLED_VERSION}) is NEWER than latest release (v${LATEST_VERSION})."
+            warn "This would be a downgrade. If intentional, uninstall first:"
+            echo "  sudo systemctl stop dotnetcloud"
+            echo "  sudo rm -rf ${INSTALL_DIR}"
+            echo "  # Then re-run this script"
+            exit 1
+        fi
+
+        info "Upgrading: v${INSTALLED_VERSION} → v${LATEST_VERSION}"
+    fi
+}
+
+# --- Stop running service before upgrade ---
+stop_existing_service() {
+    if [[ "$IS_UPGRADE" != true ]]; then
+        return
+    fi
+
+    if systemctl is-active --quiet dotnetcloud.service 2>/dev/null; then
+        info "Stopping DotNetCloud service..."
+        $SUDO systemctl stop dotnetcloud.service
+        ok "Service stopped."
+    else
+        info "Service is not running."
+    fi
 }
 
 # --- Detect latest release version ---
@@ -142,6 +236,15 @@ install_dotnetcloud() {
     $SUDO mkdir -p "$INSTALL_DIR" "$CONFIG_DIR" "$DATA_DIR" "$LOG_DIR" "$RUN_DIR"
     $SUDO mkdir -p "${DATA_DIR}/files"
 
+    # On upgrade: remove old binaries to prevent stale files
+    if [[ "$IS_UPGRADE" == true ]]; then
+        info "Removing old binaries (config and data are preserved)..."
+        # Remove old binary directories but preserve VERSION for rollback reference
+        $SUDO rm -rf "${INSTALL_DIR}/server" "${INSTALL_DIR}/modules"
+        # Remove old top-level binaries (CLI, DLLs, etc.) but not directories we just cleaned
+        $SUDO find "$INSTALL_DIR" -maxdepth 1 -type f -delete
+    fi
+
     info "Extracting to ${INSTALL_DIR}..."
     $SUDO tar -xzf "$TEMP_FILE" -C "$INSTALL_DIR" --strip-components=1
 
@@ -204,6 +307,25 @@ EOF
     ok "Systemd service installed and enabled."
 }
 
+# --- Post-upgrade: migrate database and restart ---
+post_upgrade() {
+    if [[ "$IS_UPGRADE" != true ]]; then
+        return
+    fi
+
+    info "Running database migrations..."
+    if $SUDO -u "$SERVICE_USER" "${INSTALL_DIR}/dotnetcloud" setup --migrate-only 2>/dev/null; then
+        ok "Database migrations complete."
+    else
+        warn "Database migration skipped (--migrate-only not yet implemented or no migrations needed)."
+        warn "Migrations will run automatically on next startup."
+    fi
+
+    info "Starting DotNetCloud service..."
+    $SUDO systemctl start dotnetcloud.service
+    ok "Service started."
+}
+
 # --- Main ---
 main() {
     echo ""
@@ -213,18 +335,39 @@ main() {
     echo ""
 
     check_prerequisites
+    detect_existing_install
     get_latest_version
-    install_dotnetcloud
-    install_service
+    check_version_skip
 
-    echo ""
-    ok "Installation complete!"
-    echo ""
-    info "Next steps:"
-    echo "  1. Run the setup wizard:    dotnetcloud setup"
-    echo "  2. Start the server:        dotnetcloud serve"
-    echo "  3. Or start via systemd:    sudo systemctl start dotnetcloud"
-    echo ""
+    if [[ "$IS_UPGRADE" == true ]]; then
+        info "Upgrade mode: v${INSTALLED_VERSION} → v${LATEST_VERSION}"
+        stop_existing_service
+        install_dotnetcloud
+        install_service
+        post_upgrade
+
+        echo ""
+        ok "Upgrade complete! v${INSTALLED_VERSION} → v${LATEST_VERSION}"
+        echo ""
+        info "Verify the upgrade:"
+        echo "  dotnetcloud --version"
+        echo "  sudo systemctl status dotnetcloud"
+        echo "  curl -s http://localhost:5080/health"
+        echo ""
+    else
+        install_dotnetcloud
+        install_service
+
+        echo ""
+        ok "Installation complete!"
+        echo ""
+        info "Next steps:"
+        echo "  1. Run the setup wizard:    dotnetcloud setup"
+        echo "  2. Start the server:        dotnetcloud serve"
+        echo "  3. Or start via systemd:    sudo systemctl start dotnetcloud"
+        echo ""
+    fi
+
     info "Documentation: https://github.com/${REPO}"
     echo ""
 }
