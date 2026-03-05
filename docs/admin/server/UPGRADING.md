@@ -86,7 +86,7 @@ The package manager handles:
 
 ```bash
 VERSION="1.1.0"
-wget "https://dotnetcloud.net/releases/dotnetcloud-${VERSION}-linux-x64.tar.gz" \
+wget "https://github.com/LLabmik/DotNetCloud/releases/download/v${VERSION}/dotnetcloud-${VERSION}-linux-x64.tar.gz" \
   -O /tmp/dotnetcloud-${VERSION}.tar.gz
 ```
 
@@ -179,7 +179,7 @@ Copy-Item -Path "C:\DotNetCloud\server" -Destination "C:\DotNetCloud\server.bak"
 
 ```powershell
 $Version = "1.1.0"
-Invoke-WebRequest "https://dotnetcloud.net/releases/dotnetcloud-${Version}-win-x64.zip" `
+Invoke-WebRequest "https://github.com/LLabmik/DotNetCloud/releases/download/v${Version}/dotnetcloud-${Version}-win-x64.zip" `
   -OutFile "$env:TEMP\dotnetcloud-${Version}.zip"
 
 # Extract (overwrite existing files)

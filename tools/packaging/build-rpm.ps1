@@ -51,7 +51,7 @@ Version:        $Version
 Release:        1%{?dist}
 Summary:        A modular, multi-tenant cloud platform built with .NET
 License:        AGPL-3.0-or-later
-URL:            https://git.kimball.home/benk/dotnetcloud
+URL:            https://github.com/LLabmik/DotNetCloud
 
 %description
 DotNetCloud is a self-hosted cloud platform providing file sync, chat,

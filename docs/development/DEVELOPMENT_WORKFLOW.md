@@ -47,8 +47,8 @@ dotnetcloud/
 
 ### Repository Access
 
-- **Main Repository:** `https://git.kimball.home/benk/dotnetcloud`
-- **Hosting:** Self-hosted Git (Gitea)
+- **Main Repository:** `https://github.com/LLabmik/DotNetCloud`
+- **Hosting:** GitHub
 - **Permissions:** Depends on role (see CONTRIBUTING.md)
 
 ---

@@ -52,7 +52,7 @@ DotNetCloud gives you full control of your data by running your own cloud server
 ### Linux (Debian/Ubuntu/Mint)
 
 ```sh
-curl -fsSL https://dotnetcloud.net/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/LLabmik/DotNetCloud/main/tools/install.sh | bash
 dotnetcloud setup
 dotnetcloud serve
 ```

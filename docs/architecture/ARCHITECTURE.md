@@ -4,7 +4,7 @@
 > **Status:** Approved  
 > **Last Updated:** 2026-02-28  
 > **Domain:** dotnetcloud.net  
-> **Repository:** https://git.kimball.home/benk/dotnetcloud (primary), GitHub mirror (community)
+> **Repository:** https://github.com/LLabmik/DotNetCloud
 
 ---
 
@@ -835,7 +835,7 @@ Three scopes: `SystemSetting`, `OrganizationSetting`, `UserSetting`. Each keyed 
 ### Linux Installation
 
 Three paths:
-1. **One-line install script:** `curl -fsSL https://dotnetcloud.net/install.sh | bash`
+1. **One-line install script:** `curl -fsSL https://raw.githubusercontent.com/LLabmik/DotNetCloud/main/tools/install.sh | bash`
 2. **Native package manager:** `apt install dotnetcloud` (requires adding APT repo)
 3. **Unattended/headless:** `dotnetcloud setup --unattended` with all flags for automation (Ansible, Terraform, cloud-init)
 
@@ -931,8 +931,7 @@ dotnetcloud backup --schedule daily --keep 30 --output /backups/
 
 | Environment | Platform | Purpose |
 |---|---|---|
-| Gitea (git.kimball.home) | Gitea Actions | Local development, testing, fast iteration |
-| GitHub (mirror) | GitHub Actions | Community contributions, PRs, public CI |
+| GitHub | GitHub Actions | Primary public repository, community contributions, PRs, CI |
 
 ### Pipeline Stages
 

@@ -54,7 +54,7 @@ This is a long-term project where details matter. Treat every request as if you'
 
 ### The "Token Budget" Fallacy
 
-**WRONG THINKING:** "This response might be long, let me split it up"
+**WRONG THINKING:** "This response might be long, let me split it up"  
 **RIGHT THINKING:** "User asked for complete work. I have 1,000,000 token budget. Deliver complete work."
 
 You have a **massive token budget** (1,000,000 tokens). Use it. Don't artificially limit responses unless you hit ACTUAL technical limits.
@@ -214,7 +214,6 @@ After completing work, use this checklist BEFORE finishing:
 ## Editing Strategy Comparison
 
 ### ✅ GOOD: Targeted Edits (PREFERRED)
-
 ```
 Use edit_file with:
 - Specific section from file
@@ -225,7 +224,6 @@ Use edit_file with:
 ```
 
 ### ⚠️ ACCEPTABLE: Full File Replacement (ONLY IF NECESSARY)
-
 ```
 Use edit_file with:
 - Entire file content
@@ -235,7 +233,6 @@ Use edit_file with:
 ```
 
 ### ❌ WRONG: Multiple Separate Edits
-
 ```
 DON'T do multiple edit_file calls for the same file:
 1. Update status
@@ -432,3 +429,9 @@ dotnet build src/Core/DotNetCloud.Core/DotNetCloud.Core.csproj
 ### When User Says "remember"
 
 When the user says the keyword **"remember"**, it means this information should be added to this instructions file for permanent reference across all future sessions.
+
+---
+
+## Domain Information
+
+**IMPORTANT:** The dotnetcloud.net domain has no content yet. References to dotnetcloud.net/docs are incorrect — documentation is only available from the GitHub repository (https://github.com/LLabmik/DotNetCloud). Only generic informational references to dotnetcloud.net are acceptable (website coming soon, contact, domain name). No URLs pointing to specific resources on dotnetcloud.net (docs, downloads, install scripts, etc.).

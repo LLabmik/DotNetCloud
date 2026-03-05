@@ -90,7 +90,7 @@ DotNetCloud is a self-hosted cloud platform built on .NET 10. It runs as a Kestr
 ### Option A: One-Line Install (Ubuntu/Debian)
 
 ```bash
-curl -fsSL https://dotnetcloud.net/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/LLabmik/DotNetCloud/main/tools/install.sh | sudo bash
 ```
 
 This script:
@@ -171,7 +171,7 @@ sudo chown -R dotnetcloud:dotnetcloud /etc/dotnetcloud
 ```bash
 # Download the latest release (replace VERSION with actual version)
 VERSION="1.0.0"
-wget "https://dotnetcloud.net/releases/dotnetcloud-${VERSION}-linux-x64.tar.gz" \
+wget "https://github.com/LLabmik/DotNetCloud/releases/download/v${VERSION}/dotnetcloud-${VERSION}-linux-x64.tar.gz" \
   -O /tmp/dotnetcloud.tar.gz
 
 # Extract to /opt/dotnetcloud
@@ -183,8 +183,8 @@ sudo chown -R dotnetcloud:dotnetcloud /opt/dotnetcloud
 
 ```bash
 # Clone the repository
-git clone https://git.kimball.home/benk/dotnetcloud.git
-cd dotnetcloud
+git clone https://github.com/LLabmik/DotNetCloud.git
+cd DotNetCloud
 
 # Publish the Core Server
 dotnet publish src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj \
@@ -214,7 +214,7 @@ Create `/etc/systemd/system/dotnetcloud.service`:
 ```ini
 [Unit]
 Description=DotNetCloud Core Server
-Documentation=https://dotnetcloud.net/docs
+Documentation=https://github.com/LLabmik/DotNetCloud
 After=network.target postgresql.service
 Requires=network.target
 
@@ -435,7 +435,7 @@ New-Item -ItemType Directory -Path "C:\DotNetCloud\logs" -Force
 
 # Download latest release
 $Version = "1.0.0"
-Invoke-WebRequest "https://dotnetcloud.net/releases/dotnetcloud-${Version}-win-x64.zip" `
+Invoke-WebRequest "https://github.com/LLabmik/DotNetCloud/releases/download/v${Version}/dotnetcloud-${Version}-win-x64.zip" `
   -OutFile "$env:TEMP\dotnetcloud.zip"
 
 # Extract
@@ -446,8 +446,8 @@ Expand-Archive "$env:TEMP\dotnetcloud.zip" -DestinationPath "C:\DotNetCloud" -Fo
 
 ```powershell
 # Clone the repository
-git clone https://git.kimball.home/benk/dotnetcloud.git
-Set-Location dotnetcloud
+git clone https://github.com/LLabmik/DotNetCloud.git
+Set-Location DotNetCloud
 
 # Publish the Core Server
 dotnet publish src\Core\DotNetCloud.Core.Server\DotNetCloud.Core.Server.csproj `
@@ -645,8 +645,8 @@ docker exec -it dotnetcloud dotnetcloud setup
 ### Build from Source
 
 ```bash
-git clone https://git.kimball.home/benk/dotnetcloud.git
-cd dotnetcloud
+git clone https://github.com/LLabmik/DotNetCloud.git
+cd DotNetCloud
 docker build -t dotnetcloud/server:local .
 ```
 

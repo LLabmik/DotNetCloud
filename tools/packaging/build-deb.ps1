@@ -59,7 +59,7 @@ Description: DotNetCloud — A modular, multi-tenant cloud platform built with .
  Self-hosted cloud platform providing file sync, chat, calendar,
  contacts, project management, and more.
 Depends: libc6 (>= 2.31), libssl3 | libssl1.1
-Homepage: https://git.kimball.home/benk/dotnetcloud
+Homepage: https://github.com/LLabmik/DotNetCloud
 "@
 Set-Content -Path (Join-Path $DebianDir "control") -Value $ControlContent
 

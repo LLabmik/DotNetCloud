@@ -26,8 +26,8 @@
     <Authors>DotNetCloud Contributors</Authors>
     <Product>DotNetCloud</Product>
     <Description>A modular, multi-tenant cloud platform built with .NET</Description>
-    <PackageProjectUrl>https://git.kimball.home/benk/dotnetcloud</PackageProjectUrl>
-    <RepositoryUrl>https://git.kimball.home/benk/dotnetcloud</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/LLabmik/DotNetCloud</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/LLabmik/DotNetCloud</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
   </PropertyGroup>

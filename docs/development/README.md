@@ -68,8 +68,8 @@ Are you starting development?
 # 3. Follow IDE_SETUP.md for your editor
 # 4. Clone and build:
 
-git clone https://git.kimball.home/benk/dotnetcloud.git
-cd dotnetcloud
+git clone https://github.com/LLabmik/DotNetCloud.git
+cd DotNetCloud
 dotnet restore
 dotnet build
 dotnet test
@@ -140,7 +140,7 @@ docker compose down
 
 ## Project Resources
 
-- **Main Repository:** https://git.kimball.home/benk/dotnetcloud
+- **Main Repository:** https://github.com/LLabmik/DotNetCloud
 - **Architecture Docs:** `/docs/architecture/`
 - **Implementation Checklist:** `/docs/IMPLEMENTATION_CHECKLIST.md`
 - **Master Project Plan:** `/docs/MASTER_PROJECT_PLAN.md`
@@ -199,7 +199,7 @@ dotnet --version
 # Clone repository (if needed)
 if [ ! -d ".git" ]; then
     echo "2️⃣  Cloning repository..."
-    git clone https://git.kimball.home/benk/dotnetcloud.git
+    git clone https://github.com/LLabmik/DotNetCloud.git
 fi
 
 # Restore and build
