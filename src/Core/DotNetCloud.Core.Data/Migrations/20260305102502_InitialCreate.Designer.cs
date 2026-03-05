@@ -10,18 +10,18 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace DotNetCloud.Core.Data.Migrations.SqlServer
+namespace DotNetCloud.Core.Data.Migrations
 {
     [DbContext(typeof(CoreDbContext))]
-    [Migration("20260303061920_Phase0_4_Auth_SqlServer")]
-    partial class Phase0_4_Auth_SqlServer
+    [Migration("20260305102502_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.0")
+                .HasAnnotation("ProductVersion", "10.0.3")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -262,8 +262,8 @@ namespace DotNetCloud.Core.Data.Migrations.SqlServer
                         .HasColumnType("character varying(400)");
 
                     b.Property<string>("Type")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
 
                     b.HasKey("Id");
 
@@ -375,7 +375,7 @@ namespace DotNetCloud.Core.Data.Migrations.SqlServer
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("GETUTCDATE()");
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<string>("DisplayName")
                         .IsRequired()
@@ -1278,7 +1278,7 @@ namespace DotNetCloud.Core.Data.Migrations.SqlServer
                     b.HasOne("DotNetCloud.Core.Data.Entities.Identity.ApplicationUser", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("AddedByUser");
@@ -1304,7 +1304,7 @@ namespace DotNetCloud.Core.Data.Migrations.SqlServer
                     b.HasOne("DotNetCloud.Core.Data.Entities.Identity.ApplicationUser", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("InvitedByUser");
@@ -1336,7 +1336,7 @@ namespace DotNetCloud.Core.Data.Migrations.SqlServer
                     b.HasOne("DotNetCloud.Core.Data.Entities.Identity.ApplicationUser", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Team");

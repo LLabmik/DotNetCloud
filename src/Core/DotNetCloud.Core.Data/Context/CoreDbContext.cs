@@ -407,6 +407,16 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
 
         // Add TimestampInterceptor for automatic timestamp management
         optionsBuilder.AddInterceptors(new TimestampInterceptor());
+
+        // EF Core 9+ throws InvalidOperationException at MigrateAsync when the model
+        // differs from the last migration snapshot. OpenIddict's UseOpenIddict<>()
+        // registers model configuration that the EF tooling cannot fully round-trip
+        // through the snapshot (NullReferenceException in IColumn.TryGetDefaultValue),
+        // producing a false-positive pending-changes detection.
+        // Downgrade to a log warning so MigrateAsync succeeds.
+        // See: https://learn.microsoft.com/ef/core/what-is-new/ef-core-9.0/breaking-changes#pending-model-changes
+        optionsBuilder.ConfigureWarnings(w =>
+            w.Log(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
     }
 
     /// <summary>
