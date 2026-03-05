@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Data.Entities.Organizations;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using System.Text.Json;
 
@@ -26,12 +27,17 @@ public class OrganizationMemberConfiguration : IEntityTypeConfiguration<Organiza
         builder.Property(om => om.UserId)
             .IsRequired();
 
-        builder.Property(om => om.RoleIds)
+        var roleIdsProp = builder.Property(om => om.RoleIds)
             .IsRequired()
             .HasConversion(
                 v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => JsonSerializer.Deserialize<List<Guid>>(v, (JsonSerializerOptions?)null) ?? new List<Guid>())
             .HasDefaultValue(new List<Guid>());
+
+        roleIdsProp.Metadata.SetValueComparer(new ValueComparer<ICollection<Guid>>(
+            (c1, c2) => c1!.SequenceEqual(c2!),
+            c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
+            c => (ICollection<Guid>)c.ToList()));
 
         builder.Property(om => om.JoinedAt)
             .IsRequired();
@@ -70,5 +76,8 @@ public class OrganizationMemberConfiguration : IEntityTypeConfiguration<Organiza
             .WithMany()
             .HasForeignKey(om => om.InvitedByUserId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        // Match the parent Organization's soft-delete query filter
+        builder.HasQueryFilter(om => !om.Organization.IsDeleted);
     }
 }

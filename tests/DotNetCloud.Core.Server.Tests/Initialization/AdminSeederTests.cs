@@ -13,6 +13,8 @@ public class AdminSeederTests
 {
     private Mock<IUserStore<ApplicationUser>> _storeMock = null!;
     private Mock<UserManager<ApplicationUser>> _userManagerMock = null!;
+    private Mock<IRoleStore<ApplicationRole>> _roleStoreMock = null!;
+    private Mock<RoleManager<ApplicationRole>> _roleManagerMock = null!;
     private ILogger<AdminSeeder> _logger = null!;
 
     [TestInitialize]
@@ -21,6 +23,9 @@ public class AdminSeederTests
         _storeMock = new Mock<IUserStore<ApplicationUser>>();
         _userManagerMock = new Mock<UserManager<ApplicationUser>>(
             _storeMock.Object, null!, null!, null!, null!, null!, null!, null!, null!);
+        _roleStoreMock = new Mock<IRoleStore<ApplicationRole>>();
+        _roleManagerMock = new Mock<RoleManager<ApplicationRole>>(
+            _roleStoreMock.Object, null!, null!, null!, null!);
         _logger = NullLogger<AdminSeeder>.Instance;
     }
 
@@ -43,7 +48,7 @@ public class AdminSeederTests
             })
             .Build();
 
-        var seeder = new AdminSeeder(_userManagerMock.Object, config, _logger);
+        var seeder = new AdminSeeder(_userManagerMock.Object, _roleManagerMock.Object, config, _logger);
 
         // Act
         await seeder.SeedAsync();
@@ -63,7 +68,7 @@ public class AdminSeederTests
 
         var config = new ConfigurationBuilder().Build();
 
-        var seeder = new AdminSeeder(_userManagerMock.Object, config, _logger);
+        var seeder = new AdminSeeder(_userManagerMock.Object, _roleManagerMock.Object, config, _logger);
 
         // Act
         await seeder.SeedAsync();
@@ -88,7 +93,7 @@ public class AdminSeederTests
             })
             .Build();
 
-        var seeder = new AdminSeeder(_userManagerMock.Object, config, _logger);
+        var seeder = new AdminSeeder(_userManagerMock.Object, _roleManagerMock.Object, config, _logger);
 
         // Act
         await seeder.SeedAsync();
@@ -109,6 +114,8 @@ public class AdminSeederTests
             .ReturnsAsync(IdentityResult.Success);
         _userManagerMock.Setup(m => m.AddToRoleAsync(It.IsAny<ApplicationUser>(), "Administrator"))
             .ReturnsAsync(IdentityResult.Success);
+        _roleManagerMock.Setup(m => m.RoleExistsAsync("Administrator"))
+            .ReturnsAsync(true);
 
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -118,7 +125,7 @@ public class AdminSeederTests
             })
             .Build();
 
-        var seeder = new AdminSeeder(_userManagerMock.Object, config, _logger);
+        var seeder = new AdminSeeder(_userManagerMock.Object, _roleManagerMock.Object, config, _logger);
 
         // Act
         await seeder.SeedAsync();
@@ -161,7 +168,7 @@ public class AdminSeederTests
             })
             .Build();
 
-        var seeder = new AdminSeeder(_userManagerMock.Object, config, _logger);
+        var seeder = new AdminSeeder(_userManagerMock.Object, _roleManagerMock.Object, config, _logger);
 
         // Act & Assert
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
@@ -182,6 +189,8 @@ public class AdminSeederTests
                 Code = "RoleNotFound",
                 Description = "Role does not exist."
             }));
+        _roleManagerMock.Setup(m => m.RoleExistsAsync("Administrator"))
+            .ReturnsAsync(true);
 
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -191,7 +200,7 @@ public class AdminSeederTests
             })
             .Build();
 
-        var seeder = new AdminSeeder(_userManagerMock.Object, config, _logger);
+        var seeder = new AdminSeeder(_userManagerMock.Object, _roleManagerMock.Object, config, _logger);
 
         // Act & Assert
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
@@ -213,6 +222,8 @@ public class AdminSeederTests
             .ReturnsAsync(IdentityResult.Success);
         _userManagerMock.Setup(m => m.AddToRoleAsync(It.IsAny<ApplicationUser>(), "Administrator"))
             .ReturnsAsync(IdentityResult.Success);
+        _roleManagerMock.Setup(m => m.RoleExistsAsync("Administrator"))
+            .ReturnsAsync(true);
 
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -222,7 +233,7 @@ public class AdminSeederTests
             })
             .Build();
 
-        var seeder = new AdminSeeder(_userManagerMock.Object, config, _logger);
+        var seeder = new AdminSeeder(_userManagerMock.Object, _roleManagerMock.Object, config, _logger);
 
         // Act
         await seeder.SeedAsync();

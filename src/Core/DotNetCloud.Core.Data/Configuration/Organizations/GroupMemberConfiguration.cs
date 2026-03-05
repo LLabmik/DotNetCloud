@@ -55,5 +55,8 @@ public class GroupMemberConfiguration : IEntityTypeConfiguration<GroupMember>
             .WithMany()
             .HasForeignKey(gm => gm.AddedByUserId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        // Match the parent Group's soft-delete query filter
+        builder.HasQueryFilter(gm => !gm.Group.IsDeleted);
     }
 }

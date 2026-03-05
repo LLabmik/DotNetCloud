@@ -75,7 +75,7 @@ public class OrganizationSettingConfiguration : IEntityTypeConfiguration<Organiz
 
         // Foreign key relationship
         builder.HasOne<Organization>()
-            .WithMany()
+            .WithMany(o => o.Settings)
             .HasForeignKey(s => s.OrganizationId)
             .OnDelete(DeleteBehavior.Cascade)
             .HasConstraintName("FK_organization_settings_organization_id");

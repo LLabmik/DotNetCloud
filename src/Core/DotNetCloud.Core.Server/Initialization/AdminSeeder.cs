@@ -24,15 +24,18 @@ namespace DotNetCloud.Core.Server.Initialization;
 internal sealed class AdminSeeder
 {
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly RoleManager<ApplicationRole> _roleManager;
     private readonly IConfiguration _configuration;
     private readonly ILogger<AdminSeeder> _logger;
 
     public AdminSeeder(
         UserManager<ApplicationUser> userManager,
+        RoleManager<ApplicationRole> roleManager,
         IConfiguration configuration,
         ILogger<AdminSeeder> logger)
     {
         _userManager = userManager;
+        _roleManager = roleManager;
         _configuration = configuration;
         _logger = logger;
     }
@@ -78,6 +81,25 @@ internal sealed class AdminSeeder
             var errors = string.Join("; ", result.Errors.Select(e => e.Description));
             _logger.LogError("Failed to create admin user: {Errors}", errors);
             throw new InvalidOperationException($"Admin user creation failed: {errors}");
+        }
+
+        // Ensure the Administrator role exists in Identity's AspNetRoles table
+        if (!await _roleManager.RoleExistsAsync("Administrator"))
+        {
+            var identityRole = new ApplicationRole
+            {
+                Name = "Administrator",
+                Description = "Full system administrator",
+                IsSystemRole = true
+            };
+            var createRoleResult = await _roleManager.CreateAsync(identityRole);
+            if (!createRoleResult.Succeeded)
+            {
+                var errors = string.Join("; ", createRoleResult.Errors.Select(e => e.Description));
+                _logger.LogError("Failed to create Administrator identity role: {Errors}", errors);
+                throw new InvalidOperationException($"Identity role creation failed: {errors}");
+            }
+            _logger.LogInformation("Created Administrator role in identity store.");
         }
 
         var roleResult = await _userManager.AddToRoleAsync(user, "Administrator");

@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "ss": true,
+        "netstat": true,
+        "dotnet run": true,
+        "dotnet build": true
+    }
+}

@@ -7,6 +7,11 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).xml</DocumentationFile>
+    <!-- Required: The server project has no .razor files (they live in UI.Web),
+         so the SDK sets RequiresAspNetWebAssets=false, which prevents the
+         Microsoft.AspNetCore.App.Internal.Assets package from being resolved.
+         That package provides _framework/blazor.web.js. Force it on. -->
+    <RequiresAspNetWebAssets>true</RequiresAspNetWebAssets>
   </PropertyGroup>
 
   <ItemGroup>

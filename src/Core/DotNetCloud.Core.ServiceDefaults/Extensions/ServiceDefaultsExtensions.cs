@@ -185,9 +185,8 @@ public static class ServiceDefaultsExtensions
             ResponseWriter = WriteHealthReportAsync
         });
 
-        // Mark the application as ready after startup
-        var startupCheck = app.Services.GetService<StartupHealthCheck>();
-        startupCheck?.MarkReady();
+        // MarkReady() is called by the application after database initialization completes.
+        // Do not call it here — health should report unhealthy until DB init succeeds.
 
         return app;
     }

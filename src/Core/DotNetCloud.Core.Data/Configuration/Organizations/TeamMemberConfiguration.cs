@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Data.Entities.Organizations;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using System.Text.Json;
 
@@ -26,12 +27,17 @@ public class TeamMemberConfiguration : IEntityTypeConfiguration<TeamMember>
         builder.Property(tm => tm.UserId)
             .IsRequired();
 
-        builder.Property(tm => tm.RoleIds)
+        var roleIdsProp = builder.Property(tm => tm.RoleIds)
             .IsRequired()
             .HasConversion(
                 v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => JsonSerializer.Deserialize<List<Guid>>(v, (JsonSerializerOptions?)null) ?? new List<Guid>())
             .HasDefaultValue(new List<Guid>());
+
+        roleIdsProp.Metadata.SetValueComparer(new ValueComparer<ICollection<Guid>>(
+            (c1, c2) => c1!.SequenceEqual(c2!),
+            c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
+            c => (ICollection<Guid>)c.ToList()));
 
         builder.Property(tm => tm.JoinedAt)
             .IsRequired();
@@ -53,5 +59,8 @@ public class TeamMemberConfiguration : IEntityTypeConfiguration<TeamMember>
             .WithMany()
             .HasForeignKey(tm => tm.UserId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // Match the parent Team's soft-delete query filter
+        builder.HasQueryFilter(tm => !tm.Team.IsDeleted);
     }
 }

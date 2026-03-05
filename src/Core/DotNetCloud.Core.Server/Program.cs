@@ -1,5 +1,4 @@
 using DotNetCloud.Core.Auth.Extensions;
-using DotNetCloud.Core.Data.Entities.Identity;
 using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Initialization;
 using DotNetCloud.Core.Localization;
@@ -8,11 +7,12 @@ using DotNetCloud.Core.Server.Extensions;
 using DotNetCloud.Core.Server.Initialization;
 using DotNetCloud.Core.Server.Middleware;
 using DotNetCloud.Core.ServiceDefaults.Extensions;
+using DotNetCloud.Core.ServiceDefaults.HealthChecks;
 using DotNetCloud.Core.ServiceDefaults.Telemetry;
 using DotNetCloud.UI.Web.Client.Services;
 using DotNetCloud.UI.Web.Services;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DotNetCloud.Core.Server;
 
@@ -34,21 +34,64 @@ public class Program
 
         ConfigurePipeline(app);
 
-        // Migrate and seed database
-        using (var scope = app.Services.CreateScope())
-        {
-            var dbInitializer = scope.ServiceProvider.GetRequiredService<DbInitializer>();
-            await dbInitializer.InitializeAsync();
-
-            // Create the initial admin user (idempotent — only when no users exist)
-            var adminSeeder = new AdminSeeder(
-                scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
-                app.Configuration,
-                scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger<AdminSeeder>());
-            await adminSeeder.SeedAsync();
-        }
+        // Initialize database with retry — waits for PostgreSQL to become available
+        await InitializeDatabaseAsync(app);
 
         app.Run();
+    }
+
+    /// <summary>
+    /// Initializes the database with exponential backoff retry.
+    /// Waits for the database to become available (e.g. when PostgreSQL starts after the app),
+    /// then runs migrations and seeds default data.
+    /// On permanent failure after all retries, the application is stopped with a clear error.
+    /// </summary>
+    private static async Task InitializeDatabaseAsync(WebApplication app)
+    {
+        const int maxAttempts = 5;
+        var delay = TimeSpan.FromSeconds(2);
+        var logger = app.Services.GetRequiredService<ILogger<Program>>();
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            using var scope = app.Services.CreateScope();
+            try
+            {
+                var dbInitializer = scope.ServiceProvider.GetRequiredService<DbInitializer>();
+                await dbInitializer.InitializeAsync();
+
+                var adminSeeder = scope.ServiceProvider.GetRequiredService<AdminSeeder>();
+                await adminSeeder.SeedAsync();
+
+                // Mark the application as ready for traffic now that DB is initialized
+                var startupCheck = app.Services.GetService<StartupHealthCheck>();
+                startupCheck?.MarkReady();
+
+                return; // Success
+            }
+            catch (Exception ex) when (attempt < maxAttempts)
+            {
+                logger.LogWarning(
+                    ex,
+                    "Database initialization attempt {Attempt}/{MaxAttempts} failed. Retrying in {Delay}s...",
+                    attempt, maxAttempts, delay.TotalSeconds);
+
+                await Task.Delay(delay);
+                delay *= 2; // Exponential backoff: 2s → 4s → 8s → 16s
+            }
+            catch (Exception ex)
+            {
+                logger.LogCritical(
+                    ex,
+                    "Database initialization failed after {MaxAttempts} attempts. " +
+                    "Verify the database is running and the connection string is correct. Shutting down.",
+                    maxAttempts);
+
+                // Ensure health checks report unhealthy, then stop the application
+                await app.StopAsync();
+                throw;
+            }
+        }
     }
 
     /// <summary>
@@ -82,6 +125,8 @@ public class Program
             .AddInteractiveServerComponents()
             .AddInteractiveWebAssemblyComponents();
 
+        builder.Services.AddCascadingAuthenticationState();
+
         // Blazor UI services (server-side prerendering needs these too)
         builder.Services.AddSingleton<ModuleUiRegistry>();
         builder.Services.AddSingleton<ToastService>();
@@ -106,6 +151,9 @@ public class Program
 
         // Add SignalR real-time communication
         builder.Services.AddDotNetCloudSignalR(builder.Configuration);
+
+        // Register initialization services
+        builder.Services.AddScoped<AdminSeeder>();
 
         // Configure forwarded headers for reverse proxy support
         builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(options =>
@@ -155,8 +203,8 @@ public class Program
         app.UseAuthentication();
         app.UseAuthorization();
 
-        // Serve static files (Blazor wwwroot, CSS, JS)
-        app.UseStaticFiles();
+        // Serve static files (Blazor wwwroot, CSS, JS, _framework/blazor.web.js)
+        app.MapStaticAssets();
         app.UseAntiforgery();
 
         // Map OpenIddict endpoints

@@ -75,7 +75,10 @@ public class CliConfigTests
     {
         var config = new CliConfig();
         Assert.IsTrue(config.DataDirectory.Contains("dotnetcloud"));
-        Assert.IsTrue(config.DataDirectory.EndsWith("data"));
+        // System installs use FHS path /var/lib/dotnetcloud; user-local ends with "data"
+        Assert.IsTrue(
+            config.DataDirectory.EndsWith("data") ||
+            config.DataDirectory.EndsWith("dotnetcloud"));
     }
 
     [TestMethod]
@@ -83,7 +86,10 @@ public class CliConfigTests
     {
         var config = new CliConfig();
         Assert.IsTrue(config.LogDirectory.Contains("dotnetcloud"));
-        Assert.IsTrue(config.LogDirectory.EndsWith("logs"));
+        // System installs use FHS path /var/log/dotnetcloud; user-local ends with "logs"
+        Assert.IsTrue(
+            config.LogDirectory.EndsWith("logs") ||
+            config.LogDirectory.EndsWith("dotnetcloud"));
     }
 
     [TestMethod]
