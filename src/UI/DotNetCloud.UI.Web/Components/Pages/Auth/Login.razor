@@ -1,5 +1,6 @@
 @page "/auth/login"
 @using Microsoft.AspNetCore.Identity
+@using Microsoft.Extensions.Logging
 @using DotNetCloud.Core.Data.Entities.Identity
 @layout AuthLayout
 
@@ -51,6 +52,7 @@
 @code {
     [Inject] private SignInManager<ApplicationUser> SignInManager { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private ILogger<Login> Logger { get; set; } = default!;
 
     [SupplyParameterFromQuery]
     private string? ReturnUrl { get; set; }
@@ -104,9 +106,10 @@
                 _errorMessage = "Invalid email or password.";
             }
         }
-        catch
+        catch (Exception ex)
         {
-            _errorMessage = "An error occurred. Please try again.";
+            Logger.LogError(ex, "Login failed for {Email}", _model.Email);
+            _errorMessage = $"Login error: {ex.GetType().Name} — {ex.Message}";
         }
         finally
         {
