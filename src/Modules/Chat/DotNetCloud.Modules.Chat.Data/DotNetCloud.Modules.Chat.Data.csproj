@@ -30,4 +30,8 @@
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Data\DotNetCloud.Core.Data.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Migrations\SqlServer\" />
+  </ItemGroup>
+
 </Project>
