@@ -29,10 +29,16 @@ internal static class CollaboraInstallCommand
 
         var collaboraCommand = new Command("collabora", "Download and install the built-in Collabora CODE document server");
 
-        var dirOption = new Option<string?>("--dir", "Installation directory (overrides config)");
+        var dirOption = new Option<string?>("--dir")
+        {
+            Description = "Installation directory (overrides config)"
+        };
         collaboraCommand.Options.Add(dirOption);
 
-        var forceOption = new Option<bool>("--force", "Reinstall even if already installed");
+        var forceOption = new Option<bool>("--force")
+        {
+            Description = "Reinstall even if already installed"
+        };
         collaboraCommand.Options.Add(forceOption);
 
         collaboraCommand.SetAction(async (parseResult, ct) =>
