@@ -49,11 +49,14 @@ public class FileDtoTests
             Id = Guid.NewGuid(),
             Name = "test",
             NodeType = "File",
-            Tags = ["Important", "Work"]
+            Tags = [
+                new FileTagDto { Id = Guid.NewGuid(), Name = "Important" },
+                new FileTagDto { Id = Guid.NewGuid(), Name = "Work" }
+            ]
         };
 
         Assert.AreEqual(2, dto.Tags.Count);
-        Assert.AreEqual("Important", dto.Tags[0]);
+        Assert.AreEqual("Important", dto.Tags[0].Name);
     }
 
     [TestMethod]

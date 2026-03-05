@@ -59,4 +59,34 @@ public class TagController : FilesControllerBase
         var nodes = await _tagService.GetNodesByTagAsync(tagName, ToCaller(userId));
         return Ok(Envelope(nodes));
     });
+
+    /// <summary>
+    /// Returns a summary of all tags used by the caller, including representative color and file count.
+    /// </summary>
+    [HttpGet("tags/summary")]
+    public Task<IActionResult> GetTagSummariesAsync([FromQuery] Guid userId) => ExecuteAsync(async () =>
+    {
+        var summaries = await _tagService.GetUserTagSummariesAsync(ToCaller(userId));
+        return Ok(Envelope(summaries));
+    });
+
+    /// <summary>
+    /// Adds a tag to multiple files/folders.
+    /// </summary>
+    [HttpPost("tags/bulk-add")]
+    public Task<IActionResult> BulkAddAsync([FromBody] BulkTagDto dto, [FromQuery] Guid userId) => ExecuteAsync(async () =>
+    {
+        var result = await _tagService.BulkAddTagAsync(dto.NodeIds, dto.TagName, dto.Color, ToCaller(userId));
+        return Ok(Envelope(result));
+    });
+
+    /// <summary>
+    /// Removes a tag by name from multiple files/folders.
+    /// </summary>
+    [HttpPost("tags/bulk-remove")]
+    public Task<IActionResult> BulkRemoveAsync([FromBody] BulkTagDto dto, [FromQuery] Guid userId) => ExecuteAsync(async () =>
+    {
+        var result = await _tagService.BulkRemoveTagByNameAsync(dto.NodeIds, dto.TagName, ToCaller(userId));
+        return Ok(Envelope(result));
+    });
 }

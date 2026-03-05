@@ -1,0 +1,53 @@
+@namespace DotNetCloud.Modules.Files.UI
+
+@*
+    Tag autocomplete input. Shows existing user tags as suggestions while typing.
+    Allows adding a new tag with an optional color. Emits OnTagAdded when the user confirms.
+    Code-behind: TagInput.razor.cs
+*@
+
+<div class="tag-input-container">
+    <div class="tag-input-row">
+        <input type="text"
+               class="tag-input-field"
+               placeholder="Add a tag…"
+               @bind="_tagName"
+               @bind:event="oninput"
+               @onkeydown="HandleKeyDown"
+               @onfocus="ShowSuggestions"
+               autocomplete="off"
+               aria-label="Tag name" />
+
+        <input type="color"
+               class="tag-color-picker"
+               @bind="_tagColor"
+               title="Tag color"
+               aria-label="Tag color" />
+
+        <button class="btn btn-sm btn-primary" @onclick="AddTag"
+                disabled="@string.IsNullOrWhiteSpace(_tagName)"
+                type="button">
+            Add
+        </button>
+    </div>
+
+    @if (_showSuggestions && FilteredSuggestions.Count > 0)
+    {
+        <ul class="tag-suggestions" role="listbox" aria-label="Tag suggestions">
+            @foreach (var suggestion in FilteredSuggestions)
+            {
+                <li class="tag-suggestion-item"
+                    role="option"
+                    @onclick="() => SelectSuggestion(suggestion)"
+                    @onclick:preventDefault>
+                    @if (suggestion.Color is not null)
+                    {
+                        <span class="tag-dot" style="background:@suggestion.Color" aria-hidden="true"></span>
+                    }
+                    <span class="tag-suggestion-name">@suggestion.Name</span>
+                    <span class="tag-suggestion-count">@suggestion.FileCount</span>
+                </li>
+            }
+        </ul>
+    }
+</div>

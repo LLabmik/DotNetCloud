@@ -34,6 +34,9 @@ public sealed class FileNodeViewModel
     /// (e.g. for folders or unsupported file types). Populated from the thumbnail API.
     /// </summary>
     public string? ThumbnailUrl { get; init; }
+
+    /// <summary>Tags applied to this node (includes name and color for badge rendering).</summary>
+    public IReadOnlyList<FileTagViewModel> Tags { get; init; } = [];
 }
 
 /// <summary>

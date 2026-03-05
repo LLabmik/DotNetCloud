@@ -1,0 +1,21 @@
+@namespace DotNetCloud.Modules.Files.UI
+
+@*
+    Renders a single colored tag badge.
+    Optionally shows a remove button when OnRemove is set.
+    Code-behind: TagBadge.razor.cs
+*@
+
+<span class="tag-badge @(OnRemove.HasDelegate ? "tag-badge--removable" : "")"
+      style="@(Tag.Color is not null ? $"--tag-color:{Tag.Color}" : "")">
+    @if (Tag.Color is not null)
+    {
+        <span class="tag-badge-dot" aria-hidden="true"></span>
+    }
+    <span class="tag-badge-name">@Tag.Name</span>
+    @if (OnRemove.HasDelegate)
+    {
+        <button class="tag-badge-remove" @onclick="HandleRemove" @onclick:stopPropagation
+                title="Remove tag" aria-label="Remove tag @Tag.Name">×</button>
+    }
+</span>

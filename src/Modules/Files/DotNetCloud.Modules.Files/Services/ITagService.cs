@@ -25,22 +25,14 @@ public interface ITagService
 
     /// <summary>Lists all distinct tag names used by the caller.</summary>
     Task<IReadOnlyList<string>> GetAllUserTagsAsync(CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>Returns a summary of all tags used by the caller, including representative color and file count.</summary>
+    Task<IReadOnlyList<UserTagSummaryDto>> GetUserTagSummariesAsync(CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>Adds a tag to multiple files/folders in a single batch.</summary>
+    Task<BulkResultDto> BulkAddTagAsync(IReadOnlyList<Guid> nodeIds, string tagName, string? color, CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>Removes a tag by name from multiple files/folders in a single batch.</summary>
+    Task<BulkResultDto> BulkRemoveTagByNameAsync(IReadOnlyList<Guid> nodeIds, string tagName, CallerContext caller, CancellationToken cancellationToken = default);
 }
 
-/// <summary>
-/// Response DTO for a file tag.
-/// </summary>
-public sealed record FileTagDto
-{
-    /// <summary>Tag ID.</summary>
-    public required Guid Id { get; init; }
-
-    /// <summary>Tag name.</summary>
-    public required string Name { get; init; }
-
-    /// <summary>Tag color (hex).</summary>
-    public string? Color { get; init; }
-
-    /// <summary>When the tag was applied.</summary>
-    public DateTime CreatedAt { get; init; }
-}

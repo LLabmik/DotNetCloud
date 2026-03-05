@@ -26,6 +26,49 @@ else if (ActiveSection == FileSidebarSection.SharedByMe)
         OnPermissionChanged="HandleSharePermissionChanged"
         OnCopyLink="HandleCopyShareLink" />
 }
+else if (ActiveSection == FileSidebarSection.Tags && ActiveTag is not null)
+{
+    <div class="files-browser">
+        <div class="files-header">
+            <h1>
+                @if (ActiveTag.Color is not null)
+                {
+                    <span class="tag-dot-lg" style="background:@ActiveTag.Color" aria-hidden="true"></span>
+                }
+                @ActiveTag.Name
+            </h1>
+            <span class="files-header-subtitle">@TaggedNodes.Count files</span>
+        </div>
+
+        @if (TaggedNodes.Count == 0)
+        {
+            <div class="empty-state" role="status">
+                <p class="empty-state-title">No files with this tag</p>
+            </div>
+        }
+        else
+        {
+            <div class="files-list">
+                @foreach (var node in TaggedNodes)
+                {
+                    <div class="file-item" @ondblclick="() => HandleNodeDoubleClick(node)">
+                        <div class="file-icon">@GetNodeIcon(node)</div>
+                        <div class="file-info">
+                            <span class="file-name" title="@node.Name">@node.Name</span>
+                            <span class="file-meta">
+                                @if (node.NodeType == "File")
+                                {
+                                    @FormatSize(node.Size)
+                                }
+                                <text> </text>@node.UpdatedAt.ToString("MMM d, yyyy")
+                            </span>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
 else
 {
 <div class="files-browser @(IsBrowserDragging ? "files-browser--drag-over" : "")"
@@ -78,7 +121,16 @@ else
         {
             <span class="selection-info">@SelectedCount selected</span>
             <button class="btn btn-sm btn-danger" @onclick="DeleteSelected">Delete</button>
+            <button class="btn btn-sm" @onclick="ShowBulkTagAdd" title="Add tag to selected">Tag</button>
             <button class="btn btn-sm" @onclick="ClearSelection">Clear</button>
+        }
+
+        @if (IsShowBulkTagAdd)
+        {
+            <div class="bulk-tag-dialog">
+                <TagInput ExistingTags="UserTags" OnTagAdded="HandleBulkTagAdd" />
+                <button class="btn btn-sm" @onclick="HideBulkTagAdd">Cancel</button>
+            </div>
         }
     </div>
 
@@ -174,6 +226,15 @@ else
 
                     <div class="file-info">
                         <span class="file-name" title="@node.Name">@node.Name</span>
+                        @if (node.Tags.Count > 0)
+                        {
+                            <div class="file-tags" aria-label="Tags">
+                                @foreach (var tag in node.Tags)
+                                {
+                                    <TagBadge Tag="tag" />
+                                }
+                            </div>
+                        }
                         <span class="file-meta">
                             @if (node.NodeType == "File")
                             {

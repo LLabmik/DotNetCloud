@@ -46,6 +46,12 @@ public partial class FileBrowser : ComponentBase
     /// <summary>Raised when the user copies a public link from "Shared by me".</summary>
     [Parameter] public EventCallback<SharedItemViewModel> OnCopyShareLink { get; set; }
 
+    /// <summary>
+    /// Raised when the user adds a tag to all selected nodes.
+    /// Arguments: (nodeIds, tagName, color).
+    /// </summary>
+    [Parameter] public EventCallback<(IReadOnlyList<Guid> NodeIds, string TagName, string? Color)> OnBulkTagAdd { get; set; }
+
     private List<FileNodeViewModel> _nodes = [];
     private readonly List<BreadcrumbItem> _breadcrumbs = [];
     private readonly HashSet<Guid> _selectedNodes = [];
@@ -61,6 +67,7 @@ public partial class FileBrowser : ComponentBase
     private bool _showShareDialog;
     private bool _showPreview;
     private bool _showDocumentEditor;
+    private bool _showBulkTagAdd;
     private string _newFolderName = string.Empty;
     private FileNodeViewModel? _shareTargetNode;
     private FileNodeViewModel? _previewNode;
@@ -71,6 +78,9 @@ public partial class FileBrowser : ComponentBase
     private int _totalCount;
 #pragma warning restore CS0649
     private QuotaViewModel? _quota;
+    private FileTagViewModel? _activeTag;
+    private List<FileNodeViewModel> _taggedNodes = [];
+    private List<FileTagViewModel> _userTags = [];
 
     // Drag-and-drop: use a counter to handle bubbling (child elements fire enter/leave too).
     private int _dragEnterCount;
@@ -106,6 +116,10 @@ public partial class FileBrowser : ComponentBase
     protected bool IsShowShareDialog => _showShareDialog;
     protected bool IsShowPreview => _showPreview;
     protected bool IsShowDocumentEditor => _showDocumentEditor;
+    protected bool IsShowBulkTagAdd => _showBulkTagAdd;
+    protected FileTagViewModel? ActiveTag => _activeTag;
+    protected IReadOnlyList<FileNodeViewModel> TaggedNodes => _taggedNodes;
+    protected IReadOnlyList<FileTagViewModel> UserTags => _userTags;
     protected string NewFolderName { get => _newFolderName; set => _newFolderName = value; }
     protected FileNodeViewModel? ShareTargetNode => _shareTargetNode;
     protected FileNodeViewModel? PreviewNode => _previewNode;
@@ -223,6 +237,51 @@ public partial class FileBrowser : ComponentBase
     }
 
     protected void DeleteSelected() => _selectedNodes.Clear();
+
+    /// <summary>Activates the tag filter view for the given tag.</summary>
+    protected void FilterByTag(FileTagViewModel tag)
+    {
+        _activeTag = tag;
+        _taggedNodes = [];
+    }
+
+    /// <summary>Clears the active tag filter.</summary>
+    protected void ClearTagFilter()
+    {
+        _activeTag = null;
+        _taggedNodes = [];
+    }
+
+    /// <summary>Updates the user tag list (for sidebar and autocomplete).</summary>
+    protected void SetUserTags(IReadOnlyList<FileTagViewModel> tags)
+    {
+        _userTags = [.. tags];
+    }
+
+    /// <summary>Updates the tagged-nodes list for the current tag filter.</summary>
+    protected void SetTaggedNodes(IReadOnlyList<FileNodeViewModel> nodes)
+    {
+        _taggedNodes = [.. nodes];
+    }
+
+    /// <summary>Shows the bulk-tag-add panel.</summary>
+    protected void ShowBulkTagAdd() => _showBulkTagAdd = true;
+
+    /// <summary>Hides the bulk-tag-add panel.</summary>
+    protected void HideBulkTagAdd() => _showBulkTagAdd = false;
+
+    /// <summary>
+    /// Called when the user confirms adding a tag via the bulk-tag panel.
+    /// Raises <see cref="OnBulkTagAdd"/> so the host page can call the API.
+    /// </summary>
+    protected async Task HandleBulkTagAdd((string Name, string? Color) tag)
+    {
+        _showBulkTagAdd = false;
+        await OnBulkTagAdd.InvokeAsync((SelectedNodeIds, tag.Name, tag.Color));
+    }
+
+    /// <summary>Returns the IDs of all currently selected nodes.</summary>
+    protected IReadOnlyList<Guid> SelectedNodeIds => [.. _selectedNodes];
 
     protected void ToggleFavorite(Guid nodeId)
     {

@@ -44,8 +44,8 @@ public sealed record FileNodeDto
     /// <summary>Number of children (for folders).</summary>
     public int ChildCount { get; init; }
 
-    /// <summary>Tags applied to this node.</summary>
-    public IReadOnlyList<string> Tags { get; init; } = [];
+    /// <summary>Tags applied to this node (includes name and color).</summary>
+    public IReadOnlyList<FileTagDto> Tags { get; init; } = [];
 }
 
 /// <summary>
@@ -340,6 +340,54 @@ public sealed record BulkItemResultDto
 
     /// <summary>Error message if the operation failed.</summary>
     public string? Error { get; init; }
+}
+
+/// <summary>
+/// Response DTO for a file tag.
+/// </summary>
+public sealed record FileTagDto
+{
+    /// <summary>Tag ID.</summary>
+    public required Guid Id { get; init; }
+
+    /// <summary>Tag name.</summary>
+    public required string Name { get; init; }
+
+    /// <summary>Tag color (hex).</summary>
+    public string? Color { get; init; }
+
+    /// <summary>When the tag was applied.</summary>
+    public DateTime CreatedAt { get; init; }
+}
+
+/// <summary>
+/// Summary DTO for a user tag with usage count (used in sidebar tag list).
+/// </summary>
+public sealed record UserTagSummaryDto
+{
+    /// <summary>Tag name.</summary>
+    public required string Name { get; init; }
+
+    /// <summary>Representative color for this tag (from the most recent tag record).</summary>
+    public string? Color { get; init; }
+
+    /// <summary>Number of files/folders carrying this tag.</summary>
+    public int FileCount { get; init; }
+}
+
+/// <summary>
+/// Request DTO for bulk tag operations (add/remove a tag to/from multiple nodes).
+/// </summary>
+public sealed record BulkTagDto
+{
+    /// <summary>List of node IDs to operate on.</summary>
+    public required IReadOnlyList<Guid> NodeIds { get; init; }
+
+    /// <summary>Tag name to add or remove.</summary>
+    public required string TagName { get; init; }
+
+    /// <summary>Optional tag color (hex); only used for add operations.</summary>
+    public string? Color { get; init; }
 }
 
 /// <summary>

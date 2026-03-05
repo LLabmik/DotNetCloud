@@ -52,7 +52,7 @@
 | Phase 1.14 | 32 | 32 | 0 | 0 |
 | Phase 1.15 | 25 | 20 | 0 | 5 |
 | Phase 1.16 | 20 | 20 | 0 | 0 |
-| Phase 1.17 | 25 | 0 | 0 | 25 |
+| Phase 1.17 | 25 | 25 | 0 | 0 |
 | Phase 1.18 | 6 | 4 | 0 | 2 |
 | Phase 1.19 | 20 | 8 | 0 | 12 |
 | Phase 1.20 | 20 | 0 | 0 | 20 |
@@ -3015,6 +3015,31 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Dependencies:** Phase 1.15 (Client.SyncService — IPC server + protocol)
 **Blocking Issues:** None
 **Notes:** Phase 1.16 complete. 24 tests pass; full solution builds 0 errors, 0 warnings (Avalonia AVLN diagnostics suppressed). Tray icons are programmatic coloured circles (placeholder — production icons should be added to `Assets/`). Windows auto-start (`HKCU\Run`) and Linux autostart desktop file deferred to the packaging phase. Bandwidth-limit enforcement deferred (UI is present, enforcement in the sync engine is a future enhancement).
+
+---
+
+### Step: phase-1.17 - Bulk Operations & Tags
+**Status:** completed ✅
+**Duration:** ~1 day (actual)
+**Description:** Bulk file operations (move, copy, delete, permanent delete) and a full tag system (create/remove/list tags with color, filter by tag, tag autocomplete, bulk tag operations) for the Files module.
+
+**Deliverables:**
+- ✓ `BulkController` — POST /bulk/move, /bulk/copy, /bulk/delete, /bulk/permanent-delete with per-node success/failure tracking
+- ✓ `ITagService` / `TagService` — add, remove, getByNode, getByTagName, getAllUserTags, `GetUserTagSummariesAsync`, `BulkAddTagAsync`, `BulkRemoveTagByNameAsync`
+- ✓ `TagController` — add/remove tag, list all, list by name, GET /tags/summary, POST /tags/bulk-add, POST /tags/bulk-remove
+- ✓ `FileTagDto` moved to `FileDtos.cs`; `FileNodeDto.Tags` upgraded from `IReadOnlyList<string>` to `IReadOnlyList<FileTagDto>` (name + color)
+- ✓ `UserTagSummaryDto` — tag name, representative color, file count for sidebar display
+- ✓ `BulkTagDto` — NodeIds + TagName + Color for bulk tag requests
+- ✓ `TagBadge.razor` / `.razor.cs` — reusable colored tag badge component with optional remove button
+- ✓ `TagInput.razor` / `.razor.cs` — tag autocomplete input with color picker
+- ✓ `FileBrowser.razor` — tag badges on file items, bulk-tag panel on selection toolbar, Tags section view
+- ✓ `FileBrowser.razor.cs` — ActiveTag, TaggedNodes, UserTags state; FilterByTag, BulkTagAdd handlers; OnBulkTagAdd event callback
+- ✓ `FileNodeViewModel.Tags` — rich tag view model list for badge rendering
+- ✓ 60 new tests (17 tag service + existing 396 + new bulk tag tests); 456 total
+
+**Dependencies:** Phase 1.9 (Tags model + TagService skeleton)
+**Blocking Issues:** None
+**Notes:** Phase 1.17 complete. `FileService.ToDto` now maps `FileTag` entities to `FileTagDto` including color. `GetUserTagSummariesAsync` groups by tag name and uses the most-recently-added color as the representative. Bulk ops follow the existing per-item-catch pattern (partial success). All 456 Files module tests pass.
 
 ---
 

@@ -150,6 +150,87 @@ internal sealed class TagService : ITagService
         _logger.LogInformation("Tag '{TagName}' removed from node {NodeId} by {UserId}", tagName, fileNodeId, caller.UserId);
     }
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<UserTagSummaryDto>> GetUserTagSummariesAsync(CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+
+        return await _db.FileTags
+            .AsNoTracking()
+            .Where(t => t.CreatedByUserId == caller.UserId)
+            .GroupBy(t => t.Name)
+            .Select(g => new UserTagSummaryDto
+            {
+                Name = g.Key,
+                Color = g.OrderByDescending(t => t.CreatedAt).Select(t => t.Color).FirstOrDefault(),
+                FileCount = g.Count()
+            })
+            .OrderBy(s => s.Name)
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<BulkResultDto> BulkAddTagAsync(IReadOnlyList<Guid> nodeIds, string tagName, string? color, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+        ArgumentNullException.ThrowIfNull(nodeIds);
+        ArgumentException.ThrowIfNullOrWhiteSpace(tagName);
+
+        var results = new List<BulkItemResultDto>(nodeIds.Count);
+
+        foreach (var nodeId in nodeIds)
+        {
+            try
+            {
+                await AddTagAsync(nodeId, tagName, color, caller, cancellationToken);
+                results.Add(new BulkItemResultDto { NodeId = nodeId, Success = true });
+            }
+            catch (Exception ex)
+            {
+                results.Add(new BulkItemResultDto { NodeId = nodeId, Success = false, Error = ex.Message });
+            }
+        }
+
+        return new BulkResultDto
+        {
+            TotalCount = nodeIds.Count,
+            SuccessCount = results.Count(r => r.Success),
+            FailureCount = results.Count(r => !r.Success),
+            Results = results
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task<BulkResultDto> BulkRemoveTagByNameAsync(IReadOnlyList<Guid> nodeIds, string tagName, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+        ArgumentNullException.ThrowIfNull(nodeIds);
+        ArgumentException.ThrowIfNullOrWhiteSpace(tagName);
+
+        var results = new List<BulkItemResultDto>(nodeIds.Count);
+
+        foreach (var nodeId in nodeIds)
+        {
+            try
+            {
+                await RemoveTagByNameAsync(nodeId, tagName, caller, cancellationToken);
+                results.Add(new BulkItemResultDto { NodeId = nodeId, Success = true });
+            }
+            catch (Exception ex)
+            {
+                results.Add(new BulkItemResultDto { NodeId = nodeId, Success = false, Error = ex.Message });
+            }
+        }
+
+        return new BulkResultDto
+        {
+            TotalCount = nodeIds.Count,
+            SuccessCount = results.Count(r => r.Success),
+            FailureCount = results.Count(r => !r.Success),
+            Results = results
+        };
+    }
+
     private static void EnsureOwnerOrSystem(FileNode node, CallerContext caller)
     {
         if (caller.Type == CallerType.System)

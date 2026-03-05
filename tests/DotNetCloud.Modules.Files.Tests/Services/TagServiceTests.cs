@@ -221,4 +221,122 @@ public class TagServiceTests
         Assert.AreEqual(1, tags.Count);
         Assert.AreEqual("Mine", tags[0]);
     }
+
+    [TestMethod]
+    public async Task GetUserTagSummariesAsync_ReturnsSummariesWithCounts()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var node1 = CreateFileNode(userId);
+        var node2 = CreateFileNode(userId);
+        node2.Name = "other.txt";
+        db.FileNodes.AddRange(node1, node2);
+        db.FileTags.Add(new FileTag { FileNodeId = node1.Id, Name = "Work", Color = "#ff0000", CreatedByUserId = userId });
+        db.FileTags.Add(new FileTag { FileNodeId = node2.Id, Name = "Work", Color = "#ff0000", CreatedByUserId = userId });
+        db.FileTags.Add(new FileTag { FileNodeId = node1.Id, Name = "Personal", Color = "#00ff00", CreatedByUserId = userId });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var summaries = await service.GetUserTagSummariesAsync(UserCaller(userId));
+
+        Assert.AreEqual(2, summaries.Count);
+        var personal = summaries.First(s => s.Name == "Personal");
+        var work = summaries.First(s => s.Name == "Work");
+        Assert.AreEqual(1, personal.FileCount);
+        Assert.AreEqual(2, work.FileCount);
+        Assert.AreEqual("#00ff00", personal.Color);
+    }
+
+    [TestMethod]
+    public async Task GetUserTagSummariesAsync_NoTags_ReturnsEmpty()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+
+        var service = CreateService(db);
+        var summaries = await service.GetUserTagSummariesAsync(UserCaller(userId));
+
+        Assert.AreEqual(0, summaries.Count);
+    }
+
+    [TestMethod]
+    public async Task BulkAddTagAsync_ValidNodes_AddsTagToAll()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var node1 = CreateFileNode(userId);
+        var node2 = CreateFileNode(userId);
+        node2.Name = "other.txt";
+        db.FileNodes.AddRange(node1, node2);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.BulkAddTagAsync([node1.Id, node2.Id], "Important", "#ff0000", UserCaller(userId));
+
+        Assert.AreEqual(2, result.TotalCount);
+        Assert.AreEqual(2, result.SuccessCount);
+        Assert.AreEqual(0, result.FailureCount);
+        Assert.AreEqual(2, await db.FileTags.CountAsync());
+    }
+
+    [TestMethod]
+    public async Task BulkAddTagAsync_SomeNodesMissing_PartialSuccess()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var node = CreateFileNode(userId);
+        db.FileNodes.Add(node);
+        await db.SaveChangesAsync();
+
+        var missingId = Guid.NewGuid();
+        var service = CreateService(db);
+        var result = await service.BulkAddTagAsync([node.Id, missingId], "Work", null, UserCaller(userId));
+
+        Assert.AreEqual(2, result.TotalCount);
+        Assert.AreEqual(1, result.SuccessCount);
+        Assert.AreEqual(1, result.FailureCount);
+    }
+
+    [TestMethod]
+    public async Task BulkRemoveTagByNameAsync_ValidNodes_RemovesTagFromAll()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var node1 = CreateFileNode(userId);
+        var node2 = CreateFileNode(userId);
+        node2.Name = "other.txt";
+        db.FileNodes.AddRange(node1, node2);
+        db.FileTags.Add(new FileTag { FileNodeId = node1.Id, Name = "Work", CreatedByUserId = userId });
+        db.FileTags.Add(new FileTag { FileNodeId = node2.Id, Name = "Work", CreatedByUserId = userId });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.BulkRemoveTagByNameAsync([node1.Id, node2.Id], "Work", UserCaller(userId));
+
+        Assert.AreEqual(2, result.TotalCount);
+        Assert.AreEqual(2, result.SuccessCount);
+        Assert.AreEqual(0, await db.FileTags.CountAsync());
+    }
+
+    [TestMethod]
+    public async Task BulkRemoveTagByNameAsync_TagMissingOnSomeNodes_PartialSuccess()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var node1 = CreateFileNode(userId);
+        var node2 = CreateFileNode(userId);
+        node2.Name = "other.txt";
+        db.FileNodes.AddRange(node1, node2);
+        db.FileTags.Add(new FileTag { FileNodeId = node1.Id, Name = "Work", CreatedByUserId = userId });
+        // node2 does NOT have the "Work" tag
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.BulkRemoveTagByNameAsync([node1.Id, node2.Id], "Work", UserCaller(userId));
+
+        Assert.AreEqual(2, result.TotalCount);
+        Assert.AreEqual(1, result.SuccessCount);
+        Assert.AreEqual(1, result.FailureCount);
+        Assert.AreEqual(0, await db.FileTags.CountAsync());
+    }
 }

@@ -2277,43 +2277,43 @@ This phase implements the core Files module, which is the primary public-facing 
 **Batch file operations for efficiency**
 
 #### Bulk Move
-- ☐ Accept list of node IDs and target folder ID
-- ☐ Validate all nodes exist and caller has permission
-- ☐ Move all nodes in a single transaction
-- ☐ Update materialized paths for all moved nodes
-- ☐ Return success/failure per node
+- ✓ Accept list of node IDs and target folder ID
+- ✓ Validate all nodes exist and caller has permission
+- ✓ Move all nodes (per-node with success/failure tracking)
+- ✓ Update materialized paths for all moved nodes
+- ✓ Return success/failure per node
 
 #### Bulk Copy
-- ☐ Accept list of node IDs and target folder ID
-- ☐ Deep-copy folders (recursive)
-- ☐ Reuse chunks for file copies (reference count increment only)
-- ☐ Return new node IDs for all copies
-- ☐ Enforce quota check for total copy size
+- ✓ Accept list of node IDs and target folder ID
+- ✓ Deep-copy folders (recursive)
+- ✓ Reuse chunks for file copies (reference count increment only)
+- ✓ Return success/failure per node
+- ✓ Enforce quota check for total copy size
 
 #### Bulk Delete
-- ☐ Accept list of node IDs
-- ☐ Soft-delete all to trash in a single transaction
-- ☐ Publish `FileDeletedEvent` per node
+- ✓ Accept list of node IDs
+- ✓ Soft-delete all to trash (per-node with success/failure tracking)
+- ✓ Publish `FileDeletedEvent` per node
 
 #### Bulk Permanent Delete
-- ☐ Accept list of node IDs (from trash)
-- ☐ Permanent delete with chunk cleanup
-- ☐ Update quota per user
+- ✓ Accept list of node IDs (from trash)
+- ✓ Permanent delete with chunk cleanup
+- ✓ Update quota per user
 
 ### Tag System
 
 #### Tag Management
-- ☐ Create/assign tags to files and folders
-- ☐ Remove tags from files and folders
-- ☐ Tag color customization
-- ☐ List all files with a specific tag
-- ☐ List all user tags with usage counts
+- ✓ Create/assign tags to files and folders
+- ✓ Remove tags from files and folders
+- ✓ Tag color customization
+- ✓ List all files with a specific tag
+- ✓ List all user tags with usage counts (`GetUserTagSummariesAsync`)
 
 #### Tag UI
-- ☐ Tag display on file items (colored badges)
-- ☐ Tag filter sidebar (click tag to filter view)
-- ☐ Tag autocomplete when adding tags
-- ☐ Bulk tag operations (add/remove tag from selected items)
+- ✓ Tag display on file items (colored badges via `TagBadge` component)
+- ✓ Tag filter sidebar (click tag to filter view)
+- ✓ Tag autocomplete when adding tags (`TagInput` component)
+- ✓ Bulk tag operations (add/remove tag from selected items)
 
 ---
 
