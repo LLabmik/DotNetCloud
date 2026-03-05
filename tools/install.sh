@@ -117,10 +117,21 @@ get_latest_version() {
 # --- Download and install ---
 install_dotnetcloud() {
     local ARCHIVE_URL="https://github.com/${REPO}/releases/download/v${LATEST_VERSION}/dotnetcloud-${LATEST_VERSION}-linux-x64.tar.gz"
+    local CHECKSUM_URL="${ARCHIVE_URL}.sha256"
     local TEMP_FILE="/tmp/dotnetcloud-${LATEST_VERSION}.tar.gz"
+    local TEMP_CHECKSUM="/tmp/dotnetcloud-${LATEST_VERSION}.tar.gz.sha256"
 
     info "Downloading DotNetCloud v${LATEST_VERSION}..."
     curl -fSL "$ARCHIVE_URL" -o "$TEMP_FILE" || fatal "Download failed. Is v${LATEST_VERSION} published at ${ARCHIVE_URL}?"
+
+    info "Verifying checksum..."
+    if curl -fSL "$CHECKSUM_URL" -o "$TEMP_CHECKSUM" 2>/dev/null; then
+        (cd /tmp && sha256sum --check "$TEMP_CHECKSUM") || fatal "Checksum verification failed! The download may be corrupted."
+        ok "Checksum verified."
+        rm -f "$TEMP_CHECKSUM"
+    else
+        warn "Checksum file not available. Skipping verification."
+    fi
 
     info "Creating service user..."
     if ! id "$SERVICE_USER" &>/dev/null; then

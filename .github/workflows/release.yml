@@ -1,0 +1,167 @@
+# =============================================================================
+# DotNetCloud — Release Pipeline
+# =============================================================================
+# Triggered when a version tag (v*) is pushed. Gitea mirrors to GitHub and
+# pushes tags, which triggers this workflow automatically.
+#
+# What it does:
+#   1. Build + test the full solution
+#   2. Publish self-contained linux-x64 binaries (CLI, Core.Server, module hosts)
+#   3. Package into dotnetcloud-{VERSION}-linux-x64.tar.gz
+#   4. Generate SHA256 checksum
+#   5. Create a GitHub Release with tarball + checksum attached
+#
+# The install script (tools/install.sh) downloads the tarball from the
+# GitHub Release created by this workflow.
+# =============================================================================
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Release
+    runs-on: ubuntu-latest
+
+    steps:
+      # ------------------------------------------------------------------
+      # Setup
+      # ------------------------------------------------------------------
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          echo "version=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Building version: ${TAG}"
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      # ------------------------------------------------------------------
+      # Build & Test
+      # ------------------------------------------------------------------
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test --no-build --configuration Release --verbosity normal
+
+      # ------------------------------------------------------------------
+      # Publish self-contained linux-x64 binaries
+      # ------------------------------------------------------------------
+      - name: Publish CLI
+        run: |
+          dotnet publish src/CLI/DotNetCloud.CLI/DotNetCloud.CLI.csproj \
+            --configuration Release \
+            --runtime linux-x64 \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:Version=${{ steps.version.outputs.version }} \
+            --output artifacts/publish/cli
+
+      - name: Publish Core Server
+        run: |
+          dotnet publish src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj \
+            --configuration Release \
+            --runtime linux-x64 \
+            --self-contained true \
+            -p:Version=${{ steps.version.outputs.version }} \
+            --output artifacts/publish/server
+
+      - name: Publish module hosts
+        run: |
+          for host_csproj in \
+            src/Modules/Example/DotNetCloud.Modules.Example.Host/DotNetCloud.Modules.Example.Host.csproj \
+            src/Modules/Files/DotNetCloud.Modules.Files.Host/DotNetCloud.Modules.Files.Host.csproj \
+            src/Modules/Chat/DotNetCloud.Modules.Chat.Host/DotNetCloud.Modules.Chat.Host.csproj; do
+
+            # Derive module name from assembly: dotnetcloud.example -> example
+            MODULE_NAME=$(grep -oP '(?<=<AssemblyName>dotnetcloud\.)\w+' "$host_csproj" || true)
+            if [ -z "$MODULE_NAME" ]; then
+              # Fallback: derive from directory name
+              MODULE_NAME=$(basename "$(dirname "$host_csproj")" | sed 's/.*\.//' | tr '[:upper:]' '[:lower:]')
+            fi
+
+            echo "Publishing module: ${MODULE_NAME}"
+            dotnet publish "$host_csproj" \
+              --configuration Release \
+              --runtime linux-x64 \
+              --self-contained true \
+              -p:Version=${{ steps.version.outputs.version }} \
+              --output "artifacts/publish/modules/${MODULE_NAME}"
+          done
+
+      # ------------------------------------------------------------------
+      # Package tarball
+      # ------------------------------------------------------------------
+      - name: Create release tarball
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          STAGING="artifacts/staging/dotnetcloud-${VERSION}-linux-x64"
+          mkdir -p "${STAGING}/server"
+          mkdir -p "${STAGING}/modules"
+
+          # CLI binary (single-file) → root of install dir
+          cp artifacts/publish/cli/dotnetcloud "${STAGING}/dotnetcloud"
+          chmod +x "${STAGING}/dotnetcloud"
+
+          # Core Server → server/ subdirectory
+          cp -r artifacts/publish/server/* "${STAGING}/server/"
+          chmod +x "${STAGING}/server/DotNetCloud.Core.Server"
+
+          # Module hosts → modules/{name}/ subdirectories
+          for module_dir in artifacts/publish/modules/*/; do
+            MODULE_NAME=$(basename "$module_dir")
+            cp -r "$module_dir" "${STAGING}/modules/${MODULE_NAME}"
+            # Make the module host executable
+            find "${STAGING}/modules/${MODULE_NAME}" -maxdepth 1 -name "dotnetcloud.*" -type f ! -name "*.dll" ! -name "*.json" ! -name "*.xml" ! -name "*.pdb" -exec chmod +x {} \;
+          done
+
+          # Include install metadata
+          echo "${VERSION}" > "${STAGING}/VERSION"
+
+          # Create tarball
+          TARBALL="artifacts/dotnetcloud-${VERSION}-linux-x64.tar.gz"
+          tar -czf "$TARBALL" -C artifacts/staging "dotnetcloud-${VERSION}-linux-x64"
+
+          echo "tarball=${TARBALL}" >> "$GITHUB_ENV"
+          echo "tarball_name=dotnetcloud-${VERSION}-linux-x64.tar.gz" >> "$GITHUB_ENV"
+
+      - name: Generate SHA256 checksum
+        run: |
+          cd artifacts
+          sha256sum "$(basename "${{ env.tarball }}")" > "$(basename "${{ env.tarball }}").sha256"
+          echo "Checksum:"
+          cat "$(basename "${{ env.tarball }}").sha256"
+
+      # ------------------------------------------------------------------
+      # Create GitHub Release
+      # ------------------------------------------------------------------
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: DotNetCloud ${{ steps.version.outputs.tag }}
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, '-') }}
+          generate_release_notes: true
+          files: |
+            ${{ env.tarball }}
+            ${{ env.tarball }}.sha256
