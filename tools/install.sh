@@ -210,10 +210,11 @@ get_latest_version() {
 
 # --- Download and install ---
 install_dotnetcloud() {
-    local ARCHIVE_URL="https://github.com/${REPO}/releases/download/v${LATEST_VERSION}/dotnetcloud-${LATEST_VERSION}-linux-x64.tar.gz"
+    local ARCHIVE_NAME="dotnetcloud-${LATEST_VERSION}-linux-x64.tar.gz"
+    local ARCHIVE_URL="https://github.com/${REPO}/releases/download/v${LATEST_VERSION}/${ARCHIVE_NAME}"
     local CHECKSUM_URL="${ARCHIVE_URL}.sha256"
-    local TEMP_FILE="/tmp/dotnetcloud-${LATEST_VERSION}.tar.gz"
-    local TEMP_CHECKSUM="/tmp/dotnetcloud-${LATEST_VERSION}.tar.gz.sha256"
+    local TEMP_FILE="/tmp/${ARCHIVE_NAME}"
+    local TEMP_CHECKSUM="/tmp/${ARCHIVE_NAME}.sha256"
 
     info "Downloading DotNetCloud v${LATEST_VERSION}..."
     curl -fSL "$ARCHIVE_URL" -o "$TEMP_FILE" || fatal "Download failed. Is v${LATEST_VERSION} published at ${ARCHIVE_URL}?"
