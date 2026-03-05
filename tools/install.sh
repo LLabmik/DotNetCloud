@@ -303,9 +303,14 @@ WantedBy=multi-user.target
 EOF
 
     $SUDO systemctl daemon-reload
-    $SUDO systemctl enable dotnetcloud.service
 
-    ok "Systemd service installed and enabled."
+    # Only enable auto-start if this is an upgrade (config already exists).
+    # Fresh installs must run 'dotnetcloud setup' first.
+    if [[ "$IS_UPGRADE" == true ]]; then
+        $SUDO systemctl enable dotnetcloud.service
+    fi
+
+    ok "Systemd service installed."
 }
 
 # --- Post-upgrade: migrate database and restart ---
@@ -362,10 +367,39 @@ main() {
         echo ""
         ok "Installation complete!"
         echo ""
-        info "Next steps:"
-        echo "  1. Run the setup wizard:    dotnetcloud setup"
-        echo "  2. Start the server:        dotnetcloud serve"
-        echo "  3. Or start via systemd:    sudo systemctl start dotnetcloud"
+
+        # Offer to run setup immediately for a seamless experience
+        read -rp "$(echo -e "${BLUE}[INFO]${NC} Run the setup wizard now? [Y/n]: ")" RUN_SETUP
+        RUN_SETUP="${RUN_SETUP:-Y}"
+
+        if [[ "${RUN_SETUP,,}" == "y" ]]; then
+            echo ""
+            $SUDO "${INSTALL_DIR}/dotnetcloud" setup
+            SETUP_EXIT=$?
+
+            if [[ $SETUP_EXIT -eq 0 ]]; then
+                echo ""
+                info "Starting DotNetCloud service..."
+                $SUDO systemctl enable dotnetcloud.service
+                $SUDO systemctl start dotnetcloud.service
+                ok "Service started and enabled on boot."
+                echo ""
+                info "Verify:"
+                echo "  sudo systemctl status dotnetcloud"
+                echo "  curl -s http://localhost:5080/health"
+            else
+                warn "Setup did not complete. You can run it later:"
+                echo "  sudo dotnetcloud setup"
+                echo "  sudo systemctl start dotnetcloud"
+                echo "  sudo systemctl enable dotnetcloud"
+            fi
+        else
+            echo ""
+            info "Run these when you're ready:"
+            echo "  1. sudo dotnetcloud setup"
+            echo "  2. sudo systemctl start dotnetcloud"
+            echo "  3. sudo systemctl enable dotnetcloud"
+        fi
         echo ""
     fi
 

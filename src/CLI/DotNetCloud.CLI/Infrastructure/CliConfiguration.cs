@@ -4,15 +4,39 @@ namespace DotNetCloud.CLI.Infrastructure;
 
 /// <summary>
 /// Manages CLI configuration file loading and persistence.
-/// Configuration is stored in a JSON file at the platform-appropriate location.
+/// Configuration is resolved in priority order:
+/// 1. DOTNETCLOUD_CONFIG_DIR environment variable (set by systemd unit)
+/// 2. /etc/dotnetcloud (system install on Linux)
+/// 3. Platform-specific user config (~/.config/dotnetcloud on Linux, %APPDATA%\dotnetcloud on Windows)
 /// </summary>
 internal static class CliConfiguration
 {
-    private static readonly string ConfigDirectory = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "dotnetcloud");
+    private const string ConfigFileName = "config.json";
+    private const string SystemConfigDir = "/etc/dotnetcloud";
 
-    private static readonly string ConfigFilePath = Path.Combine(ConfigDirectory, "config.json");
+    private static readonly string ConfigDirectory = ResolveConfigDirectory();
+    private static readonly string ConfigFilePath = Path.Combine(ConfigDirectory, ConfigFileName);
+
+    private static string ResolveConfigDirectory()
+    {
+        // 1. Explicit env var (set by systemd unit, Docker, etc.)
+        var envDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_CONFIG_DIR");
+        if (!string.IsNullOrWhiteSpace(envDir))
+        {
+            return envDir;
+        }
+
+        // 2. System install path on Linux (created by install.sh)
+        if (!OperatingSystem.IsWindows() && Directory.Exists(SystemConfigDir))
+        {
+            return SystemConfigDir;
+        }
+
+        // 3. User-local config (dev/Windows)
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "dotnetcloud");
+    }
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
