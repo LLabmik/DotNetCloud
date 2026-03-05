@@ -74,15 +74,16 @@ internal static class ServiceCommands
         ConsoleOutput.WriteHeader("DotNetCloud Server");
 
         // Find the server executable
-        var serverPath = FindServerExecutable();
-        if (serverPath is null)
+        var serverInfo = FindServerExecutable();
+        if (serverInfo is null)
         {
             ConsoleOutput.WriteError("Could not find DotNetCloud.Core.Server executable.");
             ConsoleOutput.WriteInfo("Ensure the server is built: dotnet build src/Core/DotNetCloud.Core.Server");
             return Task.FromResult(1);
         }
 
-        ConsoleOutput.WriteInfo($"Starting server from: {serverPath}");
+        var (serverFileName, serverArguments) = serverInfo.Value;
+        ConsoleOutput.WriteInfo($"Starting server from: {serverFileName}");
         ConsoleOutput.WriteDetail("HTTP Port", config.HttpPort.ToString());
         if (config.EnableHttps)
         {
@@ -93,7 +94,8 @@ internal static class ServiceCommands
         {
             var psi = new ProcessStartInfo
             {
-                FileName = serverPath,
+                FileName = serverFileName,
+                Arguments = serverArguments ?? string.Empty,
                 UseShellExecute = !foreground,
                 RedirectStandardOutput = foreground,
                 RedirectStandardError = foreground,
@@ -273,43 +275,90 @@ internal static class ServiceCommands
         return await ServeAsync(foreground: false);
     }
 
-    private static string? FindServerExecutable()
+    /// <summary>
+    /// Locates the server executable, checking installed locations first, then
+    /// development build output, and finally falling back to <c>dotnet run</c>.
+    /// Returns <c>null</c> when the server cannot be found at all.
+    /// </summary>
+    private static (string FileName, string? Arguments)? FindServerExecutable()
     {
-        // Look for the server in common locations
-        var candidates = new[]
+        // 1. Check common installed/published locations relative to the CLI binary
+        var installedCandidates = new[]
         {
             Path.Combine(AppContext.BaseDirectory, "DotNetCloud.Core.Server"),
             Path.Combine(AppContext.BaseDirectory, "DotNetCloud.Core.Server.exe"),
+            Path.Combine(AppContext.BaseDirectory, "server", "DotNetCloud.Core.Server"),
+            Path.Combine(AppContext.BaseDirectory, "server", "DotNetCloud.Core.Server.exe"),
             Path.Combine(AppContext.BaseDirectory, "..", "DotNetCloud.Core.Server", "DotNetCloud.Core.Server"),
             Path.Combine(AppContext.BaseDirectory, "..", "DotNetCloud.Core.Server", "DotNetCloud.Core.Server.exe"),
         };
 
-        // Also check via dotnet run
+        var found = installedCandidates.FirstOrDefault(File.Exists);
+        if (found is not null)
+        {
+            return (Path.GetFullPath(found), null);
+        }
+
+        // 2. Development: find the server project and look for its build output
         var serverProject = FindServerProject();
         if (serverProject is not null)
         {
-            return $"dotnet run --project \"{serverProject}\" --no-build";
+            var projectDir = Path.GetDirectoryName(serverProject)!;
+            var tfm = $"net{Environment.Version.Major}.0";
+
+            var buildOutputCandidates = new[]
+            {
+                Path.Combine(projectDir, "bin", "Debug", tfm, "DotNetCloud.Core.Server"),
+                Path.Combine(projectDir, "bin", "Debug", tfm, "DotNetCloud.Core.Server.exe"),
+                Path.Combine(projectDir, "bin", "Release", tfm, "DotNetCloud.Core.Server"),
+                Path.Combine(projectDir, "bin", "Release", tfm, "DotNetCloud.Core.Server.exe"),
+            };
+
+            found = buildOutputCandidates.FirstOrDefault(File.Exists);
+            if (found is not null)
+            {
+                return (Path.GetFullPath(found), null);
+            }
+
+            // 3. Fallback: use dotnet run (requires SDK, slower but always works)
+            return ("dotnet", $"run --project \"{serverProject}\" --no-build");
         }
 
-        return candidates.FirstOrDefault(File.Exists);
+        return null;
     }
 
+    /// <summary>
+    /// Walks up from both the CLI binary directory and the current working directory
+    /// to locate the server <c>.csproj</c> via the solution file.
+    /// </summary>
     private static string? FindServerProject()
     {
-        // Walk up from the CLI executable to find the solution directory
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
+        var searchRoots = new HashSet<string>(StringComparer.Ordinal)
         {
-            var slnFiles = dir.GetFiles("DotNetCloud.sln");
-            if (slnFiles.Length > 0)
+            AppContext.BaseDirectory,
+            Directory.GetCurrentDirectory()
+        };
+
+        foreach (var root in searchRoots)
+        {
+            var dir = new DirectoryInfo(root);
+            while (dir is not null)
             {
-                var serverProj = Path.Combine(dir.FullName, "src", "Core", "DotNetCloud.Core.Server", "DotNetCloud.Core.Server.csproj");
-                if (File.Exists(serverProj))
+                var slnFiles = dir.GetFiles("DotNetCloud.sln");
+                if (slnFiles.Length > 0)
                 {
-                    return serverProj;
+                    var serverProj = Path.Combine(
+                        dir.FullName, "src", "Core",
+                        "DotNetCloud.Core.Server", "DotNetCloud.Core.Server.csproj");
+
+                    if (File.Exists(serverProj))
+                    {
+                        return serverProj;
+                    }
                 }
+
+                dir = dir.Parent;
             }
-            dir = dir.Parent;
         }
 
         return null;
