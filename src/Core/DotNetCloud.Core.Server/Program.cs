@@ -1,15 +1,18 @@
 using DotNetCloud.Core.Auth.Extensions;
+using DotNetCloud.Core.Data.Entities.Identity;
 using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Initialization;
 using DotNetCloud.Core.Localization;
 using DotNetCloud.Core.Server.Configuration;
 using DotNetCloud.Core.Server.Extensions;
+using DotNetCloud.Core.Server.Initialization;
 using DotNetCloud.Core.Server.Middleware;
 using DotNetCloud.Core.ServiceDefaults.Extensions;
 using DotNetCloud.Core.ServiceDefaults.Telemetry;
 using DotNetCloud.UI.Web.Client.Services;
 using DotNetCloud.UI.Web.Services;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Identity;
 
 namespace DotNetCloud.Core.Server;
 
@@ -36,6 +39,13 @@ public class Program
         {
             var dbInitializer = scope.ServiceProvider.GetRequiredService<DbInitializer>();
             await dbInitializer.InitializeAsync();
+
+            // Create the initial admin user (idempotent — only when no users exist)
+            var adminSeeder = new AdminSeeder(
+                scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
+                app.Configuration,
+                scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger<AdminSeeder>());
+            await adminSeeder.SeedAsync();
         }
 
         app.Run();

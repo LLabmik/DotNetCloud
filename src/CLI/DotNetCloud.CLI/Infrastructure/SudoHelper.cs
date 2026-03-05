@@ -24,13 +24,29 @@ internal static class SudoHelper
     }
 
     /// <summary>
+    /// Returns <c>true</c> when the process was started by systemd as a service unit.
+    /// systemd sets <c>INVOCATION_ID</c> for every service it manages.
+    /// </summary>
+    public static bool IsRunningUnderSystemd()
+    {
+        return !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("INVOCATION_ID"));
+    }
+
+    /// <summary>
     /// If not running as root on Linux, re-launches the current command under <c>sudo</c>,
-    /// waits for it to finish, and returns the exit code. Returns <c>null</c> if already root
-    /// or on a non-Linux platform (caller should proceed normally).
+    /// waits for it to finish, and returns the exit code. Returns <c>null</c> if already root,
+    /// on a non-Linux platform, or running under systemd (caller should proceed normally).
     /// </summary>
     public static int? ReExecWithSudo(string[] args)
     {
         if (IsRunningAsRoot())
+        {
+            return null;
+        }
+
+        // When running as a systemd service, NoNewPrivileges=true prevents sudo.
+        // The service unit is responsible for running with the correct user/permissions.
+        if (IsRunningUnderSystemd())
         {
             return null;
         }

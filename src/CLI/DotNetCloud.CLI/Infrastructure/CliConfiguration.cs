@@ -83,6 +83,11 @@ internal static class CliConfiguration
     public static string GetConfigFilePath() => ConfigFilePath;
 
     /// <summary>
+    /// Returns the resolved configuration directory path.
+    /// </summary>
+    public static string GetConfigDirectory() => ConfigDirectory;
+
+    /// <summary>
     /// Checks whether a configuration file exists.
     /// </summary>
     public static bool ConfigExists() => File.Exists(ConfigFilePath);

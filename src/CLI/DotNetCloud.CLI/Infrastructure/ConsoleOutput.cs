@@ -231,7 +231,13 @@ internal static class ConsoleOutput
     /// <summary>
     /// Prompts the user to select from a list of options.
     /// </summary>
-    public static int PromptChoice(string message, string[] options)
+    /// <param name="message">The prompt message.</param>
+    /// <param name="options">Available options to display.</param>
+    /// <param name="defaultIndex">
+    /// Zero-based index of the pre-selected option. When set, pressing Enter
+    /// without typing a number returns this index. Pass <c>-1</c> for no default.
+    /// </param>
+    public static int PromptChoice(string message, string[] options, int defaultIndex = -1)
     {
         ArgumentNullException.ThrowIfNull(options);
 
@@ -241,16 +247,24 @@ internal static class ConsoleOutput
 
         for (var i = 0; i < options.Length; i++)
         {
-            Console.WriteLine($"    {i + 1}. {options[i]}");
+            var marker = i == defaultIndex ? "*" : " ";
+            Console.WriteLine($"   {marker}{i + 1}. {options[i]}");
         }
 
         while (true)
         {
+            var defaultHint = defaultIndex >= 0 ? $" [{defaultIndex + 1}]" : "";
             Console.ForegroundColor = ConsoleColor.DarkGray;
-            Console.Write("  Choice: ");
+            Console.Write($"  Choice{defaultHint}: ");
             Console.ResetColor();
 
-            if (int.TryParse(Console.ReadLine()?.Trim(), out var choice) && choice >= 1 && choice <= options.Length)
+            var input = Console.ReadLine()?.Trim();
+            if (string.IsNullOrEmpty(input) && defaultIndex >= 0)
+            {
+                return defaultIndex;
+            }
+
+            if (int.TryParse(input, out var choice) && choice >= 1 && choice <= options.Length)
             {
                 return choice - 1;
             }

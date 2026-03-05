@@ -266,7 +266,21 @@ install_dotnetcloud() {
 install_service() {
     info "Installing systemd service..."
 
-    $SUDO tee /etc/systemd/system/dotnetcloud.service > /dev/null <<EOF
+    # Fresh installs get a permissive service file — no security hardening yet.
+    # 'dotnetcloud setup' applies NoNewPrivileges, ProtectSystem, ProtectHome, and
+    # PrivateTmp after the setup wizard completes successfully. This avoids the
+    # chicken-and-egg problem where NoNewPrivileges blocks sudo during first-run setup.
+    #
+    # Upgrades already have a hardened service file from a previous setup, so we
+    # regenerate with hardening to preserve the locked-down state.
+    if [[ "$IS_UPGRADE" == true ]]; then
+        local HARDENING="true"
+    else
+        local HARDENING="false"
+    fi
+
+    if [[ "$HARDENING" == "true" ]]; then
+        $SUDO tee /etc/systemd/system/dotnetcloud.service > /dev/null <<EOF
 [Unit]
 Description=DotNetCloud Core Server
 Documentation=https://github.com/LLabmik/DotNetCloud
@@ -278,14 +292,14 @@ Type=notify
 User=${SERVICE_USER}
 Group=${SERVICE_GROUP}
 WorkingDirectory=${INSTALL_DIR}
-ExecStart=${INSTALL_DIR}/dotnetcloud serve
+ExecStart=${INSTALL_DIR}/dotnetcloud start
 ExecStop=${INSTALL_DIR}/dotnetcloud stop
 Restart=on-failure
 RestartSec=10
 TimeoutStartSec=60
 TimeoutStopSec=30
 
-# Security hardening
+# Security hardening (applied by dotnetcloud setup)
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
@@ -301,6 +315,36 @@ Environment=DOTNETCLOUD_LOG_DIR=${LOG_DIR}
 [Install]
 WantedBy=multi-user.target
 EOF
+    else
+        $SUDO tee /etc/systemd/system/dotnetcloud.service > /dev/null <<EOF
+[Unit]
+Description=DotNetCloud Core Server
+Documentation=https://github.com/LLabmik/DotNetCloud
+After=network.target postgresql.service
+Requires=network.target
+
+[Service]
+Type=notify
+User=${SERVICE_USER}
+Group=${SERVICE_GROUP}
+WorkingDirectory=${INSTALL_DIR}
+ExecStart=${INSTALL_DIR}/dotnetcloud start
+ExecStop=${INSTALL_DIR}/dotnetcloud stop
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=60
+TimeoutStopSec=30
+
+# Environment
+Environment=DOTNET_ENVIRONMENT=Production
+Environment=DOTNETCLOUD_CONFIG_DIR=${CONFIG_DIR}
+Environment=DOTNETCLOUD_DATA_DIR=${DATA_DIR}
+Environment=DOTNETCLOUD_LOG_DIR=${LOG_DIR}
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    fi
 
     $SUDO systemctl daemon-reload
 
@@ -320,7 +364,10 @@ post_upgrade() {
     fi
 
     info "Running database migrations..."
-    if $SUDO -u "$SERVICE_USER" "${INSTALL_DIR}/dotnetcloud" setup --migrate-only 2>/dev/null; then
+    # Run as root (this script already has root). The CLI's SudoHelper detects
+    # root via geteuid() and skips sudo re-exec. Migrations only need database
+    # access (from config), not service-user filesystem ownership.
+    if "${INSTALL_DIR}/dotnetcloud" setup --migrate-only 2>/dev/null; then
         ok "Database migrations complete."
     else
         warn "Database migration skipped (--migrate-only not yet implemented or no migrations needed)."
@@ -454,14 +501,14 @@ main() {
                 echo ""
                 maybe_install_collabora
                 echo ""
-                info "Starting DotNetCloud service..."
-                $SUDO systemctl enable dotnetcloud.service
-                $SUDO systemctl start dotnetcloud.service
-                ok "Service started and enabled on boot."
-                echo ""
-                info "Verify:"
-                echo "  sudo systemctl status dotnetcloud"
-                echo "  curl -s http://localhost:5080/health"
+                # Setup already started the service and showed the login URL.
+                # Just verify it's running.
+                if systemctl is-active --quiet dotnetcloud.service 2>/dev/null; then
+                    ok "Service is running."
+                else
+                    warn "Service may still be starting. Check with:"
+                    echo "  sudo systemctl status dotnetcloud"
+                fi
             else
                 warn "Setup did not complete. You can run it later:"
                 echo "  sudo dotnetcloud setup"

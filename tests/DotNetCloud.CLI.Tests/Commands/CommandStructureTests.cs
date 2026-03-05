@@ -11,7 +11,7 @@ public class CommandStructureTests
     {
         var root = new RootCommand("test");
         root.Subcommands.Add(SetupCommand.Create());
-        root.Subcommands.Add(ServiceCommands.CreateServe());
+        root.Subcommands.Add(ServiceCommands.CreateStart());
         root.Subcommands.Add(ServiceCommands.CreateStop());
         root.Subcommands.Add(ServiceCommands.CreateStatus());
         root.Subcommands.Add(ServiceCommands.CreateRestart());
@@ -24,7 +24,7 @@ public class CommandStructureTests
 
         var names = root.Subcommands.Select(c => c.Name).ToList();
         CollectionAssert.Contains(names, "setup");
-        CollectionAssert.Contains(names, "serve");
+        CollectionAssert.Contains(names, "start");
         CollectionAssert.Contains(names, "stop");
         CollectionAssert.Contains(names, "status");
         CollectionAssert.Contains(names, "restart");
@@ -37,10 +37,10 @@ public class CommandStructureTests
     }
 
     [TestMethod]
-    public void ServeCommand_HasForegroundOption()
+    public void StartCommand_HasForegroundOption()
     {
-        var command = ServiceCommands.CreateServe();
-        Assert.AreEqual("serve", command.Name);
+        var command = ServiceCommands.CreateStart();
+        Assert.AreEqual("start", command.Name);
 
         var option = command.Options.FirstOrDefault(o => o.Name == "--foreground");
         Assert.IsNotNull(option, "Expected --foreground option");
@@ -244,7 +244,7 @@ public class CommandStructureTests
         var commands = new Command[]
         {
             SetupCommand.Create(),
-            ServiceCommands.CreateServe(),
+            ServiceCommands.CreateStart(),
             ServiceCommands.CreateStop(),
             ServiceCommands.CreateStatus(),
             ServiceCommands.CreateRestart(),

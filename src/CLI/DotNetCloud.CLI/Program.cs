@@ -7,7 +7,7 @@ using DotNetCloud.CLI.Infrastructure;
 // status, logs) should work without elevation.
 var readOnlyCommands = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
 {
-    "--help", "-h", "-?", "--version"
+    "--help", "-h", "-?", "--version", "status", "logs"
 };
 
 var firstArg = args.Length > 0 ? args[0] : null;
@@ -28,7 +28,7 @@ var rootCommand = new RootCommand("DotNetCloud — self-hosted cloud platform ma
 rootCommand.Subcommands.Add(SetupCommand.Create());
 
 // Service lifecycle
-rootCommand.Subcommands.Add(ServiceCommands.CreateServe());
+rootCommand.Subcommands.Add(ServiceCommands.CreateStart());
 rootCommand.Subcommands.Add(ServiceCommands.CreateStop());
 rootCommand.Subcommands.Add(ServiceCommands.CreateStatus());
 rootCommand.Subcommands.Add(ServiceCommands.CreateRestart());

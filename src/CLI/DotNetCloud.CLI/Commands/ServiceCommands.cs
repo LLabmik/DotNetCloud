@@ -5,16 +5,16 @@ using DotNetCloud.CLI.Infrastructure;
 namespace DotNetCloud.CLI.Commands;
 
 /// <summary>
-/// Service lifecycle commands: serve, stop, status, restart.
+/// Service lifecycle commands: start, stop, status, restart.
 /// </summary>
 internal static class ServiceCommands
 {
     /// <summary>
-    /// Creates the <c>serve</c> command — starts all DotNetCloud services.
+    /// Creates the <c>start</c> command — starts all DotNetCloud services.
     /// </summary>
-    public static Command CreateServe()
+    public static Command CreateStart()
     {
-        var command = new Command("serve", "Start all DotNetCloud services");
+        var command = new Command("start", "Start all DotNetCloud services");
 
         var foregroundOption = new Option<bool>("--foreground")
         {
@@ -104,7 +104,8 @@ internal static class ServiceCommands
                     ["ConnectionStrings__DefaultConnection"] = config.ConnectionString,
                     ["Kestrel__HttpPort"] = config.HttpPort.ToString(),
                     ["Kestrel__HttpsPort"] = config.HttpsPort.ToString(),
-                    ["Kestrel__EnableHttps"] = config.EnableHttps.ToString()
+                    ["Kestrel__EnableHttps"] = config.EnableHttps.ToString(),
+                    ["DotNetCloud__AdminEmail"] = config.AdminEmail ?? ""
                 }
             };
 
