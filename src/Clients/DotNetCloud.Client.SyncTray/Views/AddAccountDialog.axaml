@@ -1,0 +1,56 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="DotNetCloud.Client.SyncTray.Views.AddAccountDialog"
+        Title="Add DotNetCloud Account"
+        Width="420"
+        Height="240"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        SizeToContent="Height">
+
+    <StackPanel Margin="20" Spacing="12">
+
+        <TextBlock Text="Connect to a DotNetCloud server"
+                   FontSize="16" FontWeight="SemiBold" />
+
+        <TextBlock Text="Enter the URL of your DotNetCloud server. A browser window will open to complete sign-in."
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" RowSpacing="6">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Server URL"
+                       VerticalAlignment="Center" Margin="0,0,12,0" />
+            <TextBox Grid.Row="0" Grid.Column="1"
+                     x:Name="ServerUrlBox"
+                     Watermark="https://cloud.example.com"
+                     Text="{Binding ServerUrl}" />
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Sync folder"
+                       VerticalAlignment="Center" Margin="0,0,12,0" />
+            <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto">
+                <TextBox Grid.Column="0"
+                         x:Name="FolderBox"
+                         Watermark="Choose a local folder…"
+                         Text="{Binding LocalFolderPath}"
+                         IsReadOnly="True" />
+                <Button Grid.Column="1" Content="…" Margin="6,0,0,0"
+                        Command="{Binding BrowseFolderCommand}" />
+            </Grid>
+        </Grid>
+
+        <TextBlock Text="{Binding ErrorMessage}"
+                   Foreground="Red" FontSize="11"
+                   IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                   TextWrapping="Wrap" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="Cancel"
+                    Command="{Binding CancelCommand}" />
+            <Button Content="Sign in…"
+                    Classes="accent"
+                    Command="{Binding SignInCommand}"
+                    IsEnabled="{Binding !IsBusy}" />
+        </StackPanel>
+
+    </StackPanel>
+</Window>

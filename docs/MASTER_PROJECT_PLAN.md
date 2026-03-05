@@ -51,7 +51,7 @@
 | Phase 1.13 | 4 | 4 | 0 | 0 |
 | Phase 1.14 | 32 | 32 | 0 | 0 |
 | Phase 1.15 | 25 | 20 | 0 | 5 |
-| Phase 1.16 | 20 | 0 | 0 | 20 |
+| Phase 1.16 | 20 | 20 | 0 | 0 |
 | Phase 1.17 | 25 | 0 | 0 | 25 |
 | Phase 1.18 | 6 | 4 | 0 | 2 |
 | Phase 1.19 | 20 | 8 | 0 | 12 |
@@ -2984,6 +2984,37 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Dependencies:** Phase 1.14 (Client.Core — Shared Sync Engine)
 **Blocking Issues:** None
 **Notes:** Phase 1.15 core complete. 20/25 checklist items implemented. Service manages multiple `ISyncEngine` instances via `SyncContextManager`, persisting context registry as JSON under `C:\ProgramData\DotNetCloud\Sync` (Windows) or `/var/lib/dotnetcloud/sync` (Linux). IPC protocol is newline-delimited JSON with commands (list-contexts, add-account, remove-account, get-status, pause, resume, sync-now, subscribe, unsubscribe) and push events (sync-progress, sync-complete, conflict-detected, error). 24 tests pass; solution builds 0 errors.
+
+---
+
+### Step: phase-1.16 - Client.SyncTray — Avalonia Tray App
+**Status:** completed ✅
+**Duration:** ~1 week (actual)
+**Description:** Avalonia system-tray application displaying sync status, context menu, settings window, and platform notifications. Connects to the background SyncService via Named Pipe (Windows) or Unix socket (Linux) using the existing IPC protocol.
+
+**Deliverables:**
+- ✓ `src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj` (Avalonia 11.3.12, net10.0, references SyncService + Client.Core)
+- ✓ `src/Clients/DotNetCloud.Client.SyncTray/Program.cs` (single-instance mutex, Avalonia app builder)
+- ✓ `src/Clients/DotNetCloud.Client.SyncTray/App.axaml` + `App.axaml.cs` (DI setup, tray icon lifecycle)
+- ✓ `src/Clients/DotNetCloud.Client.SyncTray/TrayIconManager.cs` (programmatic tray icon, 5-state colour-circle icons, context menu)
+- ✓ `src/Clients/DotNetCloud.Client.SyncTray/Ipc/IIpcClient.cs` (interface with event data types)
+- ✓ `src/Clients/DotNetCloud.Client.SyncTray/Ipc/IpcClient.cs` (Named Pipe / Unix socket client, subscribe+read loop, reconnect, transport-factory ctor for testing)
+- ✓ `src/Clients/DotNetCloud.Client.SyncTray/Notifications/INotificationService.cs`
+- ✓ `src/Clients/DotNetCloud.Client.SyncTray/Notifications/WindowsNotificationService.cs` (Shell_NotifyIcon balloon tips via P/Invoke)
+- ✓ `src/Clients/DotNetCloud.Client.SyncTray/Notifications/LinuxNotificationService.cs` (notify-send subprocess)
+- ✓ `src/Clients/DotNetCloud.Client.SyncTray/Notifications/NotificationServiceFactory.cs` (runtime OS dispatch)
+- ✓ `src/Clients/DotNetCloud.Client.SyncTray/Notifications/NoOpNotificationService.cs`
+- ✓ `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/ViewModelBase.cs`
+- ✓ `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/TrayViewModel.cs` (aggregate state, 5 TrayState values, IPC event handlers)
+- ✓ `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/AccountViewModel.cs`
+- ✓ `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/SettingsViewModel.cs` (OAuth2 add-account, remove account, relay commands)
+- ✓ `src/Clients/DotNetCloud.Client.SyncTray/Views/SettingsWindow.axaml` + `SettingsWindow.axaml.cs`
+- ✓ `src/Clients/DotNetCloud.Client.SyncTray/Views/AddAccountDialog.axaml` + `AddAccountDialog.axaml.cs`
+- ✓ `tests/DotNetCloud.Client.SyncTray.Tests/` (3 test files, 24 tests)
+
+**Dependencies:** Phase 1.15 (Client.SyncService — IPC server + protocol)
+**Blocking Issues:** None
+**Notes:** Phase 1.16 complete. 24 tests pass; full solution builds 0 errors, 0 warnings (Avalonia AVLN diagnostics suppressed). Tray icons are programmatic coloured circles (placeholder — production icons should be added to `Assets/`). Windows auto-start (`HKCU\Run`) and Linux autostart desktop file deferred to the packaging phase. Bandwidth-limit enforcement deferred (UI is present, enforcement in the sync engine is a future enhancement).
 
 ---
 

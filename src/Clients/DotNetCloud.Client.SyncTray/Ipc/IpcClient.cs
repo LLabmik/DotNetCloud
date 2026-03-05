@@ -1,0 +1,406 @@
+using System.IO.Pipes;
+using System.Net.Sockets;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.Json;
+using DotNetCloud.Client.SyncService.Ipc;
+using Microsoft.Extensions.Logging;
+
+namespace DotNetCloud.Client.SyncTray.Ipc;
+
+/// <summary>
+/// Connects to the background <c>DotNetCloud.Client.SyncService</c> over Named Pipe
+/// (Windows) or Unix domain socket (Linux), sends JSON commands, and dispatches
+/// push events to the rest of the application.
+/// </summary>
+public sealed class IpcClient : IIpcClient, IAsyncDisposable
+{
+    private static readonly JsonSerializerOptions JsonOptions =
+        new(JsonSerializerDefaults.Web) { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull };
+
+    /// <summary>Delay between reconnection attempts when the SyncService is unavailable.</summary>
+    private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(5);
+
+    private readonly ILogger<IpcClient> _logger;
+    private readonly Func<CancellationToken, Task<Stream>>? _transportFactory;
+    private readonly SemaphoreSlim _sendLock = new(1, 1);
+
+    private Stream? _stream;
+    private StreamWriter? _writer;
+    private StreamReader? _reader;
+    private bool _connected;
+
+    /// <inheritdoc/>
+    public event EventHandler<SyncProgressEventData>? SyncProgressReceived;
+
+    /// <inheritdoc/>
+    public event EventHandler<SyncCompleteEventData>? SyncCompleteReceived;
+
+    /// <inheritdoc/>
+    public event EventHandler<SyncErrorEventData>? SyncErrorReceived;
+
+    /// <inheritdoc/>
+    public event EventHandler<SyncConflictEventData>? ConflictDetected;
+
+    /// <inheritdoc/>
+    public event EventHandler<bool>? ConnectionStateChanged;
+
+    /// <inheritdoc/>
+    public bool IsConnected => _connected;
+
+    /// <summary>
+    /// Initializes a new <see cref="IpcClient"/> using the default Named Pipe / Unix
+    /// socket transport.
+    /// </summary>
+    public IpcClient(ILogger<IpcClient> logger)
+    {
+        _logger = logger;
+        _transportFactory = null;
+    }
+
+    /// <summary>
+    /// Initializes a new <see cref="IpcClient"/> with a custom transport factory.
+    /// Intended for unit testing.
+    /// </summary>
+    /// <param name="transportFactory">
+    /// Factory that returns a connected bidirectional stream when invoked.
+    /// </param>
+    /// <param name="logger">Logger instance.</param>
+    internal IpcClient(Func<CancellationToken, Task<Stream>> transportFactory, ILogger<IpcClient> logger)
+    {
+        _logger = logger;
+        _transportFactory = transportFactory;
+    }
+
+    // ── Connection management ─────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    public async Task ConnectAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                await OpenConnectionAsync(cancellationToken);
+                SetConnected(true);
+
+                // Subscribe to push events, then read until disconnected.
+                await SubscribeAsync(cancellationToken);
+                await ReadLoopAsync(cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception ex) when (ex is IOException or EndOfStreamException or SocketException)
+            {
+                _logger.LogWarning("Disconnected from SyncService: {Message}", ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error in IPC client connection.");
+            }
+            finally
+            {
+                SetConnected(false);
+                CloseConnection();
+            }
+
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogInformation("Reconnecting to SyncService in {Delay}.", ReconnectDelay);
+                await Task.Delay(ReconnectDelay, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private async Task OpenConnectionAsync(CancellationToken cancellationToken)
+    {
+        CloseConnection();
+
+        if (_transportFactory is not null)
+        {
+            _stream = await _transportFactory(cancellationToken);
+        }
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            _logger.LogDebug("Connecting to SyncService via named pipe '{Pipe}'.", IpcServer.PipeName);
+
+            var pipe = new NamedPipeClientStream(
+                ".", IpcServer.PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+
+            await pipe.ConnectAsync(3000, cancellationToken);
+            _stream = pipe;
+        }
+        else
+        {
+            _logger.LogDebug("Connecting to SyncService via Unix socket '{Path}'.", IpcServer.UnixSocketPath);
+
+            var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+            await socket.ConnectAsync(new UnixDomainSocketEndPoint(IpcServer.UnixSocketPath), cancellationToken);
+            _stream = new NetworkStream(socket, ownsSocket: true);
+        }
+
+        _writer = new StreamWriter(_stream, Encoding.UTF8, leaveOpen: true) { AutoFlush = true };
+        _reader = new StreamReader(_stream, Encoding.UTF8, leaveOpen: true);
+
+        _logger.LogInformation("Connected to SyncService.");
+    }
+
+    private void CloseConnection()
+    {
+        _writer?.Dispose();
+        _reader?.Dispose();
+        _stream?.Dispose();
+        _writer = null;
+        _reader = null;
+        _stream = null;
+    }
+
+    private void SetConnected(bool connected)
+    {
+        if (_connected == connected) return;
+        _connected = connected;
+        ConnectionStateChanged?.Invoke(this, connected);
+        _logger.LogDebug("IPC connection state: {State}.", connected ? "Connected" : "Disconnected");
+    }
+
+    // ── Subscription & read loop ──────────────────────────────────────────
+
+    private async Task SubscribeAsync(CancellationToken cancellationToken)
+    {
+        var cmd = new IpcCommand { Command = IpcCommands.Subscribe };
+        await SendCommandAsync(cmd, cancellationToken);
+
+        // Consume the response before entering the read loop.
+        var line = await _reader!.ReadLineAsync(cancellationToken);
+        _logger.LogDebug("Subscribe response: {Line}", line);
+    }
+
+    private async Task ReadLoopAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var line = await _reader!.ReadLineAsync(cancellationToken);
+            if (line is null) return; // Server closed the connection.
+
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            DispatchMessage(line);
+        }
+    }
+
+    // ── Message dispatch ─────────────────────────────────────────────────
+
+    private void DispatchMessage(string json)
+    {
+        IpcMessage? message;
+        try
+        {
+            message = JsonSerializer.Deserialize<IpcMessage>(json, JsonOptions);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "Malformed IPC message from SyncService.");
+            return;
+        }
+
+        if (message is null || message.Type != "event" || message.Event is null)
+            return;
+
+        var contextId = message.ContextId ?? Guid.Empty;
+
+        switch (message.Event)
+        {
+            case IpcEvents.SyncProgress:
+                var progress = ParseData<SyncProgressPayload>(message.Data);
+                if (progress is not null)
+                {
+                    SyncProgressReceived?.Invoke(this, new SyncProgressEventData
+                    {
+                        ContextId = contextId,
+                        State = progress.State ?? "Unknown",
+                        PendingUploads = progress.PendingUploads,
+                        PendingDownloads = progress.PendingDownloads,
+                    });
+                }
+                break;
+
+            case IpcEvents.SyncComplete:
+                var complete = ParseData<SyncCompletePayload>(message.Data);
+                if (complete is not null)
+                {
+                    SyncCompleteReceived?.Invoke(this, new SyncCompleteEventData
+                    {
+                        ContextId = contextId,
+                        LastSyncedAt = complete.LastSyncedAt,
+                        Conflicts = complete.Conflicts,
+                    });
+                }
+                break;
+
+            case IpcEvents.Error:
+                var error = ParseData<SyncErrorPayload>(message.Data);
+                if (error is not null)
+                {
+                    SyncErrorReceived?.Invoke(this, new SyncErrorEventData
+                    {
+                        ContextId = contextId,
+                        Error = error.Error ?? "Unknown error",
+                    });
+                }
+                break;
+
+            case IpcEvents.ConflictDetected:
+                var conflict = ParseData<ConflictPayload>(message.Data);
+                if (conflict is not null)
+                {
+                    ConflictDetected?.Invoke(this, new SyncConflictEventData
+                    {
+                        ContextId = contextId,
+                        OriginalPath = conflict.OriginalPath ?? string.Empty,
+                        ConflictCopyPath = conflict.ConflictCopyPath ?? string.Empty,
+                    });
+                }
+                break;
+
+            default:
+                _logger.LogDebug("Unrecognised IPC event: '{Event}'.", message.Event);
+                break;
+        }
+    }
+
+    private static T? ParseData<T>(object? data)
+    {
+        if (data is null) return default;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data, JsonOptions);
+            return JsonSerializer.Deserialize<T>(json, JsonOptions);
+        }
+        catch
+        {
+            return default;
+        }
+    }
+
+    // ── Commands ──────────────────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<ContextInfo>> ListContextsAsync(CancellationToken cancellationToken = default)
+    {
+        if (!_connected) return [];
+
+        var response = await SendAndReceiveAsync(
+            new IpcCommand { Command = IpcCommands.ListContexts }, cancellationToken);
+
+        if (response?.Success is true && response.Data is not null)
+        {
+            var json = JsonSerializer.Serialize(response.Data, JsonOptions);
+            return JsonSerializer.Deserialize<List<ContextInfo>>(json, JsonOptions) ?? [];
+        }
+
+        return [];
+    }
+
+    /// <inheritdoc/>
+    public Task SyncNowAsync(Guid contextId, CancellationToken cancellationToken = default)
+        => SendAndReceiveAsync(new IpcCommand { Command = IpcCommands.SyncNow, ContextId = contextId }, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task PauseAsync(Guid contextId, CancellationToken cancellationToken = default)
+        => SendAndReceiveAsync(new IpcCommand { Command = IpcCommands.Pause, ContextId = contextId }, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task ResumeAsync(Guid contextId, CancellationToken cancellationToken = default)
+        => SendAndReceiveAsync(new IpcCommand { Command = IpcCommands.Resume, ContextId = contextId }, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task RemoveAccountAsync(Guid contextId, CancellationToken cancellationToken = default)
+        => SendAndReceiveAsync(new IpcCommand { Command = IpcCommands.RemoveAccount, ContextId = contextId }, cancellationToken);
+
+    /// <inheritdoc/>
+    public async Task AddAccountAsync(AddAccountData data, CancellationToken cancellationToken = default)
+    {
+        var payload = JsonSerializer.SerializeToElement(data, JsonOptions);
+        await SendAndReceiveAsync(
+            new IpcCommand { Command = IpcCommands.AddAccount, Data = payload },
+            cancellationToken);
+    }
+
+    // ── Send helpers ──────────────────────────────────────────────────────
+
+    private async Task<IpcMessage?> SendAndReceiveAsync(IpcCommand command, CancellationToken cancellationToken)
+    {
+        if (!_connected || _writer is null || _reader is null) return null;
+
+        await _sendLock.WaitAsync(cancellationToken);
+        try
+        {
+            var json = JsonSerializer.Serialize(command, JsonOptions);
+            await _writer.WriteLineAsync(json.AsMemory(), cancellationToken);
+
+            var responseLine = await _reader.ReadLineAsync(cancellationToken);
+            if (responseLine is null) return null;
+
+            return JsonSerializer.Deserialize<IpcMessage>(responseLine, JsonOptions);
+        }
+        finally
+        {
+            _sendLock.Release();
+        }
+    }
+
+    private async Task SendCommandAsync(IpcCommand command, CancellationToken cancellationToken)
+    {
+        if (_writer is null) return;
+
+        await _sendLock.WaitAsync(cancellationToken);
+        try
+        {
+            var json = JsonSerializer.Serialize(command, JsonOptions);
+            await _writer.WriteLineAsync(json.AsMemory(), cancellationToken);
+        }
+        finally
+        {
+            _sendLock.Release();
+        }
+    }
+
+    // ── Disposal ──────────────────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    public ValueTask DisposeAsync()
+    {
+        CloseConnection();
+        _sendLock.Dispose();
+        return ValueTask.CompletedTask;
+    }
+
+    // ── Private payload types (IPC response deserialization) ──────────────
+
+    private sealed class SyncProgressPayload
+    {
+        public string? State { get; init; }
+        public int PendingUploads { get; init; }
+        public int PendingDownloads { get; init; }
+    }
+
+    private sealed class SyncCompletePayload
+    {
+        public DateTime? LastSyncedAt { get; init; }
+        public int Conflicts { get; init; }
+    }
+
+    private sealed class SyncErrorPayload
+    {
+        public string? Error { get; init; }
+    }
+
+    private sealed class ConflictPayload
+    {
+        public string? OriginalPath { get; init; }
+        public string? ConflictCopyPath { get; init; }
+    }
+}

@@ -2218,55 +2218,55 @@ This phase implements the core Files module, which is the primary public-facing 
 **Tray icon, sync status, and settings for desktop users**
 
 #### Project Setup
-- ☐ Create `DotNetCloud.Client.SyncTray` Avalonia project
-- ☐ Add to `DotNetCloud.sln`
-- ☐ Configure tray icon support (Windows + Linux)
-- ☐ Configure single-instance enforcement
+- ✓ Create `DotNetCloud.Client.SyncTray` Avalonia project
+- ✓ Add to `DotNetCloud.sln`
+- ✓ Configure tray icon support (Windows + Linux)
+- ✓ Configure single-instance enforcement
 
 #### Tray Icon
-- ☐ Display tray icon with sync status indicators:
-  - ☐ Idle (synced, green check)
-  - ☐ Syncing (animated spinner)
-  - ☐ Paused (yellow pause icon)
-  - ☐ Error (red exclamation)
-  - ☐ Offline (gray disconnected)
-- ☐ Show tooltip with sync summary (e.g., "3 files syncing, 2.5 GB free")
+- ✓ Display tray icon with sync status indicators:
+  - ✓ Idle (synced, green check)
+  - ✓ Syncing (animated spinner)
+  - ✓ Paused (yellow pause icon)
+  - ✓ Error (red exclamation)
+  - ✓ Offline (gray disconnected)
+- ✓ Show tooltip with sync summary (e.g., "3 files syncing, 2.5 GB free")
 
 #### Tray Context Menu
-- ☐ "Open sync folder" (opens file explorer at sync root)
-- ☐ "Open DotNetCloud in browser" (opens web UI)
-- ☐ "Sync now" (trigger immediate sync)
-- ☐ "Pause syncing" / "Resume syncing"
-- ☐ "Settings..." (open settings window)
-- ☐ "Quit"
+- ✓ "Open sync folder" (opens file explorer at sync root)
+- ✓ "Open DotNetCloud in browser" (opens web UI)
+- ✓ "Sync now" (trigger immediate sync)
+- ✓ "Pause syncing" / "Resume syncing"
+- ✓ "Settings..." (open settings window)
+- ✓ "Quit"
 
 #### Settings Window
-- ☐ Account management:
-  - ☐ List connected accounts (server URL, user, status)
-  - ☐ Add account button (launches OAuth2 flow in browser)
-  - ☐ Remove account button
-  - ☐ Switch default account
-- ☐ Sync folder configuration:
-  - ☐ Change sync root folder
-  - ☐ Selective sync (folder tree with checkboxes)
-- ☐ General settings:
-  - ☐ Start on login (auto-start)
-  - ☐ Full scan interval
-  - ☐ Bandwidth limits (upload/download)
-  - ☐ Notification preferences
+- ✓ Account management:
+  - ✓ List connected accounts (server URL, user, status)
+  - ✓ Add account button (launches OAuth2 flow in browser)
+  - ✓ Remove account button
+  - ✓ Switch default account
+- ✓ Sync folder configuration:
+  - ✓ Change sync root folder
+  - ✓ Selective sync (folder tree with checkboxes)
+- ✓ General settings:
+  - ✓ Start on login (auto-start)
+  - ✓ Full scan interval
+  - ✓ Bandwidth limits (upload/download)
+  - ✓ Notification preferences
 
 #### Notifications
-- ☐ Show Windows toast / Linux libnotify notifications:
-  - ☐ Sync completed
-  - ☐ Conflict detected (with "Resolve" action)
-  - ☐ Error occurred (with details)
-  - ☐ Quota warning (80%, 95%)
+- ✓ Show Windows toast / Linux libnotify notifications:
+  - ✓ Sync completed
+  - ✓ Conflict detected (with "Resolve" action)
+  - ✓ Error occurred (with details)
+  - ✓ Quota warning (80%, 95%)
 
 #### IPC Client
-- ☐ Connect to SyncService via Named Pipe / Unix socket
-- ☐ Receive real-time sync status updates
-- ☐ Send commands (pause, resume, sync-now, add-account, remove-account)
-- ☐ Handle SyncService unavailable (display "Service not running" status)
+- ✓ Connect to SyncService via Named Pipe / Unix socket
+- ✓ Receive real-time sync status updates
+- ✓ Send commands (pause, resume, sync-now, add-account, remove-account)
+- ✓ Handle SyncService unavailable (display "Service not running" status)
 
 ---
 

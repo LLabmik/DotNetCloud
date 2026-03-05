@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>dotnetcloud-sync-tray</AssemblyName>
+    <Description>DotNetCloud system-tray sync status and settings (Avalonia)</Description>
+    <!-- Suppress Avalonia XAML compiler diagnostics and XML doc warnings on generated files -->
+    <NoWarn>$(NoWarn);XA0002;AVLN0002;CS1591</NoWarn>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.12" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.12" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.12" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.12" />
+    <PackageReference Include="Avalonia.BuildServices" Version="11.3.2">
+      <PrivateAssets>All</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DotNetCloud.Client.SyncService\DotNetCloud.Client.SyncService.csproj" />
+    <ProjectReference Include="..\DotNetCloud.Client.Core\DotNetCloud.Client.Core.csproj" />
+  </ItemGroup>
+
+</Project>

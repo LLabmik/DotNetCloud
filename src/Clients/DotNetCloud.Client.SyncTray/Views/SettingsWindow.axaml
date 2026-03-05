@@ -1,0 +1,110 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:DotNetCloud.Client.SyncTray.ViewModels"
+        x:Class="DotNetCloud.Client.SyncTray.Views.SettingsWindow"
+        Title="DotNetCloud Sync — Settings"
+        Width="520"
+        Height="480"
+        MinWidth="400"
+        MinHeight="340"
+        WindowStartupLocation="CenterScreen"
+        CanResize="True"
+        Icon="/Assets/icon-idle.png">
+
+    <DockPanel>
+
+        <!-- Tab strip -->
+        <TabControl DockPanel.Dock="Top" Margin="12">
+
+            <!-- ── Accounts ── -->
+            <TabItem Header="Accounts">
+                <DockPanel Margin="8">
+
+                    <!-- Add account row -->
+                    <Border DockPanel.Dock="Bottom"
+                            Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                            CornerRadius="4" Padding="8" Margin="0,8,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Add account" FontWeight="SemiBold" Margin="0,0,0,6" />
+                            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
+                                           Text="Server URL (e.g. https://cloud.example.com)" FontSize="11" />
+                                <TextBox Grid.Row="1" Grid.Column="0"
+                                         Text="{Binding AddAccountServerUrl}"
+                                         Watermark="https://cloud.example.com"
+                                         IsEnabled="{Binding !IsAddingAccount}" />
+                                <Button Grid.Row="1" Grid.Column="1"
+                                        Content="Connect…"
+                                        Margin="6,0,0,0"
+                                        Command="{Binding ConnectCommand}"
+                                        IsEnabled="{Binding !IsAddingAccount}" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
+                                           Text="{Binding AddAccountError}"
+                                           Foreground="Red" FontSize="11"
+                                           IsVisible="{Binding AddAccountError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Account list -->
+                    <ScrollViewer>
+                        <ItemsControl ItemsSource="{Binding Accounts}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="vm:AccountViewModel">
+                                    <Border BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                            BorderThickness="0,0,0,1" Padding="0,6">
+                                        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                                            <TextBlock Grid.Row="0" Grid.Column="0"
+                                                       Text="{Binding DisplayName}"
+                                                       FontWeight="SemiBold" />
+                                            <TextBlock Grid.Row="1" Grid.Column="0"
+                                                       Text="{Binding State}"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <Button Grid.Row="0" Grid.Column="1" Grid.RowSpan="2"
+                                                    Content="Remove"
+                                                    Classes="danger"
+                                                    Tag="{Binding ContextId}"
+                                                    Command="{Binding $parent[Window].DataContext.RemoveAccountCommand}"
+                                                    CommandParameter="{Binding ContextId}" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                </DockPanel>
+            </TabItem>
+
+            <!-- ── General ── -->
+            <TabItem Header="General">
+                <StackPanel Margin="8" Spacing="12">
+                    <CheckBox Content="Start DotNetCloud Sync on login"
+                              IsChecked="{Binding StartOnLogin}" />
+                    <Separator />
+                    <TextBlock Text="Bandwidth limits" FontWeight="SemiBold" />
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" RowSpacing="6">
+                        <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="Upload (KB/s, 0 = unlimited)" Margin="0,0,12,0" />
+                        <NumericUpDown Grid.Row="0" Grid.Column="1"
+                                       Value="{Binding UploadLimitKbps}"
+                                       Minimum="0" Maximum="100000" />
+                        <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="Download (KB/s, 0 = unlimited)" Margin="0,0,12,0" />
+                        <NumericUpDown Grid.Row="1" Grid.Column="1"
+                                       Value="{Binding DownloadLimitKbps}"
+                                       Minimum="0" Maximum="100000" />
+                    </Grid>
+                </StackPanel>
+            </TabItem>
+
+        </TabControl>
+
+        <!-- Close button -->
+        <Button DockPanel.Dock="Bottom"
+                Content="Close"
+                HorizontalAlignment="Right"
+                Margin="12"
+                Command="{Binding CloseCommand}" />
+
+    </DockPanel>
+</Window>
