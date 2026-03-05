@@ -79,7 +79,31 @@ check_prerequisites() {
 get_latest_version() {
     info "Checking latest DotNetCloud release..."
 
-    LATEST_VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
+    local HTTP_CODE
+    local RESPONSE
+    RESPONSE=$(curl -sL -w "\n%{http_code}" "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null) || true
+    HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+    RESPONSE=$(echo "$RESPONSE" | sed '$d')
+
+    if [[ "$HTTP_CODE" == "404" ]]; then
+        echo ""
+        error "No releases have been published yet."
+        error "DotNetCloud is still in early development and has no downloadable release packages."
+        echo ""
+        info "To install from source instead, run:"
+        echo ""
+        echo "  git clone https://github.com/${REPO}.git"
+        echo "  cd DotNetCloud"
+        echo "  dotnet publish src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj \\"
+        echo "    --configuration Release --runtime linux-x64 --self-contained true \\"
+        echo "    --output /opt/dotnetcloud/server"
+        echo ""
+        info "See the full guide: https://github.com/${REPO}/blob/main/docs/admin/server/INSTALLATION.md"
+        echo ""
+        exit 1
+    fi
+
+    LATEST_VERSION=$(echo "$RESPONSE" \
         | grep '"tag_name"' \
         | sed -E 's/.*"tag_name":\s*"v?([^"]+)".*/\1/')
 
