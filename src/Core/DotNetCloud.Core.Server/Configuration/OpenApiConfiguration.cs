@@ -1,14 +1,16 @@
+using Scalar.AspNetCore;
+
 namespace DotNetCloud.Core.Server.Configuration;
 
 /// <summary>
-/// Extension methods for configuring OpenAPI/Swagger documentation.
+/// Extension methods for configuring OpenAPI documentation.
 /// </summary>
 public static class OpenApiConfiguration
 {
     /// <summary>
     /// Adds DotNetCloud OpenAPI documentation services.
     /// Uses the built-in Microsoft.AspNetCore.OpenApi for schema generation
-    /// and Swashbuckle for the Swagger UI.
+    /// and Scalar for the interactive API documentation UI.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="configuration">The application configuration.</param>
@@ -37,7 +39,7 @@ public static class OpenApiConfiguration
     }
 
     /// <summary>
-    /// Configures the OpenAPI/Swagger UI middleware pipeline.
+    /// Configures the OpenAPI documentation middleware pipeline.
     /// </summary>
     /// <param name="app">The web application.</param>
     /// <returns>The web application for chaining.</returns>
@@ -46,17 +48,11 @@ public static class OpenApiConfiguration
         if (app.Environment.IsDevelopment())
         {
             app.MapOpenApi();
-
-            app.UseSwaggerUI(options =>
+            app.MapScalarApiReference(options =>
             {
-                options.SwaggerEndpoint("/openapi/v1.json", "DotNetCloud API v1");
-                options.DocumentTitle = "DotNetCloud API Documentation";
-                options.RoutePrefix = "swagger";
-                options.DefaultModelsExpandDepth(1);
-                options.DisplayRequestDuration();
-                options.EnableDeepLinking();
-                options.EnableFilter();
-                options.ShowExtensions();
+                options
+                    .WithTitle("DotNetCloud API Documentation")
+                    .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
             });
         }
 
