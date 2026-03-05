@@ -2324,22 +2324,22 @@ This phase implements the core Files module, which is the primary public-facing 
 **gRPC service implementation for Files module**
 
 #### Proto Definitions
-- ☐ Create `files_service.proto`:
-  - ☐ `rpc ListNodes(ListNodesRequest) returns (ListNodesResponse)`
-  - ☐ `rpc GetNode(GetNodeRequest) returns (NodeResponse)`
-  - ☐ `rpc CreateFolder(CreateFolderRequest) returns (NodeResponse)`
-  - ☐ `rpc RenameNode(RenameNodeRequest) returns (NodeResponse)`
-  - ☐ `rpc MoveNode(MoveNodeRequest) returns (NodeResponse)`
-  - ☐ `rpc CopyNode(CopyNodeRequest) returns (NodeResponse)`
-  - ☐ `rpc DeleteNode(DeleteNodeRequest) returns (Empty)`
-  - ☐ `rpc InitiateUpload(InitiateUploadRequest) returns (UploadSessionResponse)`
-  - ☐ `rpc UploadChunk(UploadChunkRequest) returns (Empty)`
-  - ☐ `rpc CompleteUpload(CompleteUploadRequest) returns (NodeResponse)`
-  - ☐ `rpc DownloadFile(DownloadRequest) returns (stream DownloadChunk)`
-  - ☐ `rpc CreateShare(CreateShareRequest) returns (ShareResponse)`
-  - ☐ `rpc ListVersions(ListVersionsRequest) returns (ListVersionsResponse)`
-  - ☐ `rpc RestoreVersion(RestoreVersionRequest) returns (NodeResponse)`
-- ☐ Create `files_lifecycle.proto` (start, stop, health)
+- ✓ Create `files_service.proto`:
+  - ✓ `rpc ListNodes(ListNodesRequest) returns (ListNodesResponse)`
+  - ✓ `rpc GetNode(GetNodeRequest) returns (NodeResponse)`
+  - ✓ `rpc CreateFolder(CreateFolderRequest) returns (NodeResponse)`
+  - ✓ `rpc RenameNode(RenameNodeRequest) returns (NodeResponse)`
+  - ✓ `rpc MoveNode(MoveNodeRequest) returns (NodeResponse)`
+  - ✓ `rpc CopyNode(CopyNodeRequest) returns (NodeResponse)`
+  - ✓ `rpc DeleteNode(DeleteNodeRequest) returns (Empty)`
+  - ✓ `rpc InitiateUpload(InitiateUploadRequest) returns (UploadSessionResponse)`
+  - ✓ `rpc UploadChunk(UploadChunkRequest) returns (Empty)`
+  - ✓ `rpc CompleteUpload(CompleteUploadRequest) returns (NodeResponse)`
+  - ✓ `rpc DownloadFile(DownloadRequest) returns (stream DownloadChunk)`
+  - ✓ `rpc CreateShare(CreateShareRequest) returns (ShareResponse)`
+  - ✓ `rpc ListVersions(ListVersionsRequest) returns (ListVersionsResponse)`
+  - ✓ `rpc RestoreVersion(RestoreVersionRequest) returns (NodeResponse)`
+- ✓ Create `files_lifecycle.proto` (start, stop, health)
 
 #### gRPC Service Implementation
 - ✓ Create `FilesGrpcService` implementing the proto service

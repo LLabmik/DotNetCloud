@@ -53,7 +53,7 @@
 | Phase 1.15 | 25 | 20 | 0 | 5 |
 | Phase 1.16 | 20 | 20 | 0 | 0 |
 | Phase 1.17 | 25 | 25 | 0 | 0 |
-| Phase 1.18 | 6 | 4 | 0 | 2 |
+| Phase 1.18 | 6 | 6 | 0 | 0 |
 | Phase 1.19 | 20 | 8 | 0 | 12 |
 | Phase 1.20 | 20 | 0 | 0 | 20 |
 | Phase 2.1 | 6 | 6 | 0 | 0 |
@@ -3040,6 +3040,25 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Dependencies:** Phase 1.9 (Tags model + TagService skeleton)
 **Blocking Issues:** None
 **Notes:** Phase 1.17 complete. `FileService.ToDto` now maps `FileTag` entities to `FileTagDto` including color. `GetUserTagSummariesAsync` groups by tag name and uses the most-recently-added color as the representative. Bulk ops follow the existing per-item-catch pattern (partial success). All 456 Files module tests pass.
+
+---
+
+### Step: phase-1.18 - Files gRPC Host
+**Status:** completed ✅
+**Duration:** ~1 day (actual)
+**Description:** gRPC service contracts and implementation for the Files module, enabling the core supervisor to interact with the Files module over gRPC for all file operations (CRUD, tree, upload/download, sharing, trash, versioning, quotas).
+
+**Deliverables:**
+- ✓ `files_service.proto` — 22 RPCs: CreateFolder, ListNodes, GetNode, RenameNode, MoveNode, CopyNode, DeleteNode, ListTrash, RestoreNode, PurgeNode, EmptyTrash, InitiateUpload, UploadChunk, CompleteUpload, DownloadFile (server streaming), ListVersions, RestoreVersion, CreateShare, ListShares, RevokeShare, GetQuota, ToggleFavorite
+- ✓ `FileNodeMessage`, `FileVersionMessage`, `FileShareMessage` shared proto messages
+- ✓ `FilesGrpcService` — full gRPC implementation (22 RPCs, EF Core direct queries, content-hash deduplication, materialized path management)
+- ✓ `FilesLifecycleService` — extends shared `ModuleLifecycle.ModuleLifecycleBase` (Initialize, Start, Stop, HealthCheck, GetManifest)
+- ✓ `FilesHealthCheck` — ASP.NET Core `IHealthCheck` reporting module status
+- ✓ `Program.cs` — registers FilesModule, FilesDbContext, IFileStorageEngine, InProcessEventBus, gRPC services, REST controllers, health checks
+
+**Dependencies:** Phase 1.1 (models), Phase 1.2 (FilesDbContext), Phase 1.3 (services), Phase 0.6 (Core.Grpc lifecycle proto)
+**Blocking Issues:** None
+**Notes:** Phase 1.18 complete. Proto file uses module-specific response types (e.g., `CreateFolderResponse`) rather than generic `NodeResponse` for clarity. Lifecycle proto is shared via `DotNetCloud.Core.Grpc` — no separate `files_lifecycle.proto` needed. The `FilesGrpcService` operates directly against `FilesDbContext` for gRPC calls; REST controllers use the business logic services layer. All Files module tests pass; solution builds cleanly.
 
 ---
 
