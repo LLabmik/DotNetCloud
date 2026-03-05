@@ -55,7 +55,7 @@
 | Phase 1.17 | 25 | 25 | 0 | 0 |
 | Phase 1.18 | 6 | 6 | 0 | 0 |
 | Phase 1.19 | 20 | 19 | 0 | 1 |
-| Phase 1.20 | 20 | 0 | 0 | 20 |
+| Phase 1.20 | 20 | 20 | 0 | 0 |
 | Phase 2.1 | 6 | 6 | 0 | 0 |
 | Phase 2.2 | 4 | 4 | 0 | 0 |
 | Phase 2.3 | 7 | 2 | 0 | 5 |
@@ -3112,6 +3112,50 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Dependencies:** Phase 1.14 (Client.Core)
 **Notes:** 53 client tests pass. Tests cover sync engine, chunked transfer, API client, local state DB, auth token store, selective sync, and conflict resolution.
+
+---
+
+### Step: phase-1.20 - Documentation
+**Status:** completed ✅
+**Duration:** ~1 day
+**Description:** Comprehensive documentation for the Files module, desktop sync client, admin guides, and user guides. Created 20 documentation files covering module architecture, REST API reference, sharing, versioning, WOPI/Collabora, sync protocol, admin configuration, backup/restore, and user getting-started guides.
+
+**Files Module Documentation (8 items):**
+- ✓ `docs/modules/files/README.md` — module overview, architecture, project structure, configuration
+- ✓ `docs/modules/files/API.md` — complete REST API reference with 14 endpoint categories and examples
+- ✓ `docs/modules/files/ARCHITECTURE.md` — data model, chunking strategy, dedup, storage engine, pipelines
+- ✓ `docs/modules/files/SHARING.md` — 4 share types, permission levels, public link features, lifecycle
+- ✓ `docs/modules/files/VERSIONING.md` — version creation, operations, retention config, background cleanup
+- ✓ `docs/modules/files/WOPI.md` — WOPI protocol, endpoints, tokens, proof keys, session tracking, Collabora
+- ✓ `docs/modules/files/SYNC.md` — sync architecture, protocol, chunked transfer, conflict resolution, IPC
+- ✓ `src/Modules/Files/DotNetCloud.Modules.Files/README.md` — developer README with full project tree
+
+**Desktop Client Documentation (4 items):**
+- ✓ `docs/clients/desktop/README.md` — SyncService + SyncTray overview, architecture diagram
+- ✓ `docs/clients/desktop/SETUP.md` — installation (Windows/Linux), account setup, selective sync
+- ✓ `docs/clients/desktop/SYNC_PROTOCOL.md` — sync engine lifecycle, change detection, chunked transfer
+- ✓ `docs/clients/desktop/TROUBLESHOOTING.md` — common issues, logs, diagnostics, FAQ
+
+**Admin Documentation (3 items):**
+- ✓ `docs/admin/files/CONFIGURATION.md` — storage, quotas, retention, upload limits, background services
+- ✓ `docs/admin/files/COLLABORA.md` — Collabora CODE setup, deployment options, configuration, proxy
+- ✓ `docs/admin/files/BACKUP.md` — backup/restore procedures, scheduled backups, disaster recovery
+
+**Server Admin Documentation (3 items — cross-cutting):**
+- ✓ `docs/admin/server/INSTALLATION.md` — Linux (Ubuntu/Debian, RHEL), Windows (MSI, manual), Docker, reverse proxy (nginx, Apache, IIS), TLS/Let's Encrypt
+- ✓ `docs/admin/server/CONFIGURATION.md` — complete appsettings.json reference (Kestrel, auth, CORS, rate limiting, SignalR, Serilog, OpenTelemetry, security headers, env vars)
+- ✓ `docs/admin/server/UPGRADING.md` — Linux/Windows/Docker upgrade procedures, database migrations, rollback, version compatibility
+
+**User Documentation (3 items):**
+- ✓ `docs/user/files/GETTING_STARTED.md` — upload, browse, share, organize, preview, tags, trash
+- ✓ `docs/user/files/SYNC_CLIENT.md` — install sync client, connect, selective sync, conflicts
+- ✓ `docs/user/files/DOCUMENT_EDITING.md` — online editing with Collabora, auto-save, collaboration
+
+**Inline Documentation (2 items):**
+- ✓ XML documentation (`///`) on all public types and methods (already present from implementation phases)
+- ✓ README added to each Files project root (`Files`, `Files.Data`, `Files.Host`)
+
+**Notes:** Phase 1.20 complete. All 20 documentation deliverables created, plus 3 additional cross-cutting server admin docs (INSTALLATION.md, CONFIGURATION.md, UPGRADING.md). Documentation covers developer, admin, and user audiences with accurate references to actual code, APIs, and configuration options.
 
 ---
 

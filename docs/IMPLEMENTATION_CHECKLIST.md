@@ -2427,38 +2427,38 @@ This phase implements the core Files module, which is the primary public-facing 
 
 ### Files Module Documentation
 
-- ☐ Create `docs/modules/files/README.md` — module overview and architecture
-- ☐ Create `docs/modules/files/API.md` — complete REST API reference with examples
-- ☐ Create `docs/modules/files/ARCHITECTURE.md` — data model, chunking strategy, dedup
-- ☐ Create `docs/modules/files/SHARING.md` — sharing types, permissions, public links
-- ☐ Create `docs/modules/files/VERSIONING.md` — version management and retention
-- ☐ Create `docs/modules/files/WOPI.md` — Collabora/WOPI integration guide
-- ☐ Create `docs/modules/files/SYNC.md` — desktop sync architecture and protocol
-- ☐ Create `src/Modules/Files/DotNetCloud.Modules.Files/README.md` — developer README
+- ✓ Create `docs/modules/files/README.md` — module overview and architecture
+- ✓ Create `docs/modules/files/API.md` — complete REST API reference with examples
+- ✓ Create `docs/modules/files/ARCHITECTURE.md` — data model, chunking strategy, dedup
+- ✓ Create `docs/modules/files/SHARING.md` — sharing types, permissions, public links
+- ✓ Create `docs/modules/files/VERSIONING.md` — version management and retention
+- ✓ Create `docs/modules/files/WOPI.md` — Collabora/WOPI integration guide
+- ✓ Create `docs/modules/files/SYNC.md` — desktop sync architecture and protocol
+- ✓ Create `src/Modules/Files/DotNetCloud.Modules.Files/README.md` — developer README
 
 ### Desktop Client Documentation
 
-- ☐ Create `docs/clients/desktop/README.md` — SyncService + SyncTray overview
-- ☐ Create `docs/clients/desktop/SETUP.md` — installation and account setup
-- ☐ Create `docs/clients/desktop/SYNC_PROTOCOL.md` — sync engine internals
-- ☐ Create `docs/clients/desktop/TROUBLESHOOTING.md` — common issues and fixes
+- ✓ Create `docs/clients/desktop/README.md` — SyncService + SyncTray overview
+- ✓ Create `docs/clients/desktop/SETUP.md` — installation and account setup
+- ✓ Create `docs/clients/desktop/SYNC_PROTOCOL.md` — sync engine internals
+- ✓ Create `docs/clients/desktop/TROUBLESHOOTING.md` — common issues and fixes
 
 ### Admin Documentation
 
-- ☐ Create `docs/admin/files/CONFIGURATION.md` — storage, quotas, retention, upload limits
-- ☐ Create `docs/admin/files/COLLABORA.md` — Collabora CODE setup and administration
-- ☐ Create `docs/admin/files/BACKUP.md` — file data backup and restore procedures
+- ✓ Create `docs/admin/files/CONFIGURATION.md` — storage, quotas, retention, upload limits
+- ✓ Create `docs/admin/files/COLLABORA.md` — Collabora CODE setup and administration
+- ✓ Create `docs/admin/files/BACKUP.md` — file data backup and restore procedures
 
 ### User Documentation
 
-- ☐ Create `docs/user/files/GETTING_STARTED.md` — upload, browse, share, organize
-- ☐ Create `docs/user/files/SYNC_CLIENT.md` — install sync client, connect to server
-- ☐ Create `docs/user/files/DOCUMENT_EDITING.md` — online editing with Collabora
+- ✓ Create `docs/user/files/GETTING_STARTED.md` — upload, browse, share, organize
+- ✓ Create `docs/user/files/SYNC_CLIENT.md` — install sync client, connect to server
+- ✓ Create `docs/user/files/DOCUMENT_EDITING.md` — online editing with Collabora
 
 ### Inline Documentation
 
-- ☐ Add XML documentation (`///`) to all public types and methods
-- ☐ Add README to each Files project root
+- ✓ Add XML documentation (`///`) to all public types and methods
+- ✓ Add README to each Files project root
 
 ---
 
@@ -3568,14 +3568,17 @@ This phase implements real-time chat, announcements, push notifications, and the
 
 ### Administration Documentation
 
-- [ ] Installation guides (Windows, Linux, Docker, Kubernetes)
-- [ ] Configuration reference
+- ✓ Installation guides (Windows, Linux, Docker) — `docs/admin/server/INSTALLATION.md`
+- ✓ Configuration reference — `docs/admin/server/CONFIGURATION.md`
 - [ ] Module management guide
-- [ ] Backup and restore procedures
+- ✓ Backup and restore procedures — `docs/admin/files/BACKUP.md`
 - [ ] Troubleshooting guide
 - [ ] Performance tuning guide
 - [ ] Security hardening guide
 - [ ] Multi-organization setup (future)
+- ✓ Upgrade procedures — `docs/admin/server/UPGRADING.md`
+- ✓ Files module configuration — `docs/admin/files/CONFIGURATION.md`
+- ✓ Collabora administration — `docs/admin/files/COLLABORA.md`
 
 ### Developer Documentation
 
