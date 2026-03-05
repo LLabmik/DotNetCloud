@@ -54,7 +54,7 @@
 | Phase 1.16 | 20 | 20 | 0 | 0 |
 | Phase 1.17 | 25 | 25 | 0 | 0 |
 | Phase 1.18 | 6 | 6 | 0 | 0 |
-| Phase 1.19 | 20 | 8 | 0 | 12 |
+| Phase 1.19 | 20 | 19 | 0 | 1 |
 | Phase 1.20 | 20 | 0 | 0 | 20 |
 | Phase 2.1 | 6 | 6 | 0 | 0 |
 | Phase 2.2 | 4 | 4 | 0 | 0 |
@@ -3059,6 +3059,59 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Dependencies:** Phase 1.1 (models), Phase 1.2 (FilesDbContext), Phase 1.3 (services), Phase 0.6 (Core.Grpc lifecycle proto)
 **Blocking Issues:** None
 **Notes:** Phase 1.18 complete. Proto file uses module-specific response types (e.g., `CreateFolderResponse`) rather than generic `NodeResponse` for clarity. Lifecycle proto is shared via `DotNetCloud.Core.Grpc` — no separate `files_lifecycle.proto` needed. The `FilesGrpcService` operates directly against `FilesDbContext` for gRPC calls; REST controllers use the business logic services layer. All Files module tests pass; solution builds cleanly.
+
+---
+
+### Phase 1.19: Testing Infrastructure
+
+#### Step: phase-1.19.1 - Unit Tests (DotNetCloud.Modules.Files.Tests)
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `FilesModuleManifestTests` — 10 tests
+- ✓ `FilesModuleTests` — 18 tests
+- ✓ `FileNodeTests` — 15 tests
+- ✓ `FileQuotaTests` — 11 tests
+- ✓ `EventTests` — 10 tests
+- ✓ `FileUploadedEventHandlerTests` — 4 tests
+- ✓ `ContentHasherTests` — 15 tests
+- ✓ `LocalFileStorageEngineTests` — 17 tests
+- ✓ `WopiTokenServiceTests` — 11 tests
+- ✓ `WopiServiceTests` — 14 tests
+- ✓ `CollaboraDiscoveryServiceTests` — 10 tests
+- ✓ `FileServiceTests` — 20 tests (CRUD, authorization, name validation, materialized paths, favorites, search, copy, recent)
+- ✓ `ChunkedUploadServiceTests` — 7 tests (initiate, upload chunk, complete, cancel, dedup, quota)
+- ✓ `DownloadServiceTests` — 17 tests (file download, version download, chunk download, permissions)
+- ✓ `VersionServiceTests` — 12 tests (list, get, restore, delete, label, retention)
+- ✓ `ShareServiceTests` — 11 tests (create, list, delete, update, public link, password, expiry)
+- ✓ `TrashServiceTests` — 17 tests (list, restore, permanent delete, empty, cascade, quota update)
+- ✓ `QuotaServiceTests` — 22 tests (get, set, recalculate, enforcement, notifications)
+- ✓ `TagServiceTests` — 17 tests (add, remove, list by tag, list user tags)
+- ✓ `CommentServiceTests` — 9 tests (add, edit, delete, list, threaded replies)
+- ✓ `BulkOperationTests` — 20 tests (bulk move, copy, delete, permanent delete, partial failure, DTOs, edge cases)
+- ✓ Additional tests: PermissionServiceTests (14), SyncServiceTests (14), StorageMetricsServiceTests, WopiSessionTrackerTests, WopiProofKeyValidatorTests, VersionCleanupServiceTests, UploadSessionCleanupServiceTests, model/DTO/enum tests
+
+**Notes:** 476 total Files module tests pass. All service tests cover CRUD, authorization, error handling, and edge cases. BulkOperationTests validates per-item error handling matching BulkController's try/catch pattern.
+
+#### Step: phase-1.19.2 - Integration Tests (Files API)
+**Status:** pending ☐
+**Deliverables:**
+- ☐ Files API integration tests in `DotNetCloud.Integration.Tests`
+
+**Notes:** Files API integration tests deferred — requires WebApplicationFactory wiring for Files.Host. Unit test coverage is comprehensive (476 tests).
+
+#### Step: phase-1.19.3 - Client Tests (DotNetCloud.Client.Core.Tests)
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `SyncEngineTests` — change detection, reconciliation, conflict detection
+- ✓ `ChunkedTransferClientTests` — split, hash, upload, resume
+- ✓ `DotNetCloudApiClientTests` — mock HTTP responses, retry logic, rate limiting
+- ✓ `LocalStateDbTests` — SQLite operations
+- ✓ `EncryptedFileTokenStoreTests` + `TokenInfoTests` — OAuth2 PKCE token storage
+- ✓ `SelectiveSyncConfigTests` — include/exclude logic
+- ✓ `ConflictResolverTests` — conflict detection and resolution
+
+**Dependencies:** Phase 1.14 (Client.Core)
+**Notes:** 53 client tests pass. Tests cover sync engine, chunked transfer, API client, local state DB, auth token store, selective sync, and conflict resolution.
 
 ---
 

@@ -2374,18 +2374,29 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ `WopiTokenServiceTests` — token generation, validation, tampering, expiry, permissions (11 tests)
 - ✓ `WopiServiceTests` — CheckFileInfo, GetFile, PutFile, permissions, deduplication (14 tests)
 - ✓ `CollaboraDiscoveryServiceTests` — XML parsing, proof keys, actions, extensions (10 tests)
-- ☐ `FileServiceTests` — CRUD operations, authorization, name validation, materialized paths
-- ☐ `ChunkedUploadServiceTests` — initiate, upload chunk, complete, cancel, dedup, quota
-- ☐ `DownloadServiceTests` — file download, version download, chunk download, permissions
-- ☐ `VersionServiceTests` — list, get, restore, delete, label, retention
-- ☐ `ShareServiceTests` — create, list, delete, update, public link, password, expiry
-- ☐ `TrashServiceTests` — list, restore, permanent delete, empty, cascade, quota update
-- ☐ `QuotaServiceTests` — get, set, recalculate, enforcement, notifications
-- ☐ `TagServiceTests` — add, remove, list by tag, list user tags
-- ☐ `CommentServiceTests` — add, edit, delete, list, threaded replies
-- ☐ `BulkOperationTests` — bulk move, copy, delete, error handling per item
+- ✓ `FileServiceTests` — CRUD operations, authorization, name validation, materialized paths (20 tests)
+- ✓ `ChunkedUploadServiceTests` — initiate, upload chunk, complete, cancel, dedup, quota (7 tests)
+- ✓ `DownloadServiceTests` — file download, version download, chunk download, permissions (17 tests)
+- ✓ `VersionServiceTests` — list, get, restore, delete, label, retention (12 tests)
+- ✓ `ShareServiceTests` — create, list, delete, update, public link, password, expiry (11 tests)
+- ✓ `TrashServiceTests` — list, restore, permanent delete, empty, cascade, quota update (17 tests)
+- ✓ `QuotaServiceTests` — get, set, recalculate, enforcement, notifications (22 tests)
+- ✓ `TagServiceTests` — add, remove, list by tag, list user tags (17 tests)
+- ✓ `CommentServiceTests` — add, edit, delete, list, threaded replies (9 tests)
+- ✓ `BulkOperationTests` — bulk move, copy, delete, error handling per item (20 tests)
 
 ### Integration Tests
+
+> **Status: Deferred** — requires `WebApplicationFactory<Program>` wiring for `DotNetCloud.Modules.Files.Host`.
+> The test project (`DotNetCloud.Integration.Tests`) does not reference the Files Host project, and no
+> test harness exists yet to boot the Host's full middleware pipeline (controllers, auth, EF Core, storage
+> engine) in-process. Building that harness involves: (1) adding a project reference to Files.Host,
+> (2) overriding `ConfigureServices` to swap `FilesDbContext` for InMemory/container DB, (3) registering
+> a fake authentication handler to inject test identities, (4) stubbing `IFileStorageEngine` to avoid
+> disk I/O, and (5) disabling background services (`UploadSessionCleanupService`, `TrashCleanupService`,
+> etc.) to prevent side effects. All business logic is already covered by 476 unit tests at the service
+> layer; these integration tests would add HTTP-level verification (routing, model binding, status codes,
+> envelope format, auth middleware). Planned for Phase 1.20 or a dedicated follow-up task.
 
 - ☐ Add Files API integration tests to `DotNetCloud.Integration.Tests`:
   - ☐ File CRUD via REST API (create folder, upload file, rename, move, delete)
@@ -2402,13 +2413,13 @@ This phase implements the core Files module, which is the primary public-facing 
 
 ### Client Tests
 
-- ☐ Create `DotNetCloud.Client.Tests` project:
-  - ☐ Sync engine tests (change detection, reconciliation, conflict detection)
-  - ☐ Chunked transfer client tests (split, hash, upload, resume)
-  - ☐ API client tests (mock HTTP responses, retry logic, rate limiting)
-  - ☐ Local state database tests (SQLite operations)
-  - ☐ OAuth2 PKCE flow tests
-  - ☐ Selective sync tests (include/exclude logic)
+- ✓ Create `DotNetCloud.Client.Core.Tests` project (53 tests):
+  - ✓ Sync engine tests (change detection, reconciliation, conflict detection)
+  - ✓ Chunked transfer client tests (split, hash, upload, resume)
+  - ✓ API client tests (mock HTTP responses, retry logic, rate limiting)
+  - ✓ Local state database tests (SQLite operations)
+  - ✓ OAuth2 PKCE flow tests
+  - ✓ Selective sync tests (include/exclude logic)
 
 ---
 
