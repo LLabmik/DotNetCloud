@@ -92,9 +92,10 @@ public static class ServiceDefaultsExtensions
                     .GetSection("Cors:AllowedOrigins")
                     .Get<string[]>() ?? Array.Empty<string>();
 
-                if (allowedOrigins.Any())
+                if (allowedOrigins.Length > 0)
                 {
-                    policy.WithOrigins(allowedOrigins);
+                    policy.WithOrigins(allowedOrigins)
+                          .AllowCredentials();
                 }
                 else
                 {
@@ -102,8 +103,7 @@ public static class ServiceDefaultsExtensions
                 }
 
                 policy.AllowAnyMethod()
-                      .AllowAnyHeader()
-                      .AllowCredentials();
+                      .AllowAnyHeader();
             });
         });
 
