@@ -17,6 +17,12 @@ internal static class CliConfiguration
     private static readonly string ConfigDirectory = ResolveConfigDirectory();
     private static readonly string ConfigFilePath = Path.Combine(ConfigDirectory, ConfigFileName);
 
+    /// <summary>
+    /// Whether the resolved config directory is the system install path (/etc/dotnetcloud).
+    /// Used to set FHS-compliant defaults for data/log/backup directories.
+    /// </summary>
+    internal static bool IsSystemInstall => ConfigDirectory == SystemConfigDir;
+
     private static string ResolveConfigDirectory()
     {
         // 1. Explicit env var (set by systemd unit, Docker, etc.)

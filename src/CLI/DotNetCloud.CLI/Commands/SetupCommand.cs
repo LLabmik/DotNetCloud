@@ -222,13 +222,38 @@ internal static class SetupCommand
 
         // Save
         config.SetupCompletedAt = DateTime.UtcNow;
-        CliConfiguration.Save(config);
+
+        try
+        {
+            CliConfiguration.Save(config);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            Console.WriteLine();
+            ConsoleOutput.WriteError(
+                $"Permission denied writing to '{CliConfiguration.GetConfigFilePath()}'.");
+            ConsoleOutput.WriteInfo("Re-run with sudo: sudo dotnetcloud setup");
+            return 1;
+        }
+
         ConsoleOutput.WriteSuccess($"Configuration saved to {CliConfiguration.GetConfigFilePath()}");
 
         // Create directories
-        Directory.CreateDirectory(config.DataDirectory);
-        Directory.CreateDirectory(config.LogDirectory);
-        Directory.CreateDirectory(config.BackupDirectory);
+        try
+        {
+            Directory.CreateDirectory(config.DataDirectory);
+            Directory.CreateDirectory(config.LogDirectory);
+            Directory.CreateDirectory(config.BackupDirectory);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            Console.WriteLine();
+            ConsoleOutput.WriteError(
+                "Permission denied creating data directories.");
+            ConsoleOutput.WriteInfo("Re-run with sudo: sudo dotnetcloud setup");
+            return 1;
+        }
+
         ConsoleOutput.WriteSuccess("Data directories created.");
 
         Console.WriteLine();
