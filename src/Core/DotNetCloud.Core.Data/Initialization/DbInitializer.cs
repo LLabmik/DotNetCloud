@@ -1,9 +1,8 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using DotNetCloud.Core.Data.Context;
-using DotNetCloud.Core.Data.Entities.Identity;
 using DotNetCloud.Core.Data.Entities.Permissions;
 using DotNetCloud.Core.Data.Entities.Settings;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Core.Data.Initialization;
 
@@ -64,7 +63,7 @@ public class DbInitializer
 
             // Seed default data (transaction only for relational databases)
             var isRelational = _context.Database.IsRelational();
-            
+
             if (isRelational)
             {
                 // Use the execution strategy to wrap the transaction
@@ -120,19 +119,19 @@ public class DbInitializer
 
         // Check if the database provider supports migrations (i.e., not in-memory)
         var isRelational = _context.Database.IsRelational();
-        
+
         if (isRelational)
         {
             // Check if there are any pending migrations
             var pendingMigrations = await _context.Database.GetPendingMigrationsAsync(cancellationToken);
-            
+
             if (pendingMigrations.Any())
             {
                 _logger.LogInformation("Applying {Count} pending migrations...", pendingMigrations.Count());
-                
+
                 // Apply all pending migrations
                 await _context.Database.MigrateAsync(cancellationToken);
-                
+
                 _logger.LogInformation("Migrations applied successfully.");
             }
             else
