@@ -55,38 +55,43 @@ public class DbInitializer
     /// </remarks>
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Starting database initialization...");
-
         try
         {
-            // Ensure database is created and migrated
+            _logger.LogInformation("Starting database initialization...");
+
+            // First ensure database exists and is migrated
             await EnsureDatabaseAsync(cancellationToken);
 
-            // Begin a transaction for seeding operations (only for relational databases)
+            // Seed default data (transaction only for relational databases)
             var isRelational = _context.Database.IsRelational();
             
             if (isRelational)
             {
-                await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
-
-                try
+                // Use the execution strategy to wrap the transaction
+                var strategy = _context.Database.CreateExecutionStrategy();
+                await strategy.ExecuteAsync(async () =>
                 {
-                    // Seed default data
-                    await SeedDefaultRolesAsync(cancellationToken);
-                    await SeedDefaultPermissionsAsync(cancellationToken);
-                    await SeedSystemSettingsAsync(cancellationToken);
+                    await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
 
-                    // Commit transaction
-                    await transaction.CommitAsync(cancellationToken);
+                    try
+                    {
+                        // Seed default data
+                        await SeedDefaultRolesAsync(cancellationToken);
+                        await SeedDefaultPermissionsAsync(cancellationToken);
+                        await SeedSystemSettingsAsync(cancellationToken);
 
-                    _logger.LogInformation("Database initialization completed successfully.");
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error during database seeding. Rolling back transaction.");
-                    await transaction.RollbackAsync(cancellationToken);
-                    throw;
-                }
+                        // Commit transaction
+                        await transaction.CommitAsync(cancellationToken);
+
+                        _logger.LogInformation("Database initialization completed successfully.");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error during database seeding. Rolling back transaction.");
+                        await transaction.RollbackAsync(cancellationToken);
+                        throw;
+                    }
+                });
             }
             else
             {
