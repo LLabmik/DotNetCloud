@@ -67,7 +67,7 @@ public class ChunkedUploadServiceTests
             ChunkHashes = ["hash1", "hash2"]
         }, UserCaller(userId));
 
-        Assert.IsNotNull(result.SessionId);
+        Assert.AreNotEqual(Guid.Empty, result.SessionId);
         Assert.AreEqual(1, result.ExistingChunks.Count);
         Assert.AreEqual(1, result.MissingChunks.Count);
         Assert.IsTrue(result.ExistingChunks.Contains("hash1"));
