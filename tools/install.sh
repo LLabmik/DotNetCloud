@@ -332,6 +332,78 @@ post_upgrade() {
     ok "Service started."
 }
 
+# --- Install or upgrade Collabora CODE via APT ---
+install_collabora() {
+    local KEYRING_PATH="/usr/share/keyrings/collaboraonline-release-keyring.gpg"
+    local SOURCES_PATH="/etc/apt/sources.list.d/collaboraonline.sources"
+
+    # Ensure the Collabora APT repository is configured
+    if [[ ! -f "$SOURCES_PATH" ]]; then
+        info "Importing Collabora signing key..."
+        curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x0C54D189F4BA284D" \
+            | $SUDO gpg --dearmor -o "$KEYRING_PATH" 2>/dev/null \
+            || { error "Failed to import Collabora signing key."; return 1; }
+
+        $SUDO tee "$SOURCES_PATH" > /dev/null <<COLEOF
+Types: deb
+URIs: https://www.collaboraoffice.com/repos/CollaboraOnline/CODE-deb
+Suites: ./
+Signed-By: ${KEYRING_PATH}
+COLEOF
+        info "Collabora APT repository added."
+    fi
+
+    # apt-get install is idempotent: installs if missing, upgrades if newer available, no-op if current
+    info "Checking Collabora CODE packages (install/upgrade as needed)..."
+    $SUDO apt-get update -qq -o Dir::Etc::sourcelist="$SOURCES_PATH" -o Dir::Etc::sourceparts="-" 2>/dev/null \
+        || $SUDO apt-get update -qq
+
+    local BEFORE_VERSION=""
+    if dpkg -s coolwsd &>/dev/null; then
+        BEFORE_VERSION=$(dpkg-query -W -f='${Version}' coolwsd 2>/dev/null || true)
+    fi
+
+    $SUDO apt-get install -y -qq coolwsd code-brand \
+        || { error "Failed to install Collabora CODE packages."; return 1; }
+
+    local AFTER_VERSION
+    AFTER_VERSION=$(dpkg-query -W -f='${Version}' coolwsd 2>/dev/null || true)
+
+    if [[ -z "$BEFORE_VERSION" ]]; then
+        ok "Collabora CODE v${AFTER_VERSION} installed."
+    elif [[ "$BEFORE_VERSION" == "$AFTER_VERSION" ]]; then
+        ok "Collabora CODE v${AFTER_VERSION} is already the latest version."
+    else
+        ok "Collabora CODE upgraded: v${BEFORE_VERSION} → v${AFTER_VERSION}"
+    fi
+
+    # Disable the default systemd service — DotNetCloud's process supervisor manages Collabora
+    $SUDO systemctl stop coolwsd 2>/dev/null || true
+    $SUDO systemctl disable coolwsd 2>/dev/null || true
+}
+
+# --- Check config for Collabora and install/upgrade if requested ---
+maybe_install_collabora() {
+    local CONFIG_FILE="${CONFIG_DIR}/config.json"
+
+    # Also check the user-level config path used by the CLI
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        CONFIG_FILE="/root/.config/dotnetcloud/config.json"
+    fi
+
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        return
+    fi
+
+    # Read CollaboraMode from config (simple grep — no jq dependency)
+    local MODE
+    MODE=$(grep -oP '"CollaboraMode"\s*:\s*"\K[^"]+' "$CONFIG_FILE" 2>/dev/null || true)
+
+    if [[ "$MODE" == "BuiltIn" ]]; then
+        install_collabora
+    fi
+}
+
 # --- Main ---
 main() {
     echo ""
@@ -351,6 +423,7 @@ main() {
         install_dotnetcloud
         install_service
         post_upgrade
+        maybe_install_collabora
 
         echo ""
         ok "Upgrade complete! v${INSTALLED_VERSION} → v${LATEST_VERSION}"
@@ -378,6 +451,8 @@ main() {
             SETUP_EXIT=$?
 
             if [[ $SETUP_EXIT -eq 0 ]]; then
+                echo ""
+                maybe_install_collabora
                 echo ""
                 info "Starting DotNetCloud service..."
                 $SUDO systemctl enable dotnetcloud.service

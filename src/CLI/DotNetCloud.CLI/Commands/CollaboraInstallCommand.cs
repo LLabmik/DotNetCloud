@@ -1,24 +1,21 @@
 using System.CommandLine;
-using System.IO.Compression;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using DotNetCloud.CLI.Infrastructure;
 
 namespace DotNetCloud.CLI.Commands;
 
 /// <summary>
-/// CLI command for downloading and installing Collabora CODE (the built-in document editor server).
+/// CLI command for installing Collabora CODE (the built-in document editor server).
+/// On Linux (Debian-based) this adds the official Collabora APT repository and installs
+/// the <c>coolwsd</c> and <c>code-brand</c> packages.
 /// Invoked as: <c>dotnetcloud install collabora</c>
 /// </summary>
 internal static class CollaboraInstallCommand
 {
-    // Collabora CODE download URLs by platform. These point to the official Collabora release page.
-    // In production, the actual URLs should come from a manifest or configuration to stay up to date.
-    private static readonly Dictionary<string, string> DownloadUrls = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["linux-x64"] = "https://github.com/CollaboraOnline/online/releases/latest/download/collaboraoffice-linux-x64.tar.gz",
-        ["linux-arm64"] = "https://github.com/CollaboraOnline/online/releases/latest/download/collaboraoffice-linux-arm64.tar.gz",
-        ["win-x64"] = "https://www.collaboraoffice.com/wp-content/uploads/CODE-Windows-x64.zip"
-    };
+    private const string AptKeyUrl = "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x0C54D189F4BA284D";
+    private const string AptKeyringPath = "/usr/share/keyrings/collaboraonline-release-keyring.gpg";
+    private const string AptSourcePath = "/etc/apt/sources.list.d/collaboraonline.sources";
 
     /// <summary>
     /// Creates the <c>install collabora</c> command.
@@ -27,13 +24,7 @@ internal static class CollaboraInstallCommand
     {
         var installCommand = new Command("install", "Install optional components");
 
-        var collaboraCommand = new Command("collabora", "Download and install the built-in Collabora CODE document server");
-
-        var dirOption = new Option<string?>("--dir")
-        {
-            Description = "Installation directory (overrides config)"
-        };
-        collaboraCommand.Options.Add(dirOption);
+        var collaboraCommand = new Command("collabora", "Install the built-in Collabora CODE document server");
 
         var forceOption = new Option<bool>("--force")
         {
@@ -43,82 +34,124 @@ internal static class CollaboraInstallCommand
 
         collaboraCommand.SetAction(async (parseResult, ct) =>
         {
-            var dir = parseResult.GetValue(dirOption);
             var force = parseResult.GetValue(forceOption);
-            return await RunAsync(dir, force, ct);
+            return await RunAsync(force, ct);
         });
 
         installCommand.Subcommands.Add(collaboraCommand);
         return installCommand;
     }
 
-    private static async Task<int> RunAsync(string? installDir, bool force, CancellationToken ct)
+    private static async Task<int> RunAsync(bool force, CancellationToken ct)
     {
         ConsoleOutput.WriteHeader("Collabora CODE Installation");
 
-        var config = CliConfiguration.Load();
-
-        var targetDir = installDir
-            ?? (string.IsNullOrWhiteSpace(config.CollaboraDirectory) ? null : config.CollaboraDirectory);
-
-        if (targetDir is null)
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
-            targetDir = ConsoleOutput.Prompt(
-                "Installation directory",
-                Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "dotnetcloud", "collabora"));
-        }
-
-        var platform = DetectPlatform();
-        if (platform is null)
-        {
-            ConsoleOutput.WriteError("Unsupported platform. Collabora CODE auto-install supports Linux x64/arm64 and Windows x64.");
-            ConsoleOutput.WriteInfo("Please install Collabora Online manually and set the URL in the admin settings.");
+            ConsoleOutput.WriteError("Automatic Collabora CODE installation is only supported on Linux.");
+            ConsoleOutput.WriteInfo("On Windows, use Docker or install Collabora Online manually.");
+            ConsoleOutput.WriteInfo("See: https://www.collaboraoffice.com/code/");
             return 1;
         }
 
-        ConsoleOutput.WriteDetail("Platform", platform);
-        ConsoleOutput.WriteDetail("Install directory", targetDir);
-
-        // Check existing installation
-        var executableName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "coolwsd.exe" : "coolwsd";
-        var candidatePaths = new[]
+        // Verify we have apt-get (Debian-based)
+        if (!CommandExists("apt-get"))
         {
-            Path.Combine(targetDir, executableName),
-            Path.Combine(targetDir, "bin", executableName)
-        };
-
-        var existing = candidatePaths.FirstOrDefault(File.Exists);
-        if (existing is not null && !force)
-        {
-            ConsoleOutput.WriteSuccess($"Collabora CODE is already installed at: {existing}");
-            ConsoleOutput.WriteInfo("Use --force to reinstall.");
-            return 0;
-        }
-
-        if (!DownloadUrls.TryGetValue(platform, out var downloadUrl))
-        {
-            ConsoleOutput.WriteError($"No download URL configured for platform '{platform}'.");
+            ConsoleOutput.WriteError("This installer requires a Debian-based system with apt-get.");
+            ConsoleOutput.WriteInfo("For other distributions, install Collabora CODE manually.");
+            ConsoleOutput.WriteInfo("See: https://www.collaboraoffice.com/code/linux-packages/");
             return 1;
         }
 
-        ConsoleOutput.WriteInfo($"Downloading Collabora CODE from: {downloadUrl}");
-
-        Directory.CreateDirectory(targetDir);
-
-        var archiveName = downloadUrl.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
-            ? "collabora.zip" : "collabora.tar.gz";
-        var archivePath = Path.Combine(Path.GetTempPath(), archiveName);
+        var alreadyInstalled = IsCollaboraInstalled();
 
         try
         {
-            await DownloadFileAsync(downloadUrl, archivePath, ct);
-            ConsoleOutput.WriteSuccess("Download complete.");
+            // Ensure the APT repository is configured
+            if (!File.Exists(AptSourcePath))
+            {
+                ConsoleOutput.WriteInfo("Importing Collabora signing key...");
+                var keyResult = await RunShellAsync(
+                    $"curl -fsSL \"{AptKeyUrl}\" | gpg --dearmor -o {AptKeyringPath}", ct);
 
-            ConsoleOutput.WriteInfo("Extracting...");
-            await ExtractArchiveAsync(archivePath, targetDir, ct);
-            ConsoleOutput.WriteSuccess($"Extracted to: {targetDir}");
+                if (keyResult != 0)
+                {
+                    ConsoleOutput.WriteError("Failed to import the Collabora signing key.");
+                    return 1;
+                }
+                ConsoleOutput.WriteSuccess("Signing key imported.");
+
+                ConsoleOutput.WriteInfo("Adding Collabora CODE repository...");
+                var sourcesContent =
+                    $"""
+                    Types: deb
+                    URIs: https://www.collaboraoffice.com/repos/CollaboraOnline/CODE-deb
+                    Suites: ./
+                    Signed-By: {AptKeyringPath}
+                    """;
+
+                await File.WriteAllTextAsync(AptSourcePath, sourcesContent, ct);
+                ConsoleOutput.WriteSuccess("APT repository added.");
+            }
+
+            // Get current version before install/upgrade
+            string? beforeVersion = null;
+            if (alreadyInstalled)
+            {
+                beforeVersion = await GetPackageVersionAsync("coolwsd", ct);
+            }
+
+            // Update package lists
+            ConsoleOutput.WriteInfo("Updating package lists...");
+            var updateResult = await RunProcessAsync("apt-get", ["update", "-qq"], ct);
+            if (updateResult != 0)
+            {
+                ConsoleOutput.WriteError("Failed to update package lists.");
+                return 1;
+            }
+
+            // Install/upgrade Collabora CODE packages (apt-get install is idempotent)
+            ConsoleOutput.WriteInfo(alreadyInstalled
+                ? "Checking for Collabora CODE updates..."
+                : "Installing coolwsd and code-brand packages...");
+
+            var installResult = await RunProcessAsync(
+                "apt-get", ["install", "-y", "-qq", "coolwsd", "code-brand"], ct);
+
+            if (installResult != 0)
+            {
+                ConsoleOutput.WriteError("Failed to install Collabora CODE packages.");
+                return 1;
+            }
+
+            var afterVersion = await GetPackageVersionAsync("coolwsd", ct);
+
+            if (beforeVersion is null)
+            {
+                ConsoleOutput.WriteSuccess($"Collabora CODE v{afterVersion} installed.");
+            }
+            else if (beforeVersion == afterVersion && !force)
+            {
+                ConsoleOutput.WriteSuccess($"Collabora CODE v{afterVersion} is already the latest version.");
+            }
+            else
+            {
+                ConsoleOutput.WriteSuccess($"Collabora CODE upgraded: v{beforeVersion} → v{afterVersion}");
+            }
+
+            // Disable the default systemd service (DotNetCloud manages it via process supervisor)
+            await RunProcessAsync("systemctl", ["stop", "coolwsd"], ct);
+            await RunProcessAsync("systemctl", ["disable", "coolwsd"], ct);
+
+            // Persist the mode in config
+            var config = CliConfiguration.Load();
+            config.CollaboraMode = "BuiltIn";
+            CliConfiguration.Save(config);
+
+            Console.WriteLine();
+            ConsoleOutput.WriteInfo("Restart the server to activate: dotnetcloud serve");
+
+            return 0;
         }
         catch (OperationCanceledException)
         {
@@ -130,105 +163,104 @@ internal static class CollaboraInstallCommand
             ConsoleOutput.WriteError($"Installation failed: {ex.Message}");
             return 1;
         }
-        finally
-        {
-            if (File.Exists(archivePath))
-                File.Delete(archivePath);
-        }
-
-        // Verify installation
-        var installed = candidatePaths.FirstOrDefault(File.Exists);
-        if (installed is null)
-        {
-            ConsoleOutput.WriteWarning("Could not locate coolwsd executable after extraction.");
-            ConsoleOutput.WriteInfo("You may need to set CollaboraExecutablePath manually in your configuration.");
-        }
-        else
-        {
-            ConsoleOutput.WriteSuccess($"Collabora CODE installed: {installed}");
-        }
-
-        // Persist the installation directory in config
-        config.CollaboraMode = "BuiltIn";
-        config.CollaboraDirectory = targetDir;
-        CliConfiguration.Save(config);
-        ConsoleOutput.WriteSuccess("Configuration updated.");
-
-        Console.WriteLine();
-        ConsoleOutput.WriteInfo("To start using Collabora, set the WOPI base URL and restart with: dotnetcloud serve");
-
-        return 0;
     }
 
-    private static async Task DownloadFileAsync(string url, string destination, CancellationToken ct)
+    private static bool IsCollaboraInstalled()
     {
-        using var http = new HttpClient();
-        http.Timeout = TimeSpan.FromMinutes(10);
-
-        using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
-        response.EnsureSuccessStatusCode();
-
-        var total = response.Content.Headers.ContentLength;
-        await using var fileStream = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.None);
-        await using var httpStream = await response.Content.ReadAsStreamAsync(ct);
-
-        var buffer = new byte[81920];
-        long downloaded = 0;
-        int read;
-
-        while ((read = await httpStream.ReadAsync(buffer, ct)) > 0)
-        {
-            await fileStream.WriteAsync(buffer.AsMemory(0, read), ct);
-            downloaded += read;
-
-            if (total.HasValue)
-            {
-                var pct = (int)(downloaded * 100 / total.Value);
-                Console.Write($"\r  Downloading... {pct}% ({downloaded / 1024 / 1024} MB / {total.Value / 1024 / 1024} MB)");
-            }
-        }
-
-        Console.WriteLine();
+        // Check if the coolwsd binary exists in typical locations
+        return File.Exists("/usr/bin/coolwsd")
+            || CommandExists("coolwsd");
     }
 
-    private static Task ExtractArchiveAsync(string archivePath, string destinationDir, CancellationToken ct)
+    private static async Task<string?> GetPackageVersionAsync(string packageName, CancellationToken ct)
     {
-        return Task.Run(() =>
+        try
         {
-            if (archivePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            var psi = new ProcessStartInfo("dpkg-query")
             {
-                ZipFile.ExtractToDirectory(archivePath, destinationDir, overwriteFiles: true);
-            }
-            else
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                CreateNoWindow = true
+            };
+            psi.ArgumentList.Add("-W");
+            psi.ArgumentList.Add("-f=${Version}");
+            psi.ArgumentList.Add(packageName);
+
+            using var process = Process.Start(psi);
+            if (process is null)
             {
-                // For .tar.gz on Linux, use the system tar command
-                // On Windows this path shouldn't be reached (we use .zip)
-                var psi = new System.Diagnostics.ProcessStartInfo("tar")
-                {
-                    ArgumentList = { "-xzf", archivePath, "-C", destinationDir, "--strip-components=1" },
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                using var p = System.Diagnostics.Process.Start(psi);
-                p?.WaitForExit();
+                return null;
             }
-        }, ct);
+
+            var version = await process.StandardOutput.ReadToEndAsync(ct);
+            await process.WaitForExitAsync(ct);
+            return process.ExitCode == 0 ? version.Trim() : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
-    private static string? DetectPlatform()
+    private static bool CommandExists(string command)
     {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        try
         {
-            return RuntimeInformation.ProcessArchitecture == Architecture.Arm64
-                ? "linux-arm64" : "linux-x64";
+            using var p = Process.Start(new ProcessStartInfo("which", command)
+            {
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                CreateNoWindow = true
+            });
+            p?.WaitForExit();
+            return p?.ExitCode == 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static async Task<int> RunProcessAsync(string fileName, string[] arguments, CancellationToken ct)
+    {
+        var psi = new ProcessStartInfo(fileName)
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        foreach (var arg in arguments)
+        {
+            psi.ArgumentList.Add(arg);
         }
 
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) &&
-            RuntimeInformation.ProcessArchitecture == Architecture.X64)
+        using var process = Process.Start(psi);
+        if (process is null)
         {
-            return "win-x64";
+            return 1;
         }
 
-        return null;
+        await process.WaitForExitAsync(ct);
+        return process.ExitCode;
+    }
+
+    private static async Task<int> RunShellAsync(string command, CancellationToken ct)
+    {
+        var psi = new ProcessStartInfo("/bin/bash")
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        psi.ArgumentList.Add("-c");
+        psi.ArgumentList.Add(command);
+
+        using var process = Process.Start(psi);
+        if (process is null)
+        {
+            return 1;
+        }
+
+        await process.WaitForExitAsync(ct);
+        return process.ExitCode;
     }
 }

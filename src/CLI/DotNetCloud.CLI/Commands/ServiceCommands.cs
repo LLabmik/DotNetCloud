@@ -366,9 +366,25 @@ internal static class ServiceCommands
 
     private static string GetPidFilePath()
     {
-        return Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "dotnetcloud", "dotnetcloud.pid");
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+
+        if (!string.IsNullOrEmpty(appData))
+        {
+            return Path.Combine(appData, "dotnetcloud", "dotnetcloud.pid");
+        }
+
+        // Fallback for headless Linux services where ApplicationData is empty.
+        // Prefer /run/dotnetcloud (FHS runtime), then /tmp.
+        if (OperatingSystem.IsLinux())
+        {
+            const string runDir = "/run/dotnetcloud";
+            if (Directory.Exists("/run"))
+            {
+                return Path.Combine(runDir, "dotnetcloud.pid");
+            }
+        }
+
+        return Path.Combine(Path.GetTempPath(), "dotnetcloud", "dotnetcloud.pid");
     }
 
     private static void CleanupPidFile()

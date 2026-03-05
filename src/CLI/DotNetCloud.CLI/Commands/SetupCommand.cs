@@ -137,7 +137,7 @@ internal static class SetupCommand
 
         foreach (var moduleId in availableModules)
         {
-            if (ConsoleOutput.PromptConfirm($"  Enable {moduleId}?", defaultValue: moduleId == "dotnetcloud.files"))
+            if (ConsoleOutput.PromptConfirm($"  Enable {moduleId}?", defaultValue: moduleId is "dotnetcloud.files" or "dotnetcloud.chat"))
             {
                 config.EnabledModules.Add(moduleId);
             }
@@ -162,17 +162,14 @@ internal static class SetupCommand
                 var collaboraChoice = ConsoleOutput.PromptChoice(
                     "Collabora Online installation:",
                     [
-                        "Download and manage built-in Collabora CODE automatically",
+                        "Install built-in Collabora CODE automatically",
                         "Connect to an existing Collabora Online server"
                     ]);
 
                 if (collaboraChoice == 0)
                 {
                     config.CollaboraMode = "BuiltIn";
-                    config.CollaboraDirectory = ConsoleOutput.Prompt(
-                        "Collabora CODE installation directory",
-                        config.CollaboraDirectory);
-                    ConsoleOutput.WriteInfo("Run 'dotnetcloud install collabora' to download and install Collabora CODE.");
+                    ConsoleOutput.WriteSuccess("Collabora CODE will be installed automatically.");
                 }
                 else
                 {
@@ -208,7 +205,7 @@ internal static class SetupCommand
         ConsoleOutput.WriteDetail("Backup Dir", config.BackupDirectory);
         ConsoleOutput.WriteDetail("Collabora", config.CollaboraMode switch
         {
-            "BuiltIn" => $"Built-in CODE ({config.CollaboraDirectory})",
+            "BuiltIn" => "Built-in CODE (installed via APT)",
             "External" => $"External ({config.CollaboraUrl})",
             _ => "Disabled"
         });

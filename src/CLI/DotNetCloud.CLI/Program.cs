@@ -1,5 +1,26 @@
 using System.CommandLine;
 using DotNetCloud.CLI.Commands;
+using DotNetCloud.CLI.Infrastructure;
+
+// On Linux, re-execute under sudo if not already root — but only for commands
+// that need to write to system directories. Read-only commands (--help, --version,
+// status, logs) should work without elevation.
+var readOnlyCommands = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+    "--help", "-h", "-?", "--version"
+};
+
+var firstArg = args.Length > 0 ? args[0] : null;
+var needsRoot = firstArg is not null && !readOnlyCommands.Contains(firstArg);
+
+if (needsRoot)
+{
+    var sudoResult = SudoHelper.ReExecWithSudo(args);
+    if (sudoResult.HasValue)
+    {
+        return sudoResult.Value;
+    }
+}
 
 var rootCommand = new RootCommand("DotNetCloud — self-hosted cloud platform management CLI");
 

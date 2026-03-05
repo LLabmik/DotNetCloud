@@ -150,24 +150,33 @@ internal sealed class CliConfig
 
     /// <summary>
     /// The path to the data directory for file storage.
+    /// Defaults to FHS path on system installs, user-local path otherwise.
     /// </summary>
-    public string DataDirectory { get; set; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "dotnetcloud", "data");
+    public string DataDirectory { get; set; } = CliConfiguration.IsSystemInstall
+        ? "/var/lib/dotnetcloud"
+        : Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "dotnetcloud", "data");
 
     /// <summary>
     /// The path to the log directory.
+    /// Defaults to FHS path on system installs, user-local path otherwise.
     /// </summary>
-    public string LogDirectory { get; set; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "dotnetcloud", "logs");
+    public string LogDirectory { get; set; } = CliConfiguration.IsSystemInstall
+        ? "/var/log/dotnetcloud"
+        : Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "dotnetcloud", "logs");
 
     /// <summary>
     /// The backup output directory.
+    /// Defaults to FHS path on system installs, user-local path otherwise.
     /// </summary>
-    public string BackupDirectory { get; set; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "dotnetcloud", "backups");
+    public string BackupDirectory { get; set; } = CliConfiguration.IsSystemInstall
+        ? "/var/lib/dotnetcloud/backups"
+        : Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "dotnetcloud", "backups");
 
     /// <summary>
     /// How Collabora Online is configured: None, BuiltIn, or External.
@@ -183,10 +192,13 @@ internal sealed class CliConfig
     /// <summary>
     /// Directory where the built-in Collabora CODE is installed.
     /// Used when <see cref="CollaboraMode"/> is "BuiltIn".
+    /// On system installs Collabora is managed via APT, so this is not used.
     /// </summary>
-    public string CollaboraDirectory { get; set; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "dotnetcloud", "collabora");
+    public string CollaboraDirectory { get; set; } = CliConfiguration.IsSystemInstall
+        ? "/usr/share/coolwsd"
+        : Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "dotnetcloud", "collabora");
 
     /// <summary>
     /// When the setup wizard was last run.
