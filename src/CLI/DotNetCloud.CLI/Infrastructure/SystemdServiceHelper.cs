@@ -91,12 +91,14 @@ internal static class SystemdServiceHelper
             Requires=network.target
 
             [Service]
-            Type=notify
+            Type=forking
+            PIDFile={RunDir}/dotnetcloud.pid
+            GuessMainPID=no
             User={ServiceUser}
             Group={ServiceGroup}
+            RuntimeDirectory=dotnetcloud
             WorkingDirectory={InstallDir}
             ExecStart={InstallDir}/dotnetcloud start
-            ExecStop={InstallDir}/dotnetcloud stop
             Restart=on-failure
             RestartSec=10
             TimeoutStartSec=60

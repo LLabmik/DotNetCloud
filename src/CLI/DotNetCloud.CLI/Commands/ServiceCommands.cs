@@ -96,7 +96,12 @@ internal static class ServiceCommands
             {
                 FileName = serverFileName,
                 Arguments = serverArguments ?? string.Empty,
-                UseShellExecute = !foreground,
+                // On Linux, UseShellExecute = true invokes xdg-open which fails on
+                // headless servers. Use false and let the child process inherit the
+                // console (systemd captures stdout/stderr anyway). On Windows,
+                // UseShellExecute = true detaches the child from the parent console.
+                UseShellExecute = !foreground && OperatingSystem.IsWindows(),
+                CreateNoWindow = !foreground,
                 RedirectStandardOutput = foreground,
                 RedirectStandardError = foreground,
                 Environment =
@@ -173,8 +178,26 @@ internal static class ServiceCommands
         {
             var process = Process.GetProcessById(pid);
             ConsoleOutput.WriteInfo($"Stopping server (PID: {pid})...");
-            process.Kill(entireProcessTree: true);
-            process.WaitForExit(TimeSpan.FromSeconds(30));
+
+            // Send SIGTERM for graceful shutdown on Linux (lets the .NET host
+            // drain connections and run IHostApplicationLifetime callbacks).
+            // On Windows, CloseMainWindow is not applicable to console apps,
+            // so Kill is used as a fallback.
+            if (OperatingSystem.IsLinux())
+            {
+                Process.Start("kill", $"-TERM {pid}")?.WaitForExit(1000);
+            }
+            else
+            {
+                process.Kill(entireProcessTree: true);
+            }
+
+            if (!process.WaitForExit(TimeSpan.FromSeconds(30)))
+            {
+                ConsoleOutput.WriteWarning("Server did not exit gracefully, forcing kill...");
+                process.Kill(entireProcessTree: true);
+            }
+
             ConsoleOutput.WriteSuccess("Server stopped.");
         }
         catch (ArgumentException)
@@ -367,22 +390,18 @@ internal static class ServiceCommands
 
     private static string GetPidFilePath()
     {
+        // On Linux system installs, always use the FHS runtime directory
+        // so the path matches the systemd PIDFile= directive.
+        if (OperatingSystem.IsLinux() && Directory.Exists("/run"))
+        {
+            return "/run/dotnetcloud/dotnetcloud.pid";
+        }
+
         var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
 
         if (!string.IsNullOrEmpty(appData))
         {
             return Path.Combine(appData, "dotnetcloud", "dotnetcloud.pid");
-        }
-
-        // Fallback for headless Linux services where ApplicationData is empty.
-        // Prefer /run/dotnetcloud (FHS runtime), then /tmp.
-        if (OperatingSystem.IsLinux())
-        {
-            const string runDir = "/run/dotnetcloud";
-            if (Directory.Exists("/run"))
-            {
-                return Path.Combine(runDir, "dotnetcloud.pid");
-            }
         }
 
         return Path.Combine(Path.GetTempPath(), "dotnetcloud", "dotnetcloud.pid");

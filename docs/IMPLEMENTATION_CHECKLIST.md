@@ -855,6 +855,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ `ConsoleOutputTests` — 16 tests (FormatStatus color indicators, case insensitivity)
 - ✓ `SetupCommandTests` — 9 tests (MaskConnectionString, command structure)
 - ✓ `CommandStructureTests` — 25 tests (all commands, subcommands, options, arguments)
+- ✓ `SystemdServiceHelperTests` — 15 tests (Type=forking, PIDFile, no ExecStop, hardening, systemd format validation)
 
 ---
 

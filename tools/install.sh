@@ -46,6 +46,26 @@ warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 fatal() { error "$*"; exit 1; }
 
+# --- Cleanup on unexpected exit ---
+cleanup_on_error() {
+    local EXIT_CODE=$?
+    if [[ $EXIT_CODE -ne 0 ]]; then
+        echo ""
+        error "Installation failed (exit code: $EXIT_CODE)."
+        echo ""
+        if [[ "$IS_UPGRADE" == true ]]; then
+            error "Upgrade was interrupted. The previous version's data and config are intact."
+            info  "Try re-running the installer to resume the upgrade."
+        else
+            info  "If this is a network issue, check your connection and try again."
+            info  "For help, open an issue: https://github.com/${REPO}/issues"
+        fi
+        # Clean up partial downloads
+        rm -f "/tmp/dotnetcloud-"*.tar.gz "/tmp/dotnetcloud-"*.sha256 2>/dev/null || true
+    fi
+}
+trap cleanup_on_error EXIT
+
 # --- Pre-flight checks ---
 check_prerequisites() {
     info "Checking prerequisites..."
@@ -217,7 +237,8 @@ install_dotnetcloud() {
     local TEMP_CHECKSUM="/tmp/${ARCHIVE_NAME}.sha256"
 
     info "Downloading DotNetCloud v${LATEST_VERSION}..."
-    curl -fSL "$ARCHIVE_URL" -o "$TEMP_FILE" || fatal "Download failed. Is v${LATEST_VERSION} published at ${ARCHIVE_URL}?"
+    curl -fSL --retry 3 --retry-delay 5 "$ARCHIVE_URL" -o "$TEMP_FILE" \
+        || fatal "Download failed after 3 attempts. Check your network connection and try again."
 
     info "Verifying checksum..."
     if curl -fSL "$CHECKSUM_URL" -o "$TEMP_CHECKSUM" 2>/dev/null; then
@@ -230,7 +251,17 @@ install_dotnetcloud() {
 
     info "Creating service user..."
     if ! id "$SERVICE_USER" &>/dev/null; then
-        $SUDO useradd --system --shell /usr/sbin/nologin --home-dir "$DATA_DIR" "$SERVICE_USER"
+        # --user-group explicitly creates a matching group (not all distros do
+        # this by default for --system users — depends on USERGROUPS_ENAB in
+        # login.defs). Without it, chown with :dotnetcloud fails on some systems.
+        $SUDO useradd --system --user-group --shell /usr/sbin/nologin --home-dir "$DATA_DIR" "$SERVICE_USER"
+    fi
+
+    # Ensure the group exists even if the user was created by a previous run
+    # that didn't use --user-group (upgrade from older installer version).
+    if ! getent group "$SERVICE_GROUP" &>/dev/null; then
+        $SUDO groupadd --system "$SERVICE_GROUP"
+        $SUDO usermod -g "$SERVICE_GROUP" "$SERVICE_USER"
     fi
 
     info "Creating directory structure..."
@@ -247,12 +278,33 @@ install_dotnetcloud() {
     fi
 
     info "Extracting to ${INSTALL_DIR}..."
-    $SUDO tar -xzf "$TEMP_FILE" -C "$INSTALL_DIR" --strip-components=1
+    $SUDO tar -xzf "$TEMP_FILE" -C "$INSTALL_DIR" --strip-components=1 \
+        || fatal "Extraction failed. The archive may be corrupted — try running the installer again."
+
+    # Verify critical files were extracted
+    if [[ ! -f "${INSTALL_DIR}/dotnetcloud" ]] && [[ ! -f "${INSTALL_DIR}/DotNetCloud.Core.Server" ]]; then
+        fatal "Extraction succeeded but expected binaries are missing. The release archive may have an unexpected layout."
+    fi
 
     info "Setting permissions..."
-    $SUDO chown -R "${SERVICE_USER}:${SERVICE_GROUP}" "$DATA_DIR" "$LOG_DIR" "$RUN_DIR"
+    $SUDO chown -R "${SERVICE_USER}:${SERVICE_GROUP}" "$DATA_DIR" "$LOG_DIR" "$RUN_DIR" "$CONFIG_DIR"
     $SUDO chown -R root:root "$INSTALL_DIR"
     $SUDO chmod 755 "$INSTALL_DIR"
+
+    # Ensure CLI binary is executable
+    if [[ -f "${INSTALL_DIR}/dotnetcloud" ]]; then
+        $SUDO chmod 755 "${INSTALL_DIR}/dotnetcloud"
+    fi
+
+    # Ensure server binary is executable (permissions may be lost if archive
+    # was built on Windows or transferred through a non-Unix-aware tool)
+    if [[ -f "${INSTALL_DIR}/DotNetCloud.Core.Server" ]]; then
+        $SUDO chmod 755 "${INSTALL_DIR}/DotNetCloud.Core.Server"
+    fi
+    # Also check the server/ subdirectory layout
+    if [[ -f "${INSTALL_DIR}/server/DotNetCloud.Core.Server" ]]; then
+        $SUDO chmod 755 "${INSTALL_DIR}/server/DotNetCloud.Core.Server"
+    fi
 
     # Symlink CLI to PATH
     $SUDO ln -sf "${INSTALL_DIR}/dotnetcloud" /usr/local/bin/dotnetcloud
@@ -288,12 +340,14 @@ After=network.target postgresql.service
 Requires=network.target
 
 [Service]
-Type=notify
+Type=forking
+PIDFile=${RUN_DIR}/dotnetcloud.pid
+GuessMainPID=no
 User=${SERVICE_USER}
 Group=${SERVICE_GROUP}
+RuntimeDirectory=dotnetcloud
 WorkingDirectory=${INSTALL_DIR}
 ExecStart=${INSTALL_DIR}/dotnetcloud start
-ExecStop=${INSTALL_DIR}/dotnetcloud stop
 Restart=on-failure
 RestartSec=10
 TimeoutStartSec=60
@@ -324,12 +378,14 @@ After=network.target postgresql.service
 Requires=network.target
 
 [Service]
-Type=notify
+Type=forking
+PIDFile=${RUN_DIR}/dotnetcloud.pid
+GuessMainPID=no
 User=${SERVICE_USER}
 Group=${SERVICE_GROUP}
+RuntimeDirectory=dotnetcloud
 WorkingDirectory=${INSTALL_DIR}
 ExecStart=${INSTALL_DIR}/dotnetcloud start
-ExecStop=${INSTALL_DIR}/dotnetcloud stop
 Restart=on-failure
 RestartSec=10
 TimeoutStartSec=60
@@ -376,7 +432,29 @@ post_upgrade() {
 
     info "Starting DotNetCloud service..."
     $SUDO systemctl start dotnetcloud.service
-    ok "Service started."
+
+    # Wait for the service to become healthy before declaring success
+    info "Waiting for service to become healthy..."
+    local RETRIES=0
+    local HEALTHY=false
+    while [[ $RETRIES -lt 15 ]]; do
+        if curl -sf http://localhost:5080/health/live >/dev/null 2>&1; then
+            HEALTHY=true
+            break
+        fi
+        sleep 2
+        RETRIES=$((RETRIES + 1))
+    done
+
+    if [[ "$HEALTHY" == true ]]; then
+        ok "Service is healthy."
+    elif systemctl is-active --quiet dotnetcloud.service 2>/dev/null; then
+        ok "Service started (health check not yet responding — may still be running migrations)."
+    else
+        warn "Service may have failed to start. Check with:"
+        echo "  sudo systemctl status dotnetcloud"
+        echo "  sudo journalctl -u dotnetcloud -f"
+    fi
 }
 
 # --- Install or upgrade Collabora CODE via APT ---
@@ -485,42 +563,71 @@ main() {
         install_service
 
         echo ""
-        ok "Installation complete!"
+        ok "Binaries installed. Starting setup wizard..."
         echo ""
 
-        # Offer to run setup immediately for a seamless experience
-        read -rp "$(echo -e "${BLUE}[INFO]${NC} Run the setup wizard now? [Y/n]: ")" RUN_SETUP
-        RUN_SETUP="${RUN_SETUP:-Y}"
+        # Run setup wizard immediately — no prompt needed.
+        # The wizard handles database config, admin user, TLS, modules, and
+        # starts the service via systemctl enable --now.
+        #
+        # CRITICAL: When invoked via 'curl | bash', stdin is the pipe — not the
+        # terminal. The setup wizard uses Console.ReadLine() which reads stdin.
+        # Redirect stdin from /dev/tty so the wizard can read user input.
+        #
+        # NOTE: The '|| SETUP_EXIT=$?' pattern is required because 'set -e' is
+        # active. Without it, a non-zero exit from setup (user cancels, bad DB
+        # password, etc.) would abort the entire script before we can handle it
+        # gracefully. The '||' makes it a compound command that set -e ignores.
+        SETUP_EXIT=0
+        if [[ -t 0 ]]; then
+            # stdin is already a terminal (script was downloaded then run)
+            $SUDO "${INSTALL_DIR}/dotnetcloud" setup || SETUP_EXIT=$?
+        else
+            # stdin is a pipe (curl | bash) — redirect from the controlling terminal
+            $SUDO "${INSTALL_DIR}/dotnetcloud" setup < /dev/tty || SETUP_EXIT=$?
+        fi
 
-        if [[ "${RUN_SETUP,,}" == "y" ]]; then
+        # Ensure config is readable by the service user (setup writes as root)
+        if [[ -f "${CONFIG_DIR}/config.json" ]]; then
+            $SUDO chown root:${SERVICE_GROUP} "${CONFIG_DIR}/config.json"
+            $SUDO chmod 640 "${CONFIG_DIR}/config.json"
+        fi
+
+        if [[ $SETUP_EXIT -eq 0 ]]; then
             echo ""
-            $SUDO "${INSTALL_DIR}/dotnetcloud" setup
-            SETUP_EXIT=$?
+            maybe_install_collabora
+            echo ""
 
-            if [[ $SETUP_EXIT -eq 0 ]]; then
-                echo ""
-                maybe_install_collabora
-                echo ""
-                # Setup already started the service and showed the login URL.
-                # Just verify it's running.
-                if systemctl is-active --quiet dotnetcloud.service 2>/dev/null; then
-                    ok "Service is running."
-                else
-                    warn "Service may still be starting. Check with:"
-                    echo "  sudo systemctl status dotnetcloud"
+            # The setup wizard calls 'systemctl enable --now' and waits for
+            # the health check. Double-check here for the user's peace of mind.
+            info "Verifying service is running..."
+            local RETRIES=0
+            local HEALTHY=false
+            while [[ $RETRIES -lt 15 ]]; do
+                if curl -sf http://localhost:5080/health/live >/dev/null 2>&1; then
+                    HEALTHY=true
+                    break
                 fi
+                sleep 2
+                RETRIES=$((RETRIES + 1))
+            done
+
+            if [[ "$HEALTHY" == true ]]; then
+                ok "DotNetCloud is installed, configured, and running."
+                echo ""
+                info "Open your browser to access DotNetCloud."
+            elif systemctl is-active --quiet dotnetcloud.service 2>/dev/null; then
+                ok "DotNetCloud is running (health check not yet responding — may still be initializing)."
             else
-                warn "Setup did not complete. You can run it later:"
-                echo "  sudo dotnetcloud setup"
-                echo "  sudo systemctl start dotnetcloud"
-                echo "  sudo systemctl enable dotnetcloud"
+                warn "Service may still be starting. Check with:"
+                echo "  sudo systemctl status dotnetcloud"
+                echo "  sudo journalctl -u dotnetcloud -f"
             fi
         else
             echo ""
-            info "Run these when you're ready:"
-            echo "  1. sudo dotnetcloud setup"
-            echo "  2. sudo systemctl start dotnetcloud"
-            echo "  3. sudo systemctl enable dotnetcloud"
+            warn "Setup did not complete (exit code: $SETUP_EXIT)."
+            info "You can re-run it at any time:"
+            echo "  sudo dotnetcloud setup"
         fi
         echo ""
     fi
