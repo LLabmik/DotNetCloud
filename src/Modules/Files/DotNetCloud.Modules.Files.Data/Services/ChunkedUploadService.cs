@@ -42,6 +42,9 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         ArgumentNullException.ThrowIfNull(dto);
         ArgumentNullException.ThrowIfNull(caller);
 
+        // Ensure every uploader has a quota row before checking available space.
+        await _quotaService.GetOrCreateQuotaAsync(caller.UserId, caller, cancellationToken);
+
         if (!await _quotaService.HasSufficientQuotaAsync(caller.UserId, dto.TotalSize, cancellationToken))
             throw new Core.Errors.ValidationException("Quota", "Insufficient storage quota for this upload.");
 

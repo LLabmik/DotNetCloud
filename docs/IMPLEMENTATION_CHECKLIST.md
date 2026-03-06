@@ -721,6 +721,23 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Implement module navigation registration
 - ✓ Create module UI extension mechanism
 - ✓ Build module communication interface
+- ✓ Register installed/enabled Files and Chat modules into sidebar nav at startup
+- ✓ Refresh module sidebar/page registrations automatically when module enable/disable status changes
+- ✓ Add authenticated module route hosts (`/apps/files`, `/apps/chat`) via `ModulePageHost`
+- ✓ Enable interactive render mode on module host routes so module UI buttons/actions execute
+- ✓ Wire Files actions to real services (create folder, upload, delete, and refresh listing)
+- ✓ Wire Chat channel list/create actions to real services for persisted channels
+- ✓ Register in-process module data contexts for Files/Chat actions in the web app runtime
+- ✓ Make folder names directly clickable to navigate and replace Files placeholder text icons with real icons
+- ✓ Align Files/Chat module storage with configured core DB provider (PostgreSQL/MSSQL), avoiding SQLite fallback
+- ✓ Ensure Files/Chat module tables are explicitly created in shared DB when sentinel tables are missing
+- ✓ Fix Files filtered index SQL for provider compatibility so PostgreSQL module table creation succeeds
+- ✓ Restyle Files upload dialog/progress panel with polished spacing, controls, and icons (remove scaffold placeholder tokens)
+- ✓ Add core Files page layout styling (breadcrumbs/actions/list rows) and CSS cache-bust query to ensure clients receive updated styles
+- ✓ Auto-create default quota on first upload initiation and surface upload errors in UI (avoid silent failed uploads)
+- ✓ Keep upload dialog open on failed uploads and only close after full success so users can see actionable errors
+- ✓ Add top-level StartUpload exception handling so pre-upload failures surface as visible error messages (no silent no-op clicks)
+- ✓ Persist Files/Chat module data across server restarts/redeploys using on-disk module databases
 
 #### Theme & Branding
 - ✓ Create base theme/styling system

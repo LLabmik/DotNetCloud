@@ -56,7 +56,7 @@ public sealed class FileShareConfiguration : IEntityTypeConfiguration<FileShare>
 
         builder.HasIndex(s => s.LinkToken)
             .IsUnique()
-            .HasFilter("[LinkToken] IS NOT NULL")
+            .HasFilter("\"LinkToken\" IS NOT NULL")
             .HasDatabaseName("ix_file_shares_link_token");
 
         builder.HasIndex(s => s.CreatedByUserId)

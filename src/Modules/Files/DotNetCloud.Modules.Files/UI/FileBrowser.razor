@@ -82,7 +82,7 @@ else
     {
         <div class="browser-drop-overlay" aria-label="Drop files to upload">
             <div class="browser-drop-message">
-                <span class="browser-drop-icon">[Upload]</span>
+                <span class="browser-drop-icon" aria-hidden="true">⤴</span>
                 <p>Drop files to upload to this folder</p>
             </div>
         </div>
@@ -225,7 +225,19 @@ else
                     </div>
 
                     <div class="file-info">
-                        <span class="file-name" title="@node.Name">@node.Name</span>
+                        @if (node.NodeType == "Folder")
+                        {
+                            <button class="file-name file-name-link"
+                                    title="Open @node.Name"
+                                    @onclick:stopPropagation
+                                    @onclick="() => OpenFolder(node)">
+                                @node.Name
+                            </button>
+                        }
+                        else
+                        {
+                            <span class="file-name" title="@node.Name">@node.Name</span>
+                        }
                         @if (node.Tags.Count > 0)
                         {
                             <div class="file-tags" aria-label="Tags">

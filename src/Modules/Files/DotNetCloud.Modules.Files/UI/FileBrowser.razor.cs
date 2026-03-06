@@ -1,5 +1,10 @@
+using System.Security.Claims;
+using DotNetCloud.Core.Authorization;
+using DotNetCloud.Modules.Files.DTOs;
+using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.AspNetCore.Components.Authorization;
 
 namespace DotNetCloud.Modules.Files.UI;
 
@@ -10,6 +15,9 @@ namespace DotNetCloud.Modules.Files.UI;
 /// </summary>
 public partial class FileBrowser : ComponentBase
 {
+    [Inject] private IFileService FileService { get; set; } = default!;
+    [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
+
     /// <summary>The current user ID, used for opening the document editor.</summary>
     [Parameter] public Guid UserId { get; set; }
 
@@ -85,6 +93,11 @@ public partial class FileBrowser : ComponentBase
     // Drag-and-drop: use a counter to handle bubbling (child elements fire enter/leave too).
     private int _dragEnterCount;
 
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCurrentFolderAsync();
+    }
+
     protected IReadOnlyList<FileNodeViewModel> Nodes => _nodes;
 
     /// <summary>Nodes sorted by the current sort column and direction (folders always first).</summary>
@@ -154,7 +167,7 @@ public partial class FileBrowser : ComponentBase
             _breadcrumbs.Clear();
         }
 
-        _nodes = [];
+        _ = LoadCurrentFolderAsync();
     }
 
     protected void HandleNodeClick(FileNodeViewModel node)
@@ -182,6 +195,17 @@ public partial class FileBrowser : ComponentBase
         }
     }
 
+    protected void OpenFolder(FileNodeViewModel node)
+    {
+        if (node.NodeType != "Folder")
+        {
+            return;
+        }
+
+        _breadcrumbs.Add(new BreadcrumbItem(node.Id, node.Name));
+        NavigateToFolder(node.Id);
+    }
+
     protected bool IsSelected(Guid nodeId) => _selectedNodes.Contains(nodeId);
     protected void ClearSelection() => _selectedNodes.Clear();
 
@@ -193,22 +217,36 @@ public partial class FileBrowser : ComponentBase
 
     protected void HideCreateFolder() => _showCreateFolder = false;
 
-    protected void CreateFolder()
+    protected async Task CreateFolder()
     {
         if (string.IsNullOrWhiteSpace(_newFolderName)) return;
+
+        var caller = await GetCallerContextAsync();
+        var createDto = new CreateFolderDto
+        {
+            Name = _newFolderName.Trim(),
+            ParentId = _currentFolderId
+        };
+
+        await FileService.CreateFolderAsync(createDto, caller);
         _showCreateFolder = false;
         _newFolderName = string.Empty;
+        await LoadCurrentFolderAsync();
     }
 
-    protected void HandleFolderKeyDown(KeyboardEventArgs e)
+    protected async Task HandleFolderKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter") CreateFolder();
+        if (e.Key == "Enter") await CreateFolder();
         if (e.Key == "Escape") _showCreateFolder = false;
     }
 
     protected void ShowUploadDialog() => _showUploadDialog = true;
     protected void HideUploadDialog() => _showUploadDialog = false;
-    protected void HandleUploadComplete() => _showUploadDialog = false;
+    protected async Task HandleUploadComplete()
+    {
+        _showUploadDialog = false;
+        await LoadCurrentFolderAsync();
+    }
 
     // ── Drag-and-drop zone (browser-level) ─────────────────────────────────────
 
@@ -236,7 +274,24 @@ public partial class FileBrowser : ComponentBase
         ShowUploadDialog();
     }
 
-    protected void DeleteSelected() => _selectedNodes.Clear();
+    protected async Task DeleteSelected()
+    {
+        if (_selectedNodes.Count == 0)
+        {
+            return;
+        }
+
+        var caller = await GetCallerContextAsync();
+        var nodeIds = _selectedNodes.ToList();
+
+        foreach (var nodeId in nodeIds)
+        {
+            await FileService.DeleteAsync(nodeId, caller);
+        }
+
+        _selectedNodes.Clear();
+        await LoadCurrentFolderAsync();
+    }
 
     /// <summary>Activates the tag filter view for the given tag.</summary>
     protected void FilterByTag(FileTagViewModel tag)
@@ -370,23 +425,23 @@ public partial class FileBrowser : ComponentBase
 
     protected static string GetNodeIcon(FileNodeViewModel node)
     {
-        if (node.NodeType == "Folder") return "[Folder]";
+        if (node.NodeType == "Folder") return "📁";
         return GetFileIcon(node.MimeType);
     }
 
     protected static string GetFileIcon(string? mimeType)
     {
-        if (mimeType is null) return "[File]";
-        if (mimeType.StartsWith("image/")) return "[Image]";
-        if (mimeType.StartsWith("video/")) return "[Video]";
-        if (mimeType.StartsWith("audio/")) return "[Audio]";
-        if (mimeType.StartsWith("text/")) return "[Text]";
-        if (mimeType == "application/pdf") return "[PDF]";
-        if (mimeType.Contains("spreadsheet") || mimeType.Contains("excel")) return "[Sheet]";
-        if (mimeType.Contains("presentation") || mimeType.Contains("powerpoint")) return "[Slides]";
-        if (mimeType.Contains("document") || mimeType.Contains("word")) return "[Doc]";
-        if (mimeType.Contains("zip") || mimeType.Contains("compressed")) return "[Archive]";
-        return "[File]";
+        if (mimeType is null) return "📄";
+        if (mimeType.StartsWith("image/")) return "🖼️";
+        if (mimeType.StartsWith("video/")) return "🎬";
+        if (mimeType.StartsWith("audio/")) return "🎵";
+        if (mimeType.StartsWith("text/")) return "📝";
+        if (mimeType == "application/pdf") return "📕";
+        if (mimeType.Contains("spreadsheet") || mimeType.Contains("excel")) return "📊";
+        if (mimeType.Contains("presentation") || mimeType.Contains("powerpoint")) return "📈";
+        if (mimeType.Contains("document") || mimeType.Contains("word")) return "📘";
+        if (mimeType.Contains("zip") || mimeType.Contains("compressed")) return "🗜️";
+        return "📄";
     }
 
     protected static string FormatSize(long bytes)
@@ -433,5 +488,56 @@ public partial class FileBrowser : ComponentBase
     protected async Task HandleCopyShareLink(SharedItemViewModel item)
     {
         await OnCopyShareLink.InvokeAsync(item);
+    }
+
+    private async Task LoadCurrentFolderAsync()
+    {
+        var caller = await GetCallerContextAsync();
+
+        var nodes = _currentFolderId.HasValue
+            ? await FileService.ListChildrenAsync(_currentFolderId.Value, caller)
+            : await FileService.ListRootAsync(caller);
+
+        _nodes = nodes.Select(ToViewModel).ToList();
+        StateHasChanged();
+    }
+
+    private async Task<CallerContext> GetCallerContextAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = state.User;
+
+        var userIdClaim = user.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? user.FindFirst("sub")?.Value;
+
+        if (!Guid.TryParse(userIdClaim, out var userId))
+        {
+            throw new InvalidOperationException("Authenticated user id claim is missing or invalid.");
+        }
+
+        var roles = user.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
+        return new CallerContext(userId, roles, CallerType.User);
+    }
+
+    private static FileNodeViewModel ToViewModel(FileNodeDto dto)
+    {
+        return new FileNodeViewModel
+        {
+            Id = dto.Id,
+            Name = dto.Name,
+            NodeType = dto.NodeType,
+            MimeType = dto.MimeType,
+            Size = dto.Size,
+            ParentId = dto.ParentId,
+            IsFavorite = dto.IsFavorite,
+            UpdatedAt = dto.UpdatedAt,
+            Tags = dto.Tags.Select(t => new FileTagViewModel
+            {
+                Id = t.Id,
+                Name = t.Name,
+                Color = t.Color,
+                FileCount = 0
+            }).ToList()
+        };
     }
 }

@@ -1,17 +1,26 @@
 using DotNetCloud.Core.Auth.Extensions;
 using DotNetCloud.Core.Data.Extensions;
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Data.Initialization;
 using DotNetCloud.Core.Localization;
 using DotNetCloud.Core.Server.Configuration;
 using DotNetCloud.Core.Server.Extensions;
 using DotNetCloud.Core.Server.Initialization;
 using DotNetCloud.Core.Server.Middleware;
+using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Core.ServiceDefaults.Extensions;
 using DotNetCloud.Core.ServiceDefaults.HealthChecks;
 using DotNetCloud.Core.ServiceDefaults.Telemetry;
+using DotNetCloud.Core.Events;
+using DotNetCloud.Modules.Chat.Data;
+using DotNetCloud.Modules.Files.Data;
+using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.UI.Web.Client.Services;
 using DotNetCloud.UI.Web.Services;
 using Microsoft.AspNetCore.Components;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DotNetCloud.Core.Server;
@@ -71,6 +80,13 @@ public class Program
                 var adminSeeder = scope.ServiceProvider.GetRequiredService<AdminSeeder>();
                 await adminSeeder.SeedAsync();
 
+                // Ensure module data stores are initialized.
+                var filesDbContext = scope.ServiceProvider.GetRequiredService<FilesDbContext>();
+                await EnsureModuleTablesCreatedAsync(filesDbContext, "FileNodes", logger);
+
+                var chatDbContext = scope.ServiceProvider.GetRequiredService<ChatDbContext>();
+                await EnsureModuleTablesCreatedAsync(chatDbContext, "Channels", logger);
+
                 // Mark the application as ready for traffic now that DB is initialized
                 var startupCheck = app.Services.GetService<StartupHealthCheck>();
                 startupCheck?.MarkReady();
@@ -126,6 +142,22 @@ public class Program
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
         builder.Services.AddDotNetCloudDbContext(connectionString);
 
+        // Register in-process module data services for interactive module UI actions,
+        // using the same provider as the configured core database.
+        var provider = DatabaseProviderDetector.DetectProvider(connectionString);
+        builder.Services.AddDbContext<FilesDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString));
+        builder.Services.AddDbContext<ChatDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString));
+        builder.Services.AddFilesServices(builder.Configuration);
+        builder.Services.AddChatServices();
+        builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
+
+        var filesStoragePath = builder.Configuration.GetValue<string>("Files:StoragePath")
+            ?? Path.Combine(builder.Environment.ContentRootPath, "storage");
+        builder.Services.AddSingleton<IFileStorageEngine>(sp =>
+            new LocalFileStorageEngine(filesStoragePath, sp.GetRequiredService<ILogger<LocalFileStorageEngine>>()));
+
         // Add controllers
         builder.Services.AddControllers();
 
@@ -167,6 +199,7 @@ public class Program
 
         // Register initialization services
         builder.Services.AddScoped<AdminSeeder>();
+        builder.Services.AddHostedService<ModuleUiRegistrationHostedService>();
 
         // Configure forwarded headers for reverse proxy support
         builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(options =>
@@ -176,6 +209,109 @@ public class Program
                 Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto |
                 Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedHost;
         });
+    }
+
+    private static void ConfigureModuleDbContext(
+        DbContextOptionsBuilder options,
+        DatabaseProvider provider,
+        string connectionString)
+    {
+        switch (provider)
+        {
+            case DatabaseProvider.PostgreSQL:
+                options.UseNpgsql(connectionString, npgsqlOptions =>
+                {
+                    npgsqlOptions.EnableRetryOnFailure(maxRetryCount: 3);
+                    npgsqlOptions.CommandTimeout(30);
+                });
+                break;
+
+            case DatabaseProvider.SqlServer:
+                options.UseSqlServer(connectionString, sqlServerOptions =>
+                {
+                    sqlServerOptions.EnableRetryOnFailure(maxRetryCount: 3);
+                    sqlServerOptions.CommandTimeout(30);
+                });
+                break;
+
+            case DatabaseProvider.MariaDB:
+                throw new NotSupportedException("MariaDB support is temporarily disabled pending Pomelo .NET 10 update");
+
+            default:
+                throw new InvalidOperationException($"Unsupported database provider: {provider}");
+        }
+    }
+
+    private static async Task EnsureModuleTablesCreatedAsync(
+        DbContext context,
+        string sentinelTable,
+        ILogger logger)
+    {
+        if (await ModuleTableExistsAsync(context, sentinelTable))
+        {
+            return;
+        }
+
+        var creator = context.Database.GetService<IRelationalDatabaseCreator>();
+        await creator.CreateTablesAsync();
+
+        logger.LogInformation(
+            "Created module tables for context {ContextType} because sentinel table {SentinelTable} was missing.",
+            context.GetType().Name,
+            sentinelTable);
+    }
+
+    private static async Task<bool> ModuleTableExistsAsync(DbContext context, string tableName)
+    {
+        var connection = context.Database.GetDbConnection();
+        var shouldClose = connection.State != System.Data.ConnectionState.Open;
+
+        if (shouldClose)
+        {
+            await connection.OpenAsync();
+        }
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+
+            var provider = context.Database.ProviderName ?? string.Empty;
+            if (provider.Contains("Npgsql", StringComparison.OrdinalIgnoreCase))
+            {
+                command.CommandText = "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = @tableName);";
+            }
+            else if (provider.Contains("SqlServer", StringComparison.OrdinalIgnoreCase))
+            {
+                command.CommandText = "SELECT CASE WHEN EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = @tableName) THEN 1 ELSE 0 END;";
+            }
+            else
+            {
+                throw new NotSupportedException($"Unsupported relational provider for module table checks: {provider}");
+            }
+
+            var parameter = command.CreateParameter();
+            parameter.ParameterName = "@tableName";
+            parameter.Value = tableName;
+            command.Parameters.Add(parameter);
+
+            var result = await command.ExecuteScalarAsync();
+            return result switch
+            {
+                bool boolResult => boolResult,
+                byte byteResult => byteResult != 0,
+                short shortResult => shortResult != 0,
+                int intResult => intResult != 0,
+                long longResult => longResult != 0,
+                _ => false
+            };
+        }
+        finally
+        {
+            if (shouldClose)
+            {
+                await connection.CloseAsync();
+            }
+        }
     }
 
     /// <summary>

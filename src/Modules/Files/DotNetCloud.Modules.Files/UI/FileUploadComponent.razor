@@ -15,11 +15,16 @@
 
         @if (!IsUploading)
         {
+            @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+            {
+                <div class="alert alert-danger">@ErrorMessage</div>
+            }
+
             <div class="file-upload-dropzone @(IsDragging ? "dragging" : "")"
                  @ondragenter="HandleDragEnter"
                  @ondragleave="HandleDragLeave"
                  @ondragover:preventDefault>
-                <span class="dropzone-icon">[Upload]</span>
+                <span class="dropzone-icon" aria-hidden="true">⤴</span>
                 <p>Drag and drop files here</p>
                 <p class="text-muted">or</p>
                 <label class="btn btn-primary btn-sm">

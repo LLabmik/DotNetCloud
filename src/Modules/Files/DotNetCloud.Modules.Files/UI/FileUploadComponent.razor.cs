@@ -1,5 +1,11 @@
 using System.Diagnostics;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using DotNetCloud.Core.Authorization;
+using DotNetCloud.Modules.Files.DTOs;
+using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Forms;
 
 namespace DotNetCloud.Modules.Files.UI;
@@ -11,6 +17,9 @@ namespace DotNetCloud.Modules.Files.UI;
 /// </summary>
 public partial class FileUploadComponent : ComponentBase
 {
+    [Inject] private IChunkedUploadService UploadService { get; set; } = default!;
+    [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
+
     /// <summary>Target folder ID for the upload (null = root).</summary>
     [Parameter] public Guid? ParentId { get; set; }
 
@@ -23,6 +32,7 @@ public partial class FileUploadComponent : ComponentBase
     private readonly List<UploadFileItem> _files = [];
     private bool _isDragging;
     private bool _isUploading;
+    private string? _errorMessage;
 
     /// <summary>Files queued or currently being uploaded.</summary>
     protected IReadOnlyList<UploadFileItem> Files => _files;
@@ -32,6 +42,7 @@ public partial class FileUploadComponent : ComponentBase
 
     /// <summary>True while uploads are in progress.</summary>
     protected bool IsUploading => _isUploading;
+    protected string? ErrorMessage => _errorMessage;
 
     /// <summary>Sets the dragging state on drag enter.</summary>
     protected void HandleDragEnter() => _isDragging = true;
@@ -66,40 +77,57 @@ public partial class FileUploadComponent : ComponentBase
     /// Starts uploading all pending files sequentially.
     /// Tracks per-file speed and ETA; honours pause and cancel flags.
     /// </summary>
-    /// <remarks>
-    /// The actual upload uses chunked upload via <c>IChunkedUploadService</c>.
-    /// This stub simulates progress with <c>Task.Delay</c> until the API client is wired.
-    /// </remarks>
     protected async Task StartUpload()
     {
-        _isUploading = true;
-        StateHasChanged();
-
-        foreach (var file in _files.Where(f => f.Status == UploadStatus.Pending && !f.IsCancelled))
+        _errorMessage = null;
+        try
         {
-            file.Status = UploadStatus.Uploading;
+            var caller = await GetCallerContextAsync();
+
+            _isUploading = true;
             StateHasChanged();
 
-            await UploadFileAsync(file);
+            foreach (var file in _files.Where(f => f.Status == UploadStatus.Pending && !f.IsCancelled))
+            {
+                file.Status = UploadStatus.Uploading;
+                StateHasChanged();
 
+                await UploadFileAsync(file, caller);
+
+                StateHasChanged();
+            }
+
+            var hasFailures = _files.Any(f => f.Status == UploadStatus.Failed);
+            if (hasFailures)
+            {
+                _errorMessage ??= "One or more files failed to upload. Review failed items and try again.";
+                return;
+            }
+
+            if (_files.All(f => f.Status == UploadStatus.Complete))
+            {
+                await OnUploadComplete.InvokeAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = string.IsNullOrWhiteSpace(ex.Message)
+                ? "Upload failed unexpectedly. Please try again."
+                : ex.Message;
+        }
+        finally
+        {
+            _isUploading = false;
             StateHasChanged();
         }
-
-        _isUploading = false;
-
-        if (_files.All(f => f.Status == UploadStatus.Complete))
-            await OnUploadComplete.InvokeAsync();
     }
 
-    private async Task UploadFileAsync(UploadFileItem file)
+    private async Task UploadFileAsync(UploadFileItem file, CallerContext caller)
     {
-        const int simulatedChunks = 10;
         var sw = Stopwatch.StartNew();
-        var bytesPerChunk = Math.Max(1, file.Size / simulatedChunks);
 
-        for (var chunk = 0; chunk < simulatedChunks; chunk++)
+        try
         {
-            // Honour cancel
             if (file.IsCancelled)
             {
                 file.Status = UploadStatus.Failed;
@@ -107,7 +135,6 @@ public partial class FileUploadComponent : ComponentBase
                 return;
             }
 
-            // Wait while paused (poll every 200 ms)
             while (file.IsPaused)
             {
                 file.Status = UploadStatus.Paused;
@@ -118,42 +145,58 @@ public partial class FileUploadComponent : ComponentBase
             if (file.Status == UploadStatus.Paused)
                 file.Status = UploadStatus.Uploading;
 
-            try
-            {
-                // In a full implementation:
-                // 1. Hash the chunk bytes (SHA-256)
-                // 2. Call IChunkedUploadService.InitiateUploadAsync (first chunk only)
-                // 3. Call IChunkedUploadService.UploadChunkAsync
-                // 4. Call IChunkedUploadService.CompleteUploadAsync (last chunk only)
-                await Task.Delay(300); // Simulate network I/O
-
-                var chunkBytes = (long)(chunk + 1) * bytesPerChunk;
-                file.Progress = (int)Math.Min(100, (chunkBytes * 100) / Math.Max(1, file.Size));
-
-                var elapsed = sw.Elapsed.TotalSeconds;
-                if (elapsed > 0)
-                {
-                    var bytesUploaded = Math.Min(file.Size, (long)(chunk + 1) * bytesPerChunk);
-                    file.SpeedBytesPerSecond = bytesUploaded / elapsed;
-                    var remaining = file.Size - bytesUploaded;
-                    file.EtaSeconds = file.SpeedBytesPerSecond > 0
-                        ? remaining / file.SpeedBytesPerSecond
-                        : null;
-                }
-
-                StateHasChanged();
-            }
-            catch
+            if (file.BrowserFile is null)
             {
                 file.Status = UploadStatus.Failed;
                 return;
             }
-        }
 
-        file.Progress = 100;
-        file.SpeedBytesPerSecond = 0;
-        file.EtaSeconds = null;
-        file.Status = UploadStatus.Complete;
+            await using var stream = file.BrowserFile.OpenReadStream(file.Size);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            var bytes = ms.ToArray();
+
+            var chunkHash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+
+            file.Progress = 20;
+            StateHasChanged();
+
+            var session = await UploadService.InitiateUploadAsync(new InitiateUploadDto
+            {
+                FileName = file.Name,
+                ParentId = ParentId,
+                TotalSize = file.Size,
+                MimeType = file.ContentType,
+                ChunkHashes = [chunkHash]
+            }, caller);
+
+            file.Progress = 45;
+            StateHasChanged();
+
+            if (session.MissingChunks.Contains(chunkHash, StringComparer.OrdinalIgnoreCase))
+            {
+                await UploadService.UploadChunkAsync(session.SessionId, chunkHash, bytes, caller);
+            }
+
+            file.Progress = 80;
+            StateHasChanged();
+
+            await UploadService.CompleteUploadAsync(session.SessionId, caller);
+
+            var elapsed = Math.Max(0.001, sw.Elapsed.TotalSeconds);
+            file.SpeedBytesPerSecond = file.Size / elapsed;
+            file.EtaSeconds = 0;
+            file.Progress = 100;
+            file.Status = UploadStatus.Complete;
+        }
+        catch (Exception ex)
+        {
+            if (!file.IsCancelled)
+            {
+                file.Status = UploadStatus.Failed;
+                _errorMessage = ex.Message;
+            }
+        }
     }
 
     /// <summary>Marks the file as paused; the upload loop will wait.</summary>
@@ -194,5 +237,22 @@ public partial class FileUploadComponent : ComponentBase
         if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
         if (bytes < 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0):F1} MB";
         return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
+    }
+
+    private async Task<CallerContext> GetCallerContextAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = state.User;
+
+        var userIdClaim = user.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? user.FindFirst("sub")?.Value;
+
+        if (!Guid.TryParse(userIdClaim, out var userId))
+        {
+            throw new InvalidOperationException("Authenticated user id claim is missing or invalid.");
+        }
+
+        var roles = user.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
+        return new CallerContext(userId, roles, CallerType.User);
     }
 }
