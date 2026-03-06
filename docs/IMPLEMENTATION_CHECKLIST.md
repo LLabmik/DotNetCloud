@@ -694,6 +694,11 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Create MFA verification page component
 - ✓ Create external provider login page
 
+#### User Home Dashboard
+- ✓ Create role-aware non-admin home dashboard at `/`
+- ✓ Show non-admin quick actions and module app cards on home page
+- ✓ Keep admin shortcuts visible only to users with `RequireAdmin`
+
 #### Admin Dashboard
 - ✓ Create admin layout/shell
 - ✓ Create dashboard home page

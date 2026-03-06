@@ -1,6 +1,6 @@
 @page "/admin/users/{UserId:guid}/edit"
 @rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveWebAssemblyRenderMode(prerender: false))
-@attribute [Authorize]
+@attribute [Authorize(Policy = "RequireAdmin")]
 
 <PageTitle>Edit User - DotNetCloud</PageTitle>
 

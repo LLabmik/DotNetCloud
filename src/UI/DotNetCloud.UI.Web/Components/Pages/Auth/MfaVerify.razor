@@ -39,8 +39,14 @@
 </div>
 
 @code {
+    private const string AdminBasePath = "/admin";
+
     [Inject] private SignInManager<ApplicationUser> SignInManager { get; set; } = default!;
+    [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
 
     [SupplyParameterFromForm]
     private MfaModel? _model { get; set; }
@@ -65,7 +71,8 @@
 
             if (result.Succeeded)
             {
-                Navigation.NavigateTo("/admin", forceLoad: true);
+                var target = await ResolvePostLoginTargetAsync(ReturnUrl);
+                Navigation.NavigateTo(target, forceLoad: true);
                 return;
             }
 
@@ -87,5 +94,37 @@
     private sealed class MfaModel
     {
         public string Code { get; set; } = string.Empty;
+    }
+
+    private static bool IsSafeLocalReturnUrl(string? returnUrl)
+    {
+        return !string.IsNullOrWhiteSpace(returnUrl)
+            && returnUrl.StartsWith("/", StringComparison.Ordinal)
+            && !returnUrl.StartsWith("//", StringComparison.Ordinal);
+    }
+
+    private async Task<string> ResolvePostLoginTargetAsync(string? returnUrl)
+    {
+        var safeTarget = IsSafeLocalReturnUrl(returnUrl) ? returnUrl! : "/";
+        if (!safeTarget.StartsWith(AdminBasePath, StringComparison.OrdinalIgnoreCase))
+        {
+            return safeTarget;
+        }
+
+        var user = await UserManager.GetUserAsync(SignInManager.Context.User);
+        if (user is null)
+        {
+            user = await SignInManager.GetTwoFactorAuthenticationUserAsync();
+        }
+
+        if (user is null)
+        {
+            return "/";
+        }
+
+        var isAdmin = await UserManager.IsInRoleAsync(user, "Administrator")
+            || await UserManager.IsInRoleAsync(user, "admin");
+
+        return isAdmin ? safeTarget : "/";
     }
 }

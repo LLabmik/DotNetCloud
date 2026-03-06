@@ -1778,6 +1778,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
   - ✓ `Components/Routes.razor` — router scanning both UI.Web and UI.Web.Client assemblies
   - ✓ `Components/Layout/MainLayout.razor` — app shell with sidebar, topbar, dark mode, error boundary
   - ✓ `Components/Layout/NavMenu.razor` — sidebar navigation with dynamic module items
+  - ✓ `Components/Pages/Home.razor` — role-aware home dashboard for non-admin users with module quick links
   - ✓ `Components/Layout/AuthLayout.razor` — minimal centered layout for auth pages
   - ✓ `Components/Pages/Auth/Login.razor` — SSR login with SignInManager cookie auth
   - ✓ `Components/Pages/Auth/Register.razor` — SSR registration with UserManager
@@ -1823,7 +1824,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Build Status:** ✅ Full solution builds with zero errors, zero warnings
 **Testing:** ✅ 539/539 tests pass (108 Core + 186 Server + 69 Auth + 176 Data)
-**Notes:** InteractiveAuto chosen per project requirements. Auth pages use SSR (need HttpContext for cookie sign-in via SignInManager). Admin pages use InteractiveAuto via HttpClient-based API calls so they work in both server prerendering and WebAssembly contexts. Module plugin system allows future modules to register nav items and page components dynamically via ModuleUiRegistry.
+**Notes:** InteractiveAuto chosen per project requirements. Auth pages use SSR (need HttpContext for cookie sign-in via SignInManager). Admin pages use InteractiveAuto via HttpClient-based API calls so they work in both server prerendering and WebAssembly contexts. Module plugin system allows future modules to register nav items and page components dynamically via ModuleUiRegistry. Home route (`/`) now serves as a role-aware user dashboard so non-admin users land on a non-admin experience by default.
 
 ---
 

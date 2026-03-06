@@ -1,6 +1,6 @@
 @page "/admin/users/create"
 @rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveWebAssemblyRenderMode(prerender: false))
-@attribute [Authorize]
+@attribute [Authorize(Policy = "RequireAdmin")]
 
 <PageTitle>Create User - DotNetCloud</PageTitle>
 

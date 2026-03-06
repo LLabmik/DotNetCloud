@@ -1,6 +1,6 @@
 @page "/admin/modules"
 @rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveWebAssemblyRenderMode(prerender: false))
-@attribute [Authorize]
+@attribute [Authorize(Policy = "RequireAdmin")]
 
 <PageTitle>Modules - DotNetCloud</PageTitle>
 

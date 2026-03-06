@@ -50,6 +50,8 @@
 </div>
 
 @code {
+    private const string AdminBasePath = "/admin";
+
     [Inject] private SignInManager<ApplicationUser> SignInManager { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
@@ -86,7 +88,7 @@
             if (result.Succeeded)
             {
                 await UpdateLastLoginAsync(_model.Email);
-                var target = IsSafeLocalReturnUrl(ReturnUrl) ? ReturnUrl! : "/";
+                var target = await ResolvePostLoginTargetAsync(_model.Email, ReturnUrl);
                 Navigation.NavigateTo(target, forceLoad: true);
                 return;
             }
@@ -97,7 +99,8 @@
             }
             else if (result.RequiresTwoFactor)
             {
-                Navigation.NavigateTo("/auth/mfa-verify", forceLoad: true);
+                var mfaReturnUrl = IsSafeLocalReturnUrl(ReturnUrl) ? ReturnUrl! : "/";
+                Navigation.NavigateTo($"/auth/mfa-verify?returnUrl={Uri.EscapeDataString(mfaReturnUrl)}", forceLoad: true);
                 return;
             }
             else if (result.IsNotAllowed)
@@ -136,6 +139,26 @@
         return !string.IsNullOrWhiteSpace(returnUrl)
             && returnUrl.StartsWith("/", StringComparison.Ordinal)
             && !returnUrl.StartsWith("//", StringComparison.Ordinal);
+    }
+
+    private async Task<string> ResolvePostLoginTargetAsync(string email, string? returnUrl)
+    {
+        var safeTarget = IsSafeLocalReturnUrl(returnUrl) ? returnUrl! : "/";
+        if (!safeTarget.StartsWith(AdminBasePath, StringComparison.OrdinalIgnoreCase))
+        {
+            return safeTarget;
+        }
+
+        var user = await UserManager.FindByEmailAsync(email);
+        if (user is null)
+        {
+            return "/";
+        }
+
+        var isAdmin = await UserManager.IsInRoleAsync(user, "Administrator")
+            || await UserManager.IsInRoleAsync(user, "admin");
+
+        return isAdmin ? safeTarget : "/";
     }
 
     private async Task UpdateLastLoginAsync(string email)

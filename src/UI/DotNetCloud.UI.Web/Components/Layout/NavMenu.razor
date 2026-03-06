@@ -9,51 +9,68 @@
         <Authorized>
             <ul class="nav-list">
                 <li class="nav-item">
-                    <NavLink href="/admin" Match="NavLinkMatch.All" class="nav-link">
+                    <NavLink href="/" Match="NavLinkMatch.All" class="nav-link">
                         <span class="nav-icon">🏠</span>
                         @if (!Collapsed)
                         {
-                            <span class="nav-text">Dashboard</span>
-                        }
-                    </NavLink>
-                </li>
-                <li class="nav-item">
-                    <NavLink href="/admin/users" Match="NavLinkMatch.Prefix" class="nav-link">
-                        <span class="nav-icon">👥</span>
-                        @if (!Collapsed)
-                        {
-                            <span class="nav-text">Users</span>
-                        }
-                    </NavLink>
-                </li>
-                <li class="nav-item">
-                    <NavLink href="/admin/modules" Match="NavLinkMatch.Prefix" class="nav-link">
-                        <span class="nav-icon">📦</span>
-                        @if (!Collapsed)
-                        {
-                            <span class="nav-text">Modules</span>
-                        }
-                    </NavLink>
-                </li>
-                <li class="nav-item">
-                    <NavLink href="/admin/settings" Match="NavLinkMatch.Prefix" class="nav-link">
-                        <span class="nav-icon">⚙</span>
-                        @if (!Collapsed)
-                        {
-                            <span class="nav-text">Settings</span>
-                        }
-                    </NavLink>
-                </li>
-                <li class="nav-item">
-                    <NavLink href="/admin/health" Match="NavLinkMatch.Prefix" class="nav-link">
-                        <span class="nav-icon">💚</span>
-                        @if (!Collapsed)
-                        {
-                            <span class="nav-text">Health</span>
+                            <span class="nav-text">Home</span>
                         }
                     </NavLink>
                 </li>
             </ul>
+
+            <AuthorizeView Policy="RequireAdmin">
+                <Authorized Context="adminContext">
+                    <div class="nav-separator"></div>
+                    <ul class="nav-list">
+                        <li class="nav-item">
+                            <NavLink href="/admin" Match="NavLinkMatch.All" class="nav-link">
+                                <span class="nav-icon">📊</span>
+                                @if (!Collapsed)
+                                {
+                                    <span class="nav-text">Dashboard</span>
+                                }
+                            </NavLink>
+                        </li>
+                        <li class="nav-item">
+                            <NavLink href="/admin/users" Match="NavLinkMatch.Prefix" class="nav-link">
+                                <span class="nav-icon">👥</span>
+                                @if (!Collapsed)
+                                {
+                                    <span class="nav-text">Users</span>
+                                }
+                            </NavLink>
+                        </li>
+                        <li class="nav-item">
+                            <NavLink href="/admin/modules" Match="NavLinkMatch.Prefix" class="nav-link">
+                                <span class="nav-icon">📦</span>
+                                @if (!Collapsed)
+                                {
+                                    <span class="nav-text">Modules</span>
+                                }
+                            </NavLink>
+                        </li>
+                        <li class="nav-item">
+                            <NavLink href="/admin/settings" Match="NavLinkMatch.Prefix" class="nav-link">
+                                <span class="nav-icon">⚙</span>
+                                @if (!Collapsed)
+                                {
+                                    <span class="nav-text">Settings</span>
+                                }
+                            </NavLink>
+                        </li>
+                        <li class="nav-item">
+                            <NavLink href="/admin/health" Match="NavLinkMatch.Prefix" class="nav-link">
+                                <span class="nav-icon">💚</span>
+                                @if (!Collapsed)
+                                {
+                                    <span class="nav-text">Health</span>
+                                }
+                            </NavLink>
+                        </li>
+                    </ul>
+                </Authorized>
+            </AuthorizeView>
 
             @if (ModuleRegistry.NavItems.Count > 0)
             {

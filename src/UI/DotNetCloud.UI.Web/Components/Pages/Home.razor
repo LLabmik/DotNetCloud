@@ -1,14 +1,102 @@
 @page "/"
 @using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+@using DotNetCloud.UI.Web.Services
 
 <PageTitle>DotNetCloud</PageTitle>
 
 <AuthorizeView>
-    <Authorized>
-        <div class="dashboard">
-            <h1>Welcome to DotNetCloud</h1>
-            <p>Your self-hosted cloud platform.</p>
+    <Authorized Context="authContext">
+        @{ 
+            var user = authContext.User;
+            var roleClaims = user.FindAll(ClaimTypes.Role).Select(c => c.Value).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var displayName = user.FindFirst("name")?.Value
+                ?? user.FindFirst(ClaimTypes.GivenName)?.Value
+                ?? user.Identity?.Name
+                ?? "there";
+        }
+
+        <div class="page-header dashboard-header">
+            <div>
+                <h1>Welcome, @displayName</h1>
+                <p class="text-muted">Your personal DotNetCloud home base.</p>
+            </div>
+            <div class="header-actions">
+                <a href="/auth/logout" class="btn btn-outline">Sign out</a>
+            </div>
         </div>
+
+        <div class="dashboard-grid">
+            <section class="dashboard-card">
+                <div class="card-icon">👤</div>
+                <div class="card-content">
+                    <h3>Account</h3>
+                    <p class="card-value card-value-small">@displayName</p>
+                    @if (roleClaims.Count > 0)
+                    {
+                        <div class="role-badges">
+                            @foreach (var role in roleClaims)
+                            {
+                                <span class="badge badge-muted">@role</span>
+                            }
+                        </div>
+                    }
+                </div>
+            </section>
+
+            <section class="dashboard-card">
+                <div class="card-icon">🧩</div>
+                <div class="card-content">
+                    <h3>Available Apps</h3>
+                    <p class="card-value">@ModuleRegistry.NavItems.Count</p>
+                    <p class="text-muted">Module experiences available from your sidebar.</p>
+                </div>
+            </section>
+
+            <AuthorizeView Policy="RequireAdmin">
+                <Authorized Context="adminContext">
+                    <section class="dashboard-card card-healthy">
+                        <div class="card-icon">🛠</div>
+                        <div class="card-content">
+                            <h3>Administration</h3>
+                            <p class="text-muted">You have administrative access.</p>
+                            <a href="/admin" class="card-link">Open Admin Dashboard</a>
+                        </div>
+                    </section>
+                </Authorized>
+                <NotAuthorized>
+                    <section class="dashboard-card">
+                        <div class="card-icon">🔐</div>
+                        <div class="card-content">
+                            <h3>Security</h3>
+                            <p class="text-muted">Your account has standard user permissions.</p>
+                            <p class="card-link">Admin areas are hidden by design.</p>
+                        </div>
+                    </section>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+
+        <section class="module-home-section">
+            <h2>Your Apps</h2>
+            @if (ModuleRegistry.NavItems.Count == 0)
+            {
+                <p class="text-muted">No user-facing modules are registered yet.</p>
+            }
+            else
+            {
+                <div class="module-cards">
+                    @foreach (var item in ModuleRegistry.NavItems)
+                    {
+                        <a href="@item.Href" class="module-card">
+                            <span class="module-card-icon">@item.Icon</span>
+                            <span class="module-card-label">@item.Label</span>
+                            <span class="module-card-action">Open</span>
+                        </a>
+                    }
+                </div>
+            }
+        </section>
     </Authorized>
     <NotAuthorized>
         <RedirectToLogin />
@@ -16,5 +104,5 @@
 </AuthorizeView>
 
 @code {
-    [Inject] private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private ModuleUiRegistry ModuleRegistry { get; set; } = default!;
 }

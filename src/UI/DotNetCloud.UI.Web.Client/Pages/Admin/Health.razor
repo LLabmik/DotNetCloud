@@ -1,6 +1,6 @@
 @page "/admin/health"
 @rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveWebAssemblyRenderMode(prerender: false))
-@attribute [Authorize]
+@attribute [Authorize(Policy = "RequireAdmin")]
 
 <PageTitle>System Health - DotNetCloud</PageTitle>
 
