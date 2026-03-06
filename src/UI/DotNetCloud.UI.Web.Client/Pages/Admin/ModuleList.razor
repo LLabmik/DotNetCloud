@@ -15,7 +15,14 @@
 else if (_modules.Count == 0)
 {
     <div class="empty-state">
-        <p>No modules installed.</p>
+        @if (!string.IsNullOrWhiteSpace(_loadError))
+        {
+            <p>@_loadError</p>
+        }
+        else
+        {
+            <p>No modules installed.</p>
+        }
     </div>
 }
 else
@@ -71,6 +78,7 @@ else
 
     private bool _loading = true;
     private bool _actionInProgress;
+    private string? _loadError;
     private IReadOnlyList<ModuleDto> _modules = [];
 
     protected override async Task OnInitializedAsync()
@@ -81,13 +89,15 @@ else
     private async Task LoadModulesAsync()
     {
         _loading = true;
+        _loadError = null;
         try
         {
             _modules = await Api.ListModulesAsync();
         }
-        catch
+        catch (Exception ex)
         {
-            Toast.ShowError("Failed to load modules.");
+            _loadError = "Failed to load modules.";
+            Toast.ShowError($"Failed to load modules. {ex.Message}");
         }
         finally
         {

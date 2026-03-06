@@ -1,6 +1,8 @@
 using System.CommandLine;
 using System.Runtime.InteropServices;
 using DotNetCloud.CLI.Infrastructure;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DotNetCloud.CLI.Commands;
 
@@ -539,6 +541,8 @@ internal static class SetupCommand
             ConsoleOutput.WriteInfo("Start the server with: dotnetcloud start");
         }
 
+        await SyncEnabledModulesToDatabaseAsync(config);
+
         // Show login URL
         var loginUrl = BuildLoginUrl(config);
         Console.WriteLine();
@@ -563,6 +567,72 @@ internal static class SetupCommand
         }
 
         return 0;
+    }
+
+    private static async Task SyncEnabledModulesToDatabaseAsync(CliConfig config)
+    {
+        if (string.IsNullOrWhiteSpace(config.ConnectionString))
+        {
+            return;
+        }
+
+        try
+        {
+            await using var provider = ServiceProviderFactory.CreateFromConnectionString(config.ConnectionString);
+            if (provider is null)
+            {
+                return;
+            }
+
+            using var scope = provider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<DotNetCloud.Core.Data.Context.CoreDbContext>();
+
+            var selectedModules = config.EnabledModules
+                .Where(moduleId => !string.IsNullOrWhiteSpace(moduleId))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var installedModules = await db.InstalledModules.ToListAsync();
+            var installedById = installedModules.ToDictionary(m => m.ModuleId, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var moduleId in selectedModules)
+            {
+                if (!installedById.TryGetValue(moduleId, out var installed))
+                {
+                    db.InstalledModules.Add(new DotNetCloud.Core.Data.Entities.Modules.InstalledModule
+                    {
+                        ModuleId = moduleId,
+                        Version = "1.0.0",
+                        Status = "Enabled",
+                        InstalledAt = DateTime.UtcNow,
+                    });
+                    continue;
+                }
+
+                if (!string.Equals(installed.Status, "Enabled", StringComparison.OrdinalIgnoreCase))
+                {
+                    installed.Status = "Enabled";
+                }
+            }
+
+            foreach (var installed in installedModules)
+            {
+                if (!selectedModules.Contains(installed.ModuleId) &&
+                    string.Equals(installed.Status, "Enabled", StringComparison.OrdinalIgnoreCase))
+                {
+                    installed.Status = "Disabled";
+                }
+            }
+
+            await db.SaveChangesAsync();
+
+            ConsoleOutput.WriteSuccess("Module selections synced to module registry.");
+        }
+        catch (Exception ex)
+        {
+            ConsoleOutput.WriteWarning($"Could not sync selected modules to the module registry: {ex.Message}");
+            ConsoleOutput.WriteInfo("You can sync manually with: dotnetcloud module install <module-id>");
+        }
     }
 
     /// <summary>
