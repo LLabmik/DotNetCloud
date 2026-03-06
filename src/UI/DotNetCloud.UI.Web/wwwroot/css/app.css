@@ -594,6 +594,14 @@ textarea.input { resize: vertical; min-height: 60px; }
     cursor: copy;
 }
 
+.browser-drop-capture-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
 .files-header {
     display: flex;
     align-items: center;

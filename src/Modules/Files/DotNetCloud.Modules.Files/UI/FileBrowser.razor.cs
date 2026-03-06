@@ -4,9 +4,10 @@ using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.JSInterop;
 using Microsoft.Extensions.Options;
 
 namespace DotNetCloud.Modules.Files.UI;
@@ -16,13 +17,14 @@ namespace DotNetCloud.Modules.Files.UI;
 /// Handles file/folder listing, shared-with-me/shared-by-me views,
 /// upload, preview, sharing, and document editing.
 /// </summary>
-public partial class FileBrowser : ComponentBase
+public partial class FileBrowser : ComponentBase, IAsyncDisposable
 {
     [Inject] private IFileService FileService { get; set; } = default!;
     [Inject] private IChunkedUploadService UploadService { get; set; } = default!;
     [Inject] private ICollaboraDiscoveryService CollaboraDiscoveryService { get; set; } = default!;
     [Inject] private IOptions<CollaboraOptions> CollaboraOptions { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
+    [Inject] private IJSRuntime Js { get; set; } = default!;
 
     /// <summary>The current user ID, used for opening the document editor.</summary>
     [Parameter] public Guid UserId { get; set; }
@@ -105,6 +107,7 @@ public partial class FileBrowser : ComponentBase
 
     // Drag-and-drop: use a counter to handle bubbling (child elements fire enter/leave too).
     private int _dragEnterCount;
+    private readonly string _browserDropInputId = $"files-drop-input-{Guid.NewGuid():N}";
     private List<IBrowserFile> _droppedFiles = [];
 
     protected override async Task OnInitializedAsync()
@@ -165,7 +168,14 @@ public partial class FileBrowser : ComponentBase
 
     /// <summary>True while the user is dragging files over the browser area.</summary>
     protected bool IsBrowserDragging => _dragEnterCount > 0;
+    protected string BrowserDropInputId => _browserDropInputId;
     protected IReadOnlyList<IBrowserFile> DroppedFiles => _droppedFiles;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // The bridge is idempotent and can be called multiple times safely.
+        await Js.InvokeVoidAsync("dotnetcloudFilesDrop.init", ".files-browser", $"#{_browserDropInputId}");
+    }
 
     /// <summary>Updates the quota display with fresh data from the API.</summary>
     protected void UpdateQuota(long usedBytes, long maxBytes, double usagePercent)
@@ -351,32 +361,18 @@ public partial class FileBrowser : ComponentBase
         if (_dragEnterCount > 0) _dragEnterCount--;
     }
 
-    /// <summary>
-    /// Resets the drag counter and opens the upload dialog when files are dropped.
-    /// Extracting the dropped files from the DataTransfer object requires JS interop;
-    /// the user can then select the same files via the dialog's Browse button.
-    /// </summary>
-    protected void HandleBrowserDrop()
-    {
-        _dragEnterCount = 0;
+    /// <summary>Resets drag state when files are dropped; JS bridge handles file transfer to hidden input.</summary>
+    protected void HandleBrowserDrop() => _dragEnterCount = 0;
 
-        // The hidden browser-level InputFile captures dropped files.
-        // If the drop misses the input target, still open the upload dialog as fallback.
-        if (!_showUploadDialog)
-        {
-            ShowUploadDialog();
-        }
-    }
-
-    /// <summary>
-    /// Receives files dropped on the browser overlay and pre-populates the upload dialog.
-    /// </summary>
+    /// <summary>Receives dropped files via hidden browser-level InputFile and opens upload dialog pre-populated.</summary>
     protected void HandleBrowserFileDrop(InputFileChangeEventArgs e)
     {
         _dragEnterCount = 0;
         _droppedFiles = [.. e.GetMultipleFiles(100)];
         _showUploadDialog = true;
     }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     protected async Task DeleteSelected()
     {

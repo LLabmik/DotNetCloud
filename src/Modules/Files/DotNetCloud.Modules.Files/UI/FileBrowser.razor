@@ -82,14 +82,16 @@ else
     @ondrop="HandleBrowserDrop"
     @ondrop:preventDefault>
 
+    <InputFile id="@BrowserDropInputId"
+            class="browser-drop-capture-input"
+            OnChange="HandleBrowserFileDrop"
+            multiple
+            aria-hidden="true" />
+
     @* Drop overlay shown when dragging files over the browser *@
     @if (IsBrowserDragging)
     {
         <div class="browser-drop-overlay" aria-label="Drop files to upload">
-            <InputFile class="browser-drop-input"
-                       OnChange="HandleBrowserFileDrop"
-                       multiple
-                       aria-label="Drop files to upload" />
             <div class="browser-drop-message">
                 <span class="browser-drop-icon" aria-hidden="true">⤴</span>
                 <p>Drop files to upload to this folder</p>
