@@ -26,7 +26,15 @@ public class Program
     /// </summary>
     public static async Task Main(string[] args)
     {
-        var builder = WebApplication.CreateBuilder(args);
+        // Resolve static assets from the deployed server directory even when launched
+        // by a service manager with a different working directory.
+        var appBasePath = AppContext.BaseDirectory;
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            Args = args,
+            ContentRootPath = appBasePath,
+            WebRootPath = Path.Combine(appBasePath, "wwwroot")
+        });
 
         ConfigureServices(builder);
 

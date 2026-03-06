@@ -97,7 +97,7 @@ internal static class SystemdServiceHelper
             User={ServiceUser}
             Group={ServiceGroup}
             RuntimeDirectory=dotnetcloud
-            WorkingDirectory={InstallDir}
+            WorkingDirectory={InstallDir}/server
             ExecStart={InstallDir}/dotnetcloud start
             Restart=on-failure
             RestartSec=10
