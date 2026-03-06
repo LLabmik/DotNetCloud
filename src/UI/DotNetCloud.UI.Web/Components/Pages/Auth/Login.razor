@@ -106,6 +106,11 @@
                 _errorMessage = "Invalid email or password.";
             }
         }
+        catch (NavigationException)
+        {
+            // Blazor may throw this to perform redirect semantics during rendering.
+            throw;
+        }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Login failed for {Email}", _model.Email);
