@@ -2,7 +2,7 @@
 
 > **Version:** 1.0  
 > **Status:** Approved  
-> **Last Updated:** 2026-02-28  
+> **Last Updated:** 2026-03-06  
 > **Domain:** dotnetcloud.net  
 > **Repository:** https://github.com/LLabmik/DotNetCloud
 
@@ -33,6 +33,7 @@
 21. [Licensing](#21-licensing)
 22. [Dependencies](#22-dependencies)
 23. [Implementation Roadmap](#23-implementation-roadmap)
+24. [Security Hardening Notes (2026-03)](#24-security-hardening-notes-2026-03)
 
 ---
 
@@ -235,11 +236,15 @@ public record CallerContext
    - **Event bus:** Manifest-declared, admin-approved, strictly enforced at runtime. Tiered payloads — detail level depends on granted capabilities.
    - **Direct interfaces:** Cross-module calls go through declared public interfaces (e.g., `IFileService`). The owning module enforces its own permission checks using the `CallerContext`.
 
-6. **Storage namespace isolation:** Each module's `IStorageProvider` is scoped to its own namespace. Path traversal attacks blocked by both path sanitization and OS-level directory isolation (defense in depth).
+6. **Transport identity binding (REST + gRPC):** User-scoped endpoints require authenticated identity to match requested user scope. In practice, `request.user_id`/query `userId` must match token claims (`NameIdentifier`/`sub`) or the request is rejected.
 
-7. **Process isolation:** Each module runs in a separate process. Even reflection-based attacks can't access core memory.
+7. **Tenant-scoped lookups:** Files module read/write operations are owner-scoped (or share-scoped where explicitly allowed) so cross-user probing cannot leak existence or metadata.
 
-8. **Code signing & review:** Modules are signed by trusted publishers. Official module registry with community review.
+8. **Storage namespace isolation:** Each module's `IStorageProvider` is scoped to its own namespace. Path traversal attacks blocked by both path sanitization and OS-level directory isolation (defense in depth).
+
+9. **Process isolation:** Each module runs in a separate process. Even reflection-based attacks can't access core memory.
+
+10. **Code signing & review:** Modules are signed by trusted publishers. Official module registry with community review.
 
 ### Trust Levels
 
@@ -315,6 +320,14 @@ App detects available push method at startup. Build flavors: `googleplay` (FCM) 
 - Only missing/changed chunks are uploaded
 - Identical chunks stored once (cross-user deduplication)
 - Interrupted transfers resume at the last unfinished chunk
+
+**Security invariants for chunked transfer:**
+
+- Upload chunks are accepted only for active upload sessions
+- Upload session ownership is enforced per caller identity (no cross-user session reuse)
+- Uploaded bytes must match the declared chunk hash
+- Chunk hashes must exist in the session manifest before acceptance
+- Parent/target nodes are owner-scoped for create/move/copy/complete flows
 
 ### Conflict Resolution
 
@@ -727,6 +740,12 @@ URL path versioning: `/api/v1/`, `/api/v2/`
 
 Disabled modules return `404` for their entire namespace.
 
+### Identity Binding Semantics
+
+- REST and gRPC user-scoped operations are claim-bound: caller identity (`NameIdentifier`/`sub`) must match the requested user scope (`userId` / `request.user_id`)
+- Mismatches are treated as authorization failures, preventing user impersonation via crafted request parameters
+- Files read paths may intentionally return `404` for unauthorized callers to reduce metadata leakage (existence probing)
+
 ### Response Envelope
 
 ```json
@@ -1134,6 +1153,46 @@ All dependencies are open source with permissive or compatible licenses. Zero co
 - Admin controls: provider configuration, rate limiting, usage tracking, audit log
 
 **Milestone:** Ask the AI assistant a question, get a streaming response from Ollama or Claude. Modules leverage AI for smart features.
+
+---
+
+## 24. Security Hardening Notes (2026-03)
+
+This section summarizes the March 2026 hardening pass focused on Files module tenant isolation and user impersonation resistance.
+
+### Scope
+
+- REST and gRPC user-scope binding to authenticated identity claims (`NameIdentifier`/`sub`)
+- Owner/share permission enforcement in Files service layer
+- Upload/session integrity controls for chunked transfer paths
+- Regression coverage via unit and integration test suites
+
+### Implemented Controls
+
+- Claim-bound caller construction in REST controllers (`userId` must match authenticated claim)
+- gRPC request-user validation (`request.user_id` must match authenticated claim)
+- Owner-scoped lookups for sensitive node/share/trash/version operations
+- Upload security gates:
+    - active session required
+    - session owner required
+    - chunk hash must be present in manifest
+    - uploaded bytes must match declared chunk hash (SHA-256)
+- Service-layer permission checks expanded for comments, tags, versions, share enumeration, and chunk-hash retrieval
+
+### Verification Artifacts
+
+- Unit/security tests:
+    - `tests/DotNetCloud.Modules.Files.Tests/Host/FilesGrpcServiceSecurityTests.cs`
+- Integration tests (Files Host):
+    - `tests/DotNetCloud.Integration.Tests/Api/FilesGrpcIsolationIntegrationTests.cs`
+    - `tests/DotNetCloud.Integration.Tests/Api/FilesRestIsolationIntegrationTests.cs`
+    - `tests/DotNetCloud.Integration.Tests/Infrastructure/FilesHostWebApplicationFactory.cs`
+
+### Status
+
+- gRPC isolation integration coverage: passing
+- REST isolation integration coverage: passing
+- Broader Files integration matrix remains tracked under `phase-1.19.2` in `docs/MASTER_PROJECT_PLAN.md`
 
 ---
 
