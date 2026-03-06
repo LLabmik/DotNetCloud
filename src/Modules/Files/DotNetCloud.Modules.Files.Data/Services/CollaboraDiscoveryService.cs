@@ -64,7 +64,7 @@ internal sealed class CollaboraDiscoveryService : ICollaboraDiscoveryService
             }
 
             var xmlContent = await response.Content.ReadAsStringAsync(cancellationToken);
-            var result = ParseDiscoveryXml(xmlContent);
+            var result = NormalizeDiscoveryUrls(ParseDiscoveryXml(xmlContent), _options.ServerUrl);
 
             _cachedResult = result;
             _cacheExpiry = DateTime.UtcNow.Add(CacheDuration);
@@ -166,7 +166,9 @@ internal sealed class CollaboraDiscoveryService : ICollaboraDiscoveryService
         var actions = new List<CollaboraAppAction>();
 
         string? proofKey = null;
+        string? proofKeyExponent = null;
         string? oldProofKey = null;
+        string? oldProofKeyExponent = null;
         string? proofKeyValue = null;
         string? oldProofKeyValue = null;
 
@@ -176,7 +178,9 @@ internal sealed class CollaboraDiscoveryService : ICollaboraDiscoveryService
         {
             // Modulus attributes (legacy/fallback)
             proofKey = proofKeyElement.Attribute("modulus")?.Value;
+            proofKeyExponent = proofKeyElement.Attribute("exponent")?.Value;
             oldProofKey = proofKeyElement.Attribute("oldmodulus")?.Value;
+            oldProofKeyExponent = proofKeyElement.Attribute("oldexponent")?.Value;
 
             // SubjectPublicKeyInfo values — used for RSA-SHA256 proof verification
             proofKeyValue = proofKeyElement.Attribute("value")?.Value;
@@ -218,10 +222,39 @@ internal sealed class CollaboraDiscoveryService : ICollaboraDiscoveryService
             IsAvailable = actions.Count > 0,
             Actions = actions,
             ProofKey = proofKey,
+            ProofKeyExponent = proofKeyExponent,
             OldProofKey = oldProofKey,
+            OldProofKeyExponent = oldProofKeyExponent,
             ProofKeyValue = proofKeyValue,
             OldProofKeyValue = oldProofKeyValue,
             FetchedAt = DateTime.UtcNow
         };
+    }
+
+    private static CollaboraDiscoveryResult NormalizeDiscoveryUrls(
+        CollaboraDiscoveryResult result,
+        string configuredServerUrl)
+    {
+        if (!Uri.TryCreate(configuredServerUrl, UriKind.Absolute, out var configuredBase))
+            return result;
+
+        var rewritten = result.Actions
+            .Select(action =>
+            {
+                if (!Uri.TryCreate(action.UrlSrc, UriKind.Absolute, out var discoveredUrl))
+                    return action;
+
+                var builder = new UriBuilder(discoveredUrl)
+                {
+                    Scheme = configuredBase.Scheme,
+                    Host = configuredBase.Host,
+                    Port = configuredBase.Port
+                };
+
+                return action with { UrlSrc = builder.Uri.ToString() };
+            })
+            .ToList();
+
+        return result with { Actions = rewritten };
     }
 }

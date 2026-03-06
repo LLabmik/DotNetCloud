@@ -56,14 +56,20 @@ internal sealed class WopiProofKeyValidator : IWopiProofKeyValidator
             return false;
         }
 
-        // Parse and validate timestamp (Windows FILETIME = 100-nanosecond intervals since 1601-01-01)
-        if (!long.TryParse(timestamp, out var timestampTicks))
+        // Parse raw timestamp value and validate request age.
+        // Different WOPI implementations may emit FILETIME, DateTime ticks, or Unix time.
+        if (!long.TryParse(timestamp, out var timestampValue))
         {
             _logger.LogWarning("WOPI proof validation failed: invalid X-WOPI-TimeStamp value '{Timestamp}'.", timestamp);
             return false;
         }
 
-        var requestTime = DateTime.FromFileTimeUtc(timestampTicks);
+        if (!TryResolveTimestampUtc(timestampValue, out var requestTime))
+        {
+            _logger.LogWarning("WOPI proof validation failed: unrecognized X-WOPI-TimeStamp value '{Timestamp}'.", timestamp);
+            return false;
+        }
+
         var age = DateTime.UtcNow - requestTime;
         if (age > MaxTimestampAge || age < TimeSpan.Zero)
         {
@@ -82,7 +88,7 @@ internal sealed class WopiProofKeyValidator : IWopiProofKeyValidator
         }
 
         // Build the signed proof bytes
-        byte[] proofBytes = BuildProofBytes(accessToken, requestUrl.ToUpperInvariant(), timestampTicks);
+        byte[] proofBytes = BuildProofBytes(accessToken, requestUrl.ToUpperInvariant(), timestampValue);
 
         // Decode the provided signatures
         byte[]? currentSig = TryBase64Decode(proof);
@@ -98,18 +104,21 @@ internal sealed class WopiProofKeyValidator : IWopiProofKeyValidator
         // 1. Current proof, current key
         // 2. Current proof, old key (old key still valid during rotation)
         // 3. Old proof, current key (request in-flight during key rotation)
-        if (!string.IsNullOrEmpty(discovery.ProofKeyValue))
+        if (!string.IsNullOrEmpty(discovery.ProofKeyValue) ||
+            (!string.IsNullOrEmpty(discovery.ProofKey) && !string.IsNullOrEmpty(discovery.ProofKeyExponent)))
         {
-            if (TryVerify(proofBytes, currentSig, discovery.ProofKeyValue))
+            if (TryVerify(proofBytes, currentSig, discovery.ProofKeyValue, discovery.ProofKey, discovery.ProofKeyExponent))
                 return true;
 
-            if (oldSig is not null && TryVerify(proofBytes, oldSig, discovery.ProofKeyValue))
+            if (oldSig is not null && TryVerify(proofBytes, oldSig, discovery.ProofKeyValue, discovery.ProofKey, discovery.ProofKeyExponent))
                 return true;
         }
 
-        if (!string.IsNullOrEmpty(discovery.OldProofKeyValue) && currentSig is not null)
+        if ((!string.IsNullOrEmpty(discovery.OldProofKeyValue) ||
+            (!string.IsNullOrEmpty(discovery.OldProofKey) && !string.IsNullOrEmpty(discovery.OldProofKeyExponent))) &&
+            currentSig is not null)
         {
-            if (TryVerify(proofBytes, currentSig, discovery.OldProofKeyValue))
+            if (TryVerify(proofBytes, currentSig, discovery.OldProofKeyValue, discovery.OldProofKey, discovery.OldProofKeyExponent))
                 return true;
         }
 
@@ -146,20 +155,51 @@ internal sealed class WopiProofKeyValidator : IWopiProofKeyValidator
         return result;
     }
 
-    private bool TryVerify(byte[] data, byte[] signature, string base64SubjectPublicKeyInfo)
+    private bool TryVerify(
+        byte[] data,
+        byte[] signature,
+        string? base64SubjectPublicKeyInfo,
+        string? base64Modulus,
+        string? base64Exponent)
     {
-        try
+        if (!string.IsNullOrWhiteSpace(base64SubjectPublicKeyInfo))
         {
-            var keyBytes = Convert.FromBase64String(base64SubjectPublicKeyInfo);
-            using var rsa = RSA.Create();
-            rsa.ImportSubjectPublicKeyInfo(keyBytes, out _);
-            return rsa.VerifyData(data, signature, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            try
+            {
+                var keyBytes = Convert.FromBase64String(base64SubjectPublicKeyInfo);
+                using var rsa = RSA.Create();
+                rsa.ImportSubjectPublicKeyInfo(keyBytes, out _);
+                return rsa.VerifyData(data, signature, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            }
+            catch (Exception ex) when (ex is CryptographicException or FormatException)
+            {
+                _logger.LogWarning(ex, "WOPI proof key verification threw an exception.");
+            }
         }
-        catch (Exception ex) when (ex is CryptographicException or FormatException)
+
+        if (!string.IsNullOrWhiteSpace(base64Modulus) && !string.IsNullOrWhiteSpace(base64Exponent))
         {
-            _logger.LogWarning(ex, "WOPI proof key verification threw an exception.");
-            return false;
+            try
+            {
+                var modulus = Convert.FromBase64String(base64Modulus);
+                var exponent = Convert.FromBase64String(base64Exponent);
+
+                using var rsa = RSA.Create();
+                rsa.ImportParameters(new RSAParameters
+                {
+                    Modulus = modulus,
+                    Exponent = exponent
+                });
+
+                return rsa.VerifyData(data, signature, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            }
+            catch (Exception ex) when (ex is CryptographicException or FormatException)
+            {
+                _logger.LogWarning(ex, "WOPI proof modulus/exponent verification threw an exception.");
+            }
         }
+
+        return false;
     }
 
     private static byte[]? TryBase64Decode(string value)
@@ -172,5 +212,62 @@ internal sealed class WopiProofKeyValidator : IWopiProofKeyValidator
         {
             return null;
         }
+    }
+
+    private static bool TryResolveTimestampUtc(long timestampValue, out DateTime utcTime)
+    {
+        utcTime = default;
+
+        // 1) Windows FILETIME (100ns since 1601-01-01 UTC)
+        if (timestampValue > 0)
+        {
+            try
+            {
+                var fileTimeUtc = DateTime.FromFileTimeUtc(timestampValue);
+                if (fileTimeUtc.Year >= 2000 && fileTimeUtc.Year <= 3000)
+                {
+                    utcTime = fileTimeUtc;
+                    return true;
+                }
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                // Try next format.
+            }
+        }
+
+        // 2) DateTime ticks (100ns since 0001-01-01 UTC)
+        if (timestampValue >= DateTime.UnixEpoch.Ticks && timestampValue <= DateTime.MaxValue.Ticks)
+        {
+            try
+            {
+                var dateTimeTicksUtc = new DateTime(timestampValue, DateTimeKind.Utc);
+                if (dateTimeTicksUtc.Year >= 2000 && dateTimeTicksUtc.Year <= 3000)
+                {
+                    utcTime = dateTimeTicksUtc;
+                    return true;
+                }
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                // Try next format.
+            }
+        }
+
+        // 3) Unix milliseconds
+        if (timestampValue >= 946684800000 && timestampValue <= 32503680000000)
+        {
+            utcTime = DateTimeOffset.FromUnixTimeMilliseconds(timestampValue).UtcDateTime;
+            return true;
+        }
+
+        // 4) Unix seconds
+        if (timestampValue >= 946684800 && timestampValue <= 32503680000)
+        {
+            utcTime = DateTimeOffset.FromUnixTimeSeconds(timestampValue).UtcDateTime;
+            return true;
+        }
+
+        return false;
     }
 }

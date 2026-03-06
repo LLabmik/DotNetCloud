@@ -94,7 +94,7 @@ check_prerequisites() {
     fi
 
     # Check for required tools
-    for cmd in curl tar; do
+    for cmd in curl tar gpg; do
         if ! command -v "$cmd" &>/dev/null; then
             info "Installing $cmd..."
             $SUDO apt-get update -qq && $SUDO apt-get install -y -qq "$cmd"
@@ -281,6 +281,20 @@ install_dotnetcloud() {
     $SUDO tar -xzf "$TEMP_FILE" -C "$INSTALL_DIR" --strip-components=1 \
         || fatal "Extraction failed. The archive may be corrupted — try running the installer again."
 
+    # Ensure module discovery path matches runtime expectations.
+    # Core server discovers modules from ${INSTALL_DIR}/server/modules, while
+    # release archives place module payloads under ${INSTALL_DIR}/modules.
+    # Create a symlink so module APIs (files/chat/etc.) are available immediately
+    # after setup without extra manual steps.
+    if [[ -d "${INSTALL_DIR}/modules" ]]; then
+        if [[ -d "${INSTALL_DIR}/server/modules" && ! -L "${INSTALL_DIR}/server/modules" ]]; then
+            $SUDO rm -rf "${INSTALL_DIR}/server/modules"
+        fi
+        if [[ ! -e "${INSTALL_DIR}/server/modules" ]]; then
+            $SUDO ln -s "${INSTALL_DIR}/modules" "${INSTALL_DIR}/server/modules"
+        fi
+    fi
+
     # Verify critical files were extracted
     if [[ ! -f "${INSTALL_DIR}/dotnetcloud" ]] && [[ ! -f "${INSTALL_DIR}/DotNetCloud.Core.Server" ]]; then
         fatal "Extraction succeeded but expected binaries are missing. The release archive may have an unexpected layout."
@@ -465,7 +479,7 @@ install_collabora() {
     # Ensure the Collabora APT repository is configured
     if [[ ! -f "$SOURCES_PATH" ]]; then
         info "Importing Collabora signing key..."
-        curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x0C54D189F4BA284D" \
+        curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xD8915E456E7C440E" \
             | $SUDO gpg --dearmor -o "$KEYRING_PATH" 2>/dev/null \
             || { error "Failed to import Collabora signing key."; return 1; }
 
@@ -520,12 +534,21 @@ maybe_install_collabora() {
         return
     fi
 
-    # Read CollaboraMode from config (simple grep — no jq dependency)
+    # Read collaboraMode from config (simple grep — no jq dependency).
+    # Setup wizard persists config using camelCase; keep legacy PascalCase support too.
     local MODE
-    MODE=$(grep -oP '"CollaboraMode"\s*:\s*"\K[^"]+' "$CONFIG_FILE" 2>/dev/null || true)
+    MODE=$(grep -oP '"(?:collaboraMode|CollaboraMode)"\s*:\s*"\K[^"]+' "$CONFIG_FILE" 2>/dev/null || true)
+
+    if [[ -z "$MODE" ]]; then
+        warn "Could not determine Collabora mode from ${CONFIG_FILE}; skipping Collabora CODE install."
+        return
+    fi
 
     if [[ "$MODE" == "BuiltIn" ]]; then
+        info "Collabora mode is BuiltIn in ${CONFIG_FILE}; installing/upgrading Collabora CODE..."
         install_collabora
+    else
+        info "Collabora mode is ${MODE}; skipping built-in Collabora CODE install."
     fi
 }
 

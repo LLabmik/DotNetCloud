@@ -1,10 +1,12 @@
 using System.Security.Claims;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Modules.Files.DTOs;
+using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.Extensions.Options;
 
 namespace DotNetCloud.Modules.Files.UI;
 
@@ -16,6 +18,9 @@ namespace DotNetCloud.Modules.Files.UI;
 public partial class FileBrowser : ComponentBase
 {
     [Inject] private IFileService FileService { get; set; } = default!;
+    [Inject] private IChunkedUploadService UploadService { get; set; } = default!;
+    [Inject] private ICollaboraDiscoveryService CollaboraDiscoveryService { get; set; } = default!;
+    [Inject] private IOptions<CollaboraOptions> CollaboraOptions { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
 
     /// <summary>The current user ID, used for opening the document editor.</summary>
@@ -75,8 +80,15 @@ public partial class FileBrowser : ComponentBase
     private bool _showShareDialog;
     private bool _showPreview;
     private bool _showDocumentEditor;
+    private bool _showCreateDocument;
     private bool _showBulkTagAdd;
     private string _newFolderName = string.Empty;
+    private string _newDocumentName = "Untitled";
+    private string _selectedDocumentExtension = "docx";
+    private bool _isCollaboraAvailable;
+    private bool _isCollaboraConfigured;
+    private HashSet<string> _collaboraEditableExtensions = new(StringComparer.OrdinalIgnoreCase);
+    private List<string> _supportedNewDocumentExtensions = [];
     private FileNodeViewModel? _shareTargetNode;
     private FileNodeViewModel? _previewNode;
     private FileNodeViewModel? _editorNode;
@@ -95,6 +107,7 @@ public partial class FileBrowser : ComponentBase
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadCollaboraCapabilitiesAsync();
         await LoadCurrentFolderAsync();
     }
 
@@ -129,11 +142,17 @@ public partial class FileBrowser : ComponentBase
     protected bool IsShowShareDialog => _showShareDialog;
     protected bool IsShowPreview => _showPreview;
     protected bool IsShowDocumentEditor => _showDocumentEditor;
+    protected bool IsShowCreateDocument => _showCreateDocument;
+    protected bool IsCollaboraAvailable => _isCollaboraAvailable;
+    protected bool CanCreateCollaboraDocument => _isCollaboraConfigured && _supportedNewDocumentExtensions.Count > 0;
+    protected IReadOnlyList<string> SupportedNewDocumentExtensions => _supportedNewDocumentExtensions;
     protected bool IsShowBulkTagAdd => _showBulkTagAdd;
     protected FileTagViewModel? ActiveTag => _activeTag;
     protected IReadOnlyList<FileNodeViewModel> TaggedNodes => _taggedNodes;
     protected IReadOnlyList<FileTagViewModel> UserTags => _userTags;
     protected string NewFolderName { get => _newFolderName; set => _newFolderName = value; }
+    protected string NewDocumentName { get => _newDocumentName; set => _newDocumentName = value; }
+    protected string SelectedDocumentExtension { get => _selectedDocumentExtension; set => _selectedDocumentExtension = value; }
     protected FileNodeViewModel? ShareTargetNode => _shareTargetNode;
     protected FileNodeViewModel? PreviewNode => _previewNode;
     protected FileNodeViewModel? EditorNode => _editorNode;
@@ -178,14 +197,14 @@ public partial class FileBrowser : ComponentBase
             _selectedNodes.Add(node.Id);
     }
 
-    protected void HandleNodeDoubleClick(FileNodeViewModel node)
+    protected async Task HandleNodeDoubleClick(FileNodeViewModel node)
     {
         if (node.NodeType == "Folder")
         {
             _breadcrumbs.Add(new BreadcrumbItem(node.Id, node.Name));
             NavigateToFolder(node.Id);
         }
-        else if (DocumentEditor.IsSupportedForEditing(node.Name))
+        else if (CanOpenInDocumentEditor(node))
         {
             ShowDocumentEditor(node);
         }
@@ -193,6 +212,8 @@ public partial class FileBrowser : ComponentBase
         {
             ShowPreview(node);
         }
+
+        await Task.CompletedTask;
     }
 
     protected void OpenFolder(FileNodeViewModel node)
@@ -205,6 +226,11 @@ public partial class FileBrowser : ComponentBase
         _breadcrumbs.Add(new BreadcrumbItem(node.Id, node.Name));
         NavigateToFolder(node.Id);
     }
+    
+        protected async Task OpenNodeAsync(FileNodeViewModel node)
+        {
+            await HandleNodeDoubleClick(node);
+        }
 
     protected bool IsSelected(Guid nodeId) => _selectedNodes.Contains(nodeId);
     protected void ClearSelection() => _selectedNodes.Clear();
@@ -242,6 +268,60 @@ public partial class FileBrowser : ComponentBase
 
     protected void ShowUploadDialog() => _showUploadDialog = true;
     protected void HideUploadDialog() => _showUploadDialog = false;
+
+    protected void ShowCreateDocumentDialog()
+    {
+        if (!CanCreateCollaboraDocument)
+            return;
+
+        _showCreateDocument = true;
+        _newDocumentName = "Untitled";
+
+        if (!_supportedNewDocumentExtensions.Contains(_selectedDocumentExtension, StringComparer.OrdinalIgnoreCase))
+            _selectedDocumentExtension = _supportedNewDocumentExtensions[0];
+    }
+
+    protected void HideCreateDocumentDialog() => _showCreateDocument = false;
+
+    protected async Task HandleCreateDocumentKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await CreateDocumentAsync();
+
+        if (e.Key == "Escape")
+            _showCreateDocument = false;
+    }
+
+    protected async Task CreateDocumentAsync()
+    {
+        if (!CanCreateCollaboraDocument)
+            return;
+
+        var caller = await GetCallerContextAsync();
+        var extension = NormalizeExtension(_selectedDocumentExtension);
+        var requestedName = string.IsNullOrWhiteSpace(_newDocumentName) ? "Untitled" : _newDocumentName.Trim();
+        var fileName = EnsureUniqueFileName(BuildFileName(requestedName, extension));
+
+        var session = await UploadService.InitiateUploadAsync(new InitiateUploadDto
+        {
+            FileName = fileName,
+            ParentId = _currentFolderId,
+            TotalSize = 0,
+            MimeType = GetMimeType(extension),
+            ChunkHashes = []
+        }, caller);
+
+        var created = await UploadService.CompleteUploadAsync(session.SessionId, caller);
+
+        _showCreateDocument = false;
+        await LoadCurrentFolderAsync();
+
+        if (CanOpenInDocumentEditor(created.Name))
+        {
+            ShowDocumentEditor(ToViewModel(created));
+        }
+    }
+
     protected async Task HandleUploadComplete()
     {
         _showUploadDialog = false;
@@ -383,6 +463,18 @@ public partial class FileBrowser : ComponentBase
         _showDocumentEditor = true;
     }
 
+    protected bool CanOpenInDocumentEditor(FileNodeViewModel node) =>
+        node.NodeType == "File" && CanOpenInDocumentEditor(node.Name);
+
+    private bool CanOpenInDocumentEditor(string fileName)
+    {
+        if (!_isCollaboraConfigured)
+            return false;
+
+        var extension = NormalizeExtension(Path.GetExtension(fileName));
+        return !string.IsNullOrWhiteSpace(extension) && _collaboraEditableExtensions.Contains(extension);
+    }
+
     protected void HideDocumentEditor()
     {
         _showDocumentEditor = false;
@@ -500,6 +592,113 @@ public partial class FileBrowser : ComponentBase
 
         _nodes = nodes.Select(ToViewModel).ToList();
         StateHasChanged();
+    }
+
+    private async Task LoadCollaboraCapabilitiesAsync()
+    {
+        var options = CollaboraOptions.Value;
+        _isCollaboraConfigured = options.Enabled &&
+                                (!string.IsNullOrWhiteSpace(options.ServerUrl) || options.UseBuiltInCollabora);
+
+        var preferredOrder = new[] { "docx", "xlsx", "pptx", "odt", "ods", "odp", "txt", "csv", "rtf" };
+
+        if (!_isCollaboraConfigured)
+        {
+            _isCollaboraAvailable = false;
+            _collaboraEditableExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            _supportedNewDocumentExtensions = [];
+            return;
+        }
+
+        try
+        {
+            var discovery = await CollaboraDiscoveryService.DiscoverAsync();
+            _isCollaboraAvailable = discovery.IsAvailable;
+
+            if (_isCollaboraAvailable)
+            {
+                _collaboraEditableExtensions = discovery.Actions
+                    .Where(a => string.Equals(a.Action, "edit", StringComparison.OrdinalIgnoreCase)
+                                || string.Equals(a.Action, "view", StringComparison.OrdinalIgnoreCase))
+                    .Select(a => NormalizeExtension(a.Extension))
+                    .Where(ext => !string.IsNullOrWhiteSpace(ext))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                var ordered = preferredOrder
+                    .Where(ext => _collaboraEditableExtensions.Contains(ext))
+                    .Concat(_collaboraEditableExtensions.Where(ext => !preferredOrder.Contains(ext, StringComparer.OrdinalIgnoreCase)).OrderBy(ext => ext, StringComparer.OrdinalIgnoreCase));
+
+                _supportedNewDocumentExtensions = [.. ordered];
+            }
+            else
+            {
+                _collaboraEditableExtensions = preferredOrder.ToHashSet(StringComparer.OrdinalIgnoreCase);
+                _supportedNewDocumentExtensions = [.. preferredOrder];
+            }
+        }
+        catch
+        {
+            _isCollaboraAvailable = false;
+            _collaboraEditableExtensions = preferredOrder.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            _supportedNewDocumentExtensions = [.. preferredOrder];
+        }
+
+        if (_supportedNewDocumentExtensions.Count > 0 && !_supportedNewDocumentExtensions.Contains(_selectedDocumentExtension, StringComparer.OrdinalIgnoreCase))
+            _selectedDocumentExtension = _supportedNewDocumentExtensions[0];
+    }
+
+    private string EnsureUniqueFileName(string fileName)
+    {
+        var existingNames = _nodes.Select(n => n.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (!existingNames.Contains(fileName))
+            return fileName;
+
+        var extension = Path.GetExtension(fileName);
+        var baseName = Path.GetFileNameWithoutExtension(fileName);
+        var suffix = 1;
+        var candidate = $"{baseName} ({suffix}){extension}";
+
+        while (existingNames.Contains(candidate))
+        {
+            suffix++;
+            candidate = $"{baseName} ({suffix}){extension}";
+        }
+
+        return candidate;
+    }
+
+    private static string BuildFileName(string name, string extension)
+    {
+        var normalizedName = name.Trim();
+        var normalizedExtension = NormalizeExtension(extension);
+
+        if (string.IsNullOrWhiteSpace(normalizedExtension))
+            return normalizedName;
+
+        return normalizedName.EndsWith($".{normalizedExtension}", StringComparison.OrdinalIgnoreCase)
+            ? normalizedName
+            : $"{normalizedName}.{normalizedExtension}";
+    }
+
+    private static string NormalizeExtension(string? extension) =>
+        extension?.Trim().TrimStart('.').ToLowerInvariant() ?? string.Empty;
+
+    private static string GetMimeType(string extension)
+    {
+        return NormalizeExtension(extension) switch
+        {
+            "docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "odt" => "application/vnd.oasis.opendocument.text",
+            "rtf" => "application/rtf",
+            "txt" => "text/plain",
+            "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "ods" => "application/vnd.oasis.opendocument.spreadsheet",
+            "csv" => "text/csv",
+            "pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "odp" => "application/vnd.oasis.opendocument.presentation",
+            _ => "application/octet-stream"
+        };
     }
 
     private async Task<CallerContext> GetCallerContextAsync()

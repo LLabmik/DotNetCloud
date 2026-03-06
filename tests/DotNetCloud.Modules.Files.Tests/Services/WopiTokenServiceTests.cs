@@ -52,6 +52,8 @@ public class WopiTokenServiceTests
             .ReturnsAsync("https://collabora.example.com/browser/dist/cool.html");
         mock.Setup(d => d.IsAvailableAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
+        mock.Setup(d => d.IsSupportedExtensionAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
         return mock.Object;
     }
 
@@ -212,6 +214,42 @@ public class WopiTokenServiceTests
     }
 
     [TestMethod]
+    public async Task GenerateTokenAsync_TokenIsUrlSafeBase64()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var node = new FileNode { Name = "doc.docx", NodeType = FileNodeType.File, OwnerId = userId };
+        db.FileNodes.Add(node);
+        await db.SaveChangesAsync();
+
+        var service = CreateTokenService(db);
+        var result = await service.GenerateTokenAsync(node.Id, UserCaller(userId));
+
+        Assert.IsFalse(result.AccessToken.Contains('+'));
+        Assert.IsFalse(result.AccessToken.Contains('/'));
+    }
+
+    [TestMethod]
+    public async Task ValidateToken_MissingSigningKeyAcrossServiceInstances_StillValidatesWithinProcess()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var node = new FileNode { Name = "doc.docx", NodeType = FileNodeType.File, OwnerId = userId };
+        db.FileNodes.Add(node);
+        await db.SaveChangesAsync();
+
+        var discovery = CreateMockDiscovery();
+        var generator = CreateTokenService(db, discovery, signingKey: "too-short");
+        var validator = CreateTokenService(db, discovery, signingKey: "too-short");
+
+        var token = await generator.GenerateTokenAsync(node.Id, UserCaller(userId));
+        var context = validator.ValidateToken(token.AccessToken, node.Id);
+
+        Assert.IsNotNull(context);
+        Assert.AreEqual(userId, context.UserId);
+    }
+
+    [TestMethod]
     public async Task GenerateTokenAsync_DeletedFile_ThrowsNotFoundException()
     {
         using var db = CreateContext();
@@ -223,6 +261,43 @@ public class WopiTokenServiceTests
         var service = CreateTokenService(db);
 
         await Assert.ThrowsExactlyAsync<Core.Errors.NotFoundException>(
+            () => service.GenerateTokenAsync(node.Id, UserCaller(userId)));
+    }
+
+    [TestMethod]
+    public async Task GenerateTokenAsync_CollaboraUnavailable_ThrowsInvalidOperationException()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var node = new FileNode { Name = "doc.docx", NodeType = FileNodeType.File, OwnerId = userId };
+        db.FileNodes.Add(node);
+        await db.SaveChangesAsync();
+
+        var discovery = new Mock<ICollaboraDiscoveryService>();
+        discovery.Setup(d => d.IsAvailableAsync(It.IsAny<CancellationToken>())).ReturnsAsync(false);
+
+        var service = CreateTokenService(db, discovery.Object);
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.InvalidOperationException>(
+            () => service.GenerateTokenAsync(node.Id, UserCaller(userId)));
+    }
+
+    [TestMethod]
+    public async Task GenerateTokenAsync_UnsupportedExtension_ThrowsInvalidOperationException()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var node = new FileNode { Name = "archive.zip", NodeType = FileNodeType.File, OwnerId = userId };
+        db.FileNodes.Add(node);
+        await db.SaveChangesAsync();
+
+        var discovery = new Mock<ICollaboraDiscoveryService>();
+        discovery.Setup(d => d.IsAvailableAsync(It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        discovery.Setup(d => d.IsSupportedExtensionAsync("zip", It.IsAny<CancellationToken>())).ReturnsAsync(false);
+
+        var service = CreateTokenService(db, discovery.Object);
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.InvalidOperationException>(
             () => service.GenerateTokenAsync(node.Id, UserCaller(userId)));
     }
 }

@@ -69,7 +69,9 @@ public class CollaboraDiscoveryServiceTests
 
         // ProofKey/OldProofKey carry the modulus (legacy fields)
         Assert.AreEqual("mod-value", result.ProofKey);
+        Assert.AreEqual("exp-value", result.ProofKeyExponent);
         Assert.AreEqual("old-mod", result.OldProofKey);
+        Assert.AreEqual("old-exp", result.OldProofKeyExponent);
         // ProofKeyValue/OldProofKeyValue carry the SubjectPublicKeyInfo for RSA verification
         Assert.AreEqual("current-spki", result.ProofKeyValue);
         Assert.AreEqual("old-spki", result.OldProofKeyValue);
@@ -92,6 +94,7 @@ public class CollaboraDiscoveryServiceTests
         var result = CollaboraDiscoveryService.ParseDiscoveryXml(xml);
 
         Assert.AreEqual("mod-value", result.ProofKey);
+        Assert.AreEqual("exp-value", result.ProofKeyExponent);
     }
 
     [TestMethod]
@@ -110,7 +113,9 @@ public class CollaboraDiscoveryServiceTests
         var result = CollaboraDiscoveryService.ParseDiscoveryXml(xml);
 
         Assert.IsNull(result.ProofKey);
+        Assert.IsNull(result.ProofKeyExponent);
         Assert.IsNull(result.OldProofKey);
+        Assert.IsNull(result.OldProofKeyExponent);
     }
 
     [TestMethod]

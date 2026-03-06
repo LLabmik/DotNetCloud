@@ -341,7 +341,19 @@ public class Program
         app.UseForwardedHeaders();
 
         // Apply middleware (security headers, exception handler, request logging)
-        app.UseDotNetCloudMiddleware();
+        app.UseDotNetCloudMiddleware(headers =>
+        {
+            var collaboraUrl = app.Configuration["Files:Collabora:ServerUrl"];
+            if (string.IsNullOrWhiteSpace(collaboraUrl) ||
+                !Uri.TryCreate(collaboraUrl, UriKind.Absolute, out var collaboraUri))
+            {
+                return;
+            }
+
+            var collaboraOrigin = collaboraUri.GetLeftPart(UriPartial.Authority);
+            headers.ContentSecurityPolicy =
+                $"default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-src 'self' {collaboraOrigin}; child-src 'self' {collaboraOrigin}; frame-ancestors 'none';";
+        });
 
         // Map health checks
         app.MapDotNetCloudHealthChecks();
@@ -355,8 +367,16 @@ public class Program
         // API versioning middleware (deprecation warnings, version negotiation)
         app.UseApiVersioning();
 
-        // Response envelope middleware (wraps API responses in standard format)
-        app.UseResponseEnvelope();
+        // Response envelope middleware (wraps API responses in standard format).
+        // WOPI file protocol endpoints must remain unwrapped for Collabora compatibility.
+        app.UseResponseEnvelope(options =>
+        {
+            options.ExcludePaths =
+            [
+                .. options.ExcludePaths,
+                "/api/v1/wopi/files/",
+            ];
+        });
 
         // CORS
         app.UseCors(CorsConfiguration.PolicyName);

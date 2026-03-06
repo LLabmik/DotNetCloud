@@ -1658,6 +1658,7 @@ This phase implements the core Files module, which is the primary public-facing 
 **REST API for file operations**
 
 #### File & Folder Endpoints (FilesController)
+- ✓ Expose `/api/v1/files/*` endpoints from core server for bare-metal single-process installs (no separate Files host routing required)
 - ✓ `GET /api/v1/files` — List files/folders in directory (paginated, sorted)
 - ✓ `GET /api/v1/files/{nodeId}` — Get file/folder by ID
 - ✓ `POST /api/v1/files/folders` — Create folder
@@ -1909,6 +1910,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ `GET /api/v1/wopi/files/{fileId}` — CheckFileInfo (file metadata)
 - ✓ `GET /api/v1/wopi/files/{fileId}/contents` — GetFile (download content)
 - ✓ `POST /api/v1/wopi/files/{fileId}/contents` — PutFile (save edited content)
+- ✓ Expose `/api/v1/wopi/*` endpoints from core server for bare-metal single-process installs (no separate module host routing required)
 - ✓ Implement WOPI access token generation (per-user, per-file, time-limited)
 - ✓ Implement WOPI access token validation
 - ✓ Implement WOPI proof key validation (Collabora signature verification)
@@ -1922,6 +1924,7 @@ This phase implements the core Files module, which is the primary public-facing 
 
 #### Collabora CODE Management
 - ✓ Implement Collabora CODE download and auto-installation in `dotnetcloud setup` + `dotnetcloud install collabora`
+- ✓ Ensure `tools/install.sh` auto-installs Collabora CODE when setup selection persists `collaboraMode: BuiltIn`
 - ✓ Create Collabora CODE process management under process supervisor (`CollaboraProcessManager` BackgroundService)
 - ✓ Implement WOPI discovery endpoint integration
 - ✓ Configure TLS/URL routing for Collabora (`ReverseProxyTemplates.GenerateNginxConfigWithCollabora`, `GenerateApacheConfigWithCollabora`)
@@ -1936,6 +1939,19 @@ This phase implements the core Files module, which is the primary public-facing 
 #### Blazor Integration
 - ✓ Create document editor component (iframe embedding Collabora UI)
 - ✓ Open supported documents in editor from file browser
+- ✓ Ensure file/folder opening actions are single-click only (no double-click dependency)
+- ✓ Open documents in editor only when Collabora discovery is available and extension is supported
+- ✓ Create new Collabora-supported files from file browser (new document workflow)
+- ✓ Keep New Document action visible when Collabora is configured but discovery is temporarily unavailable (fallback extension set)
+- ✓ Normalize DocumentEditor API calls to root `/api/v1/wopi/*` when module route base paths are present (prevents false 404s)
+- ✓ Resolve WOPI token `userId` reliably by falling back to authenticated claims in `DocumentEditor` and return clean 401 (not 500) when identity is unavailable
+- ✓ Encode WOPI tokens with URL-safe Base64 and keep legacy decode compatibility to prevent `CheckFileInfo` token parse failures from query-string transport
+- ✓ Stabilize fallback WOPI signing key across requests within a process (when `TokenSigningKey` is unset) to prevent token signature mismatches between generate/validate calls
+- ✓ Accept Collabora WOPI proof timestamps in multiple encodings (FILETIME, DateTime ticks, Unix ms/sec) to prevent false replay-age rejection during `CheckFileInfo`
+- ✓ Add WOPI proof-key verification fallback to discovery `modulus`/`exponent` when SPKI `value` key import fails (ASN.1 mismatch), preserving signature validation
+- ✓ Normalize Collabora discovery `urlsrc` host/scheme to configured `Files:Collabora:ServerUrl` so iframe URLs are browser-reachable
+- ✓ Fix Razor parameter binding for editor launch (`@EditorNode.Name`, `@ApiBaseUrl`) to avoid literal text rendering and ensure correct runtime values
+- ✓ Allow configured Collabora origin in CSP (`frame-src`/`child-src`) so the document editor iframe can load in `/apps/files`
 - ✓ Show "download to edit locally" for E2EE files
 - ✓ Display co-editing indicators (who is editing)
 

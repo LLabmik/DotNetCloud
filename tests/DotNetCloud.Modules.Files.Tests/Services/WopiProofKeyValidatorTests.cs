@@ -20,6 +20,12 @@ public class WopiProofKeyValidatorTests
     private static readonly string TestKeySpki =
         Convert.ToBase64String(TestKey.ExportSubjectPublicKeyInfo());
 
+    private static readonly string TestKeyModulus =
+        Convert.ToBase64String(TestKey.ExportParameters(false).Modulus!);
+
+    private static readonly string TestKeyExponent =
+        Convert.ToBase64String(TestKey.ExportParameters(false).Exponent!);
+
     private static readonly string TestOldKeySpki =
         Convert.ToBase64String(TestOldKey.ExportSubjectPublicKeyInfo());
 
@@ -55,6 +61,17 @@ public class WopiProofKeyValidatorTests
         return (Convert.ToBase64String(signature), ticks.ToString());
     }
 
+    private static (string proof, string timestamp) MakeProofWithDateTimeTicks(
+        string accessToken, string requestUrl, RSA key, long? overrideTicks = null)
+    {
+        var ticks = overrideTicks ?? DateTime.UtcNow.Ticks;
+        var proofBytes = WopiProofKeyValidator.BuildProofBytes(
+            accessToken, requestUrl.ToUpperInvariant(), ticks);
+
+        var signature = key.SignData(proofBytes, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        return (Convert.ToBase64String(signature), ticks.ToString());
+    }
+
     [TestMethod]
     public async Task ValidateAsync_ValidProofCurrentKey_ReturnsTrue()
     {
@@ -63,6 +80,49 @@ public class WopiProofKeyValidatorTests
         const string url = "https://example.com/api/v1/wopi/files/abc?access_token=test-token";
 
         var (proof, timestamp) = MakeProof(token, url, TestKey);
+
+        var result = await validator.ValidateAsync(token, url, proof, null, timestamp);
+
+        Assert.IsTrue(result);
+    }
+
+    [TestMethod]
+    public async Task ValidateAsync_MalformedSpkiWithValidModulusExponent_FallsBackAndReturnsTrue()
+    {
+        var discovery = new Mock<ICollaboraDiscoveryService>();
+        discovery.Setup(d => d.DiscoverAsync(default)).ReturnsAsync(new CollaboraDiscoveryResult
+        {
+            IsAvailable = true,
+            ProofKeyValue = Convert.ToBase64String(Encoding.UTF8.GetBytes("not-spki")),
+            ProofKey = TestKeyModulus,
+            ProofKeyExponent = TestKeyExponent,
+            OldProofKeyValue = null,
+            OldProofKey = null,
+            OldProofKeyExponent = null
+        });
+
+        var validator = new WopiProofKeyValidator(
+            discovery.Object,
+            MsOptions.Options.Create(new CollaboraOptions { EnableProofKeyValidation = true }),
+            NullLogger<WopiProofKeyValidator>.Instance);
+
+        const string token = "test-token";
+        const string url = "https://example.com/api/v1/wopi/files/abc?access_token=test-token";
+        var (proof, timestamp) = MakeProof(token, url, TestKey);
+
+        var result = await validator.ValidateAsync(token, url, proof, null, timestamp);
+
+        Assert.IsTrue(result);
+    }
+
+    [TestMethod]
+    public async Task ValidateAsync_ValidProofWithDateTimeTicksTimestamp_ReturnsTrue()
+    {
+        var validator = CreateValidator();
+        const string token = "test-token";
+        const string url = "https://example.com/api/v1/wopi/files/abc?access_token=test-token";
+
+        var (proof, timestamp) = MakeProofWithDateTimeTicks(token, url, TestKey);
 
         var result = await validator.ValidateAsync(token, url, proof, null, timestamp);
 

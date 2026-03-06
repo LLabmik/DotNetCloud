@@ -51,10 +51,14 @@ else if (ActiveSection == FileSidebarSection.Tags && ActiveTag is not null)
             <div class="files-list">
                 @foreach (var node in TaggedNodes)
                 {
-                    <div class="file-item" @ondblclick="() => HandleNodeDoubleClick(node)">
+                    <div class="file-item">
                         <div class="file-icon">@GetNodeIcon(node)</div>
                         <div class="file-info">
-                            <span class="file-name" title="@node.Name">@node.Name</span>
+                            <button class="file-name file-name-link"
+                                    title="Open @node.Name"
+                                    @onclick="() => OpenNodeAsync(node)">
+                                @node.Name
+                            </button>
                             <span class="file-meta">
                                 @if (node.NodeType == "File")
                                 {
@@ -116,6 +120,10 @@ else
 
     <div class="files-actions">
         <button class="btn btn-primary btn-sm" @onclick="ShowCreateFolderDialog">New Folder</button>
+        @if (CanCreateCollaboraDocument)
+        {
+            <button class="btn btn-primary btn-sm" @onclick="ShowCreateDocumentDialog">New Document</button>
+        }
         <button class="btn btn-primary btn-sm" @onclick="ShowUploadDialog">Upload</button>
         @if (SelectedCount > 0)
         {
@@ -152,6 +160,22 @@ else
         </div>
     }
 
+    @if (IsShowCreateDocument)
+    {
+        <div class="create-folder-dialog">
+            <input type="text" @bind="NewDocumentName" placeholder="Document name"
+                   @onkeydown="HandleCreateDocumentKeyDown" autofocus />
+            <select @bind="SelectedDocumentExtension">
+                @foreach (var extension in SupportedNewDocumentExtensions)
+                {
+                    <option value="@extension">.@extension</option>
+                }
+            </select>
+            <button class="btn btn-primary btn-sm" @onclick="CreateDocumentAsync">Create</button>
+            <button class="btn btn-sm" @onclick="HideCreateDocumentDialog">Cancel</button>
+        </div>
+    }
+
     @if (IsLoading)
     {
         <div class="loading-state" aria-live="polite">
@@ -174,6 +198,10 @@ else
             <p class="text-muted empty-state-hint">You can also drag and drop files anywhere on this page.</p>
             <div class="empty-state-actions">
                 <button class="btn btn-primary btn-sm" @onclick="ShowCreateFolderDialog">New Folder</button>
+                @if (CanCreateCollaboraDocument)
+                {
+                    <button class="btn btn-primary btn-sm" @onclick="ShowCreateDocumentDialog">New Document</button>
+                }
                 <button class="btn btn-primary btn-sm" @onclick="ShowUploadDialog">Upload</button>
             </div>
         </div>
@@ -209,8 +237,7 @@ else
             @foreach (var node in SortedNodes)
             {
                 <div class="file-item @(IsSelected(node.Id) ? "selected" : "")"
-                     @onclick="() => HandleNodeClick(node)"
-                     @ondblclick="() => HandleNodeDoubleClick(node)">
+                     @onclick="() => HandleNodeClick(node)">
 
                     <div class="file-icon">
                         @if (_viewMode == ViewMode.Grid && node.ThumbnailUrl is not null)
@@ -236,7 +263,12 @@ else
                         }
                         else
                         {
-                            <span class="file-name" title="@node.Name">@node.Name</span>
+                            <button class="file-name file-name-link"
+                                    title="Open @node.Name"
+                                    @onclick:stopPropagation
+                                    @onclick="() => OpenNodeAsync(node)">
+                                @node.Name
+                            </button>
                         }
                         @if (node.Tags.Count > 0)
                         {
@@ -289,9 +321,9 @@ else
     @if (IsShowPreview && PreviewNode is not null)
     {
         <FilePreview
-            Node="PreviewNode"
+            Node="@PreviewNode"
             AllNodes="SortedNodes"
-            ApiBaseUrl="ApiBaseUrl"
+            ApiBaseUrl="@ApiBaseUrl"
             OnClose="HidePreview"
             OnShare="HandlePreviewShare"
             OnDownload="HandlePreviewDownload" />
@@ -301,10 +333,10 @@ else
     {
         <div class="document-editor-overlay">
             <DocumentEditor
-                FileId="EditorNode.Id"
-                FileName="EditorNode.Name"
-                UserId="UserId"
-                ApiBaseUrl="ApiBaseUrl"
+                FileId="@EditorNode.Id"
+                FileName="@EditorNode.Name"
+                UserId="@UserId"
+                ApiBaseUrl="@ApiBaseUrl"
                 OnClose="HideDocumentEditor"
                 OnDownload="HideDocumentEditor" />
         </div>

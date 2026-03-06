@@ -2508,6 +2508,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Deliverables:**
 - ✓ Create FilesController (CRUD, tree navigation, search, favorites, recent, upload, download, chunk manifest, shared-with-me, public links)
+- ✓ Core-server Files route exposure hardening — added `src/Core/DotNetCloud.Core.Server/Controllers/FilesController.cs` and `FilesControllerBase.cs` so `/api/v1/files/*` resolves in bare-metal single-process installs
 - ✓ Create VersionController (list, get by number, restore, delete, label)
 - ✓ Create ShareController (list, create, update, delete)
 - ✓ Create TrashController (list, restore, permanent delete, empty, size)
@@ -2526,7 +2527,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Dependencies:** phase-1.3
 **Blocking Issues:** None
-**Notes:** All 47 endpoints implemented under /api/v1/files/ namespace. Controllers refactored from direct DbContext to service layer via FilesControllerBase. PATCH methods changed to PUT per spec. Caller identity is now claim-bound in `FilesControllerBase` (query `userId` must match authenticated principal) to prevent cross-user impersonation. Files module test suite passes (476 tests).
+**Notes:** All 47 endpoints implemented under /api/v1/files/ namespace. Controllers refactored from direct DbContext to service layer via FilesControllerBase. PATCH methods changed to PUT per spec. Caller identity is now claim-bound in `FilesControllerBase` (query `userId` must match authenticated principal) to prevent cross-user impersonation. Runtime hardening now exposes `/api/v1/files/*` directly from the core server for bare-metal installs (endpoint now returns auth-gated responses instead of 404 when unauthenticated). Files module test suite passes (476 tests).
 
 ---
 
@@ -2667,22 +2668,36 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `CollaboraDiscoveryService` — XML discovery parsing, cached results, editor URL construction, extension support queries
 - ✓ `CollaboraHealthCheck` — IHealthCheck implementation checking Collabora availability
 - ✓ `WopiController` — rewritten with token-validated WOPI endpoints, token generation endpoint, discovery endpoints
+- ✓ Core-server WOPI route exposure hardening — added `src/Core/DotNetCloud.Core.Server/Controllers/WopiController.cs` so `/api/v1/wopi/*` resolves in bare-metal single-process installs
 - ✓ Service registration in `FilesServiceRegistration` — all WOPI/Collabora services, HttpClient("Collabora"), health check
 - ✓ `DocumentEditor.razor` + `.razor.cs` — Blazor component with iframe embedding, loading/error states, co-editing indicators, supported format detection
 - ✓ 34 unit tests — `WopiTokenServiceTests` (11), `WopiServiceTests` (14), `CollaboraDiscoveryServiceTests` (10) — all passing
 - ✓ WOPI proof key validation — `IWopiProofKeyValidator` / `WopiProofKeyValidator` with RSA-SHA256 using `X-WOPI-Proof` headers; supports current-key, old-key, and rotation; 10 tests
 - ✓ Max concurrent sessions — `IWopiSessionTracker` / `WopiSessionTracker` singleton; `TryBeginSession` / `HeartbeatSession` / `EndSession`; 9 tests; `DELETE /api/v1/wopi/token/{fileId}` session-close endpoint
 - ✓ Supported file format configuration — `CollaboraOptions.SupportedMimeTypes` filters `IsSupportedExtensionAsync`
-- ✓ Open supported documents from file browser — `FileBrowser` double-click invokes `DocumentEditor` for supported extensions; `ApiBaseUrl`/`UserId` parameters added
+- ✓ Open supported documents from file browser — `FileBrowser` single-click actions invoke `DocumentEditor`/open handlers for supported extensions; `ApiBaseUrl`/`UserId` parameters added
+- ✓ Collabora-availability-aware editor opening — `FileBrowser` now reads discovery actions and only opens `DocumentEditor` when Collabora is reachable and the extension is supported
+- ✓ Create new Collabora-supported files from file browser — "New Document" flow creates zero-byte file nodes via `IChunkedUploadService` and opens the editor
+- ✓ New Document fallback visibility — when Collabora is configured but discovery is temporarily unavailable, FileBrowser keeps New Document visible using a safe default extension list
 - ✓ `DocumentEditor.razor.cs` real HTTP integration — `LoadEditorAsync` calls `POST /api/v1/wopi/token/{fileId}` via injected `HttpClient`; `CloseEditorAsync` calls `DELETE` to release session
+- ✓ DocumentEditor API path hardening — token/session calls now normalize to root `/api/v1/wopi/*` even when `ApiBaseUrl` is route-based (prevents false HTTP 404 from `/apps/files/api/...`)
+- ✓ WOPI token user identity hardening — `DocumentEditor` now resolves `UserId` from auth claims when parameter binding is empty, and core `WopiController` returns 401 for unresolved identity instead of throwing 500
+- ✓ WOPI token transport hardening — `WopiTokenService` now uses Base64Url encoding for token payload/signature and accepts legacy Base64 on validation to avoid query-string decoding breakage (`+`/`/`) in Collabora callbacks
+- ✓ WOPI fallback-signing hardening — when `TokenSigningKey` is not configured, `WopiTokenService` now uses a process-stable ephemeral key (instead of per-instance random keys), preventing signature mismatches between token generation and callback validation
+- ✓ WOPI proof timestamp compatibility — `WopiProofKeyValidator` now accepts FILETIME, DateTime ticks, and Unix timestamp formats for age validation before signature verification
+- ✓ WOPI proof-key format compatibility — when `proof-key value` is not importable as SubjectPublicKeyInfo, validator now falls back to discovery `modulus` + `exponent` RSA parameters for signature verification
+- ✓ Collabora discovery URL normalization — `CollaboraDiscoveryService` rewrites `urlsrc` host/scheme to configured `Files:Collabora:ServerUrl` so returned `editorUrl` is client-reachable
+- ✓ Editor parameter-binding hardening — `FileBrowser.razor` now passes `FileName`/`ApiBaseUrl` as bound expressions (not string literals), fixing literal `EditorNode.Name` rendering and incorrect API base propagation
+- ✓ Collabora iframe CSP allowance — core pipeline now augments `Content-Security-Policy` with configured `Files:Collabora:ServerUrl` origin in `frame-src`/`child-src` so embedded editor loads
 - ✓ Collabora CODE download/auto-installation — `CollaboraInstallCommand` (`dotnetcloud install collabora`); cross-platform download+extract with progress; setup wizard step 9
+- ✓ Linux installer alignment — `tools/install.sh` now reads persisted `collaboraMode` (camelCase) and auto-runs Collabora CODE package installation when `BuiltIn` is selected during setup
 - ✓ Collabora process management — `ICollaboraProcessManager` / `CollaboraProcessManager` BackgroundService; start/stop/health monitor; exponential backoff restart; `UseBuiltInCollabora`/`CollaboraInstallDirectory`/`CollaboraExecutablePath` added to `CollaboraOptions` and `CliConfig`
 - ✓ TLS/URL routing for Collabora — `GenerateNginxConfigWithCollabora` and `GenerateApacheConfigWithCollabora` in `ReverseProxyTemplates`; full location blocks for `/browser`, `/hosting/discovery`, `/cool/` WebSocket paths
 - ✓ Admin UI for Collabora configuration — `/admin/collabora` Blazor page; Collabora health badge; all `CollaboraOptions` fields editable; proxy config snippet generator (nginx / Apache)
 
 **Dependencies:** phase-1.3 (services), phase-1.5 (chunking)
 **Blocking Issues:** None
-**Notes:** Phase 1.10 fully complete. WOPI protocol with RSA-SHA256 proof key validation, session tracking, MIME filtering, full Blazor integration. Collabora process management (BackgroundService), CLI install command (`dotnetcloud install collabora`), setup wizard step 9, reverse proxy templates (nginx/Apache with Collabora location blocks), and `/admin/collabora` admin UI. 450 total Files tests pass.
+**Notes:** Phase 1.10 fully complete. WOPI protocol with RSA-SHA256 proof key validation, session tracking, MIME filtering, and full Blazor integration. Added stricter token generation behavior so editor tokens are only issued when Collabora is enabled, reachable, and the file extension is supported. Added FileBrowser "New Document" creation for Collabora-supported formats, dynamic discovery-driven editor availability checks, and fallback New Document visibility when Collabora is configured but discovery is temporarily unavailable. Installer flow now correctly auto-installs built-in Collabora when setup saves `collaboraMode: BuiltIn` (camelCase config). Runtime hardening now exposes `/api/v1/wopi/*` directly from the core server for bare-metal installs and excludes `/api/v1/wopi/files/*` from response-envelope wrapping to preserve WOPI protocol payload shape for Collabora. Additional runtime fixes prevent false editor-open 404s by normalizing DocumentEditor API calls to root paths and normalizing discovery `urlsrc` to the configured Collabora server host/scheme. Latest hotfix hardens user identity propagation for token/session calls by resolving `UserId` from authenticated claims when UI parameter wiring is empty and by returning a clean 401 from `WopiController` when identity cannot be resolved, eliminating the prior `UserId cannot be empty` HTTP 500 path. Editor usability hardening now fixes Razor string parameter binding for `DocumentEditor` launch values and applies a full-screen modal layout for the editor panel. Security-header hardening now allows the configured Collabora origin in CSP `frame-src`/`child-src`, unblocking iframe rendering in `/apps/files`. Final token hardening now uses Base64Url-safe transport plus a process-stable fallback signing key when `TokenSigningKey` is unset, eliminating callback-time token parsing/signature mismatch failure modes during Collabora `CheckFileInfo`. Proof-key hardening now accepts multiple valid timestamp encodings (FILETIME, DateTime ticks, Unix) and falls back to modulus/exponent verification when SPKI `proof-key value` import fails, preventing false signature failures while retaining strict RSA verification. Collabora process management (BackgroundService), CLI install command (`dotnetcloud install collabora`), setup wizard step 9, reverse proxy templates (nginx/Apache with Collabora location blocks), and `/admin/collabora` admin UI remain complete.
 
 ---
 
@@ -2722,6 +2737,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `FileBrowser.razor` / `.razor.cs` — column sort headers in list view
   - ✓ Sort by Name, Type, Size, Date (column header click)
   - ✓ `SortedNodes` computed property (folders always first); sort direction toggle
+  - ✓ One-click-only interaction model: open actions moved to explicit single-click controls; no double-click dependency
   - ✓ Loading skeleton (8 skeleton rows while `IsLoading`)
   - ✓ Empty state: "No files yet — upload or create a folder" with inline action buttons
 - ✓ `TrashBin.razor` / `.razor.cs` — enhanced trash bin
@@ -2746,7 +2762,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Dependencies:** phase-1.9 (QuotaProgressBar code-behind), phase-1.10 (DocumentEditor)
 **Blocking Issues:** None
-**Notes:** All 8 component groups complete. Build: zero errors, zero warnings. No new tests required (UI-only components, no business logic). Components use the established pattern: `#pragma warning disable CS0649` for fields populated by future API integration, EventCallback parameters for host-page wiring, and `protected` property accessors following the existing FileBrowser/TrashBin pattern.
+**Notes:** All 8 component groups complete. Build: zero errors, zero warnings. No new tests required (UI-only components, no business logic). Components use the established pattern: `#pragma warning disable CS0649` for fields populated by future API integration, EventCallback parameters for host-page wiring, and `protected` property accessors following the existing FileBrowser/TrashBin pattern. File interactions now follow a one-click-only model (double-click handlers removed from Files UI).
 
 ### Step: phase-1.12 - File Upload & Preview UI
 **Status:** completed ✅ (12/17 tasks; 5 deferred)

@@ -99,8 +99,14 @@ public sealed record CollaboraDiscoveryResult
     /// <summary>The Collabora proof key modulus (legacy; prefer <see cref="ProofKeyValue"/>).</summary>
     public string? ProofKey { get; init; }
 
+    /// <summary>The Collabora proof key exponent paired with <see cref="ProofKey"/>.</summary>
+    public string? ProofKeyExponent { get; init; }
+
     /// <summary>The Collabora old proof key modulus (legacy; prefer <see cref="OldProofKeyValue"/>).</summary>
     public string? OldProofKey { get; init; }
+
+    /// <summary>The Collabora old proof key exponent paired with <see cref="OldProofKey"/>.</summary>
+    public string? OldProofKeyExponent { get; init; }
 
     /// <summary>
     /// The Collabora current proof key as Base64-encoded SubjectPublicKeyInfo DER bytes.

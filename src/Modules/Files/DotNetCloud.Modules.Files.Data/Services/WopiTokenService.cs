@@ -6,6 +6,7 @@ using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -18,6 +19,8 @@ namespace DotNetCloud.Modules.Files.Data.Services;
 /// </summary>
 internal sealed class WopiTokenService : IWopiTokenService
 {
+    private static readonly byte[] EphemeralProcessSigningKey = RandomNumberGenerator.GetBytes(32);
+
     private readonly FilesDbContext _db;
     private readonly IPermissionService _permissionService;
     private readonly ICollaboraDiscoveryService _discoveryService;
@@ -45,6 +48,12 @@ internal sealed class WopiTokenService : IWopiTokenService
     {
         ArgumentNullException.ThrowIfNull(caller);
 
+        if (!_options.Enabled)
+            throw new Core.Errors.InvalidOperationException("Collabora integration is disabled.");
+
+        if (!await _discoveryService.IsAvailableAsync(cancellationToken))
+            throw new Core.Errors.InvalidOperationException("Collabora is not available.");
+
         var node = await _db.FileNodes
             .AsNoTracking()
             .FirstOrDefaultAsync(n => n.Id == fileId && !n.IsDeleted, cancellationToken);
@@ -66,7 +75,14 @@ internal sealed class WopiTokenService : IWopiTokenService
         var token = CreateSignedToken(payload);
 
         var extension = Path.GetExtension(node.Name)?.TrimStart('.') ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(extension) || !await _discoveryService.IsSupportedExtensionAsync(extension, cancellationToken))
+            throw new Core.Errors.InvalidOperationException($"File type '.{extension}' is not supported by Collabora.");
+
         var editorUrlTemplate = await _discoveryService.GetEditorUrlAsync(extension, canWrite ? "edit" : "view", cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(editorUrlTemplate))
+            throw new Core.Errors.InvalidOperationException($"No Collabora editor action is available for '.{extension}'.");
 
         var wopiSrc = BuildWopiSrc(fileId);
         var editorUrl = BuildEditorUrl(editorUrlTemplate, wopiSrc, token, expiresAt);
@@ -95,8 +111,8 @@ internal sealed class WopiTokenService : IWopiTokenService
             if (parts.Length != 2)
                 return null;
 
-            var payloadBytes = Convert.FromBase64String(parts[0]);
-            var signatureBytes = Convert.FromBase64String(parts[1]);
+            var payloadBytes = DecodeTokenPart(parts[0]);
+            var signatureBytes = DecodeTokenPart(parts[1]);
 
             // Verify signature
             using var hmac = new HMACSHA256(_signingKey);
@@ -147,7 +163,20 @@ internal sealed class WopiTokenService : IWopiTokenService
         using var hmac = new HMACSHA256(_signingKey);
         var signature = hmac.ComputeHash(payloadBytes);
 
-        return $"{Convert.ToBase64String(payloadBytes)}.{Convert.ToBase64String(signature)}";
+        return $"{WebEncoders.Base64UrlEncode(payloadBytes)}.{WebEncoders.Base64UrlEncode(signature)}";
+    }
+
+    private static byte[] DecodeTokenPart(string value)
+    {
+        // Accept Base64Url (current) and standard Base64 (legacy tokens) for compatibility.
+        try
+        {
+            return WebEncoders.Base64UrlDecode(value);
+        }
+        catch (FormatException)
+        {
+            return Convert.FromBase64String(value);
+        }
     }
 
     private string BuildWopiSrc(Guid fileId)
@@ -183,8 +212,9 @@ internal sealed class WopiTokenService : IWopiTokenService
         if (!string.IsNullOrWhiteSpace(configuredKey) && configuredKey.Length >= 32)
             return SHA256.HashData(Encoding.UTF8.GetBytes(configuredKey));
 
-        // Generate a random key if not configured (ephemeral — tokens won't survive restarts)
-        return RandomNumberGenerator.GetBytes(32);
+        // Use a process-stable random key if not configured (tokens won't survive restarts,
+        // but they remain valid across requests during the current process lifetime).
+        return EphemeralProcessSigningKey;
     }
 
     /// <summary>

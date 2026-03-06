@@ -13,7 +13,7 @@ namespace DotNetCloud.CLI.Commands;
 /// </summary>
 internal static class CollaboraInstallCommand
 {
-    private const string AptKeyUrl = "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x0C54D189F4BA284D";
+    private const string AptKeyUrl = "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xD8915E456E7C440E";
     private const string AptKeyringPath = "/usr/share/keyrings/collaboraonline-release-keyring.gpg";
     private const string AptSourcePath = "/etc/apt/sources.list.d/collaboraonline.sources";
 

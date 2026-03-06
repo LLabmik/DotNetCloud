@@ -1,5 +1,7 @@
 using System.Net.Http.Json;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 
 namespace DotNetCloud.Modules.Files.UI;
 
@@ -29,6 +31,9 @@ public partial class DocumentEditor : ComponentBase
 
     /// <summary>Injected HttpClient for calling the WOPI token endpoint.</summary>
     [Inject] private HttpClient Http { get; set; } = default!;
+
+    /// <summary>Injected authentication state provider for resolving current user identity.</summary>
+    [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
 
     /// <summary>The editor iframe URL (set after successful token generation).</summary>
     protected string? EditorUrl { get; set; }
@@ -63,7 +68,8 @@ public partial class DocumentEditor : ComponentBase
 
         try
         {
-            var tokenEndpoint = $"{ApiBaseUrl.TrimEnd('/')}/api/v1/wopi/token/{FileId}?userId={UserId}";
+            var effectiveUserId = await ResolveEffectiveUserIdAsync();
+            var tokenEndpoint = BuildApiEndpoint($"/api/v1/wopi/token/{FileId}?userId={effectiveUserId}");
             var response = await Http.PostAsync(tokenEndpoint, content: null);
 
             if (!response.IsSuccessStatusCode)
@@ -116,12 +122,12 @@ public partial class DocumentEditor : ComponentBase
     /// </summary>
     protected async Task CloseEditorAsync()
     {
-        if (!string.IsNullOrEmpty(ApiBaseUrl) && FileId != Guid.Empty && UserId != Guid.Empty)
+        if (!string.IsNullOrEmpty(ApiBaseUrl) && FileId != Guid.Empty)
         {
             try
             {
-                await Http.DeleteAsync(
-                    $"{ApiBaseUrl.TrimEnd('/')}/api/v1/wopi/token/{FileId}?userId={UserId}");
+                var effectiveUserId = await ResolveEffectiveUserIdAsync();
+                await Http.DeleteAsync(BuildApiEndpoint($"/api/v1/wopi/token/{FileId}?userId={effectiveUserId}"));
             }
             catch (HttpRequestException)
             {
@@ -171,5 +177,28 @@ public partial class DocumentEditor : ComponentBase
         public string? AccessToken { get; set; }
         public long AccessTokenTtl { get; set; }
         public string? WopiSrc { get; set; }
+    }
+
+    private string BuildApiEndpoint(string relativePath)
+    {
+        // ApiBaseUrl may arrive as an app route (e.g., /apps/files). When that happens,
+        // force API calls to the host root to avoid false 404s.
+        if (Uri.TryCreate(ApiBaseUrl, UriKind.Absolute, out var absolute))
+            return $"{absolute.Scheme}://{absolute.Authority}{relativePath}";
+
+        return relativePath;
+    }
+
+    private async Task<Guid> ResolveEffectiveUserIdAsync()
+    {
+        if (UserId != Guid.Empty)
+            return UserId;
+
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var principal = authState.User;
+        var claim = principal.FindFirstValue(ClaimTypes.NameIdentifier)
+                   ?? principal.FindFirstValue("sub");
+
+        return Guid.TryParse(claim, out var parsed) ? parsed : Guid.Empty;
     }
 }

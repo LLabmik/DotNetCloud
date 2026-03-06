@@ -220,6 +220,41 @@ public class ChunkedUploadServiceTests
     }
 
     [TestMethod]
+    public async Task CompleteUploadAsync_ZeroByteManifest_CreatesEmptyFile()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+
+        var session = new ChunkedUploadSession
+        {
+            FileName = "empty.docx",
+            TotalSize = 0,
+            MimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            TotalChunks = 0,
+            ReceivedChunks = 0,
+            ChunkManifest = "[]",
+            UserId = userId,
+            Status = UploadSessionStatus.InProgress
+        };
+        db.UploadSessions.Add(session);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.CompleteUploadAsync(session.Id, UserCaller(userId));
+
+        Assert.AreEqual("empty.docx", result.Name);
+        Assert.AreEqual(0, result.Size);
+        Assert.AreEqual("application/vnd.openxmlformats-officedocument.wordprocessingml.document", result.MimeType);
+
+        var version = await db.FileVersions.FirstOrDefaultAsync(v => v.FileNodeId == result.Id);
+        Assert.IsNotNull(version);
+        Assert.AreEqual(0, version.Size);
+
+        var versionChunkCount = await db.FileVersionChunks.CountAsync(vc => vc.FileVersionId == version!.Id);
+        Assert.AreEqual(0, versionChunkCount);
+    }
+
+    [TestMethod]
     public async Task GetSessionAsync_WrongUser_ReturnsNull()
     {
         using var db = CreateContext();
