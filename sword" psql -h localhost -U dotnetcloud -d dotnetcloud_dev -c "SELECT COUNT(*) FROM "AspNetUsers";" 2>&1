@@ -1,4 +1,0 @@
- Id | DisplayName | AvatarUrl | Locale | Timezone | CreatedAt | LastLoginAt | IsActive | UserName | NormalizedUserName | Email | NormalizedEmail | EmailConfirmed | PasswordHash | SecurityStamp | ConcurrencyStamp | PhoneNumber | PhoneNumberConfirmed | TwoFactorEnabled | LockoutEnd | LockoutEnabled | AccessFailedCount 
-----+-------------+-----------+--------+----------+-----------+-------------+----------+----------+--------------------+-------+-----------------+----------------+--------------+---------------+------------------+-------------+----------------------+------------------+------------+----------------+-------------------
-(0 rows)
-

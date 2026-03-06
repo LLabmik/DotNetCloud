@@ -10,6 +10,7 @@ namespace DotNetCloud.Integration.Tests.Api;
 /// Integration tests for the authentication API endpoints (<c>/api/v1/core/auth/*</c>).
 /// </summary>
 [TestClass]
+[TestCategory("Integration")]
 public class AuthEndpointTests
 {
     private static DotNetCloudWebApplicationFactory _factory = null!;
