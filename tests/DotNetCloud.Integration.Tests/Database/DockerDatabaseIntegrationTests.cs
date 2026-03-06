@@ -20,6 +20,7 @@ namespace DotNetCloud.Integration.Tests.Database;
 /// MariaDB is intentionally excluded — Pomelo does not yet support .NET 10.
 /// </remarks>
 [TestClass]
+[TestCategory("Integration")]
 [TestCategory("Docker")]
 public class DockerDatabaseIntegrationTests
 {

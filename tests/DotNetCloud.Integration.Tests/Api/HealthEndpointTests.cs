@@ -7,6 +7,7 @@ namespace DotNetCloud.Integration.Tests.Api;
 /// Integration tests for health check endpoints.
 /// </summary>
 [TestClass]
+[TestCategory("Integration")]
 public class HealthEndpointTests
 {
     private static DotNetCloudWebApplicationFactory _factory = null!;

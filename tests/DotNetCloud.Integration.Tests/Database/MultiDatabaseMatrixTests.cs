@@ -14,6 +14,7 @@ namespace DotNetCloud.Integration.Tests.Database;
 /// using in-memory databases with different naming strategies.
 /// </summary>
 [TestClass]
+[TestCategory("Integration")]
 public class MultiDatabaseMatrixTests
 {
     private static ITableNamingStrategy[] AllStrategies =>
