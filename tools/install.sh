@@ -516,9 +516,9 @@ COLEOF
         ok "Collabora CODE upgraded: v${BEFORE_VERSION} → v${AFTER_VERSION}"
     fi
 
-    # Disable the default systemd service — DotNetCloud's process supervisor manages Collabora
-    $SUDO systemctl stop coolwsd 2>/dev/null || true
-    $SUDO systemctl disable coolwsd 2>/dev/null || true
+    # Keep coolwsd managed by systemd so it auto-starts after host reboots.
+    $SUDO systemctl enable coolwsd 2>/dev/null || true
+    $SUDO systemctl start coolwsd 2>/dev/null || true
 }
 
 # --- Check config for Collabora and install/upgrade if requested ---

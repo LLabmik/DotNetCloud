@@ -23,14 +23,18 @@
             <div class="file-upload-dropzone @(IsDragging ? "dragging" : "")"
                  @ondragenter="HandleDragEnter"
                  @ondragleave="HandleDragLeave"
-                 @ondragover:preventDefault>
+                  @ondragover:preventDefault
+                  @ondrop:preventDefault>
+                <InputFile class="file-upload-input-overlay"
+                           OnChange="HandleFileSelected"
+                           multiple
+                           aria-label="Drop files or click to browse" />
                 <span class="dropzone-icon" aria-hidden="true">⤴</span>
                 <p>Drag and drop files here</p>
                 <p class="text-muted">or</p>
-                <label class="btn btn-primary btn-sm">
+                <span class="btn btn-primary btn-sm" role="button" aria-hidden="true">
                     Browse Files
-                    <InputFile OnChange="HandleFileSelected" multiple style="display:none;" />
-                </label>
+                </span>
                 <p class="text-muted text-xs">Hold Shift or Ctrl to select multiple files</p>
             </div>
         }

@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 
@@ -74,7 +75,10 @@ public partial class DocumentEditor : ComponentBase
 
             if (!response.IsSuccessStatusCode)
             {
-                ErrorMessage = $"Could not open the document editor (HTTP {(int)response.StatusCode}).";
+                var apiErrorMessage = await TryReadApiErrorMessageAsync(response);
+                ErrorMessage = string.IsNullOrWhiteSpace(apiErrorMessage)
+                    ? $"Could not open the document editor (HTTP {(int)response.StatusCode})."
+                    : apiErrorMessage;
                 return;
             }
 
@@ -200,5 +204,36 @@ public partial class DocumentEditor : ComponentBase
                    ?? principal.FindFirstValue("sub");
 
         return Guid.TryParse(claim, out var parsed) ? parsed : Guid.Empty;
+    }
+
+    private static async Task<string?> TryReadApiErrorMessageAsync(HttpResponseMessage response)
+    {
+        try
+        {
+            var payload = await response.Content.ReadAsStringAsync();
+            if (string.IsNullOrWhiteSpace(payload))
+                return null;
+
+            var envelope = JsonSerializer.Deserialize<ApiErrorEnvelope>(payload, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            return envelope?.Error?.Message;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private sealed class ApiErrorEnvelope
+    {
+        public ApiErrorDetails? Error { get; set; }
+    }
+
+    private sealed class ApiErrorDetails
+    {
+        public string? Message { get; set; }
     }
 }

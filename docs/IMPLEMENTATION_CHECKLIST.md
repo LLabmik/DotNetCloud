@@ -2534,7 +2534,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ☐ WOPI endpoints respond correctly (CheckFileInfo, GetFile, PutFile)
 - ☐ File browser Blazor UI supports grid/list view, navigation, upload, and sharing
 - ☐ File preview works for images, video, audio, PDF, text/code, and Markdown
-- ☐ Drag-and-drop upload works in file browser
+- ✓ Drag-and-drop upload works in file browser
 - ☐ Tags can be added, removed, and filtered
 - ☐ Comments can be added, edited, deleted, and threaded
 - ☐ Bulk operations (move, copy, delete) work via REST API

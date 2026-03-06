@@ -29,10 +29,14 @@ public partial class FileUploadComponent : ComponentBase
     /// <summary>Invoked when the user cancels or closes the dialog.</summary>
     [Parameter] public EventCallback OnCancel { get; set; }
 
+    /// <summary>Files dropped from the browser-level drop target before opening this dialog.</summary>
+    [Parameter] public IReadOnlyList<IBrowserFile>? InitialFiles { get; set; }
+
     private readonly List<UploadFileItem> _files = [];
     private bool _isDragging;
     private bool _isUploading;
     private string? _errorMessage;
+    private readonly HashSet<string> _initialFileKeys = [];
 
     /// <summary>Files queued or currently being uploaded.</summary>
     protected IReadOnlyList<UploadFileItem> Files => _files;
@@ -44,6 +48,11 @@ public partial class FileUploadComponent : ComponentBase
     protected bool IsUploading => _isUploading;
     protected string? ErrorMessage => _errorMessage;
 
+    protected override void OnParametersSet()
+    {
+        MergeInitialFiles();
+    }
+
     /// <summary>Sets the dragging state on drag enter.</summary>
     protected void HandleDragEnter() => _isDragging = true;
 
@@ -54,16 +63,7 @@ public partial class FileUploadComponent : ComponentBase
     protected void HandleFileSelected(InputFileChangeEventArgs e)
     {
         _isDragging = false;
-        foreach (var file in e.GetMultipleFiles(100))
-        {
-            _files.Add(new UploadFileItem
-            {
-                Name = file.Name,
-                Size = file.Size,
-                ContentType = file.ContentType,
-                BrowserFile = file
-            });
-        }
+        AddFiles(e.GetMultipleFiles(100));
     }
 
     /// <summary>Removes a single pending file from the queue.</summary>
@@ -255,4 +255,44 @@ public partial class FileUploadComponent : ComponentBase
         var roles = user.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
         return new CallerContext(userId, roles, CallerType.User);
     }
+
+    private void MergeInitialFiles()
+    {
+        if (InitialFiles is null || InitialFiles.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var file in InitialFiles)
+        {
+            var key = GetFileKey(file);
+            if (_initialFileKeys.Add(key))
+            {
+                _files.Add(new UploadFileItem
+                {
+                    Name = file.Name,
+                    Size = file.Size,
+                    ContentType = file.ContentType,
+                    BrowserFile = file
+                });
+            }
+        }
+    }
+
+    private void AddFiles(IReadOnlyList<IBrowserFile> files)
+    {
+        foreach (var file in files)
+        {
+            _files.Add(new UploadFileItem
+            {
+                Name = file.Name,
+                Size = file.Size,
+                ContentType = file.ContentType,
+                BrowserFile = file
+            });
+        }
+    }
+
+    private static string GetFileKey(IBrowserFile file) =>
+        $"{file.Name}|{file.Size}|{file.LastModified.UtcDateTime.Ticks}";
 }

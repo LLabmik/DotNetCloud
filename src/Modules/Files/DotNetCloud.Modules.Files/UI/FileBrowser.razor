@@ -79,12 +79,17 @@ else
      @ondragenter="HandleBrowserDragEnter"
      @ondragleave="HandleBrowserDragLeave"
      @ondragover:preventDefault
-     @ondrop="HandleBrowserDrop">
+    @ondrop="HandleBrowserDrop"
+    @ondrop:preventDefault>
 
     @* Drop overlay shown when dragging files over the browser *@
     @if (IsBrowserDragging)
     {
         <div class="browser-drop-overlay" aria-label="Drop files to upload">
+            <InputFile class="browser-drop-input"
+                       OnChange="HandleBrowserFileDrop"
+                       multiple
+                       aria-label="Drop files to upload" />
             <div class="browser-drop-message">
                 <span class="browser-drop-icon" aria-hidden="true">⤴</span>
                 <p>Drop files to upload to this folder</p>
@@ -146,6 +151,7 @@ else
     {
         <FileUploadComponent
             ParentId="CurrentFolderId"
+            InitialFiles="DroppedFiles"
             OnUploadComplete="HandleUploadComplete"
             OnCancel="HideUploadDialog" />
     }

@@ -2805,7 +2805,8 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `FileBrowser.razor` + `.razor.cs` — browser-level drag zone + thumbnail display
   - ✓ Drag-and-drop zone over entire browser (counter-based to avoid child-element flicker)
   - ✓ `browser-drop-overlay` shown when dragging files over browser
-  - ✓ Drop opens upload dialog (`ShowUploadDialog`)
+  - ✓ Drop captures files and pre-populates upload queue (browser overlay `InputFile` + `InitialFiles`)
+  - ✓ Browser default drop navigation blocked (`@ondrop:preventDefault`) so dropped files are not opened in-tab
   - ✓ Grid view shows `<img src="@node.ThumbnailUrl">` when thumbnail URL is set
   - ✓ Passes `SortedNodes` as `AllNodes` to `FilePreview` for in-folder navigation
   - ✓ `OnShare` + `OnDownload` callbacks wired from `FilePreview`
@@ -2828,7 +2829,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Dependencies:** phase-1.11 (UI components), phase-1.3 (IChunkedUploadService interface)
 **Blocking Issues:** None
-**Notes:** Build: zero errors, zero warnings (full solution). 5 items deferred: folder drag-and-drop (JS DataTransfer), video thumbnail, PDF thumbnail, thumbnail API endpoint, and touch gestures. All deferred items have interface stubs or code comments in place for future wiring.
+**Notes:** Build: zero errors, zero warnings (full solution). Drag-and-drop regression fixed so dropping a file in the browser no longer triggers browser file-open navigation and now pre-populates the upload queue in the dialog. 5 items deferred: folder drag-and-drop (JS DataTransfer), video thumbnail, PDF thumbnail, thumbnail API endpoint, and touch gestures. All deferred items have interface stubs or code comments in place for future wiring.
 
 ---
 

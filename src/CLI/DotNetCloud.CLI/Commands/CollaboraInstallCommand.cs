@@ -139,9 +139,9 @@ internal static class CollaboraInstallCommand
                 ConsoleOutput.WriteSuccess($"Collabora CODE upgraded: v{beforeVersion} → v{afterVersion}");
             }
 
-            // Disable the default systemd service (DotNetCloud manages it via process supervisor)
-            await RunProcessAsync("systemctl", ["stop", "coolwsd"], ct);
-            await RunProcessAsync("systemctl", ["disable", "coolwsd"], ct);
+            // Keep the OS service enabled so Collabora auto-starts after host reboots.
+            await RunProcessAsync("systemctl", ["enable", "coolwsd"], ct);
+            await RunProcessAsync("systemctl", ["start", "coolwsd"], ct);
 
             // Persist the mode in config
             var config = CliConfiguration.Load();

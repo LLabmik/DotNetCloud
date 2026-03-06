@@ -543,11 +543,55 @@ textarea.input { resize: vertical; min-height: 60px; }
 }
 
 .files-browser {
+    position: relative;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: 10px;
     padding: 16px;
     box-shadow: var(--shadow-sm);
+}
+
+.files-browser--drag-over {
+    border-color: var(--color-primary);
+}
+
+.browser-drop-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    border: 2px dashed var(--color-primary);
+    background: rgba(239, 246, 255, 0.92);
+}
+
+.browser-drop-message {
+    text-align: center;
+    pointer-events: none;
+}
+
+.browser-drop-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    margin-bottom: 8px;
+    border-radius: 50%;
+    background: #dbeafe;
+    color: var(--color-primary);
+    font-size: 22px;
+}
+
+.browser-drop-input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: copy;
 }
 
 .files-header {
@@ -692,6 +736,8 @@ textarea.input { resize: vertical; min-height: 60px; }
 }
 
 .file-upload-dropzone {
+    position: relative;
+    overflow: hidden;
     border: 2px dashed var(--color-border);
     border-radius: 10px;
     padding: 18px;
@@ -703,6 +749,22 @@ textarea.input { resize: vertical; min-height: 60px; }
 .file-upload-dropzone.dragging {
     border-color: var(--color-primary);
     background: #eff6ff;
+}
+
+.file-upload-input-overlay {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    z-index: 2;
+}
+
+.file-upload-dropzone > *:not(.file-upload-input-overlay) {
+    position: relative;
+    z-index: 1;
+    pointer-events: none;
 }
 
 .dropzone-icon {

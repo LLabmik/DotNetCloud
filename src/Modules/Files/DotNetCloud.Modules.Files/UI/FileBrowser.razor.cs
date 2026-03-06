@@ -6,6 +6,7 @@ using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.Options;
 
 namespace DotNetCloud.Modules.Files.UI;
@@ -104,6 +105,7 @@ public partial class FileBrowser : ComponentBase
 
     // Drag-and-drop: use a counter to handle bubbling (child elements fire enter/leave too).
     private int _dragEnterCount;
+    private List<IBrowserFile> _droppedFiles = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -163,6 +165,7 @@ public partial class FileBrowser : ComponentBase
 
     /// <summary>True while the user is dragging files over the browser area.</summary>
     protected bool IsBrowserDragging => _dragEnterCount > 0;
+    protected IReadOnlyList<IBrowserFile> DroppedFiles => _droppedFiles;
 
     /// <summary>Updates the quota display with fresh data from the API.</summary>
     protected void UpdateQuota(long usedBytes, long maxBytes, double usagePercent)
@@ -267,7 +270,11 @@ public partial class FileBrowser : ComponentBase
     }
 
     protected void ShowUploadDialog() => _showUploadDialog = true;
-    protected void HideUploadDialog() => _showUploadDialog = false;
+    protected void HideUploadDialog()
+    {
+        _showUploadDialog = false;
+        _droppedFiles.Clear();
+    }
 
     protected void ShowCreateDocumentDialog()
     {
@@ -325,6 +332,7 @@ public partial class FileBrowser : ComponentBase
     protected async Task HandleUploadComplete()
     {
         _showUploadDialog = false;
+        _droppedFiles.Clear();
         await LoadCurrentFolderAsync();
     }
 
@@ -351,7 +359,23 @@ public partial class FileBrowser : ComponentBase
     protected void HandleBrowserDrop()
     {
         _dragEnterCount = 0;
-        ShowUploadDialog();
+
+        // The hidden browser-level InputFile captures dropped files.
+        // If the drop misses the input target, still open the upload dialog as fallback.
+        if (!_showUploadDialog)
+        {
+            ShowUploadDialog();
+        }
+    }
+
+    /// <summary>
+    /// Receives files dropped on the browser overlay and pre-populates the upload dialog.
+    /// </summary>
+    protected void HandleBrowserFileDrop(InputFileChangeEventArgs e)
+    {
+        _dragEnterCount = 0;
+        _droppedFiles = [.. e.GetMultipleFiles(100)];
+        _showUploadDialog = true;
     }
 
     protected async Task DeleteSelected()
