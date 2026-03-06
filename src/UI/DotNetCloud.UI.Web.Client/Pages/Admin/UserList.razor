@@ -1,5 +1,5 @@
 @page "/admin/users"
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveAutoRenderMode(prerender: false))
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveWebAssemblyRenderMode(prerender: false))
 @attribute [Authorize]
 
 <PageTitle>Users - DotNetCloud</PageTitle>
@@ -96,9 +96,9 @@ else
                 pageSize: 25,
                 search: string.IsNullOrWhiteSpace(_search) ? null : _search);
         }
-        catch
+        catch (Exception ex)
         {
-            Toast.ShowError("Failed to load users.");
+            Toast.ShowError($"Failed to load users. {ex.Message}");
         }
         finally
         {

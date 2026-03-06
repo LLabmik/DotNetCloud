@@ -131,7 +131,8 @@ public class Program
         // Add Blazor (InteractiveAuto = Server + WebAssembly)
         builder.Services.AddRazorComponents()
             .AddInteractiveServerComponents()
-            .AddInteractiveWebAssemblyComponents();
+            .AddInteractiveWebAssemblyComponents()
+            .AddAuthenticationStateSerialization();
 
         builder.Services.AddCascadingAuthenticationState();
 

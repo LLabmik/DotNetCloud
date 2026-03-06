@@ -19,6 +19,15 @@ public sealed class PermissionAuthorizationHandler
         AuthorizationHandlerContext context,
         PermissionRequirement requirement)
     {
+        // Seeded installations grant the Identity role "Administrator".
+        // Treat that role as satisfying the admin permission requirement.
+        if (string.Equals(requirement.Permission, "admin", StringComparison.OrdinalIgnoreCase) &&
+            (context.User.IsInRole("Administrator") || context.User.IsInRole("admin")))
+        {
+            context.Succeed(requirement);
+            return Task.CompletedTask;
+        }
+
         if (context.User.HasClaim(
                 c => c.Type == PermissionClaimType && c.Value == requirement.Permission))
         {

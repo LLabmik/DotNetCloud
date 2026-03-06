@@ -8,6 +8,7 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 
 builder.Services.AddAuthorizationCore();
 builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddAuthenticationStateDeserialization();
 builder.Services.AddSingleton<ToastService>();
 
 builder.Services.AddScoped(sp =>

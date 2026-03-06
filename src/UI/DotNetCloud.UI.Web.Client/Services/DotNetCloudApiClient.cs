@@ -42,24 +42,118 @@ public sealed class DotNetCloudApiClient
         response.EnsureSuccessStatusCode();
 
         var json = await response.Content.ReadAsStringAsync(ct);
+        return ParseUsersListResponse(json, page, pageSize);
+    }
 
-        // New API shape: { success, data: [...], pagination: { ... } }
-        var arrayEnvelope = JsonSerializer.Deserialize<ApiArrayEnvelope<UserDto>>(json, JsonOptions);
-        if (arrayEnvelope?.Success == true && arrayEnvelope.Data is not null &&
-            (arrayEnvelope.Pagination is not null || arrayEnvelope.Data.Count > 0))
+    private static PaginatedResult<UserDto> ParseUsersListResponse(string json, int fallbackPage, int fallbackPageSize)
+    {
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        if (!TryGetPropertyIgnoreCase(root, "data", out var dataElement))
         {
+            return new PaginatedResult<UserDto>();
+        }
+
+        JsonElement? paginationElement = null;
+
+        if (TryGetPropertyIgnoreCase(root, "pagination", out var rootPagination) && rootPagination.ValueKind == JsonValueKind.Object)
+        {
+            paginationElement = rootPagination;
+        }
+
+        // Handle nested envelopes: { success, data: { success, data, pagination } }
+        if (dataElement.ValueKind == JsonValueKind.Object && TryGetPropertyIgnoreCase(dataElement, "data", out var nestedData))
+        {
+            if (TryGetPropertyIgnoreCase(dataElement, "pagination", out var nestedPagination) && nestedPagination.ValueKind == JsonValueKind.Object)
+            {
+                paginationElement = nestedPagination;
+            }
+
+            dataElement = nestedData;
+        }
+
+        // Shape A: data is an array of users
+        if (dataElement.ValueKind == JsonValueKind.Array)
+        {
+            var users = JsonSerializer.Deserialize<IReadOnlyList<UserDto>>(dataElement.GetRawText(), JsonOptions) ?? [];
             return new PaginatedResult<UserDto>
             {
-                Items = arrayEnvelope.Data,
-                Page = arrayEnvelope.Pagination?.Page ?? page,
-                PageSize = arrayEnvelope.Pagination?.PageSize ?? pageSize,
-                TotalCount = arrayEnvelope.Pagination?.TotalCount ?? arrayEnvelope.Data.Count,
+                Items = users,
+                Page = TryGetInt(paginationElement, "page") ?? fallbackPage,
+                PageSize = TryGetInt(paginationElement, "pageSize") ?? fallbackPageSize,
+                TotalCount = TryGetInt(paginationElement, "totalCount") ?? users.Count,
             };
         }
 
-        // Backward-compatible shape: { success, data: { items, totalCount, page, pageSize } }
-        var objectEnvelope = JsonSerializer.Deserialize<ApiEnvelope<PaginatedResult<UserDto>>>(json, JsonOptions);
-        return objectEnvelope?.Data ?? new PaginatedResult<UserDto>();
+        // Shape B: data is PaginatedResult<UserDto>-like object
+        if (dataElement.ValueKind == JsonValueKind.Object)
+        {
+            if (TryGetPropertyIgnoreCase(dataElement, "items", out var itemsElement) && itemsElement.ValueKind == JsonValueKind.Array)
+            {
+                var users = JsonSerializer.Deserialize<IReadOnlyList<UserDto>>(itemsElement.GetRawText(), JsonOptions) ?? [];
+                var totalCount = TryGetInt(dataElement, "totalCount")
+                                 ?? TryGetInt(paginationElement, "totalCount")
+                                 ?? users.Count;
+                var parsedPage = TryGetInt(dataElement, "page")
+                                 ?? TryGetInt(paginationElement, "page")
+                                 ?? fallbackPage;
+                var parsedPageSize = TryGetInt(dataElement, "pageSize")
+                                     ?? TryGetInt(paginationElement, "pageSize")
+                                     ?? fallbackPageSize;
+
+                return new PaginatedResult<UserDto>
+                {
+                    Items = users,
+                    TotalCount = totalCount,
+                    Page = parsedPage,
+                    PageSize = parsedPageSize,
+                };
+            }
+        }
+
+        return new PaginatedResult<UserDto>();
+    }
+
+    private static int? TryGetInt(JsonElement? element, string propertyName)
+    {
+        if (element is null || element.Value.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        if (!TryGetPropertyIgnoreCase(element.Value, propertyName, out var valueElement))
+        {
+            return null;
+        }
+
+        if (valueElement.ValueKind == JsonValueKind.Number && valueElement.TryGetInt32(out var intValue))
+        {
+            return intValue;
+        }
+
+        return null;
+    }
+
+    private static bool TryGetPropertyIgnoreCase(JsonElement element, string propertyName, out JsonElement value)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            value = default;
+            return false;
+        }
+
+        foreach (var property in element.EnumerateObject())
+        {
+            if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
     }
 
     /// <summary>
@@ -263,20 +357,6 @@ public sealed class DotNetCloudApiClient
         public T? Data { get; set; }
     }
 
-    internal sealed class ApiArrayEnvelope<T>
-    {
-        public bool Success { get; set; }
-        public IReadOnlyList<T> Data { get; set; } = [];
-        public PaginationEnvelope? Pagination { get; set; }
-    }
-
-    internal sealed class PaginationEnvelope
-    {
-        public int Page { get; set; }
-        public int PageSize { get; set; }
-        public int TotalCount { get; set; }
-        public int TotalPages { get; set; }
-    }
 }
 
 /// <summary>

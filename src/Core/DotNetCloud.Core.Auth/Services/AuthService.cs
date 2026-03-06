@@ -138,6 +138,14 @@ public sealed class AuthService : IAuthService
             }
         }
 
+        user.LastLoginAt = DateTime.UtcNow;
+        var lastLoginUpdate = await _userManager.UpdateAsync(user);
+        if (!lastLoginUpdate.Succeeded)
+        {
+            var errors = string.Join(", ", lastLoginUpdate.Errors.Select(e => e.Description));
+            _logger.LogWarning("Could not update LastLoginAt for user {UserId}: {Errors}", user.Id, errors);
+        }
+
         _logger.LogInformation("User {UserId} authenticated successfully", user.Id);
 
         // Actual JWT token issuance happens at the HTTP endpoint layer via OpenIddict.

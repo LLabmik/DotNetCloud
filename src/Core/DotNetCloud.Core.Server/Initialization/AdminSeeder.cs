@@ -45,6 +45,33 @@ internal sealed class AdminSeeder
     /// </summary>
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
+        var email = _configuration["DotNetCloud:AdminEmail"];
+
+        // On existing installations, ensure the configured admin account has the Administrator role.
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            var existingAdmin = await _userManager.FindByEmailAsync(email);
+            if (existingAdmin is not null)
+            {
+                await EnsureAdministratorRoleExistsAsync();
+
+                if (!await _userManager.IsInRoleAsync(existingAdmin, "Administrator"))
+                {
+                    var assignRoleResult = await _userManager.AddToRoleAsync(existingAdmin, "Administrator");
+                    if (!assignRoleResult.Succeeded)
+                    {
+                        var errors = string.Join("; ", assignRoleResult.Errors.Select(e => e.Description));
+                        _logger.LogError("Failed to assign Administrator role to existing admin {Email}: {Errors}", email, errors);
+                        throw new InvalidOperationException($"Admin role assignment failed: {errors}");
+                    }
+
+                    _logger.LogInformation("Assigned Administrator role to existing admin user {Email}.", email);
+                }
+
+                return;
+            }
+        }
+
         // Only seed when the database has zero users (first run)
         var userCount = _userManager.Users.Count();
         if (userCount > 0)
@@ -53,7 +80,6 @@ internal sealed class AdminSeeder
             return;
         }
 
-        var email = _configuration["DotNetCloud:AdminEmail"];
         var password = ReadAdminPassword();
 
         if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
@@ -83,24 +109,7 @@ internal sealed class AdminSeeder
             throw new InvalidOperationException($"Admin user creation failed: {errors}");
         }
 
-        // Ensure the Administrator role exists in Identity's AspNetRoles table
-        if (!await _roleManager.RoleExistsAsync("Administrator"))
-        {
-            var identityRole = new ApplicationRole
-            {
-                Name = "Administrator",
-                Description = "Full system administrator",
-                IsSystemRole = true
-            };
-            var createRoleResult = await _roleManager.CreateAsync(identityRole);
-            if (!createRoleResult.Succeeded)
-            {
-                var errors = string.Join("; ", createRoleResult.Errors.Select(e => e.Description));
-                _logger.LogError("Failed to create Administrator identity role: {Errors}", errors);
-                throw new InvalidOperationException($"Identity role creation failed: {errors}");
-            }
-            _logger.LogInformation("Created Administrator role in identity store.");
-        }
+        await EnsureAdministratorRoleExistsAsync();
 
         var roleResult = await _userManager.AddToRoleAsync(user, "Administrator");
         if (!roleResult.Succeeded)
@@ -111,6 +120,31 @@ internal sealed class AdminSeeder
         }
 
         _logger.LogInformation("Admin user {Email} created and assigned Administrator role.", email);
+    }
+
+    private async Task EnsureAdministratorRoleExistsAsync()
+    {
+        if (await _roleManager.RoleExistsAsync("Administrator"))
+        {
+            return;
+        }
+
+        var identityRole = new ApplicationRole
+        {
+            Name = "Administrator",
+            Description = "Full system administrator",
+            IsSystemRole = true
+        };
+
+        var createRoleResult = await _roleManager.CreateAsync(identityRole);
+        if (!createRoleResult.Succeeded)
+        {
+            var errors = string.Join("; ", createRoleResult.Errors.Select(e => e.Description));
+            _logger.LogError("Failed to create Administrator identity role: {Errors}", errors);
+            throw new InvalidOperationException($"Identity role creation failed: {errors}");
+        }
+
+        _logger.LogInformation("Created Administrator role in identity store.");
     }
 
     /// <summary>

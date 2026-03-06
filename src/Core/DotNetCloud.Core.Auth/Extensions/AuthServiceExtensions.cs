@@ -78,6 +78,14 @@ public static class AuthServiceExtensions
         .AddEntityFrameworkStores<CoreDbContext>()
         .AddDefaultTokenProviders();
 
+        services.ConfigureApplicationCookie(options =>
+        {
+            // Blazor UI login route lives under /auth/login, not the Identity default /Account/Login.
+            options.LoginPath = "/auth/login";
+            options.AccessDeniedPath = "/auth/login";
+            options.ReturnUrlParameter = "returnUrl";
+        });
+
         // -----------------------------------------------------------------
         // OpenIddict
         // -----------------------------------------------------------------

@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Auth.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Services;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -45,7 +46,7 @@ public class UserManagementController : ControllerBase
         return Ok(new
         {
             success = true,
-            data = result.Items,
+            data = result,
             pagination = new
             {
                 result.Page,
@@ -223,6 +224,10 @@ public class UserManagementController : ControllerBase
 
     private bool IsAdmin()
     {
-        return User.HasClaim("permission", "admin") || User.IsInRole("admin");
+        return User.HasClaim(PermissionAuthorizationHandler.PermissionClaimType, "admin") ||
+               User.IsInRole("Administrator") ||
+               User.HasClaim(ClaimTypes.Role, "Administrator") ||
+               User.IsInRole("admin") ||
+               User.HasClaim(ClaimTypes.Role, "admin");
     }
 }
