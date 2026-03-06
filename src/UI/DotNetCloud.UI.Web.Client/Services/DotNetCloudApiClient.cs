@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 using DotNetCloud.Core.DTOs;
 
 namespace DotNetCloud.UI.Web.Client.Services;
@@ -10,6 +11,7 @@ namespace DotNetCloud.UI.Web.Client.Services;
 public sealed class DotNetCloudApiClient
 {
     private readonly HttpClient _http;
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public DotNetCloudApiClient(HttpClient http)
     {
@@ -36,8 +38,28 @@ public sealed class DotNetCloudApiClient
         if (isActive.HasValue)
             query += $"&isActive={isActive.Value}";
 
-        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<PaginatedResult<UserDto>>>(query, ct);
-        return envelope?.Data ?? new PaginatedResult<UserDto>();
+        var response = await _http.GetAsync(query, ct);
+        response.EnsureSuccessStatusCode();
+
+        var json = await response.Content.ReadAsStringAsync(ct);
+
+        // New API shape: { success, data: [...], pagination: { ... } }
+        var arrayEnvelope = JsonSerializer.Deserialize<ApiArrayEnvelope<UserDto>>(json, JsonOptions);
+        if (arrayEnvelope?.Success == true && arrayEnvelope.Data is not null &&
+            (arrayEnvelope.Pagination is not null || arrayEnvelope.Data.Count > 0))
+        {
+            return new PaginatedResult<UserDto>
+            {
+                Items = arrayEnvelope.Data,
+                Page = arrayEnvelope.Pagination?.Page ?? page,
+                PageSize = arrayEnvelope.Pagination?.PageSize ?? pageSize,
+                TotalCount = arrayEnvelope.Pagination?.TotalCount ?? arrayEnvelope.Data.Count,
+            };
+        }
+
+        // Backward-compatible shape: { success, data: { items, totalCount, page, pageSize } }
+        var objectEnvelope = JsonSerializer.Deserialize<ApiEnvelope<PaginatedResult<UserDto>>>(json, JsonOptions);
+        return objectEnvelope?.Data ?? new PaginatedResult<UserDto>();
     }
 
     /// <summary>
@@ -239,6 +261,21 @@ public sealed class DotNetCloudApiClient
     {
         public bool Success { get; set; }
         public T? Data { get; set; }
+    }
+
+    internal sealed class ApiArrayEnvelope<T>
+    {
+        public bool Success { get; set; }
+        public IReadOnlyList<T> Data { get; set; } = [];
+        public PaginationEnvelope? Pagination { get; set; }
+    }
+
+    internal sealed class PaginationEnvelope
+    {
+        public int Page { get; set; }
+        public int PageSize { get; set; }
+        public int TotalCount { get; set; }
+        public int TotalPages { get; set; }
     }
 }
 

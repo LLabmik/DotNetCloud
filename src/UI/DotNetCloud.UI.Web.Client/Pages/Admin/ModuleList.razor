@@ -1,5 +1,5 @@
 @page "/admin/modules"
-@rendermode InteractiveAuto
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveAutoRenderMode(prerender: false))
 @attribute [Authorize]
 
 <PageTitle>Modules - DotNetCloud</PageTitle>
