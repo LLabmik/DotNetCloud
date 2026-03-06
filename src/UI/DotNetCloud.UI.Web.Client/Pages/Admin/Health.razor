@@ -47,7 +47,7 @@ else
                                 @entry.Value.Status
                             </span>
                         </td>
-                        <td>@entry.Value.Duration.TotalMilliseconds.ToString("F0") ms</td>
+                        <td>@entry.Value.Duration.ToString("F0") ms</td>
                         <td>@(entry.Value.Description ?? "—")</td>
                     </tr>
                 }

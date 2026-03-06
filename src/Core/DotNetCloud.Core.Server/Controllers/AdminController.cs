@@ -4,6 +4,7 @@ using DotNetCloud.Core.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using System.Globalization;
 
 namespace DotNetCloud.Core.Server.Controllers;
 
@@ -251,15 +252,16 @@ public class AdminController : ControllerBase
     {
         var report = await _healthCheckService.CheckHealthAsync();
 
-        var entries = report.Entries.Select(e => new
-        {
-            name = e.Key,
-            status = e.Value.Status.ToString(),
-            description = e.Value.Description,
-            duration = e.Value.Duration.TotalMilliseconds,
-            exception = e.Value.Exception?.Message,
-            data = e.Value.Data.Count > 0 ? e.Value.Data : null,
-        });
+        var entries = report.Entries.ToDictionary(
+            entry => entry.Key,
+            entry => new
+            {
+                status = entry.Value.Status.ToString(),
+                description = entry.Value.Description,
+                duration = entry.Value.Duration.TotalMilliseconds,
+                exception = entry.Value.Exception?.Message,
+                data = ConvertHealthData(entry.Value.Data),
+            });
 
         return Ok(new
         {
@@ -281,5 +283,37 @@ public class AdminController : ControllerBase
     {
         var claim = User.FindFirst("sub")?.Value;
         return Guid.TryParse(claim, out userId);
+    }
+
+    private static IReadOnlyDictionary<string, object?>? ConvertHealthData(IReadOnlyDictionary<string, object> data)
+    {
+        if (data.Count == 0)
+        {
+            return null;
+        }
+
+        var normalized = new Dictionary<string, object?>(StringComparer.Ordinal);
+        foreach (var (key, value) in data)
+        {
+            normalized[key] = NormalizeHealthValue(value);
+        }
+
+        return normalized;
+    }
+
+    private static object? NormalizeHealthValue(object? value)
+    {
+        return value switch
+        {
+            null => null,
+            string or bool or byte or sbyte or short or ushort or int or uint or long or ulong or nint or nuint or float or double or decimal => value,
+            Guid guid => guid.ToString(),
+            DateTime dateTime => dateTime.ToString("O", CultureInfo.InvariantCulture),
+            DateTimeOffset dateTimeOffset => dateTimeOffset.ToString("O", CultureInfo.InvariantCulture),
+            TimeSpan timeSpan => timeSpan.ToString("c", CultureInfo.InvariantCulture),
+            Uri uri => uri.ToString(),
+            Enum enumValue => enumValue.ToString(),
+            _ => value.ToString(),
+        };
     }
 }

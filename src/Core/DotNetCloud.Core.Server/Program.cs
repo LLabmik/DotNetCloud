@@ -111,6 +111,10 @@ public class Program
         // Configure Kestrel (HTTPS/TLS, HTTP/2, listener addresses, limits)
         builder.ConfigureKestrel();
 
+        // Configure and register supervisor + module gRPC infrastructure.
+        builder.ConfigureGrpcForModules();
+        builder.Services.AddProcessSupervisor();
+
         // Add service defaults (logging, telemetry, health checks)
         builder.AddDotNetCloudServiceDefaults();
 
@@ -224,6 +228,9 @@ public class Program
 
         // Map SignalR hub endpoints
         app.MapDotNetCloudHubs();
+
+        // Map gRPC services used by process-isolated modules.
+        app.MapModuleGrpcServices();
 
         // Configure request localization (culture from cookie / Accept-Language header)
         var localizationOptions = new RequestLocalizationOptions()
