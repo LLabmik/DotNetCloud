@@ -1,6 +1,6 @@
 @inherits LayoutComponentBase
 
-<div class="app-container @(_darkMode ? "dark-mode" : "")">
+<div class="app-container">
     <nav class="sidebar @(_collapsed ? "collapsed" : "")">
         <div class="sidebar-header">
             <a href="/" class="brand">
@@ -24,8 +24,13 @@
             </div>
             <div class="topbar-right">
                 <CultureSelector @rendermode="InteractiveAuto" />
-                <button class="theme-toggle" @onclick="ToggleTheme" title="Toggle theme">
-                    @(_darkMode ? "☀" : "🌙")
+                <button
+                    id="theme-toggle-button"
+                    class="theme-toggle"
+                    type="button"
+                    title="Toggle theme"
+                    aria-label="Toggle theme">
+                    ☾
                 </button>
                 <AuthorizeView>
                     <Authorized>
@@ -57,13 +62,10 @@
 
 @code {
     private bool _collapsed;
-    private bool _darkMode;
     private string _pageTitle = "DotNetCloud";
     private ErrorBoundary? _errorBoundary;
 
     private void ToggleSidebar() => _collapsed = !_collapsed;
-
-    private void ToggleTheme() => _darkMode = !_darkMode;
 
     private void RecoverError() => _errorBoundary?.Recover();
 }
