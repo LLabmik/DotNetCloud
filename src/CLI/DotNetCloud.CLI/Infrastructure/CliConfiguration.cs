@@ -66,6 +66,47 @@ internal static class CliConfiguration
     }
 
     /// <summary>
+    /// Attempts to load the CLI configuration without throwing.
+    /// </summary>
+    /// <param name="config">Loaded configuration when successful; otherwise a default instance.</param>
+    /// <param name="errorMessage">A user-facing error message when loading fails.</param>
+    /// <returns><c>true</c> when the config file was read and parsed successfully; otherwise <c>false</c>.</returns>
+    public static bool TryLoad(out CliConfig config, out string? errorMessage)
+    {
+        config = new CliConfig();
+        errorMessage = null;
+
+        if (!File.Exists(ConfigFilePath))
+        {
+            errorMessage = $"Configuration file not found: {ConfigFilePath}";
+            return false;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(ConfigFilePath);
+            config = JsonSerializer.Deserialize<CliConfig>(json, JsonOptions) ?? new CliConfig();
+            return true;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            errorMessage = $"Permission denied reading '{ConfigFilePath}'. " +
+                "Run with sudo or add your user to the 'dotnetcloud' group.";
+            return false;
+        }
+        catch (IOException ex)
+        {
+            errorMessage = $"Could not read configuration file '{ConfigFilePath}': {ex.Message}";
+            return false;
+        }
+        catch (JsonException ex)
+        {
+            errorMessage = $"Configuration file '{ConfigFilePath}' is invalid JSON: {ex.Message}";
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Saves the CLI configuration to disk.
     /// </summary>
     public static void Save(CliConfig config)

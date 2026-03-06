@@ -1,5 +1,7 @@
 using System.CommandLine;
 using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
 using DotNetCloud.CLI.Infrastructure;
 
 namespace DotNetCloud.CLI.Commands;
@@ -217,9 +219,14 @@ internal static class ServiceCommands
         return Task.FromResult(0);
     }
 
-    private static Task<int> StatusAsync()
+    private static async Task<int> StatusAsync()
     {
         ConsoleOutput.WriteHeader("DotNetCloud Status");
+
+        var serverRunning = false;
+        var httpPort = 5080;
+        var httpsPort = 5443;
+        var httpsEnabled = true;
 
         // Check server process
         var pidFile = GetPidFilePath();
@@ -227,52 +234,65 @@ internal static class ServiceCommands
         {
             ConsoleOutput.WriteDetail("Server", ConsoleOutput.FormatStatus("Stopped"));
             ConsoleOutput.WriteInfo("Use 'dotnetcloud serve' to start the server.");
-            return Task.FromResult(0);
         }
-
-        if (!int.TryParse(File.ReadAllText(pidFile).Trim(), out var pid))
+        else if (!int.TryParse(File.ReadAllText(pidFile).Trim(), out var pid))
         {
             ConsoleOutput.WriteDetail("Server", ConsoleOutput.FormatStatus("Error"));
             ConsoleOutput.WriteError("Invalid PID file.");
-            return Task.FromResult(1);
+            return 1;
         }
-
-        try
+        else
         {
-            var process = Process.GetProcessById(pid);
-            if (process.HasExited)
+            try
+            {
+                var process = Process.GetProcessById(pid);
+                if (process.HasExited)
+                {
+                    ConsoleOutput.WriteDetail("Server", ConsoleOutput.FormatStatus("Stopped"));
+                    CleanupPidFile();
+                }
+                else
+                {
+                    serverRunning = true;
+                    ConsoleOutput.WriteDetail("Server", ConsoleOutput.FormatStatus("Running"));
+                    ConsoleOutput.WriteDetail("PID", pid.ToString());
+                    ConsoleOutput.WriteDetail("Memory", $"{process.WorkingSet64 / 1024 / 1024} MB");
+                    ConsoleOutput.WriteDetail("Uptime", (DateTime.Now - process.StartTime).ToString(@"d\.hh\:mm\:ss"));
+                }
+            }
+            catch (ArgumentException)
             {
                 ConsoleOutput.WriteDetail("Server", ConsoleOutput.FormatStatus("Stopped"));
                 CleanupPidFile();
             }
-            else
-            {
-                ConsoleOutput.WriteDetail("Server", ConsoleOutput.FormatStatus("Running"));
-                ConsoleOutput.WriteDetail("PID", pid.ToString());
-                ConsoleOutput.WriteDetail("Memory", $"{process.WorkingSet64 / 1024 / 1024} MB");
-                ConsoleOutput.WriteDetail("Uptime", (DateTime.Now - process.StartTime).ToString(@"d\.hh\:mm\:ss"));
-            }
-        }
-        catch (ArgumentException)
-        {
-            ConsoleOutput.WriteDetail("Server", ConsoleOutput.FormatStatus("Stopped"));
-            CleanupPidFile();
         }
 
         // Show configuration
         if (CliConfiguration.ConfigExists())
         {
-            var config = CliConfiguration.Load();
-            Console.WriteLine();
-            ConsoleOutput.WriteDetail("Database", config.DatabaseProvider);
-            ConsoleOutput.WriteDetail("HTTP Port", config.HttpPort.ToString());
-            if (config.EnableHttps)
+            if (CliConfiguration.TryLoad(out var config, out var errorMessage))
             {
-                ConsoleOutput.WriteDetail("HTTPS Port", config.HttpsPort.ToString());
+                httpPort = config.HttpPort;
+                httpsPort = config.HttpsPort;
+                httpsEnabled = config.EnableHttps;
+
+                Console.WriteLine();
+                ConsoleOutput.WriteDetail("Database", config.DatabaseProvider);
+                ConsoleOutput.WriteDetail("HTTP Port", config.HttpPort.ToString());
+                if (config.EnableHttps)
+                {
+                    ConsoleOutput.WriteDetail("HTTPS Port", config.HttpsPort.ToString());
+                }
+                if (config.EnabledModules.Count > 0)
+                {
+                    ConsoleOutput.WriteDetail("Modules", string.Join(", ", config.EnabledModules));
+                }
             }
-            if (config.EnabledModules.Count > 0)
+            else
             {
-                ConsoleOutput.WriteDetail("Modules", string.Join(", ", config.EnabledModules));
+                Console.WriteLine();
+                ConsoleOutput.WriteWarning(errorMessage ?? "Configuration exists but could not be loaded.");
+                ConsoleOutput.WriteInfo($"Using fallback ports for probes: HTTP {httpPort}, HTTPS {httpsPort}");
             }
         }
         else
@@ -280,7 +300,79 @@ internal static class ServiceCommands
             ConsoleOutput.WriteWarning("No configuration found. Run 'dotnetcloud setup' first.");
         }
 
-        return Task.FromResult(0);
+        Console.WriteLine();
+        var httpListening = await IsPortListeningAsync(httpPort);
+        ConsoleOutput.WriteDetail("HTTP Listener", ConsoleOutput.FormatStatus(httpListening ? "Running" : "Stopped"));
+
+        var httpHealth = await CheckHealthAsync(httpPort);
+        ConsoleOutput.WriteDetail("HTTP Health", ConsoleOutput.FormatStatus(httpHealth switch
+        {
+            HealthProbeResult.Healthy => "Healthy",
+            HealthProbeResult.Unhealthy => "Unhealthy",
+            _ => "Warning"
+        }));
+
+        if (httpsEnabled)
+        {
+            var httpsListening = await IsPortListeningAsync(httpsPort);
+            ConsoleOutput.WriteDetail("HTTPS Listener", ConsoleOutput.FormatStatus(httpsListening ? "Running" : "Stopped"));
+        }
+
+        if (serverRunning && !httpListening)
+        {
+            ConsoleOutput.WriteWarning($"Server process is running but no listener detected on port {httpPort}.");
+            ConsoleOutput.WriteInfo("Check service logs with: sudo journalctl -u dotnetcloud -n 200 --no-pager");
+        }
+
+        return 0;
+    }
+
+    private static async Task<bool> IsPortListeningAsync(int port)
+    {
+        try
+        {
+            using var tcp = new TcpClient();
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            await tcp.ConnectAsync(IPAddress.Loopback, port, cts.Token);
+            return tcp.Connected;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static async Task<HealthProbeResult> CheckHealthAsync(int port)
+    {
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            using var client = new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(3)
+            };
+
+            var response = await client.GetAsync($"http://127.0.0.1:{port}/health/live", cts.Token);
+            if (response.IsSuccessStatusCode)
+            {
+                return HealthProbeResult.Healthy;
+            }
+
+            return response.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable
+                ? HealthProbeResult.Unhealthy
+                : HealthProbeResult.Unreachable;
+        }
+        catch
+        {
+            return HealthProbeResult.Unreachable;
+        }
+    }
+
+    private enum HealthProbeResult
+    {
+        Healthy,
+        Unhealthy,
+        Unreachable
     }
 
     private static async Task<int> RestartAsync()

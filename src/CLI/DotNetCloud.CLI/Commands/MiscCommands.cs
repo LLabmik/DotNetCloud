@@ -78,12 +78,19 @@ internal static class MiscCommands
 
         if (CliConfiguration.ConfigExists())
         {
-            var config = CliConfiguration.Load();
-            ConsoleOutput.WriteDetail("Database", config.DatabaseProvider);
-            ConsoleOutput.WriteDetail("Config", CliConfiguration.GetConfigFilePath());
-            if (config.SetupCompletedAt.HasValue)
+            if (CliConfiguration.TryLoad(out var config, out var errorMessage))
             {
-                ConsoleOutput.WriteDetail("Setup Date", config.SetupCompletedAt.Value.ToString("yyyy-MM-dd HH:mm:ss UTC"));
+                ConsoleOutput.WriteDetail("Database", config.DatabaseProvider);
+                ConsoleOutput.WriteDetail("Config", CliConfiguration.GetConfigFilePath());
+                if (config.SetupCompletedAt.HasValue)
+                {
+                    ConsoleOutput.WriteDetail("Setup Date", config.SetupCompletedAt.Value.ToString("yyyy-MM-dd HH:mm:ss UTC"));
+                }
+            }
+            else
+            {
+                ConsoleOutput.WriteDetail("Config", CliConfiguration.GetConfigFilePath());
+                ConsoleOutput.WriteDetail("Config Access", errorMessage ?? "Unable to read configuration.");
             }
         }
     }

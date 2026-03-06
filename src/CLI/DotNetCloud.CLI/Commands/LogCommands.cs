@@ -63,7 +63,12 @@ internal static class LogCommands
             return 1;
         }
 
-        var config = CliConfiguration.Load();
+        if (!CliConfiguration.TryLoad(out var config, out var errorMessage))
+        {
+            ConsoleOutput.WriteError(errorMessage ?? "Configuration exists but could not be loaded.");
+            return 1;
+        }
+
         var logDir = config.LogDirectory;
 
         if (!Directory.Exists(logDir))

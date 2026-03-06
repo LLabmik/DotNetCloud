@@ -819,6 +819,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ `dotnetcloud serve` - Start all services
 - ✓ `dotnetcloud stop` - Graceful shutdown
 - ✓ `dotnetcloud status` - Show service & module status
+- ✓ `dotnetcloud status` probes listener/health endpoints and reports process-vs-port mismatch warnings
 - ✓ `dotnetcloud restart` - Restart all services
 
 ##### Module Commands
@@ -837,6 +838,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ `dotnetcloud logs` - View system logs
 - ✓ `dotnetcloud logs {module}` - View module-specific logs
 - ✓ `dotnetcloud logs --level {level}` - Filter by log level
+- ✓ Read-only commands handle unreadable system config (`/etc/dotnetcloud/config.json`) without crashing
 
 ##### Backup Commands
 - ✓ `dotnetcloud backup` - Create backup
