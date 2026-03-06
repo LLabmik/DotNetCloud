@@ -37,5 +37,6 @@ public interface IWopiService
     /// <param name="content">The file content stream from Collabora.</param>
     /// <param name="caller">The caller context (from validated WOPI token).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task PutFileAsync(Guid fileId, Stream content, CallerContext caller, CancellationToken cancellationToken = default);
+    /// <returns>The updated file timestamp in ISO-8601 format.</returns>
+    Task<string> PutFileAsync(Guid fileId, Stream content, CallerContext caller, CancellationToken cancellationToken = default);
 }

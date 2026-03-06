@@ -67,6 +67,7 @@ internal sealed class WopiService : IWopiService
             SHA256 = node.ContentHash ?? string.Empty,
             LastModifiedTime = node.UpdatedAt.ToString("O"),
             UserId = caller.UserId.ToString(),
+            UserFriendlyName = caller.UserId.ToString(),
             IsAnonymousUser = false
         };
     }
@@ -94,7 +95,7 @@ internal sealed class WopiService : IWopiService
     }
 
     /// <inheritdoc />
-    public async Task PutFileAsync(Guid fileId, Stream content, CallerContext caller, CancellationToken cancellationToken = default)
+    public async Task<string> PutFileAsync(Guid fileId, Stream content, CallerContext caller, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(caller);
@@ -194,5 +195,7 @@ internal sealed class WopiService : IWopiService
             MimeType = node.MimeType,
             ParentId = node.ParentId
         }, caller);
+
+        return node.UpdatedAt.ToString("O");
     }
 }

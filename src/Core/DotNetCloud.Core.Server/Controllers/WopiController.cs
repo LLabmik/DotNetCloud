@@ -118,8 +118,8 @@ public sealed class WopiController : ControllerBase
 
         try
         {
-            await _wopiService.PutFileAsync(fileId, Request.Body, ToCaller(tokenContext.UserId));
-            return Ok();
+            var lastModifiedTime = await _wopiService.PutFileAsync(fileId, Request.Body, ToCaller(tokenContext.UserId));
+            return Ok(new { LastModifiedTime = lastModifiedTime });
         }
         catch (Core.Errors.NotFoundException)
         {

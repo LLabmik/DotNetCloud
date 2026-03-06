@@ -2,8 +2,10 @@ using DotNetCloud.Modules.Files.Data.Services;
 using DotNetCloud.Modules.Files.Data.Services.Background;
 using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
+using System.Net.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace DotNetCloud.Modules.Files.Data;
 
@@ -59,7 +61,19 @@ public static class FilesServiceRegistration
         services.AddSingleton<IWopiSessionTracker, WopiSessionTracker>();
 
         // HTTP client for Collabora discovery
-        services.AddHttpClient("Collabora");
+        services.AddHttpClient("Collabora")
+            .ConfigurePrimaryHttpMessageHandler(sp =>
+            {
+                var options = sp.GetRequiredService<IOptions<CollaboraOptions>>().Value;
+                var handler = new HttpClientHandler();
+
+                if (options.AllowInsecureTls)
+                {
+                    handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+                }
+
+                return handler;
+            });
 
         // Health check for Collabora
         services.AddHealthChecks()

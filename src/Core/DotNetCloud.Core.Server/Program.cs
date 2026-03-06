@@ -23,6 +23,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
+using System.Net.Http;
 
 namespace DotNetCloud.Core.Server;
 
@@ -195,7 +196,21 @@ public class Program
         builder.Services.AddScoped(sp =>
         {
             var nav = sp.GetRequiredService<NavigationManager>();
-            return new HttpClient { BaseAddress = new Uri(nav.BaseUri) };
+            var baseUri = new Uri(nav.BaseUri);
+
+            // In local bare-metal installs with self-signed HTTPS certs, server-side
+            // Blazor API calls to the same loopback origin would otherwise fail TLS validation.
+            if (baseUri.Scheme == Uri.UriSchemeHttps && baseUri.IsLoopback)
+            {
+                var handler = new HttpClientHandler
+                {
+                    ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+                };
+
+                return new HttpClient(handler) { BaseAddress = baseUri };
+            }
+
+            return new HttpClient { BaseAddress = baseUri };
         });
         builder.Services.AddScoped<DotNetCloudApiClient>();
 

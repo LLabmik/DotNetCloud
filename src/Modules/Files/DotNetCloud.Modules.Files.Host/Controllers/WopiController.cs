@@ -152,8 +152,8 @@ public class WopiController : FilesControllerBase
 
         try
         {
-            await _wopiService.PutFileAsync(fileId, Request.Body, caller);
-            return Ok();
+            var lastModifiedTime = await _wopiService.PutFileAsync(fileId, Request.Body, caller);
+            return Ok(new { LastModifiedTime = lastModifiedTime });
         }
         catch (Core.Errors.NotFoundException)
         {

@@ -57,6 +57,13 @@ public sealed class CollaboraOptions
     public bool EnableProofKeyValidation { get; set; } = true;
 
     /// <summary>
+    /// Whether to allow insecure TLS certificates when DotNetCloud calls Collabora.
+    /// Use only for local/testing environments with self-signed certificates.
+    /// Default: <c>false</c>.
+    /// </summary>
+    public bool AllowInsecureTls { get; set; }
+
+    /// <summary>
     /// Supported MIME types for Collabora editing. If empty, all types returned by
     /// Collabora discovery are accepted.
     /// </summary>

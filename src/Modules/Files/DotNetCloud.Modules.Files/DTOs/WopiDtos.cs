@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace DotNetCloud.Modules.Files.DTOs;
 
 /// <summary>
@@ -25,42 +27,55 @@ public sealed record WopiAccessTokenDto
 public sealed record WopiCheckFileInfoResponse
 {
     /// <summary>File name without path.</summary>
+    [JsonPropertyName("BaseFileName")]
     public required string BaseFileName { get; init; }
 
     /// <summary>Unique identifier of the file owner.</summary>
+    [JsonPropertyName("OwnerId")]
     public required string OwnerId { get; init; }
 
     /// <summary>File size in bytes.</summary>
+    [JsonPropertyName("Size")]
     public long Size { get; init; }
 
     /// <summary>Version identifier (changes on each save).</summary>
+    [JsonPropertyName("Version")]
     public required string Version { get; init; }
 
     /// <summary>Whether the current user has write permission.</summary>
+    [JsonPropertyName("UserCanWrite")]
     public bool UserCanWrite { get; init; }
 
     /// <summary>Whether the host supports creating new files via WOPI.</summary>
+    [JsonPropertyName("UserCanNotWriteRelative")]
     public bool UserCanNotWriteRelative { get; init; } = true;
 
     /// <summary>Whether the host supports PutFile.</summary>
+    [JsonPropertyName("SupportsUpdate")]
     public bool SupportsUpdate { get; init; } = true;
 
     /// <summary>Whether the host supports lock operations.</summary>
+    [JsonPropertyName("SupportsLocks")]
     public bool SupportsLocks { get; init; }
 
     /// <summary>SHA-256 hash of the file content.</summary>
+    [JsonPropertyName("SHA256")]
     public string SHA256 { get; init; } = string.Empty;
 
     /// <summary>Last modified time in ISO 8601 format.</summary>
+    [JsonPropertyName("LastModifiedTime")]
     public required string LastModifiedTime { get; init; }
 
     /// <summary>Unique identifier for the current user.</summary>
+    [JsonPropertyName("UserId")]
     public string? UserId { get; init; }
 
     /// <summary>Display name of the current user.</summary>
+    [JsonPropertyName("UserFriendlyName")]
     public string? UserFriendlyName { get; init; }
 
     /// <summary>Whether the current user is an anonymous user.</summary>
+    [JsonPropertyName("IsAnonymousUser")]
     public bool IsAnonymousUser { get; init; }
 }
 
