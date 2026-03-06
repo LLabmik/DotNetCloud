@@ -5,6 +5,7 @@ using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using SharePermission = DotNetCloud.Modules.Files.Models.SharePermission;
 
 namespace DotNetCloud.Modules.Files.Data.Services;
 
@@ -15,11 +16,13 @@ internal sealed class CommentService : ICommentService
 {
     private readonly FilesDbContext _db;
     private readonly ILogger<CommentService> _logger;
+    private readonly IPermissionService _permissions;
 
-    public CommentService(FilesDbContext db, ILogger<CommentService> logger)
+    public CommentService(FilesDbContext db, ILogger<CommentService> logger, IPermissionService permissions)
     {
         _db = db;
         _logger = logger;
+        _permissions = permissions;
     }
 
     /// <inheritdoc />
@@ -30,6 +33,8 @@ internal sealed class CommentService : ICommentService
 
         _ = await _db.FileNodes.FindAsync([fileNodeId], cancellationToken)
             ?? throw new NotFoundException("FileNode", fileNodeId);
+
+        await _permissions.RequirePermissionAsync(fileNodeId, caller, SharePermission.ReadWrite, cancellationToken);
 
         if (parentCommentId.HasValue)
         {
@@ -66,6 +71,8 @@ internal sealed class CommentService : ICommentService
             .FirstOrDefaultAsync(c => c.Id == commentId, cancellationToken)
             ?? throw new NotFoundException("FileComment", commentId);
 
+        await _permissions.RequirePermissionAsync(comment.FileNodeId, caller, SharePermission.ReadWrite, cancellationToken);
+
         if (comment.CreatedByUserId != caller.UserId && caller.Type != CallerType.System)
             throw new ForbiddenException("Only the comment author or a system caller can edit this comment.");
 
@@ -89,6 +96,8 @@ internal sealed class CommentService : ICommentService
             .FirstOrDefaultAsync(c => c.Id == commentId, cancellationToken)
             ?? throw new NotFoundException("FileComment", commentId);
 
+        await _permissions.RequirePermissionAsync(comment.FileNodeId, caller, SharePermission.ReadWrite, cancellationToken);
+
         if (comment.CreatedByUserId != caller.UserId && caller.Type != CallerType.System)
             throw new ForbiddenException("Only the comment author or a system caller can delete this comment.");
 
@@ -103,6 +112,8 @@ internal sealed class CommentService : ICommentService
     public async Task<IReadOnlyList<FileCommentDto>> GetCommentsAsync(Guid fileNodeId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(caller);
+
+        await _permissions.RequirePermissionAsync(fileNodeId, caller, SharePermission.Read, cancellationToken);
 
         var comments = await _db.FileComments
             .AsNoTracking()
@@ -131,6 +142,8 @@ internal sealed class CommentService : ICommentService
 
         if (comment is null)
             return null;
+
+        await _permissions.RequirePermissionAsync(comment.FileNodeId, caller, SharePermission.Read, cancellationToken);
 
         var replyCount = await _db.FileComments
             .CountAsync(c => c.ParentCommentId == commentId, cancellationToken);

@@ -31,6 +31,7 @@
     <ProjectReference Include="..\..\src\Core\DotNetCloud.Core.Auth\DotNetCloud.Core.Auth.csproj" />
     <ProjectReference Include="..\..\src\Core\DotNetCloud.Core.Data\DotNetCloud.Core.Data.csproj" />
     <ProjectReference Include="..\..\src\Core\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Files\DotNetCloud.Modules.Files.Host\DotNetCloud.Modules.Files.Host.csproj" />
   </ItemGroup>
 
   <ItemGroup>

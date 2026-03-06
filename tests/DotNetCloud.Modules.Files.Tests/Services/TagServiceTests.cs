@@ -6,7 +6,6 @@ using DotNetCloud.Modules.Files.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
 
 namespace DotNetCloud.Modules.Files.Tests.Services;
 
@@ -22,7 +21,7 @@ public class TagServiceTests
     }
 
     private static TagService CreateService(FilesDbContext db) =>
-        new(db, NullLoggerFactory.Instance.CreateLogger<TagService>());
+        new(db, NullLoggerFactory.Instance.CreateLogger<TagService>(), new PermissionService(db));
 
     private static CallerContext UserCaller(Guid userId) => new(userId, Array.Empty<string>(), CallerType.User);
 

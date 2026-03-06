@@ -25,7 +25,7 @@ public class ShareServiceTests
     }
 
     private static ShareService CreateService(FilesDbContext db) =>
-        new(db, Mock.Of<IEventBus>(), NullLoggerFactory.Instance.CreateLogger<ShareService>());
+        new(db, Mock.Of<IEventBus>(), NullLoggerFactory.Instance.CreateLogger<ShareService>(), new PermissionService(db));
 
     private static CallerContext UserCaller(Guid userId) => new(userId, Array.Empty<string>(), CallerType.User);
 

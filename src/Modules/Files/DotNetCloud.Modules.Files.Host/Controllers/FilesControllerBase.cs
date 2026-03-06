@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Errors;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace DotNetCloud.Modules.Files.Host.Controllers;
 
@@ -14,9 +15,24 @@ public abstract class FilesControllerBase : ControllerBase
     /// <summary>
     /// Creates a <see cref="CallerContext"/> for the given user ID.
     /// </summary>
-    protected static CallerContext ToCaller(Guid userId)
+    protected CallerContext ToCaller(Guid userId)
     {
-        return new CallerContext(userId, ["user"], CallerType.User);
+        if (User?.Identity?.IsAuthenticated != true)
+            throw new ForbiddenException("Authentication is required.");
+
+        var claimValue = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+        if (!Guid.TryParse(claimValue, out var authenticatedUserId))
+            throw new ForbiddenException("Authenticated user identifier is invalid.");
+
+        if (authenticatedUserId != userId)
+            throw new ForbiddenException("Caller user ID does not match the authenticated identity.");
+
+        var roles = User.FindAll(ClaimTypes.Role)
+            .Select(c => c.Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return new CallerContext(authenticatedUserId, roles, CallerType.User);
     }
 
     /// <summary>

@@ -2522,10 +2522,11 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Add new service methods: ListRecentAsync, GetVersionByNumberAsync, GetChunkManifestAsync, GetTrashSizeAsync, RemoveTagByNameAsync, GetAllUserTagsAsync
 - ✓ Update Program.cs with AddFilesServices(), IFileStorageEngine, IEventBus registrations
 - ✓ Add DTOs: BulkOperationDto, BulkResultDto, BulkItemResultDto, AddTagDto, AddCommentDto, EditCommentDto, SetQuotaDto, LabelVersionDto, SyncDtos
+- ✓ Harden `FilesControllerBase` caller construction to bind `userId` to authenticated claim (`NameIdentifier`/`sub`) and reject spoofing
 
 **Dependencies:** phase-1.3
 **Blocking Issues:** None
-**Notes:** All 47 endpoints implemented under /api/v1/files/ namespace. Controllers refactored from direct DbContext to service layer via FilesControllerBase. PATCH methods changed to PUT per spec. All existing 298 tests pass.
+**Notes:** All 47 endpoints implemented under /api/v1/files/ namespace. Controllers refactored from direct DbContext to service layer via FilesControllerBase. PATCH methods changed to PUT per spec. Caller identity is now claim-bound in `FilesControllerBase` (query `userId` must match authenticated principal) to prevent cross-user impersonation. Files module test suite passes (476 tests).
 
 ---
 
@@ -2563,6 +2564,10 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `IPermissionService` / `PermissionService` — effective-permission resolution with owner fast-path and cascading ancestor shares
 - ✓ Permission enforcement in `FileService` — Read on GetNode/ListChildren/Copy-source; ReadWrite on CreateFolder/Rename/Move/Copy-target; Full on Delete
 - ✓ Permission enforcement in `DownloadService` — Read required for DownloadCurrent, DownloadVersion, GetChunkManifest
+- ✓ Permission enforcement in `DownloadService.DownloadChunkByHashAsync` — returns chunk only when caller can read at least one referencing file
+- ✓ Permission enforcement in `VersionService` — Read for listing/get, ReadWrite/Full for restore/label/delete
+- ✓ Permission enforcement in `TagService` and `CommentService` — node read/read-write checks before list/create/edit/delete operations
+- ✓ Permission enforcement in `ShareService.GetSharesAsync` — Full permission required to enumerate node shares
 - ✓ `ShareController` (CRUD) + `PublicShareController` (anonymous link resolve) + `MySharesController` (shares-with-me listing)
 - ✓ `FileSharedEvent` published on share creation
 - ✓ 14 new `PermissionServiceTests` covering ownership, direct shares, expiry, multi-share, and cascading; 361 Files tests total, 1085 solution tests (no regressions)
@@ -2570,7 +2575,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Dependencies:** phase-1.5
 **Blocking Issues:** None
-**Notes:** Phase 1.6 complete. `IPermissionService.GetEffectivePermissionAsync` walks the materialized path to check ancestor shares, giving O(depth) cascading without recursive queries. Team/group share enforcement deferred until `CallerContext` is enriched with membership IDs. 1085 total solution tests pass.
+**Notes:** Phase 1.6 complete. `IPermissionService.GetEffectivePermissionAsync` walks the materialized path to check ancestor shares, giving O(depth) cascading without recursive queries. Service-layer permission enforcement has been expanded to comments, tags, version operations, share enumeration, and chunk-hash download paths to strengthen user-to-user file isolation. Team/group share enforcement deferred until `CallerContext` is enriched with membership IDs. Files module test suite passes (476 tests).
 
 ---
 
@@ -3065,13 +3070,16 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `files_service.proto` — 22 RPCs: CreateFolder, ListNodes, GetNode, RenameNode, MoveNode, CopyNode, DeleteNode, ListTrash, RestoreNode, PurgeNode, EmptyTrash, InitiateUpload, UploadChunk, CompleteUpload, DownloadFile (server streaming), ListVersions, RestoreVersion, CreateShare, ListShares, RevokeShare, GetQuota, ToggleFavorite
 - ✓ `FileNodeMessage`, `FileVersionMessage`, `FileShareMessage` shared proto messages
 - ✓ `FilesGrpcService` — full gRPC implementation (22 RPCs, EF Core direct queries, content-hash deduplication, materialized path management)
+- ✓ Harden `FilesGrpcService` for cross-user isolation: owner-scoped node/share lookups, user-scoped restore/purge/toggle paths, and owner checks on move/copy/create-folder parents
+- ✓ Enforce authenticated caller identity in user-scoped gRPC RPCs (authenticated claim `NameIdentifier`/`sub` must match `request.user_id`)
+- ✓ Harden gRPC upload path: `UploadChunk` now requires valid active session and verifies SHA-256 chunk hash against uploaded bytes and session manifest
 - ✓ `FilesLifecycleService` — extends shared `ModuleLifecycle.ModuleLifecycleBase` (Initialize, Start, Stop, HealthCheck, GetManifest)
 - ✓ `FilesHealthCheck` — ASP.NET Core `IHealthCheck` reporting module status
 - ✓ `Program.cs` — registers FilesModule, FilesDbContext, IFileStorageEngine, InProcessEventBus, gRPC services, REST controllers, health checks
 
 **Dependencies:** Phase 1.1 (models), Phase 1.2 (FilesDbContext), Phase 1.3 (services), Phase 0.6 (Core.Grpc lifecycle proto)
 **Blocking Issues:** None
-**Notes:** Phase 1.18 complete. Proto file uses module-specific response types (e.g., `CreateFolderResponse`) rather than generic `NodeResponse` for clarity. Lifecycle proto is shared via `DotNetCloud.Core.Grpc` — no separate `files_lifecycle.proto` needed. The `FilesGrpcService` operates directly against `FilesDbContext` for gRPC calls; REST controllers use the business logic services layer. All Files module tests pass; solution builds cleanly.
+**Notes:** Phase 1.18 complete. Proto file uses module-specific response types (e.g., `CreateFolderResponse`) rather than generic `NodeResponse` for clarity. Lifecycle proto is shared via `DotNetCloud.Core.Grpc` — no separate `files_lifecycle.proto` needed. `FilesGrpcService` now applies explicit ownership constraints on sensitive node/share operations, requires authenticated caller identity to match request user scope, and blocks chunk ingestion unless the upload session is active and chunk data matches its declared hash. Files host project builds cleanly and Files module tests pass (483/483).
 
 ---
 
@@ -3101,16 +3109,19 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `TagServiceTests` — 17 tests (add, remove, list by tag, list user tags)
 - ✓ `CommentServiceTests` — 9 tests (add, edit, delete, list, threaded replies)
 - ✓ `BulkOperationTests` — 20 tests (bulk move, copy, delete, permanent delete, partial failure, DTOs, edge cases)
+- ✓ `FilesGrpcServiceSecurityTests` — 7 tests (cross-user node isolation, request/claim identity mismatch rejection, upload session owner mismatch, invalid session, and chunk hash tampering)
 - ✓ Additional tests: PermissionServiceTests (14), SyncServiceTests (14), StorageMetricsServiceTests, WopiSessionTrackerTests, WopiProofKeyValidatorTests, VersionCleanupServiceTests, UploadSessionCleanupServiceTests, model/DTO/enum tests
 
-**Notes:** 476 total Files module tests pass. All service tests cover CRUD, authorization, error handling, and edge cases. BulkOperationTests validates per-item error handling matching BulkController's try/catch pattern.
+**Notes:** 483 total Files module tests pass. Coverage includes dedicated gRPC hardening regression tests for cross-user isolation and upload abuse scenarios in addition to service-layer authorization checks.
 
 #### Step: phase-1.19.2 - Integration Tests (Files API)
-**Status:** pending ☐
+**Status:** in-progress ☐
 **Deliverables:**
+- ✓ Files gRPC isolation integration tests in `DotNetCloud.Integration.Tests` (`FilesHostWebApplicationFactory` + `FilesGrpcIsolationIntegrationTests`: cross-user node access denial, request/claim mismatch rejection, upload session-owner mismatch rejection)
+- ✓ Files REST isolation integration tests in `DotNetCloud.Integration.Tests` (`FilesRestIsolationIntegrationTests`: cross-user read/rename denial, upload session ownership enforcement, owner-scoped share/trash behavior, quota-exceeded upload rejection)
 - ☐ Files API integration tests in `DotNetCloud.Integration.Tests`
 
-**Notes:** Files API integration tests deferred — requires WebApplicationFactory wiring for Files.Host. Unit test coverage is comprehensive (476 tests).
+**Notes:** Integration harness for Files Host now covers both gRPC and REST security-critical isolation paths (7 integration tests passing total: 3 gRPC + 4 REST). Remaining work for this step is broader REST/API end-to-end coverage depth and multi-database matrix scenarios.
 
 #### Step: phase-1.19.3 - Client Tests (DotNetCloud.Client.Core.Tests)
 **Status:** completed ✅

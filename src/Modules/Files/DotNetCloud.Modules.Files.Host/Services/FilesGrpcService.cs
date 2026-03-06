@@ -4,6 +4,7 @@ using DotNetCloud.Modules.Files.Models;
 using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Security.Claims;
 
 namespace DotNetCloud.Modules.Files.Host.Services;
 
@@ -40,6 +41,11 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
             return new CreateFolderResponse { Success = false, ErrorMessage = "Invalid user ID format." };
         }
 
+        if (!ValidateAuthenticatedCaller(userId, context, out var callerError))
+        {
+            return new CreateFolderResponse { Success = false, ErrorMessage = callerError };
+        }
+
         Guid? parentId = string.IsNullOrEmpty(request.ParentId)
             ? null
             : Guid.TryParse(request.ParentId, out var pid) ? pid : null;
@@ -52,7 +58,10 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         {
             var parent = await _db.FileNodes
                 .AsNoTracking()
-                .FirstOrDefaultAsync(n => n.Id == parentId.Value && n.NodeType == FileNodeType.Folder,
+                .FirstOrDefaultAsync(n => n.Id == parentId.Value
+                                          && n.NodeType == FileNodeType.Folder
+                                          && n.OwnerId == userId
+                                          && !n.IsDeleted,
                     context.CancellationToken);
 
             if (parent is null)
@@ -102,6 +111,11 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
             return response;
         }
 
+        if (!ValidateAuthenticatedCaller(userId, context, out _))
+        {
+            return response;
+        }
+
         Guid? parentId = string.IsNullOrEmpty(request.ParentId)
             ? null
             : Guid.TryParse(request.ParentId, out var pid) ? pid : null;
@@ -140,14 +154,20 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
     public override async Task<GetNodeResponse> GetNode(
         GetNodeRequest request, ServerCallContext context)
     {
-        if (!Guid.TryParse(request.NodeId, out var nodeId))
+        if (!Guid.TryParse(request.NodeId, out var nodeId) ||
+            !Guid.TryParse(request.UserId, out var userId))
+        {
+            return new GetNodeResponse { Found = false };
+        }
+
+        if (!ValidateAuthenticatedCaller(userId, context, out _))
         {
             return new GetNodeResponse { Found = false };
         }
 
         var node = await _db.FileNodes
             .AsNoTracking()
-            .FirstOrDefaultAsync(n => n.Id == nodeId, context.CancellationToken);
+            .FirstOrDefaultAsync(n => n.Id == nodeId && n.OwnerId == userId && !n.IsDeleted, context.CancellationToken);
 
         if (node is null)
         {
@@ -166,12 +186,19 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
             return new RenameNodeResponse { Success = false, ErrorMessage = "New name is required." };
         }
 
-        if (!Guid.TryParse(request.NodeId, out var nodeId))
+        if (!Guid.TryParse(request.NodeId, out var nodeId) ||
+            !Guid.TryParse(request.UserId, out var userId))
         {
-            return new RenameNodeResponse { Success = false, ErrorMessage = "Invalid node ID format." };
+            return new RenameNodeResponse { Success = false, ErrorMessage = "Invalid node/user ID format." };
         }
 
-        var node = await _db.FileNodes.FindAsync([nodeId], context.CancellationToken);
+        if (!ValidateAuthenticatedCaller(userId, context, out var callerError))
+        {
+            return new RenameNodeResponse { Success = false, ErrorMessage = callerError };
+        }
+
+        var node = await _db.FileNodes
+            .FirstOrDefaultAsync(n => n.Id == nodeId && n.OwnerId == userId && !n.IsDeleted, context.CancellationToken);
         if (node is null)
         {
             return new RenameNodeResponse { Success = false, ErrorMessage = "Node not found." };
@@ -191,9 +218,15 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
     public override async Task<MoveNodeResponse> MoveNode(
         MoveNodeRequest request, ServerCallContext context)
     {
-        if (!Guid.TryParse(request.NodeId, out var nodeId))
+        if (!Guid.TryParse(request.NodeId, out var nodeId) ||
+            !Guid.TryParse(request.UserId, out var userId))
         {
-            return new MoveNodeResponse { Success = false, ErrorMessage = "Invalid node ID." };
+            return new MoveNodeResponse { Success = false, ErrorMessage = "Invalid node/user ID." };
+        }
+
+        if (!ValidateAuthenticatedCaller(userId, context, out var callerError))
+        {
+            return new MoveNodeResponse { Success = false, ErrorMessage = callerError };
         }
 
         if (!Guid.TryParse(request.TargetParentId, out var targetParentId))
@@ -201,7 +234,8 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
             return new MoveNodeResponse { Success = false, ErrorMessage = "Invalid target parent ID." };
         }
 
-        var node = await _db.FileNodes.FindAsync([nodeId], context.CancellationToken);
+        var node = await _db.FileNodes
+            .FirstOrDefaultAsync(n => n.Id == nodeId && n.OwnerId == userId && !n.IsDeleted, context.CancellationToken);
         if (node is null)
         {
             return new MoveNodeResponse { Success = false, ErrorMessage = "Node not found." };
@@ -209,7 +243,10 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
 
         var targetParent = await _db.FileNodes
             .AsNoTracking()
-            .FirstOrDefaultAsync(n => n.Id == targetParentId && n.NodeType == FileNodeType.Folder,
+            .FirstOrDefaultAsync(n => n.Id == targetParentId
+                                      && n.NodeType == FileNodeType.Folder
+                                      && n.OwnerId == userId
+                                      && !n.IsDeleted,
                 context.CancellationToken);
 
         if (targetParent is null)
@@ -247,9 +284,14 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
             return new CopyNodeResponse { Success = false, ErrorMessage = "Invalid ID format." };
         }
 
+        if (!ValidateAuthenticatedCaller(userId, context, out var callerError))
+        {
+            return new CopyNodeResponse { Success = false, ErrorMessage = callerError };
+        }
+
         var source = await _db.FileNodes
             .AsNoTracking()
-            .FirstOrDefaultAsync(n => n.Id == nodeId, context.CancellationToken);
+            .FirstOrDefaultAsync(n => n.Id == nodeId && n.OwnerId == userId && !n.IsDeleted, context.CancellationToken);
 
         if (source is null)
         {
@@ -258,7 +300,10 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
 
         var targetParent = await _db.FileNodes
             .AsNoTracking()
-            .FirstOrDefaultAsync(n => n.Id == targetParentId && n.NodeType == FileNodeType.Folder,
+            .FirstOrDefaultAsync(n => n.Id == targetParentId
+                                      && n.NodeType == FileNodeType.Folder
+                                      && n.OwnerId == userId
+                                      && !n.IsDeleted,
                 context.CancellationToken);
 
         if (targetParent is null)
@@ -300,9 +345,14 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
             return new DeleteNodeResponse { Success = false, ErrorMessage = "Invalid ID format." };
         }
 
+        if (!ValidateAuthenticatedCaller(userId, context, out var callerError))
+        {
+            return new DeleteNodeResponse { Success = false, ErrorMessage = callerError };
+        }
+
         var node = await _db.FileNodes
             .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(n => n.Id == nodeId && !n.IsDeleted, context.CancellationToken);
+            .FirstOrDefaultAsync(n => n.Id == nodeId && n.OwnerId == userId && !n.IsDeleted, context.CancellationToken);
 
         if (node is null)
         {
@@ -332,6 +382,11 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
             return response;
         }
 
+        if (!ValidateAuthenticatedCaller(userId, context, out _))
+        {
+            return response;
+        }
+
         var trashedNodes = await _db.FileNodes
             .IgnoreQueryFilters()
             .AsNoTracking()
@@ -347,14 +402,20 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
     public override async Task<RestoreNodeResponse> RestoreNode(
         RestoreNodeRequest request, ServerCallContext context)
     {
-        if (!Guid.TryParse(request.NodeId, out var nodeId))
+        if (!Guid.TryParse(request.NodeId, out var nodeId) ||
+            !Guid.TryParse(request.UserId, out var userId))
         {
-            return new RestoreNodeResponse { Success = false, ErrorMessage = "Invalid node ID." };
+            return new RestoreNodeResponse { Success = false, ErrorMessage = "Invalid node/user ID." };
+        }
+
+        if (!ValidateAuthenticatedCaller(userId, context, out var callerError))
+        {
+            return new RestoreNodeResponse { Success = false, ErrorMessage = callerError };
         }
 
         var node = await _db.FileNodes
             .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(n => n.Id == nodeId && n.IsDeleted, context.CancellationToken);
+            .FirstOrDefaultAsync(n => n.Id == nodeId && n.OwnerId == userId && n.IsDeleted, context.CancellationToken);
 
         if (node is null)
         {
@@ -379,14 +440,20 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
     public override async Task<PurgeNodeResponse> PurgeNode(
         PurgeNodeRequest request, ServerCallContext context)
     {
-        if (!Guid.TryParse(request.NodeId, out var nodeId))
+        if (!Guid.TryParse(request.NodeId, out var nodeId) ||
+            !Guid.TryParse(request.UserId, out var userId))
         {
-            return new PurgeNodeResponse { Success = false, ErrorMessage = "Invalid node ID." };
+            return new PurgeNodeResponse { Success = false, ErrorMessage = "Invalid node/user ID." };
+        }
+
+        if (!ValidateAuthenticatedCaller(userId, context, out var callerError))
+        {
+            return new PurgeNodeResponse { Success = false, ErrorMessage = callerError };
         }
 
         var node = await _db.FileNodes
             .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(n => n.Id == nodeId && n.IsDeleted, context.CancellationToken);
+            .FirstOrDefaultAsync(n => n.Id == nodeId && n.OwnerId == userId && n.IsDeleted, context.CancellationToken);
 
         if (node is null)
         {
@@ -406,6 +473,11 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         EmptyTrashRequest request, ServerCallContext context)
     {
         if (!Guid.TryParse(request.UserId, out var userId))
+        {
+            return new EmptyTrashResponse { Success = false };
+        }
+
+        if (!ValidateAuthenticatedCaller(userId, context, out _))
         {
             return new EmptyTrashResponse { Success = false };
         }
@@ -437,6 +509,11 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
             return new InitiateUploadResponse { Success = false, ErrorMessage = "Invalid user ID." };
         }
 
+        if (!ValidateAuthenticatedCaller(userId, context, out var callerError))
+        {
+            return new InitiateUploadResponse { Success = false, ErrorMessage = callerError };
+        }
+
         // Check which chunks already exist (deduplication)
         var existingHashes = await _db.FileChunks
             .AsNoTracking()
@@ -451,6 +528,22 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         Guid? parentId = string.IsNullOrEmpty(request.ParentId)
             ? null
             : Guid.TryParse(request.ParentId, out var pid) ? pid : (Guid?)null;
+
+        if (parentId.HasValue)
+        {
+            var parentExists = await _db.FileNodes
+                .AsNoTracking()
+                .AnyAsync(n => n.Id == parentId.Value
+                               && n.OwnerId == userId
+                               && n.NodeType == FileNodeType.Folder
+                               && !n.IsDeleted,
+                    context.CancellationToken);
+
+            if (!parentExists)
+            {
+                return new InitiateUploadResponse { Success = false, ErrorMessage = "Target parent folder not found." };
+            }
+        }
 
         var session = new ChunkedUploadSession
         {
@@ -491,6 +584,43 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
             return new UploadChunkResponse { Success = false, ErrorMessage = "Chunk hash and data are required." };
         }
 
+        if (!Guid.TryParse(request.SessionId, out var sessionId))
+        {
+            return new UploadChunkResponse { Success = false, ErrorMessage = "Invalid upload session ID." };
+        }
+
+        var session = await _db.UploadSessions
+            .FirstOrDefaultAsync(s => s.Id == sessionId, context.CancellationToken);
+
+        if (session is null)
+        {
+            return new UploadChunkResponse { Success = false, ErrorMessage = "Upload session not found." };
+        }
+
+        if (!ValidateAuthenticatedCaller(session.UserId, context, out var callerError))
+        {
+            return new UploadChunkResponse { Success = false, ErrorMessage = callerError };
+        }
+
+        if (session.Status != UploadSessionStatus.InProgress || session.ExpiresAt <= DateTime.UtcNow)
+        {
+            return new UploadChunkResponse { Success = false, ErrorMessage = "Upload session is not active." };
+        }
+
+        var manifest = System.Text.Json.JsonSerializer.Deserialize<List<string>>(session.ChunkManifest) ?? [];
+        if (!manifest.Contains(request.ChunkHash, StringComparer.OrdinalIgnoreCase))
+        {
+            return new UploadChunkResponse { Success = false, ErrorMessage = "Chunk hash is not part of the upload manifest." };
+        }
+
+        var computedChunkHash = Convert.ToHexStringLower(
+            System.Security.Cryptography.SHA256.HashData(request.ChunkData.Span));
+
+        if (!string.Equals(computedChunkHash, request.ChunkHash, StringComparison.OrdinalIgnoreCase))
+        {
+            return new UploadChunkResponse { Success = false, ErrorMessage = "Chunk data does not match declared hash." };
+        }
+
         // Check if chunk already exists (deduplication)
         var existingChunk = await _db.FileChunks
             .FirstOrDefaultAsync(c => c.ChunkHash == request.ChunkHash, context.CancellationToken);
@@ -514,16 +644,8 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
             _db.FileChunks.Add(chunk);
         }
 
-        // Update session progress if session ID is provided
-        if (Guid.TryParse(request.SessionId, out var sessionId))
-        {
-            var session = await _db.UploadSessions.FindAsync([sessionId], context.CancellationToken);
-            if (session is not null)
-            {
-                session.ReceivedChunks++;
-                session.UpdatedAt = DateTime.UtcNow;
-            }
-        }
+        session.ReceivedChunks++;
+        session.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(context.CancellationToken);
 
@@ -540,10 +662,20 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
             return new CompleteUploadResponse { Success = false, ErrorMessage = "Invalid ID format." };
         }
 
+        if (!ValidateAuthenticatedCaller(userId, context, out var callerError))
+        {
+            return new CompleteUploadResponse { Success = false, ErrorMessage = callerError };
+        }
+
         var session = await _db.UploadSessions.FindAsync([sessionId], context.CancellationToken);
         if (session is null)
         {
             return new CompleteUploadResponse { Success = false, ErrorMessage = "Upload session not found." };
+        }
+
+        if (session.UserId != userId)
+        {
+            return new CompleteUploadResponse { Success = false, ErrorMessage = "Upload session does not belong to this user." };
         }
 
         // Compute overall content hash from chunk manifest
@@ -561,10 +693,15 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         {
             var parent = await _db.FileNodes
                 .AsNoTracking()
-                .FirstOrDefaultAsync(n => n.Id == session.TargetParentId.Value, context.CancellationToken);
+                .FirstOrDefaultAsync(n => n.Id == session.TargetParentId.Value && n.OwnerId == userId && !n.IsDeleted, context.CancellationToken);
 
-            materializedPath = parent is not null ? parent.MaterializedPath : string.Empty;
-            depth = parent is not null ? parent.Depth + 1 : 0;
+            if (parent is null)
+            {
+                return new CompleteUploadResponse { Success = false, ErrorMessage = "Target parent folder not found." };
+            }
+
+            materializedPath = parent.MaterializedPath;
+            depth = parent.Depth + 1;
         }
         else
         {
@@ -652,10 +789,23 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         IServerStreamWriter<DownloadFileResponse> responseStream,
         ServerCallContext context)
     {
-        if (!Guid.TryParse(request.NodeId, out var nodeId))
+        if (!Guid.TryParse(request.NodeId, out var nodeId) ||
+            !Guid.TryParse(request.UserId, out var userId))
         {
             return;
         }
+
+        if (!ValidateAuthenticatedCaller(userId, context, out _))
+        {
+            return;
+        }
+
+        var node = await _db.FileNodes
+            .AsNoTracking()
+            .FirstOrDefaultAsync(n => n.Id == nodeId && n.OwnerId == userId && !n.IsDeleted, context.CancellationToken);
+
+        if (node is null)
+            return;
 
         var versionNumber = request.VersionNumber > 0 ? request.VersionNumber : 0;
 
@@ -710,10 +860,23 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
     {
         var response = new ListVersionsResponse();
 
-        if (!Guid.TryParse(request.NodeId, out var nodeId))
+        if (!Guid.TryParse(request.NodeId, out var nodeId) ||
+            !Guid.TryParse(request.UserId, out var userId))
         {
             return response;
         }
+
+        if (!ValidateAuthenticatedCaller(userId, context, out _))
+        {
+            return response;
+        }
+
+        var hasNodeAccess = await _db.FileNodes
+            .AsNoTracking()
+            .AnyAsync(n => n.Id == nodeId && n.OwnerId == userId && !n.IsDeleted, context.CancellationToken);
+
+        if (!hasNodeAccess)
+            return response;
 
         var versions = await _db.FileVersions
             .AsNoTracking()
@@ -735,6 +898,11 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
             return new RestoreVersionResponse { Success = false, ErrorMessage = "Invalid ID format." };
         }
 
+        if (!ValidateAuthenticatedCaller(userId, context, out var callerError))
+        {
+            return new RestoreVersionResponse { Success = false, ErrorMessage = callerError };
+        }
+
         var version = await _db.FileVersions
             .AsNoTracking()
             .FirstOrDefaultAsync(v => v.FileNodeId == nodeId && v.VersionNumber == request.VersionNumber,
@@ -746,9 +914,9 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         }
 
         var node = await _db.FileNodes.FindAsync([nodeId], context.CancellationToken);
-        if (node is null)
+        if (node is null || node.OwnerId != userId || node.IsDeleted)
         {
-            return new RestoreVersionResponse { Success = false, ErrorMessage = "File not found." };
+            return new RestoreVersionResponse { Success = false, ErrorMessage = "File not found or access denied." };
         }
 
         // Create a new version from the old one
@@ -793,6 +961,11 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
             return new CreateShareResponse { Success = false, ErrorMessage = "Invalid ID format." };
         }
 
+        if (!ValidateAuthenticatedCaller(userId, context, out var callerError))
+        {
+            return new CreateShareResponse { Success = false, ErrorMessage = callerError };
+        }
+
         if (!Enum.TryParse<ShareType>(request.ShareType, true, out var shareType))
         {
             return new CreateShareResponse { Success = false, ErrorMessage = "Invalid share type." };
@@ -805,7 +978,7 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
 
         var node = await _db.FileNodes
             .AsNoTracking()
-            .FirstOrDefaultAsync(n => n.Id == nodeId, context.CancellationToken);
+            .FirstOrDefaultAsync(n => n.Id == nodeId && n.OwnerId == userId && !n.IsDeleted, context.CancellationToken);
 
         if (node is null)
         {
@@ -869,10 +1042,23 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
     {
         var response = new ListSharesResponse();
 
-        if (!Guid.TryParse(request.NodeId, out var nodeId))
+        if (!Guid.TryParse(request.NodeId, out var nodeId) ||
+            !Guid.TryParse(request.UserId, out var userId))
         {
             return response;
         }
+
+        if (!ValidateAuthenticatedCaller(userId, context, out _))
+        {
+            return response;
+        }
+
+        var hasNodeAccess = await _db.FileNodes
+            .AsNoTracking()
+            .AnyAsync(n => n.Id == nodeId && n.OwnerId == userId && !n.IsDeleted, context.CancellationToken);
+
+        if (!hasNodeAccess)
+            return response;
 
         var shares = await _db.FileShares
             .AsNoTracking()
@@ -888,12 +1074,19 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
     public override async Task<RevokeShareResponse> RevokeShare(
         RevokeShareRequest request, ServerCallContext context)
     {
-        if (!Guid.TryParse(request.ShareId, out var shareId))
+        if (!Guid.TryParse(request.ShareId, out var shareId) ||
+            !Guid.TryParse(request.UserId, out var userId))
         {
-            return new RevokeShareResponse { Success = false, ErrorMessage = "Invalid share ID." };
+            return new RevokeShareResponse { Success = false, ErrorMessage = "Invalid share/user ID." };
         }
 
-        var share = await _db.FileShares.FindAsync([shareId], context.CancellationToken);
+        if (!ValidateAuthenticatedCaller(userId, context, out var callerError))
+        {
+            return new RevokeShareResponse { Success = false, ErrorMessage = callerError };
+        }
+
+        var share = await _db.FileShares
+            .FirstOrDefaultAsync(s => s.Id == shareId && s.CreatedByUserId == userId, context.CancellationToken);
         if (share is null)
         {
             return new RevokeShareResponse { Success = false, ErrorMessage = "Share not found." };
@@ -912,6 +1105,11 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         GetQuotaRequest request, ServerCallContext context)
     {
         if (!Guid.TryParse(request.UserId, out var userId))
+        {
+            return new GetQuotaResponse();
+        }
+
+        if (!ValidateAuthenticatedCaller(userId, context, out _))
         {
             return new GetQuotaResponse();
         }
@@ -945,12 +1143,19 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
     public override async Task<ToggleFavoriteResponse> ToggleFavorite(
         ToggleFavoriteRequest request, ServerCallContext context)
     {
-        if (!Guid.TryParse(request.NodeId, out var nodeId))
+        if (!Guid.TryParse(request.NodeId, out var nodeId) ||
+            !Guid.TryParse(request.UserId, out var userId))
         {
             return new ToggleFavoriteResponse { Success = false };
         }
 
-        var node = await _db.FileNodes.FindAsync([nodeId], context.CancellationToken);
+        if (!ValidateAuthenticatedCaller(userId, context, out _))
+        {
+            return new ToggleFavoriteResponse { Success = false };
+        }
+
+        var node = await _db.FileNodes
+            .FirstOrDefaultAsync(n => n.Id == nodeId && n.OwnerId == userId && !n.IsDeleted, context.CancellationToken);
         if (node is null)
         {
             return new ToggleFavoriteResponse { Success = false };
@@ -965,6 +1170,34 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
     }
 
     // --- Helper methods ---
+
+    private static bool ValidateAuthenticatedCaller(Guid requestedUserId, ServerCallContext context, out string error)
+    {
+        var principal = context.GetHttpContext().User;
+        if (principal.Identity?.IsAuthenticated != true)
+        {
+            error = "Authentication is required.";
+            return false;
+        }
+
+        var claim = principal.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? principal.FindFirstValue("sub");
+
+        if (!Guid.TryParse(claim, out var authenticatedUserId))
+        {
+            error = "Authenticated user identifier is invalid.";
+            return false;
+        }
+
+        if (authenticatedUserId != requestedUserId)
+        {
+            error = "Caller user ID does not match authenticated identity.";
+            return false;
+        }
+
+        error = string.Empty;
+        return true;
+    }
 
     private static FileNodeMessage ToMessage(FileNode node)
     {

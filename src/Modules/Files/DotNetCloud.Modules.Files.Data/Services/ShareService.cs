@@ -21,13 +21,15 @@ internal sealed class ShareService : IShareService
     private readonly FilesDbContext _db;
     private readonly IEventBus _eventBus;
     private readonly ILogger<ShareService> _logger;
+    private readonly IPermissionService _permissions;
     private static readonly PasswordHasher<object> PasswordHasher = new();
 
-    public ShareService(FilesDbContext db, IEventBus eventBus, ILogger<ShareService> logger)
+    public ShareService(FilesDbContext db, IEventBus eventBus, ILogger<ShareService> logger, IPermissionService permissions)
     {
         _db = db;
         _eventBus = eventBus;
         _logger = logger;
+        _permissions = permissions;
     }
 
     /// <inheritdoc />
@@ -151,6 +153,8 @@ internal sealed class ShareService : IShareService
     public async Task<IReadOnlyList<FileShareDto>> GetSharesAsync(Guid fileNodeId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(caller);
+
+        await _permissions.RequirePermissionAsync(fileNodeId, caller, SharePermission.Full, cancellationToken);
 
         return await _db.FileShares
             .AsNoTracking()

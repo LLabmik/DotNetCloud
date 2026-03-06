@@ -1567,7 +1567,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Implement `DownloadService`:
   - ✓ Reconstruct file from chunks in sequence order via `ConcatenatedStream`
   - ☐ Support range requests for partial downloads (deferred)
-  - ☐ Validate access permissions (owner or shared) (deferred to API layer)
+  - ✓ Validate access permissions (owner/shared) in service layer, including chunk-hash access gating
 
 #### Version Service
 - ✓ Create `IVersionService` interface:
@@ -2372,6 +2372,9 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Create `FilesGrpcService` implementing the proto service
 - ✓ Create `FilesLifecycleService` for module lifecycle gRPC
 - ✓ Create `FilesHealthCheck` health check implementation
+- ✓ Harden gRPC ownership isolation on file/node/share operations (query by `OwnerId` / `CreatedByUserId`)
+- ✓ Enforce authenticated caller identity on gRPC user-scoped RPCs (`ClaimTypes.NameIdentifier`/`sub` must match `request.user_id`)
+- ✓ Require active upload session for `UploadChunk` and validate chunk hash integrity before accepting data
 
 #### Host Program
 - ✓ Configure `Program.cs`:
@@ -2411,6 +2414,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ `TagServiceTests` — add, remove, list by tag, list user tags (17 tests)
 - ✓ `CommentServiceTests` — add, edit, delete, list, threaded replies (9 tests)
 - ✓ `BulkOperationTests` — bulk move, copy, delete, error handling per item (20 tests)
+- ✓ `FilesGrpcServiceSecurityTests` — gRPC cross-user isolation, identity mismatch rejection, and upload session/hash abuse checks (7 tests)
 
 ### Integration Tests
 
@@ -2421,11 +2425,13 @@ This phase implements the core Files module, which is the primary public-facing 
 > (2) overriding `ConfigureServices` to swap `FilesDbContext` for InMemory/container DB, (3) registering
 > a fake authentication handler to inject test identities, (4) stubbing `IFileStorageEngine` to avoid
 > disk I/O, and (5) disabling background services (`UploadSessionCleanupService`, `TrashCleanupService`,
-> etc.) to prevent side effects. All business logic is already covered by 476 unit tests at the service
+> etc.) to prevent side effects. All business logic is already covered by 483 unit tests at the service
 > layer; these integration tests would add HTTP-level verification (routing, model binding, status codes,
 > envelope format, auth middleware). Planned for Phase 1.20 or a dedicated follow-up task.
 
 - ☐ Add Files API integration tests to `DotNetCloud.Integration.Tests`:
+  - ✓ Files REST isolation integration tests (cross-user CRUD denial, upload session ownership enforcement, owner-scoped share/trash flows, quota-exceeded upload rejection)
+  - ✓ Files gRPC isolation integration tests (cross-user node access denial, request user spoofing rejection, upload session-owner mismatch)
   - ☐ File CRUD via REST API (create folder, upload file, rename, move, delete)
   - ☐ Chunked upload end-to-end (initiate, upload chunks, complete, verify)
   - ☐ Download file and verify content integrity
@@ -2542,7 +2548,7 @@ This phase implements the core Files module, which is the primary public-facing 
 ### Security
 
 - ☐ All endpoints enforce authentication ([Authorize])
-- ☐ Permission checks enforce ownership and share access
+- ✓ Permission checks enforce ownership and share access
 - ☐ Public link access works without authentication
 - ☐ Public link passwords are hashed (not stored in plain text)
 - ☐ WOPI tokens are scoped, signed, and time-limited

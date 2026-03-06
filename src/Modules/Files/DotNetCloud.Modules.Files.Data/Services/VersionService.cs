@@ -7,6 +7,7 @@ using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using SharePermission = DotNetCloud.Modules.Files.Models.SharePermission;
 
 namespace DotNetCloud.Modules.Files.Data.Services;
 
@@ -18,18 +19,22 @@ internal sealed class VersionService : IVersionService
     private readonly FilesDbContext _db;
     private readonly IEventBus _eventBus;
     private readonly ILogger<VersionService> _logger;
+    private readonly IPermissionService _permissions;
 
-    public VersionService(FilesDbContext db, IEventBus eventBus, ILogger<VersionService> logger)
+    public VersionService(FilesDbContext db, IEventBus eventBus, ILogger<VersionService> logger, IPermissionService permissions)
     {
         _db = db;
         _eventBus = eventBus;
         _logger = logger;
+        _permissions = permissions;
     }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<FileVersionDto>> ListVersionsAsync(Guid fileNodeId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(caller);
+
+        await _permissions.RequirePermissionAsync(fileNodeId, caller, SharePermission.Read, cancellationToken);
 
         return await _db.FileVersions
             .AsNoTracking()
@@ -58,6 +63,9 @@ internal sealed class VersionService : IVersionService
             .AsNoTracking()
             .FirstOrDefaultAsync(v => v.Id == versionId, cancellationToken);
 
+        if (version is not null)
+            await _permissions.RequirePermissionAsync(version.FileNodeId, caller, SharePermission.Read, cancellationToken);
+
         return version is null ? null : ToDto(version);
     }
 
@@ -68,6 +76,8 @@ internal sealed class VersionService : IVersionService
 
         var node = await _db.FileNodes.FindAsync([fileNodeId], cancellationToken)
             ?? throw new NotFoundException("FileNode", fileNodeId);
+
+        await _permissions.RequirePermissionAsync(fileNodeId, caller, SharePermission.ReadWrite, cancellationToken);
 
         if (node.NodeType != FileNodeType.File)
             throw new Core.Errors.InvalidOperationException("Cannot restore versions on a folder.");
@@ -147,6 +157,8 @@ internal sealed class VersionService : IVersionService
             .FirstOrDefaultAsync(v => v.Id == versionId, cancellationToken)
             ?? throw new NotFoundException("FileVersion", versionId);
 
+        await _permissions.RequirePermissionAsync(version.FileNodeId, caller, SharePermission.ReadWrite, cancellationToken);
+
         version.Label = label;
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -162,6 +174,8 @@ internal sealed class VersionService : IVersionService
         var version = await _db.FileVersions
             .FirstOrDefaultAsync(v => v.Id == versionId, cancellationToken)
             ?? throw new NotFoundException("FileVersion", versionId);
+
+        await _permissions.RequirePermissionAsync(version.FileNodeId, caller, SharePermission.Full, cancellationToken);
 
         // Ensure this is not the only version
         var versionCount = await _db.FileVersions
@@ -201,6 +215,9 @@ internal sealed class VersionService : IVersionService
         var version = await _db.FileVersions
             .AsNoTracking()
             .FirstOrDefaultAsync(v => v.FileNodeId == fileNodeId && v.VersionNumber == versionNumber, cancellationToken);
+
+        if (version is not null)
+            await _permissions.RequirePermissionAsync(fileNodeId, caller, SharePermission.Read, cancellationToken);
 
         return version is null ? null : ToDto(version);
     }

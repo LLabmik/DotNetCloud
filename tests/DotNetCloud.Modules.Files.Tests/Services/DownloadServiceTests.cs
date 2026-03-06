@@ -227,8 +227,36 @@ public class DownloadServiceTests
         using var db = CreateContext();
         var userId = Guid.NewGuid();
         var chunkData = Encoding.UTF8.GetBytes("chunk content");
+
+        var node = new FileNode
+        {
+            Name = "chunk-owner.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId
+        };
+        db.FileNodes.Add(node);
+
         var chunk = new FileChunk { ChunkHash = "abc123", StoragePath = "chunks/ab/c1/abc123", Size = chunkData.Length, ReferenceCount = 1 };
         db.FileChunks.Add(chunk);
+
+        var version = new FileVersion
+        {
+            FileNodeId = node.Id,
+            VersionNumber = 1,
+            Size = chunkData.Length,
+            ContentHash = "abc123",
+            StoragePath = "files/chunk-owner",
+            CreatedByUserId = userId
+        };
+        db.FileVersions.Add(version);
+
+        db.FileVersionChunks.Add(new FileVersionChunk
+        {
+            FileVersionId = version.Id,
+            FileChunkId = chunk.Id,
+            SequenceIndex = 0
+        });
+
         await db.SaveChangesAsync();
 
         var storageMock = new Mock<IFileStorageEngine>();

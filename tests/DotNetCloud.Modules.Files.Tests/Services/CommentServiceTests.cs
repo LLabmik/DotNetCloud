@@ -6,7 +6,6 @@ using DotNetCloud.Modules.Files.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
 
 namespace DotNetCloud.Modules.Files.Tests.Services;
 
@@ -22,7 +21,7 @@ public class CommentServiceTests
     }
 
     private static CommentService CreateService(FilesDbContext db) =>
-        new(db, NullLoggerFactory.Instance.CreateLogger<CommentService>());
+        new(db, NullLoggerFactory.Instance.CreateLogger<CommentService>(), new PermissionService(db));
 
     private static CallerContext UserCaller(Guid userId) => new(userId, Array.Empty<string>(), CallerType.User);
 

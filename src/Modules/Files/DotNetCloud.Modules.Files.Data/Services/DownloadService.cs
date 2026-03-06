@@ -107,6 +107,30 @@ internal sealed class DownloadService : IDownloadService
         ArgumentNullException.ThrowIfNull(caller);
         ArgumentException.ThrowIfNullOrWhiteSpace(chunkHash);
 
+        var relatedNodeIds = await _db.FileVersionChunks
+            .AsNoTracking()
+            .Where(vc => vc.FileChunk!.ChunkHash == chunkHash)
+            .Select(vc => vc.FileVersion!.FileNodeId)
+            .Distinct()
+            .Take(64)
+            .ToListAsync(cancellationToken);
+
+        if (relatedNodeIds.Count == 0)
+            return null;
+
+        var canReadChunk = false;
+        foreach (var nodeId in relatedNodeIds)
+        {
+            if (await _permissions.HasPermissionAsync(nodeId, caller, SharePermission.Read, cancellationToken))
+            {
+                canReadChunk = true;
+                break;
+            }
+        }
+
+        if (!canReadChunk)
+            return null;
+
         var chunk = await _db.FileChunks
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.ChunkHash == chunkHash, cancellationToken);

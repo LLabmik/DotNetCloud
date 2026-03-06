@@ -24,7 +24,7 @@ public class VersionServiceTests
     }
 
     private static VersionService CreateService(FilesDbContext db, IEventBus? eventBus = null) =>
-        new(db, eventBus ?? Mock.Of<IEventBus>(), NullLoggerFactory.Instance.CreateLogger<VersionService>());
+        new(db, eventBus ?? Mock.Of<IEventBus>(), NullLoggerFactory.Instance.CreateLogger<VersionService>(), new PermissionService(db));
 
     private static CallerContext UserCaller(Guid userId) => new(userId, Array.Empty<string>(), CallerType.User);
 
@@ -89,9 +89,16 @@ public class VersionServiceTests
     {
         using var db = CreateContext();
         var userId = Guid.NewGuid();
+        var node = new FileNode
+        {
+            Name = "versioned.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId
+        };
+        db.FileNodes.Add(node);
         var version = new FileVersion
         {
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = node.Id,
             VersionNumber = 1,
             Size = 100,
             ContentHash = "hash",
@@ -183,9 +190,16 @@ public class VersionServiceTests
     {
         using var db = CreateContext();
         var userId = Guid.NewGuid();
+        var node = new FileNode
+        {
+            Name = "labeled.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId
+        };
+        db.FileNodes.Add(node);
         var version = new FileVersion
         {
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = node.Id,
             VersionNumber = 1,
             Size = 100,
             ContentHash = "hash",
@@ -252,10 +266,16 @@ public class VersionServiceTests
     {
         using var db = CreateContext();
         var userId = Guid.NewGuid();
-        var nodeId = Guid.NewGuid();
+        var node = new FileNode
+        {
+            Name = "release.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId
+        };
+        db.FileNodes.Add(node);
         var version = new FileVersion
         {
-            FileNodeId = nodeId,
+            FileNodeId = node.Id,
             VersionNumber = 3,
             Size = 500,
             ContentHash = "hash3",
@@ -267,7 +287,7 @@ public class VersionServiceTests
         await db.SaveChangesAsync();
 
         var service = CreateService(db);
-        var result = await service.GetVersionByNumberAsync(nodeId, 3, UserCaller(userId));
+        var result = await service.GetVersionByNumberAsync(node.Id, 3, UserCaller(userId));
 
         Assert.IsNotNull(result);
         Assert.AreEqual(3, result.VersionNumber);

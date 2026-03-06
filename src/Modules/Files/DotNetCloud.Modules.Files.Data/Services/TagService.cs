@@ -5,6 +5,7 @@ using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using SharePermission = DotNetCloud.Modules.Files.Models.SharePermission;
 
 namespace DotNetCloud.Modules.Files.Data.Services;
 
@@ -15,11 +16,13 @@ internal sealed class TagService : ITagService
 {
     private readonly FilesDbContext _db;
     private readonly ILogger<TagService> _logger;
+    private readonly IPermissionService _permissions;
 
-    public TagService(FilesDbContext db, ILogger<TagService> logger)
+    public TagService(FilesDbContext db, ILogger<TagService> logger, IPermissionService permissions)
     {
         _db = db;
         _logger = logger;
+        _permissions = permissions;
     }
 
     /// <inheritdoc />
@@ -31,7 +34,7 @@ internal sealed class TagService : ITagService
         var node = await _db.FileNodes.FindAsync([fileNodeId], cancellationToken)
             ?? throw new NotFoundException("FileNode", fileNodeId);
 
-        EnsureOwnerOrSystem(node, caller);
+        await _permissions.RequirePermissionAsync(fileNodeId, caller, SharePermission.ReadWrite, cancellationToken);
 
         var duplicate = await _db.FileTags
             .AnyAsync(t => t.FileNodeId == fileNodeId && t.Name == name && t.CreatedByUserId == caller.UserId, cancellationToken);
@@ -64,6 +67,8 @@ internal sealed class TagService : ITagService
             .FirstOrDefaultAsync(t => t.Id == tagId && t.FileNodeId == fileNodeId, cancellationToken)
             ?? throw new NotFoundException("FileTag", tagId);
 
+        await _permissions.RequirePermissionAsync(fileNodeId, caller, SharePermission.ReadWrite, cancellationToken);
+
         if (tag.CreatedByUserId != caller.UserId && caller.Type != CallerType.System)
             throw new ForbiddenException("Only the tag creator or a system caller can remove this tag.");
 
@@ -77,6 +82,8 @@ internal sealed class TagService : ITagService
     public async Task<IReadOnlyList<FileTagDto>> GetTagsAsync(Guid fileNodeId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(caller);
+
+        await _permissions.RequirePermissionAsync(fileNodeId, caller, SharePermission.Read, cancellationToken);
 
         return await _db.FileTags
             .AsNoTracking()
@@ -143,6 +150,8 @@ internal sealed class TagService : ITagService
         var tag = await _db.FileTags
             .FirstOrDefaultAsync(t => t.FileNodeId == fileNodeId && t.Name == tagName && t.CreatedByUserId == caller.UserId, cancellationToken)
             ?? throw new NotFoundException("FileTag", tagName);
+
+        await _permissions.RequirePermissionAsync(fileNodeId, caller, SharePermission.ReadWrite, cancellationToken);
 
         _db.FileTags.Remove(tag);
         await _db.SaveChangesAsync(cancellationToken);
@@ -229,15 +238,6 @@ internal sealed class TagService : ITagService
             FailureCount = results.Count(r => !r.Success),
             Results = results
         };
-    }
-
-    private static void EnsureOwnerOrSystem(FileNode node, CallerContext caller)
-    {
-        if (caller.Type == CallerType.System)
-            return;
-
-        if (node.OwnerId != caller.UserId)
-            throw new ForbiddenException("You do not have permission to modify tags on this node.");
     }
 
     private static FileTagDto ToDto(FileTag tag) => new()

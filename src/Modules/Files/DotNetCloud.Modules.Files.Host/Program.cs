@@ -68,3 +68,8 @@ app.MapGet("/", () => Results.Ok(new
 }));
 
 app.Run();
+
+/// <summary>
+/// Public Program type for integration testing via <c>WebApplicationFactory&lt;Program&gt;</c>.
+/// </summary>
+public partial class Program;
