@@ -737,6 +737,8 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Auto-create default quota on first upload initiation and surface upload errors in UI (avoid silent failed uploads)
 - ✓ Keep upload dialog open on failed uploads and only close after full success so users can see actionable errors
 - ✓ Add top-level StartUpload exception handling so pre-upload failures surface as visible error messages (no silent no-op clicks)
+- ✓ Default Files storage path to `DOTNETCLOUD_DATA_DIR/storage` when `Files:StoragePath` is unset, avoiding read-only `/opt` writes under hardened systemd
+- ✓ Persist ASP.NET Core DataProtection key ring to `DOTNETCLOUD_DATA_DIR/data-protection-keys` so auth/antiforgery tokens survive restarts
 - ✓ Persist Files/Chat module data across server restarts/redeploys using on-disk module databases
 
 #### Theme & Branding

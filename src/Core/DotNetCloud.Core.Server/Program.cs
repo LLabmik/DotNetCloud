@@ -18,6 +18,7 @@ using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.UI.Web.Client.Services;
 using DotNetCloud.UI.Web.Services;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -137,6 +138,16 @@ public class Program
         // Add authentication and authorization
         builder.Services.AddDotNetCloudAuth(builder.Configuration);
 
+        // Persist DataProtection keys so auth/antiforgery tokens survive restarts.
+        var dataRootDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
+        var dataProtectionKeysPath = !string.IsNullOrWhiteSpace(dataRootDir)
+            ? Path.Combine(dataRootDir, "data-protection-keys")
+            : Path.Combine(builder.Environment.ContentRootPath, "data-protection-keys");
+        Directory.CreateDirectory(dataProtectionKeysPath);
+        builder.Services.AddDataProtection()
+            .SetApplicationName("DotNetCloud")
+            .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
+
         // Add database
         var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
@@ -153,8 +164,14 @@ public class Program
         builder.Services.AddChatServices();
         builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
 
-        var filesStoragePath = builder.Configuration.GetValue<string>("Files:StoragePath")
-            ?? Path.Combine(builder.Environment.ContentRootPath, "storage");
+        var filesStoragePath = builder.Configuration.GetValue<string>("Files:StoragePath");
+        if (string.IsNullOrWhiteSpace(filesStoragePath))
+        {
+            var dataDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
+            filesStoragePath = !string.IsNullOrWhiteSpace(dataDir)
+                ? Path.Combine(dataDir, "storage")
+                : Path.Combine(builder.Environment.ContentRootPath, "storage");
+        }
         builder.Services.AddSingleton<IFileStorageEngine>(sp =>
             new LocalFileStorageEngine(filesStoragePath, sp.GetRequiredService<ILogger<LocalFileStorageEngine>>()));
 

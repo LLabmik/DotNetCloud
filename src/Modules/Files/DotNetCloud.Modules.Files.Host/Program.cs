@@ -21,8 +21,14 @@ builder.Services.AddDbContext<FilesDbContext>(options =>
 builder.Services.AddFilesServices(builder.Configuration);
 
 // File storage engine (local filesystem, configurable base path)
-var storagePath = builder.Configuration.GetValue<string>("Files:StoragePath")
-    ?? Path.Combine(builder.Environment.ContentRootPath, "storage");
+var storagePath = builder.Configuration.GetValue<string>("Files:StoragePath");
+if (string.IsNullOrWhiteSpace(storagePath))
+{
+    var dataDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
+    storagePath = !string.IsNullOrWhiteSpace(dataDir)
+        ? Path.Combine(dataDir, "storage")
+        : Path.Combine(builder.Environment.ContentRootPath, "storage");
+}
 builder.Services.AddSingleton<IFileStorageEngine>(sp =>
     new LocalFileStorageEngine(storagePath, sp.GetRequiredService<ILogger<LocalFileStorageEngine>>()));
 
