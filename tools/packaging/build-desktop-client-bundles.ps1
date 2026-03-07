@@ -86,88 +86,88 @@ dotnet publish $SyncTrayProject `
 
 Write-Host "[3/6] Writing Linux installer scripts..." -ForegroundColor Yellow
 
-$LinuxInstallScript = @'
-#!/usr/bin/env bash
-set -euo pipefail
-
-if [[ "$EUID" -ne 0 ]]; then
-  echo "Please run as root (sudo ./install.sh)."
-  exit 1
-fi
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INSTALL_DIR="/opt/dotnetcloud-desktop-client"
-SERVICE_NAME="dotnetcloud-sync"
-SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
-LAUNCHER="/usr/local/bin/dotnetcloud-sync-tray"
-
-mkdir -p "$INSTALL_DIR"
-
-# Upgrade-safe replacement: stop running service before replacing binaries.
-if systemctl list-unit-files | grep -q "^${SERVICE_NAME}\.service"; then
-    systemctl stop "$SERVICE_NAME" || true
-fi
-
-cp -a "$SCRIPT_DIR/payload/." "$INSTALL_DIR/"
-
-install -m 0755 "$INSTALL_DIR/SyncService/dotnetcloud-sync-service" "$INSTALL_DIR/SyncService/dotnetcloud-sync-service"
-install -m 0755 "$INSTALL_DIR/SyncTray/dotnetcloud-sync-tray" "$INSTALL_DIR/SyncTray/dotnetcloud-sync-tray"
-
-cat > "$SERVICE_FILE" <<EOF
-[Unit]
-Description=DotNetCloud Sync Service
-After=network.target
-
-[Service]
-Type=notify
-ExecStart=$INSTALL_DIR/SyncService/dotnetcloud-sync-service
-Restart=on-failure
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-cat > "$LAUNCHER" <<EOF
-#!/usr/bin/env bash
-exec "$INSTALL_DIR/SyncTray/dotnetcloud-sync-tray" "\$@"
-EOF
-chmod 0755 "$LAUNCHER"
-
-systemctl daemon-reload
-systemctl enable --now "$SERVICE_NAME"
-
-echo
-echo "Install complete."
-echo "Service status: systemctl status ${SERVICE_NAME} --no-pager"
-echo "Run tray as desktop user: dotnetcloud-sync-tray"
-'@
+$LinuxInstallScript = @(
+        '#!/usr/bin/env bash',
+        'set -euo pipefail',
+        '',
+        'if [[ "$EUID" -ne 0 ]]; then',
+        '  echo "Please run as root (sudo ./install.sh)."',
+        '  exit 1',
+        'fi',
+        '',
+        'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"',
+        'INSTALL_DIR="/opt/dotnetcloud-desktop-client"',
+        'SERVICE_NAME="dotnetcloud-sync"',
+        'SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"',
+        'LAUNCHER="/usr/local/bin/dotnetcloud-sync-tray"',
+        '',
+        'mkdir -p "$INSTALL_DIR"',
+        '',
+        '# Upgrade-safe replacement: stop running service before replacing binaries.',
+        'if systemctl list-unit-files | grep -q "^${SERVICE_NAME}\.service"; then',
+        '    systemctl stop "$SERVICE_NAME" || true',
+        'fi',
+        '',
+        'cp -a "$SCRIPT_DIR/payload/." "$INSTALL_DIR/"',
+        '',
+        'install -m 0755 "$INSTALL_DIR/SyncService/dotnetcloud-sync-service" "$INSTALL_DIR/SyncService/dotnetcloud-sync-service"',
+        'install -m 0755 "$INSTALL_DIR/SyncTray/dotnetcloud-sync-tray" "$INSTALL_DIR/SyncTray/dotnetcloud-sync-tray"',
+        '',
+        'cat > "$SERVICE_FILE" <<EOF',
+        '[Unit]',
+        'Description=DotNetCloud Sync Service',
+        'After=network.target',
+        '',
+        '[Service]',
+        'Type=notify',
+        'ExecStart=$INSTALL_DIR/SyncService/dotnetcloud-sync-service',
+        'Restart=on-failure',
+        'RestartSec=10',
+        '',
+        '[Install]',
+        'WantedBy=multi-user.target',
+        'EOF',
+        '',
+        'cat > "$LAUNCHER" <<EOF',
+        '#!/usr/bin/env bash',
+        'exec "$INSTALL_DIR/SyncTray/dotnetcloud-sync-tray" "\$@"',
+        'EOF',
+        'chmod 0755 "$LAUNCHER"',
+        '',
+        'systemctl daemon-reload',
+        'systemctl enable --now "$SERVICE_NAME"',
+        '',
+        'echo',
+        'echo "Install complete."',
+        'echo "Service status: systemctl status ${SERVICE_NAME} --no-pager"',
+        'echo "Run tray as desktop user: dotnetcloud-sync-tray"'
+) -join [Environment]::NewLine
 Set-Content -Path (Join-Path $LinuxRoot "install.sh") -Value $LinuxInstallScript
 
-$LinuxUninstallScript = @'
-#!/usr/bin/env bash
-set -euo pipefail
-
-if [[ "$EUID" -ne 0 ]]; then
-  echo "Please run as root (sudo ./uninstall.sh)."
-  exit 1
-fi
-
-INSTALL_DIR="/opt/dotnetcloud-desktop-client"
-SERVICE_NAME="dotnetcloud-sync"
-SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
-LAUNCHER="/usr/local/bin/dotnetcloud-sync-tray"
-
-systemctl stop "$SERVICE_NAME" || true
-systemctl disable "$SERVICE_NAME" || true
-rm -f "$SERVICE_FILE"
-rm -f "$LAUNCHER"
-rm -rf "$INSTALL_DIR"
-
-systemctl daemon-reload
-
-echo "Uninstall complete."
-'@
+$LinuxUninstallScript = @(
+        '#!/usr/bin/env bash',
+        'set -euo pipefail',
+        '',
+        'if [[ "$EUID" -ne 0 ]]; then',
+        '  echo "Please run as root (sudo ./uninstall.sh)."',
+        '  exit 1',
+        'fi',
+        '',
+        'INSTALL_DIR="/opt/dotnetcloud-desktop-client"',
+        'SERVICE_NAME="dotnetcloud-sync"',
+        'SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"',
+        'LAUNCHER="/usr/local/bin/dotnetcloud-sync-tray"',
+        '',
+        'systemctl stop "$SERVICE_NAME" || true',
+        'systemctl disable "$SERVICE_NAME" || true',
+        'rm -f "$SERVICE_FILE"',
+        'rm -f "$LAUNCHER"',
+        'rm -rf "$INSTALL_DIR"',
+        '',
+        'systemctl daemon-reload',
+        '',
+        'echo "Uninstall complete."'
+) -join [Environment]::NewLine
 Set-Content -Path (Join-Path $LinuxRoot "uninstall.sh") -Value $LinuxUninstallScript
 
 Write-Host "[4/6] Writing Windows installer scripts..." -ForegroundColor Yellow
@@ -276,31 +276,31 @@ if ($IsLinux -or $IsMacOS) {
     & chmod +x (Join-Path $LinuxRoot "uninstall.sh")
 }
 
-Set-Content -Path (Join-Path $LinuxRoot "README.txt") -Value @"
-DotNetCloud Desktop Client (Linux x64)
+Set-Content -Path (Join-Path $LinuxRoot "README.txt") -Value ((@(
+        'DotNetCloud Desktop Client (Linux x64)',
+        '',
+        'Install:',
+        '  sudo ./install.sh',
+        '',
+        'Uninstall:',
+        '  sudo ./uninstall.sh',
+        '',
+        'After install, run tray in user session:',
+        '  dotnetcloud-sync-tray'
+) -join [Environment]::NewLine))
 
-Install:
-  sudo ./install.sh
-
-Uninstall:
-  sudo ./uninstall.sh
-
-After install, run tray in user session:
-  dotnetcloud-sync-tray
-"@
-
-Set-Content -Path (Join-Path $WindowsRoot "README.txt") -Value @"
-DotNetCloud Desktop Client (Windows x64)
-
-Install (elevated PowerShell):
-  .\Install-DesktopClient.ps1
-
-Or run:
-  install.cmd
-
-Uninstall (elevated PowerShell):
-  .\Uninstall-DesktopClient.ps1
-"@
+Set-Content -Path (Join-Path $WindowsRoot "README.txt") -Value ((@(
+        'DotNetCloud Desktop Client (Windows x64)',
+        '',
+        'Install (elevated PowerShell):',
+        '  .\Install-DesktopClient.ps1',
+        '',
+        'Or run:',
+        '  install.cmd',
+        '',
+        'Uninstall (elevated PowerShell):',
+        '  .\Uninstall-DesktopClient.ps1'
+) -join [Environment]::NewLine))
 
 Write-Host "[6/6] Creating distributable archives..." -ForegroundColor Yellow
 
