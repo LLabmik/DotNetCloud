@@ -33,6 +33,7 @@ public partial class FileUploadComponent : ComponentBase
     [Parameter] public IReadOnlyList<IBrowserFile>? InitialFiles { get; set; }
 
     private readonly List<UploadFileItem> _files = [];
+    private const int UploadChunkSize = ContentHasher.DefaultChunkSize;
     private bool _isDragging;
     private bool _isUploading;
     private string? _errorMessage;
@@ -152,11 +153,23 @@ public partial class FileUploadComponent : ComponentBase
             }
 
             await using var stream = file.BrowserFile.OpenReadStream(file.Size);
-            using var ms = new MemoryStream();
-            await stream.CopyToAsync(ms);
-            var bytes = ms.ToArray();
 
-            var chunkHash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+            var chunks = new List<(string Hash, byte[] Data)>();
+            var buffer = new byte[UploadChunkSize];
+
+            while (true)
+            {
+                var read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length));
+                if (read == 0)
+                    break;
+
+                var chunkData = new byte[read];
+                Buffer.BlockCopy(buffer, 0, chunkData, 0, read);
+                var chunkHash = Convert.ToHexString(SHA256.HashData(chunkData)).ToLowerInvariant();
+                chunks.Add((chunkHash, chunkData));
+            }
+
+            var chunkHashes = chunks.Select(c => c.Hash).ToList();
 
             file.Progress = 20;
             StateHasChanged();
@@ -167,15 +180,28 @@ public partial class FileUploadComponent : ComponentBase
                 ParentId = ParentId,
                 TotalSize = file.Size,
                 MimeType = file.ContentType,
-                ChunkHashes = [chunkHash]
+                ChunkHashes = chunkHashes
             }, caller);
 
             file.Progress = 45;
             StateHasChanged();
 
-            if (session.MissingChunks.Contains(chunkHash, StringComparer.OrdinalIgnoreCase))
+            var missing = new HashSet<string>(session.MissingChunks, StringComparer.OrdinalIgnoreCase);
+            var uploadedChunks = 0;
+            foreach (var chunk in chunks)
             {
-                await UploadService.UploadChunkAsync(session.SessionId, chunkHash, bytes, caller);
+                if (!missing.Contains(chunk.Hash))
+                {
+                    continue;
+                }
+
+                await UploadService.UploadChunkAsync(session.SessionId, chunk.Hash, chunk.Data, caller);
+                uploadedChunks++;
+
+                // Advance upload progress between 45% and 80% as missing chunks are sent.
+                var progress = 45 + (int)Math.Round((uploadedChunks / (double)Math.Max(1, missing.Count)) * 35);
+                file.Progress = Math.Clamp(progress, 45, 80);
+                StateHasChanged();
             }
 
             file.Progress = 80;
