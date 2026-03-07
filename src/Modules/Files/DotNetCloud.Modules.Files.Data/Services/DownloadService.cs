@@ -153,27 +153,61 @@ internal sealed class DownloadService : IDownloadService
         if (versionChunks.Count == 0)
             return Stream.Null;
 
-        var streams = new List<Stream>(versionChunks.Count);
+        var tempPath = Path.Combine(Path.GetTempPath(), $"dotnetcloud-download-{versionId:N}-{Guid.NewGuid():N}.bin");
 
-        foreach (var vc in versionChunks)
+        try
         {
-            var stream = await _storageEngine.OpenReadStreamAsync(vc.FileChunk!.StoragePath, cancellationToken);
-            if (stream is null)
+            await using (var tempWrite = new FileStream(
+                tempPath,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                System.IO.FileShare.None,
+                bufferSize: 81920,
+                options: FileOptions.Asynchronous | FileOptions.SequentialScan))
             {
-                // Dispose already-opened streams
-                foreach (var s in streams)
-                    await s.DisposeAsync();
+                foreach (var vc in versionChunks)
+                {
+                    var chunkStream = await _storageEngine.OpenReadStreamAsync(vc.FileChunk!.StoragePath, cancellationToken);
+                    if (chunkStream is null)
+                    {
+                        throw new Core.Errors.InvalidOperationException(
+                            $"Chunk storage missing for hash '{vc.FileChunk.ChunkHash}'. File may be corrupted.");
+                    }
 
-                throw new Core.Errors.InvalidOperationException(
-                    $"Chunk storage missing for hash '{vc.FileChunk.ChunkHash}'. File may be corrupted.");
+                    await using (chunkStream)
+                    {
+                        await chunkStream.CopyToAsync(tempWrite, cancellationToken);
+                    }
+                }
             }
-            streams.Add(stream);
+
+            _logger.LogDebug("Reconstructed file from {ChunkCount} chunks for version {VersionId} into temp file.",
+                versionChunks.Count, versionId);
+
+            return new FileStream(
+                tempPath,
+                FileMode.Open,
+                FileAccess.Read,
+                System.IO.FileShare.Read,
+                bufferSize: 81920,
+                options: FileOptions.Asynchronous | FileOptions.SequentialScan | FileOptions.DeleteOnClose);
         }
+        catch
+        {
+            try
+            {
+                if (File.Exists(tempPath))
+                {
+                    File.Delete(tempPath);
+                }
+            }
+            catch
+            {
+                // Best-effort cleanup only.
+            }
 
-        _logger.LogDebug("Reconstructing file from {ChunkCount} chunks for version {VersionId}",
-            versionChunks.Count, versionId);
-
-        return new ConcatenatedStream(streams);
+            throw;
+        }
     }
 }
 

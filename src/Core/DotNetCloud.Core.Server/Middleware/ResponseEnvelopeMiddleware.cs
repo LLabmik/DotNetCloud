@@ -80,39 +80,41 @@ public sealed class ResponseEnvelopeMiddleware
             return;
         }
 
-        // Buffer the response body so we can inspect and potentially wrap it
+        // Buffer the response body so JSON payloads can be enveloped safely.
         var originalBodyStream = context.Response.Body;
         using var memoryStream = new MemoryStream();
         context.Response.Body = memoryStream;
 
         await _next(context);
 
-        memoryStream.Position = 0;
-        var responseBody = await new StreamReader(memoryStream).ReadToEndAsync();
         context.Response.Body = originalBodyStream;
 
+        var bufferedBytes = memoryStream.ToArray();
+
         // Don't envelope empty responses (204 No Content, 304 Not Modified, etc.)
-        if (string.IsNullOrEmpty(responseBody) ||
+        if (bufferedBytes.Length == 0 ||
             context.Response.StatusCode == StatusCodes.Status204NoContent ||
             context.Response.StatusCode == StatusCodes.Status304NotModified)
         {
-            if (!string.IsNullOrEmpty(responseBody))
+            if (bufferedBytes.Length > 0)
             {
-                memoryStream.Position = 0;
-                await memoryStream.CopyToAsync(originalBodyStream);
+                await originalBodyStream.WriteAsync(bufferedBytes);
             }
             return;
         }
 
-        // Don't re-envelope if the response is already enveloped
-        if (IsAlreadyEnveloped(responseBody))
+        // Never treat non-JSON API responses as text; preserve raw bytes for
+        // file downloads and other binary content.
+        if (!IsJsonContentType(context.Response.ContentType))
         {
-            await WriteToResponseAsync(context, responseBody);
+            await originalBodyStream.WriteAsync(bufferedBytes);
             return;
         }
 
-        // Only envelope JSON responses
-        if (!IsJsonContentType(context.Response.ContentType))
+        var responseBody = System.Text.Encoding.UTF8.GetString(bufferedBytes);
+
+        // Don't re-envelope if the response is already enveloped
+        if (IsAlreadyEnveloped(responseBody))
         {
             await WriteToResponseAsync(context, responseBody);
             return;

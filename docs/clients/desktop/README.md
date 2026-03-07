@@ -93,6 +93,7 @@ Desktop client installers are published as versioned GitHub Release assets:
 
 - `dotnetcloud-desktop-client-linux-x64-<version>.tar.gz`
 - `dotnetcloud-desktop-client-win-x64-<version>.zip`
+- `dotnetcloud-sync-tray-win-x64-<version>.msix`
 
 ---
 

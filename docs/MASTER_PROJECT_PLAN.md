@@ -2366,8 +2366,9 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `tools/packaging/build-rpm.ps1` — RPM package skeleton (publish, .spec file, rpmbuild structure)
 - ✓ `tools/packaging/build-msi.ps1` — Windows MSI skeleton (publish win-x64, WiX v4 placeholder)
 - ✓ `tools/packaging/build-docker.ps1` — Docker image build script (functional: build, tag, optional push)
+- ✓ `tools/packaging/build-desktop-client-msix.ps1` — Windows SyncTray MSIX builder (win-x64 publish, manifest + assets generation, makeappx pack, optional signing)
 
-**Notes:** Full CI/CD pipeline in place. Both GitHub Actions and Gitea Actions workflows are functionally identical, covering build, unit tests with coverage, and multi-database integration tests. Docker multi-stage build produces a minimal runtime image with non-root security. Packaging scripts provide the skeleton for `.deb`, `.rpm`, and MSI builds to be fleshed out in later infrastructure phases. Status badge documentation deferred. All existing tests continue to pass. Build verified successful.
+**Notes:** Full CI/CD pipeline in place. Both GitHub Actions and Gitea Actions workflows are functionally identical, covering build, unit tests with coverage, and multi-database integration tests. Docker multi-stage build produces a minimal runtime image with non-root security. Packaging scripts provide the skeleton for `.deb`, `.rpm`, and MSI builds to be fleshed out in later infrastructure phases, and now include a dedicated desktop `SyncTray` MSIX packaging script for Windows distribution. Status badge documentation deferred. All existing tests continue to pass. Build verified successful.
 
 ---
 

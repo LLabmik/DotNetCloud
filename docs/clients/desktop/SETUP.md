@@ -21,13 +21,21 @@
 
 ### Windows
 
-1. **Download installer bundle** from GitHub Releases:
+1. **Recommended (MSIX):** Download and install
+
+   - `dotnetcloud-sync-tray-win-x64-<version>.msix`
+
+   This installs the desktop client binaries with native Windows app-install UX.
+
+   Current limitation: MSIX installs do not register the `DotNetCloudSync` Windows Service yet. Use the ZIP installer flow below if you need service registration today.
+
+2. **Alternative (ZIP + script):** Download installer bundle from GitHub Releases:
 
    - `dotnetcloud-desktop-client-win-x64-<version>.zip`
 
-2. **Extract** the zip to a folder.
+3. **Extract** the zip to a folder.
 
-3. **Install** from an elevated PowerShell window:
+4. **Install** from an elevated PowerShell window:
 
    ```powershell
    .\Install-DesktopClient.ps1
@@ -39,19 +47,20 @@
    install.cmd
    ```
 
-4. **Verify service is running:**
+5. **Verify service is running:**
 
    ```powershell
    Get-Service DotNetCloudSync
    ```
 
-5. **Run SyncTray:**
+6. **Run SyncTray:**
 
    ```powershell
    & "$env:ProgramFiles\DotNetCloud\DesktopClient\SyncTray\dotnetcloud-sync-tray.exe"
    ```
 
-6. **Auto-start SyncTray on login:** Installer creates a Startup shortcut automatically.
+7. **Auto-start SyncTray on login:** Installer creates a Startup shortcut automatically.
+
 
 ### Linux
 
@@ -113,6 +122,12 @@ If you are building installers yourself (CI or local packaging host), use:
 
 ```powershell
 .\tools\packaging\build-desktop-client-bundles.ps1 -Version "<version>" -Configuration "Release"
+
+# Optional: Build zip/tar bundles and MSIX together (Windows host)
+.\tools\packaging\build-desktop-client-bundles.ps1 -Version "<version>" -Configuration "Release" -BuildMsix
+
+# Optional: Build SyncTray MSIX (Windows only)
+.\tools\packaging\build-desktop-client-msix.ps1 -Version "<version>" -Configuration "Release"
 ```
 
 Linux/macOS developers can run the bash wrapper:
@@ -131,8 +146,10 @@ Output artifacts:
 
 - `artifacts/installers/dotnetcloud-desktop-client-linux-x64-<version>.tar.gz`
 - `artifacts/installers/dotnetcloud-desktop-client-win-x64-<version>.zip`
+- `artifacts/installers/dotnetcloud-sync-tray-win-x64-<version>.msix`
 - `artifacts/installers/dotnetcloud-desktop-client-linux-x64-<version>.tar.gz.sha256`
 - `artifacts/installers/dotnetcloud-desktop-client-win-x64-<version>.zip.sha256`
+- `artifacts/installers/dotnetcloud-sync-tray-win-x64-<version>.msix.sha256`
 
 ---
 

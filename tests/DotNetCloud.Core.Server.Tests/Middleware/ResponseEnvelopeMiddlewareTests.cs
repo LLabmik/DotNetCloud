@@ -125,6 +125,27 @@ public class ResponseEnvelopeMiddlewareTests
     }
 
     [TestMethod]
+    public async Task InvokeAsync_BinaryApiResponse_PreservesRawBytes()
+    {
+        var context = CreateHttpContext("/api/v1/files/abc/download");
+        var expectedBytes = new byte[] { 0x50, 0x4B, 0x03, 0x04, 0xFF, 0x00, 0xD8, 0xAA, 0x7F };
+
+        var middleware = new ResponseEnvelopeMiddleware(
+            async ctx =>
+            {
+                ctx.Response.ContentType = "application/octet-stream";
+                await ctx.Response.Body.WriteAsync(expectedBytes);
+            },
+            _options,
+            NullLogger<ResponseEnvelopeMiddleware>.Instance);
+
+        await middleware.InvokeAsync(context);
+
+        var actualBytes = ReadResponseBodyBytes(context);
+        CollectionAssert.AreEqual(expectedBytes, actualBytes);
+    }
+
+    [TestMethod]
     public void ResponseEnvelopeOptions_HasCorrectDefaults()
     {
         var options = new ResponseEnvelopeOptions();
@@ -149,5 +170,13 @@ public class ResponseEnvelopeMiddlewareTests
         context.Response.Body.Position = 0;
         using var reader = new StreamReader(context.Response.Body);
         return await reader.ReadToEndAsync();
+    }
+
+    private static byte[] ReadResponseBodyBytes(HttpContext context)
+    {
+        context.Response.Body.Position = 0;
+        using var ms = new MemoryStream();
+        context.Response.Body.CopyTo(ms);
+        return ms.ToArray();
     }
 }

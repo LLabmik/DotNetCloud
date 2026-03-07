@@ -24,6 +24,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     [Inject] private ICollaboraDiscoveryService CollaboraDiscoveryService { get; set; } = default!;
     [Inject] private IOptions<CollaboraOptions> CollaboraOptions { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private IJSRuntime Js { get; set; } = default!;
 
     /// <summary>The current user ID, used for opening the document editor.</summary>
@@ -471,10 +472,22 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     }
 
     /// <summary>Closes the preview and triggers a download for the given node.</summary>
-    protected void HandlePreviewDownload(FileNodeViewModel node)
+    protected async Task HandlePreviewDownload(FileNodeViewModel node)
     {
         HidePreview();
-        // In a full implementation, trigger file download via the download API endpoint.
+        await DownloadNodeAsync(node);
+    }
+
+    /// <summary>Closes the editor and triggers file download for the current editor node.</summary>
+    protected async Task HandleEditorDownload()
+    {
+        var node = _editorNode;
+        HideDocumentEditor();
+
+        if (node is not null)
+        {
+            await DownloadNodeAsync(node);
+        }
     }
 
     protected void ShowDocumentEditor(FileNodeViewModel node)
@@ -736,6 +749,30 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
         var roles = user.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
         return new CallerContext(userId, roles, CallerType.User);
+    }
+
+    private async Task DownloadNodeAsync(FileNodeViewModel node)
+    {
+        if (!string.Equals(node.NodeType, "File", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var effectiveUserId = UserId;
+        if (effectiveUserId == Guid.Empty)
+        {
+            effectiveUserId = (await GetCallerContextAsync()).UserId;
+        }
+
+        var baseUrl = string.IsNullOrWhiteSpace(ApiBaseUrl)
+            ? string.Empty
+            : ApiBaseUrl.TrimEnd('/');
+
+        var downloadUrl =
+            $"{baseUrl}/api/v1/files/{node.Id}/download?userId={Uri.EscapeDataString(effectiveUserId.ToString())}";
+
+        // forceLoad ensures a real browser navigation, which allows large file downloads.
+        Navigation.NavigateTo(downloadUrl, forceLoad: true);
     }
 
     private static FileNodeViewModel ToViewModel(FileNodeDto dto)

@@ -2,7 +2,7 @@
 # DotNetCloud - Desktop Client Bundle Builder
 # =============================================================================
 # Usage:
-#   .\build-desktop-client-bundles.ps1 [-Version "0.1.0-alpha"] [-Configuration "Release"]
+#   .\build-desktop-client-bundles.ps1 [-Version "0.1.0-alpha"] [-Configuration "Release"] [-BuildMsix]
 #
 # Purpose:
 #   Builds self-contained desktop client artifacts for end-user installation.
@@ -11,12 +11,14 @@
 # Output:
 #   ./artifacts/installers/dotnetcloud-desktop-client-linux-x64-<version>.tar.gz
 #   ./artifacts/installers/dotnetcloud-desktop-client-win-x64-<version>.zip
+#   ./artifacts/installers/dotnetcloud-sync-tray-win-x64-<version>.msix (optional via -BuildMsix)
 # =============================================================================
 
 param(
     [string]$Version = "0.1.0-alpha",
     [string]$Configuration = "Release",
-    [string]$OutputDir = "./artifacts/installers"
+    [string]$OutputDir = "./artifacts/installers",
+    [switch]$BuildMsix
 )
 
 $ErrorActionPreference = "Stop"
@@ -318,6 +320,19 @@ else {
 
 Compress-Archive -Path (Join-Path $StagingRoot "win-x64/*") -DestinationPath $WindowsArchive
 
+if ($BuildMsix)
+{
+    if (-not $IsWindows)
+    {
+        throw "-BuildMsix can only run on Windows hosts."
+    }
+
+    Write-Host "[Optional] Building SyncTray MSIX..." -ForegroundColor Yellow
+    $msixScript = Join-Path $PSScriptRoot "build-desktop-client-msix.ps1"
+
+    & $msixScript -Version $Version -Configuration $Configuration -OutputDir $OutputRoot
+}
+
 # Generate release-style checksum files for local distribution/testing.
 $LinuxArchiveName = Split-Path $LinuxArchive -Leaf
 $WindowsArchiveName = Split-Path $WindowsArchive -Leaf
@@ -327,9 +342,24 @@ $WindowsHash = (Get-FileHash -Path $WindowsArchive -Algorithm SHA256).Hash.ToLow
 Set-Content -Path "$LinuxArchive.sha256" -Value "$LinuxHash  $LinuxArchiveName"
 Set-Content -Path "$WindowsArchive.sha256" -Value "$WindowsHash  $WindowsArchiveName"
 
+$msixPath = Join-Path $OutputRoot "dotnetcloud-sync-tray-win-x64-$Version.msix"
+if ($BuildMsix -and (Test-Path $msixPath))
+{
+    $msixName = Split-Path $msixPath -Leaf
+    $msixHash = (Get-FileHash -Path $msixPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    Set-Content -Path "$msixPath.sha256" -Value "$msixHash  $msixName"
+}
+
 Write-Host "`nDesktop client bundles created:" -ForegroundColor Green
 Write-Host "  $LinuxArchive"
 Write-Host "  $WindowsArchive"
 Write-Host "  $LinuxArchive.sha256"
 Write-Host "  $WindowsArchive.sha256"
+
+if ($BuildMsix -and (Test-Path $msixPath))
+{
+    Write-Host "  $msixPath"
+    Write-Host "  $msixPath.sha256"
+}
+
 Write-Host "`nEnd users can install without .NET SDK/runtime prerequisites." -ForegroundColor Green

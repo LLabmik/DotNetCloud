@@ -3604,11 +3604,12 @@ This phase implements real-time chat, announcements, push notifications, and the
 
 ### Windows Installation
 
-- [ ] Create MSI installer
-- [ ] Implement WinGet package
-- [ ] Set up Windows Service registration
-- [ ] Create auto-start on boot
-- [ ] Implement uninstaller
+- ☐ Create MSI installer
+- ✓ Create MSIX build script for SyncTray (`tools/packaging/build-desktop-client-msix.ps1`)
+- ☐ Implement WinGet package
+- ☐ Set up Windows Service registration
+- ☐ Create auto-start on boot
+- ☐ Implement uninstaller
 
 ### Monitoring & Alerting
 

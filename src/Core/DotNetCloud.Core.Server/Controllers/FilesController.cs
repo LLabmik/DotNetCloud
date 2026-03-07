@@ -235,7 +235,7 @@ public sealed class FilesController : FilesControllerBase
             return NotFound(ErrorEnvelope("not_found", "Node not found."));
 
         var downloadStream = await _downloadService.DownloadCurrentAsync(nodeId, caller);
-        return File(downloadStream, node.MimeType ?? "application/octet-stream", node.Name, enableRangeProcessing: true);
+        return File(downloadStream, node.MimeType ?? "application/octet-stream", node.Name, enableRangeProcessing: false);
     });
 
     /// <summary>
