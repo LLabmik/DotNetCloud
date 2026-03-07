@@ -27,6 +27,7 @@
     <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="7.2.0" />
     <PackageReference Include="OpenIddict.Server.AspNetCore" Version="7.2.0" />
     <PackageReference Include="Scalar.AspNetCore" Version="2.0.30" />
+    <PackageReference Include="Yarp.ReverseProxy" Version="2.2.0" />
   </ItemGroup>
 
   <ItemGroup>

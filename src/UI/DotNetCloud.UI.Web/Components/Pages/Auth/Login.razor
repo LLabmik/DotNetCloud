@@ -1,7 +1,4 @@
 @page "/auth/login"
-@using Microsoft.AspNetCore.Identity
-@using Microsoft.Extensions.Logging
-@using DotNetCloud.Core.Data.Entities.Identity
 @layout AuthLayout
 
 <PageTitle>Login - DotNetCloud</PageTitle>
@@ -14,32 +11,28 @@
             <p>Sign in to your account</p>
         </div>
 
-        <EditForm Model="_model" OnValidSubmit="LoginAsync" FormName="login">
-            <DataAnnotationsValidator />
-
+        <form method="post" action="/auth/session/login">
             <div class="form-group">
                 <label for="email">Email</label>
-                <InputText id="email" class="input" @bind-Value="_model!.Email" placeholder="you@example.com" />
-                <ValidationMessage For="() => _model!.Email" />
+                <input id="email" name="email" class="input" type="email" required value="@Email" placeholder="you@example.com" />
             </div>
 
             <div class="form-group">
                 <label for="password">Password</label>
-                <InputText id="password" class="input" type="password" @bind-Value="_model!.Password" />
-                <ValidationMessage For="() => _model!.Password" />
+                <input id="password" name="password" class="input" type="password" required />
             </div>
 
-            @if (!string.IsNullOrWhiteSpace(_errorMessage))
+            <input type="hidden" name="returnUrl" value="@SafeReturnUrl" />
+
+            @if (!string.IsNullOrWhiteSpace(Error))
             {
-                <div class="alert alert-danger">@_errorMessage</div>
+                <div class="alert alert-danger">@Error</div>
             }
 
             <div class="form-actions">
-                <button type="submit" class="btn btn-primary btn-full" disabled="@_submitting">
-                    @(_submitting ? "Signing in..." : "Sign In")
-                </button>
+                <button type="submit" class="btn btn-primary btn-full">Sign In</button>
             </div>
-        </EditForm>
+        </form>
 
         <div class="auth-footer">
             <a href="/auth/forgot-password">Forgot password?</a>
@@ -50,88 +43,20 @@
 </div>
 
 @code {
-    private const string AdminBasePath = "/admin";
-
-    [Inject] private SignInManager<ApplicationUser> SignInManager { get; set; } = default!;
-    [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
-    [Inject] private NavigationManager Navigation { get; set; } = default!;
-    [Inject] private ILogger<Login> Logger { get; set; } = default!;
-
     [SupplyParameterFromQuery]
     private string? ReturnUrl { get; set; }
 
-    [SupplyParameterFromForm]
-    private LoginFormModel? _model { get; set; }
+    [SupplyParameterFromQuery]
+    private string? Error { get; set; }
 
-    private bool _submitting;
-    private string? _errorMessage;
+    [SupplyParameterFromQuery]
+    private string? Email { get; set; }
 
-    protected override void OnInitialized()
+    private string SafeReturnUrl => IsSafeLocalReturnUrl(ReturnUrl) ? ReturnUrl! : "/";
+
+    protected override void OnParametersSet()
     {
-        _model ??= new();
-    }
-
-    private async Task LoginAsync()
-    {
-        _model ??= new();
-        _errorMessage = null;
-        _submitting = true;
-
-        try
-        {
-            var result = await SignInManager.PasswordSignInAsync(
-                _model.Email,
-                _model.Password,
-                isPersistent: true,
-                lockoutOnFailure: true);
-
-            if (result.Succeeded)
-            {
-                await UpdateLastLoginAsync(_model.Email);
-                var target = await ResolvePostLoginTargetAsync(_model.Email, ReturnUrl);
-                Navigation.NavigateTo(target, forceLoad: true);
-                return;
-            }
-
-            if (result.IsLockedOut)
-            {
-                _errorMessage = "Account locked. Please try again later.";
-            }
-            else if (result.RequiresTwoFactor)
-            {
-                var mfaReturnUrl = IsSafeLocalReturnUrl(ReturnUrl) ? ReturnUrl! : "/";
-                Navigation.NavigateTo($"/auth/mfa-verify?returnUrl={Uri.EscapeDataString(mfaReturnUrl)}", forceLoad: true);
-                return;
-            }
-            else if (result.IsNotAllowed)
-            {
-                _errorMessage = "Login not allowed. Please confirm your email.";
-            }
-            else
-            {
-                _errorMessage = "Invalid email or password.";
-            }
-        }
-        catch (NavigationException)
-        {
-            // Blazor may throw this to perform redirect semantics during rendering.
-            throw;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Login failed for {Email}", _model.Email);
-            _errorMessage = $"Login error: {ex.GetType().Name} — {ex.Message}";
-        }
-        finally
-        {
-            _submitting = false;
-        }
-    }
-
-    private sealed class LoginFormModel
-    {
-        public string Email { get; set; } = string.Empty;
-        public string Password { get; set; } = string.Empty;
+        Email ??= string.Empty;
     }
 
     private static bool IsSafeLocalReturnUrl(string? returnUrl)
@@ -141,40 +66,4 @@
             && !returnUrl.StartsWith("//", StringComparison.Ordinal);
     }
 
-    private async Task<string> ResolvePostLoginTargetAsync(string email, string? returnUrl)
-    {
-        var safeTarget = IsSafeLocalReturnUrl(returnUrl) ? returnUrl! : "/";
-        if (!safeTarget.StartsWith(AdminBasePath, StringComparison.OrdinalIgnoreCase))
-        {
-            return safeTarget;
-        }
-
-        var user = await UserManager.FindByEmailAsync(email);
-        if (user is null)
-        {
-            return "/";
-        }
-
-        var isAdmin = await UserManager.IsInRoleAsync(user, "Administrator")
-            || await UserManager.IsInRoleAsync(user, "admin");
-
-        return isAdmin ? safeTarget : "/";
-    }
-
-    private async Task UpdateLastLoginAsync(string email)
-    {
-        var user = await UserManager.FindByEmailAsync(email);
-        if (user is null)
-        {
-            return;
-        }
-
-        user.LastLoginAt = DateTime.UtcNow;
-        var updateResult = await UserManager.UpdateAsync(user);
-        if (!updateResult.Succeeded)
-        {
-            var errors = string.Join(", ", updateResult.Errors.Select(e => e.Description));
-            Logger.LogWarning("Could not persist LastLoginAt for {Email}: {Errors}", email, errors);
-        }
-    }
 }

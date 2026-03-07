@@ -19,11 +19,14 @@ using DotNetCloud.UI.Web.Client.Services;
 using DotNetCloud.UI.Web.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net.Http;
+using System.Net.Security;
+using Yarp.ReverseProxy.Forwarder;
 
 namespace DotNetCloud.Core.Server;
 
@@ -179,6 +182,9 @@ public class Program
         // Add controllers
         builder.Services.AddControllers();
 
+        // Add reverse proxy forwarding for Collabora paths (single-origin deployment on core HTTPS port).
+        builder.Services.AddHttpForwarder();
+
         // Add localization services for i18n support
         builder.Services.AddLocalization();
 
@@ -196,11 +202,15 @@ public class Program
         builder.Services.AddScoped(sp =>
         {
             var nav = sp.GetRequiredService<NavigationManager>();
+            var configuration = sp.GetRequiredService<IConfiguration>();
             var baseUri = new Uri(nav.BaseUri);
+            var allowInsecureUiHttps = configuration.GetValue<bool>("Files:Collabora:AllowInsecureTls");
 
             // In local bare-metal installs with self-signed HTTPS certs, server-side
-            // Blazor API calls to the same loopback origin would otherwise fail TLS validation.
-            if (baseUri.Scheme == Uri.UriSchemeHttps && baseUri.IsLoopback)
+            // Blazor API calls to the same origin would otherwise fail TLS validation.
+            // When AllowInsecureTls is enabled, accept the cert for non-loopback local hostnames
+            // (for example https://mint22:15443) used in LAN testing.
+            if (baseUri.Scheme == Uri.UriSchemeHttps && (baseUri.IsLoopback || allowInsecureUiHttps))
             {
                 var handler = new HttpClientHandler
                 {
@@ -411,6 +421,9 @@ public class Program
         // Map OpenIddict endpoints
         app.MapOpenIddictEndpoints();
 
+        // Proxy Collabora through the main DotNetCloud origin so clients only need one public port.
+        MapCollaboraReverseProxy(app);
+
         // Map API controllers
         app.MapControllers();
 
@@ -432,5 +445,182 @@ public class Program
             .AddInteractiveServerRenderMode()
             .AddInteractiveWebAssemblyRenderMode()
             .AddAdditionalAssemblies(typeof(DotNetCloud.UI.Web.Client._Imports).Assembly);
+    }
+
+    private static void MapCollaboraReverseProxy(WebApplication app)
+    {
+        var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("CollaboraProxy");
+        var collaboraEnabled = app.Configuration.GetValue<bool>("Files:Collabora:Enabled");
+        var collaboraUrl = app.Configuration["Files:Collabora:ServerUrl"];
+        if (string.IsNullOrWhiteSpace(collaboraUrl) ||
+            !Uri.TryCreate(collaboraUrl, UriKind.Absolute, out var collaboraUri))
+        {
+            if (collaboraEnabled)
+            {
+                logger.LogWarning(
+                    "Collabora is enabled but Files:Collabora:ServerUrl is missing or invalid. " +
+                    "Single-origin proxy routes (/hosting, /browser, /cool, /lool) will not be mapped.");
+            }
+
+            return;
+        }
+
+        // Optional explicit upstream to avoid self-proxy loops when ServerUrl is the public
+        // single-origin endpoint (for example https://mint22:15443).
+        var proxyUpstreamUrl = app.Configuration["Files:Collabora:ProxyUpstreamUrl"];
+        var wopiBaseUrl = app.Configuration["Files:Collabora:WopiBaseUrl"];
+        if (string.IsNullOrWhiteSpace(proxyUpstreamUrl) &&
+            Uri.TryCreate(wopiBaseUrl, UriKind.Absolute, out var wopiBaseUri) &&
+            string.Equals(collaboraUri.GetLeftPart(UriPartial.Authority), wopiBaseUri.GetLeftPart(UriPartial.Authority), StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogWarning(
+                "Files:Collabora:ServerUrl and Files:Collabora:WopiBaseUrl share the same origin ({Origin}) " +
+                "but Files:Collabora:ProxyUpstreamUrl is not set. This commonly causes self-proxy loops/timeouts. " +
+                "Set ProxyUpstreamUrl to the internal Collabora endpoint (for example https://localhost:9980).",
+                collaboraUri.GetLeftPart(UriPartial.Authority));
+        }
+
+        var destinationUri = collaboraUri;
+        if (!string.IsNullOrWhiteSpace(proxyUpstreamUrl) &&
+            Uri.TryCreate(proxyUpstreamUrl, UriKind.Absolute, out var parsedUpstreamUri))
+        {
+            destinationUri = parsedUpstreamUri;
+        }
+
+        var forwarder = app.Services.GetRequiredService<IHttpForwarder>();
+        var allowInsecureTls = app.Configuration.GetValue<bool>("Files:Collabora:AllowInsecureTls");
+
+        var handler = new SocketsHttpHandler
+        {
+            UseProxy = false,
+            AllowAutoRedirect = false,
+            UseCookies = false,
+            AutomaticDecompression = System.Net.DecompressionMethods.None,
+            EnableMultipleHttp2Connections = true,
+            SslOptions = new SslClientAuthenticationOptions
+            {
+                RemoteCertificateValidationCallback = allowInsecureTls
+                    ? static (_, _, _, _) => true
+                    : null,
+            }
+        };
+
+        var httpClient = new HttpMessageInvoker(handler);
+        app.Lifetime.ApplicationStopping.Register(httpClient.Dispose);
+
+        var destinationPrefix = destinationUri.GetLeftPart(UriPartial.Authority);
+        var requestConfig = new ForwarderRequestConfig
+        {
+            ActivityTimeout = TimeSpan.FromMinutes(15)
+        };
+        var transformer = new CollaboraProxyTransformer();
+
+        void MapCollaboraPath(string pattern)
+        {
+            app.Map(pattern, async httpContext =>
+            {
+                // Collabora responses are rendered inside an iframe in /apps/files.
+                // Normalize frame-related headers just before response starts.
+                httpContext.Response.OnStarting(() =>
+                {
+                    NormalizeCollaboraFrameHeaders(httpContext.Response.Headers);
+                    return Task.CompletedTask;
+                });
+
+                var error = await forwarder.SendAsync(
+                    httpContext,
+                    destinationPrefix,
+                    httpClient,
+                    requestConfig,
+                    transformer);
+
+                if (error == ForwarderError.None)
+                    return;
+
+                var errorFeature = httpContext.GetForwarderErrorFeature();
+                logger.LogWarning(
+                    errorFeature?.Exception,
+                    "Collabora proxy failure for {Path}: {Error}",
+                    httpContext.Request.Path,
+                    error);
+
+                if (!httpContext.Response.HasStarted)
+                {
+                    httpContext.Response.StatusCode = StatusCodes.Status502BadGateway;
+                }
+            });
+        }
+
+        // Collabora URL space required for discovery, static assets, and websocket editing session traffic.
+        MapCollaboraPath("/hosting/{**catch-all}");
+        MapCollaboraPath("/browser/{**catch-all}");
+        MapCollaboraPath("/cool/{**catch-all}");
+        MapCollaboraPath("/lool/{**catch-all}");
+
+        logger.LogInformation(
+            "Collabora reverse proxy enabled: {Destination} for /hosting, /browser, /cool, /lool",
+            destinationPrefix);
+    }
+
+    private static void NormalizeCollaboraFrameHeaders(IHeaderDictionary headers)
+    {
+        headers.Remove("X-Frame-Options");
+
+        if (!headers.TryGetValue("Content-Security-Policy", out var cspValues) || cspValues.Count == 0)
+        {
+            headers["Content-Security-Policy"] = "frame-ancestors 'self';";
+            return;
+        }
+
+        // Keep one effective CSP for proxied Collabora responses. Multiple CSP headers are
+        // combined by browsers and can over-restrict editor bootstrap resources.
+        var selectedPolicy = cspValues
+            .Where(static policy => !string.IsNullOrWhiteSpace(policy))
+            .OrderByDescending(static policy => policy?.Length ?? 0)
+            .FirstOrDefault();
+
+        if (string.IsNullOrWhiteSpace(selectedPolicy))
+        {
+            headers["Content-Security-Policy"] = "frame-ancestors 'self';";
+            return;
+        }
+
+        var segments = selectedPolicy
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(segment => !segment.StartsWith("frame-ancestors", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        segments.Add("frame-ancestors 'self'");
+        headers["Content-Security-Policy"] = string.Join("; ", segments) + ";";
+    }
+
+    private sealed class CollaboraProxyTransformer : HttpTransformer
+    {
+        public override async ValueTask TransformRequestAsync(
+            HttpContext httpContext,
+            HttpRequestMessage proxyRequest,
+            string destinationPrefix,
+            CancellationToken cancellationToken)
+        {
+            await base.TransformRequestAsync(httpContext, proxyRequest, destinationPrefix, cancellationToken);
+
+            // Preserve the public origin so Collabora emits websocket/embed metadata
+            // using the DotNetCloud endpoint instead of localhost upstream values.
+            proxyRequest.Headers.Host = httpContext.Request.Host.Value;
+
+            proxyRequest.Headers.Remove("X-Forwarded-Host");
+            proxyRequest.Headers.TryAddWithoutValidation("X-Forwarded-Host", httpContext.Request.Host.Value);
+
+            proxyRequest.Headers.Remove("X-Forwarded-Proto");
+            proxyRequest.Headers.TryAddWithoutValidation("X-Forwarded-Proto", httpContext.Request.Scheme);
+
+            proxyRequest.Headers.Remove("X-Forwarded-Port");
+            if (httpContext.Request.Host.Port.HasValue)
+            {
+                proxyRequest.Headers.TryAddWithoutValidation(
+                    "X-Forwarded-Port",
+                    httpContext.Request.Host.Port.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            }
+        }
     }
 }

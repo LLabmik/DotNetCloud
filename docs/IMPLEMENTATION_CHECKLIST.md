@@ -1928,6 +1928,8 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Create Collabora CODE process management under process supervisor (`CollaboraProcessManager` BackgroundService)
 - ✓ Implement WOPI discovery endpoint integration
 - ✓ Configure TLS/URL routing for Collabora (`ReverseProxyTemplates.GenerateNginxConfigWithCollabora`, `GenerateApacheConfigWithCollabora`)
+- ✓ Add in-app YARP Collabora path proxying (`/hosting`, `/browser`, `/cool`, `/lool`) in `DotNetCloud.Core.Server` for single-origin deployments on one public HTTPS port, with optional `Files:Collabora:ProxyUpstreamUrl` to avoid self-proxy loops
+- ✓ Add startup diagnostics for Collabora proxy misconfiguration (warn when `ServerUrl` is invalid while enabled, and when `ServerUrl` + `WopiBaseUrl` share origin but `ProxyUpstreamUrl` is unset)
 - ✓ Create Collabora health check
 
 #### Collabora Configuration
@@ -1952,6 +1954,10 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Normalize Collabora discovery `urlsrc` host/scheme to configured `Files:Collabora:ServerUrl` so iframe URLs are browser-reachable
 - ✓ Fix Razor parameter binding for editor launch (`@EditorNode.Name`, `@ApiBaseUrl`) to avoid literal text rendering and ensure correct runtime values
 - ✓ Allow configured Collabora origin in CSP (`frame-src`/`child-src`) so the document editor iframe can load in `/apps/files`
+- ✓ Fix Blazor SSR login cookie-write failure by switching `/auth/login` to HTTP form-post flow via `/auth/session/login` endpoint (avoids SignInManager cookie issuance on `/_blazor` circuit responses)
+- ✓ Fix server-side Blazor same-origin TLS for non-loopback self-signed hostnames (for example `https://mint22:15443`) by honoring `Files:Collabora:AllowInsecureTls` in scoped UI `HttpClient` setup
+- ✓ Normalize proxied Collabora response frame headers for browser embedding: remove `X-Frame-Options` and rewrite CSP `frame-ancestors` to `'self'` on `/hosting`, `/browser`, `/cool`, `/lool` responses
+- ✓ Preserve public origin headers when proxying Collabora (`Host`, `X-Forwarded-Host`, `X-Forwarded-Proto`, `X-Forwarded-Port`) and emit a single effective CSP on proxied responses so `cool.html` uses `wss://mint22:15443` instead of `wss://localhost:9980`
 - ✓ Show "download to edit locally" for E2EE files
 - ✓ Display co-editing indicators (who is editing)
 
