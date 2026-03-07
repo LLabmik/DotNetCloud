@@ -81,30 +81,6 @@ public partial class UploadProgressPanel : ComponentBase
         return budget > 0 ? $"{stem[..budget]}…{ext}" : $"{name[..maxLength]}…";
     }
 
-    private static string BuildUploadingLabel(UploadFileItem file)
-    {
-        var parts = new List<string> { $"{file.Progress}%" };
-
-        if (file.SpeedBytesPerSecond > 0)
-            parts.Add(FormatSpeed(file.SpeedBytesPerSecond));
-
-        if (file.EtaSeconds is > 0)
-            parts.Add(FormatEta(file.EtaSeconds.Value));
-
-        return string.Join(" · ", parts);
-    }
-
-    private static string FormatSpeed(double bytesPerSec)
-    {
-        if (bytesPerSec < 1024) return $"{bytesPerSec:F0} B/s";
-        if (bytesPerSec < 1024 * 1024) return $"{bytesPerSec / 1024.0:F1} KB/s";
-        return $"{bytesPerSec / (1024.0 * 1024.0):F1} MB/s";
-    }
-
-    private static string FormatEta(double seconds)
-    {
-        if (seconds < 60) return $"{(int)seconds}s left";
-        if (seconds < 3600) return $"{(int)(seconds / 60)}m left";
-        return $"{(int)(seconds / 3600)}h left";
-    }
+    private static string BuildUploadingLabel(UploadFileItem file) =>
+        !string.IsNullOrEmpty(file.StatusText) ? file.StatusText : $"{file.Progress}%";
 }

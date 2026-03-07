@@ -109,7 +109,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     // Drag-and-drop: use a counter to handle bubbling (child elements fire enter/leave too).
     private int _dragEnterCount;
     private readonly string _browserDropInputId = $"files-drop-input-{Guid.NewGuid():N}";
-    private List<IBrowserFile> _droppedFiles = [];
+    private bool _hasDroppedFiles;
+    private DotNetObjectReference<FileBrowser>? _dropBridgeRef;
 
     protected override async Task OnInitializedAsync()
     {
@@ -170,12 +171,12 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     /// <summary>True while the user is dragging files over the browser area.</summary>
     protected bool IsBrowserDragging => _dragEnterCount > 0;
     protected string BrowserDropInputId => _browserDropInputId;
-    protected IReadOnlyList<IBrowserFile> DroppedFiles => _droppedFiles;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         // The bridge is idempotent and can be called multiple times safely.
-        await Js.InvokeVoidAsync("dotnetcloudFilesDrop.init", ".files-browser", $"#{_browserDropInputId}");
+        _dropBridgeRef ??= DotNetObjectReference.Create(this);
+        await Js.InvokeVoidAsync("dotnetcloudFilesDrop.init", ".files-browser", _dropBridgeRef);
     }
 
     /// <summary>Updates the quota display with fresh data from the API.</summary>
@@ -284,7 +285,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     protected void HideUploadDialog()
     {
         _showUploadDialog = false;
-        _droppedFiles.Clear();
+        _hasDroppedFiles = false;
     }
 
     protected void ShowCreateDocumentDialog()
@@ -343,7 +344,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     protected async Task HandleUploadComplete()
     {
         _showUploadDialog = false;
-        _droppedFiles.Clear();
+        _hasDroppedFiles = false;
         await LoadCurrentFolderAsync();
     }
 
@@ -365,15 +366,29 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     /// <summary>Resets drag state when files are dropped; JS bridge handles file transfer to hidden input.</summary>
     protected void HandleBrowserDrop() => _dragEnterCount = 0;
 
-    /// <summary>Receives dropped files via hidden browser-level InputFile and opens upload dialog pre-populated.</summary>
+    /// <summary>Receives dropped files via JS drop bridge and opens the upload dialog pre-populated.</summary>
+    [JSInvokable]
+    public void OnFilesDropped(object[] _)
+    {
+        _dragEnterCount = 0;
+        _hasDroppedFiles = true;
+        _showUploadDialog = true;
+        InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Legacy handler kept for the hidden InputFile (fallback). Opens upload dialog.</summary>
     protected void HandleBrowserFileDrop(InputFileChangeEventArgs e)
     {
         _dragEnterCount = 0;
-        _droppedFiles = [.. e.GetMultipleFiles(100)];
+        _hasDroppedFiles = true;
         _showUploadDialog = true;
     }
 
-    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    public ValueTask DisposeAsync()
+    {
+        _dropBridgeRef?.Dispose();
+        return ValueTask.CompletedTask;
+    }
 
     protected async Task DeleteSelected()
     {

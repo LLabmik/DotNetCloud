@@ -1,9 +1,14 @@
 window.dotnetcloudFilesDrop = window.dotnetcloudFilesDrop || {
-    init: function(dropZoneSelector, inputSelector) {
+    /**
+     * Initialise the drag-drop bridge for the file browser.
+     * Dropped files are registered with the dotnetcloudUpload module (file-upload.js)
+     * and the Blazor component is notified via DotNetObjectReference callback.
+     * @param {string} dropZoneSelector - CSS selector for the drop zone element
+     * @param {any} dotNetRef - DotNetObjectReference with OnFilesDropped(FileInfo[]) method
+     */
+    init: function(dropZoneSelector, dotNetRef) {
         const dropZone = document.querySelector(dropZoneSelector);
-        const input = document.querySelector(inputSelector);
-
-        if (!dropZone || !input) {
+        if (!dropZone) {
             return false;
         }
 
@@ -23,13 +28,14 @@ window.dotnetcloudFilesDrop = window.dotnetcloudFilesDrop || {
             }
 
             try {
-                const transfer = new DataTransfer();
-                for (const file of dt.files) {
-                    transfer.items.add(file);
+                // Store files in the upload module's pending list
+                if (window.dotnetcloudUpload && window.dotnetcloudUpload.addExternalFiles) {
+                    const fileInfos = window.dotnetcloudUpload.addExternalFiles(dt.files);
+                    // Notify Blazor so it can open the upload dialog with pre-populated files
+                    if (dotNetRef) {
+                        dotNetRef.invokeMethodAsync("OnFilesDropped", fileInfos);
+                    }
                 }
-
-                input.files = transfer.files;
-                input.dispatchEvent(new Event("change", { bubbles: true }));
             } catch (err) {
                 console.error("DotNetCloud drop bridge failed:", err);
             }

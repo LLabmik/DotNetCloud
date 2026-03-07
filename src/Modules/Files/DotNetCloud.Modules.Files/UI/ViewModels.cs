@@ -91,32 +91,14 @@ public sealed class UploadFileItem
     /// <summary>MIME content type.</summary>
     public string ContentType { get; init; } = string.Empty;
 
-    /// <summary>Reference to the browser file for upload.</summary>
-    public Microsoft.AspNetCore.Components.Forms.IBrowserFile? BrowserFile { get; init; }
-
-    /// <summary>
-    /// Buffered file content captured when the file is queued.
-    /// This avoids depending on browser-side file readers during later upload steps.
-    /// </summary>
-    public byte[]? BufferedContent { get; init; }
-
     /// <summary>Upload status.</summary>
     public UploadStatus Status { get; set; } = UploadStatus.Pending;
 
+    /// <summary>Human-readable status text (e.g. "Hashing...", "Uploading...", "Complete").</summary>
+    public string StatusText { get; set; } = "Pending";
+
     /// <summary>Upload progress percentage (0-100).</summary>
     public int Progress { get; set; }
-
-    /// <summary>Current upload throughput in bytes per second (updated during upload).</summary>
-    public double SpeedBytesPerSecond { get; set; }
-
-    /// <summary>Estimated seconds remaining for this file (null when unknown).</summary>
-    public double? EtaSeconds { get; set; }
-
-    /// <summary>Whether the upload has been paused by the user.</summary>
-    public bool IsPaused { get; set; }
-
-    /// <summary>Whether the upload has been cancelled by the user.</summary>
-    public bool IsCancelled { get; set; }
 }
 
 /// <summary>

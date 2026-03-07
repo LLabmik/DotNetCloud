@@ -1,23 +1,25 @@
-using System.Diagnostics;
 using System.Security.Claims;
-using System.Security.Cryptography;
-using DotNetCloud.Core.Authorization;
-using DotNetCloud.Modules.Files.DTOs;
-using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.JSInterop;
 
 namespace DotNetCloud.Modules.Files.UI;
 
 /// <summary>
 /// Code-behind for the file upload dialog.
-/// Handles drag-drop file selection, chunked upload simulation with speed/ETA tracking,
-/// and pause/resume/cancel controls via <see cref="UploadProgressPanel"/>.
+/// Uses JavaScript <c>fetch()</c> to upload files directly via HTTP,
+/// bypassing Blazor Server's SignalR channel. Supports files up to 16 GB.
 /// </summary>
-public partial class FileUploadComponent : ComponentBase
+/// <remarks>
+/// <para>
+/// The browser-side JS module (<c>file-upload.js</c>) reads files using the
+/// <c>File.slice()</c> / <c>crypto.subtle.digest()</c> APIs, chunks them into
+/// 4 MB pieces, and POSTs each chunk directly to the server's REST API.
+/// Progress is reported back via <see cref="DotNetObjectReference{T}"/> callbacks.
+/// </para>
+/// </remarks>
+public partial class FileUploadComponent : ComponentBase, IDisposable
 {
-    [Inject] private IChunkedUploadService UploadService { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
 
     /// <summary>Target folder ID for the upload (null = root).</summary>
@@ -29,15 +31,49 @@ public partial class FileUploadComponent : ComponentBase
     /// <summary>Invoked when the user cancels or closes the dialog.</summary>
     [Parameter] public EventCallback OnCancel { get; set; }
 
-    /// <summary>Files dropped from the browser-level drop target before opening this dialog.</summary>
-    [Parameter] public IReadOnlyList<IBrowserFile>? InitialFiles { get; set; }
+    /// <summary>Whether dropped files are pre-loaded in the JS upload module, awaiting display.</summary>
+    [Parameter] public bool HasDroppedFiles { get; set; }
 
     private readonly List<UploadFileItem> _files = [];
-    private const int UploadChunkSize = ContentHasher.DefaultChunkSize;
     private bool _isDragging;
     private bool _isUploading;
     private string? _errorMessage;
-    private readonly HashSet<string> _initialFileKeys = [];
+    private DotNetObjectReference<FileUploadComponent>? _jsRef;
+
+    /// <summary>DOM id for the hidden file input element.</summary>
+    protected string FileInputId { get; } = $"dnc-upload-input-{Guid.NewGuid():N}";
+
+    /// <inheritdoc />
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && HasDroppedFiles && _files.Count == 0)
+        {
+            try
+            {
+                var fileInfos = await JS!.InvokeAsync<FileInfo[]>(
+                    "dotnetcloudUpload.getPendingFileInfos");
+
+                if (fileInfos is { Length: > 0 })
+                {
+                    foreach (var fi in fileInfos)
+                    {
+                        _files.Add(new UploadFileItem
+                        {
+                            Name = fi.Name,
+                            Size = fi.Size,
+                            ContentType = fi.Type
+                        });
+                    }
+
+                    StateHasChanged();
+                }
+            }
+            catch
+            {
+                // If JS interop fails during init, user can still browse for files
+            }
+        }
+    }
 
     /// <summary>Files queued or currently being uploaded.</summary>
     protected IReadOnlyList<UploadFileItem> Files => _files;
@@ -49,75 +85,109 @@ public partial class FileUploadComponent : ComponentBase
     protected bool IsUploading => _isUploading;
     protected string? ErrorMessage => _errorMessage;
 
-    protected override async Task OnParametersSetAsync()
-    {
-        await MergeInitialFilesAsync();
-    }
-
     /// <summary>Sets the dragging state on drag enter.</summary>
     protected void HandleDragEnter() => _isDragging = true;
 
     /// <summary>Clears the dragging state on drag leave.</summary>
     protected void HandleDragLeave() => _isDragging = false;
 
-    /// <summary>Adds selected files to the upload queue.</summary>
-    protected async Task HandleFileSelected(InputFileChangeEventArgs e)
+    /// <summary>
+    /// Called when the native file input fires its <c>change</c> event.
+    /// Invokes JS to register the selected <c>File</c> objects and adds
+    /// metadata entries to the Blazor-side queue. No file bytes cross SignalR.
+    /// </summary>
+    protected async Task HandleFileInputChange()
     {
-        if (_isUploading)
-        {
-            return;
-        }
+        if (_isUploading) return;
 
         _isDragging = false;
-        await AddFilesAsync(e.GetMultipleFiles(100));
+        _errorMessage = null;
+
+        try
+        {
+            var fileInfos = await JS!.InvokeAsync<FileInfo[]>(
+                "dotnetcloudUpload.registerFiles", FileInputId);
+
+            if (fileInfos is { Length: > 0 })
+            {
+                foreach (var fi in fileInfos)
+                {
+                    _files.Add(new UploadFileItem
+                    {
+                        Name = fi.Name,
+                        Size = fi.Size,
+                        ContentType = fi.Type
+                    });
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to read selected files: {ex.Message}";
+        }
     }
 
     /// <summary>Removes a single pending file from the queue.</summary>
-    protected void RemoveFile(UploadFileItem file)
+    protected async Task RemoveFile(UploadFileItem file)
     {
-        if (!_isUploading)
-            _files.Remove(file);
+        if (_isUploading) return;
+
+        var index = _files.IndexOf(file);
+        if (index >= 0)
+        {
+            _files.RemoveAt(index);
+            await JS!.InvokeVoidAsync("dotnetcloudUpload.removeFile", index);
+        }
     }
 
     /// <summary>
-    /// Starts uploading all pending files sequentially.
-    /// Tracks per-file speed and ETA; honours pause and cancel flags.
+    /// Starts uploading all pending files via JS fetch().
+    /// Each file is uploaded sequentially; progress is reported per-chunk
+    /// back from JS via <see cref="OnJsUploadProgress"/>.
     /// </summary>
     protected async Task StartUpload()
     {
+        if (_files.Count == 0) return;
+
         _errorMessage = null;
+        _isUploading = true;
+        StateHasChanged();
+
         try
         {
-            var caller = await GetCallerContextAsync();
+            var userId = await GetUserIdAsync();
+            _jsRef ??= DotNetObjectReference.Create(this);
 
-            _isUploading = true;
-            StateHasChanged();
+            var parentIdStr = ParentId?.ToString();
 
-            foreach (var file in _files.Where(f => f.Status == UploadStatus.Pending && !f.IsCancelled))
+            for (var i = 0; i < _files.Count; i++)
             {
+                var file = _files[i];
+                if (file.Status != UploadStatus.Pending) continue;
+
                 file.Status = UploadStatus.Uploading;
+                file.StatusText = "Starting...";
                 StateHasChanged();
 
-                await UploadFileAsync(file, caller);
+                await JS!.InvokeVoidAsync(
+                    "dotnetcloudUpload.uploadFile",
+                    i, userId, parentIdStr, _jsRef);
 
                 StateHasChanged();
-            }
-
-            var hasFailures = _files.Any(f => f.Status == UploadStatus.Failed);
-            if (hasFailures)
-            {
-                _errorMessage ??= "One or more files failed to upload. Review failed items and try again.";
-                return;
             }
 
             if (_files.All(f => f.Status == UploadStatus.Complete))
             {
                 await OnUploadComplete.InvokeAsync();
             }
+            else if (_files.Any(f => f.Status == UploadStatus.Failed))
+            {
+                _errorMessage ??= "One or more files failed to upload.";
+            }
         }
         catch (Exception ex)
         {
-            _errorMessage = MapUploadErrorMessage(ex.Message);
+            _errorMessage = ex.Message;
         }
         finally
         {
@@ -126,157 +196,59 @@ public partial class FileUploadComponent : ComponentBase
         }
     }
 
-    private async Task UploadFileAsync(UploadFileItem file, CallerContext caller)
+    /// <summary>JS callback: per-file progress update.</summary>
+    [JSInvokable]
+    public void OnJsUploadProgress(int fileIndex, int percent, string statusText)
     {
-        var sw = Stopwatch.StartNew();
-
-        try
-        {
-            if (file.IsCancelled)
-            {
-                file.Status = UploadStatus.Failed;
-                file.Progress = 0;
-                return;
-            }
-
-            while (file.IsPaused)
-            {
-                file.Status = UploadStatus.Paused;
-                StateHasChanged();
-                await Task.Delay(200);
-            }
-
-            if (file.Status == UploadStatus.Paused)
-                file.Status = UploadStatus.Uploading;
-
-            byte[]? fileBytes = file.BufferedContent;
-
-            // Fallback for legacy queue entries that predate eager buffering.
-            if (fileBytes is null && file.BrowserFile is not null)
-            {
-                await using var fallbackStream = file.BrowserFile.OpenReadStream(file.Size);
-                using var fallbackMs = new MemoryStream();
-                await fallbackStream.CopyToAsync(fallbackMs);
-                fileBytes = fallbackMs.ToArray();
-            }
-
-            if (fileBytes is null)
-            {
-                file.Status = UploadStatus.Failed;
-                return;
-            }
-
-            var chunks = new List<(string Hash, byte[] Data)>();
-            for (var offset = 0; offset < fileBytes.Length; offset += UploadChunkSize)
-            {
-                var chunkSize = Math.Min(UploadChunkSize, fileBytes.Length - offset);
-                var chunkData = new byte[chunkSize];
-                Buffer.BlockCopy(fileBytes, offset, chunkData, 0, chunkSize);
-                var chunkHash = Convert.ToHexString(SHA256.HashData(chunkData)).ToLowerInvariant();
-                chunks.Add((chunkHash, chunkData));
-            }
-
-            var chunkHashes = chunks.Select(c => c.Hash).ToList();
-
-            file.Progress = 20;
-            StateHasChanged();
-
-            var session = await UploadService.InitiateUploadAsync(new InitiateUploadDto
-            {
-                FileName = file.Name,
-                ParentId = ParentId,
-                TotalSize = file.Size,
-                MimeType = file.ContentType,
-                ChunkHashes = chunkHashes
-            }, caller);
-
-            file.Progress = 45;
-            StateHasChanged();
-
-            var missing = new HashSet<string>(session.MissingChunks, StringComparer.OrdinalIgnoreCase);
-            var uploadedChunks = 0;
-            foreach (var chunk in chunks)
-            {
-                if (!missing.Contains(chunk.Hash))
-                {
-                    continue;
-                }
-
-                await UploadService.UploadChunkAsync(session.SessionId, chunk.Hash, chunk.Data, caller);
-                uploadedChunks++;
-
-                // Advance upload progress between 45% and 80% as missing chunks are sent.
-                var progress = 45 + (int)Math.Round((uploadedChunks / (double)Math.Max(1, missing.Count)) * 35);
-                file.Progress = Math.Clamp(progress, 45, 80);
-                StateHasChanged();
-            }
-
-            file.Progress = 80;
-            StateHasChanged();
-
-            await UploadService.CompleteUploadAsync(session.SessionId, caller);
-
-            var elapsed = Math.Max(0.001, sw.Elapsed.TotalSeconds);
-            file.SpeedBytesPerSecond = file.Size / elapsed;
-            file.EtaSeconds = 0;
-            file.Progress = 100;
-            file.Status = UploadStatus.Complete;
-        }
-        catch (Exception ex)
-        {
-            if (!file.IsCancelled)
-            {
-                file.Status = UploadStatus.Failed;
-                _errorMessage = MapUploadErrorMessage(ex.Message);
-            }
-        }
+        ApplyProgress(fileIndex, percent, statusText);
+        InvokeAsync(StateHasChanged);
     }
 
-    private static string MapUploadErrorMessage(string? errorMessage)
+    /// <summary>JS callback: file upload completed successfully.</summary>
+    [JSInvokable]
+    public void OnJsUploadComplete(int fileIndex)
     {
-        if (string.IsNullOrWhiteSpace(errorMessage))
-        {
-            return "Upload failed unexpectedly. Please try again.";
-        }
-
-        // Browser-backed file handles can expire between selection and processing.
-        if (errorMessage.Contains("Reading is not allowed after reader was completed.", StringComparison.OrdinalIgnoreCase))
-        {
-            return "One or more selected files are no longer available to read. Please reselect the files and try again.";
-        }
-
-        return errorMessage;
+        ApplyComplete(fileIndex);
+        InvokeAsync(StateHasChanged);
     }
 
-    /// <summary>Marks the file as paused; the upload loop will wait.</summary>
-    protected void PauseUpload(UploadFileItem file)
+    /// <summary>JS callback: file upload failed.</summary>
+    [JSInvokable]
+    public void OnJsUploadError(int fileIndex, string error)
     {
-        if (file.Status == UploadStatus.Uploading)
-            file.IsPaused = true;
+        ApplyError(fileIndex, error);
+        InvokeAsync(StateHasChanged);
     }
 
-    /// <summary>Clears the paused flag so the upload loop resumes.</summary>
-    protected void ResumeUpload(UploadFileItem file)
+    internal void ApplyProgress(int fileIndex, int percent, string statusText)
     {
-        if (file.IsPaused)
-        {
-            file.IsPaused = false;
-            file.Status = UploadStatus.Uploading;
-        }
+        if (fileIndex < 0 || fileIndex >= _files.Count) return;
+        _files[fileIndex].Progress = percent;
+        _files[fileIndex].StatusText = statusText;
     }
 
-    /// <summary>Marks a file as cancelled; it will be skipped on the next loop iteration.</summary>
-    protected void CancelUpload(UploadFileItem file)
+    internal void ApplyComplete(int fileIndex)
     {
-        file.IsCancelled = true;
-        file.IsPaused = false;
+        if (fileIndex < 0 || fileIndex >= _files.Count) return;
+        _files[fileIndex].Progress = 100;
+        _files[fileIndex].Status = UploadStatus.Complete;
+        _files[fileIndex].StatusText = "Complete";
+    }
+
+    internal void ApplyError(int fileIndex, string error)
+    {
+        if (fileIndex < 0 || fileIndex >= _files.Count) return;
+        _files[fileIndex].Status = UploadStatus.Failed;
+        _files[fileIndex].StatusText = "Failed";
+        _errorMessage = error;
     }
 
     /// <summary>Removes all files from the queue (only when not uploading).</summary>
-    protected void ClearFiles()
+    protected async Task ClearFiles()
     {
-        if (!_isUploading)
-            _files.Clear();
+        if (_isUploading) return;
+        _files.Clear();
+        await JS!.InvokeVoidAsync("dotnetcloudUpload.clearFiles");
     }
 
     /// <summary>Formats a byte count as a human-readable size string.</summary>
@@ -288,65 +260,50 @@ public partial class FileUploadComponent : ComponentBase
         return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
     }
 
-    private async Task<CallerContext> GetCallerContextAsync()
+    /// <summary>Truncates a filename to keep the UI compact.</summary>
+    protected static string TruncateName(string name, int maxLength = 32)
+    {
+        if (name.Length <= maxLength) return name;
+        var ext = Path.GetExtension(name);
+        var stem = Path.GetFileNameWithoutExtension(name);
+        var budget = maxLength - ext.Length - 1;
+        return budget > 0 ? $"{stem[..budget]}…{ext}" : $"{name[..maxLength]}…";
+    }
+
+    /// <summary>Returns the CSS modifier for the progress bar fill based on upload status.</summary>
+    protected static string GetProgressClass(UploadStatus status) => status switch
+    {
+        UploadStatus.Complete => "progress-bar-fill--success",
+        UploadStatus.Failed => "progress-bar-fill--error",
+        _ => string.Empty
+    };
+
+    private async Task<string> GetUserIdAsync()
     {
         var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var user = state.User;
 
         var userIdClaim = user.FindFirst(ClaimTypes.NameIdentifier)?.Value
-            ?? user.FindFirst("sub")?.Value;
+                          ?? user.FindFirst("sub")?.Value;
 
-        if (!Guid.TryParse(userIdClaim, out var userId))
-        {
-            throw new InvalidOperationException("Authenticated user id claim is missing or invalid.");
-        }
+        if (string.IsNullOrEmpty(userIdClaim))
+            throw new InvalidOperationException("Authenticated user id claim is missing.");
 
-        var roles = user.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
-        return new CallerContext(userId, roles, CallerType.User);
+        return userIdClaim;
     }
 
-    private async Task MergeInitialFilesAsync()
+    /// <summary>Disposes the JS interop reference.</summary>
+    public void Dispose()
     {
-        if (InitialFiles is null || InitialFiles.Count == 0)
-        {
-            return;
-        }
-
-        var filesToAdd = new List<IBrowserFile>();
-        foreach (var file in InitialFiles)
-        {
-            var key = GetFileKey(file);
-            if (_initialFileKeys.Add(key))
-            {
-                filesToAdd.Add(file);
-            }
-        }
-
-        if (filesToAdd.Count > 0)
-        {
-            await AddFilesAsync(filesToAdd);
-        }
+        _jsRef?.Dispose();
+        GC.SuppressFinalize(this);
     }
 
-    private async Task AddFilesAsync(IReadOnlyList<IBrowserFile> files)
+    /// <summary>DTO for file metadata returned from JS.</summary>
+    internal sealed class FileInfo
     {
-        foreach (var file in files)
-        {
-            await using var stream = file.OpenReadStream(file.Size);
-            using var ms = new MemoryStream();
-            await stream.CopyToAsync(ms);
-
-            _files.Add(new UploadFileItem
-            {
-                Name = file.Name,
-                Size = file.Size,
-                ContentType = file.ContentType,
-                BrowserFile = file,
-                BufferedContent = ms.ToArray()
-            });
-        }
+        public string Name { get; set; } = string.Empty;
+        public long Size { get; set; }
+        public string Type { get; set; } = string.Empty;
     }
-
-    private static string GetFileKey(IBrowserFile file) =>
-        $"{file.Name}|{file.Size}|{file.LastModified.UtcDateTime.Ticks}";
 }

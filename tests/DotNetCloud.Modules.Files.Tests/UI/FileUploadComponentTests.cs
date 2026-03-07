@@ -1,151 +1,191 @@
-using System.Reflection;
 using DotNetCloud.Modules.Files.UI;
-using Microsoft.AspNetCore.Components.Forms;
 
 namespace DotNetCloud.Modules.Files.Tests.UI;
 
 [TestClass]
 public sealed class FileUploadComponentTests
 {
+    // ── Utility method tests ────────────────────────────────────────────
+
     [TestMethod]
-    public async Task HandleFileSelected_NotUploading_AddsAllSelectedFiles()
+    [DataRow(0L, "0 B")]
+    [DataRow(512L, "512 B")]
+    [DataRow(1023L, "1023 B")]
+    [DataRow(1024L, "1.0 KB")]
+    [DataRow(10240L, "10.0 KB")]
+    [DataRow(1048576L, "1.0 MB")]
+    [DataRow(1073741824L, "1.00 GB")]
+    [DataRow(5368709120L, "5.00 GB")]
+    public void FormatSize_ReturnsExpectedString(long bytes, string expected)
+    {
+        var result = TestableFileUploadComponent.InvokeFormatSize(bytes);
+        Assert.AreEqual(expected, result);
+    }
+
+    [TestMethod]
+    [DataRow("short.txt", 32, "short.txt")]
+    [DataRow("exactly-thirty-two-chars-ab.txt", 32, "exactly-thirty-two-chars-ab.txt")]
+    [DataRow("this-is-a-very-long-filename-that-exceeds-limit.txt", 32, "this-is-a-very-long-filenam….txt")]
+    public void TruncateName_ReturnsExpectedString(string name, int maxLength, string expected)
+    {
+        var result = TestableFileUploadComponent.InvokeTruncateName(name, maxLength);
+        Assert.AreEqual(expected, result);
+    }
+
+    [TestMethod]
+    [DataRow(UploadStatus.Complete, "progress-bar-fill--success")]
+    [DataRow(UploadStatus.Failed, "progress-bar-fill--error")]
+    [DataRow(UploadStatus.Uploading, "")]
+    [DataRow(UploadStatus.Pending, "")]
+    public void GetProgressClass_ReturnsExpectedCssClass(UploadStatus status, string expected)
+    {
+        var result = TestableFileUploadComponent.InvokeGetProgressClass(status);
+        Assert.AreEqual(expected, result);
+    }
+
+    // ── JS callback tests ───────────────────────────────────────────────
+
+    [TestMethod]
+    public void ApplyProgress_UpdatesFileProgressAndStatus()
     {
         // Arrange
         var component = new TestableFileUploadComponent();
-        var args = CreateInputChangeArgs(
-            new FakeBrowserFile("one.txt", 128, "text/plain"),
-            new FakeBrowserFile("two.txt", 256, "text/plain"));
+        component.AddTestFile("test.txt", 1024, "text/plain");
 
         // Act
-        await component.InvokeHandleFileSelected(args);
+        component.ApplyProgress(0, 42, "Uploading...");
 
         // Assert
+        Assert.AreEqual(42, component.QueuedFiles[0].Progress);
+        Assert.AreEqual("Uploading...", component.QueuedFiles[0].StatusText);
+    }
+
+    [TestMethod]
+    public void ApplyProgress_InvalidIndex_DoesNotThrow()
+    {
+        // Arrange
+        var component = new TestableFileUploadComponent();
+        component.AddTestFile("test.txt", 1024, "text/plain");
+
+        // Act — should not throw
+        component.ApplyProgress(-1, 50, "test");
+        component.ApplyProgress(999, 50, "test");
+
+        // Assert — original file unchanged
+        Assert.AreEqual(0, component.QueuedFiles[0].Progress);
+    }
+
+    [TestMethod]
+    public void ApplyComplete_SetsStatusToComplete()
+    {
+        // Arrange
+        var component = new TestableFileUploadComponent();
+        component.AddTestFile("test.txt", 1024, "text/plain");
+        component.QueuedFiles[0].Status = UploadStatus.Uploading;
+
+        // Act
+        component.ApplyComplete(0);
+
+        // Assert
+        Assert.AreEqual(UploadStatus.Complete, component.QueuedFiles[0].Status);
+        Assert.AreEqual(100, component.QueuedFiles[0].Progress);
+        Assert.AreEqual("Complete", component.QueuedFiles[0].StatusText);
+    }
+
+    [TestMethod]
+    public void ApplyError_SetsStatusToFailed()
+    {
+        // Arrange
+        var component = new TestableFileUploadComponent();
+        component.AddTestFile("test.txt", 1024, "text/plain");
+        component.QueuedFiles[0].Status = UploadStatus.Uploading;
+
+        // Act
+        component.ApplyError(0, "Network timeout");
+
+        // Assert
+        Assert.AreEqual(UploadStatus.Failed, component.QueuedFiles[0].Status);
+        Assert.AreEqual("Failed", component.QueuedFiles[0].StatusText);
+    }
+
+    [TestMethod]
+    public void ApplyComplete_InvalidIndex_DoesNotThrow()
+    {
+        var component = new TestableFileUploadComponent();
+
+        // Act — should not throw on empty list
+        component.ApplyComplete(0);
+        component.ApplyComplete(-1);
+    }
+
+    [TestMethod]
+    public void ApplyError_InvalidIndex_DoesNotThrow()
+    {
+        var component = new TestableFileUploadComponent();
+
+        // Act — should not throw on empty list
+        component.ApplyError(0, "error");
+        component.ApplyError(-1, "error");
+    }
+
+    // ── Queue management tests ──────────────────────────────────────────
+
+    [TestMethod]
+    public void AddTestFile_AddsToQueue()
+    {
+        var component = new TestableFileUploadComponent();
+
+        component.AddTestFile("a.txt", 100, "text/plain");
+        component.AddTestFile("b.pdf", 200, "application/pdf");
+
         Assert.AreEqual(2, component.QueuedFiles.Count);
-        Assert.AreEqual("one.txt", component.QueuedFiles[0].Name);
-        Assert.AreEqual("two.txt", component.QueuedFiles[1].Name);
-        CollectionAssert.AreEqual(CreateSequence(128), component.QueuedFiles[0].BufferedContent);
-        CollectionAssert.AreEqual(CreateSequence(256), component.QueuedFiles[1].BufferedContent);
+        Assert.AreEqual("a.txt", component.QueuedFiles[0].Name);
+        Assert.AreEqual("b.pdf", component.QueuedFiles[1].Name);
+        Assert.AreEqual(100, component.QueuedFiles[0].Size);
+        Assert.AreEqual(200, component.QueuedFiles[1].Size);
     }
 
     [TestMethod]
-    public async Task HandleFileSelected_WhenUploading_IgnoresNewSelection()
+    public void MultipleFiles_ProgressTrackedIndependently()
     {
-        // Arrange
         var component = new TestableFileUploadComponent();
-        await component.InvokeHandleFileSelected(CreateInputChangeArgs(new FakeBrowserFile("existing.txt", 64, "text/plain")));
-        component.SetUploadingStateForTest(true);
+        component.AddTestFile("a.txt", 100, "text/plain");
+        component.AddTestFile("b.txt", 200, "text/plain");
 
-        var args = CreateInputChangeArgs(
-            new FakeBrowserFile("new-a.txt", 32, "text/plain"),
-            new FakeBrowserFile("new-b.txt", 16, "text/plain"));
+        component.ApplyProgress(0, 50, "Uploading...");
+        component.ApplyComplete(1);
 
-        // Act
-        await component.InvokeHandleFileSelected(args);
-
-        // Assert
-        Assert.AreEqual(1, component.QueuedFiles.Count);
-        Assert.AreEqual("existing.txt", component.QueuedFiles[0].Name);
+        Assert.AreEqual(50, component.QueuedFiles[0].Progress);
+        Assert.AreEqual(UploadStatus.Pending, component.QueuedFiles[0].Status);
+        Assert.AreEqual(100, component.QueuedFiles[1].Progress);
+        Assert.AreEqual(UploadStatus.Complete, component.QueuedFiles[1].Status);
     }
 
-    [TestMethod]
-    public async Task HandleFileSelected_BuffersContentFromEachSelectedFile()
-    {
-        // Arrange
-        var component = new TestableFileUploadComponent();
-        var args = CreateInputChangeArgs(
-            new FakeBrowserFile("first.bin", 3, "application/octet-stream"),
-            new FakeBrowserFile("second.bin", 5, "application/octet-stream"));
-
-        // Act
-        await component.InvokeHandleFileSelected(args);
-
-        // Assert
-        Assert.AreEqual(2, component.QueuedFiles.Count);
-        CollectionAssert.AreEqual(CreateSequence(3), component.QueuedFiles[0].BufferedContent);
-        CollectionAssert.AreEqual(CreateSequence(5), component.QueuedFiles[1].BufferedContent);
-    }
-
-    [TestMethod]
-    public void MapUploadErrorMessage_ReaderCompletedMessage_ReturnsFriendlyText()
-    {
-        // Arrange
-        const string raw = "Reading is not allowed after reader was completed.";
-
-        // Act
-        var mapped = InvokeMapUploadErrorMessage(raw);
-
-        // Assert
-        Assert.AreEqual("One or more selected files are no longer available to read. Please reselect the files and try again.", mapped);
-    }
-
-    [TestMethod]
-    public void MapUploadErrorMessage_NullOrWhitespace_ReturnsGenericMessage()
-    {
-        // Act
-        var mapped = InvokeMapUploadErrorMessage(" ");
-
-        // Assert
-        Assert.AreEqual("Upload failed unexpectedly. Please try again.", mapped);
-    }
-
-    private static InputFileChangeEventArgs CreateInputChangeArgs(params IBrowserFile[] files) =>
-        new(files);
-
+    /// <summary>
+    /// Test subclass that exposes protected static methods and internal state
+    /// for unit testing without requiring JS interop or Blazor rendering.
+    /// </summary>
     private sealed class TestableFileUploadComponent : FileUploadComponent
     {
         public IReadOnlyList<UploadFileItem> QueuedFiles => Files;
 
-        public Task InvokeHandleFileSelected(InputFileChangeEventArgs args) => HandleFileSelected(args);
-
-        public void SetUploadingStateForTest(bool isUploading)
+        public void AddTestFile(string name, long size, string contentType)
         {
-            var field = typeof(FileUploadComponent).GetField("_isUploading", BindingFlags.Instance | BindingFlags.NonPublic)
-                ?? throw new InvalidOperationException("_isUploading field not found.");
+            var field = typeof(FileUploadComponent)
+                .GetField("_files", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                ?? throw new InvalidOperationException("_files field not found.");
 
-            field.SetValue(this, isUploading);
-        }
-    }
-
-    private sealed class FakeBrowserFile(string name, long size, string contentType) : IBrowserFile
-    {
-        private readonly byte[] _content = CreateSequence((int)size);
-
-        public string Name { get; } = name;
-
-        public DateTimeOffset LastModified { get; } = DateTimeOffset.UtcNow;
-
-        public long Size { get; } = size;
-
-        public string ContentType { get; } = contentType;
-
-        public Stream OpenReadStream(long maxAllowedSize = 512000, CancellationToken cancellationToken = default)
-        {
-            if (Size > maxAllowedSize)
+            var files = (List<UploadFileItem>)field.GetValue(this)!;
+            files.Add(new UploadFileItem
             {
-                throw new IOException("File exceeds max allowed size.");
-            }
-
-            return new MemoryStream(_content, writable: false);
-        }
-    }
-
-    private static byte[] CreateSequence(int length)
-    {
-        var data = new byte[length];
-        for (var i = 0; i < length; i++)
-        {
-            data[i] = (byte)(i % 251);
+                Name = name,
+                Size = size,
+                ContentType = contentType
+            });
         }
 
-        return data;
-    }
-
-    private static string InvokeMapUploadErrorMessage(string? message)
-    {
-        var method = typeof(FileUploadComponent).GetMethod("MapUploadErrorMessage", BindingFlags.Static | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("MapUploadErrorMessage method not found.");
-
-        return (string)(method.Invoke(null, [message])
-            ?? throw new InvalidOperationException("MapUploadErrorMessage returned null."));
+        public static string InvokeFormatSize(long bytes) => FormatSize(bytes);
+        public static string InvokeTruncateName(string name, int maxLength = 32) => TruncateName(name, maxLength);
+        public static string InvokeGetProgressClass(UploadStatus status) => GetProgressClass(status);
     }
 }

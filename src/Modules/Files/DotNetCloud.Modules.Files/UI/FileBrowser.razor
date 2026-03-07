@@ -86,7 +86,8 @@ else
             class="browser-drop-capture-input"
             OnChange="HandleBrowserFileDrop"
             multiple
-            aria-hidden="true" />
+            aria-hidden="true"
+            style="display:none" />
 
     @* Drop overlay shown when dragging files over the browser *@
     @if (IsBrowserDragging)
@@ -153,7 +154,7 @@ else
     {
         <FileUploadComponent
             ParentId="CurrentFolderId"
-            InitialFiles="DroppedFiles"
+            HasDroppedFiles="_hasDroppedFiles"
             OnUploadComplete="HandleUploadComplete"
             OnCancel="HideUploadDialog" />
     }

@@ -1,8 +1,9 @@
 @namespace DotNetCloud.Modules.Files.UI
+@inject IJSRuntime JS
 
 @*
-    File upload dialog with drag-drop file selection and chunked upload progress.
-    While uploading, the file list is replaced by an UploadProgressPanel.
+    File upload dialog — uses JavaScript fetch() for direct HTTP uploads,
+    bypassing Blazor Server's SignalR channel. Supports files up to 16 GB.
     Code-behind: FileUploadComponent.razor.cs
 *@
 
@@ -10,7 +11,7 @@
     <div class="file-upload-dialog">
         <div class="file-upload-header">
             <h3>Upload Files</h3>
-            <button class="btn-icon" @onclick="OnCancel" title="Close">✕</button>
+            <button class="btn-icon" @onclick="OnCancel" title="Close" disabled="@IsUploading">✕</button>
         </div>
 
         @if (!string.IsNullOrWhiteSpace(ErrorMessage) && !IsUploading)
@@ -18,19 +19,18 @@
             <div class="alert alert-danger">@ErrorMessage</div>
         }
 
-        @* Keep InputFile mounted while uploading so BrowserFile handles stay valid. *@
         <div class="file-upload-dropzone @(IsDragging ? "dragging" : "")"
              @ondragenter="HandleDragEnter"
              @ondragleave="HandleDragLeave"
-              @ondragover:preventDefault
-              @ondrop:preventDefault
-              hidden="@IsUploading"
-              aria-hidden="@IsUploading">
-            <InputFile class="file-upload-input-overlay"
-                       OnChange="HandleFileSelected"
-                       multiple
-                       disabled="@IsUploading"
-                       aria-label="Drop files or click to browse" />
+             @ondragover:preventDefault
+             @ondrop:preventDefault
+             hidden="@IsUploading"
+             aria-hidden="@IsUploading">
+            <input type="file" id="@FileInputId" class="file-upload-input-overlay"
+                   @onchange="HandleFileInputChange"
+                   multiple
+                   disabled="@IsUploading"
+                   aria-label="Drop files or click to browse" />
             <span class="dropzone-icon" aria-hidden="true">⤴</span>
             <p>Drag and drop files here</p>
             <p class="text-muted">or</p>
@@ -44,19 +44,31 @@
         {
             @if (IsUploading)
             {
-                <UploadProgressPanel
-                    Files="Files"
-                    OnPause="PauseUpload"
-                    OnResume="ResumeUpload"
-                    OnCancel="CancelUpload"
-                    OnClose="ClearFiles" />
+                <div class="upload-panel-files" style="margin: 0.5rem 0;">
+                    @foreach (var file in Files)
+                    {
+                        <div class="upload-panel-file @(file.Status == UploadStatus.Failed ? "upload-panel-file--error" : "")">
+                            <div class="upload-file-header">
+                                <span class="upload-file-name" title="@file.Name">@TruncateName(file.Name)</span>
+                                <span class="upload-file-status-label">@file.StatusText</span>
+                            </div>
+                            <div class="upload-file-progress">
+                                <div class="progress-bar-track progress-bar-track--sm">
+                                    <div class="progress-bar-fill @GetProgressClass(file.Status)"
+                                         style="width: @(file.Progress)%"></div>
+                                </div>
+                                <span class="upload-file-pct">@file.Progress%</span>
+                            </div>
+                        </div>
+                    }
+                </div>
             }
             else
             {
                 <div class="file-upload-list">
                     @foreach (var file in Files)
                     {
-                        <div class="upload-item @(file.IsCancelled ? "upload-item--cancelled" : "")">
+                        <div class="upload-item">
                             <span class="upload-name" title="@file.Name">@file.Name</span>
                             <span class="upload-size">@FormatSize(file.Size)</span>
                             <button class="btn-icon btn-xs upload-remove"
