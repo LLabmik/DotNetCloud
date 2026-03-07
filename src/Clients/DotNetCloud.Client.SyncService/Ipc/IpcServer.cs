@@ -1,6 +1,8 @@
 using System.IO.Pipes;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using DotNetCloud.Client.SyncService.ContextManager;
 using Microsoft.Extensions.Logging;
 
@@ -105,12 +107,7 @@ public sealed class IpcServer : IIpcServer, IAsyncDisposable
             NamedPipeServerStream? pipe = null;
             try
             {
-                pipe = new NamedPipeServerStream(
-                    PipeName,
-                    PipeDirection.InOut,
-                    NamedPipeServerStream.MaxAllowedServerInstances,
-                    PipeTransmissionMode.Byte,
-                    PipeOptions.Asynchronous);
+                pipe = CreateNamedPipe();
 
                 await pipe.WaitForConnectionAsync(cancellationToken);
                 _logger.LogDebug("Named pipe client connected.");
@@ -128,6 +125,48 @@ public sealed class IpcServer : IIpcServer, IAsyncDisposable
                 _logger.LogError(ex, "Error accepting named pipe connection.");
             }
         }
+    }
+
+    /// <summary>
+    /// Creates a <see cref="NamedPipeServerStream"/> with an ACL that allows
+    /// interactive (non-elevated) users to connect when the service runs as SYSTEM.
+    /// </summary>
+    private static NamedPipeServerStream CreateNamedPipe()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            return new NamedPipeServerStream(
+                PipeName,
+                PipeDirection.InOut,
+                NamedPipeServerStream.MaxAllowedServerInstances,
+                PipeTransmissionMode.Byte,
+                PipeOptions.Asynchronous);
+        }
+
+        var security = new PipeSecurity();
+
+        // Owner (SYSTEM or whichever account runs the service) gets full control.
+        security.AddAccessRule(new PipeAccessRule(
+            WindowsIdentity.GetCurrent().User!,
+            PipeAccessRights.FullControl,
+            AccessControlType.Allow));
+
+        // Interactive users (the logged-in desktop user) get read/write so the
+        // tray app can connect.
+        security.AddAccessRule(new PipeAccessRule(
+            new SecurityIdentifier(WellKnownSidType.InteractiveSid, null),
+            PipeAccessRights.ReadWrite,
+            AccessControlType.Allow));
+
+        return NamedPipeServerStreamAcl.Create(
+            PipeName,
+            PipeDirection.InOut,
+            NamedPipeServerStream.MaxAllowedServerInstances,
+            PipeTransmissionMode.Byte,
+            PipeOptions.Asynchronous,
+            inBufferSize: 0,
+            outBufferSize: 0,
+            pipeSecurity: security);
     }
 
     // ── Unix Socket (Linux/macOS) ─────────────────────────────────────────
