@@ -95,7 +95,7 @@ $LinuxInstallScript = @(
         '  exit 1',
         'fi',
         '',
-        'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"',
+        'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"',
         'INSTALL_DIR="/opt/dotnetcloud-desktop-client"',
         'SERVICE_NAME="dotnetcloud-sync"',
         'SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"',
