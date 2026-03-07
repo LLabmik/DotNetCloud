@@ -1577,11 +1577,11 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ GrpcServerConfiguration: Kestrel listener setup (UDS/pipes/TCP)
 - ✓ AuthController & MfaController: REST API controllers for auth flows
 - ✓ OpenIddict endpoint mapping extensions
-- ✓ Unit tests: ModuleProcessHandleTests, ModuleManifestLoaderTests, GrpcChannelManagerTests, ModuleDiscoveryServiceTests (66 tests, all passing)
+- ✓ Unit tests: ModuleProcessHandleTests, ModuleManifestLoaderTests, GrpcChannelManagerTests, ModuleDiscoveryServiceTests, FilesControllerTests (comprehensive REST endpoint coverage for file controller paths)
 
 **Build Status:** ✅ Full solution builds with zero errors
-**Testing:** ✅ 66/66 Server.Tests pass
-**Notes:** All Phase 0.6 implementation and unit tests complete. InternalsVisibleTo added to Server project for test access to internal types. NullLogger used in tests to avoid Moq proxy issues with strong-named assemblies.
+**Testing:** ✅ 305/305 Server.Tests pass
+**Notes:** All Phase 0.6 implementation and unit tests complete. InternalsVisibleTo added to Server project for test access to internal types. NullLogger used in tests to avoid Moq proxy issues with strong-named assemblies. Added comprehensive FilesController unit coverage (29 tests) to lock down endpoint behaviors for CRUD, upload/download, chunk retrieval, share/public-link paths, and caller identity enforcement.
 
 ---
 
@@ -2366,9 +2366,10 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `tools/packaging/build-rpm.ps1` — RPM package skeleton (publish, .spec file, rpmbuild structure)
 - ✓ `tools/packaging/build-msi.ps1` — Windows MSI skeleton (publish win-x64, WiX v4 placeholder)
 - ✓ `tools/packaging/build-docker.ps1` — Docker image build script (functional: build, tag, optional push)
+- ✓ `tools/packaging/build-desktop-client-bundles.ps1` — desktop client bundle builder with CMD-first Windows ZIP installer/uninstaller (`install.cmd`, `uninstall.cmd`) for script-policy-restricted machines
 - ✓ `tools/packaging/build-desktop-client-msix.ps1` — Windows SyncTray MSIX builder (win-x64 publish, manifest + assets generation, makeappx pack, optional signing)
 
-**Notes:** Full CI/CD pipeline in place. Both GitHub Actions and Gitea Actions workflows are functionally identical, covering build, unit tests with coverage, and multi-database integration tests. Docker multi-stage build produces a minimal runtime image with non-root security. Packaging scripts provide the skeleton for `.deb`, `.rpm`, and MSI builds to be fleshed out in later infrastructure phases, and now include a dedicated desktop `SyncTray` MSIX packaging script for Windows distribution. Status badge documentation deferred. All existing tests continue to pass. Build verified successful.
+**Notes:** Full CI/CD pipeline in place. Both GitHub Actions and Gitea Actions workflows are functionally identical, covering build, unit tests with coverage, and multi-database integration tests. Docker multi-stage build produces a minimal runtime image with non-root security. Packaging scripts provide the skeleton for `.deb`, `.rpm`, and MSI builds to be fleshed out in later infrastructure phases, now include a dedicated desktop `SyncTray` MSIX packaging script for Windows distribution, and include a CMD-first Windows ZIP installer path that avoids PowerShell execution-policy issues on development/testing machines. Status badge documentation deferred. All existing tests continue to pass. Build verified successful.
 
 ---
 
@@ -2381,9 +2382,15 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Deliverables:**
 
-**Core Documentation (5 items — all previously existing):**
+**Core Documentation (6 items — all previously existing):**
 - ✓ Architecture overview documentation (`docs/architecture/ARCHITECTURE.md`)
 - ✓ Development environment setup guide (`docs/development/README.md`, `IDE_SETUP.md`, `DATABASE_SETUP.md`, `DOCKER_SETUP.md`)
+- ✓ Bare-metal server installation and fast redeploy runbook (`docs/admin/server/INSTALLATION.md`)
+- ✓ One-command bare-metal redeploy helper script (`tools/redeploy-baremetal.sh`) with publish + restart + health verification
+- ✓ Local-server workflow guidance: use source redeploy helper during local development and maintain `tools/install.sh` parity for first-install/upgrade on other machines
+- ✓ Redeploy helper endpoint parity: auto-probe both local HTTPS `:15443` and installer-default HTTP `:5080` liveness endpoints
+- ✓ Repository commit template (`.gitmessage`) and updated `CONTRIBUTING.md` commit workflow guidance for detailed AI-assisted commit messages
+- ✓ README developer quick setup note for commit-template activation (`git config commit.template .gitmessage`)
 - ✓ Running tests documentation (`docs/development/RUNNING_TESTS.md` — **new**)
 - ✓ Contributing guidelines (`CONTRIBUTING.md`)
 - ✓ License documentation (`LICENSE` — AGPL-3.0)
@@ -2400,7 +2407,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Module manifest documentation (`docs/guides/MODULE_DEVELOPMENT.md`)
 - ✓ Capability interfaces documentation (`docs/architecture/core-abstractions.md`, `docs/guides/MODULE_DEVELOPMENT.md`)
 
-**Notes:** All Phase 0.19 documentation complete. 5 items were already in place from earlier phases (architecture, dev setup, contributing, license). 6 new files created: `RUNNING_TESTS.md`, `docs/api/README.md`, `AUTHENTICATION.md`, `RESPONSE_FORMAT.md`, `ERROR_HANDLING.md`, `docs/guides/MODULE_DEVELOPMENT.md`. Phase 0 documentation is now comprehensive. Ready for Phase 0 completion verification.
+**Notes:** All Phase 0.19 documentation complete. Core documentation now includes an explicit fast bare-metal redeploy runbook in `docs/admin/server/INSTALLATION.md` and a one-command helper script `tools/redeploy-baremetal.sh` (publish, restart, service-unit verification, and health checks). Local-development guidance now explicitly prefers source-based redeploys over re-running GitHub installer fetches, while requiring `tools/install.sh` parity whenever bare-metal process steps change so fresh-machine installs/upgrades remain consistent. Health probing parity is now explicit: the helper auto-tries both local HTTPS (`https://localhost:15443/health/live`) and installer-default HTTP (`http://localhost:5080/health/live`) endpoints. Commit quality guidance is also standardized via repository `.gitmessage`, expanded `CONTRIBUTING.md` instructions (template setup + AI workflow for detailed subject/body output), and a README quick-setup note so contributors can enable the template immediately. Script validation succeeded locally against `dotnetcloud.service` and returned healthy liveness output. 6 new files created: `RUNNING_TESTS.md`, `docs/api/README.md`, `AUTHENTICATION.md`, `RESPONSE_FORMAT.md`, `ERROR_HANDLING.md`, `docs/guides/MODULE_DEVELOPMENT.md`. Phase 0 documentation is now comprehensive. Ready for Phase 0 completion verification.
 
 ---
 
@@ -2528,7 +2535,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Dependencies:** phase-1.3
 **Blocking Issues:** None
-**Notes:** All 47 endpoints implemented under /api/v1/files/ namespace. Controllers refactored from direct DbContext to service layer via FilesControllerBase. PATCH methods changed to PUT per spec. Caller identity is now claim-bound in `FilesControllerBase` (query `userId` must match authenticated principal) to prevent cross-user impersonation. Runtime hardening now exposes `/api/v1/files/*` directly from the core server for bare-metal installs (endpoint now returns auth-gated responses instead of 404 when unauthenticated). Files module test suite passes (476 tests).
+**Notes:** All 47 endpoints implemented under /api/v1/files/ namespace. Controllers refactored from direct DbContext to service layer via FilesControllerBase. PATCH methods changed to PUT per spec. Caller identity is now claim-bound in `FilesControllerBase` (query `userId` must match authenticated principal) to prevent cross-user impersonation. Runtime hardening now exposes `/api/v1/files/*` directly from the core server for bare-metal installs (endpoint now returns auth-gated responses instead of 404 when unauthenticated). Download response hardening added in `FilesController.DownloadAsync` so null/empty/whitespace MIME values fall back to `application/octet-stream` (prevents ASP.NET Core `FormatException` and HTTP 500 on download). Files module test suite passes (476 tests).
 
 ---
 
@@ -2834,10 +2841,11 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - `src/Modules/Files/DotNetCloud.Modules.Files/UI/FileBrowser.razor.cs` (enhanced — drag counter, preview share/download)
 - `src/Modules/Files/DotNetCloud.Modules.Files/UI/ViewModels.cs` (extended — ThumbnailUrl, upload speed/ETA/pause/cancel fields)
 - `src/Modules/Files/DotNetCloud.Modules.Files/DotNetCloud.Modules.Files.csproj` (SixLabors.ImageSharp 3.1.12 added)
+- `tests/DotNetCloud.Modules.Files.Tests/UI/FileUploadComponentTests.cs` (new — multi-file upload regression coverage)
 
 **Dependencies:** phase-1.11 (UI components), phase-1.3 (IChunkedUploadService interface)
 **Blocking Issues:** None
-**Notes:** Build: zero errors, zero warnings (full solution). Drag-and-drop regression fixed so dropping a file in the browser no longer triggers browser file-open navigation and now pre-populates the upload queue in the dialog. Follow-up hardening removed a browser-container `@ondrop` callback that could clear the drag overlay before `InputFile` consumed the dropped payload, which caused the upload dialog to open with an empty queue. Additional hardening replaced browser-level `InputFile` drop capture with a delayed container drop handler (`Task.Delay(75)` before `ShowUploadDialog`) to prevent drop-event click-through from opening the native file picker unexpectedly. Final fix introduces explicit JS interop (`files-drop-bridge.js`) that maps browser `DataTransfer.files` onto a hidden `InputFile` in `FileBrowser`, then routes into `HandleBrowserFileDrop` + `InitialFiles` so dropped files reliably populate the upload queue without opening a native file chooser. 5 items deferred: folder drag-and-drop (JS DataTransfer), video thumbnail, PDF thumbnail, thumbnail API endpoint, and touch gestures. All deferred items have interface stubs or code comments in place for future wiring.
+**Notes:** Build: zero errors, zero warnings (full solution). Drag-and-drop regression fixed so dropping a file in the browser no longer triggers browser file-open navigation and now pre-populates the upload queue in the dialog. Follow-up hardening removed a browser-container `@ondrop` callback that could clear the drag overlay before `InputFile` consumed the dropped payload, which caused the upload dialog to open with an empty queue. Additional hardening replaced browser-level `InputFile` drop capture with a delayed container drop handler (`Task.Delay(75)` before `ShowUploadDialog`) to prevent drop-event click-through from opening the native file picker unexpectedly. Final fix introduces explicit JS interop (`files-drop-bridge.js`) that maps browser `DataTransfer.files` onto a hidden `InputFile` in `FileBrowser`, then routes into `HandleBrowserFileDrop` + `InitialFiles` so dropped files reliably populate the upload queue without opening a native file chooser. Additional upload-lifecycle hardening keeps `FileUploadComponent`'s `InputFile` mounted while uploads are running (hidden/disabled instead of unrendered), preventing Blazor browser-file handle invalidation (`_blazorFilesById` null) during multi-file uploads. Regression coverage now includes `FileUploadComponentTests` validating that file selections are ignored while upload is active and still accepted when idle (`dotnet test ... --filter "FullyQualifiedName~FileUploadComponentTests"`: 2/2 passed). 5 items deferred: folder drag-and-drop (JS DataTransfer), video thumbnail, PDF thumbnail, thumbnail API endpoint, and touch gestures. All deferred items have interface stubs or code comments in place for future wiring.
 
 ---
 

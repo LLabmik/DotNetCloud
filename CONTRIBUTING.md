@@ -282,11 +282,28 @@ dotnet format
 ### Commit Message Format
 
 ```
-<type>: <subject>
+<type>(<scope>): <subject>
 
-<body>
+Why:
+- ...
 
-<footer>
+What changed:
+- ...
+
+Tests:
+- ...
+
+Docs:
+- ...
+
+Deployment/Ops:
+- ...
+
+Breaking changes:
+- none
+
+Refs:
+- ...
 ```
 
 **Type:**
@@ -298,21 +315,93 @@ dotnet format
 - `test`: Adding tests
 - `chore`: Build or dependency updates
 
+**Scope examples:**
+- `files`
+- `server`
+- `ui`
+- `packaging`
+- `docs`
+
+### Use the Repository Commit Template
+
+This repository includes `.gitmessage` for detailed commit bodies.
+
+Set it once in your local clone:
+
+```bash
+git config commit.template .gitmessage
+```
+
+Optional (global):
+
+```bash
+git config --global commit.template /absolute/path/to/your/.gitmessage
+```
+
+### AI Commit Message Workflow (Recommended)
+
+1. Stage all intended files before generating a message (`git add ...`).
+2. Ask AI for both subject and body, not subject only.
+3. Use this prompt shape:
+
+```text
+Generate a Conventional Commit subject and a detailed body from the staged diff.
+Include Why, What changed, Tests, Docs, Deployment/Ops, and Refs.
+```
+
+The one-click SCM “generate message” action may return short summaries only.
+
 **Examples:**
 ```
-feat: Add capability system interfaces for phase-0.1.1
+feat(core): add capability system interfaces for phase-0.1.1
 
-- Implement ICapabilityInterface marker
-- Add CapabilityTier enum with four tiers
-- Create all public, restricted, privileged interfaces
+Why:
+- establish typed capability contracts for authorization boundaries
 
-Implements phase-0.1.1 from MASTER_PROJECT_PLAN.md
-Fixes #45
+What changed:
+- implement `ICapabilityInterface` marker
+- add `CapabilityTier` enum with four tiers
+- create public, restricted, and privileged interfaces
 
-docs: Update architecture documentation
+Tests:
+- `dotnet test`
 
-- Add capability system design patterns
-- Include tier hierarchy diagram
+Docs:
+- update `docs/IMPLEMENTATION_CHECKLIST.md`
+
+Deployment/Ops:
+- none
+
+Breaking changes:
+- none
+
+Refs:
+- Implements phase-0.1.1 from `docs/MASTER_PROJECT_PLAN.md`
+- Fixes #45
+
+docs(architecture): update capability system documentation
+
+Why:
+- keep architecture docs aligned with shipped abstractions
+
+What changed:
+- add capability system design patterns
+- include tier hierarchy diagram
+
+Tests:
+- not run (docs-only)
+
+Docs:
+- update `docs/architecture/ARCHITECTURE.md`
+
+Deployment/Ops:
+- none
+
+Breaking changes:
+- none
+
+Refs:
+- none
 ```
 
 ## Documentation

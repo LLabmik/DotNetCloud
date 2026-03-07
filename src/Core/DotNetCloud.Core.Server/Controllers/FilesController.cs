@@ -11,6 +11,8 @@ namespace DotNetCloud.Core.Server.Controllers;
 [Route("api/v1/files")]
 public sealed class FilesController : FilesControllerBase
 {
+    private const string DefaultDownloadMimeType = "application/octet-stream";
+
     private readonly IFileService _fileService;
     private readonly IChunkedUploadService _uploadService;
     private readonly IDownloadService _downloadService;
@@ -227,7 +229,7 @@ public sealed class FilesController : FilesControllerBase
                 return NotFound(ErrorEnvelope("not_found", "Version not found."));
 
             var stream = await _downloadService.DownloadVersionAsync(ver.Id, caller);
-            return File(stream, ver.MimeType ?? "application/octet-stream");
+            return File(stream, NormalizeDownloadMimeType(ver.MimeType));
         }
 
         var node = await _fileService.GetNodeAsync(nodeId, caller);
@@ -235,8 +237,13 @@ public sealed class FilesController : FilesControllerBase
             return NotFound(ErrorEnvelope("not_found", "Node not found."));
 
         var downloadStream = await _downloadService.DownloadCurrentAsync(nodeId, caller);
-        return File(downloadStream, node.MimeType ?? "application/octet-stream", node.Name, enableRangeProcessing: false);
+        return File(downloadStream, NormalizeDownloadMimeType(node.MimeType), node.Name, enableRangeProcessing: false);
     });
+
+    private static string NormalizeDownloadMimeType(string? mimeType)
+    {
+        return string.IsNullOrWhiteSpace(mimeType) ? DefaultDownloadMimeType : mimeType;
+    }
 
     /// <summary>
     /// Gets the chunk manifest (ordered hashes) for a file.

@@ -13,31 +13,32 @@
             <button class="btn-icon" @onclick="OnCancel" title="Close">✕</button>
         </div>
 
-        @if (!IsUploading)
+        @if (!string.IsNullOrWhiteSpace(ErrorMessage) && !IsUploading)
         {
-            @if (!string.IsNullOrWhiteSpace(ErrorMessage))
-            {
-                <div class="alert alert-danger">@ErrorMessage</div>
-            }
-
-            <div class="file-upload-dropzone @(IsDragging ? "dragging" : "")"
-                 @ondragenter="HandleDragEnter"
-                 @ondragleave="HandleDragLeave"
-                  @ondragover:preventDefault
-                  @ondrop:preventDefault>
-                <InputFile class="file-upload-input-overlay"
-                           OnChange="HandleFileSelected"
-                           multiple
-                           aria-label="Drop files or click to browse" />
-                <span class="dropzone-icon" aria-hidden="true">⤴</span>
-                <p>Drag and drop files here</p>
-                <p class="text-muted">or</p>
-                <span class="btn btn-primary btn-sm" role="button" aria-hidden="true">
-                    Browse Files
-                </span>
-                <p class="text-muted text-xs">Hold Shift or Ctrl to select multiple files</p>
-            </div>
+            <div class="alert alert-danger">@ErrorMessage</div>
         }
+
+        @* Keep InputFile mounted while uploading so BrowserFile handles stay valid. *@
+        <div class="file-upload-dropzone @(IsDragging ? "dragging" : "")"
+             @ondragenter="HandleDragEnter"
+             @ondragleave="HandleDragLeave"
+              @ondragover:preventDefault
+              @ondrop:preventDefault
+              hidden="@IsUploading"
+              aria-hidden="@IsUploading">
+            <InputFile class="file-upload-input-overlay"
+                       OnChange="HandleFileSelected"
+                       multiple
+                       disabled="@IsUploading"
+                       aria-label="Drop files or click to browse" />
+            <span class="dropzone-icon" aria-hidden="true">⤴</span>
+            <p>Drag and drop files here</p>
+            <p class="text-muted">or</p>
+            <span class="btn btn-primary btn-sm" role="button" aria-hidden="true">
+                Browse Files
+            </span>
+            <p class="text-muted text-xs">Hold Shift or Ctrl to select multiple files</p>
+        </div>
 
         @if (Files.Count > 0)
         {

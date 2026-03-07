@@ -63,6 +63,11 @@ public partial class FileUploadComponent : ComponentBase
     /// <summary>Adds selected files to the upload queue.</summary>
     protected void HandleFileSelected(InputFileChangeEventArgs e)
     {
+        if (_isUploading)
+        {
+            return;
+        }
+
         _isDragging = false;
         AddFiles(e.GetMultipleFiles(100));
     }

@@ -1,6 +1,6 @@
 # DotNetCloud Server — Installation Guide
 
-> **Last Updated:** 2026-03-03  
+> **Last Updated:** 2026-03-07  
 > **Applies To:** DotNetCloud 1.0.x  
 > **Audience:** System administrators, self-hosters
 
@@ -942,6 +942,65 @@ For small deployments without a reverse proxy, configure Kestrel directly:
 ---
 
 ## Verifying the Installation
+
+### Fast Redeploy (Existing Bare-Metal Host)
+
+Use this when `dotnetcloud.service` is already installed and you want to deploy the latest source checkout quickly.
+
+This is the preferred workflow for local server development. You do not need to push to GitHub or re-run the remote `install.sh` just to apply local code changes on the same machine.
+
+Fastest path (one command):
+
+```bash
+./tools/redeploy-baremetal.sh
+```
+
+This helper performs publish + service restart + health verification and fails fast if any step fails.
+By default it probes both local HTTPS (`https://localhost:15443/health/live`) and installer-default local HTTP (`http://localhost:5080/health/live`). You can override with `HEALTH_URL=...`.
+
+Maintenance rule for contributors:
+
+- If you change the bare-metal deployment process used by local redeploys, update `tools/install.sh` to keep first-install and upgrade behavior in sync for other machines.
+- Validate both paths when process changes are made:
+  - local source redeploy (`./tools/redeploy-baremetal.sh`)
+  - GitHub-based installer (`tools/install.sh`, including fresh install/upgrade expectations)
+
+1. Confirm the service unit points to your expected publish directory:
+
+```bash
+systemctl cat dotnetcloud.service --no-pager
+```
+
+2. Publish the latest server build to the configured working directory output (project-local bare-metal path):
+
+```bash
+dotnet publish src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj \
+  --configuration Release \
+  --output artifacts/publish/server-baremetal
+```
+
+3. Restart and verify service state:
+
+```bash
+systemctl restart dotnetcloud.service
+systemctl status dotnetcloud.service --no-pager
+```
+
+4. Verify liveness endpoint (HTTPS):
+
+```bash
+curl -kfsS https://localhost:15443/health/live
+```
+
+Expected result:
+
+```json
+{
+  "status": "Healthy"
+}
+```
+
+If your service uses different ports or paths, trust `systemctl cat dotnetcloud.service` and follow the `ExecStart`, `WorkingDirectory`, and `EnvironmentFile` values from that unit.
 
 ### Health Check
 

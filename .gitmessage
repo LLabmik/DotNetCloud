@@ -1,0 +1,23 @@
+<type>(<scope>): <short summary>
+
+Why:
+- <business/technical reason>
+
+What changed:
+- <change 1>
+- <change 2>
+
+Tests:
+- <tests run or "not run" with reason>
+
+Docs:
+- <docs updated or "none">
+
+Deployment/Ops:
+- <deploy impact or "none">
+
+Breaking changes:
+- none
+
+Refs:
+- <issue/phase/PR refs>

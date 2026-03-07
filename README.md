@@ -204,6 +204,16 @@ All dependencies are open source with permissive licenses. Zero cost. See the [f
 
 DotNetCloud is open source and welcomes contributions!
 
+### Developer Quick Setup
+
+For detailed, consistent commit messages (including AI-assisted workflows), set the repository commit template once in your clone:
+
+```sh
+git config commit.template .gitmessage
+```
+
+See `CONTRIBUTING.md` for full commit guidance and examples.
+
 - **Repository:** [github.com/LLabmik/DotNetCloud](https://github.com/LLabmik/DotNetCloud) (primary)
 - **License:** AGPL-3.0 (server & modules), Apache 2.0 (SDK/interfaces)
 - **Module SDK:** Apache 2.0 — build proprietary or open-source modules

@@ -504,6 +504,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ ModuleManifestLoaderTests (validation rules, LoadAndValidate, CreateDefaultManifest)
 - ✓ GrpcChannelManagerTests (channel lifecycle, caching, disposal, CallOptions)
 - ✓ ModuleDiscoveryServiceTests (filesystem discovery, DLL/EXE detection, manifest detection)
+- ✓ FilesControllerTests (comprehensive endpoint coverage: success/error/auth paths for CRUD, upload/download, chunks, shares, and public link resolution)
 
 ---
 
@@ -737,6 +738,8 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Auto-create default quota on first upload initiation and surface upload errors in UI (avoid silent failed uploads)
 - ✓ Keep upload dialog open on failed uploads and only close after full success so users can see actionable errors
 - ✓ Add top-level StartUpload exception handling so pre-upload failures surface as visible error messages (no silent no-op clicks)
+- ✓ Keep upload dialog `InputFile` mounted during active uploads to prevent Blazor `_blazorFilesById` invalidation on multi-file selections
+- ✓ Add `FileUploadComponent` regression unit tests for upload-state file-selection behavior (`tests/DotNetCloud.Modules.Files.Tests/UI/FileUploadComponentTests.cs`)
 - ✓ Default Files storage path to `DOTNETCLOUD_DATA_DIR/storage` when `Files:StoragePath` is unset, avoiding read-only `/opt` writes under hardened systemd
 - ✓ Persist ASP.NET Core DataProtection key ring to `DOTNETCLOUD_DATA_DIR/data-protection-keys` so auth/antiforgery tokens survive restarts
 - ✓ Persist Files/Chat module data across server restarts/redeploys using on-disk module databases
@@ -1064,6 +1067,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Create `.rpm` package build script (`tools/packaging/build-rpm.ps1` — skeleton)
 - ✓ Create Windows MSI build script (`tools/packaging/build-msi.ps1` — skeleton)
 - ✓ Create Docker image build (`Dockerfile` multi-stage + `tools/packaging/build-docker.ps1` + `docker-compose.yml` + `.dockerignore`)
+- ✓ Add CMD-first Windows desktop ZIP installer (`tools/packaging/build-desktop-client-bundles.ps1` generates `install.cmd` / `uninstall.cmd` without PowerShell execution-policy dependency)
 
 ---
 
@@ -1073,6 +1077,12 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 
 - ✓ Architecture overview documentation (`docs/architecture/ARCHITECTURE.md`)
 - ✓ Development environment setup guide (`docs/development/README.md`, `IDE_SETUP.md`, `DATABASE_SETUP.md`, `DOCKER_SETUP.md`)
+- ✓ Bare-metal server installation and fast redeploy runbook (`docs/admin/server/INSTALLATION.md`)
+- ✓ Add one-command bare-metal redeploy helper script (`tools/redeploy-baremetal.sh`) and document usage in server install guide
+- ✓ Clarify local-server workflow: prefer source redeploy helper for local changes and keep `tools/install.sh` in parity for fresh-machine installs
+- ✓ Ensure redeploy helper health probe parity with installer defaults (auto-tries HTTPS `:15443` and HTTP `:5080`)
+- ✓ Add repository commit template (`.gitmessage`) and CONTRIBUTING guidance for detailed AI-assisted commit messages
+- ✓ Add README developer quick setup note for commit template configuration (`git config commit.template .gitmessage`)
 - ✓ Running tests documentation (`docs/development/RUNNING_TESTS.md`)
 - ✓ Contributing guidelines (`CONTRIBUTING.md`)
 - ✓ License documentation (`LICENSE` — AGPL-3.0)
@@ -1682,6 +1692,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ `GET /api/v1/files/{nodeId}/download` — Download file content
 - ✓ `GET /api/v1/files/{nodeId}/download?version={n}` — Download specific version
 - ✓ `GET /api/v1/files/{nodeId}/chunks` — Get chunk manifest (for sync clients)
+- ✓ Harden download MIME fallback (`FilesController.DownloadAsync`) to treat null/empty/whitespace MIME values as `application/octet-stream` and prevent HTTP 500 `FormatException`
 
 #### Version Endpoints (VersionController)
 - ✓ `GET /api/v1/files/{nodeId}/versions` — List file versions

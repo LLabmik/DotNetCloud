@@ -29,22 +29,22 @@
 
    Current limitation: MSIX installs do not register the `DotNetCloudSync` Windows Service yet. Use the ZIP installer flow below if you need service registration today.
 
-2. **Alternative (ZIP + script):** Download installer bundle from GitHub Releases:
+2. **Alternative (ZIP + installer scripts):** Download installer bundle from GitHub Releases:
 
    - `dotnetcloud-desktop-client-win-x64-<version>.zip`
 
 3. **Extract** the zip to a folder.
 
-4. **Install** from an elevated PowerShell window:
-
-   ```powershell
-   .\Install-DesktopClient.ps1
-   ```
-
-   Optional one-click launcher:
+4. **Install** from an elevated Command Prompt (`cmd.exe`):
 
    ```cmd
    install.cmd
+   ```
+
+   PowerShell fallback (if script execution is allowed):
+
+   ```powershell
+   .\Install-DesktopClient.ps1
    ```
 
 5. **Verify service is running:**
@@ -59,7 +59,7 @@
    & "$env:ProgramFiles\DotNetCloud\DesktopClient\SyncTray\dotnetcloud-sync-tray.exe"
    ```
 
-7. **Auto-start SyncTray on login:** Installer creates a Startup shortcut automatically.
+7. **Auto-start SyncTray on login:** Installer registers a per-user startup entry.
 
 
 ### Linux
