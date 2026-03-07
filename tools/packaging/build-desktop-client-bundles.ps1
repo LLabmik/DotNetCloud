@@ -1,5 +1,5 @@
 # =============================================================================
-# DotNetCloud — Desktop Client Bundle Builder
+# DotNetCloud - Desktop Client Bundle Builder
 # =============================================================================
 # Usage:
 #   .\build-desktop-client-bundles.ps1 [-Version "0.1.0-alpha"] [-Configuration "Release"]
@@ -22,7 +22,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 Write-Host "==============================================" -ForegroundColor Cyan
-Write-Host " DotNetCloud — Desktop Client Bundle Builder" -ForegroundColor Cyan
+Write-Host " DotNetCloud - Desktop Client Bundle Builder" -ForegroundColor Cyan
 Write-Host " Version: $Version" -ForegroundColor Cyan
 Write-Host "==============================================" -ForegroundColor Cyan
 
@@ -172,101 +172,101 @@ Set-Content -Path (Join-Path $LinuxRoot "uninstall.sh") -Value $LinuxUninstallSc
 
 Write-Host "[4/6] Writing Windows installer scripts..." -ForegroundColor Yellow
 
-$WindowsInstallScript = @'
-param(
-    [string]$InstallPath = "$env:ProgramFiles\DotNetCloud\DesktopClient"
-)
-
-$ErrorActionPreference = "Stop"
-
-$identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-$principal = New-Object Security.Principal.WindowsPrincipal($identity)
-if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    throw "Run this installer from an elevated PowerShell window."
-}
-
-$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$payloadPath = Join-Path $scriptDir "payload"
-
-if (-not (Test-Path $payloadPath)) {
-    throw "Payload folder not found: $payloadPath"
-}
-
-New-Item -ItemType Directory -Force -Path $InstallPath | Out-Null
-
-$existingService = Get-Service -Name "DotNetCloudSync" -ErrorAction SilentlyContinue
-if ($null -ne $existingService -and $existingService.Status -ne 'Stopped') {
-    sc.exe stop DotNetCloudSync | Out-Null
-    Start-Sleep -Seconds 2
-}
-
-Copy-Item -Path (Join-Path $payloadPath "*") -Destination $InstallPath -Recurse -Force
-
-$serviceExe = Join-Path $InstallPath "SyncService\dotnetcloud-sync-service.exe"
-if (-not (Test-Path $serviceExe)) {
-    throw "Sync service executable not found: $serviceExe"
-}
-
-$service = Get-Service -Name "DotNetCloudSync" -ErrorAction SilentlyContinue
-if ($null -eq $service) {
-    sc.exe create DotNetCloudSync binPath= "`"$serviceExe`"" start= auto | Out-Null
-}
-else {
-    sc.exe config DotNetCloudSync binPath= "`"$serviceExe`"" start= auto | Out-Null
-}
-
-sc.exe start DotNetCloudSync | Out-Null
-
-$startup = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup"
-New-Item -ItemType Directory -Force -Path $startup | Out-Null
-$shortcutPath = Join-Path $startup "DotNetCloud SyncTray.lnk"
-$trayExe = Join-Path $InstallPath "SyncTray\dotnetcloud-sync-tray.exe"
-$wsh = New-Object -ComObject WScript.Shell
-$shortcut = $wsh.CreateShortcut($shortcutPath)
-$shortcut.TargetPath = $trayExe
-$shortcut.WorkingDirectory = Split-Path $trayExe -Parent
-$shortcut.Save()
-
-Write-Host "Install complete."
-Write-Host "Service status:" -ForegroundColor Cyan
-Get-Service DotNetCloudSync
-Write-Host "Launch tray: $trayExe"
-'@
+$WindowsInstallScript = @(
+    'param(',
+    '    [string]$InstallPath = "$env:ProgramFiles\DotNetCloud\DesktopClient"',
+    ')',
+    '',
+    '$ErrorActionPreference = "Stop"',
+    '',
+    '$identity = [Security.Principal.WindowsIdentity]::GetCurrent()',
+    '$principal = New-Object Security.Principal.WindowsPrincipal($identity)',
+    'if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {',
+    '    throw "Run this installer from an elevated PowerShell window."',
+    '}',
+    '',
+    '$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path',
+    '$payloadPath = Join-Path $scriptDir "payload"',
+    '',
+    'if (-not (Test-Path $payloadPath)) {',
+    '    throw "Payload folder not found: $payloadPath"',
+    '}',
+    '',
+    'New-Item -ItemType Directory -Force -Path $InstallPath | Out-Null',
+    '',
+    '$existingService = Get-Service -Name "DotNetCloudSync" -ErrorAction SilentlyContinue',
+    'if ($null -ne $existingService -and $existingService.Status -ne ''Stopped'') {',
+    '    sc.exe stop DotNetCloudSync | Out-Null',
+    '    Start-Sleep -Seconds 2',
+    '}',
+    '',
+    'Copy-Item -Path (Join-Path $payloadPath "*") -Destination $InstallPath -Recurse -Force',
+    '',
+    '$serviceExe = Join-Path $InstallPath "SyncService\dotnetcloud-sync-service.exe"',
+    'if (-not (Test-Path $serviceExe)) {',
+    '    throw "Sync service executable not found: $serviceExe"',
+    '}',
+    '',
+    '$service = Get-Service -Name "DotNetCloudSync" -ErrorAction SilentlyContinue',
+    'if ($null -eq $service) {',
+    '    sc.exe create DotNetCloudSync binPath= "`"$serviceExe`"" start= auto | Out-Null',
+    '}',
+    'else {',
+    '    sc.exe config DotNetCloudSync binPath= "`"$serviceExe`"" start= auto | Out-Null',
+    '}',
+    '',
+    'sc.exe start DotNetCloudSync | Out-Null',
+    '',
+    '$startup = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup"',
+    'New-Item -ItemType Directory -Force -Path $startup | Out-Null',
+    '$shortcutPath = Join-Path $startup "DotNetCloud SyncTray.lnk"',
+    '$trayExe = Join-Path $InstallPath "SyncTray\dotnetcloud-sync-tray.exe"',
+    '$wsh = New-Object -ComObject WScript.Shell',
+    '$shortcut = $wsh.CreateShortcut($shortcutPath)',
+    '$shortcut.TargetPath = $trayExe',
+    '$shortcut.WorkingDirectory = Split-Path $trayExe -Parent',
+    '$shortcut.Save()',
+    '',
+    'Write-Host "Install complete."',
+    'Write-Host "Service status:" -ForegroundColor Cyan',
+    'Get-Service DotNetCloudSync',
+    'Write-Host "Launch tray: $trayExe"'
+) -join [Environment]::NewLine
 Set-Content -Path (Join-Path $WindowsRoot "Install-DesktopClient.ps1") -Value $WindowsInstallScript
 
-$WindowsUninstallScript = @'
-param(
-    [string]$InstallPath = "$env:ProgramFiles\DotNetCloud\DesktopClient"
-)
-
-$ErrorActionPreference = "Stop"
-
-$identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-$principal = New-Object Security.Principal.WindowsPrincipal($identity)
-if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    throw "Run this uninstaller from an elevated PowerShell window."
-}
-
-sc.exe stop DotNetCloudSync | Out-Null
-sc.exe delete DotNetCloudSync | Out-Null
-
-$startupShortcut = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\DotNetCloud SyncTray.lnk"
-if (Test-Path $startupShortcut) {
-    Remove-Item $startupShortcut -Force
-}
-
-if (Test-Path $InstallPath) {
-    Remove-Item $InstallPath -Recurse -Force
-}
-
-Write-Host "Uninstall complete."
-'@
+$WindowsUninstallScript = @(
+    'param(',
+    '    [string]$InstallPath = "$env:ProgramFiles\DotNetCloud\DesktopClient"',
+    ')',
+    '',
+    '$ErrorActionPreference = "Stop"',
+    '',
+    '$identity = [Security.Principal.WindowsIdentity]::GetCurrent()',
+    '$principal = New-Object Security.Principal.WindowsPrincipal($identity)',
+    'if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {',
+    '    throw "Run this uninstaller from an elevated PowerShell window."',
+    '}',
+    '',
+    'sc.exe stop DotNetCloudSync | Out-Null',
+    'sc.exe delete DotNetCloudSync | Out-Null',
+    '',
+    '$startupShortcut = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\DotNetCloud SyncTray.lnk"',
+    'if (Test-Path $startupShortcut) {',
+    '    Remove-Item $startupShortcut -Force',
+    '}',
+    '',
+    'if (Test-Path $InstallPath) {',
+    '    Remove-Item $InstallPath -Recurse -Force',
+    '}',
+    '',
+    'Write-Host "Uninstall complete."'
+) -join [Environment]::NewLine
 Set-Content -Path (Join-Path $WindowsRoot "Uninstall-DesktopClient.ps1") -Value $WindowsUninstallScript
 
-$WindowsInstallCmd = @'
-@echo off
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Install-DesktopClient.ps1"
-'@
+$WindowsInstallCmd = @(
+    '@echo off',
+    'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Install-DesktopClient.ps1"'
+) -join [Environment]::NewLine
 Set-Content -Path (Join-Path $WindowsRoot "install.cmd") -Value $WindowsInstallCmd
 
 Write-Host "[5/6] Marking executable scripts and creating README files..." -ForegroundColor Yellow
