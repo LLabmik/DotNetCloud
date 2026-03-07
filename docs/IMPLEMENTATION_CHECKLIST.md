@@ -1925,6 +1925,7 @@ This phase implements the core Files module, which is the primary public-facing 
 #### Collabora CODE Management
 - ✓ Implement Collabora CODE download and auto-installation in `dotnetcloud setup` + `dotnetcloud install collabora`
 - ✓ Ensure `tools/install.sh` auto-installs Collabora CODE when setup selection persists `collaboraMode: BuiltIn`
+- ✓ Harden `tools/install.sh` built-in Collabora post-install to auto-manage `coolwsd.xml` WOPI alias groups for the configured DotNetCloud origin (preferring `Files__Collabora__ServerUrl` from `dotnetcloud.env`), enforce safe file ownership/mode (`root:cool`, `640`), and restart/validate `coolwsd`
 - ✓ Create Collabora CODE process management under process supervisor (`CollaboraProcessManager` BackgroundService)
 - ✓ Implement WOPI discovery endpoint integration
 - ✓ Configure TLS/URL routing for Collabora (`ReverseProxyTemplates.GenerateNginxConfigWithCollabora`, `GenerateApacheConfigWithCollabora`)

@@ -521,6 +521,195 @@ COLEOF
     $SUDO systemctl start coolwsd 2>/dev/null || true
 }
 
+# --- Derive DotNetCloud public origin from persisted setup config ---
+resolve_public_origin_from_config() {
+    local config_file="$1"
+
+    # Prefer authoritative runtime env override when available.
+    # This captures single-origin deployments where public HTTPS differs from
+    # internal setup-wizard HTTP/HTTPS port defaults.
+    local env_file="${CONFIG_DIR}/dotnetcloud.env"
+    if [[ -f "$env_file" ]]; then
+        local collabora_server_url
+        collabora_server_url=$(grep -oP '^Files__Collabora__ServerUrl=\K.*' "$env_file" 2>/dev/null | head -n1 || true)
+        if [[ -n "$collabora_server_url" ]] && [[ "$collabora_server_url" =~ ^https?:// ]]; then
+            echo "$collabora_server_url" | sed -E 's#^((https?)://[^/]+).*$#\1#'
+            return 0
+        fi
+    fi
+
+    local enable_https
+    enable_https=$(grep -oP '"(?:enableHttps|EnableHttps)"\s*:\s*\K(true|false)' "$config_file" 2>/dev/null | head -n1 || true)
+    if [[ -z "$enable_https" ]]; then
+        enable_https="true"
+    fi
+
+    local https_port
+    https_port=$(grep -oP '"(?:httpsPort|HttpsPort)"\s*:\s*\K[0-9]+' "$config_file" 2>/dev/null | head -n1 || true)
+    if [[ -z "$https_port" ]]; then
+        https_port="5443"
+    fi
+
+    local http_port
+    http_port=$(grep -oP '"(?:httpPort|HttpPort)"\s*:\s*\K[0-9]+' "$config_file" 2>/dev/null | head -n1 || true)
+    if [[ -z "$http_port" ]]; then
+        http_port="5080"
+    fi
+
+    local host
+    host=$(grep -oP '"(?:letsEncryptDomain|LetsEncryptDomain)"\s*:\s*"\K[^"]+' "$config_file" 2>/dev/null | head -n1 || true)
+    if [[ -z "$host" ]]; then
+        host=$(hostname -f 2>/dev/null || true)
+    fi
+    if [[ -z "$host" ]]; then
+        host=$(hostname 2>/dev/null || true)
+    fi
+    if [[ -z "$host" ]]; then
+        return 1
+    fi
+
+    local scheme
+    local port
+    if [[ "$enable_https" == "true" ]]; then
+        scheme="https"
+        port="$https_port"
+    else
+        scheme="http"
+        port="$http_port"
+    fi
+
+    if [[ "$scheme" == "https" && "$port" == "443" ]] || [[ "$scheme" == "http" && "$port" == "80" ]]; then
+        echo "${scheme}://${host}"
+    else
+        echo "${scheme}://${host}:${port}"
+    fi
+}
+
+# --- Ensure coolwsd allows DotNetCloud public single-origin WOPI host ---
+configure_collabora_wopi_alias_groups() {
+    local public_origin="$1"
+    local coolwsd_config="/etc/coolwsd/coolwsd.xml"
+
+    if [[ -z "$public_origin" ]]; then
+        warn "Public origin is empty; skipping coolwsd WOPI alias_groups configuration."
+        return
+    fi
+
+    if [[ ! -f "$coolwsd_config" ]]; then
+        warn "${coolwsd_config} not found; skipping coolwsd WOPI alias_groups configuration."
+        return
+    fi
+
+    local host_with_port
+    host_with_port=$(echo "$public_origin" | sed -E 's#^[a-zA-Z]+://##; s#/.*$##')
+    local host_only
+    host_only=$(echo "$host_with_port" | sed -E 's#:[0-9]+$##')
+
+    local tmp_without_managed
+    tmp_without_managed=$(mktemp)
+    local tmp_rewritten
+    tmp_rewritten=$(mktemp)
+    local managed_block
+    managed_block=$(mktemp)
+
+    # Remove any prior DotNetCloud-managed block to keep this idempotent.
+    awk '
+        /<!--[[:space:]]*dotnetcloud-managed-start[[:space:]]*-->/ { skip=1; next }
+        /<!--[[:space:]]*dotnetcloud-managed-end[[:space:]]*-->/ { skip=0; next }
+        skip == 0 { print }
+    ' "$coolwsd_config" > "$tmp_without_managed"
+
+    # Ensure alias_groups mode is groups so explicit host aliases are honored.
+    sed -E 's#(<alias_groups[^>]*mode=")([^"]+)("[^>]*>)#\1groups\3#' "$tmp_without_managed" > "$tmp_rewritten"
+
+    cat > "$managed_block" <<EOF
+        <!-- dotnetcloud-managed-start -->
+        <group>
+            <host desc="DotNetCloud single-origin public host">${public_origin}</host>
+            <alias>${public_origin}</alias>
+            <alias>https://${host_with_port}</alias>
+            <alias>https://${host_only}</alias>
+            <alias>http://${host_with_port}</alias>
+            <alias>http://${host_only}</alias>
+            <alias>https://localhost:15443</alias>
+            <alias>https://127.0.0.1:15443</alias>
+            <alias>http://localhost:5080</alias>
+            <alias>http://127.0.0.1:5080</alias>
+        </group>
+        <!-- dotnetcloud-managed-end -->
+EOF
+
+    local tmp_final
+    tmp_final=$(mktemp)
+
+    if ! awk -v blockfile="$managed_block" '
+        /<\/alias_groups>/ && !done {
+            while ((getline line < blockfile) > 0) {
+                print line
+            }
+            close(blockfile)
+            done=1
+        }
+        { print }
+        END {
+            if (!done) {
+                exit 2
+            }
+        }
+    ' "$tmp_rewritten" > "$tmp_final"; then
+        warn "Could not locate </alias_groups> in ${coolwsd_config}; leaving existing file unchanged."
+        rm -f "$tmp_without_managed" "$tmp_rewritten" "$managed_block" "$tmp_final"
+        return
+    fi
+
+    $SUDO cp "$coolwsd_config" "${coolwsd_config}.dotnetcloud.bak"
+    $SUDO cp "$tmp_final" "$coolwsd_config"
+
+    rm -f "$tmp_without_managed" "$tmp_rewritten" "$managed_block" "$tmp_final"
+
+    local cool_group="cool"
+    if ! getent group "$cool_group" >/dev/null 2>&1; then
+        warn "Group 'cool' not found; using root:root ownership for ${coolwsd_config}."
+        $SUDO chown root:root "$coolwsd_config"
+        $SUDO chmod 644 "$coolwsd_config"
+    else
+        $SUDO chown root:"$cool_group" "$coolwsd_config"
+        $SUDO chmod 640 "$coolwsd_config"
+    fi
+
+    ok "Updated ${coolwsd_config} with DotNetCloud-managed WOPI alias group for ${public_origin}."
+}
+
+# --- Restart + verify Collabora service after config changes ---
+validate_collabora_runtime() {
+    info "Restarting Collabora CODE service..."
+    $SUDO systemctl enable coolwsd >/dev/null 2>&1 || true
+    if ! $SUDO systemctl restart coolwsd; then
+        warn "Failed to restart coolwsd. Check: sudo systemctl status coolwsd"
+        return
+    fi
+
+    local retries=0
+    while [[ $retries -lt 10 ]]; do
+        if $SUDO systemctl is-active --quiet coolwsd 2>/dev/null; then
+            break
+        fi
+        sleep 1
+        retries=$((retries + 1))
+    done
+
+    if ! $SUDO systemctl is-active --quiet coolwsd 2>/dev/null; then
+        warn "coolwsd is not active after restart. Check: sudo journalctl -u coolwsd -n 80 --no-pager"
+        return
+    fi
+
+    if curl -ksf --max-time 5 https://localhost:9980/hosting/discovery >/dev/null 2>&1; then
+        ok "Collabora CODE is running and responding on https://localhost:9980/hosting/discovery"
+    else
+        warn "coolwsd is active but /hosting/discovery probe failed. Verify TLS/certificate settings in /etc/coolwsd/coolwsd.xml."
+    fi
+}
+
 # --- Check config for Collabora and install/upgrade if requested ---
 maybe_install_collabora() {
     local CONFIG_FILE="${CONFIG_DIR}/config.json"
@@ -547,6 +736,16 @@ maybe_install_collabora() {
     if [[ "$MODE" == "BuiltIn" ]]; then
         info "Collabora mode is BuiltIn in ${CONFIG_FILE}; installing/upgrading Collabora CODE..."
         install_collabora
+
+        local public_origin
+        if public_origin=$(resolve_public_origin_from_config "$CONFIG_FILE"); then
+            info "Configuring coolwsd WOPI allowlist for DotNetCloud origin: ${public_origin}"
+            configure_collabora_wopi_alias_groups "$public_origin"
+        else
+            warn "Could not derive DotNetCloud public origin from ${CONFIG_FILE}; skipping coolwsd alias_groups automation."
+        fi
+
+        validate_collabora_runtime
     else
         info "Collabora mode is ${MODE}; skipping built-in Collabora CODE install."
     fi
