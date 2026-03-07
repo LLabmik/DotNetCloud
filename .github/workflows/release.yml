@@ -8,8 +8,9 @@
 #   1. Build + test the full solution
 #   2. Publish self-contained linux-x64 binaries (CLI, Core.Server, module hosts)
 #   3. Package into dotnetcloud-{VERSION}-linux-x64.tar.gz
-#   4. Generate SHA256 checksum
-#   5. Create a GitHub Release with tarball + checksum attached
+#   4. Build desktop client installer bundles (linux-x64 tar.gz, win-x64 zip)
+#   5. Generate SHA256 checksums for all release artifacts
+#   6. Create a GitHub Release with artifacts attached
 #
 # The install script (tools/install.sh) downloads the tarball from the
 # GitHub Release created by this workflow.
@@ -144,12 +145,28 @@ jobs:
           echo "tarball=${TARBALL}" >> "$GITHUB_ENV"
           echo "tarball_name=dotnetcloud-${VERSION}-linux-x64.tar.gz" >> "$GITHUB_ENV"
 
+      # ------------------------------------------------------------------
+      # Build desktop client installers (self-contained)
+      # ------------------------------------------------------------------
+      - name: Build desktop client installer bundles
+        shell: pwsh
+        run: |
+          ./tools/packaging/build-desktop-client-bundles.ps1 `
+            -Version "${{ steps.version.outputs.version }}" `
+            -Configuration "Release" `
+            -OutputDir "./artifacts/installers"
+
       - name: Generate SHA256 checksum
         run: |
           cd artifacts
           sha256sum "$(basename "${{ env.tarball }}")" > "$(basename "${{ env.tarball }}").sha256"
           echo "Checksum:"
           cat "$(basename "${{ env.tarball }}").sha256"
+
+          cd installers
+          for file in dotnetcloud-desktop-client-linux-x64-${{ steps.version.outputs.version }}.tar.gz dotnetcloud-desktop-client-win-x64-${{ steps.version.outputs.version }}.zip; do
+            sha256sum "$file" > "$file.sha256"
+          done
 
       # ------------------------------------------------------------------
       # Create GitHub Release
@@ -165,3 +182,7 @@ jobs:
           files: |
             ${{ env.tarball }}
             ${{ env.tarball }}.sha256
+            artifacts/installers/dotnetcloud-desktop-client-linux-x64-${{ steps.version.outputs.version }}.tar.gz
+            artifacts/installers/dotnetcloud-desktop-client-linux-x64-${{ steps.version.outputs.version }}.tar.gz.sha256
+            artifacts/installers/dotnetcloud-desktop-client-win-x64-${{ steps.version.outputs.version }}.zip
+            artifacts/installers/dotnetcloud-desktop-client-win-x64-${{ steps.version.outputs.version }}.zip.sha256

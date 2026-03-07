@@ -89,11 +89,17 @@ DotNetCloud.Client.SyncTray       (Avalonia tray app)
 
 See [Setup Guide](SETUP.md) for installation and account configuration.
 
+Desktop client installers are published as versioned GitHub Release assets:
+
+- `dotnetcloud-desktop-client-linux-x64-<version>.tar.gz`
+- `dotnetcloud-desktop-client-win-x64-<version>.zip`
+
 ---
 
 ## Related Documentation
 
 - [Setup & Installation](SETUP.md)
+- [TraySync Build + Verification Walkthrough](TRAYSYNC_VERIFICATION_WALKTHROUGH.md)
 - [Sync Protocol Details](SYNC_PROTOCOL.md)
 - [Troubleshooting](TROUBLESHOOTING.md)
 - [Files Module Sync Architecture](../../modules/files/SYNC.md)

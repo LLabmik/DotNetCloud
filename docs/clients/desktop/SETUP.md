@@ -6,9 +6,14 @@
 
 ## Prerequisites
 
-- **.NET 10 Runtime** — required to run the sync client
 - **DotNetCloud server** — a running DotNetCloud instance to connect to
 - **Windows 10+** or **Linux** (Debian/Ubuntu recommended)
+
+> End users should install from release installers. No .NET SDK is required on client machines.
+
+> Required model: one desktop-client installation and account setup per OS user account.
+> On shared machines, each OS user must install/run the client from their own login session.
+> Shared-machine hard isolation across multiple concurrently active OS users is planned but not yet enforced in the service IPC/context layer.
 
 ---
 
@@ -16,58 +21,118 @@
 
 ### Windows
 
-1. **Build from source:**
+1. **Download installer bundle** from GitHub Releases:
+
+   - `dotnetcloud-desktop-client-win-x64-<version>.zip`
+
+2. **Extract** the zip to a folder.
+
+3. **Install** from an elevated PowerShell window:
 
    ```powershell
-   dotnet publish src\Clients\DotNetCloud.Client.SyncService -c Release -o publish\SyncService
-   dotnet publish src\Clients\DotNetCloud.Client.SyncTray -c Release -o publish\SyncTray
+   .\Install-DesktopClient.ps1
    ```
 
-2. **Install SyncService as a Windows Service:**
+   Optional one-click launcher:
+
+   ```cmd
+   install.cmd
+   ```
+
+4. **Verify service is running:**
 
    ```powershell
-   sc.exe create DotNetCloudSync binPath="C:\path\to\publish\SyncService\DotNetCloud.Client.SyncService.exe"
-   sc.exe start DotNetCloudSync
+   Get-Service DotNetCloudSync
    ```
 
-3. **Run SyncTray:** Launch `DotNetCloud.Client.SyncTray.exe` from the publish directory. It runs as a tray icon application.
+5. **Run SyncTray:**
 
-4. **Auto-start SyncTray on login:** Place a shortcut in `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup`.
+   ```powershell
+   & "$env:ProgramFiles\DotNetCloud\DesktopClient\SyncTray\dotnetcloud-sync-tray.exe"
+   ```
+
+6. **Auto-start SyncTray on login:** Installer creates a Startup shortcut automatically.
 
 ### Linux
 
-1. **Build from source:**
+1. **Download installer bundle** from GitHub Releases:
+
+   - `dotnetcloud-desktop-client-linux-x64-<version>.tar.gz`
+
+2. **Extract** the archive:
 
    ```bash
-   dotnet publish src/Clients/DotNetCloud.Client.SyncService -c Release -o publish/SyncService
-   dotnet publish src/Clients/DotNetCloud.Client.SyncTray -c Release -o publish/SyncTray
+   tar -xzf dotnetcloud-desktop-client-linux-x64-<version>.tar.gz
+   cd linux-x64
    ```
 
-2. **Install SyncService as a systemd unit:**
-
-   Create `/etc/systemd/system/dotnetcloud-sync.service`:
-
-   ```ini
-   [Unit]
-   Description=DotNetCloud Sync Service
-   After=network.target
-
-   [Service]
-   Type=notify
-   ExecStart=/path/to/publish/SyncService/DotNetCloud.Client.SyncService
-   Restart=on-failure
-   RestartSec=10
-
-   [Install]
-   WantedBy=multi-user.target
-   ```
+3. **Install service + launcher:**
 
    ```bash
-   sudo systemctl enable dotnetcloud-sync
-   sudo systemctl start dotnetcloud-sync
+   sudo ./install.sh
    ```
 
-3. **Run SyncTray:** Launch the tray app from the publish directory. Configure your desktop environment to auto-start it on login.
+4. **Verify service is running:**
+
+   ```bash
+   sudo systemctl status dotnetcloud-sync --no-pager
+   ```
+
+5. **Run SyncTray** in your desktop session:
+
+   ```bash
+   dotnetcloud-sync-tray
+   ```
+
+6. **Auto-start SyncTray on login:** Configure your desktop environment startup applications if desired.
+
+## Updating to a New Client Version
+
+### Windows
+
+1. Download the new `dotnetcloud-desktop-client-win-x64-<version>.zip`.
+2. Extract and run `Install-DesktopClient.ps1` again as Administrator.
+3. The installer updates binaries and service configuration in place, then restarts `DotNetCloudSync`.
+
+### Linux
+
+1. Download the new `dotnetcloud-desktop-client-linux-x64-<version>.tar.gz`.
+2. Extract and run `sudo ./install.sh` again.
+3. The installer stops `dotnetcloud-sync`, replaces binaries, and restarts the service.
+
+## Multi-User Machine Guidance (Current)
+
+- Install and run the desktop client under the specific OS account that owns the sync data.
+- Example: if `alice` and `bob` both use the same PC, `alice` installs/configures while logged in as `alice`, and `bob` repeats installer + setup while logged in as `bob`.
+- Do not treat a single system-level install as safely isolated for multiple concurrently active desktop users yet.
+- If multiple people share a machine today, use separate OS accounts and validate one account at a time during testing.
+
+## Build From Source (Maintainers/Developers)
+
+If you are building installers yourself (CI or local packaging host), use:
+
+```powershell
+.\tools\packaging\build-desktop-client-bundles.ps1 -Version "<version>" -Configuration "Release"
+```
+
+Linux/macOS developers can run the bash wrapper:
+
+```bash
+./tools/packaging/build-desktop-client-bundles.sh <version> Release ./artifacts/installers
+```
+
+Example:
+
+```bash
+./tools/packaging/build-desktop-client-bundles.sh 0.1.0-alpha Release ./artifacts/installers
+```
+
+Output artifacts:
+
+- `artifacts/installers/dotnetcloud-desktop-client-linux-x64-<version>.tar.gz`
+- `artifacts/installers/dotnetcloud-desktop-client-win-x64-<version>.zip`
+- `artifacts/installers/dotnetcloud-desktop-client-linux-x64-<version>.tar.gz.sha256`
+- `artifacts/installers/dotnetcloud-desktop-client-win-x64-<version>.zip.sha256`
 
 ---
 
