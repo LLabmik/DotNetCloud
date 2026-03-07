@@ -740,6 +740,8 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Add top-level StartUpload exception handling so pre-upload failures surface as visible error messages (no silent no-op clicks)
 - ✓ Keep upload dialog `InputFile` mounted during active uploads to prevent Blazor `_blazorFilesById` invalidation on multi-file selections
 - ✓ Add `FileUploadComponent` regression unit tests for upload-state file-selection behavior (`tests/DotNetCloud.Modules.Files.Tests/UI/FileUploadComponentTests.cs`)
+- ✓ Eager-buffer selected upload files to decouple processing from browser reader lifecycle (fixes multi-file "reader completed" failures)
+- ✓ Normalize low-level upload reader errors into actionable user-facing messages in the upload dialog
 - ✓ Default Files storage path to `DOTNETCLOUD_DATA_DIR/storage` when `Files:StoragePath` is unset, avoiding read-only `/opt` writes under hardened systemd
 - ✓ Persist ASP.NET Core DataProtection key ring to `DOTNETCLOUD_DATA_DIR/data-protection-keys` so auth/antiforgery tokens survive restarts
 - ✓ Persist Files/Chat module data across server restarts/redeploys using on-disk module databases

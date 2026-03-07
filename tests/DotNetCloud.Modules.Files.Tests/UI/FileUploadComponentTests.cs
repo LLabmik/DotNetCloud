@@ -8,7 +8,7 @@ namespace DotNetCloud.Modules.Files.Tests.UI;
 public sealed class FileUploadComponentTests
 {
     [TestMethod]
-    public void HandleFileSelected_NotUploading_AddsAllSelectedFiles()
+    public async Task HandleFileSelected_NotUploading_AddsAllSelectedFiles()
     {
         // Arrange
         var component = new TestableFileUploadComponent();
@@ -17,20 +17,22 @@ public sealed class FileUploadComponentTests
             new FakeBrowserFile("two.txt", 256, "text/plain"));
 
         // Act
-        component.InvokeHandleFileSelected(args);
+        await component.InvokeHandleFileSelected(args);
 
         // Assert
         Assert.AreEqual(2, component.QueuedFiles.Count);
         Assert.AreEqual("one.txt", component.QueuedFiles[0].Name);
         Assert.AreEqual("two.txt", component.QueuedFiles[1].Name);
+        CollectionAssert.AreEqual(CreateSequence(128), component.QueuedFiles[0].BufferedContent);
+        CollectionAssert.AreEqual(CreateSequence(256), component.QueuedFiles[1].BufferedContent);
     }
 
     [TestMethod]
-    public void HandleFileSelected_WhenUploading_IgnoresNewSelection()
+    public async Task HandleFileSelected_WhenUploading_IgnoresNewSelection()
     {
         // Arrange
         var component = new TestableFileUploadComponent();
-        component.InvokeHandleFileSelected(CreateInputChangeArgs(new FakeBrowserFile("existing.txt", 64, "text/plain")));
+        await component.InvokeHandleFileSelected(CreateInputChangeArgs(new FakeBrowserFile("existing.txt", 64, "text/plain")));
         component.SetUploadingStateForTest(true);
 
         var args = CreateInputChangeArgs(
@@ -38,11 +40,52 @@ public sealed class FileUploadComponentTests
             new FakeBrowserFile("new-b.txt", 16, "text/plain"));
 
         // Act
-        component.InvokeHandleFileSelected(args);
+        await component.InvokeHandleFileSelected(args);
 
         // Assert
         Assert.AreEqual(1, component.QueuedFiles.Count);
         Assert.AreEqual("existing.txt", component.QueuedFiles[0].Name);
+    }
+
+    [TestMethod]
+    public async Task HandleFileSelected_BuffersContentFromEachSelectedFile()
+    {
+        // Arrange
+        var component = new TestableFileUploadComponent();
+        var args = CreateInputChangeArgs(
+            new FakeBrowserFile("first.bin", 3, "application/octet-stream"),
+            new FakeBrowserFile("second.bin", 5, "application/octet-stream"));
+
+        // Act
+        await component.InvokeHandleFileSelected(args);
+
+        // Assert
+        Assert.AreEqual(2, component.QueuedFiles.Count);
+        CollectionAssert.AreEqual(CreateSequence(3), component.QueuedFiles[0].BufferedContent);
+        CollectionAssert.AreEqual(CreateSequence(5), component.QueuedFiles[1].BufferedContent);
+    }
+
+    [TestMethod]
+    public void MapUploadErrorMessage_ReaderCompletedMessage_ReturnsFriendlyText()
+    {
+        // Arrange
+        const string raw = "Reading is not allowed after reader was completed.";
+
+        // Act
+        var mapped = InvokeMapUploadErrorMessage(raw);
+
+        // Assert
+        Assert.AreEqual("One or more selected files are no longer available to read. Please reselect the files and try again.", mapped);
+    }
+
+    [TestMethod]
+    public void MapUploadErrorMessage_NullOrWhitespace_ReturnsGenericMessage()
+    {
+        // Act
+        var mapped = InvokeMapUploadErrorMessage(" ");
+
+        // Assert
+        Assert.AreEqual("Upload failed unexpectedly. Please try again.", mapped);
     }
 
     private static InputFileChangeEventArgs CreateInputChangeArgs(params IBrowserFile[] files) =>
@@ -52,7 +95,7 @@ public sealed class FileUploadComponentTests
     {
         public IReadOnlyList<UploadFileItem> QueuedFiles => Files;
 
-        public void InvokeHandleFileSelected(InputFileChangeEventArgs args) => HandleFileSelected(args);
+        public Task InvokeHandleFileSelected(InputFileChangeEventArgs args) => HandleFileSelected(args);
 
         public void SetUploadingStateForTest(bool isUploading)
         {
@@ -65,7 +108,7 @@ public sealed class FileUploadComponentTests
 
     private sealed class FakeBrowserFile(string name, long size, string contentType) : IBrowserFile
     {
-        private readonly byte[] _content = new byte[Math.Max(1, (int)Math.Min(size, 1024))];
+        private readonly byte[] _content = CreateSequence((int)size);
 
         public string Name { get; } = name;
 
@@ -84,5 +127,25 @@ public sealed class FileUploadComponentTests
 
             return new MemoryStream(_content, writable: false);
         }
+    }
+
+    private static byte[] CreateSequence(int length)
+    {
+        var data = new byte[length];
+        for (var i = 0; i < length; i++)
+        {
+            data[i] = (byte)(i % 251);
+        }
+
+        return data;
+    }
+
+    private static string InvokeMapUploadErrorMessage(string? message)
+    {
+        var method = typeof(FileUploadComponent).GetMethod("MapUploadErrorMessage", BindingFlags.Static | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("MapUploadErrorMessage method not found.");
+
+        return (string)(method.Invoke(null, [message])
+            ?? throw new InvalidOperationException("MapUploadErrorMessage returned null."));
     }
 }

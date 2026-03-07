@@ -94,6 +94,12 @@ public sealed class UploadFileItem
     /// <summary>Reference to the browser file for upload.</summary>
     public Microsoft.AspNetCore.Components.Forms.IBrowserFile? BrowserFile { get; init; }
 
+    /// <summary>
+    /// Buffered file content captured when the file is queued.
+    /// This avoids depending on browser-side file readers during later upload steps.
+    /// </summary>
+    public byte[]? BufferedContent { get; init; }
+
     /// <summary>Upload status.</summary>
     public UploadStatus Status { get; set; } = UploadStatus.Pending;
 

@@ -49,9 +49,9 @@ public partial class FileUploadComponent : ComponentBase
     protected bool IsUploading => _isUploading;
     protected string? ErrorMessage => _errorMessage;
 
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
-        MergeInitialFiles();
+        await MergeInitialFilesAsync();
     }
 
     /// <summary>Sets the dragging state on drag enter.</summary>
@@ -61,7 +61,7 @@ public partial class FileUploadComponent : ComponentBase
     protected void HandleDragLeave() => _isDragging = false;
 
     /// <summary>Adds selected files to the upload queue.</summary>
-    protected void HandleFileSelected(InputFileChangeEventArgs e)
+    protected async Task HandleFileSelected(InputFileChangeEventArgs e)
     {
         if (_isUploading)
         {
@@ -69,7 +69,7 @@ public partial class FileUploadComponent : ComponentBase
         }
 
         _isDragging = false;
-        AddFiles(e.GetMultipleFiles(100));
+        await AddFilesAsync(e.GetMultipleFiles(100));
     }
 
     /// <summary>Removes a single pending file from the queue.</summary>
@@ -117,9 +117,7 @@ public partial class FileUploadComponent : ComponentBase
         }
         catch (Exception ex)
         {
-            _errorMessage = string.IsNullOrWhiteSpace(ex.Message)
-                ? "Upload failed unexpectedly. Please try again."
-                : ex.Message;
+            _errorMessage = MapUploadErrorMessage(ex.Message);
         }
         finally
         {
@@ -151,25 +149,29 @@ public partial class FileUploadComponent : ComponentBase
             if (file.Status == UploadStatus.Paused)
                 file.Status = UploadStatus.Uploading;
 
-            if (file.BrowserFile is null)
+            byte[]? fileBytes = file.BufferedContent;
+
+            // Fallback for legacy queue entries that predate eager buffering.
+            if (fileBytes is null && file.BrowserFile is not null)
+            {
+                await using var fallbackStream = file.BrowserFile.OpenReadStream(file.Size);
+                using var fallbackMs = new MemoryStream();
+                await fallbackStream.CopyToAsync(fallbackMs);
+                fileBytes = fallbackMs.ToArray();
+            }
+
+            if (fileBytes is null)
             {
                 file.Status = UploadStatus.Failed;
                 return;
             }
 
-            await using var stream = file.BrowserFile.OpenReadStream(file.Size);
-
             var chunks = new List<(string Hash, byte[] Data)>();
-            var buffer = new byte[UploadChunkSize];
-
-            while (true)
+            for (var offset = 0; offset < fileBytes.Length; offset += UploadChunkSize)
             {
-                var read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length));
-                if (read == 0)
-                    break;
-
-                var chunkData = new byte[read];
-                Buffer.BlockCopy(buffer, 0, chunkData, 0, read);
+                var chunkSize = Math.Min(UploadChunkSize, fileBytes.Length - offset);
+                var chunkData = new byte[chunkSize];
+                Buffer.BlockCopy(fileBytes, offset, chunkData, 0, chunkSize);
                 var chunkHash = Convert.ToHexString(SHA256.HashData(chunkData)).ToLowerInvariant();
                 chunks.Add((chunkHash, chunkData));
             }
@@ -225,9 +227,25 @@ public partial class FileUploadComponent : ComponentBase
             if (!file.IsCancelled)
             {
                 file.Status = UploadStatus.Failed;
-                _errorMessage = ex.Message;
+                _errorMessage = MapUploadErrorMessage(ex.Message);
             }
         }
+    }
+
+    private static string MapUploadErrorMessage(string? errorMessage)
+    {
+        if (string.IsNullOrWhiteSpace(errorMessage))
+        {
+            return "Upload failed unexpectedly. Please try again.";
+        }
+
+        // Browser-backed file handles can expire between selection and processing.
+        if (errorMessage.Contains("Reading is not allowed after reader was completed.", StringComparison.OrdinalIgnoreCase))
+        {
+            return "One or more selected files are no longer available to read. Please reselect the files and try again.";
+        }
+
+        return errorMessage;
     }
 
     /// <summary>Marks the file as paused; the upload loop will wait.</summary>
@@ -287,39 +305,44 @@ public partial class FileUploadComponent : ComponentBase
         return new CallerContext(userId, roles, CallerType.User);
     }
 
-    private void MergeInitialFiles()
+    private async Task MergeInitialFilesAsync()
     {
         if (InitialFiles is null || InitialFiles.Count == 0)
         {
             return;
         }
 
+        var filesToAdd = new List<IBrowserFile>();
         foreach (var file in InitialFiles)
         {
             var key = GetFileKey(file);
             if (_initialFileKeys.Add(key))
             {
-                _files.Add(new UploadFileItem
-                {
-                    Name = file.Name,
-                    Size = file.Size,
-                    ContentType = file.ContentType,
-                    BrowserFile = file
-                });
+                filesToAdd.Add(file);
             }
+        }
+
+        if (filesToAdd.Count > 0)
+        {
+            await AddFilesAsync(filesToAdd);
         }
     }
 
-    private void AddFiles(IReadOnlyList<IBrowserFile> files)
+    private async Task AddFilesAsync(IReadOnlyList<IBrowserFile> files)
     {
         foreach (var file in files)
         {
+            await using var stream = file.OpenReadStream(file.Size);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+
             _files.Add(new UploadFileItem
             {
                 Name = file.Name,
                 Size = file.Size,
                 ContentType = file.ContentType,
-                BrowserFile = file
+                BrowserFile = file,
+                BufferedContent = ms.ToArray()
             });
         }
     }
