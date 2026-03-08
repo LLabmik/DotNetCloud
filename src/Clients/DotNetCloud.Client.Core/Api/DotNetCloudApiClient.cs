@@ -248,6 +248,13 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
         using var response = await SendWithRetryAsync(
             () => CreateAuthenticatedRequest(HttpMethod.Get, path),
             cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            var wwwAuth = response.Headers.WwwAuthenticate.ToString();
+            _logger.LogError("HTTP {Status} on GET {Path}. WWW-Authenticate: {WwwAuth}. Body: {Body}",
+                (int)response.StatusCode, path, wwwAuth, body);
+        }
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<T>(JsonOptions, cancellationToken);
     }

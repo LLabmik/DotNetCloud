@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-08 (server agent, persistent OIDC keys fix for refresh token blocker)
+Last updated: 2026-03-08 (client agent, Issue #17 — SyncController missing [Authorize] + wrong default auth scheme)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -24,7 +24,8 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 - **Sync API `userId` contract**: RESOLVED — server now derives caller user ID from bearer token claims (`sub`/`nameidentifier`) for all sync endpoints
 - **Sync API response shape**: RESOLVED — sync endpoints now return raw payloads (`[]`/object) instead of envelope wrappers
 - **Refresh token `invalid_grant`**: RESOLVED — ephemeral keys replaced with persistent RSA key files; tokens survive restarts
-- **Next milestone**: Client re-authenticates (old tokens purged) and verifies end-to-end token refresh flow
+- **Sync bearer auth 403**: OPEN — `SyncController` missing `[Authorize]` attribute + default auth scheme is cookies, not OpenIddict bearer
+- **Next milestone**: Server adds `[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]` to `SyncController`
 
 ## Server Resolution (Latest)
 
@@ -143,6 +144,7 @@ ec42f03569d6e2c3  signing-key.pem
 | 14 | Missing `client_id` in refresh request | `RefreshTokenAsync` did not send `client_id` in the form body; OpenIddict requires it for public clients | Added `clientId` parameter to `IDotNetCloudApiClient.RefreshTokenAsync` and implementation; created `OAuthConstants.ClientId = "dotnetcloud-desktop"` | 2026-03-08 |
 | 15 | `DateTime` serialization bug — tokens appear unexpired | `TokenInfo.ExpiresAt` was `DateTime`. After JSON roundtrip through `EncryptedFileTokenStore`, the `DateTimeKind` was lost (became `Unspecified`/`Local`), making `DateTime.UtcNow >= ExpiresAt` return `False` for genuinely expired tokens | Changed `ExpiresAt` from `DateTime` to `DateTimeOffset` across entire client chain (`TokenInfo`, `AddAccountRequest`, `AddAccountData` IPC model, `OAuth2Service`, `SyncEngine`, all tests) | 2026-03-08 |
 | 16 | Refresh token `invalid_grant` | `AddEphemeralEncryptionKey()`/`AddEphemeralSigningKey()` generate new in-memory RSA keys on every server restart; OpenIddict cannot decrypt stored refresh token payloads after restart | Created `OidcKeyManager` to persist RSA keys as PEM files; replaced ephemeral with persistent keys; fixed config key name mismatch; increased refresh lifetime to 14 days; purged orphaned tokens | 2026-03-08 |
+| 17 | Sync API returns 403 with valid bearer token | `SyncController` has no `[Authorize]` attribute, so ASP.NET Core auth middleware never runs; default auth scheme is `Identity.Application` (cookies) not OpenIddict bearer, so even with `[Authorize]` it would try cookie auth | **OPEN — server fix required** | 2026-03-08 |
 
 ## Current Verified State
 
@@ -249,29 +251,49 @@ fail: Sync error for context b44b9f3f-fc25-45ae-9e7b-c3dca382f83d.
 
 ## Mediator Relay Instructions
 
-### Send to Client Agent
+### Send to Server Agent
 
-Server-side refresh token blocker (Issue #16) is now RESOLVED. Root cause was ephemeral OIDC signing/encryption keys — new random keys were generated on every server restart, making stored refresh token payloads undecryptable.
+Client re-authenticated successfully with fresh OAuth flow (new context `16ce0169`). Tokens were issued with the persistent keys — `IsExpired=False`, `CanRefresh=True`. However, sync API calls return **403 Forbidden** even with a valid, non-expired bearer token.
 
-**What was fixed server-side:**
-1. **Persistent RSA keys** — Created `OidcKeyManager.cs` that generates RSA-2048 keys and persists them as PEM files. Keys now survive server restarts (verified with md5 checksums).
-2. **Config key name mismatch** — `appsettings.json` used `AccessTokenLifetime`/`RefreshTokenLifetime` but C# properties are `AccessTokenLifetimeMinutes`/`RefreshTokenLifetimeDays`. Fixed key names.
-3. **Refresh token lifetime** — Set to 14 days (was effectively 7 via default, but config was silently ignored due to key name mismatch).
-4. **DB cleanup** — Purged 20 orphaned tokens and 8 authorizations that were encrypted with defunct ephemeral keys.
-5. **UTC verification** — Confirmed no `DateTime.Now` usage in server auth code.
+**Issue #17 (OPEN): SyncController missing bearer auth configuration**
 
-**Client action required:**
-- **Re-authenticate**: Old tokens were purged from the server database. The client must perform a fresh OAuth flow (remove and re-add the account).
-- **Test refresh flow**: After re-authentication, wait for the access token to expire (60 minutes) or force expiry, then verify the refresh token exchange works (`POST /connect/token` with `grant_type=refresh_token` should return 200 with new tokens).
-- No client-side code changes needed — the client refresh implementation from commit `ada7e8d` is ready.
+**Raw evidence:**
+```
+info: Token state for context 16ce0169-59b1-4895-b4d9-b5e07b8b433b: IsExpired=False, CanRefresh=True, ExpiresAt=03/08/2026 07:14:53 +00:00.
+info: Sending HTTP request GET https://mint22:15443/api/v1/files/sync/changes?since=2025-03-08T06%3A18%3A34.3453510Z
+info: Received HTTP response headers after 129.1588ms - 403
+fail: HTTP 403 on GET api/v1/files/sync/changes. WWW-Authenticate: (empty). Body: {"success":false,"error":{"code":"AUTH_FORBIDDEN","message":"Authentication is required."}}
+```
 
-**Server config now:**
-- `AccessTokenLifetimeMinutes`: 60
-- `RefreshTokenLifetimeDays`: 14
+**Root cause analysis (client agent read server source — no modifications made):**
+
+1. **`SyncController` has NO `[Authorize]` attribute.** Without it, ASP.NET Core's authentication middleware does not authenticate the request. `User.Identity.IsAuthenticated` remains `false`. `FilesControllerBase.GetAuthenticatedCaller()` then throws `ForbiddenException("Authentication is required.")` at line 21.
+
+2. **Default authentication scheme is `Identity.Application` (cookies), not OpenIddict bearer.** `AddIdentity<>()` in `AuthServiceExtensions.cs` sets the default scheme to cookies. OpenIddict validation is registered but NOT set as default. Even if `[Authorize]` is added without a scheme specifier, the middleware will attempt cookie-based auth, which ignores the `Bearer` header.
+
+**Every other protected controller** in the project has `[Authorize]` — `AdminController`, `AuthController`, `DeviceController`, `MfaController`, `UserManagementController` — but `SyncController` does not.
+
+**Server action required:**
+
+Add the `[Authorize]` attribute with the OpenIddict validation scheme to `SyncController`:
+
+```csharp
+using OpenIddict.Validation.AspNetCore;
+
+[Route("api/v1/files/sync")]
+[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+public sealed class SyncController : FilesControllerBase
+```
+
+This tells ASP.NET Core to use the OpenIddict validation handler (not cookies) to authenticate the bearer token, which will validate the JWT locally using the persistent RSA signing key, populate `User.Identity` with claims, and set `IsAuthenticated = true`.
+
+**Note:** The same fix should also be applied to `FilesControllerBase` or any other file API controllers (`FilesController`, `SharesController`, etc.) that API clients will call with bearer tokens rather than browser cookies.
+
+**No client-side changes needed.** The client correctly sends `Authorization: Bearer {token}` on all sync requests. Once the server authenticates the bearer, the 403 will resolve.
 - Keys persist at `{DOTNETCLOUD_DATA_DIR}/oidc-keys/`
 
 ### Request Back
-- Confirmation that re-authentication (fresh OAuth flow) succeeds
-- Token refresh test result after access token expires
-- Any new errors in sync flow after re-authentication
-- Commit hash of any client-side changes (if needed)
+- Commit hash of the `[Authorize]` fix
+- Confirmation that `GET /api/v1/files/sync/changes` with a valid bearer token returns 200 (not 403)
+- Whether `FilesControllerBase` or individual file API controllers also received the fix
+- Confirmation that server build and tests pass after the change
