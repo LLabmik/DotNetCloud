@@ -29,7 +29,14 @@ x86/
 [Aa][Rr][Mm]64/
 bld/
 [Bb]in/
+# Catch directories where .NET build tools embed a backslash into the name on
+# Linux (e.g. a directory literally named "bin\Debug"). The ? wildcard matches
+# the backslash character, which is legal in Linux directory names but illegal
+# as a path component on Windows.
+[Bb]in?[Dd]ebug*/
+[Bb]in?[Rr]elease*/
 [Oo]bj/
+[Oo]bj?*/
 [Ll]og/
 [Ll]ogs/
 
