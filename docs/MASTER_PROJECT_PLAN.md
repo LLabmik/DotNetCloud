@@ -3522,7 +3522,23 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - Build succeeded with 0 warnings, 0 errors.
 - All 513 Files module tests pass.
 - Rename handler fetches old name before rename to capture `OldName` → `NewName` in audit log.
-- Ready for Task 1.2 (Request Correlation IDs).
+- Ready for Task 1.2 client side (Windows — `DotNetCloudApiClient` `DelegatingHandler`).
+
+### Step: sync-batch-1.2-server - Request Correlation IDs (Server)
+**Status:** completed ✅
+**Duration:** ~20 minutes
+**Description:** Add `RequestCorrelationMiddleware` to propagate `X-Request-ID` headers, linking client and server logs.
+
+**Deliverables:**
+- ✓ Created `src/Core/DotNetCloud.Core.ServiceDefaults/Middleware/RequestCorrelationMiddleware.cs`
+- ✓ Reads `X-Request-ID` from incoming request; generates compact GUID if absent
+- ✓ Sets `HttpContext.TraceIdentifier` so `RequestResponseLoggingMiddleware` and Serilog enricher pick it up automatically
+- ✓ Echoes ID back on response via `X-Request-ID` header
+- ✓ Registered as first middleware in `UseDotNetCloudMiddleware()` (before security headers)
+
+**Notes:**
+- Build succeeded with 0 warnings, 0 errors (ServiceDefaults + Server).
+- Client side (Task 1.2) next: add `X-Request-ID` in `DotNetCloudApiClient` / `DelegatingHandler` on Windows.
 
 This plan is structured as a living document to guide the implementation of the DotNetCloud project
 in phases. Each phase is broken down into steps with assigned status, duration, description, tasks,

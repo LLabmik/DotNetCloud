@@ -121,6 +121,9 @@ public static class ServiceDefaultsExtensions
         this WebApplication app,
         Action<SecurityHeadersOptions>? configureSecurityHeaders = null)
     {
+        // Request correlation ID — must be first so all downstream middleware and logs share the same ID
+        app.UseMiddleware<RequestCorrelationMiddleware>();
+
         // Security headers
         var securityHeadersOptions = new SecurityHeadersOptions();
         configureSecurityHeaders?.Invoke(securityHeadersOptions);
