@@ -20,7 +20,7 @@ public static class OpenIddictEndpointsExtensions
     public static WebApplication MapOpenIddictEndpoints(this WebApplication app)
     {
         app.MapPost("/connect/token", (Delegate)HandleTokenEndpoint);
-        app.MapPost("/connect/authorize", (Delegate)HandleAuthorizeEndpoint);
+        app.MapMethods("/connect/authorize", ["GET", "POST"], (Delegate)HandleAuthorizeEndpoint);
         app.MapPost("/connect/logout", (Delegate)HandleLogoutEndpoint);
         app.MapPost("/connect/revoke", (Delegate)HandleRevokeEndpoint);
         app.MapGet("/connect/userinfo", (Delegate)HandleUserInfoEndpoint);
@@ -67,7 +67,7 @@ public static class OpenIddictEndpointsExtensions
         // For authorization code flow, redirect to login if not authenticated
         if (!context.User.Identity?.IsAuthenticated == true)
         {
-            return Results.Redirect($"/login?returnUrl={Uri.EscapeDataString(context.Request.GetEncodedPathAndQuery())}");
+            return Results.Redirect($"/auth/login?returnUrl={Uri.EscapeDataString(context.Request.GetEncodedPathAndQuery())}");
         }
 
         // After login, OpenIddict handles the consent screen and code generation

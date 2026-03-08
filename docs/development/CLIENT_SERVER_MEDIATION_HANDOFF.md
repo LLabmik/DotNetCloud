@@ -69,6 +69,9 @@ Run this handoff loop each iteration:
 - 2026-03-07: Browser error changed from `invalid_client` to `invalid_scope`.
 - 2026-03-07: Client-side log confirms onboarding flow triggers and opens browser.
 - 2026-03-07 (mint22): Server redeployed at commit `a4fb730`; startup log confirms `Updated OIDC desktop client 'dotnetcloud-desktop' permissions/scopes.`
+- 2026-03-07 (mint22): Reproduced client URL server-side and confirmed prior `404` on `GET /connect/authorize` when full auth query is present.
+- 2026-03-07 (mint22): Applied server fix to map `/connect/authorize` for `GET` + `POST` and corrected login redirect to `/auth/login`.
+- 2026-03-07 (mint22): After redeploy, same authorize URL now returns `302` to `/auth/login?returnUrl=...` (no direct `404` on `/connect/authorize`).
 
 ## Client Evidence Snapshot (2026-03-07)
 
@@ -134,6 +137,48 @@ System.Net.Http.HttpRequestException: The SSL connection could not be establishe
 - Verify `dotnetcloud-desktop` OpenIddict application record has both scope permissions.
 - If existing client record predates update logic, force-update it via startup seeder or admin script.
 
+## Server Evidence Snapshot (2026-03-07 post-fix)
+
+### Deployed state
+- Server source commit on `mint22`: `01c15d0`
+- Service redeployed via `./tools/redeploy-baremetal.sh`
+- Health probe: `https://localhost:15443/health/live` => `Healthy`
+
+### Code changes applied on server
+- `src/Core/DotNetCloud.Core.Server/Extensions/OpenIddictEndpointsExtensions.cs`
+  - Authorize endpoint mapping changed from POST-only to GET+POST:
+    - `app.MapMethods("/connect/authorize", ["GET", "POST"], ...)`
+  - Unauthenticated redirect path corrected:
+    - from `/login?returnUrl=...`
+    - to `/auth/login?returnUrl=...`
+
+### Raw endpoint diagnostics (server-side)
+
+1. Discovery endpoint works:
+
+```text
+GET https://mint22:15443/.well-known/openid-configuration
+HTTP/2 200
+authorization_endpoint: https://mint22:15443/connect/authorize
+scopes_supported: openid offline_access profile email files:read files:write
+```
+
+2. Exact client authorize URL after fix:
+
+```text
+GET https://mint22:15443/connect/authorize?response_type=code&client_id=dotnetcloud-desktop&redirect_uri=http%3a%2f%2flocalhost%3a52701%2foauth%2fcallback&scope=openid+profile+offline_access+files%3aread+files%3awrite&state=vjQGGMOXicZZq7dcqSCgLw&code_challenge=dAbwRP29DV1hPFJfENvB7N2KU7lnij3FUkE45_r1WXA&code_challenge_method=S256
+HTTP/2 302
+location: /auth/login?returnUrl=%2Fconnect%2Fauthorize%3Fresponse_type%3Dcode%26client_id%3Ddotnetcloud-desktop%26...
+```
+
+### Raw log evidence
+
+```text
+[2026-03-07 19:51:12.671 -06:00 INF] The request URI matched a server endpoint: Authorization. RequestPath: /connect/authorize
+[2026-03-07 19:51:12.776 -06:00 INF] The authorization request was successfully validated.
+[2026-03-07 19:51:02.286 -06:00 INF] Updated OIDC desktop client 'dotnetcloud-desktop' permissions/scopes.
+```
+
 ## Mandatory End-Of-Handoff Relay Instructions
 
 Every handoff update must end with a section titled `Mediator Relay Instructions` containing both items below:
@@ -163,12 +208,12 @@ If the handoff is server-to-client instead, replace `Send to Server Agent` with 
 
 ## Mediator Relay Instructions
 
-### Send to Server Agent
-Client evidence from `Windows11-TestDNC` on commit `60b999b0070f13f5300c5357c18e41cbe0016819`: SyncTray requests and uses scopes `openid profile offline_access files:read files:write`, but browser receives HTTP 404 at `/connect/authorize` instead of OAuth callback error params. Raw URL opened: `https://mint22:15443/connect/authorize?response_type=code&client_id=dotnetcloud-desktop&redirect_uri=http%3a%2f%2flocalhost%3a52701%2foauth%2fcallback&scope=openid+profile+offline_access+files%3aread+files%3awrite&state=vjQGGMOXicZZq7dcqSCgLw&code_challenge=dAbwRP29DV1hPFJfENvB7N2KU7lnij3FUkE45_r1WXA&code_challenge_method=S256`. Please verify server route/middleware for `/connect/authorize` on deployed instance and provide raw endpoint diagnostics.
+### Send to Client Agent
+Server-side fix is now deployed on `mint22`: `/connect/authorize` is mapped for GET+POST, and unauthenticated authorize requests now redirect to `/auth/login` instead of returning direct 404. The exact authorize URL that previously failed now returns `HTTP 302` with `location: /auth/login?returnUrl=...`. Please pull latest `main`, rerun SyncTray add-account flow, and capture what happens after redirect to `/auth/login`.
 
 ### Request Back
-- Deployed commit hash currently running on `mint22`.
-- Raw response details for `GET https://mint22:15443/connect/authorize` from server side (status code, any response body, and headers if available).
-- Raw startup log lines proving OpenIddict endpoints are mapped/active.
-- Raw startup log lines for OIDC seeding/upsert of `dotnetcloud-desktop` including scopes/permissions.
-- Any reverse-proxy routing rules affecting `/connect/*` and raw access log line for the failing authorize request (timestamp matched to client run).
+- Client commit hash after pull.
+- Raw browser URL transitions (initial `/connect/authorize...`, redirected `/auth/login...`, and final outcome URL).
+- Raw error/query params from any failure page.
+- Raw SyncTray OAuth log lines around scope selection and browser launch (with timestamps).
+- Any client-side TLS/certificate warnings observed during this run.
