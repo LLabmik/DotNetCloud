@@ -28,7 +28,10 @@ public class SyncController : FilesControllerBase
         [FromQuery] DateTime since,
         [FromQuery] Guid? folderId) => ExecuteAsync(async () =>
     {
-        var changes = await _syncService.GetChangesSinceAsync(since, folderId, GetAuthenticatedCaller());
+        // Npgsql requires DateTime.Kind == Utc for timestamptz columns;
+        // ASP.NET model binding parses query strings as Kind=Unspecified.
+        var sinceUtc = DateTime.SpecifyKind(since, DateTimeKind.Utc);
+        var changes = await _syncService.GetChangesSinceAsync(sinceUtc, folderId, GetAuthenticatedCaller());
         return Ok(changes);
     });
 

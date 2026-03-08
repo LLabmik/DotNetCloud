@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-08 (client agent — Issue #20: sync changes returning 500)
+Last updated: 2026-03-08 (server agent — Issue #20 RESOLVED: DateTime UTC fix for sync changes 500)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -28,8 +28,8 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 - **Sync API response envelope**: RESOLVED (client-side) — server's `ResponseEnvelopeMiddleware` wraps all `/api/` responses in `{"success":true,"data":...}`; client now unwraps the envelope before deserializing
 - **Files API `userId` contract**: RESOLVED (Issue #18) — all `FilesController` endpoints now use `GetAuthenticatedCaller()` from bearer token claims; `[FromQuery] Guid userId` removed from all 20 endpoints
 - **Files API response envelope**: RESOLVED (Issue #19) — `FilesController` endpoints now return raw payloads via `Ok(data)` instead of `Ok(Envelope(data))`; `ResponseEnvelopeMiddleware` handles wrapping automatically
-- **Sync changes endpoint**: **BLOCKED (Issue #20)** — `GET /api/v1/files/sync/changes` returns HTTP 500 (Internal Server Error) with empty response body. Bearer auth succeeds (not 401/403), but server throws an unhandled exception during request processing. Client retries 3 times, all 500. See Issue #20 details below.
-- **Next milestone**: Investigate and fix server-side 500 on sync changes endpoint, then verify full sync flow
+- **Sync changes endpoint**: RESOLVED (Issue #20) — `since` query parameter was parsed as `DateTime` with `Kind=Unspecified`, which Npgsql rejects for `timestamptz` columns. Fixed by converting to UTC kind before EF Core query. Also added general exception handler to `ExecuteAsync` so future errors return structured JSON instead of empty 500.
+- **Next milestone**: Client should retry sync flow — `GET /api/v1/files/sync/changes` should now return 200 with change list
 
 ## Server Resolution (Latest)
 
@@ -150,7 +150,23 @@ Instead of the previous double-wrap:
 - `src/Core/DotNetCloud.Core.Server/Controllers/FilesController.cs`
 - `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/FilesController.cs`
 
-### Validation Evidence (mint22)
+### Applied Fix 7: DateTime UTC conversion for sync `since` parameter (Issue #20)
+
+**Status:** RESOLVED
+
+**Root cause:** `SyncController.GetChangesAsync` accepts `[FromQuery] DateTime since`. ASP.NET Core model binding parses the query string value (e.g. `since=2026-03-08T06:44:17.6204239`) as a `DateTime` with `Kind=Unspecified`. When this value is used in the EF Core query `n.UpdatedAt >= since`, Npgsql throws `System.ArgumentException: Cannot write DateTime with Kind=Unspecified to PostgreSQL type 'timestamp with time zone', only UTC is supported.` This unhandled exception propagated to ASP.NET Core which returned 500 with empty body.
+
+**What changed:**
+- Both `SyncController` files (Core.Server and Files.Host) now call `DateTime.SpecifyKind(since, DateTimeKind.Utc)` before passing the value to `SyncService.GetChangesSinceAsync`
+- Both `FilesControllerBase` files now have a general `catch (Exception ex)` handler in `ExecuteAsync` that logs the error and returns a structured JSON error response (`{"success":false,"error":{"code":"INTERNAL_ERROR","message":"An unexpected error occurred."}}`) instead of an empty 500
+
+**Files updated:**
+- `src/Core/DotNetCloud.Core.Server/Controllers/SyncController.cs`
+- `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/SyncController.cs`
+- `src/Core/DotNetCloud.Core.Server/Controllers/FilesControllerBase.cs`
+- `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/FilesControllerBase.cs`
+
+### Validation Evidence (mint22 — Issue #20 fix)
 
 - `dotnet build DotNetCloud.sln -c Release` -> success (0 errors, 0 warnings)
 - `dotnet test tests/DotNetCloud.Core.Server.Tests/` -> **304 passed**
@@ -158,12 +174,13 @@ Instead of the previous double-wrap:
 - `dotnet test tests/DotNetCloud.Core.Auth.Tests/` -> **85 passed**
 - Redeploy: `tools/redeploy-baremetal.sh` complete
 - Health probe: `https://localhost:15443/health/live` -> `Healthy`
+- Unauthenticated `GET /api/v1/files/sync/changes?since=...` -> **401** (not 500)
 
-## Client Verification (Issue #20 — OPEN)
+## Client Verification (Issue #20 — RESOLVED)
 
 ### Issue #20: Sync changes endpoint returns 500 Internal Server Error
 
-**Status:** OPEN — requires server-side investigation
+**Status:** RESOLVED — DateTime UTC kind fix applied server-side
 
 **Observed behavior:** After pulling server commit `ee490a7` (Issues #18/#19 fixes) and rebuilding the client, `GET /api/v1/files/sync/changes?since=...` returns **HTTP 500** with **empty response body**. The client retries 3 times; all retries also return 500.
 

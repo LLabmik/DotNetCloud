@@ -2,6 +2,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Errors;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using OpenIddict.Validation.AspNetCore;
 using System.Security.Claims;
 
@@ -106,6 +107,14 @@ public abstract class FilesControllerBase : ControllerBase
         catch (Core.Errors.InvalidOperationException ex)
         {
             return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+        }
+        catch (Exception ex)
+        {
+            var logger = HttpContext.RequestServices.GetService<ILoggerFactory>()
+                ?.CreateLogger(GetType());
+            logger?.LogError(ex, "Unhandled exception in {Controller}.{Action}",
+                GetType().Name, HttpContext.GetEndpoint()?.DisplayName);
+            return StatusCode(500, ErrorEnvelope("INTERNAL_ERROR", "An unexpected error occurred."));
         }
     }
 }
