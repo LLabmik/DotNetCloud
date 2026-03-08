@@ -280,7 +280,7 @@ for (int attempt = 1; attempt <= maxRetries; attempt++)
 
 ### Issue #29: Batch 1 Tasks 1.8 + 1.9 — Server-side (mint22)
 
-**Server-side status:** ✅ COMPLETE — commit to be pushed shortly.
+**Server-side status:** ✅ COMPLETE — commit `82ca53b` (2026-03-08).
 **Client-side status:** Not applicable.
 
 **What was implemented (Task 1.8 — Secure Temp File Handling):**
