@@ -17,7 +17,9 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 
 **Completed milestone:** End-to-end file sync with directory hierarchy (Issues #1–#22, all resolved).
 
-Open issue: Sync Improvement Batch 1 — Tasks 1.1 through 1.4 complete. Task 1.5 (per-chunk retry with exponential backoff) is next.
+**Batch 1 complete.** All Tasks 1.1 through 1.9 are done (Issues #23–#29, all resolved).
+
+**Active:** Batch 2 — Efficiency: Bandwidth Savings. Task 2.1 (CDC) server side is complete at commit `3a7e0ae`. Client side is next.
 
 ## Environment
 
@@ -277,3 +279,45 @@ Pull latest (`git pull`) before starting — server Tasks 1.8 and 1.9 were compl
 - `ChunkedUploadService.InitiateUploadAsync()` — rejects uploads where `dto.TotalSize > _maxFileSizeBytes`
 - `appsettings.json` — `"FileUpload": { "MaxFileSizeBytes": 16106127360 }`
 - Build: 0 errors; 304 server tests + 513 files tests pass
+
+---
+
+### Issue #30: Batch 2 Task 2.1 - Content-Defined Chunking (CDC) — Server complete, client next
+
+**Server-side status:** ✅ COMPLETE — commit `3a7e0ae` (2026-03-08).
+**Client-side status:** 🔲 PENDING — `Windows11-TestDNC`.
+
+**What was implemented (server):**
+
+- `ContentHasher.cs` — new `CdcChunkInfo(Hash, Offset, Size)` record + `ChunkAndHashCdcAsync()` using Gear hash rolling. Deterministic GearTable (Knuth LCG seed). Parameters: `avgSize` (default 4 MB), `minSize` (default 512 KB), `maxSize` (default 16 MB).
+- `FileVersionChunk.cs` — new `Offset` (long) and `ChunkSize` (int) columns. Default `0` for backward-compat legacy rows.
+- `ChunkedUploadSession.cs` — new nullable `ChunkSizesManifest` (JSON int array). `null` = legacy fixed-size upload.
+- `InitiateUploadDto` — optional `IReadOnlyList<int>? ChunkSizes` field. `null`/empty = legacy.
+- `files_service.proto` — `repeated int32 chunk_sizes = 7` added to `InitiateUploadRequest` (optional; omit for legacy).
+- `ChunkedUploadService.InitiateUploadAsync()` — serializes `ChunkSizes` to `ChunkSizesManifest` when present.
+- `ChunkedUploadService.CompleteUploadAsync()` — computes cumulative `Offset` per chunk from `ChunkSizesManifest`; falls back to `FileChunk.Size` for legacy uploads.
+- `FilesGrpcService.InitiateUpload()` — propagates `chunk_sizes` from proto to session.
+- EF migration `AddCdcChunkMetadata`: adds `Offset`/`ChunkSize` on `FileVersionChunks`, `ChunkSizesManifest` on `UploadSessions`.
+- 11 new tests (8 CDC `ContentHasherTests` + 3 `ChunkedUploadServiceTests`). 524 total (was 513). 0 errors.
+
+**What the client needs to do:**
+
+1. **Replace `SplitIntoChunksAsync()` in `ChunkedTransferClient`** with FastCDC-based splitting. You can call the server's `ContentHasher.ChunkAndHashCdcAsync()` directly if you reference it, OR implement the Gear hash client-side. The Gear table seed is `0xDC44636E65744E44UL` (Knuth LCG with multiplier `6364136223846793005` and increment `1442695040888963407`). Same constants = same chunk boundaries on both sides for future verification.
+
+2. **Send chunk sizes alongside hashes** in `DotNetCloudApiClient.InitiateUploadAsync()`. The REST DTO is `InitiateUploadDto` which now has `IReadOnlyList<int>? ChunkSizes`. Populate this with the CDC chunk sizes.
+
+3. **Advertise CDC capability** via `X-Sync-Capabilities: cdc` request header (add to `CorrelationIdHandler` or a separate header handler). Server will use this for future feature negotiation.
+
+4. **Download**: chunk manifest from server now includes `Offset` and `ChunkSize` per chunk. Verify `ChunkedTransferClient.DownloadAsync()` still assembles correctly (it should since it already concatenates chunks in sequence order).
+
+**REST endpoint context:**
+- `POST /api/v1/files/upload/initiate` — accepts `InitiateUploadDto` JSON, now has `ChunkSizes` array
+- `UploadSessionDto` response is unchanged (still returns `ExistingChunks` / `MissingChunks` by hash)
+
+**Backward compatibility guaranteed:** If client sends no `ChunkSizes`, server stores `ChunkSizesManifest = null` and falls back to `FileChunk.Size` in `CompleteUploadAsync`. Legacy clients work without change.
+
+**Request back from client agent:**
+- commit hash
+- build: 0 errors expected
+- test count (was 64, should increase by CDC chunking tests)
+- confirm CDC chunk boundaries are stable across re-runs of the same file

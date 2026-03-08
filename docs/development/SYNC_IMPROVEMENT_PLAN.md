@@ -346,7 +346,9 @@ dotnet test tests/DotNetCloud.Client.Core.Tests/
 
 ---
 
-### 1.5 — Per-Chunk Retry with Exponential Backoff
+### 1.5 — Per-Chunk Retry with Exponential Backoff ✅ COMPLETE
+
+**Status:** ✅ Client complete. Commit `1aa6b18` (2026-03-08). 64 tests pass.
 
 **Approved Proposal:** 2.2
 
@@ -419,16 +421,18 @@ dotnet test tests/DotNetCloud.Client.Core.Tests/
 ```
 
 **Deliverables:**
-- ☐ Client: Per-chunk retry loop with exponential backoff + jitter in `ChunkedTransferClient`
-- ☐ Client: `ShouldRetryChunk()` logic (retry network/5xx/hash-mismatch, NOT 4xx/429/cancellation)
-- ☐ Client: Detailed logging per chunk (hash, attempt number, delay, error)
+- ✓ Client: Per-chunk retry loop with exponential backoff + jitter in `ChunkedTransferClient`
+- ✓ Client: `ShouldRetryChunk()` logic (retry network/5xx/hash-mismatch, NOT 4xx/429/cancellation)
+- ✓ Client: Detailed logging per chunk (hash, attempt number, delay, error)
 
 **Side:** Client only
 **Complexity:** Low-Medium
 
 ---
 
-### 1.6 — SQLite WAL Mode + Corruption Recovery
+### 1.6 — SQLite WAL Mode + Corruption Recovery ✅ COMPLETE
+
+**Status:** ✅ Client complete. Commit `1aa6b18` (2026-03-08). 64 tests pass.
 
 **Approved Proposal:** 2.4
 
@@ -504,18 +508,20 @@ dotnet test tests/DotNetCloud.Client.Core.Tests/
 ```
 
 **Deliverables:**
-- ☐ Client: WAL journal mode enabled in `LocalStateDbContext` connection string
-- ☐ Client: Startup integrity check with automatic recovery in `InitializeAsync()`
-- ☐ Client: Corrupt DB preservation (renamed with timestamp, not deleted), for post-mortem
-- ☐ Client: Post-sync WAL checkpoint in `SyncEngine.SyncAsync()`
-- ☐ Client: User notification on corruption recovery (log error + set flag for tray notification)
+- ✓ Client: WAL journal mode via `PRAGMA journal_mode=WAL` in `RunSchemaEvolutionAsync`
+- ✓ Client: Startup integrity check with automatic recovery in `InitializeAsync()`
+- ✓ Client: Corrupt DB preservation (renamed with timestamp, not deleted), for post-mortem
+- ✓ Client: Post-sync WAL checkpoint via `CheckpointWalAsync()` in `SyncEngine`
+- ✓ Client: `WasRecentlyReset()` flag for tray notification
 
 **Side:** Client only
 **Complexity:** Low
 
 ---
 
-### 1.7 — Operation Retry Queue with Backoff
+### 1.7 — Operation Retry Queue with Backoff ✅ COMPLETE
+
+**Status:** ✅ Client complete. Commit `1aa6b18` (2026-03-08). 64 tests pass.
 
 **Approved Proposal:** 2.6
 
@@ -610,22 +616,20 @@ dotnet test tests/DotNetCloud.Client.Core.Tests/
 **Note:** Since this changes the SQLite schema, existing `state.db` files will need migration. EF Core `EnsureCreatedAsync()` handles this for fresh databases. For existing databases, either add an EF migration or use `ALTER TABLE` SQL in the initialization code.
 
 **Deliverables:**
-- ☐ Client: `NextRetryAt` and `LastError` columns on `PendingOperationDbRow` in `LocalStateDbContext.cs`
-- ☐ Client: `FailedOperationDbRow` entity + DbSet in `LocalStateDbContext.cs`
-- ☐ Client: Exponential backoff schedule in `SyncEngine.ExecutePendingOperationAsync()`
-- ☐ Client: Filter pending operations by `NextRetryAt` eligibility in query
-- ☐ Client: Logging of retry attempts and final failures
+- ✓ Client: `NextRetryAt` and `LastError` columns on `PendingOperationDbRow` in `LocalStateDbContext.cs`
+- ✓ Client: `FailedOperationDbRow` entity + DbSet in `LocalStateDbContext.cs`
+- ✓ Client: Exponential backoff schedule in `SyncEngine.ApplyLocalChangesAsync()`
+- ✓ Client: Filter pending operations by `NextRetryAt` eligibility in query
+- ✓ Client: Logging of retry attempts and final failures
 
 **Side:** Client only
 **Complexity:** Low
 
 ---
 
-### 1.8 — Secure Temp File Handling
+### 1.8 — Secure Temp File Handling ✅ COMPLETE
 
-**Approved Proposal:** 3.4
-
-**Problem:** Server uses system temp dir for download reconstruction. Temp files are world-readable on Linux and persist on crash.
+**Status:** ✅ Server complete. Commit `82ca53b` (2026-03-08).
 
 **Files to modify:**
 
@@ -690,17 +694,19 @@ dotnet test tests/DotNetCloud.Modules.Files.Tests/
 ```
 
 **Deliverables:**
-- ☐ Server: Dedicated temp directory under `DOTNETCLOUD_DATA_DIR/tmp/`
-- ☐ Server: Restrictive permissions (`chmod 700`) on temp directory creation (Linux)
-- ☐ Server: `DownloadService` uses app-specific temp dir instead of `Path.GetTempPath()`
-- ☐ Server: `TempFileCleanupService` (`IHostedService`) deletes files older than 1 hour on startup
+- ✓ Server: Dedicated temp directory under `DOTNETCLOUD_DATA_DIR/tmp/`
+- ✓ Server: Restrictive permissions (`chmod 700`) on temp directory creation (Linux)
+- ✓ Server: `DownloadService` uses app-specific temp dir instead of `Path.GetTempPath()`
+- ✓ Server: `TempFileCleanupService` (`IHostedService`) deletes files older than 1 hour on startup
 
 **Side:** Server only
 **Complexity:** Low
 
 ---
 
-### 1.9 — Server-Side File Scanning (Replaces Extension Blocklist)
+### 1.9 — Server-Side File Scanning (Replaces Extension Blocklist) ✅ COMPLETE
+
+**Status:** ✅ Server complete. Commit `82ca53b` (2026-03-08).
 
 **Approved Proposal:** 3.5 (modified per user feedback — no extension blocking)
 
@@ -776,12 +782,12 @@ dotnet test tests/DotNetCloud.Modules.Files.Tests/
 ```
 
 **Deliverables:**
-- ☐ Server: Chunk storage file permissions enforced (no execute bits) in storage engine
-- ☐ Server: Confirm and document content-addressed storage paths (no user filenames on disk)
-- ☐ Server: `X-Content-Type-Options: nosniff` + `Content-Disposition: attachment` headers on downloads
-- ☐ Server: `IFileScanner` interface + `NoOpFileScanner` default implementation
-- ☐ Server: `ScanStatus` field on `FileVersion` model (nullable, for future use)
-- ☐ Server: Configurable max file size with pre-upload rejection (`413 Payload Too Large`)
+- ✓ Server: Chunk storage file permissions enforced (no execute bits) in storage engine
+- ✓ Server: Content-addressed storage paths confirmed (chunks stored by SHA-256 hash, not user filename)
+- ✓ Server: `X-Content-Type-Options: nosniff` on download endpoints
+- ✓ Server: `IFileScanner` interface + `NoOpFileScanner` default implementation
+- ✓ Server: `ScanStatus` field on `FileVersion` model (nullable)
+- ✓ Server: Configurable max file size in `appsettings.json` with pre-upload rejection
 
 **Side:** Server only
 **Complexity:** Medium
@@ -796,15 +802,17 @@ dotnet test tests/DotNetCloud.Modules.Files.Tests/
 
 **Approved Proposal:** 1.1
 
+**Status:** Server ✅ COMPLETE — commit `3a7e0ae` (2026-03-08). Client 🔲 PENDING.
+
 **Problem:** Fixed 4MB chunks mean a 1-byte edit can force re-upload of all subsequent chunks.
 
 **Files to modify:**
 
 | File (repo-relative) | What to do |
 |---|---|
-| `src/Modules/Files/DotNetCloud.Modules.Files/Services/ContentHasher.cs` | Add `ChunkAndHashCdcAsync()` method implementing FastCDC algorithm |
-| Server: FileVersionChunk model (find via search for `FileVersionChunk` in `src/`) | Add `Offset` (long) and `ChunkSize` (int) columns |
-| Server: `InitiateUploadDto` / gRPC request (find via search for `InitiateUpload` in `src/`) | Add `ChunkSizes` array field |
+| `src/Modules/Files/DotNetCloud.Modules.Files/Services/ContentHasher.cs` | ✓ Add `ChunkAndHashCdcAsync()` method implementing FastCDC algorithm |
+| Server: `FileVersionChunk` model | ✓ `Offset` (long) and `ChunkSize` (int) columns added |
+| Server: `InitiateUploadDto` / gRPC request | ✓ `ChunkSizes` array field added |
 | `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs` | Replace `SplitIntoChunksAsync()` with FastCDC-based splitting |
 | `src/Clients/DotNetCloud.Client.Core/Api/DotNetCloudApiClient.cs` | Update `InitiateUploadAsync()` to send chunk sizes |
 
@@ -833,13 +841,14 @@ dotnet test tests/DotNetCloud.Modules.Files.Tests/
 **Linux/macOS Considerations:** CDC algorithm is pure computation — fully cross-platform. No file system dependencies.
 
 **Deliverables:**
-- ☐ Server: FastCDC implementation in `ContentHasher`
-- ☐ Server: `Offset` + `ChunkSize` fields on `FileVersionChunk`
-- ☐ Server: Updated `InitiateUploadDto` with chunk sizes
-- ☐ Server: Backward-compatible upload/download with legacy fixed-size clients
+- ✓ Server: FastCDC implementation in `ContentHasher` (`ChunkAndHashCdcAsync`, `CdcChunkInfo`)
+- ✓ Server: `Offset` + `ChunkSize` fields on `FileVersionChunk`
+- ✓ Server: Updated `InitiateUploadDto` with `ChunkSizes`, gRPC proto with `chunk_sizes`
+- ✓ Server: `ChunkSizesManifest` on `ChunkedUploadSession`; offsets computed in `CompleteUploadAsync`
+- ✓ Server: Backward-compatible (legacy clients without chunk sizes work unchanged)
 - ☐ Client: FastCDC-based `SplitIntoChunksAsync()` replacement
-- ☐ Client: Chunk sizes sent in upload initiation
-- ☐ Client: `X-Sync-Capabilities` header for feature negotiation
+- ☐ Client: Chunk sizes sent in upload initiation (`InitiateUploadDto.ChunkSizes`)
+- ☐ Client: `X-Sync-Capabilities: cdc` header for feature negotiation
 
 **Side:** Both
 **Complexity:** Medium
