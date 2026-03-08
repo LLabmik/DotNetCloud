@@ -68,6 +68,7 @@ Run this handoff loop each iteration:
 
 - 2026-03-07: Browser error changed from `invalid_client` to `invalid_scope`.
 - 2026-03-07: Client-side log confirms onboarding flow triggers and opens browser.
+- 2026-03-07 (mint22): Server redeployed at commit `a4fb730`; startup log confirms `Updated OIDC desktop client 'dotnetcloud-desktop' permissions/scopes.`
 
 ## Next Action Requested From Server Agent
 
