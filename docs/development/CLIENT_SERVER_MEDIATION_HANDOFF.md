@@ -4,6 +4,12 @@ Last updated: 2026-03-07 (Windows11-TestDNC client agent)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
+## Process Rule (Mediator)
+
+- All technical findings, raw evidence, and debugging conclusions must be written to this handoff document and pushed to `main`.
+- Do not rely on chat-only technical status; chat to mediator should be minimal relay text only.
+- Mediator role is relay-only (commit notifications and cross-agent request forwarding), not technical interpretation.
+
 ## Current Incident
 
 - Symptom: OAuth authorize + callback flow now succeeds; remaining validation is whether token exchange/account add succeeds with client TLS mitigation in place for local/LAN self-signed certs.
