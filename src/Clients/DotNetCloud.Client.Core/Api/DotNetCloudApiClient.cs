@@ -143,9 +143,10 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
     /// <inheritdoc/>
     public async Task<UploadSessionResponse> InitiateUploadAsync(
         string fileName, Guid? parentId, long totalSize, string? mimeType,
-        IReadOnlyList<string> chunkHashes, CancellationToken cancellationToken = default)
+        IReadOnlyList<string> chunkHashes, IReadOnlyList<int>? chunkSizes = null,
+        CancellationToken cancellationToken = default)
     {
-        var body = new { fileName, parentId, totalSize, mimeType, chunkHashes };
+        var body = new { fileName, parentId, totalSize, mimeType, chunkHashes, chunkSizes };
         return await PostJsonAsync<UploadSessionResponse>("api/v1/files/upload/initiate", body, cancellationToken)
                ?? throw new InvalidOperationException("Server returned null for upload initiation.");
     }

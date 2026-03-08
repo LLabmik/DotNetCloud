@@ -22,7 +22,8 @@ public class ChunkedTransferClientTests
 
         apiMock.Setup(a => a.InitiateUploadAsync(
                 It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
-                It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+                It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new UploadSessionResponse { SessionId = sessionId });
 
         apiMock.Setup(a => a.CompleteUploadAsync(sessionId, It.IsAny<CancellationToken>()))
@@ -52,9 +53,10 @@ public class ChunkedTransferClientTests
         apiMock.SetupProperty(a => a.AccessToken);
         apiMock.Setup(a => a.InitiateUploadAsync(
                 It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
-                It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
-            .Callback<string, Guid?, long, string?, IReadOnlyList<string>, CancellationToken>(
-                (_, _, _, _, hashes, _) => chunkHash = hashes[0])
+                It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<CancellationToken>()))
+            .Callback<string, Guid?, long, string?, IReadOnlyList<string>, IReadOnlyList<int>?, CancellationToken>(
+                (_, _, _, _, hashes, _, _) => chunkHash = hashes[0])
             .ReturnsAsync(() => new UploadSessionResponse
             {
                 SessionId = sessionId,
@@ -88,7 +90,8 @@ public class ChunkedTransferClientTests
         apiMock.SetupProperty(a => a.AccessToken);
         apiMock.Setup(a => a.InitiateUploadAsync(
                 It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
-                It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+                It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new UploadSessionResponse { SessionId = sessionId });
 
         // First upload call throws a network error; second succeeds
@@ -126,7 +129,8 @@ public class ChunkedTransferClientTests
         apiMock.SetupProperty(a => a.AccessToken);
         apiMock.Setup(a => a.InitiateUploadAsync(
                 It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
-                It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+                It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new UploadSessionResponse { SessionId = sessionId });
 
         // Always throw network error
@@ -154,7 +158,8 @@ public class ChunkedTransferClientTests
         apiMock.SetupProperty(a => a.AccessToken);
         apiMock.Setup(a => a.InitiateUploadAsync(
                 It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
-                It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+                It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new UploadSessionResponse { SessionId = sessionId });
 
         // 4xx client error — should NOT be retried
@@ -288,5 +293,89 @@ public class ChunkedTransferClientTests
 
         // Should have retried 3 times
         apiMock.Verify(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<CancellationToken>()), Times.Exactly(3));
+    }
+
+    // ── CDC chunking ────────────────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task UploadAsync_CdcChunking_SendsChunkSizesWithHashes()
+    {
+        var nodeId = Guid.NewGuid();
+        var sessionId = Guid.NewGuid();
+        IReadOnlyList<int>? capturedSizes = null;
+        IReadOnlyList<string>? capturedHashes = null;
+
+        var apiMock = new Mock<IDotNetCloudApiClient>();
+        apiMock.SetupProperty(a => a.AccessToken);
+        apiMock.Setup(a => a.InitiateUploadAsync(
+                It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
+                It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<CancellationToken>()))
+            .Callback<string, Guid?, long, string?, IReadOnlyList<string>, IReadOnlyList<int>?, CancellationToken>(
+                (_, _, _, _, hashes, sizes, _) => { capturedHashes = hashes; capturedSizes = sizes; })
+            .ReturnsAsync(new UploadSessionResponse { SessionId = sessionId });
+
+        apiMock.Setup(a => a.UploadChunkAsync(sessionId, It.IsAny<int>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        apiMock.Setup(a => a.CompleteUploadAsync(sessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CompleteUploadResponse
+            {
+                Node = new FileNodeResponse { Id = nodeId, Name = "file.bin", NodeType = "File" },
+            });
+
+        var client = new ChunkedTransferClient(apiMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+        using var data = new MemoryStream(new byte[1024]);
+
+        await client.UploadAsync(null, "file.bin", data, null);
+
+        Assert.IsNotNull(capturedSizes, "ChunkSizes should be passed to InitiateUploadAsync.");
+        Assert.IsNotNull(capturedHashes);
+        Assert.AreEqual(capturedHashes!.Count, capturedSizes!.Count, "ChunkSizes count must equal chunk hash count.");
+        Assert.IsTrue(capturedSizes.All(s => s > 0), "All chunk sizes must be positive.");
+        Assert.AreEqual(capturedHashes.Count, capturedSizes.Sum(s => s) == 1024 ? capturedHashes.Count : capturedHashes.Count,
+            "Sum of chunk sizes must equal file size.");
+        Assert.AreEqual(1024, capturedSizes.Sum(), "Sum of chunk sizes must equal total file size.");
+    }
+
+    [TestMethod]
+    public async Task UploadAsync_CdcChunking_DeterministicAcrossMultipleCalls()
+    {
+        // CDC is deterministic: chunking the same data twice yields identical hashes.
+        var fileData = new byte[2 * 1024 * 1024]; // 2 MB of pseudo-random data
+        new Random(42).NextBytes(fileData);
+
+        List<string> capturedHashes1 = [];
+        List<string> capturedHashes2 = [];
+        var captureTarget = capturedHashes1;
+
+        var apiMock = new Mock<IDotNetCloudApiClient>();
+        apiMock.SetupProperty(a => a.AccessToken);
+        apiMock.Setup(a => a.InitiateUploadAsync(
+                It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
+                It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<CancellationToken>()))
+            .Callback<string, Guid?, long, string?, IReadOnlyList<string>, IReadOnlyList<int>?, CancellationToken>(
+                (_, _, _, _, hashes, _, _) => captureTarget.AddRange(hashes))
+            .ReturnsAsync(new UploadSessionResponse { SessionId = Guid.NewGuid() });
+
+        apiMock.Setup(a => a.UploadChunkAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        apiMock.Setup(a => a.CompleteUploadAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CompleteUploadResponse
+            {
+                Node = new FileNodeResponse { Id = Guid.NewGuid(), Name = "f.bin", NodeType = "File" },
+            });
+
+        var client = new ChunkedTransferClient(apiMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+
+        await client.UploadAsync(null, "f.bin", new MemoryStream(fileData), null);
+        captureTarget = capturedHashes2;
+        await client.UploadAsync(null, "f.bin", new MemoryStream(fileData), null);
+
+        Assert.IsTrue(capturedHashes1.Count > 0, "Expected at least one chunk.");
+        CollectionAssert.AreEqual(capturedHashes1, capturedHashes2,
+            "CDC chunking must produce identical hashes for identical input.");
     }
 }

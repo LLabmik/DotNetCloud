@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Security.Cryptography;
 using DotNetCloud.Client.Core.Api;
 using Microsoft.Extensions.Logging;
@@ -46,14 +47,15 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
 
         try
         {
-            // Split file into chunks and compute hashes
+            // Split file into chunks using CDC (Gear hash) and compute hashes
             var chunks = await SplitIntoChunksAsync(fileStream, cancellationToken);
-            _logger.LogDebug("Uploading {File}: {ChunkCount} chunks, {Size} bytes.", fileName, chunks.Count, fileSize);
+            _logger.LogDebug("Uploading {File}: {ChunkCount} CDC chunks, {Size} bytes.", fileName, chunks.Count, fileSize);
 
             // Initiate session — server returns which chunks it already has
             var session = await _api.InitiateUploadAsync(
                 fileName, null, fileSize, mimeType,
                 chunks.Select(c => c.Hash).ToList(),
+                chunks.Select(c => c.Data.Length).ToList(),
                 cancellationToken);
 
             var presentChunks = new HashSet<string>(session.PresentChunks, StringComparer.OrdinalIgnoreCase);
@@ -304,31 +306,6 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
         return buffer;
     }
 
-    private static async Task<List<ChunkData>> SplitIntoChunksAsync(Stream stream, CancellationToken cancellationToken)
-    {
-        var chunks = new List<ChunkData>();
-        var buffer = new byte[DefaultChunkSize];
-
-        while (true)
-        {
-            var bytesRead = 0;
-            while (bytesRead < buffer.Length)
-            {
-                var n = await stream.ReadAsync(buffer.AsMemory(bytesRead), cancellationToken);
-                if (n == 0) break;
-                bytesRead += n;
-            }
-
-            if (bytesRead == 0) break;
-
-            var data = buffer[..bytesRead];
-            var hash = Convert.ToHexString(SHA256.HashData(data)).ToLowerInvariant();
-            chunks.Add(new ChunkData { Data = data.ToArray(), Hash = hash });
-        }
-
-        return chunks;
-    }
-
     private static string? MimeTypeFromExtension(string ext) => ext.ToLowerInvariant() switch
     {
         ".pdf" => "application/pdf",
@@ -339,6 +316,125 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
         ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         _ => null,
     };
+
+    // ── CDC chunking (Gear hash / FastCDC) ─────────────────────────────────
+    // Constants match server ContentHasher exactly — same seed ⇒ same chunk boundaries.
+
+    private const int CdcMinSize = 512 * 1024;     // 512 KB
+    private const int CdcMaxSize = 16 * 1024 * 1024; // 16 MB
+
+    private static readonly ulong[] GearTable = CreateGearTable();
+
+    private static ulong[] CreateGearTable()
+    {
+        const ulong multiplier = 6364136223846793005UL;
+        const ulong increment = 1442695040888963407UL;
+        var seed = 0xDC44636E65744E44UL; // "DNetCDC\0" LE bytes
+        var table = new ulong[256];
+        for (var i = 0; i < 256; i++)
+        {
+            seed = (seed * multiplier) + increment;
+            table[i] = seed;
+        }
+        return table;
+    }
+
+    private static ulong ComputeGearMask(int avgSize)
+    {
+        var bits = BitOperations.Log2((uint)avgSize);
+        return (1UL << (int)bits) - 1;
+    }
+
+    /// <summary>
+    /// Splits <paramref name="stream"/> into content-defined chunks using Gear hashing (FastCDC).
+    /// Boundaries are content-dependent and match the server's <c>ContentHasher.ChunkAndHashCdcAsync</c>.
+    /// </summary>
+    private static async Task<List<ChunkData>> SplitIntoChunksAsync(
+        Stream stream, CancellationToken cancellationToken)
+    {
+        var chunks = new List<ChunkData>();
+        var mask = ComputeGearMask(DefaultChunkSize);
+        ulong gearHash = 0;
+        var chunkLen = 0;
+
+        using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var chunkAccum = new List<byte[]>();
+        var buf = new byte[65536];
+
+        while (true)
+        {
+            var n = await ReadFullBufferAsync(stream, buf, cancellationToken);
+            if (n == 0) break;
+
+            var segStart = 0;
+            var processed = 0;
+
+            while (processed < n)
+            {
+                // Phase 1: fast-path — skip up to minSize bytes without boundary checks.
+                if (chunkLen < CdcMinSize)
+                {
+                    var skip = Math.Min(CdcMinSize - chunkLen, n - processed);
+                    hasher.AppendData(buf, processed, skip);
+                    for (var i = 0; i < skip; i++)
+                        gearHash = (gearHash << 1) ^ GearTable[buf[processed + i]];
+                    chunkLen += skip;
+                    processed += skip;
+                    continue;
+                }
+
+                // Phase 2: byte-by-byte boundary detection.
+                var b = buf[processed];
+                gearHash = (gearHash << 1) ^ GearTable[b];
+                hasher.AppendData(buf, processed, 1);
+                chunkLen++;
+                processed++;
+
+                if ((gearHash & mask) == 0 || chunkLen >= CdcMaxSize)
+                {
+                    chunkAccum.Add(buf[segStart..processed].ToArray());
+                    segStart = processed;
+                    EmitChunk();
+                }
+            }
+
+            // Buffer bytes not yet assigned to an emitted chunk.
+            if (n > segStart)
+                chunkAccum.Add(buf[segStart..n].ToArray());
+        }
+
+        if (chunkLen > 0)
+            EmitChunk();
+
+        return chunks;
+
+        void EmitChunk()
+        {
+            Span<byte> hashBytes = stackalloc byte[32];
+            hasher.GetHashAndReset(hashBytes);
+            var hash = Convert.ToHexStringLower(hashBytes);
+            var totalLen = chunkAccum.Sum(s => s.Length);
+            var data = new byte[totalLen];
+            var pos = 0;
+            foreach (var seg in chunkAccum) { seg.CopyTo(data, pos); pos += seg.Length; }
+            chunks.Add(new ChunkData { Data = data, Hash = hash });
+            chunkAccum.Clear();
+            chunkLen = 0;
+            gearHash = 0;
+        }
+    }
+
+    private static async Task<int> ReadFullBufferAsync(Stream stream, byte[] buffer, CancellationToken cancellationToken)
+    {
+        var totalRead = 0;
+        while (totalRead < buffer.Length)
+        {
+            var n = await stream.ReadAsync(buffer.AsMemory(totalRead), cancellationToken);
+            if (n == 0) break;
+            totalRead += n;
+        }
+        return totalRead;
+    }
 
     private sealed class ChunkData
     {

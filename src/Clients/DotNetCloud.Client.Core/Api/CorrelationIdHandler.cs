@@ -22,6 +22,7 @@ public sealed class CorrelationIdHandler : DelegatingHandler
     {
         var requestId = Guid.NewGuid().ToString("N");
         request.Headers.TryAddWithoutValidation("X-Request-ID", requestId);
+        request.Headers.TryAddWithoutValidation("X-Sync-Capabilities", "cdc");
 
         _logger.LogInformation(
             "API call {Method} {Url} RequestId={RequestId}",
