@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-08 (client agent — Issue #17 verified resolved, Issues #18/#19 opened)
+Last updated: 2026-03-08 (server agent — Issues #18/#19 resolved, deployed)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -26,9 +26,9 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 - **Refresh token `invalid_grant`**: RESOLVED — ephemeral keys replaced with persistent RSA key files; tokens survive restarts
 - **Sync bearer auth 403**: RESOLVED — added `[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]` to `FilesControllerBase`; unauthenticated requests now return 401 (not 403 ForbiddenException)
 - **Sync API response envelope**: RESOLVED (client-side) — server's `ResponseEnvelopeMiddleware` wraps all `/api/` responses in `{"success":true,"data":...}`; client now unwraps the envelope before deserializing
-- **Files API `userId` contract**: OPEN (Issue #18) — all 20 authenticated `FilesController` endpoints still require `[FromQuery] Guid userId` and call `ToCaller(userId)`, same pattern that was fixed on `SyncController` (Issue #11); client doesn't send `userId` → 403 "Caller user ID does not match"
-- **Files API response envelope**: OPEN (Issue #19) — `FilesController` endpoints still call `Ok(Envelope(data))`, double-wrapping with middleware → `{"success":true,"data":{"success":true,"data":...}}`; client envelope unwrapper handles this but the double-wrap should be removed for consistency
-- **Next milestone**: Server removes `userId` query param and `Envelope()` calls from `FilesController` endpoints (Issues #18 and #19); then client can complete file download sync flow
+- **Files API `userId` contract**: RESOLVED (Issue #18) — all `FilesController` endpoints now use `GetAuthenticatedCaller()` from bearer token claims; `[FromQuery] Guid userId` removed from all 20 endpoints
+- **Files API response envelope**: RESOLVED (Issue #19) — `FilesController` endpoints now return raw payloads via `Ok(data)` instead of `Ok(Envelope(data))`; `ResponseEnvelopeMiddleware` handles wrapping automatically
+- **Next milestone**: Client can now complete file download sync flow — sync changes/tree/reconcile (200) and files chunks/download endpoints no longer require `userId` or double-wrap responses
 
 ## Server Resolution (Latest)
 
@@ -116,15 +116,47 @@ ec42f03569d6e2c3  signing-key.pem
 - `src/Core/DotNetCloud.Core.Server/Controllers/FilesControllerBase.cs`
 - `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/FilesControllerBase.cs`
 
+### Applied Fix 5: Removed `userId` query parameter from all FilesController endpoints (Issue #18)
+
+**Status:** RESOLVED
+
+**What changed:** All 20 authenticated `FilesController` endpoints previously accepted `[FromQuery] Guid userId` and called `ToCaller(userId)`. This is the same pattern that was fixed on `SyncController` in Issue #11. All endpoints now call `GetAuthenticatedCaller()` to derive `CallerContext` from bearer token claims.
+
+Additionally, `ResolvePublicLinkAsync` (public share link resolution) was given `[AllowAnonymous]` since it's a public endpoint that shouldn't require authentication — the base class `[Authorize]` attribute would have blocked unauthenticated access.
+
+**Files updated:**
+- `src/Core/DotNetCloud.Core.Server/Controllers/FilesController.cs`
+- `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/FilesController.cs`
+- `tests/DotNetCloud.Core.Server.Tests/Controllers/FilesControllerTests.cs` (updated all 23 test method calls, removed now-irrelevant `CallerUserDoesNotMatchAuthenticatedUser` test)
+
+### Applied Fix 6: Removed Envelope() calls from all FilesController responses (Issue #19)
+
+**Status:** RESOLVED
+
+**What changed:** All `FilesController` endpoints previously called `Ok(Envelope(data))` which double-wrapped responses because `ResponseEnvelopeMiddleware` also wraps all `/api/` responses. All endpoints now return raw payloads: `Ok(data)`, `Created(url, data)`, or `Ok(new { ... })`.
+
+**Files API responses now return (after middleware wrapping):**
+```json
+{"success":true,"data":[...]}
+```
+
+Instead of the previous double-wrap:
+```json
+{"success":true,"data":{"success":true,"data":[...]}}
+```
+
+**Files updated:**
+- `src/Core/DotNetCloud.Core.Server/Controllers/FilesController.cs`
+- `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/FilesController.cs`
+
 ### Validation Evidence (mint22)
 
 - `dotnet build DotNetCloud.sln -c Release` -> success (0 errors, 0 warnings)
-- `dotnet test tests/DotNetCloud.Core.Server.Tests/DotNetCloud.Core.Server.Tests.csproj -c Release --no-build` -> **305 passed**
-- `dotnet test tests/DotNetCloud.Modules.Files.Tests/DotNetCloud.Modules.Files.Tests.csproj -c Release --no-build` -> **513 passed**
+- `dotnet test tests/DotNetCloud.Core.Server.Tests/` -> **304 passed**
+- `dotnet test tests/DotNetCloud.Modules.Files.Tests/` -> **513 passed**
+- `dotnet test tests/DotNetCloud.Core.Auth.Tests/` -> **85 passed**
 - Redeploy: `tools/redeploy-baremetal.sh` complete
 - Health probe: `https://localhost:15443/health/live` -> `Healthy`
-- Unauthenticated sync endpoints continue to return `403` (expected bearer requirement)
-- Authenticated sync probe with live bearer token is pending client relay evidence
 
 ## Environment
 
@@ -167,8 +199,8 @@ ec42f03569d6e2c3  signing-key.pem
 | 15 | `DateTime` serialization bug — tokens appear unexpired | `TokenInfo.ExpiresAt` was `DateTime`. After JSON roundtrip through `EncryptedFileTokenStore`, the `DateTimeKind` was lost (became `Unspecified`/`Local`), making `DateTime.UtcNow >= ExpiresAt` return `False` for genuinely expired tokens | Changed `ExpiresAt` from `DateTime` to `DateTimeOffset` across entire client chain (`TokenInfo`, `AddAccountRequest`, `AddAccountData` IPC model, `OAuth2Service`, `SyncEngine`, all tests) | 2026-03-08 |
 | 16 | Refresh token `invalid_grant` | `AddEphemeralEncryptionKey()`/`AddEphemeralSigningKey()` generate new in-memory RSA keys on every server restart; OpenIddict cannot decrypt stored refresh token payloads after restart | Created `OidcKeyManager` to persist RSA keys as PEM files; replaced ephemeral with persistent keys; fixed config key name mismatch; increased refresh lifetime to 14 days; purged orphaned tokens | 2026-03-08 |
 | 17 | Sync API returns 403 with valid bearer token | `SyncController` has no `[Authorize]` attribute, so ASP.NET Core auth middleware never runs; default auth scheme is `Identity.Application` (cookies) not OpenIddict bearer, so even with `[Authorize]` it would try cookie auth | Added `[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]` to `FilesControllerBase` (inherited by `SyncController` and `FilesController`); also added `[Authorize]` to Files.Host `FilesControllerBase` | 2026-03-08 |
-| 18 | Files API returns 403 "Caller user ID does not match" | All 20 authenticated `FilesController` endpoints accept `[FromQuery] Guid userId` and call `ToCaller(userId)`. Client sends bearer token but no `userId` query param → server receives `userId=Guid.Empty` → doesn't match JWT `sub` claim | **OPEN — requires server fix**: Change all `FilesController` endpoints to use `GetAuthenticatedCaller()` (same fix as Issue #11 for `SyncController`). Remove `[FromQuery] Guid userId` parameter. Both `Core.Server` and `Files.Host` controllers need updating. | OPEN |
-| 19 | Files API responses double-envelope wrapped | `FilesController` endpoints call `Ok(Envelope(data))`, but `ResponseEnvelopeMiddleware` also wraps `/api/` responses → `{"success":true,"data":{"success":true,"data":...}}` | **OPEN — requires server fix**: Remove `Envelope()` calls from `FilesController` (same fix as Issue #12 for `SyncController`). Middleware handles wrapping automatically. | OPEN |
+| 18 | Files API returns 403 "Caller user ID does not match" | All 20 authenticated `FilesController` endpoints accept `[FromQuery] Guid userId` and call `ToCaller(userId)`. Client sends bearer token but no `userId` query param → server receives `userId=Guid.Empty` → doesn't match JWT `sub` claim | Changed all `FilesController` endpoints to use `GetAuthenticatedCaller()` (same fix as Issue #11). Removed `[FromQuery] Guid userId` from all endpoints. Added `[AllowAnonymous]` to `ResolvePublicLinkAsync`. Both `Core.Server` and `Files.Host` controllers updated. | 2026-03-08 |
+| 19 | Files API responses double-envelope wrapped | `FilesController` endpoints call `Ok(Envelope(data))`, but `ResponseEnvelopeMiddleware` also wraps `/api/` responses → `{"success":true,"data":{"success":true,"data":...}}` | Removed `Envelope()` calls from all `FilesController` endpoints. Endpoints now return `Ok(data)` / `Created(url, data)`. Middleware handles wrapping automatically. Both `Core.Server` and `Files.Host` controllers updated. | 2026-03-08 |
 
 ## Current Verified State
 
@@ -227,16 +259,16 @@ fail: HTTP 403 on GET api/v1/files/{nodeId}/chunks. Body: {"success":false,"erro
 
 Root cause: `FilesController.GetChunkManifestAsync` accepts `[FromQuery] Guid userId` and calls `ToCaller(userId)`. Client doesn't send `userId` query parameter → server receives `Guid.Empty` → doesn't match JWT `sub` claim. Same pattern as Issue #11 (fixed for `SyncController`, not yet applied to `FilesController`).
 
-### Server (mint22, [Authorize] bearer auth fix deployed)
+### Server (mint22, Issues #18/#19 deployed)
 
 - Health: `https://localhost:15443/health/live` → `Healthy`
 - Build: 0 errors, 0 warnings
-- Tests: 305 server + 85 auth + 513 files = **903 passed** (0 failures)
-- Unauthenticated sync request returns **401** (was 403 ForbiddenException from controller code)
-- `FilesControllerBase` now has `[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]`
-- Both `SyncController` and `FilesController` inherit bearer auth from base class
-- `PublicShareController` (Files.Host) has `[AllowAnonymous]` — unaffected
+- Tests: 304 server + 85 auth + 513 files = **902 passed** (0 failures)
+- `FilesController` endpoints no longer require `userId` query parameter — all use `GetAuthenticatedCaller()`
+- `FilesController` endpoints return raw payloads — no `Envelope()` calls; middleware handles wrapping
+- `ResolvePublicLinkAsync` has `[AllowAnonymous]` (public share links don't require auth)
 - Persistent OIDC keys verified, config fixed, refresh token lifetime 14 days
+- All sync and files endpoints use OpenIddict bearer auth via `FilesControllerBase`
 
 ## Mediator Checklist (User)
 

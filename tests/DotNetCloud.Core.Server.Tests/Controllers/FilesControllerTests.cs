@@ -22,7 +22,7 @@ public sealed class FilesControllerTests
             .ReturnsAsync([CreateFileNode(userId)]);
 
         var controller = deps.CreateController(userId);
-        var result = await controller.ListAsync(parentId: null, userId);
+        var result = await controller.ListAsync(parentId: null);
 
         Assert.IsInstanceOfType<OkObjectResult>(result);
         deps.FileService.Verify(s => s.ListRootAsync(It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()), Times.Once);
@@ -40,7 +40,7 @@ public sealed class FilesControllerTests
             .ReturnsAsync([CreateFileNode(userId)]);
 
         var controller = deps.CreateController(userId);
-        var result = await controller.ListAsync(parentId, userId);
+        var result = await controller.ListAsync(parentId);
 
         Assert.IsInstanceOfType<OkObjectResult>(result);
         deps.FileService.Verify(s => s.ListChildrenAsync(parentId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()), Times.Once);
@@ -58,7 +58,7 @@ public sealed class FilesControllerTests
             .ReturnsAsync((FileNodeDto?)null);
 
         var controller = deps.CreateController(userId);
-        var result = await controller.GetAsync(nodeId, userId);
+        var result = await controller.GetAsync(nodeId);
 
         Assert.IsInstanceOfType<NotFoundObjectResult>(result);
     }
@@ -75,7 +75,7 @@ public sealed class FilesControllerTests
             .ReturnsAsync(created);
 
         var controller = deps.CreateController(userId);
-        var result = await controller.CreateFolderAsync(dto, userId);
+        var result = await controller.CreateFolderAsync(dto);
 
         Assert.IsInstanceOfType<CreatedResult>(result);
         var createdResult = (CreatedResult)result;
@@ -95,7 +95,7 @@ public sealed class FilesControllerTests
             .ReturnsAsync(renamed);
 
         var controller = deps.CreateController(userId);
-        var result = await controller.RenameAsync(nodeId, dto, userId);
+        var result = await controller.RenameAsync(nodeId, dto);
 
         Assert.IsInstanceOfType<OkObjectResult>(result);
     }
@@ -113,7 +113,7 @@ public sealed class FilesControllerTests
             .ReturnsAsync(moved);
 
         var controller = deps.CreateController(userId);
-        var result = await controller.MoveAsync(nodeId, dto, userId);
+        var result = await controller.MoveAsync(nodeId, dto);
 
         Assert.IsInstanceOfType<OkObjectResult>(result);
     }
@@ -131,7 +131,7 @@ public sealed class FilesControllerTests
             .ReturnsAsync(copied);
 
         var controller = deps.CreateController(userId);
-        var result = await controller.CopyAsync(nodeId, dto, userId);
+        var result = await controller.CopyAsync(nodeId, dto);
 
         Assert.IsInstanceOfType<CreatedResult>(result);
     }
@@ -147,7 +147,7 @@ public sealed class FilesControllerTests
             .Returns(Task.CompletedTask);
 
         var controller = deps.CreateController(userId);
-        var result = await controller.DeleteAsync(nodeId, userId);
+        var result = await controller.DeleteAsync(nodeId);
 
         Assert.IsInstanceOfType<OkObjectResult>(result);
     }
@@ -164,7 +164,7 @@ public sealed class FilesControllerTests
             .ReturnsAsync(node);
 
         var controller = deps.CreateController(userId);
-        var result = await controller.ToggleFavoriteAsync(nodeId, userId);
+        var result = await controller.ToggleFavoriteAsync(nodeId);
 
         Assert.IsInstanceOfType<OkObjectResult>(result);
     }
@@ -179,7 +179,7 @@ public sealed class FilesControllerTests
             .ReturnsAsync([CreateFileNode(userId) with { IsFavorite = true }]);
 
         var controller = deps.CreateController(userId);
-        var result = await controller.ListFavoritesAsync(userId);
+        var result = await controller.ListFavoritesAsync();
 
         Assert.IsInstanceOfType<OkObjectResult>(result);
     }
@@ -194,7 +194,7 @@ public sealed class FilesControllerTests
             .ReturnsAsync([CreateFileNode(userId)]);
 
         var controller = deps.CreateController(userId);
-        var result = await controller.ListRecentAsync(userId, 5);
+        var result = await controller.ListRecentAsync(5);
 
         Assert.IsInstanceOfType<OkObjectResult>(result);
     }
@@ -215,7 +215,7 @@ public sealed class FilesControllerTests
             });
 
         var controller = deps.CreateController(userId);
-        var result = await controller.SearchAsync("sync", userId, page: 2, pageSize: 10);
+        var result = await controller.SearchAsync("sync", page: 2, pageSize: 10);
 
         Assert.IsInstanceOfType<OkObjectResult>(result);
     }
@@ -245,7 +245,7 @@ public sealed class FilesControllerTests
             });
 
         var controller = deps.CreateController(userId);
-        var result = await controller.InitiateUploadAsync(dto, userId);
+        var result = await controller.InitiateUploadAsync(dto);
 
         Assert.IsInstanceOfType<CreatedResult>(result);
     }
@@ -269,7 +269,7 @@ public sealed class FilesControllerTests
         var controller = deps.CreateController(userId);
         controller.ControllerContext.HttpContext.Request.Body = new MemoryStream(bytes);
 
-        var result = await controller.UploadChunkAsync(sessionId, "chunk1", userId);
+        var result = await controller.UploadChunkAsync(sessionId, "chunk1");
 
         Assert.IsInstanceOfType<OkObjectResult>(result);
         deps.UploadService.VerifyAll();
@@ -286,7 +286,7 @@ public sealed class FilesControllerTests
             .ReturnsAsync(CreateFileNode(userId));
 
         var controller = deps.CreateController(userId);
-        var result = await controller.CompleteUploadAsync(sessionId, userId);
+        var result = await controller.CompleteUploadAsync(sessionId);
 
         Assert.IsInstanceOfType<OkObjectResult>(result);
     }
@@ -302,7 +302,7 @@ public sealed class FilesControllerTests
             .Returns(Task.CompletedTask);
 
         var controller = deps.CreateController(userId);
-        var result = await controller.CancelUploadAsync(sessionId, userId);
+        var result = await controller.CancelUploadAsync(sessionId);
 
         Assert.IsInstanceOfType<OkObjectResult>(result);
     }
@@ -318,7 +318,7 @@ public sealed class FilesControllerTests
             .ReturnsAsync((UploadSessionDto?)null);
 
         var controller = deps.CreateController(userId);
-        var result = await controller.GetUploadSessionAsync(sessionId, userId);
+        var result = await controller.GetUploadSessionAsync(sessionId);
 
         Assert.IsInstanceOfType<NotFoundObjectResult>(result);
     }
@@ -346,7 +346,7 @@ public sealed class FilesControllerTests
             .ReturnsAsync(new MemoryStream(new byte[] { 0x01, 0x02 }));
 
         var controller = deps.CreateController(userId);
-        var result = await controller.DownloadAsync(nodeId, userId);
+        var result = await controller.DownloadAsync(nodeId);
 
         Assert.IsInstanceOfType<FileStreamResult>(result);
         var fileResult = (FileStreamResult)result;
@@ -364,7 +364,7 @@ public sealed class FilesControllerTests
             .ReturnsAsync((FileNodeDto?)null);
 
         var controller = deps.CreateController(userId);
-        var result = await controller.DownloadAsync(nodeId, userId);
+        var result = await controller.DownloadAsync(nodeId);
 
         Assert.IsInstanceOfType<NotFoundObjectResult>(result);
     }
@@ -380,7 +380,7 @@ public sealed class FilesControllerTests
             .ReturnsAsync((FileVersionDto?)null);
 
         var controller = deps.CreateController(userId);
-        var result = await controller.DownloadAsync(nodeId, userId, version: 3);
+        var result = await controller.DownloadAsync(nodeId, version: 3);
 
         Assert.IsInstanceOfType<NotFoundObjectResult>(result);
     }
@@ -407,7 +407,7 @@ public sealed class FilesControllerTests
             .ReturnsAsync(new MemoryStream(new byte[] { 0x03, 0x04 }));
 
         var controller = deps.CreateController(userId);
-        var result = await controller.DownloadAsync(nodeId, userId, version: 1);
+        var result = await controller.DownloadAsync(nodeId, version: 1);
 
         Assert.IsInstanceOfType<FileStreamResult>(result);
         var fileResult = (FileStreamResult)result;
@@ -425,7 +425,7 @@ public sealed class FilesControllerTests
             .ReturnsAsync(["a", "b"]);
 
         var controller = deps.CreateController(userId);
-        var result = await controller.GetChunkManifestAsync(nodeId, userId);
+        var result = await controller.GetChunkManifestAsync(nodeId);
 
         Assert.IsInstanceOfType<OkObjectResult>(result);
     }
@@ -440,7 +440,7 @@ public sealed class FilesControllerTests
             .ReturnsAsync((Stream?)null);
 
         var controller = deps.CreateController(userId);
-        var result = await controller.DownloadChunkByHashAsync("hash-missing", userId);
+        var result = await controller.DownloadChunkByHashAsync("hash-missing");
 
         Assert.IsInstanceOfType<NotFoundObjectResult>(result);
     }
@@ -455,7 +455,7 @@ public sealed class FilesControllerTests
             .ReturnsAsync(new MemoryStream(new byte[] { 0x10 }));
 
         var controller = deps.CreateController(userId);
-        var result = await controller.DownloadChunkByHashAsync("hash-ok", userId);
+        var result = await controller.DownloadChunkByHashAsync("hash-ok");
 
         Assert.IsInstanceOfType<FileStreamResult>(result);
         var fileResult = (FileStreamResult)result;
@@ -472,7 +472,7 @@ public sealed class FilesControllerTests
             .ReturnsAsync([CreateShare()]);
 
         var controller = deps.CreateController(userId);
-        var result = await controller.GetSharedWithMeAsync(userId);
+        var result = await controller.GetSharedWithMeAsync();
 
         Assert.IsInstanceOfType<OkObjectResult>(result);
     }
@@ -506,28 +506,12 @@ public sealed class FilesControllerTests
     }
 
     [TestMethod]
-    public async Task ListAsync_WhenCallerUserDoesNotMatchAuthenticatedUser_ReturnsForbidden()
-    {
-        var authenticatedUserId = Guid.NewGuid();
-        var queryUserId = Guid.NewGuid();
-        var deps = CreateDeps();
-
-        var controller = deps.CreateController(authenticatedUserId);
-        var result = await controller.ListAsync(parentId: null, queryUserId);
-
-        Assert.IsInstanceOfType<ObjectResult>(result);
-        var status = (ObjectResult)result;
-        Assert.AreEqual(StatusCodes.Status403Forbidden, status.StatusCode);
-    }
-
-    [TestMethod]
     public async Task ListAsync_WhenUnauthenticated_ReturnsForbidden()
     {
-        var userId = Guid.NewGuid();
         var deps = CreateDeps();
 
         var controller = deps.CreateController(authenticatedUserId: null);
-        var result = await controller.ListAsync(parentId: null, userId);
+        var result = await controller.ListAsync(parentId: null);
 
         Assert.IsInstanceOfType<ObjectResult>(result);
         var status = (ObjectResult)result;
