@@ -45,14 +45,23 @@ public sealed class TrayIconManager : IDisposable
     {
         _trayIcon = new TrayIcon();
 
-        _trayIcon.Menu = BuildMenu();
+        var menu = BuildMenu();
+        _trayIcon.Menu = menu;
         _trayIcon.Icon = CreateStatusIcon(TrayState.Offline);
         _trayIcon.ToolTipText = _trayVm.Tooltip;
         _trayIcon.IsVisible = true;
 
+        // Ensure menu shows on click (Avalonia TrayIcon menu behavior varies by platform)
+        _trayIcon.Clicked += (_, _) =>
+        {
+            // Menu should show automatically, but log the click for diagnostics
+            _logger.LogDebug("Tray icon clicked. Menu items: {Count}", menu.Items.Count);
+        };
+
         _trayVm.PropertyChanged += OnTrayViewModelChanged;
 
-        _logger.LogDebug("Tray icon initialised.");
+        _logger.LogInformation("Tray icon initialized with {MenuCount} menu items. State: {State}",
+            menu.Items.Count, _trayVm.OverallState);
     }
 
     // ── Menu construction ─────────────────────────────────────────────────

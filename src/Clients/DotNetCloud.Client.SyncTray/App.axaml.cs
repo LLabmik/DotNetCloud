@@ -7,6 +7,7 @@ using DotNetCloud.Client.SyncTray.Notifications;
 using DotNetCloud.Client.SyncTray.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Serilog;
 
 namespace DotNetCloud.Client.SyncTray;
 
@@ -33,13 +34,18 @@ public partial class App : Application
             _services = BuildServices();
             _cts = new CancellationTokenSource();
 
+            var logger = _services.GetRequiredService<ILogger<App>>();
+            logger.LogInformation("DotNetCloud SyncTray starting...");
+
             _ipcClient = _services.GetRequiredService<IIpcClient>();
             _trayIconManager = _services.GetRequiredService<TrayIconManager>();
 
             _trayIconManager.Initialize();
+            logger.LogInformation("Tray icon manager initialized");
 
             // Connect to the background SyncService (reconnects automatically on failure).
             _ = _ipcClient.ConnectAsync(_cts.Token);
+            logger.LogInformation("IPC client connection started");
 
             desktop.Exit += OnExit;
         }
@@ -53,7 +59,23 @@ public partial class App : Application
     {
         var services = new ServiceCollection();
 
-        services.AddLogging(b => b.AddConsole().SetMinimumLevel(LogLevel.Information));
+        // Configure Serilog for console + file logging.
+        var logDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "DotNetCloud", "logs");
+        Directory.CreateDirectory(logDir);
+
+        Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Information()
+            .WriteTo.Console()
+            .WriteTo.File(
+                Path.Combine(logDir, "sync-tray.log"),
+                rollingInterval: RollingInterval.Day,
+                retainedFileCountLimit: 7,
+                outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+            .CreateLogger();
+
+        services.AddLogging(b => b.AddSerilog(Log.Logger));
 
         // HTTP client factory for OAuth2 flows.
         services.AddHttpClient();
@@ -94,5 +116,6 @@ public partial class App : Application
         }
 
         (_services as IDisposable)?.Dispose();
+        Log.CloseAndFlush();
     }
 }

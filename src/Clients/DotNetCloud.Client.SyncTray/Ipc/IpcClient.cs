@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.IO.Pipes;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
@@ -24,6 +25,9 @@ public sealed class IpcClient : IIpcClient, IAsyncDisposable
     private readonly ILogger<IpcClient> _logger;
     private readonly Func<CancellationToken, Task<Stream>>? _transportFactory;
     private readonly SemaphoreSlim _sendLock = new(1, 1);
+
+    // Tracks pending command requests awaiting responses from the read loop.
+    private readonly ConcurrentDictionary<string, TaskCompletionSource<IpcMessage>> _pendingCommands = new();
 
     private Stream? _stream;
     private StreamWriter? _writer;
@@ -170,11 +174,8 @@ public sealed class IpcClient : IIpcClient, IAsyncDisposable
     private async Task SubscribeAsync(CancellationToken cancellationToken)
     {
         var cmd = new IpcCommand { Command = IpcCommands.Subscribe };
-        await SendCommandAsync(cmd, cancellationToken);
-
-        // Consume the response before entering the read loop.
-        var line = await _reader!.ReadLineAsync(cancellationToken);
-        _logger.LogDebug("Subscribe response: {Line}", line);
+        var response = await SendAndReceiveAsync(cmd, cancellationToken);
+        _logger.LogDebug("Subscribe response: Success={Success}", response?.Success);
     }
 
     private async Task ReadLoopAsync(CancellationToken cancellationToken)
@@ -205,7 +206,21 @@ public sealed class IpcClient : IIpcClient, IAsyncDisposable
             return;
         }
 
-        if (message is null || message.Type != "event" || message.Event is null)
+        if (message is null)
+            return;
+
+        // Response messages complete pending command tasks.
+        if (message.Type == "response" && message.Command is not null)
+        {
+            if (_pendingCommands.TryRemove(message.Command, out var tcs))
+            {
+                tcs.SetResult(message);
+            }
+            return;
+        }
+
+        // Event messages are dispatched to registered event handlers.
+        if (message.Type != "event" || message.Event is null)
             return;
 
         var contextId = message.ContextId ?? Guid.Empty;
@@ -333,22 +348,44 @@ public sealed class IpcClient : IIpcClient, IAsyncDisposable
 
     private async Task<IpcMessage?> SendAndReceiveAsync(IpcCommand command, CancellationToken cancellationToken)
     {
-        if (!_connected || _writer is null || _reader is null) return null;
+        if (!_connected || _writer is null || command.Command is null) return null;
+
+        // Register a TaskCompletionSource before sending so the read loop can complete it.
+        var tcs = new TaskCompletionSource<IpcMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!_pendingCommands.TryAdd(command.Command, tcs))
+        {
+            _logger.LogWarning("Duplicate command '{Command}' already pending.", command.Command);
+            return null;
+        }
 
         await _sendLock.WaitAsync(cancellationToken);
         try
         {
             var json = JsonSerializer.Serialize(command, JsonOptions);
             await _writer.WriteLineAsync(json.AsMemory(), cancellationToken);
-
-            var responseLine = await _reader.ReadLineAsync(cancellationToken);
-            if (responseLine is null) return null;
-
-            return JsonSerializer.Deserialize<IpcMessage>(responseLine, JsonOptions);
+        }
+        catch
+        {
+            _pendingCommands.TryRemove(command.Command, out _);
+            throw;
         }
         finally
         {
             _sendLock.Release();
+        }
+
+        // Wait for the read loop to dispatch the response.
+        using var registration = cancellationToken.Register(() => 
+            _pendingCommands.TryRemove(command.Command!, out _));
+        
+        try
+        {
+            return await tcs.Task.WaitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            _pendingCommands.TryRemove(command.Command, out _);
+            throw;
         }
     }
 
@@ -373,6 +410,13 @@ public sealed class IpcClient : IIpcClient, IAsyncDisposable
     /// <inheritdoc/>
     public ValueTask DisposeAsync()
     {
+        // Cancel all pending command tasks.
+        foreach (var (cmd, tcs) in _pendingCommands)
+        {
+            tcs.TrySetCanceled();
+        }
+        _pendingCommands.Clear();
+
         CloseConnection();
         _sendLock.Dispose();
         return ValueTask.CompletedTask;
