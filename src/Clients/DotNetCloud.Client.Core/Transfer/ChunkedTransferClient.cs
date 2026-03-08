@@ -221,9 +221,6 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
     /// <summary>Bounded channel capacity: limits peak memory to ~32 MB (8 × 4 MB avg).</summary>
     private const int ChannelCapacity = 8;
 
-    /// <summary>Result of a single chunk transfer, used for completion logging.</summary>
-    private record ChunkTransferResult(string Hash, bool Success, int Attempts, string? Error);
-
     private async Task<Stream> DownloadChunksAsync(
         ChunkManifestResponse manifest,
         IProgress<TransferProgress>? progress,
