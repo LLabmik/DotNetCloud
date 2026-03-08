@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Core.Auth.Extensions;
 
@@ -127,10 +128,23 @@ public static class AuthServiceExtensions
                 options.SetRefreshTokenLifetime(
                     TimeSpan.FromDays(authOptions.RefreshTokenLifetimeDays));
 
-                // Encryption key configuration — in production, load from Key Vault / cert store
-                // JWT is the default token format in OpenIddict 5.x (reference tokens require UseReferenceAccessTokens)
-                options.AddEphemeralEncryptionKey();
-                options.AddEphemeralSigningKey();
+                // Persistent RSA keys for token signing and encryption.
+                // Keys are stored as PEM files so they survive server restarts.
+                var dataRoot = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
+                var oidcKeysDir = Path.Combine(
+                    !string.IsNullOrWhiteSpace(dataRoot) ? dataRoot : AppContext.BaseDirectory,
+                    "oidc-keys");
+
+                using var loggerFactory = LoggerFactory.Create(b => b.AddConsole());
+                var keyLogger = loggerFactory.CreateLogger("DotNetCloud.OidcKeys");
+
+                var signingKey = OidcKeyManager.LoadOrCreateKey(
+                    Path.Combine(oidcKeysDir, "signing-key.pem"), keyLogger);
+                var encryptionKey = OidcKeyManager.LoadOrCreateKey(
+                    Path.Combine(oidcKeysDir, "encryption-key.pem"), keyLogger);
+
+                options.AddSigningKey(signingKey);
+                options.AddEncryptionKey(encryptionKey);
 
                 // Disable access token encryption so clients can read JWT claims directly.
                 // Without this, access tokens are JWE (encrypted) and clients cannot decode them.

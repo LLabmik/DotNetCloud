@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-08 (client agent, client-side token fixes + refresh token blocker)
+Last updated: 2026-03-08 (server agent, persistent OIDC keys fix for refresh token blocker)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -23,7 +23,8 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 - **TLS cert bypass for sync client**: RESOLVED — `DotNetCloudSync` named HttpClient now uses same `OAuthHttpClientHandlerFactory` cert bypass (was missing, would fail on self-signed cert)
 - **Sync API `userId` contract**: RESOLVED — server now derives caller user ID from bearer token claims (`sub`/`nameidentifier`) for all sync endpoints
 - **Sync API response shape**: RESOLVED — sync endpoints now return raw payloads (`[]`/object) instead of envelope wrappers
-- **Next milestone**: Server investigates refresh token `invalid_grant` — client token refresh code is confirmed working but the server rejects the stored refresh token as invalid
+- **Refresh token `invalid_grant`**: RESOLVED — ephemeral keys replaced with persistent RSA key files; tokens survive restarts
+- **Next milestone**: Client re-authenticates (old tokens purged) and verifies end-to-end token refresh flow
 
 ## Server Resolution (Latest)
 
@@ -59,6 +60,38 @@ POST api/v1/files/sync/reconcile  (body only)
   { "nodeId": "...", "name": "...", "isDeleted": false, ... }
 ]
 ```
+
+### Applied Fix 3: Persistent OpenIddict signing/encryption keys
+
+**Status:** RESOLVED
+
+**Root cause:** `AddEphemeralEncryptionKey()` and `AddEphemeralSigningKey()` generate new in-memory RSA keys on every server restart. After `redeploy-baremetal.sh`, OpenIddict cannot decrypt stored refresh token payloads → `invalid_grant` (400).
+
+**What changed:**
+- Created `OidcKeyManager` utility class that generates RSA-2048 keys and persists them as PEM files with owner-only permissions (600)
+- `AuthServiceExtensions.cs` now loads persistent keys from `{DOTNETCLOUD_DATA_DIR}/oidc-keys/` instead of calling `AddEphemeralEncryptionKey()`/`AddEphemeralSigningKey()`
+- Keys are generated once on first startup, then reused across all subsequent restarts
+- Fixed config key name mismatch: `AccessTokenLifetime`/`RefreshTokenLifetime` → `AccessTokenLifetimeMinutes`/`RefreshTokenLifetimeDays` (old names were silently ignored)
+- Set `RefreshTokenLifetimeDays` to 14 (was effectively 7 via default)
+- Purged 20 orphaned tokens and 8 authorizations from DB that were encrypted with defunct ephemeral keys
+
+**Key persistence verified:**
+```
+# Before restart
+daf48fdccdd693ca  encryption-key.pem
+ec42f03569d6e2c3  signing-key.pem
+# After restart (same checksums)
+daf48fdccdd693ca  encryption-key.pem
+ec42f03569d6e2c3  signing-key.pem
+```
+
+**Files created:**
+- `src/Core/DotNetCloud.Core.Auth/Security/OidcKeyManager.cs`
+
+**Files updated:**
+- `src/Core/DotNetCloud.Core.Auth/Extensions/AuthServiceExtensions.cs`
+- `src/Core/DotNetCloud.Core.Server/appsettings.json`
+- `src/Core/DotNetCloud.Core.Server/appsettings.Development.json`
 
 ### Validation Evidence (mint22)
 
@@ -109,6 +142,7 @@ POST api/v1/files/sync/reconcile  (body only)
 | 13 | Token refresh was a stub | `SyncEngine.RefreshAccessTokenAsync` had a comment "Token refresh is handled externally" and did nothing — expired tokens were never refreshed | Implemented actual refresh: calls `_api.RefreshTokenAsync()`, saves new tokens via `_tokenStore.SaveAsync()`, updates `_api.AccessToken` | 2026-03-08 |
 | 14 | Missing `client_id` in refresh request | `RefreshTokenAsync` did not send `client_id` in the form body; OpenIddict requires it for public clients | Added `clientId` parameter to `IDotNetCloudApiClient.RefreshTokenAsync` and implementation; created `OAuthConstants.ClientId = "dotnetcloud-desktop"` | 2026-03-08 |
 | 15 | `DateTime` serialization bug — tokens appear unexpired | `TokenInfo.ExpiresAt` was `DateTime`. After JSON roundtrip through `EncryptedFileTokenStore`, the `DateTimeKind` was lost (became `Unspecified`/`Local`), making `DateTime.UtcNow >= ExpiresAt` return `False` for genuinely expired tokens | Changed `ExpiresAt` from `DateTime` to `DateTimeOffset` across entire client chain (`TokenInfo`, `AddAccountRequest`, `AddAccountData` IPC model, `OAuth2Service`, `SyncEngine`, all tests) | 2026-03-08 |
+| 16 | Refresh token `invalid_grant` | `AddEphemeralEncryptionKey()`/`AddEphemeralSigningKey()` generate new in-memory RSA keys on every server restart; OpenIddict cannot decrypt stored refresh token payloads after restart | Created `OidcKeyManager` to persist RSA keys as PEM files; replaced ephemeral with persistent keys; fixed config key name mismatch; increased refresh lifetime to 14 days; purged orphaned tokens | 2026-03-08 |
 
 ## Current Verified State
 
@@ -159,31 +193,36 @@ fail: Sync error for context b44b9f3f-fc25-45ae-9e7b-c3dca382f83d.
 
 **The user was not re-prompted for login** when trying to re-add the account via tray, which suggests an existing session may be interfering or the re-authentication flow didn't trigger.
 
-## Current Blocker: Refresh Token Invalid on Server
+## Issue #16 Resolution: Persistent OIDC Keys
 
-**Issue #16 (OPEN):** Server returns `invalid_grant` / "The specified token is invalid." when client attempts to refresh an expired access token.
+**Issue #16 (RESOLVED):** Server returned `invalid_grant` because ephemeral RSA keys were regenerated on every restart, making stored refresh token payloads undecryptable.
 
-**Request to server agent:**
+**Root cause confirmed:** `AddEphemeralEncryptionKey()` and `AddEphemeralSigningKey()` in OpenIddict config generate random in-memory keys. After any server restart (including `redeploy-baremetal.sh`), these keys are lost. OpenIddict stores refresh token payloads encrypted with the encryption key — when the key changes, decryption fails → `invalid_grant`.
 
-1. **Check OpenIddict refresh token lifetime configuration.** The original tokens were issued around `2026-03-08 05:43 UTC`. By `2026-03-08 22:00+ UTC` (~17 hours later), the refresh token is rejected. What is the configured refresh token lifetime? For a desktop sync client, refresh tokens should have a much longer lifetime (days/weeks) or use sliding expiration.
+**Fix applied:**
+- Created `OidcKeyManager.cs` — generates RSA-2048 keys, persists as PEM files with `600` permissions
+- Keys stored at `{DOTNETCLOUD_DATA_DIR}/oidc-keys/{signing-key.pem, encryption-key.pem}`
+- `AuthServiceExtensions.cs` now calls `options.AddSigningKey()` / `options.AddEncryptionKey()` with persistent keys
+- Fixed appsettings config key names: `AccessTokenLifetime` → `AccessTokenLifetimeMinutes`, `RefreshTokenLifetime` → `RefreshTokenLifetimeDays`
+- Refresh token lifetime set to 14 days
+- Purged 20 orphaned tokens + 8 authorizations from DB (encrypted with defunct ephemeral keys)
+- Verified key checksums survive restart (md5 identical before/after `systemctl restart`)
 
-2. **Check if `offline_access` scope grants are configured correctly.** The client requests `offline_access` scope. Verify:
-   - `offline_access` is in the registered scopes for the `dotnetcloud-desktop` application
-   - The authorization endpoint actually issues refresh tokens when `offline_access` is requested
-   - Refresh token rolling/reuse policy (if rolling, the old token is revoked after first use — but the client never got to use it before the access token expired)
+**Client action required:** Old tokens were purged from the database. The client must re-authenticate (remove and re-add the account, or trigger a fresh OAuth flow). After re-authentication, refresh tokens will work across server restarts.
 
-3. **Check if the token was stored/persisted in the OpenIddict token store.** Query the `OpenIddictTokens` table for tokens associated with the test user (`019cc1ac-da42-737c-b0ab-d0f2ecca8019`) and check their status, expiry, and revocation state.
-
-4. **Consider increasing refresh token lifetime** for the `dotnetcloud-desktop` client. Recommended: 14-30 days with absolute expiration, sliding expiration enabled. A 5-minute sync polling interval means the access token will expire frequently and refresh must be reliable.
-
-### Server (mint22, commit pending push from this update)
+### Server (mint22, persistent OIDC keys deployed)
 
 - Health: `https://localhost:15443/health/live` → `Healthy`
 - Discovery: `userinfo_endpoint` advertised
 - Sync endpoints: no `userId` query parameter required; all return raw payloads
 - Unauthenticated sync endpoints still return `403` (correctly require bearer token)
 - Build: 0 errors, 0 warnings
-- Tests: 305 server tests passed, 513 files-module tests passed
+- Tests: 305 server tests passed, 84/85 auth tests passed (1 pre-existing failure), 513 files-module tests passed
+- Persistent keys: `encryption-key.pem` + `signing-key.pem` verified at `artifacts/runtime/data/oidc-keys/`
+- Keys survive restart: md5 checksums identical before and after `systemctl restart dotnetcloud`
+- Config: `RefreshTokenLifetimeDays=14`, `AccessTokenLifetimeMinutes=60`
+- DB cleanup: 20 orphaned tokens + 8 authorizations purged (encrypted with defunct ephemeral keys)
+- UTC: Confirmed no `DateTime.Now` usage in server auth code — all timestamps use UTC
 
 ## Mediator Checklist (User)
 
@@ -210,28 +249,29 @@ fail: Sync error for context b44b9f3f-fc25-45ae-9e7b-c3dca382f83d.
 
 ## Mediator Relay Instructions
 
-### Send to Server Agent
+### Send to Client Agent
 
-Client-side token handling is now fully fixed and verified (101 tests pass, build clean). Three bugs were found and resolved:
+Server-side refresh token blocker (Issue #16) is now RESOLVED. Root cause was ephemeral OIDC signing/encryption keys — new random keys were generated on every server restart, making stored refresh token payloads undecryptable.
 
-1. **Token refresh was a stub** — now fully implemented
-2. **Missing `client_id` in refresh request** — now included
-3. **`DateTime` serialization lost UTC kind** — migrated to `DateTimeOffset` (this was the root cause of `IsExpired` returning `False` for genuinely expired tokens, which caused the original 403)
+**What was fixed server-side:**
+1. **Persistent RSA keys** — Created `OidcKeyManager.cs` that generates RSA-2048 keys and persists them as PEM files. Keys now survive server restarts (verified with md5 checksums).
+2. **Config key name mismatch** — `appsettings.json` used `AccessTokenLifetime`/`RefreshTokenLifetime` but C# properties are `AccessTokenLifetimeMinutes`/`RefreshTokenLifetimeDays`. Fixed key names.
+3. **Refresh token lifetime** — Set to 14 days (was effectively 7 via default, but config was silently ignored due to key name mismatch).
+4. **DB cleanup** — Purged 20 orphaned tokens and 8 authorizations that were encrypted with defunct ephemeral keys.
+5. **UTC verification** — Confirmed no `DateTime.Now` usage in server auth code.
 
-With these fixes, the client correctly detects the expired access token and attempts a refresh. However, the server returns **400 `invalid_grant`** with `"The specified token is invalid."` when the client sends the stored refresh token.
+**Client action required:**
+- **Re-authenticate**: Old tokens were purged from the server database. The client must perform a fresh OAuth flow (remove and re-add the account).
+- **Test refresh flow**: After re-authentication, wait for the access token to expire (60 minutes) or force expiry, then verify the refresh token exchange works (`POST /connect/token` with `grant_type=refresh_token` should return 200 with new tokens).
+- No client-side code changes needed — the client refresh implementation from commit `ada7e8d` is ready.
 
-**Server action required:**
-- Investigate OpenIddict refresh token lifetime configuration
-- Check if `offline_access` scope is properly granted and refresh tokens are actually being issued
-- Query `OpenIddictTokens` table for the test user's token status
-- Consider setting refresh token lifetime to 14-30 days for the `dotnetcloud-desktop` client (desktop sync clients need long-lived refresh tokens)
-- After fix: no client-side changes needed — the client refresh code is ready and will work once the server accepts the refresh token
-
-**User note:** The user reported they were NOT prompted for re-login when the tray attempted re-authentication. This may indicate the server has a session cookie from the original login that auto-approves without showing a login form, but the resulting tokens still have the same short refresh token lifetime.
+**Server config now:**
+- `AccessTokenLifetimeMinutes`: 60
+- `RefreshTokenLifetimeDays`: 14
+- Keys persist at `{DOTNETCLOUD_DATA_DIR}/oidc-keys/`
 
 ### Request Back
-- OpenIddict refresh token lifetime configuration (current value)
-- `OpenIddictTokens` table query results for user `019cc1ac-da42-737c-b0ab-d0f2ecca8019` (token status, expiry, type)
-- Whether `offline_access` scope is being granted and refresh tokens issued
-- Configuration change applied (if any) with commit hash
-- Confirmation that `POST /connect/token` with `grant_type=refresh_token` returns 200 for a valid refresh token
+- Confirmation that re-authentication (fresh OAuth flow) succeeds
+- Token refresh test result after access token expires
+- Any new errors in sync flow after re-authentication
+- Commit hash of any client-side changes (if needed)
