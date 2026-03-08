@@ -24,7 +24,9 @@ public static class ClientCoreServiceExtensions
         this IServiceCollection services,
         string tokenStoreDirectory)
     {
-        services.AddHttpClient<DotNetCloudApiClient>();
+        services.AddTransient<CorrelationIdHandler>();
+        services.AddHttpClient<DotNetCloudApiClient>()
+            .AddHttpMessageHandler<CorrelationIdHandler>();
         services.AddTransient<IDotNetCloudApiClient, DotNetCloudApiClient>();
 
         services.AddHttpClient<IOAuth2Service, OAuth2Service>()
