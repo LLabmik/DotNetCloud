@@ -285,7 +285,7 @@ Pull latest (`git pull`) before starting — server Tasks 1.8 and 1.9 were compl
 ### Issue #30: Batch 2 Task 2.1 - Content-Defined Chunking (CDC) — Server complete, client next
 
 **Server-side status:** ✅ COMPLETE — commit `3a7e0ae` (2026-03-08).
-**Client-side status:** 🔲 PENDING — `Windows11-TestDNC`.
+**Client-side status:** ✅ COMPLETE — commit `bc9e08a` (2026-03-08).
 
 **What was implemented (server):**
 
@@ -316,8 +316,22 @@ Pull latest (`git pull`) before starting — server Tasks 1.8 and 1.9 were compl
 
 **Backward compatibility guaranteed:** If client sends no `ChunkSizes`, server stores `ChunkSizesManifest = null` and falls back to `FileChunk.Size` in `CompleteUploadAsync`. Legacy clients work without change.
 
-**Request back from client agent:**
-- commit hash
-- build: 0 errors expected
-- test count (was 64, should increase by CDC chunking tests)
-- confirm CDC chunk boundaries are stable across re-runs of the same file
+**What was implemented (client) — commit `bc9e08a`:**
+
+- `ChunkedTransferClient.cs` — replaced fixed-size `SplitIntoChunksAsync` with CDC implementation using Gear hash (FastCDC). Same constants as server (`seed=0xDC44636E65744E44UL`, multiplier/increment per Knuth LCG). MinSize 512 KB, AvgSize 4 MB (mask), MaxSize 16 MB. 64 KB read buffer with two-phase processing (fast phase skip + byte-by-byte boundary detection). `using System.Numerics` added for `BitOperations.Log2`.
+- `IDotNetCloudApiClient.InitiateUploadAsync` — signature updated: added `IReadOnlyList<int>? chunkSizes = null` parameter.
+- `DotNetCloudApiClient.InitiateUploadAsync` — sends `chunkSizes` in JSON body alongside `chunkHashes`.
+- `CorrelationIdHandler.cs` — adds `X-Sync-Capabilities: cdc` header to every outgoing request.
+- `UploadAsync` in `ChunkedTransferClient` now passes `chunks.Select(c => c.Data.Length).ToList()` as chunk sizes.
+- 2 new tests: `UploadAsync_CdcChunking_SendsChunkSizesWithHashes` (verifies non-null sizes, count matches hashes, sum equals file size); `UploadAsync_CdcChunking_DeterministicAcrossMultipleCalls` (same 2 MB file chunked twice → identical hashes).
+- Build: 0 errors. Tests: 66 passed, 0 failed (was 64, +2 new).
+
+**Validation results from Windows11-TestDNC:**
+- Commit: `bc9e08a`
+- Build: 0 errors
+- Tests: 66 passed, 0 failed (was 64, +2 new CDC tests)
+- CDC chunk boundaries confirmed stable: `UploadAsync_CdcChunking_DeterministicAcrossMultipleCalls` PASS
+
+**Task 2.1: PASS (both sides complete)**
+
+---
