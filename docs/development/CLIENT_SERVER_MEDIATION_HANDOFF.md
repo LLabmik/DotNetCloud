@@ -11,6 +11,13 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
   - Client machine: `Windows11-TestDNC`
   - Server machine: `mint22`
 
+## Client Input Values (For Repro)
+
+Use these exact values in SyncTray Add Account dialog when reproducing:
+
+- Server URL: `https://mint22:15443/`
+- Sync directory: `C:\Users\benk\Documents\synctray`
+
 ## Confirmed Facts
 
 - `client_id=dotnetcloud-desktop` is now recognized by server (no longer invalid client id).
@@ -72,8 +79,13 @@ Run this handoff loop each iteration:
 - 2026-03-07 (mint22): Reproduced client URL server-side and confirmed prior `404` on `GET /connect/authorize` when full auth query is present.
 - 2026-03-07 (mint22): Applied server fix to map `/connect/authorize` for `GET` + `POST` and corrected login redirect to `/auth/login`.
 - 2026-03-07 (mint22): After redeploy, same authorize URL now returns `302` to `/auth/login?returnUrl=...` (no direct `404` on `/connect/authorize`).
+- 2026-03-07 (Windows11-TestDNC): Rerun with user-entered Add Account values captured fresh OAuth logs at `17:59:21`; client opened authorize URL with expected scopes and server transitioned to `302` `/auth/login?returnUrl=...`.
 
 ## Client Evidence Snapshot (2026-03-07)
+
+### Capture validity note
+- Mediator reported the Add Account client form was not fully completed in at least one prior run before evidence was collected.
+- Treat previous partial run logs as potentially incomplete for final onboarding outcome correlation.
 
 ### Commit
 - Local branch: `main`
@@ -130,6 +142,36 @@ System.Net.Http.HttpRequestException: The SSL connection could not be establishe
   - `scopes: ["openid", "profile", "offline_access", "files:read", "files:write"]`
 - Effective scopes from runtime log:
   - `openid, profile, offline_access, files:read, files:write`
+
+### Fresh rerun after user form entry (17:59 local)
+
+- User-entered Add Account values:
+  - Server URL: `https://mint22:15443/`
+  - Sync directory: `C:\Users\benk\Documents\synctray`
+
+- Raw SyncTray log lines:
+
+```text
+[17:59:21 INF] OAuth scope selection for https://mint22:15443: requested=[openid, profile, offline_access, files:read, files:write] effective=[openid, profile, offline_access, files:read, files:write]
+[17:59:21 INF] Opening OAuth authorize URL for client 'dotnetcloud-desktop' with scope 'openid profile offline_access files:read files:write'.
+[17:59:21 INF] Opening browser for OAuth2 authorization.
+```
+
+- TLS/certificate warnings seen in same run:
+
+```text
+[17:59:21 INF] HTTP request failed after 107.8387ms
+System.Net.Http.HttpRequestException: The SSL connection could not be established, see inner exception.
+---> System.Security.Authentication.AuthenticationException: The remote certificate is invalid according to the validation procedure: RemoteCertificateNameMismatch, RemoteCertificateChainErrors
+```
+
+- Raw authorize transition probe from client machine:
+
+```text
+GET https://mint22:15443/connect/authorize?response_type=code&client_id=dotnetcloud-desktop&redirect_uri=http%3a%2f%2flocalhost%3a52701%2foauth%2fcallback&scope=openid+profile+offline_access+files%3aread+files%3awrite&state=vjQGGMOXicZZq7dcqSCgLw&code_challenge=dAbwRP29DV1hPFJfENvB7N2KU7lnij3FUkE45_r1WXA&code_challenge_method=S256
+HTTP 302
+Location: /auth/login?returnUrl=%2Fconnect%2Fauthorize%3Fresponse_type%3Dcode%26client_id%3Ddotnetcloud-desktop%26redirect_uri%3Dhttp%253a%252f%252flocalhost%253a52701%252foauth%252fcallback%26scope%3Dopenid%2Bprofile%2Boffline_access%2Bfiles%253aread%2Bfiles%253awrite%26state%3DvjQGGMOXicZZq7dcqSCgLw%26code_challenge%3DdAbwRP29DV1hPFJfENvB7N2KU7lnij3FUkE45_r1WXA%26code_challenge_method%3DS256
+```
 
 ## Next Action Requested From Server Agent
 
