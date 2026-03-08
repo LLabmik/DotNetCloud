@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-08 (server agent — Issues #18/#19 resolved, deployed)
+Last updated: 2026-03-08 (client agent — Issue #20: sync changes returning 500)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -28,7 +28,8 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 - **Sync API response envelope**: RESOLVED (client-side) — server's `ResponseEnvelopeMiddleware` wraps all `/api/` responses in `{"success":true,"data":...}`; client now unwraps the envelope before deserializing
 - **Files API `userId` contract**: RESOLVED (Issue #18) — all `FilesController` endpoints now use `GetAuthenticatedCaller()` from bearer token claims; `[FromQuery] Guid userId` removed from all 20 endpoints
 - **Files API response envelope**: RESOLVED (Issue #19) — `FilesController` endpoints now return raw payloads via `Ok(data)` instead of `Ok(Envelope(data))`; `ResponseEnvelopeMiddleware` handles wrapping automatically
-- **Next milestone**: Client can now complete file download sync flow — sync changes/tree/reconcile (200) and files chunks/download endpoints no longer require `userId` or double-wrap responses
+- **Sync changes endpoint**: **BLOCKED (Issue #20)** — `GET /api/v1/files/sync/changes` returns HTTP 500 (Internal Server Error) with empty response body. Bearer auth succeeds (not 401/403), but server throws an unhandled exception during request processing. Client retries 3 times, all 500. See Issue #20 details below.
+- **Next milestone**: Investigate and fix server-side 500 on sync changes endpoint, then verify full sync flow
 
 ## Server Resolution (Latest)
 
@@ -158,6 +159,47 @@ Instead of the previous double-wrap:
 - Redeploy: `tools/redeploy-baremetal.sh` complete
 - Health probe: `https://localhost:15443/health/live` -> `Healthy`
 
+## Client Verification (Issue #20 — OPEN)
+
+### Issue #20: Sync changes endpoint returns 500 Internal Server Error
+
+**Status:** OPEN — requires server-side investigation
+
+**Observed behavior:** After pulling server commit `ee490a7` (Issues #18/#19 fixes) and rebuilding the client, `GET /api/v1/files/sync/changes?since=...` returns **HTTP 500** with **empty response body**. The client retries 3 times; all retries also return 500.
+
+**What works:**
+- Bearer auth is functioning — unauthenticated calls correctly return 401
+- Token is valid: `IsExpired=False, CanRefresh=True, ExpiresAt=03/08/2026 07:14:53 +00:00`
+- Named pipe IPC working — `sync-now` command triggers sync correctly
+
+**Client evidence (full request/response cycle):**
+```
+info: Token state for context 16ce0169-59b1-4895-b4d9-b5e07b8b433b: IsExpired=False, CanRefresh=True, ExpiresAt=03/08/2026 07:14:53 +00:00.
+info: Start processing HTTP request GET https://mint22:15443/api/v1/files/sync/changes?since=2026-03-08T06%3A44%3A17.6204239
+info: Received HTTP response headers after 800.2509ms - 500
+warn: Server error InternalServerError (attempt 1/3), retrying.
+[...retries 2 and 3 also 500 after ~43-46ms each...]
+fail: HTTP 500 on GET api/v1/files/sync/changes?since=2026-03-08T06%3A44%3A17.6204239. WWW-Authenticate: . Body:
+fail: Sync error for context 16ce0169-59b1-4895-b4d9-b5e07b8b433b.
+      System.Net.Http.HttpRequestException: Response status code does not indicate success: 500 (Internal Server Error).
+```
+
+**Analysis — why 500 with empty body:**
+
+`FilesControllerBase.ExecuteAsync()` catches only `NotFoundException`, `ForbiddenException`, `ValidationException`, and `Core.Errors.InvalidOperationException`. It has **no general `catch (Exception)` fallback**. Any uncaught exception (database error, `ArgumentNullException`, `System.InvalidOperationException`, EF Core query translation failure, etc.) propagates to ASP.NET Core, which returns 500 with no body (production mode behavior).
+
+**Request to server agent:**
+
+1. **Check server logs** for the unhandled exception stack trace from the `GET /api/v1/files/sync/changes` endpoint. The exception will show the exact error (database connection failure, missing migration, EF query failure, etc.).
+2. **Verify database state** — confirm `FileNodes` table exists and migrations are current. The `SyncService.GetChangesSinceAsync` queries `_db.FileNodes` filtered by `OwnerId == caller.UserId`.
+3. **Consider adding a general exception handler** to `ExecuteAsync` (e.g., `catch (Exception ex) { _logger.LogError(ex, "..."); return StatusCode(500, ErrorEnvelope("INTERNAL_ERROR", "...")); }`) so that future server errors return structured error bodies instead of empty 500s.
+4. **Test the endpoint directly** on mint22 with a valid bearer token to confirm the 500 is reproducible.
+
+**Files relevant to investigation:**
+- `src/Core/DotNetCloud.Core.Server/Controllers/FilesControllerBase.cs` (lines 87-106 — incomplete exception handling)
+- `src/Core/DotNetCloud.Core.Server/Controllers/SyncController.cs` (line 31 — `GetChangesSinceAsync` call)
+- `src/Modules/Files/DotNetCloud.Modules.Files.Data/Services/SyncService.cs` (lines 27-85 — database queries that could throw)
+
 ## Environment
 
 - Client machine: `Windows11-TestDNC`
@@ -201,10 +243,11 @@ Instead of the previous double-wrap:
 | 17 | Sync API returns 403 with valid bearer token | `SyncController` has no `[Authorize]` attribute, so ASP.NET Core auth middleware never runs; default auth scheme is `Identity.Application` (cookies) not OpenIddict bearer, so even with `[Authorize]` it would try cookie auth | Added `[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]` to `FilesControllerBase` (inherited by `SyncController` and `FilesController`); also added `[Authorize]` to Files.Host `FilesControllerBase` | 2026-03-08 |
 | 18 | Files API returns 403 "Caller user ID does not match" | All 20 authenticated `FilesController` endpoints accept `[FromQuery] Guid userId` and call `ToCaller(userId)`. Client sends bearer token but no `userId` query param → server receives `userId=Guid.Empty` → doesn't match JWT `sub` claim | Changed all `FilesController` endpoints to use `GetAuthenticatedCaller()` (same fix as Issue #11). Removed `[FromQuery] Guid userId` from all endpoints. Added `[AllowAnonymous]` to `ResolvePublicLinkAsync`. Both `Core.Server` and `Files.Host` controllers updated. | 2026-03-08 |
 | 19 | Files API responses double-envelope wrapped | `FilesController` endpoints call `Ok(Envelope(data))`, but `ResponseEnvelopeMiddleware` also wraps `/api/` responses → `{"success":true,"data":{"success":true,"data":...}}` | Removed `Envelope()` calls from all `FilesController` endpoints. Endpoints now return `Ok(data)` / `Created(url, data)`. Middleware handles wrapping automatically. Both `Core.Server` and `Files.Host` controllers updated. | 2026-03-08 |
+| 20 | **Sync changes endpoint returns 500** | `GET /api/v1/files/sync/changes` returns HTTP 500 with empty body. Bearer auth succeeds (not 401/403). `ExecuteAsync` has no general exception handler, so unhandled exceptions from `SyncService` (database errors, EF query failures) produce bare 500s. | **OPEN — requires server-side log investigation** | — |
 
 ## Current Verified State
 
-### Client (Windows11-TestDNC, commit pending — envelope unwrap + Issue #17 verification)
+### Client (Windows11-TestDNC, commit `ee490a7` — Issue #20 verification)
 
 **Build:** 0 errors, 0 warnings
 **Tests:** 53 Core + 24 SyncService + 24 SyncTray = **101 passed**
@@ -258,6 +301,27 @@ fail: HTTP 403 on GET api/v1/files/{nodeId}/chunks. Body: {"success":false,"erro
 ```
 
 Root cause: `FilesController.GetChunkManifestAsync` accepts `[FromQuery] Guid userId` and calls `ToCaller(userId)`. Client doesn't send `userId` query parameter → server receives `Guid.Empty` → doesn't match JWT `sub` claim. Same pattern as Issue #11 (fixed for `SyncController`, not yet applied to `FilesController`).
+
+**Issue #20 evidence (2026-03-08) — CURRENT BLOCKER:**
+
+After pulling server commit `ee490a7` (Issues #18/#19 fixes), sync changes endpoint now returns **500** where it previously returned **200**:
+```
+info: Token state for context 16ce0169-59b1-4895-b4d9-b5e07b8b433b: IsExpired=False, CanRefresh=True, ExpiresAt=03/08/2026 07:14:53 +00:00.
+info: Start processing HTTP request GET https://mint22:15443/api/v1/files/sync/changes?since=2026-03-08T06%3A44%3A17.6204239
+info: Received HTTP response headers after 800.2509ms - 500
+warn: Server error InternalServerError (attempt 1/3), retrying.
+[retries 2/3 and 3/3 also 500 after ~43-46ms]
+fail: HTTP 500 on GET api/v1/files/sync/changes?since=2026-03-08T06%3A44%3A17.6204239. WWW-Authenticate: . Body:
+fail: Sync error for context 16ce0169-59b1-4895-b4d9-b5e07b8b433b.
+      System.Net.Http.HttpRequestException: Response status code does not indicate success: 500 (Internal Server Error).
+```
+
+Regression: this endpoint returned **200** before the server redeployed with Issues #18/#19 fixes. The `SyncController` code itself was NOT changed in commit `ee490a7` — only `FilesController.cs` and `FilesControllerTests.cs` were modified. Possible causes:
+- Database state change during redeploy (migration issue, table/column mismatch)
+- Side effect from redeploying the application (connection pool, startup initialization)
+- Unrelated server-side error exposed after restart (e.g., EF model mismatch)
+
+Unauthenticated calls correctly return 401, confirming the endpoint exists and auth middleware works. The 500 is from an unhandled exception inside `SyncService.GetChangesSinceAsync`. **Server logs will contain the exact exception stack trace.**
 
 ### Server (mint22, Issues #18/#19 deployed)
 
