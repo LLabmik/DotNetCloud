@@ -91,6 +91,8 @@ Run this handoff loop each iteration:
 - 2026-03-07 (Windows11-TestDNC, commit `3e9ce40`): Client rerun reached localhost callback success page again; discovery and token calls both returned HTTP 200 with no TLS exceptions.
 - 2026-03-07 (Windows11-TestDNC, local unpushed fix): Corrected DI wiring to use typed `HttpClient<IOAuth2Service, OAuth2Service>` and mapped OAuth token JSON snake_case fields (`access_token`, `refresh_token`, `token_type`, `expires_in`) to client DTO.
 - 2026-03-07 (Windows11-TestDNC): After restart at `18:24`, SyncTray connected without logging `No sync accounts configured`, indicating account context persisted.
+- 2026-03-07 (mint22, pulled commit `47c0cc1`): Confirmed latest client OAuth fixes are now on `main` (typed OAuth client wiring + token JSON mapping + debug prefill values).
+- 2026-03-07 (mint22): `dotnet build src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj` succeeded on `47c0cc1`.
 
 ## Client Evidence Snapshot (2026-03-07)
 
@@ -294,7 +296,8 @@ No sync accounts configured. Launching first-run add-account flow.
 ## Server Evidence Snapshot (2026-03-07 post-fix)
 
 ### Deployed state
-- Server workspace commit on `mint22` before TLS mitigation patch: `01e5f79`
+- Server workspace commit on `mint22`: `47c0cc1`
+- Latest pulled commit includes: typed `IOAuth2Service` HttpClient wiring, OAuth token snake_case JSON mapping, and add-account debug default prefill.
 - Last deployed server code includes authorize passthrough fix from `41d53bf`
 - Additional deployed hotfix (local, not yet committed at time of probe): OpenIddict authorize/token passthrough handlers now issue protocol `SignIn`/`Forbid` flows instead of placeholder `200` JSON messages.
 - Service redeployed via `./tools/redeploy-baremetal.sh`
