@@ -6,7 +6,7 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 
 ## Current Incident
 
-- Symptom: Browser fails during SyncTray add-account with HTTP `404` on `/connect/authorize`.
+- Symptom: `/connect/authorize` no longer hard-fails with `404`; flow now redirects to `/auth/login` and needs end-to-end client verification after login.
 - Environment:
   - Client machine: `Windows11-TestDNC`
   - Server machine: `mint22`
@@ -21,7 +21,7 @@ Use these exact values in SyncTray Add Account dialog when reproducing:
 ## Confirmed Facts
 
 - `client_id=dotnetcloud-desktop` is now recognized by server (no longer invalid client id).
-- Latest observed failure is HTTP `404` at `https://mint22:15443/connect/authorize?...` (no OAuth callback query error returned).
+- Server currently returns `HTTP 302` from `GET /connect/authorize?...` to `/auth/login?returnUrl=...`.
 - SyncTray IPC + onboarding launch are functioning.
 
 ## Required Server State
@@ -80,6 +80,7 @@ Run this handoff loop each iteration:
 - 2026-03-07 (mint22): Applied server fix to map `/connect/authorize` for `GET` + `POST` and corrected login redirect to `/auth/login`.
 - 2026-03-07 (mint22): After redeploy, same authorize URL now returns `302` to `/auth/login?returnUrl=...` (no direct `404` on `/connect/authorize`).
 - 2026-03-07 (Windows11-TestDNC): Rerun with user-entered Add Account values captured fresh OAuth logs at `17:59:21`; client opened authorize URL with expected scopes and server transitioned to `302` `/auth/login?returnUrl=...`.
+- 2026-03-07 (mint22): Fresh server validation at `20:02` confirms discovery endpoint advertises `files:read`/`files:write`, and full client-like authorize request validates then redirects `302` to `/auth/login?returnUrl=...`.
 
 ## Client Evidence Snapshot (2026-03-07)
 
@@ -182,7 +183,8 @@ Location: /auth/login?returnUrl=%2Fconnect%2Fauthorize%3Fresponse_type%3Dcode%26
 ## Server Evidence Snapshot (2026-03-07 post-fix)
 
 ### Deployed state
-- Server source commit on `mint22`: `01c15d0`
+- Server workspace commit on `mint22`: `66a90a1`
+- Last deployed server code includes authorize passthrough fix from `41d53bf`
 - Service redeployed via `./tools/redeploy-baremetal.sh`
 - Health probe: `https://localhost:15443/health/live` => `Healthy`
 
@@ -219,6 +221,8 @@ location: /auth/login?returnUrl=%2Fconnect%2Fauthorize%3Fresponse_type%3Dcode%26
 [2026-03-07 19:51:12.671 -06:00 INF] The request URI matched a server endpoint: Authorization. RequestPath: /connect/authorize
 [2026-03-07 19:51:12.776 -06:00 INF] The authorization request was successfully validated.
 [2026-03-07 19:51:02.286 -06:00 INF] Updated OIDC desktop client 'dotnetcloud-desktop' permissions/scopes.
+[2026-03-07 20:02:11.716 -06:00 INF] The request URI matched a server endpoint: Authorization. RequestPath: /connect/authorize
+[2026-03-07 20:02:11.721 -06:00 INF] The authorization request was successfully validated.
 ```
 
 ## Mandatory End-Of-Handoff Relay Instructions
