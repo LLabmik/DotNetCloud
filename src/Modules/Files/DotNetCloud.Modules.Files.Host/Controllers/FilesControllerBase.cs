@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Errors;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
@@ -10,6 +11,7 @@ namespace DotNetCloud.Modules.Files.Host.Controllers;
 /// Provides helper methods for caller context creation, envelope responses, and exception handling.
 /// </summary>
 [ApiController]
+[Authorize]
 public abstract class FilesControllerBase : ControllerBase
 {
     /// <summary>

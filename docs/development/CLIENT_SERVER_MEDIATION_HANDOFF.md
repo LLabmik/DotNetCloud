@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-08 (client agent, Issue #17 — SyncController missing [Authorize] + wrong default auth scheme)
+Last updated: 2026-03-08 (server agent, Issue #17 resolved — [Authorize] with OpenIddict bearer scheme on FilesControllerBase)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -24,8 +24,8 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 - **Sync API `userId` contract**: RESOLVED — server now derives caller user ID from bearer token claims (`sub`/`nameidentifier`) for all sync endpoints
 - **Sync API response shape**: RESOLVED — sync endpoints now return raw payloads (`[]`/object) instead of envelope wrappers
 - **Refresh token `invalid_grant`**: RESOLVED — ephemeral keys replaced with persistent RSA key files; tokens survive restarts
-- **Sync bearer auth 403**: OPEN — `SyncController` missing `[Authorize]` attribute + default auth scheme is cookies, not OpenIddict bearer
-- **Next milestone**: Server adds `[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]` to `SyncController`
+- **Sync bearer auth 403**: RESOLVED — added `[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]` to `FilesControllerBase`; unauthenticated requests now return 401 (not 403 ForbiddenException)
+- **Next milestone**: Client re-authenticates and verifies sync API returns 200 with valid bearer token; then test token refresh flow
 
 ## Server Resolution (Latest)
 
@@ -94,6 +94,25 @@ ec42f03569d6e2c3  signing-key.pem
 - `src/Core/DotNetCloud.Core.Server/appsettings.json`
 - `src/Core/DotNetCloud.Core.Server/appsettings.Development.json`
 
+### Applied Fix 4: Bearer auth on FilesControllerBase
+
+**Status:** RESOLVED
+
+**Root cause:** `FilesControllerBase` (parent of `SyncController` and `FilesController`) had no `[Authorize]` attribute. Without it, ASP.NET Core's authentication middleware never ran for these controllers. Additionally, the default auth scheme was `Identity.Application` (cookies), not OpenIddict bearer — so even a plain `[Authorize]` would have used cookie auth, ignoring the `Bearer` header.
+
+**What changed:**
+- Added `[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]` to `FilesControllerBase` in Core.Server
+- Both `SyncController` and `FilesController` inherit this attribute from the base class
+- Added `[Authorize]` to `FilesControllerBase` in Files.Host (for future standalone module use)
+- `PublicShareController` in Files.Host already has `[AllowAnonymous]` — unaffected
+- Unauthenticated requests now return **401** (OpenIddict validation challenge) instead of 403 (ForbiddenException from controller code)
+
+**Behavior change:** Unauthenticated sync/files requests previously returned `403` with `{"code":"AUTH_FORBIDDEN","message":"Authentication is required."}`. They now return **401** (standard OpenIddict challenge). Client error handling should account for both 401 and 403.
+
+**Files updated:**
+- `src/Core/DotNetCloud.Core.Server/Controllers/FilesControllerBase.cs`
+- `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/FilesControllerBase.cs`
+
 ### Validation Evidence (mint22)
 
 - `dotnet build DotNetCloud.sln -c Release` -> success (0 errors, 0 warnings)
@@ -144,7 +163,7 @@ ec42f03569d6e2c3  signing-key.pem
 | 14 | Missing `client_id` in refresh request | `RefreshTokenAsync` did not send `client_id` in the form body; OpenIddict requires it for public clients | Added `clientId` parameter to `IDotNetCloudApiClient.RefreshTokenAsync` and implementation; created `OAuthConstants.ClientId = "dotnetcloud-desktop"` | 2026-03-08 |
 | 15 | `DateTime` serialization bug — tokens appear unexpired | `TokenInfo.ExpiresAt` was `DateTime`. After JSON roundtrip through `EncryptedFileTokenStore`, the `DateTimeKind` was lost (became `Unspecified`/`Local`), making `DateTime.UtcNow >= ExpiresAt` return `False` for genuinely expired tokens | Changed `ExpiresAt` from `DateTime` to `DateTimeOffset` across entire client chain (`TokenInfo`, `AddAccountRequest`, `AddAccountData` IPC model, `OAuth2Service`, `SyncEngine`, all tests) | 2026-03-08 |
 | 16 | Refresh token `invalid_grant` | `AddEphemeralEncryptionKey()`/`AddEphemeralSigningKey()` generate new in-memory RSA keys on every server restart; OpenIddict cannot decrypt stored refresh token payloads after restart | Created `OidcKeyManager` to persist RSA keys as PEM files; replaced ephemeral with persistent keys; fixed config key name mismatch; increased refresh lifetime to 14 days; purged orphaned tokens | 2026-03-08 |
-| 17 | Sync API returns 403 with valid bearer token | `SyncController` has no `[Authorize]` attribute, so ASP.NET Core auth middleware never runs; default auth scheme is `Identity.Application` (cookies) not OpenIddict bearer, so even with `[Authorize]` it would try cookie auth | **OPEN — server fix required** | 2026-03-08 |
+| 17 | Sync API returns 403 with valid bearer token | `SyncController` has no `[Authorize]` attribute, so ASP.NET Core auth middleware never runs; default auth scheme is `Identity.Application` (cookies) not OpenIddict bearer, so even with `[Authorize]` it would try cookie auth | Added `[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]` to `FilesControllerBase` (inherited by `SyncController` and `FilesController`); also added `[Authorize]` to Files.Host `FilesControllerBase` | 2026-03-08 |
 
 ## Current Verified State
 
@@ -212,19 +231,16 @@ fail: Sync error for context b44b9f3f-fc25-45ae-9e7b-c3dca382f83d.
 
 **Client action required:** Old tokens were purged from the database. The client must re-authenticate (remove and re-add the account, or trigger a fresh OAuth flow). After re-authentication, refresh tokens will work across server restarts.
 
-### Server (mint22, persistent OIDC keys deployed)
+### Server (mint22, [Authorize] bearer auth fix deployed)
 
 - Health: `https://localhost:15443/health/live` → `Healthy`
-- Discovery: `userinfo_endpoint` advertised
-- Sync endpoints: no `userId` query parameter required; all return raw payloads
-- Unauthenticated sync endpoints still return `403` (correctly require bearer token)
 - Build: 0 errors, 0 warnings
-- Tests: 305 server tests passed, 84/85 auth tests passed (1 pre-existing failure), 513 files-module tests passed
-- Persistent keys: `encryption-key.pem` + `signing-key.pem` verified at `artifacts/runtime/data/oidc-keys/`
-- Keys survive restart: md5 checksums identical before and after `systemctl restart dotnetcloud`
-- Config: `RefreshTokenLifetimeDays=14`, `AccessTokenLifetimeMinutes=60`
-- DB cleanup: 20 orphaned tokens + 8 authorizations purged (encrypted with defunct ephemeral keys)
-- UTC: Confirmed no `DateTime.Now` usage in server auth code — all timestamps use UTC
+- Tests: 305 server + 85 auth + 513 files = **903 passed** (0 failures)
+- Unauthenticated sync request returns **401** (was 403 ForbiddenException from controller code)
+- `FilesControllerBase` now has `[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]`
+- Both `SyncController` and `FilesController` inherit bearer auth from base class
+- `PublicShareController` (Files.Host) has `[AllowAnonymous]` — unaffected
+- Persistent OIDC keys verified, config fixed, refresh token lifetime 14 days
 
 ## Mediator Checklist (User)
 
@@ -251,49 +267,32 @@ fail: Sync error for context b44b9f3f-fc25-45ae-9e7b-c3dca382f83d.
 
 ## Mediator Relay Instructions
 
-### Send to Server Agent
+### Send to Client Agent
 
-Client re-authenticated successfully with fresh OAuth flow (new context `16ce0169`). Tokens were issued with the persistent keys — `IsExpired=False`, `CanRefresh=True`. However, sync API calls return **403 Forbidden** even with a valid, non-expired bearer token.
+Issue #17 is RESOLVED. Root cause confirmed: `FilesControllerBase` (parent of `SyncController` and `FilesController`) had no `[Authorize]` attribute, so ASP.NET Core auth middleware never ran. Additionally, the default auth scheme was `Identity.Application` (cookies), not OpenIddict bearer.
 
-**Issue #17 (OPEN): SyncController missing bearer auth configuration**
+**What was fixed:**
+- Added `[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]` to `FilesControllerBase` in Core.Server
+- This is inherited by both `SyncController` and `FilesController`
+- Added `[Authorize]` to `FilesControllerBase` in Files.Host (for future module use)
+- Unauthenticated requests now return **401** (OpenIddict validation challenge) instead of 403 (controller-level ForbiddenException)
 
-**Raw evidence:**
-```
-info: Token state for context 16ce0169-59b1-4895-b4d9-b5e07b8b433b: IsExpired=False, CanRefresh=True, ExpiresAt=03/08/2026 07:14:53 +00:00.
-info: Sending HTTP request GET https://mint22:15443/api/v1/files/sync/changes?since=2025-03-08T06%3A18%3A34.3453510Z
-info: Received HTTP response headers after 129.1588ms - 403
-fail: HTTP 403 on GET api/v1/files/sync/changes. WWW-Authenticate: (empty). Body: {"success":false,"error":{"code":"AUTH_FORBIDDEN","message":"Authentication is required."}}
-```
+**Verification:**
+- `curl -k -sS -w "\nHTTP_CODE: %{http_code}\n" "https://localhost:15443/api/v1/files/sync/changes?since=2025-01-01T00:00:00Z"` → `HTTP_CODE: 401` (correct — no bearer token)
+- Build: 0 errors, 0 warnings; Tests: 305 + 85 + 513 = 903 passed (0 failures)
+- Server redeployed and healthy
 
-**Root cause analysis (client agent read server source — no modifications made):**
+**Client action required:**
+- Pull latest main
+- Re-authenticate (fresh OAuth flow) to get new tokens signed with persistent keys
+- Verify sync API returns **200** with valid bearer token (not 401 or 403)
+- Test token refresh after access token expires (60 min lifetime, 14 day refresh)
+- No client-side code changes needed
 
-1. **`SyncController` has NO `[Authorize]` attribute.** Without it, ASP.NET Core's authentication middleware does not authenticate the request. `User.Identity.IsAuthenticated` remains `false`. `FilesControllerBase.GetAuthenticatedCaller()` then throws `ForbiddenException("Authentication is required.")` at line 21.
-
-2. **Default authentication scheme is `Identity.Application` (cookies), not OpenIddict bearer.** `AddIdentity<>()` in `AuthServiceExtensions.cs` sets the default scheme to cookies. OpenIddict validation is registered but NOT set as default. Even if `[Authorize]` is added without a scheme specifier, the middleware will attempt cookie-based auth, which ignores the `Bearer` header.
-
-**Every other protected controller** in the project has `[Authorize]` — `AdminController`, `AuthController`, `DeviceController`, `MfaController`, `UserManagementController` — but `SyncController` does not.
-
-**Server action required:**
-
-Add the `[Authorize]` attribute with the OpenIddict validation scheme to `SyncController`:
-
-```csharp
-using OpenIddict.Validation.AspNetCore;
-
-[Route("api/v1/files/sync")]
-[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-public sealed class SyncController : FilesControllerBase
-```
-
-This tells ASP.NET Core to use the OpenIddict validation handler (not cookies) to authenticate the bearer token, which will validate the JWT locally using the persistent RSA signing key, populate `User.Identity` with claims, and set `IsAuthenticated = true`.
-
-**Note:** The same fix should also be applied to `FilesControllerBase` or any other file API controllers (`FilesController`, `SharesController`, etc.) that API clients will call with bearer tokens rather than browser cookies.
-
-**No client-side changes needed.** The client correctly sends `Authorization: Bearer {token}` on all sync requests. Once the server authenticates the bearer, the 403 will resolve.
-- Keys persist at `{DOTNETCLOUD_DATA_DIR}/oidc-keys/`
+**Important note on HTTP status codes:** The client should now expect **401** (not 403) for authentication failures. The previous 403 was a quirk of the controller code running before auth middleware. With the `[Authorize]` attribute, OpenIddict's validation handler issues a proper 401 challenge. If the client has error handling that checks for 403, it should also handle 401.
 
 ### Request Back
-- Commit hash of the `[Authorize]` fix
-- Confirmation that `GET /api/v1/files/sync/changes` with a valid bearer token returns 200 (not 403)
-- Whether `FilesControllerBase` or individual file API controllers also received the fix
-- Confirmation that server build and tests pass after the change
+- Confirmation that sync API returns 200 with valid bearer token
+- Token refresh test result
+- Any remaining sync errors
+- Commit hash of any client-side changes
