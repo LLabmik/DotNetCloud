@@ -19,7 +19,9 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 
 **Batch 1 complete.** All Tasks 1.1 through 1.9 are done (Issues #23–#29, all resolved).
 
-**Batch 2 in progress.** Task 2.1 (CDC) fully complete. Task 2.2 (Streaming Chunk Pipeline) complete — see Issue #31. Task 2.3 (Compression) fully complete — see Issue #32.
+**Batch 2 complete.** All Tasks 2.1–2.3 done (Issues #30–#32, all resolved).
+
+**Batch 3 starting.** Task 3.1 (.syncignore) is next — see Issue #33. All Batch 3 tasks are client-only.
 
 ## Environment
 
@@ -571,3 +573,62 @@ dotnet test tests\DotNetCloud.Client.Core.Tests\
 - Tests: 70 passed, 0 failed (was 68, +2 new compression tests).
 
 **Task 2.3: PASS (client complete)**
+
+---
+
+### Issue #33: Batch 3 Task 3.1 — .syncignore with UI Support (Client only)
+
+**Server-side status:** Not applicable (client-only task).
+**Client-side status:** ☐ Pending.
+
+**⚠️ PROCESS NOTE FOR CLIENT AGENT:**
+1. Pull latest (`git pull`) before starting.
+2. Read [SYNC_IMPROVEMENT_PLAN.md](SYNC_IMPROVEMENT_PLAN.md) section **3.1** for full scope.
+3. Build and test on `Windows11-TestDNC`. Do NOT build on the server — client-only code.
+4. After committing, update this document with commit hash, build result, test count, and mark ✅ COMPLETE.
+5. Use **targeted edits only** — do not replace the entire handoff file.
+6. Push to `main` so the server agent can pull and move to the next task.
+
+**What to implement:**
+
+**File:** `src/Clients/DotNetCloud.Client.Core/SyncIgnore/SyncIgnoreParser.cs` (create new)
+**Also modify:** `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs`, `src/Clients/DotNetCloud.Client.Core/ClientCoreServiceExtensions.cs`, `src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj`
+**SyncTray:** new "Ignored Files" settings panel in `src/Clients/DotNetCloud.Client.SyncTray/`
+**Tests:** `tests/DotNetCloud.Client.Core.Tests/`
+
+**Core logic (Client.Core):**
+- New `SyncIgnoreParser` class:
+  - Parse `.gitignore`-style patterns: `*`, `?`, `**`, `!` (negation), `/` (directory marker), `#` (comments)
+  - Use `Microsoft.Extensions.FileSystemGlobbing` (add NuGet to `.csproj`)
+  - Built-in defaults (OS junk, temp files, VCS dirs — see full list in SYNC_IMPROVEMENT_PLAN.md §3.1)
+  - User `.syncignore` file loaded from sync root; merged with built-ins (user rules take priority)
+  - `.syncignore` IS synced (shared across all clients)
+- `SyncEngine`: call `SyncIgnoreParser.IsIgnored(relativePath)` before:
+  - Queuing uploads from FileSystemWatcher events
+  - Applying remote changes (don't download ignored files)
+  - Running periodic scan comparisons
+- Register `SyncIgnoreParser` in DI via `ClientCoreServiceExtensions`
+
+**SyncTray UI:**
+- New "Ignored Files" settings panel:
+  - Display all rules (built-in defaults shown in gray/italic, non-editable; user rules editable)
+  - "Add pattern" button, "Remove pattern" button, "Edit .syncignore" button (opens in system text editor)
+  - "Test a path" preview input — user types a file path, sees whether it would be ignored and by which rule
+  - Saves to `.syncignore` in sync root on edit
+
+**Platform notes:**
+- Add Linux-specific default: `.directory` (KDE metadata)
+- Add macOS-specific defaults: `.Spotlight-V100/`, `.Trashes/`, `._*` (resource forks)
+- All defaults compiled in on all platforms (presence of file not required)
+
+**New tests to add:**
+- `IsIgnored_BuiltInDefaults_IgnoresOsJunk` — verify `.DS_Store`, `Thumbs.db`, `*.tmp` are ignored
+- `IsIgnored_UserPattern_OverridesDefault` — negation `!important.tmp` un-ignores a file matched by built-in
+- `IsIgnored_GitignoreGlob_MatchesCorrectly` — verify `**/*.log`, `build/`, `node_modules/` patterns
+
+**Request back from client agent:**
+- Commit hash
+- Build: 0 errors
+- Test count (was 70, should increase by ≥ 3 new tests)
+- Confirm `SyncIgnoreParser` is wired into `SyncEngine` for all three check points
+- Confirm "Ignored Files" panel is present in SyncTray Settings
