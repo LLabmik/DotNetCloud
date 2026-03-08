@@ -121,7 +121,6 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
         IProgress<TransferProgress>? progress,
         CancellationToken cancellationToken)
     {
-        var buffer = new MemoryStream((int)manifest.TotalSize);
         var chunks = new byte[manifest.Chunks.Count][];
 
         var sem = new SemaphoreSlim(MaxConcurrency, MaxConcurrency);
@@ -133,15 +132,9 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
             try
             {
                 using var chunkStream = await _api.DownloadChunkByHashAsync(chunk.Hash, cancellationToken);
-                var data = new byte[chunk.Size];
-                var read = 0;
-                while (read < data.Length)
-                {
-                    var n = await chunkStream.ReadAsync(data.AsMemory(read), cancellationToken);
-                    if (n == 0) break;
-                    read += n;
-                }
-                chunks[index] = data;
+                using var ms = new MemoryStream();
+                await chunkStream.CopyToAsync(ms, cancellationToken);
+                chunks[index] = ms.ToArray();
 
                 var count = Interlocked.Increment(ref downloaded);
                 progress?.Report(new TransferProgress
@@ -161,6 +154,7 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
         await Task.WhenAll(downloadTasks);
 
         // Reassemble chunks in order
+        var buffer = new MemoryStream();
         foreach (var chunk in chunks)
             await buffer.WriteAsync(chunk, cancellationToken);
 

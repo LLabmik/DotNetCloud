@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-08 (server agent — Issue #20 RESOLVED: DateTime UTC fix for sync changes 500)
+Last updated: 2026-03-08 (client agent — Issue #21 RESOLVED: chunk manifest deserialization fix; end-to-end sync working)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -29,7 +29,8 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 - **Files API `userId` contract**: RESOLVED (Issue #18) — all `FilesController` endpoints now use `GetAuthenticatedCaller()` from bearer token claims; `[FromQuery] Guid userId` removed from all 20 endpoints
 - **Files API response envelope**: RESOLVED (Issue #19) — `FilesController` endpoints now return raw payloads via `Ok(data)` instead of `Ok(Envelope(data))`; `ResponseEnvelopeMiddleware` handles wrapping automatically
 - **Sync changes endpoint**: RESOLVED (Issue #20) — `since` query parameter was parsed as `DateTime` with `Kind=Unspecified`, which Npgsql rejects for `timestamptz` columns. Fixed by converting to UTC kind before EF Core query. Also added general exception handler to `ExecuteAsync` so future errors return structured JSON instead of empty 500.
-- **Next milestone**: Client should retry sync flow — `GET /api/v1/files/sync/changes` should now return 200 with change list
+- **Chunk manifest deserialization**: RESOLVED (Issue #21, client-side) — server's `GetChunkManifestAsync` returns `IReadOnlyList<string>` (flat array of chunk hashes), but client expected `ChunkManifestResponse` object with `Chunks` (objects) and `TotalSize`. Client now deserializes `string[]` and maps to `ChunkManifestResponse`. Download logic changed to read chunks dynamically instead of pre-allocating fixed-size buffers.
+- **END-TO-END SYNC WORKING** — Full sync flow verified: changes → tree → reconcile → chunk manifest → chunk download → file assembly. 7 files synced successfully (images, documents, 84 MB tarball).
 
 ## Server Resolution (Latest)
 
@@ -260,14 +261,16 @@ fail: Sync error for context 16ce0169-59b1-4895-b4d9-b5e07b8b433b.
 | 17 | Sync API returns 403 with valid bearer token | `SyncController` has no `[Authorize]` attribute, so ASP.NET Core auth middleware never runs; default auth scheme is `Identity.Application` (cookies) not OpenIddict bearer, so even with `[Authorize]` it would try cookie auth | Added `[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]` to `FilesControllerBase` (inherited by `SyncController` and `FilesController`); also added `[Authorize]` to Files.Host `FilesControllerBase` | 2026-03-08 |
 | 18 | Files API returns 403 "Caller user ID does not match" | All 20 authenticated `FilesController` endpoints accept `[FromQuery] Guid userId` and call `ToCaller(userId)`. Client sends bearer token but no `userId` query param → server receives `userId=Guid.Empty` → doesn't match JWT `sub` claim | Changed all `FilesController` endpoints to use `GetAuthenticatedCaller()` (same fix as Issue #11). Removed `[FromQuery] Guid userId` from all endpoints. Added `[AllowAnonymous]` to `ResolvePublicLinkAsync`. Both `Core.Server` and `Files.Host` controllers updated. | 2026-03-08 |
 | 19 | Files API responses double-envelope wrapped | `FilesController` endpoints call `Ok(Envelope(data))`, but `ResponseEnvelopeMiddleware` also wraps `/api/` responses → `{"success":true,"data":{"success":true,"data":...}}` | Removed `Envelope()` calls from all `FilesController` endpoints. Endpoints now return `Ok(data)` / `Created(url, data)`. Middleware handles wrapping automatically. Both `Core.Server` and `Files.Host` controllers updated. | 2026-03-08 |
-| 20 | **Sync changes endpoint returns 500** | `GET /api/v1/files/sync/changes` returns HTTP 500 with empty body. Bearer auth succeeds (not 401/403). `ExecuteAsync` has no general exception handler, so unhandled exceptions from `SyncService` (database errors, EF query failures) produce bare 500s. | **OPEN — requires server-side log investigation** | — |
+| 20 | Sync changes endpoint returns 500 | `since` parsed as `DateTime Kind=Unspecified`; Npgsql rejects for `timestamptz` columns; no general exception handler in `ExecuteAsync` | Server: `DateTime.SpecifyKind(since, DateTimeKind.Utc)` in `SyncController`; added `catch (Exception)` to `ExecuteAsync` | 2026-03-08 |
+| 21 | Chunk manifest deserialization failure | Server `GetChunkManifestAsync` returns `IReadOnlyList<string>` (chunk hashes); client tries to deserialize as `ChunkManifestResponse` object with `Chunks` + `TotalSize` → `JsonException` at position 1 (array `[` vs object `{`) | Client: `GetChunkManifestAsync` now deserializes `List<string>` and maps to `ChunkManifestResponse`; `DownloadChunksAsync` reads chunks dynamically via `CopyToAsync` instead of pre-sized `byte[]` | 2026-03-08 |
 
 ## Current Verified State
 
-### Client (Windows11-TestDNC, commit `ee490a7` — Issue #20 verification)
+### Client (Windows11-TestDNC, commit `69dd5eb` — Issue #21 fix, end-to-end sync verified)
 
 **Build:** 0 errors, 0 warnings
 **Tests:** 53 Core + 24 SyncService + 24 SyncTray = **101 passed**
+**Sync status:** END-TO-END WORKING — 7 files synced from server (2.5 MB PNG, 2.8 MB PNG, 25 KB ODS, 5 KB DOCX, 9 KB ODT, 84 MB tar.gz, 0.1 KB SHA256)
 
 **Client-side fixes applied this session:**
 
@@ -296,6 +299,10 @@ fail: Sync error for context 16ce0169-59b1-4895-b4d9-b5e07b8b433b.
    - Extracts `.data` property for deserialization; falls back to root if no envelope detected
    - Applied to `GetAsync<T>`, `PostJsonAsync<T>`, `PutJsonAsync<T>` (all `/api/` endpoints)
    - NOT applied to `PostFormAsync<T>` (used for OAuth `/connect/token` which isn't envelope-wrapped)
+
+6. **Chunk manifest deserialization fix** (`DotNetCloudApiClient.cs`, `ChunkedTransferClient.cs`):
+   - `GetChunkManifestAsync` now deserializes server response as `List<string>` (flat array of chunk hashes) and maps to `ChunkManifestResponse` with `ChunkManifestEntry` objects
+   - `DownloadChunksAsync` now reads chunks dynamically via `CopyToAsync` into `MemoryStream` instead of pre-allocating `byte[chunk.Size]` — server manifest doesn't include per-chunk sizes
 
 **Issue #17 verification evidence (2026-03-08):**
 

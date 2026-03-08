@@ -201,9 +201,15 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
     }
 
     /// <inheritdoc/>
-    public async Task<ChunkManifestResponse> GetChunkManifestAsync(Guid nodeId, CancellationToken cancellationToken = default) =>
-        await GetAsync<ChunkManifestResponse>($"api/v1/files/{nodeId}/chunks", cancellationToken)
-        ?? new ChunkManifestResponse();
+    public async Task<ChunkManifestResponse> GetChunkManifestAsync(Guid nodeId, CancellationToken cancellationToken = default)
+    {
+        // Server returns IReadOnlyList<string> (chunk hashes only), not an object.
+        var hashes = await GetAsync<List<string>>($"api/v1/files/{nodeId}/chunks", cancellationToken) ?? [];
+        return new ChunkManifestResponse
+        {
+            Chunks = hashes.Select((h, i) => new ChunkManifestEntry { Index = i, Hash = h }).ToList(),
+        };
+    }
 
     // ── Sync Operations ─────────────────────────────────────────────────────
 
