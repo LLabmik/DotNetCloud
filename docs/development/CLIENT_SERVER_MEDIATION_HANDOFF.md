@@ -71,10 +71,9 @@ Open issue: Sync Improvement Batch 1 Task 1.1 (client logging) is code-complete 
 - Added file:
 	- `src/Clients/DotNetCloud.Client.SyncService/sync-settings.json`
 
-**Client agent must run on Windows11-TestDNC (PowerShell):**
+**Client agent must run on Windows11-TestDNC (PowerShell, from repo root):**
 ```powershell
-Set-Location "D:\Repos\dotnetcloud"
-
+git pull
 dotnet restore "src\Clients\DotNetCloud.Client.SyncService\DotNetCloud.Client.SyncService.csproj"
 dotnet build "src\Clients\DotNetCloud.Client.SyncService\DotNetCloud.Client.SyncService.csproj"
 
