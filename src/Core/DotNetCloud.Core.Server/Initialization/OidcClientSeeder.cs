@@ -30,13 +30,6 @@ internal sealed class OidcClientSeeder
         const string desktopClientId = "dotnetcloud-desktop";
         const string redirectUri = "http://localhost:52701/oauth/callback";
 
-        var existing = await _applicationManager.FindByClientIdAsync(desktopClientId);
-        if (existing is not null)
-        {
-            _logger.LogDebug("OIDC client '{ClientId}' already exists.", desktopClientId);
-            return;
-        }
-
         var descriptor = new OpenIddictApplicationDescriptor
         {
             ClientId = desktopClientId,
@@ -67,7 +60,15 @@ internal sealed class OidcClientSeeder
             },
         };
 
-        await _applicationManager.CreateAsync(descriptor);
-        _logger.LogInformation("Seeded OIDC desktop client '{ClientId}'.", desktopClientId);
+        var existing = await _applicationManager.FindByClientIdAsync(desktopClientId);
+        if (existing is null)
+        {
+            await _applicationManager.CreateAsync(descriptor);
+            _logger.LogInformation("Seeded OIDC desktop client '{ClientId}'.", desktopClientId);
+            return;
+        }
+
+        await _applicationManager.UpdateAsync(existing, descriptor);
+        _logger.LogInformation("Updated OIDC desktop client '{ClientId}' permissions/scopes.", desktopClientId);
     }
 }

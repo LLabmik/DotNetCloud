@@ -36,11 +36,28 @@ public sealed class OAuth2Service : IOAuth2Service
         IEnumerable<string> scopes,
         CancellationToken cancellationToken = default)
     {
+        var requestedScopes = scopes
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
         var (verifier, challenge) = GeneratePkce();
         var state = GenerateState();
-        var scope = string.Join(" ", scopes);
+        var effectiveScopes = await ResolveEffectiveScopesAsync(serverBaseUrl, requestedScopes, cancellationToken);
+        var scope = string.Join(" ", effectiveScopes);
+
+        _logger.LogInformation(
+            "OAuth scope selection for {Server}: requested=[{Requested}] effective=[{Effective}]",
+            serverBaseUrl,
+            string.Join(", ", requestedScopes),
+            string.Join(", ", effectiveScopes));
 
         var authUrl = BuildAuthorizationUrl(serverBaseUrl, clientId, challenge, state, scope);
+
+        _logger.LogInformation(
+            "Opening OAuth authorize URL for client '{ClientId}' with scope '{Scope}'.",
+            clientId,
+            scope);
 
         _logger.LogInformation("Opening browser for OAuth2 authorization.");
         OpenBrowser(authUrl);
@@ -51,6 +68,76 @@ public sealed class OAuth2Service : IOAuth2Service
             throw new InvalidOperationException("OAuth2 state mismatch — possible CSRF attack.");
 
         return await ExchangeCodeAsync(serverBaseUrl, clientId, code, verifier, cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<string>> ResolveEffectiveScopesAsync(
+        string serverBaseUrl,
+        IEnumerable<string> requestedScopes,
+        CancellationToken cancellationToken)
+    {
+        var requested = requestedScopes
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        if (requested.Count == 0)
+        {
+            return ["openid", "profile", "offline_access"];
+        }
+
+        try
+        {
+            using var resp = await _http.GetAsync(
+                $"{serverBaseUrl.TrimEnd('/')}/.well-known/openid-configuration",
+                cancellationToken);
+
+            if (!resp.IsSuccessStatusCode)
+            {
+                return requested;
+            }
+
+            using var stream = await resp.Content.ReadAsStreamAsync(cancellationToken);
+            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+
+            if (!doc.RootElement.TryGetProperty("scopes_supported", out var scopesElement) ||
+                scopesElement.ValueKind != JsonValueKind.Array)
+            {
+                return requested;
+            }
+
+            var supported = scopesElement.EnumerateArray()
+                .Where(e => e.ValueKind == JsonValueKind.String)
+                .Select(e => e.GetString())
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Cast<string>()
+                .ToHashSet(StringComparer.Ordinal);
+
+            if (supported.Count == 0)
+            {
+                return requested;
+            }
+
+            var effective = requested.Where(supported.Contains).ToList();
+            if (effective.Count == 0)
+            {
+                _logger.LogWarning("Server advertised no overlap with requested scopes. Falling back to basic OIDC scopes.");
+                return ["openid", "profile", "offline_access"];
+            }
+
+            var dropped = requested.Where(s => !supported.Contains(s)).ToArray();
+            if (dropped.Length > 0)
+            {
+                _logger.LogWarning("Server does not advertise requested scopes: {Scopes}. Continuing with: {EffectiveScopes}",
+                    string.Join(", ", dropped), string.Join(", ", effective));
+            }
+
+            return effective;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to discover server-supported scopes. Using requested scopes as-is.");
+            return requested;
+        }
     }
 
     /// <inheritdoc/>

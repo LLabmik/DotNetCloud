@@ -178,7 +178,7 @@ public sealed class SettingsViewModel : ViewModelBase
         {
             var tokens = await _oauth2.AuthorizeAsync(
                 serverUrl, AddAccountClientId,
-                scopes: ["openid", "profile", "files:read", "files:write"],
+                scopes: ["openid", "profile", "offline_access", "files:read", "files:write"],
                 cancellationToken);
 
             var data = new AddAccountData

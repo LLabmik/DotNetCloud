@@ -119,7 +119,7 @@ public static class AuthServiceExtensions
                 options.RequireProofKeyForCodeExchange();
 
                 // Scopes
-                options.RegisterScopes("openid", "profile", "email", "offline_access");
+                options.RegisterScopes("openid", "profile", "email", "offline_access", "files:read", "files:write");
 
                 // Token lifetimes
                 options.SetAccessTokenLifetime(
