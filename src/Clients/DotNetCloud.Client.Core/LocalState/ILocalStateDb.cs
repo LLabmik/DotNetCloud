@@ -21,8 +21,14 @@ public sealed class PendingOperationCount
 /// </summary>
 public interface ILocalStateDb
 {
-    /// <summary>Initializes (creates if needed) the database at the given path.</summary>
+    /// <summary>Initializes (creates if needed) the database at the given path. Runs integrity check and recovers from corruption if detected.</summary>
     Task InitializeAsync(string dbPath, CancellationToken cancellationToken = default);
+
+    /// <summary>Returns true if the local state database at the given path was reset due to corruption during the last call to <see cref="InitializeAsync"/>.</summary>
+    bool WasRecentlyReset(string dbPath);
+
+    /// <summary>Checkpoints the SQLite WAL file to truncate it after a sync pass.</summary>
+    Task CheckpointWalAsync(string dbPath, CancellationToken cancellationToken = default);
 
     // ── File Records ────────────────────────────────────────────────────────
 
@@ -43,7 +49,10 @@ public interface ILocalStateDb
     /// <summary>Queues a pending operation.</summary>
     Task QueueOperationAsync(string dbPath, PendingOperationRecord operation, CancellationToken cancellationToken = default);
 
-    /// <summary>Gets all pending operations ordered by queue time.</summary>
+    /// <summary>
+    /// Gets pending operations that are eligible to run now, ordered by queue time.
+    /// Operations with a future <c>NextRetryAt</c> are excluded until their scheduled time.
+    /// </summary>
     Task<IReadOnlyList<PendingOperationRecord>> GetPendingOperationsAsync(string dbPath, CancellationToken cancellationToken = default);
 
     /// <summary>Gets pending operation counts.</summary>
@@ -51,6 +60,15 @@ public interface ILocalStateDb
 
     /// <summary>Removes a completed or cancelled operation.</summary>
     Task RemoveOperationAsync(string dbPath, int operationId, CancellationToken cancellationToken = default);
+
+    /// <summary>Updates retry metadata for a pending operation after a transient failure.</summary>
+    Task UpdateOperationRetryAsync(string dbPath, int operationId, int retryCount, DateTime? nextRetryAt, string? lastError, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Moves a permanently-failed operation to the failed operations table and removes it from pending.
+    /// Called after <see cref="PendingOperationRecord.RetryCount"/> reaches the maximum.
+    /// </summary>
+    Task MoveToFailedAsync(string dbPath, PendingOperationRecord operation, string lastError, CancellationToken cancellationToken = default);
 
     // ── Sync Checkpoint ─────────────────────────────────────────────────────
 

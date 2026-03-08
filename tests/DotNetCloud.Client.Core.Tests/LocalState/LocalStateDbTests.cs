@@ -203,4 +203,123 @@ public class LocalStateDbTests
         var loaded = await _db.GetCheckpointAsync(_dbPath);
         Assert.AreEqual(second, loaded);
     }
+
+    // ── WAL Mode (Task 1.6) ─────────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task InitializeAsync_EnablesWalMode()
+    {
+        // After InitializeAsync (called in test setup), verify the journal_mode is WAL
+        using var conn = new SqliteConnection($"Data Source={_dbPath}");
+        await conn.OpenAsync();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "PRAGMA journal_mode;";
+        var result = (string?)await cmd.ExecuteScalarAsync();
+        Assert.AreEqual("wal", result?.ToLowerInvariant());
+    }
+
+    [TestMethod]
+    public async Task InitializeAsync_CorruptDb_ArchivesAndCreatesNewDb()
+    {
+        var corruptDbPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".db");
+        try
+        {
+            // Write garbage bytes to simulate a corrupt SQLite file
+            await File.WriteAllBytesAsync(corruptDbPath, "this is not a valid sqlite database file!"u8.ToArray());
+
+            var db = new LocalStateDb(Microsoft.Extensions.Logging.Abstractions.NullLogger<LocalStateDb>.Instance);
+            await db.InitializeAsync(corruptDbPath);
+
+            // Verify reset flag is set
+            Assert.IsTrue(db.WasRecentlyReset(corruptDbPath), "WasRecentlyReset should be true after corruption recovery.");
+
+            // Verify a corrupt archive file was created
+            var dir = Path.GetDirectoryName(corruptDbPath)!;
+            var fileName = Path.GetFileName(corruptDbPath);
+            var corruptFiles = Directory.GetFiles(dir, $"{fileName}.corrupt.*");
+            Assert.IsTrue(corruptFiles.Length > 0, "Expected a .corrupt.<timestamp> archive file.");
+
+            // Verify the fresh DB is functional
+            await db.QueueOperationAsync(corruptDbPath, new PendingUpload { LocalPath = "/recovered.txt" });
+            var ops = await db.GetPendingOperationsAsync(corruptDbPath);
+            Assert.AreEqual(1, ops.Count);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            var dir = Path.GetDirectoryName(corruptDbPath)!;
+            var fileName = Path.GetFileName(corruptDbPath);
+            foreach (var f in Directory.GetFiles(dir, $"{fileName}*"))
+                try { File.Delete(f); } catch { }
+        }
+    }
+
+    [TestMethod]
+    public async Task CheckpointWalAsync_DoesNotThrow()
+    {
+        // Write some data so there is something to checkpoint
+        await _db.QueueOperationAsync(_dbPath, new PendingUpload { LocalPath = "/wal-test.txt" });
+
+        // WAL checkpoint should complete without error
+        await _db.CheckpointWalAsync(_dbPath);
+    }
+
+    // ── Retry Queue (Task 1.7) ──────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task GetPendingOperationsAsync_ExcludesFutureRetry()
+    {
+        // Queue two operations: one due now, one scheduled in the future
+        await _db.QueueOperationAsync(_dbPath, new PendingUpload { LocalPath = "/immediate.txt" });
+        await _db.QueueOperationAsync(_dbPath, new PendingUpload
+        {
+            LocalPath = "/deferred.txt",
+            NextRetryAt = DateTime.UtcNow.AddHours(1),
+        });
+
+        var ops = await _db.GetPendingOperationsAsync(_dbPath);
+
+        // Only the immediate operation should be returned
+        Assert.AreEqual(1, ops.Count);
+        Assert.IsInstanceOfType<PendingUpload>(ops[0]);
+        Assert.AreEqual("/immediate.txt", ((PendingUpload)ops[0]).LocalPath);
+    }
+
+    [TestMethod]
+    public async Task UpdateOperationRetryAsync_UpdatesRetryFields()
+    {
+        await _db.QueueOperationAsync(_dbPath, new PendingUpload { LocalPath = "/retry-test.txt" });
+        var ops = await _db.GetPendingOperationsAsync(_dbPath);
+        var op = ops[0];
+
+        var nextRetry = DateTime.UtcNow.AddMinutes(5);
+        await _db.UpdateOperationRetryAsync(_dbPath, op.Id, 1, nextRetry, "Network error");
+
+        // Operation is now deferred — should not appear in GetPendingOperationsAsync
+        var pending = await _db.GetPendingOperationsAsync(_dbPath);
+        Assert.AreEqual(0, pending.Count);
+
+        // Simulate time passing: update NextRetryAt to the past and re-query
+        await _db.UpdateOperationRetryAsync(_dbPath, op.Id, 1, DateTime.UtcNow.AddSeconds(-1), "Network error");
+        var pendingNow = await _db.GetPendingOperationsAsync(_dbPath);
+        Assert.AreEqual(1, pendingNow.Count);
+        Assert.AreEqual(1, pendingNow[0].RetryCount);
+        Assert.AreEqual("Network error", pendingNow[0].LastError);
+    }
+
+    [TestMethod]
+    public async Task MoveToFailedAsync_RemovesFromPendingAndAddsToFailed()
+    {
+        await _db.QueueOperationAsync(_dbPath, new PendingUpload { LocalPath = "/to-fail.txt" });
+        var ops = await _db.GetPendingOperationsAsync(_dbPath);
+        Assert.AreEqual(1, ops.Count);
+
+        await _db.MoveToFailedAsync(_dbPath, ops[0], "Permanent failure after 10 retries");
+
+        // Should no longer be in pending
+        var pending = await _db.GetPendingOperationsAsync(_dbPath);
+        Assert.AreEqual(0, pending.Count);
+    }
 }

@@ -77,6 +77,9 @@ public sealed class SyncEngine : ISyncEngine
 
         _periodicScanTask = RunPeriodicScanAsync(context, _cts.Token);
 
+        if (_stateDb.WasRecentlyReset(context.StateDatabasePath))
+            _logger.LogWarning("Local state DB was reset due to corruption for context {ContextId}. A full resync will be performed.", context.Id);
+
         _logger.LogInformation("Sync engine started for context {ContextId} ({LocalFolder}).",
             context.Id, context.LocalFolderPath);
 
@@ -103,6 +106,7 @@ public sealed class SyncEngine : ISyncEngine
             var remoteChangesApplied = await ApplyRemoteChangesAsync(context, cancellationToken);
             var localOperationsApplied = await ApplyLocalChangesAsync(context, cancellationToken);
             await _stateDb.UpdateCheckpointAsync(context.StateDatabasePath, DateTime.UtcNow, cancellationToken);
+            await _stateDb.CheckpointWalAsync(context.StateDatabasePath, cancellationToken);
             SetState(SyncState.Idle, context);
             syncTimer.Stop();
 
@@ -297,6 +301,8 @@ public sealed class SyncEngine : ISyncEngine
         }
     }
 
+    private const int MaxOperationRetries = 10;
+
     private async Task<int> ApplyLocalChangesAsync(SyncContext context, CancellationToken cancellationToken)
     {
         var pendingOps = await _stateDb.GetPendingOperationsAsync(context.StateDatabasePath, cancellationToken);
@@ -313,12 +319,38 @@ public sealed class SyncEngine : ISyncEngine
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to execute pending operation {OpId}. Will retry.", op.Id);
+                var newRetryCount = op.RetryCount + 1;
+
+                if (newRetryCount >= MaxOperationRetries)
+                {
+                    _logger.LogError(ex,
+                        "Operation {OpId} ({Type}) permanently failed after {RetryCount} attempts. Moving to failed queue.",
+                        op.Id, op.OperationType, newRetryCount);
+                    await _stateDb.MoveToFailedAsync(context.StateDatabasePath, op, ex.Message, cancellationToken);
+                }
+                else
+                {
+                    var nextRetryAt = ComputeNextRetryAt(newRetryCount);
+                    _logger.LogWarning(ex,
+                        "Operation {OpId} ({Type}) failed (attempt {RetryCount}/{MaxRetries}). Next retry at {NextRetryAt}.",
+                        op.Id, op.OperationType, newRetryCount, MaxOperationRetries, nextRetryAt);
+                    await _stateDb.UpdateOperationRetryAsync(
+                        context.StateDatabasePath, op.Id, newRetryCount, nextRetryAt, ex.Message, cancellationToken);
+                }
             }
         }
 
         return completedOperations;
     }
+
+    private static DateTime ComputeNextRetryAt(int retryCount) => retryCount switch
+    {
+        1 => DateTime.UtcNow.AddMinutes(1),
+        2 => DateTime.UtcNow.AddMinutes(5),
+        3 => DateTime.UtcNow.AddMinutes(15),
+        4 => DateTime.UtcNow.AddHours(1),
+        _ => DateTime.UtcNow.AddHours(6),
+    };
 
     private async Task ExecutePendingOperationAsync(SyncContext context, PendingOperationRecord op, CancellationToken cancellationToken)
     {

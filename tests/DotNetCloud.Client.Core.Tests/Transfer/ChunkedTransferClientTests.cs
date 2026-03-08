@@ -77,6 +77,102 @@ public class ChunkedTransferClientTests
             It.IsAny<Stream>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [TestMethod]
+    public async Task UploadAsync_NetworkErrorOnFirstAttempt_RetriesAndSucceeds()
+    {
+        var nodeId = Guid.NewGuid();
+        var sessionId = Guid.NewGuid();
+        var callCount = 0;
+
+        var apiMock = new Mock<IDotNetCloudApiClient>();
+        apiMock.SetupProperty(a => a.AccessToken);
+        apiMock.Setup(a => a.InitiateUploadAsync(
+                It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
+                It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new UploadSessionResponse { SessionId = sessionId });
+
+        // First upload call throws a network error; second succeeds
+        apiMock.Setup(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
+            .Returns<Guid, int, string, Stream, CancellationToken>((_, _, _, _, _) =>
+            {
+                callCount++;
+                if (callCount == 1)
+                    throw new HttpRequestException("Connection reset by peer");
+                return Task.CompletedTask;
+            });
+
+        apiMock.Setup(a => a.CompleteUploadAsync(sessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CompleteUploadResponse
+            {
+                Node = new FileNodeResponse { Id = nodeId, Name = "file.txt", NodeType = "File" },
+            });
+
+        var client = new ChunkedTransferClient(apiMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+        using var data = new MemoryStream(new byte[512]);
+
+        var result = await client.UploadAsync(null, "file.txt", data, null);
+
+        Assert.AreEqual(nodeId, result);
+        // Should have been called twice (one failure + one success)
+        apiMock.Verify(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    [TestMethod]
+    public async Task UploadAsync_NetworkErrorExhaustsRetries_Throws()
+    {
+        var sessionId = Guid.NewGuid();
+
+        var apiMock = new Mock<IDotNetCloudApiClient>();
+        apiMock.SetupProperty(a => a.AccessToken);
+        apiMock.Setup(a => a.InitiateUploadAsync(
+                It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
+                It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new UploadSessionResponse { SessionId = sessionId });
+
+        // Always throw network error
+        apiMock.Setup(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("Network unreachable"));
+
+        var client = new ChunkedTransferClient(apiMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+        using var data = new MemoryStream(new byte[512]);
+
+        HttpRequestException? caught = null;
+        try { await client.UploadAsync(null, "file.txt", data, null); }
+        catch (HttpRequestException ex) { caught = ex; }
+        Assert.IsNotNull(caught, "Expected HttpRequestException but none was thrown.");
+
+        // Should have been called ChunkUploadMaxRetries (3) times
+        apiMock.Verify(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()), Times.Exactly(3));
+    }
+
+    [TestMethod]
+    public async Task UploadAsync_ClientError_DoesNotRetry()
+    {
+        var sessionId = Guid.NewGuid();
+
+        var apiMock = new Mock<IDotNetCloudApiClient>();
+        apiMock.SetupProperty(a => a.AccessToken);
+        apiMock.Setup(a => a.InitiateUploadAsync(
+                It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
+                It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new UploadSessionResponse { SessionId = sessionId });
+
+        // 4xx client error — should NOT be retried
+        apiMock.Setup(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("Forbidden", null, System.Net.HttpStatusCode.Forbidden));
+
+        var client = new ChunkedTransferClient(apiMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+        using var data = new MemoryStream(new byte[512]);
+
+        HttpRequestException? caught = null;
+        try { await client.UploadAsync(null, "file.txt", data, null); }
+        catch (HttpRequestException ex) { caught = ex; }
+        Assert.IsNotNull(caught, "Expected HttpRequestException but none was thrown.");
+
+        // Should have been called exactly once (no retry on 4xx)
+        apiMock.Verify(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     // ── DownloadAsync ───────────────────────────────────────────────────────
 
     [TestMethod]

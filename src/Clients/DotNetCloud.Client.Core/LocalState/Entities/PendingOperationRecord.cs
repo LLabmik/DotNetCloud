@@ -16,6 +16,12 @@ public abstract class PendingOperationRecord
 
     /// <summary>Number of retry attempts so far.</summary>
     public int RetryCount { get; set; }
+
+    /// <summary>UTC time after which the operation is eligible for the next retry attempt. Null means immediately eligible.</summary>
+    public DateTime? NextRetryAt { get; set; }
+
+    /// <summary>Error message from the most recent failure. Null if the operation has not yet failed.</summary>
+    public string? LastError { get; set; }
 }
 
 /// <summary>Pending file upload to the server.</summary>

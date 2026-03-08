@@ -13,6 +13,9 @@ public sealed class LocalStateDbContext : DbContext
     /// <summary>Pending sync operations.</summary>
     public DbSet<PendingOperationDbRow> PendingOperations => Set<PendingOperationDbRow>();
 
+    /// <summary>Operations that permanently failed after all retries.</summary>
+    public DbSet<FailedOperationDbRow> FailedOperations => Set<FailedOperationDbRow>();
+
     /// <summary>Sync checkpoint (single row).</summary>
     public DbSet<SyncCheckpointRow> Checkpoints => Set<SyncCheckpointRow>();
 
@@ -31,6 +34,12 @@ public sealed class LocalStateDbContext : DbContext
         });
 
         modelBuilder.Entity<PendingOperationDbRow>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.Property(r => r.OperationType).IsRequired();
+        });
+
+        modelBuilder.Entity<FailedOperationDbRow>(e =>
         {
             e.HasKey(r => r.Id);
             e.Property(r => r.OperationType).IsRequired();
@@ -65,6 +74,42 @@ public sealed class PendingOperationDbRow
 
     /// <summary>Retry count.</summary>
     public int RetryCount { get; set; }
+
+    /// <summary>UTC time after which this operation is eligible for retry. Null means immediately eligible.</summary>
+    public DateTime? NextRetryAt { get; set; }
+
+    /// <summary>Error message from the most recent failure.</summary>
+    public string? LastError { get; set; }
+}
+
+/// <summary>
+/// Row for a sync operation that permanently failed after exhausting all retries.
+/// </summary>
+public sealed class FailedOperationDbRow
+{
+    /// <summary>Row ID.</summary>
+    public int Id { get; set; }
+
+    /// <summary>"Upload" or "Download".</summary>
+    public required string OperationType { get; set; }
+
+    /// <summary>Local file path.</summary>
+    public string? LocalPath { get; set; }
+
+    /// <summary>Server node ID.</summary>
+    public Guid? NodeId { get; set; }
+
+    /// <summary>UTC time the operation was originally queued.</summary>
+    public DateTime QueuedAt { get; set; }
+
+    /// <summary>Total retry count at the time of failure.</summary>
+    public int RetryCount { get; set; }
+
+    /// <summary>Error message from the final failure.</summary>
+    public string? LastError { get; set; }
+
+    /// <summary>UTC time the operation was permanently failed.</summary>
+    public DateTime FailedAt { get; set; } = DateTime.UtcNow;
 }
 
 /// <summary>

@@ -73,8 +73,32 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                 await sem.WaitAsync(cancellationToken);
                 try
                 {
-                    using var chunkStream = new MemoryStream(chunk.Data);
-                    await _api.UploadChunkAsync(session.SessionId, index, chunk.Hash, chunkStream, cancellationToken);
+                    var uploadAttempts = 0;
+                    for (var attempt = 1; attempt <= ChunkUploadMaxRetries; attempt++)
+                    {
+                        uploadAttempts = attempt;
+                        try
+                        {
+                            using var chunkStream = new MemoryStream(chunk.Data);
+                            await _api.UploadChunkAsync(session.SessionId, index, chunk.Hash, chunkStream, cancellationToken);
+                            break; // success
+                        }
+                        catch (HttpRequestException ex) when (
+                            attempt < ChunkUploadMaxRetries &&
+                            (ex.StatusCode is null || (int)ex.StatusCode >= 500))
+                        {
+                            var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt - 1))
+                                        + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 500));
+                            _logger.LogWarning(ex,
+                                "Chunk {Hash} upload attempt {Attempt}/{MaxAttempts} failed. Retrying in {DelayMs}ms.",
+                                chunk.Hash, attempt, ChunkUploadMaxRetries, (int)delay.TotalMilliseconds);
+                            await Task.Delay(delay, cancellationToken);
+                        }
+                    }
+
+                    var xferResult = new ChunkTransferResult(chunk.Hash, true, uploadAttempts, null);
+                    _logger.LogDebug("Chunk {Hash} upload complete: Attempts={Attempts}.", xferResult.Hash, xferResult.Attempts);
+
                     var count = Interlocked.Increment(ref uploaded);
                     progress?.Report(new TransferProgress
                     {
@@ -181,6 +205,10 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
     // ── Private helpers ─────────────────────────────────────────────────────
 
     private const int ChunkDownloadMaxAttempts = 3;
+    private const int ChunkUploadMaxRetries = 3;
+
+    /// <summary>Result of a single chunk transfer, used for completion logging.</summary>
+    private record ChunkTransferResult(string Hash, bool Success, int Attempts, string? Error);
 
     private async Task<Stream> DownloadChunksAsync(
         ChunkManifestResponse manifest,
@@ -201,21 +229,42 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
 
                 for (var attempt = 1; attempt <= ChunkDownloadMaxAttempts; attempt++)
                 {
-                    using var chunkStream = await _api.DownloadChunkByHashAsync(chunk.Hash, cancellationToken);
-                    using var ms = new MemoryStream();
-                    await chunkStream.CopyToAsync(ms, cancellationToken);
-                    var bytes = ms.ToArray();
-
-                    var actualHash = Convert.ToHexStringLower(SHA256.HashData(bytes));
-                    if (string.Equals(actualHash, chunk.Hash, StringComparison.OrdinalIgnoreCase))
+                    try
                     {
-                        chunkBytes = bytes;
-                        break;
-                    }
+                        using var chunkStream = await _api.DownloadChunkByHashAsync(chunk.Hash, cancellationToken);
+                        using var ms = new MemoryStream();
+                        await chunkStream.CopyToAsync(ms, cancellationToken);
+                        var bytes = ms.ToArray();
 
-                    _logger.LogWarning(
-                        "Chunk hash mismatch: ExpectedHash={ExpectedHash}, ActualHash={ActualHash}, Attempt={Attempt}/{MaxAttempts}.",
-                        chunk.Hash, actualHash, attempt, ChunkDownloadMaxAttempts);
+                        var actualHash = Convert.ToHexStringLower(SHA256.HashData(bytes));
+                        if (string.Equals(actualHash, chunk.Hash, StringComparison.OrdinalIgnoreCase))
+                        {
+                            chunkBytes = bytes;
+                            break;
+                        }
+
+                        _logger.LogWarning(
+                            "Chunk hash mismatch: ExpectedHash={ExpectedHash}, ActualHash={ActualHash}, Attempt={Attempt}/{MaxAttempts}.",
+                            chunk.Hash, actualHash, attempt, ChunkDownloadMaxAttempts);
+
+                        if (attempt < ChunkDownloadMaxAttempts)
+                        {
+                            var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt - 1))
+                                        + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 500));
+                            await Task.Delay(delay, cancellationToken);
+                        }
+                    }
+                    catch (HttpRequestException ex) when (
+                        attempt < ChunkDownloadMaxAttempts &&
+                        (ex.StatusCode is null || (int)ex.StatusCode >= 500))
+                    {
+                        var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt - 1))
+                                    + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 500));
+                        _logger.LogWarning(ex,
+                            "Chunk {Hash} download attempt {Attempt}/{MaxAttempts} failed with network error. Retrying in {DelayMs}ms.",
+                            chunk.Hash, attempt, ChunkDownloadMaxAttempts, (int)delay.TotalMilliseconds);
+                        await Task.Delay(delay, cancellationToken);
+                    }
                 }
 
                 if (chunkBytes is null)
