@@ -97,6 +97,13 @@ public sealed record InitiateUploadDto
 
     /// <summary>Ordered list of SHA-256 chunk hashes.</summary>
     public required IReadOnlyList<string> ChunkHashes { get; init; }
+
+    /// <summary>
+    /// Optional ordered list of chunk sizes (in bytes) for content-defined chunk (CDC) uploads.
+    /// When present, element count must equal <see cref="ChunkHashes"/> count.
+    /// <see langword="null"/> or empty indicates legacy fixed-size chunking.
+    /// </summary>
+    public IReadOnlyList<int>? ChunkSizes { get; init; }
 }
 
 /// <summary>

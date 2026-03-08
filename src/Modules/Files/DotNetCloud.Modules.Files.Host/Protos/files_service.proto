@@ -216,6 +216,9 @@ message InitiateUploadRequest {
   string mime_type = 4;
   repeated string chunk_hashes = 5;
   string user_id = 6;
+  // Optional: CDC chunk sizes in bytes. Omit for legacy fixed-size chunking.
+  // When present, count must equal chunk_hashes count.
+  repeated int32 chunk_sizes = 7;
 }
 
 message InitiateUploadResponse {

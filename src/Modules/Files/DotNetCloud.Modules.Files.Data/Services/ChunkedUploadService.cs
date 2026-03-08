@@ -76,6 +76,9 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
             TotalChunks = dto.ChunkHashes.Count,
             ReceivedChunks = existingHashes.Count,
             ChunkManifest = JsonSerializer.Serialize(dto.ChunkHashes),
+            ChunkSizesManifest = dto.ChunkSizes is { Count: > 0 }
+                ? JsonSerializer.Serialize(dto.ChunkSizes)
+                : null,
             UserId = caller.UserId,
             Status = UploadSessionStatus.InProgress
         };
@@ -227,18 +230,28 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         _db.FileVersions.Add(version);
 
         // Create version-chunk mappings and increment refcounts
+        var chunkSizes = session.ChunkSizesManifest is not null
+            ? JsonSerializer.Deserialize<List<int>>(session.ChunkSizesManifest)!
+            : null;
+
+        long byteOffset = 0;
         for (var i = 0; i < manifest.Count; i++)
         {
             var chunk = await _db.FileChunks
                 .FirstAsync(c => c.ChunkHash == manifest[i], cancellationToken);
 
+            var chunkSize = chunkSizes?[i] ?? chunk.Size;
+
             _db.FileVersionChunks.Add(new FileVersionChunk
             {
                 FileVersionId = version.Id,
                 FileChunkId = chunk.Id,
-                SequenceIndex = i
+                SequenceIndex = i,
+                Offset = byteOffset,
+                ChunkSize = chunkSize
             });
 
+            byteOffset += chunkSize;
             chunk.ReferenceCount++;
             chunk.LastReferencedAt = DateTime.UtcNow;
         }

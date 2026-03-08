@@ -172,4 +172,147 @@ public class ContentHasherTests
         Assert.AreEqual(4 * 1024 * 1024, ContentHasher.DefaultChunkSize);
 #pragma warning restore MSTEST0032
     }
+
+    // ---- CDC (Content-Defined Chunking) Tests ----
+
+    [TestMethod]
+    public async Task ChunkAndHashCdcAsync_SmallData_ReturnsSingleChunk()
+    {
+        var data = new byte[1024]; // 1KB — well below any minSize
+        Random.Shared.NextBytes(data);
+        using var stream = new MemoryStream(data);
+
+        var chunks = await ContentHasher.ChunkAndHashCdcAsync(stream, minSize: 512, avgSize: 2048, maxSize: 4096);
+
+        Assert.AreEqual(1, chunks.Count);
+        Assert.AreEqual(0L, chunks[0].Offset);
+        Assert.AreEqual(data.Length, chunks[0].Size);
+    }
+
+    [TestMethod]
+    public async Task ChunkAndHashCdcAsync_EmptyStream_ReturnsNoChunks()
+    {
+        using var stream = new MemoryStream([]);
+
+        var chunks = await ContentHasher.ChunkAndHashCdcAsync(stream);
+
+        Assert.AreEqual(0, chunks.Count);
+    }
+
+    [TestMethod]
+    public async Task ChunkAndHashCdcAsync_ChunkHashesMatchData()
+    {
+        // 128KB of content with tiny minSize so we get multiple chunks
+        var data = new byte[128 * 1024];
+        Random.Shared.NextBytes(data);
+        using var stream = new MemoryStream(data);
+
+        var chunks = await ContentHasher.ChunkAndHashCdcAsync(stream, minSize: 1024, avgSize: 4096, maxSize: 16384);
+
+        foreach (var chunk in chunks)
+        {
+            var chunkData = data.AsSpan((int)chunk.Offset, chunk.Size).ToArray();
+            var expected = ContentHasher.ComputeHash(chunkData);
+            Assert.AreEqual(expected, chunk.Hash, $"Hash mismatch for chunk at offset {chunk.Offset}");
+        }
+    }
+
+    [TestMethod]
+    public async Task ChunkAndHashCdcAsync_ConcatenatedChunksEqualOriginal()
+    {
+        var data = new byte[256 * 1024]; // 256 KB
+        Random.Shared.NextBytes(data);
+        using var stream = new MemoryStream(data);
+
+        var chunks = await ContentHasher.ChunkAndHashCdcAsync(stream, minSize: 1024, avgSize: 8192, maxSize: 32768);
+
+        var totalSize = chunks.Sum(c => c.Size);
+        Assert.AreEqual(data.Length, totalSize, "Total chunk sizes must equal original data length.");
+
+        // Verify offsets are contiguous
+        long expectedOffset = 0;
+        foreach (var chunk in chunks)
+        {
+            Assert.AreEqual(expectedOffset, chunk.Offset, $"Chunk offset should be {expectedOffset} at chunk index.");
+            expectedOffset += chunk.Size;
+        }
+    }
+
+    [TestMethod]
+    public async Task ChunkAndHashCdcAsync_ModifiedByte_ChangesContainingChunkHash()
+    {
+        // Identical streams except one byte — the chunk containing that byte must have a different hash.
+        const int size = 64 * 1024;
+        const int pivotByte = 1000;
+
+        var data1 = new byte[size];
+        var data2 = new byte[size];
+        Random.Shared.NextBytes(data1);
+        data1.CopyTo(data2, 0);
+        // Flip one byte to force a different hash in the containing chunk
+        data2[pivotByte] ^= 0xFF;
+
+        using var s1 = new MemoryStream(data1);
+        using var s2 = new MemoryStream(data2);
+
+        var chunks1 = await ContentHasher.ChunkAndHashCdcAsync(s1, minSize: 512, avgSize: 2048, maxSize: 8192);
+        var chunks2 = await ContentHasher.ChunkAndHashCdcAsync(s2, minSize: 512, avgSize: 2048, maxSize: 8192);
+
+        // The chunk that spans pivotByte must differ
+        var containing1 = chunks1.First(c => c.Offset <= pivotByte && c.Offset + c.Size > pivotByte);
+        var containing2 = chunks2.First(c => c.Offset <= pivotByte && c.Offset + c.Size > pivotByte);
+        Assert.AreNotEqual(containing1.Hash, containing2.Hash,
+            "The chunk containing the modified byte must have a different hash.");
+    }
+
+    [TestMethod]
+    public async Task ChunkAndHashCdcAsync_HashReturnedIs64LowercaseHexChars()
+    {
+        var data = new byte[8192];
+        Random.Shared.NextBytes(data);
+        using var stream = new MemoryStream(data);
+
+        var chunks = await ContentHasher.ChunkAndHashCdcAsync(stream, minSize: 512, avgSize: 1024, maxSize: 4096);
+
+        foreach (var chunk in chunks)
+        {
+            Assert.AreEqual(64, chunk.Hash.Length);
+            Assert.AreEqual(chunk.Hash, chunk.Hash.ToLowerInvariant());
+        }
+    }
+
+    [TestMethod]
+    public async Task ChunkAndHashCdcAsync_MaxSizeRespected()
+    {
+        const int maxSize = 4096;
+        var data = new byte[maxSize * 10]; // Force many hard-cutoff chunks
+        new Random(42).NextBytes(data); // Mostly uniform → no content boundaries
+        using var stream = new MemoryStream(data);
+
+        var chunks = await ContentHasher.ChunkAndHashCdcAsync(stream, minSize: 16, avgSize: 1 << 30, maxSize: maxSize);
+
+        foreach (var chunk in chunks)
+            Assert.IsTrue(chunk.Size <= maxSize, $"Chunk size {chunk.Size} exceeds maxSize {maxSize}");
+    }
+
+    [TestMethod]
+    public async Task ChunkAndHashCdcAsync_DeterministicForSameInput()
+    {
+        var data = new byte[32 * 1024];
+        Random.Shared.NextBytes(data);
+
+        using var s1 = new MemoryStream(data);
+        using var s2 = new MemoryStream(data);
+
+        var chunks1 = await ContentHasher.ChunkAndHashCdcAsync(s1, minSize: 1024, avgSize: 4096, maxSize: 16384);
+        var chunks2 = await ContentHasher.ChunkAndHashCdcAsync(s2, minSize: 1024, avgSize: 4096, maxSize: 16384);
+
+        Assert.AreEqual(chunks1.Count, chunks2.Count);
+        for (var i = 0; i < chunks1.Count; i++)
+        {
+            Assert.AreEqual(chunks1[i].Hash, chunks2[i].Hash);
+            Assert.AreEqual(chunks1[i].Offset, chunks2[i].Offset);
+            Assert.AreEqual(chunks1[i].Size, chunks2[i].Size);
+        }
+    }
 }

@@ -23,4 +23,17 @@ public sealed class FileVersionChunk
     /// Chunks are concatenated in ascending sequence order to reconstruct the file.
     /// </summary>
     public int SequenceIndex { get; set; }
+
+    /// <summary>
+    /// Byte offset of this chunk from the start of the file.
+    /// Zero for legacy fixed-size uploads; computed from chunk sizes for CDC uploads.
+    /// </summary>
+    public long Offset { get; set; }
+
+    /// <summary>
+    /// Size of this chunk in bytes.
+    /// Zero for legacy uploads where the size can be derived from <see cref="FileChunk.Size"/>.
+    /// Populated for content-defined chunks (CDC) where chunk sizes vary.
+    /// </summary>
+    public int ChunkSize { get; set; }
 }

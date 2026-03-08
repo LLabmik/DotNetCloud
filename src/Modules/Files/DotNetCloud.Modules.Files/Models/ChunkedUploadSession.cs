@@ -37,6 +37,13 @@ public sealed class ChunkedUploadSession
     /// </summary>
     public required string ChunkManifest { get; set; }
 
+    /// <summary>
+    /// Optional ordered list of chunk sizes (in bytes) for content-defined chunk (CDC) uploads.
+    /// Serialized as JSON int array.  <see langword="null"/> for legacy fixed-size uploads.
+    /// When present, element count must equal <see cref="ChunkManifest"/> entry count.
+    /// </summary>
+    public string? ChunkSizesManifest { get; set; }
+
     /// <summary>User who initiated the upload.</summary>
     public Guid UserId { get; set; }
 

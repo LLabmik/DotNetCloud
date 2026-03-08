@@ -277,4 +277,94 @@ public class ChunkedUploadServiceTests
 
         Assert.IsNull(result);
     }
+
+    [TestMethod]
+    public async Task CompleteUploadAsync_WithCdcChunkSizes_StoresOffsetAndSizeOnVersionChunks()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+
+        const int chunk1Size = 524288; // 512 KB
+        const int chunk2Size = 786432; // 768 KB
+        var hash1 = "deadbeef" + new string('1', 56); // fake but well-formed 64-char hex
+        var hash2 = "cafebabe" + new string('2', 56);
+
+        db.FileChunks.Add(new FileChunk { ChunkHash = hash1, StoragePath = $"chunks/de/ad/{hash1}", Size = chunk1Size });
+        db.FileChunks.Add(new FileChunk { ChunkHash = hash2, StoragePath = $"chunks/ca/fe/{hash2}", Size = chunk2Size });
+
+        var session = new ChunkedUploadSession
+        {
+            FileName = "cdc-file.bin",
+            TotalSize = chunk1Size + chunk2Size,
+            TotalChunks = 2,
+            ReceivedChunks = 2,
+            ChunkManifest = JsonSerializer.Serialize(new[] { hash1, hash2 }),
+            ChunkSizesManifest = JsonSerializer.Serialize(new[] { chunk1Size, chunk2Size }),
+            UserId = userId,
+            Status = UploadSessionStatus.InProgress
+        };
+        db.UploadSessions.Add(session);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        await service.CompleteUploadAsync(session.Id, UserCaller(userId));
+
+        var version = await db.FileVersions.FirstAsync();
+        var versionChunks = await db.FileVersionChunks
+            .Where(vc => vc.FileVersionId == version.Id)
+            .OrderBy(vc => vc.SequenceIndex)
+            .ToListAsync();
+
+        Assert.AreEqual(2, versionChunks.Count);
+
+        Assert.AreEqual(0L, versionChunks[0].Offset);
+        Assert.AreEqual(chunk1Size, versionChunks[0].ChunkSize);
+
+        Assert.AreEqual((long)chunk1Size, versionChunks[1].Offset);
+        Assert.AreEqual(chunk2Size, versionChunks[1].ChunkSize);
+    }
+
+    [TestMethod]
+    public async Task InitiateUploadAsync_WithCdcChunkSizes_StoresSizesManifestOnSession()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 10_000_000, UsedBytes = 0 });
+        await db.SaveChangesAsync();
+
+        var chunkSizes = new[] { 524288, 786432 };
+        var service = CreateService(db);
+        await service.InitiateUploadAsync(new InitiateUploadDto
+        {
+            FileName = "cdc.bin",
+            TotalSize = chunkSizes.Sum(),
+            ChunkHashes = ["hash-a", "hash-b"],
+            ChunkSizes = chunkSizes
+        }, UserCaller(userId));
+
+        var session = await db.UploadSessions.FirstAsync();
+        Assert.IsNotNull(session.ChunkSizesManifest);
+        var stored = JsonSerializer.Deserialize<int[]>(session.ChunkSizesManifest)!;
+        CollectionAssert.AreEqual(chunkSizes, stored);
+    }
+
+    [TestMethod]
+    public async Task InitiateUploadAsync_WithoutCdcChunkSizes_LeavesManifestNull()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 10_000_000, UsedBytes = 0 });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        await service.InitiateUploadAsync(new InitiateUploadDto
+        {
+            FileName = "legacy.bin",
+            TotalSize = 1024,
+            ChunkHashes = ["hash-x"]
+        }, UserCaller(userId));
+
+        var session = await db.UploadSessions.FirstAsync();
+        Assert.IsNull(session.ChunkSizesManifest, "Legacy uploads must not have a ChunkSizesManifest.");
+    }
 }

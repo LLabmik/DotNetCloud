@@ -13,7 +13,7 @@ public sealed class FileChunk
     /// <summary>SHA-256 hash of the chunk content. Used for deduplication.</summary>
     public required string ChunkHash { get; set; }
 
-    /// <summary>Size of the chunk in bytes (max 4MB = 4,194,304 bytes).</summary>
+    /// <summary>Size of the chunk in bytes.</summary>
     public int Size { get; set; }
 
     /// <summary>Storage path for this chunk's content on disk.</summary>

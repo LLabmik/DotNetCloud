@@ -554,6 +554,9 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
             TotalChunks = request.ChunkHashes.Count,
             ReceivedChunks = existingHashes.Count,
             ChunkManifest = System.Text.Json.JsonSerializer.Serialize(request.ChunkHashes.ToList()),
+            ChunkSizesManifest = request.ChunkSizes.Count > 0
+                ? System.Text.Json.JsonSerializer.Serialize(request.ChunkSizes.ToList())
+                : null,
             UserId = userId
         };
 
