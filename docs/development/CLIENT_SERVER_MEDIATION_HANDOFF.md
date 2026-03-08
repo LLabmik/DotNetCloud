@@ -351,29 +351,32 @@ Please follow the handoff process carefully:
 
 **What was implemented:**
 
-**Upload — bounded-channel producer/consumer pipeline:**
-- `ChunkedTransferClient.cs`: replaced `SemaphoreSlim` + `Task.WhenAll(uploadTasks)` with a `Channel.CreateBounded<(ChunkData, int)>(capacity: 8)` pipeline.
-- Producer task iterates the pre-split chunk list and writes `(chunk, index)` tuples to the channel; completes writer when done.
-- `MaxConcurrency` (4) consumer tasks drain the channel via `ReadAllAsync`, handling per-chunk retry logic with exponential backoff exactly as before.
-- `ChannelCapacity = 8` constant added. Peak memory: ~32 MB (8 slots × 4 MB avg).
-- `using System.Threading.Channels` added to imports.
+**Upload — two-pass CDC with bounded-channel pipeline:**
+- Pass 1: `ComputeChunkMetadataAsync()` streams the file through CDC computing only hashes and sizes — no chunk data retained. Memory: 64 KB read buffer + 32-byte incremental hash state.
+- `InitiateUploadAsync()` called with metadata from pass 1.
+- Pass 2: `fileStream.Seek(0)` then `ChunkFileAsync()` (`IAsyncEnumerable<ChunkData>`) re-reads the file via CDC, yielding one chunk at a time into a `Channel.CreateBounded<(ChunkData, int)>(capacity: 8)` pipeline.
+- `MaxConcurrency` (4) consumer tasks drain the channel via `ReadAllAsync`, handling per-chunk retry logic with exponential backoff.
+- Peak memory truly bounded: ChannelCapacity (8) × avg chunk size ≈ 32 MB regardless of file size.
+- `using System.Runtime.CompilerServices` added for `[EnumeratorCancellation]` on the async enumerator.
 
-**Download — temp-file-based streaming:**
-- `DownloadChunksAsync()` replaced: instead of accumulating `byte[][]` and assembling a `MemoryStream` holding the entire file, each verified chunk is written to `{TempPath}/dnc-chunks/{guid}/{index}`.
-- Parallel download (bounded by `SemaphoreSlim(MaxConcurrency)`) and integrity verification unchanged.
-- After all chunks downloaded, concatenates temp files into output `MemoryStream` one at a time (`CopyToAsync`). Memory at concatenation time: one chunk buffer.
-- `finally` block deletes temp dir (`Directory.Delete(tempDir, recursive: true)`) — logged warning on cleanup failure, never throws.
+**Download — file-backed streaming assembly:**
+- `DownloadChunksAsync()`: each verified chunk is written to `{TempPath}/dnc-chunks/{guid}/{index}` (unchanged).
+- Final assembly now concatenates temp chunk files into a single temp file (`dnc-{guid}.tmp`) via `File.Create` + `CopyToAsync` — one chunk in memory at a time.
+- Returns `FileStream` with `FileOptions.DeleteOnClose | FileOptions.Asynchronous` — OS deletes the assembled file when the caller disposes the stream.
+- `catch` block cleans up assembled file on error; `finally` block always cleans up per-chunk temp directory.
+- Memory: bounded regardless of file size (no full-file MemoryStream).
 
 **New tests:**
 - `UploadAsync_StreamingPipeline_BoundedMemoryUsage` — uploads 1 MB file via pipeline; asserts upload call count equals chunk count (all missing).
 - `DownloadAsync_StreamingToTempFiles_AssemblesCorrectly` — downloads 2-chunk file; verifies output stream length (1024) and byte-level ordering (chunk0 first, chunk1 second).
 
 **Validation results from Windows11-TestDNC:**
-- Commit: `2e0788c`
+- Commit: `7cbc12e`
 - Build: 0 errors
 - Tests: 68 passed, 0 failed (was 66, +2 new streaming tests)
 - Channel-based upload confirmed: `UploadAsync_StreamingPipeline_BoundedMemoryUsage` PASS
 - Temp-file download confirmed: `DownloadAsync_StreamingToTempFiles_AssemblesCorrectly` PASS
+- Memory bounded: two-pass upload (no bulk chunk buffering), file-backed download assembly (no full-file MemoryStream)
 
 **Task 2.2: PASS (client complete)**
 
