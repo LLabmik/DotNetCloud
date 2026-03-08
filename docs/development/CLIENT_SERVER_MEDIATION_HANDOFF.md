@@ -85,6 +85,8 @@ Run this handoff loop each iteration:
 - 2026-03-07 (Windows11-TestDNC, mediator screenshot): Browser also showed `200` JSON body at `/connect/authorize?...` with message `"Authorization endpoint - redirect to consent page or issue code"`; this may indicate an authenticated-session path through authorize endpoint.
 - 2026-03-07 (mint22): Reworked OpenIddict passthrough handlers so authenticated authorize requests return OpenIddict `SignIn` (not placeholder JSON), and token endpoint now follows protocol validation paths.
 - 2026-03-07 (mint22): Post-patch probes at `20:09` show authorize still validates then redirects to `/auth/login`, and token endpoint returns OpenIddict JSON error (`invalid_request`) for malformed calls (no placeholder body).
+- 2026-03-07 (Windows11-TestDNC, commit `d4f608d`): End-to-end browser flow reached localhost callback success page (`Authorization successful!`) at `http://localhost:52701/oauth/callback?...`.
+- 2026-03-07 (Windows11-TestDNC, commit `d4f608d`): After callback, SyncTray attempted `POST /connect/token` but failed due TLS certificate validation (`RemoteCertificateNameMismatch`, `RemoteCertificateChainErrors`), so account add still failed client-side.
 
 ## Client Evidence Snapshot (2026-03-07)
 
@@ -204,6 +206,40 @@ BODY_SNIPPET=<!DOCTYPE html>
 ```text
 TLS_OR_HTTP_EXCEPTION=The SSL connection could not be established, see inner exception.
 ```
+
+### Latest end-to-end rerun on `d4f608d` (18:11 local)
+
+- Client commit hash:
+  - `d4f608d50022628148e6478ca98daebde59632fc`
+
+- Browser callback evidence (mediator screenshot):
+
+```text
+URL shown: http://localhost:52701/oauth/callback?code=...
+Page text: Authorization successful! You may close this window.
+```
+
+- Raw SyncTray log lines (scope + browser launch):
+
+```text
+[18:11:57 INF] OAuth scope selection for https://mint22:15443: requested=[openid, profile, offline_access, files:read, files:write] effective=[openid, profile, offline_access, files:read, files:write]
+[18:11:57 INF] Opening OAuth authorize URL for client 'dotnetcloud-desktop' with scope 'openid profile offline_access files:read files:write'.
+[18:11:57 INF] Opening browser for OAuth2 authorization.
+```
+
+- Raw token exchange attempt and failure (post-callback):
+
+```text
+[18:11:57 INF] Start processing HTTP request POST https://mint22:15443/connect/token
+[18:11:57 INF] Sending HTTP request POST https://mint22:15443/connect/token
+[18:11:57 ERR] Failed to add account for server https://mint22:15443.
+System.Net.Http.HttpRequestException: The SSL connection could not be established, see inner exception.
+---> System.Security.Authentication.AuthenticationException: The remote certificate is invalid according to the validation procedure: RemoteCertificateNameMismatch, RemoteCertificateChainErrors
+```
+
+- Conclusion for this run:
+  - OAuth authorize + callback path is now functional.
+  - Remaining blocker is TLS trust/hostname validation on client HTTP calls to `https://mint22:15443` (discovery + token exchange).
 
 ## Next Action Requested From Server Agent
 
