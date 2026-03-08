@@ -70,16 +70,84 @@ Open issue: Sync Improvement Batch 1 Task 1.1b (server audit logging on mint22) 
 
 ### Issue #24: Batch 1 Task 1.1b - Sync Audit Logging (Server only)
 
-**Server-side status:** Pending implementation on `mint22`.
+**Server-side status:** ✅ COMPLETE — commit `c585dae` (2026-03-08).
 **Client-side status:** Not applicable (server-only task).
 
-**What needs to happen on mint22:**
-- Add structured Serilog logging to all sync/file operation classes: `ChunkedUploadService`, `DownloadService`, `FileService`, `SyncService`
-- Log events: `file.uploaded`, `file.downloaded`, `file.deleted`, `file.moved`, `sync.reconcile.completed`
-- Structured fields per event: `Timestamp`, `UserId`, `ClientIp`, `RequestId`, `NodeId`, `FileName`, `Action`, `Result`, `FileSize`
-- Dedicated audit log sink: `{DOTNETCLOUD_DATA_DIR}/logs/audit-sync.log` (same rolling-file config as existing server logs)
+---
 
-**Request back from server agent:**
+### Issue #25: Batch 1 Task 1.2 - Request Correlation IDs (Client side)
+
+**Server-side status:** ✅ COMPLETE — commit `16dd7df` (2026-03-08).
+Server now has `RequestCorrelationMiddleware` that reads `X-Request-ID` from every incoming request (or generates one), sets it as `TraceIdentifier`, and echoes it back on the response.
+
+**Client-side status:** Pending implementation on `Windows11-TestDNC`.
+
+**What needs to happen on Windows11-TestDNC:**
+
+Pull `main`, then implement a `DelegatingHandler` that attaches `X-Request-ID` to every outgoing API call.
+
+1. Create `src/Clients/DotNetCloud.Client.Core/Api/CorrelationIdHandler.cs`:
+
+```csharp
+using Microsoft.Extensions.Logging;
+using System.Net.Http;
+
+namespace DotNetCloud.Client.Core.Api;
+
+/// <summary>
+/// DelegatingHandler that attaches a unique X-Request-ID header to every outgoing HTTP request
+/// and logs it so client and server logs can be correlated.
+/// </summary>
+public class CorrelationIdHandler : DelegatingHandler
+{
+    private readonly ILogger<CorrelationIdHandler> _logger;
+
+    public CorrelationIdHandler(ILogger<CorrelationIdHandler> logger)
+    {
+        _logger = logger;
+    }
+
+    protected override async Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        var requestId = Guid.NewGuid().ToString("N");
+        request.Headers.TryAddWithoutValidation("X-Request-ID", requestId);
+        _logger.LogInformation("API call {Method} {Url} RequestId={RequestId}",
+            request.Method, request.RequestUri, requestId);
+
+        var response = await base.SendAsync(request, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError("API call failed. RequestId={RequestId}, Status={StatusCode}",
+                requestId, (int)response.StatusCode);
+        }
+
+        return response;
+    }
+}
+```
+
+2. Register the handler on the `HttpClient` used by `DotNetCloudApiClient`. Find where `HttpClient` / `DotNetCloudApiClient` is registered in DI (likely `Program.cs` or a service registration extension). Add:
+
+```csharp
+services.AddTransient<CorrelationIdHandler>();
+services.AddHttpClient<DotNetCloudApiClient>()
+    .AddHttpMessageHandler<CorrelationIdHandler>();
+```
+
+If `DotNetCloudApiClient` constructs its own `HttpClient` rather than using DI, add the handler manually:
+```csharp
+var handler = new CorrelationIdHandler(logger);
+handler.InnerHandler = new HttpClientHandler();
+var httpClient = new HttpClient(handler);
+```
+
+3. Build with `dotnet build`. Run a sync pass. Confirm:
+   - Client log shows lines like: `API call POST https://mint22:15443/api/v1/files/sync/reconcile RequestId=abc123...`
+   - Failure lines show: `API call failed. RequestId=abc123..., Status=401`
+
+**Request back from client agent:**
 - commit hash
-- confirmation `audit-sync.log` is created and populated on a sync operation
-- sample log line from `audit-sync.log`
+- sample log line showing `RequestId=` on an outgoing call
+- confirmation build succeeded (0 errors)
