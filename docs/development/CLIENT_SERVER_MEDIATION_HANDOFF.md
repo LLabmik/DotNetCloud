@@ -204,77 +204,55 @@ dotnet test tests/DotNetCloud.Core.Server.Tests/
 ### Issue #28: Batch 1 Tasks 1.5, 1.6, 1.7 — Client-only (Windows11-TestDNC)
 
 **Server-side status:** Not applicable (all three are client-only).
-**Client-side status:** Pending implementation on `Windows11-TestDNC`.
+**Client-side status:** ✅ COMPLETE — commit `1aa6b18` (2026-03-08).
 
 Pull latest (`git pull`) before starting — server Tasks 1.8 and 1.9 were completed in the same push.
 
 ---
 
-#### Task 1.5: Per-Chunk Retry with Exponential Backoff
+#### Task 1.5: Per-Chunk Retry with Exponential Backoff ✅
 
-**File:** `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs`
-
-Wrap each chunk download/upload in a retry loop. Only retry on `HttpRequestException` and 5xx status codes; do NOT retry on 4xx or 429.
-
-Add a `ChunkTransferResult` record and log the final result per chunk:
-
-```csharp
-record ChunkTransferResult(string Hash, bool Success, int Attempts, string? Error);
-```
-
-```csharp
-int maxRetries = 3;
-for (int attempt = 1; attempt <= maxRetries; attempt++)
-{
-    try
-    {
-        await UploadChunkAsync(chunk, cancellationToken);
-        break;
-    }
-    catch (HttpRequestException ex) when (attempt < maxRetries)
-    {
-        var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt - 1))
-                    + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 500));
-        _logger.LogWarning(ex, "Chunk {Hash} attempt {Attempt} failed. Retrying in {Delay}ms.",
-            chunk.Hash, attempt, delay.TotalMilliseconds);
-        await Task.Delay(delay, cancellationToken);
-    }
-}
-```
-
-**Done when:** Each chunk retries independently with jittered backoff. A single chunk failure does not abort the full transfer.
+**What was implemented:**
+- `ChunkTransferResult` record added to `ChunkedTransferClient` (Hash, Success, Attempts, Error)
+- Upload path: each chunk now retries up to 3× on `HttpRequestException` with no HTTP status code or status ≥ 500. Backoff: `2^(attempt-1)` seconds + jitter (0–500 ms). 4xx (including 429) is NOT retried.
+- Download path: existing hash-check loop now also catches `HttpRequestException`/5xx with the same backoff. Hash mismatches still loop immediately (no added delay).
+- Final result logged per chunk on success: `Chunk {Hash} upload complete: Attempts={Attempts}.`
+- New tests: `UploadAsync_NetworkErrorOnFirstAttempt_RetriesAndSucceeds`, `UploadAsync_NetworkErrorExhaustsRetries_Throws`, `UploadAsync_ClientError_DoesNotRetry`
 
 ---
 
-#### Task 1.6: SQLite WAL Mode + Corruption Recovery
+#### Task 1.6: SQLite WAL Mode + Corruption Recovery ✅
 
-**File:** `LocalStateDb` / `LocalStateDbContext` in Client Core.
-
-1. Add `Journal Mode=Wal` to the SQLite connection string.
-2. On `InitializeAsync()` (or equivalent startup), run `PRAGMA integrity_check;`. If result ≠ `"ok"`, log error, rename the corrupt files with a timestamp suffix, recreate the DB with `EnsureCreatedAsync()`, set a `_needsFullResync = true` flag, and notify the user.
-3. After each complete sync pass, run `PRAGMA wal_checkpoint(TRUNCATE);`.
-
-**Done when:** `state.db-wal` exists during sync. Corrupt DB is detected on startup, preserved as `state.db.corrupt.<timestamp>`, and a fresh DB is created.
-
----
-
-#### Task 1.7: Operation Retry Queue with Backoff
-
-**Files:** `LocalStateDb` + `SyncEngine` in Client Core.
-
-1. Add `NextRetryAt DateTime?` and `LastError string?` columns to `PendingOperationDbRow` (EF Core migration needed for client SQLite DB).
-2. In `ExecutePendingOperationAsync()`, on failure set `RetryCount++`, compute `NextRetryAt` with the schedule: 1 min → 5 min → 15 min → 1 h → 6 h (repeating). After `RetryCount >= 10`, move to a `FailedOperationDbRow` table (same schema + `FailedAt DateTime`).
-3. In `GetPendingOperationsAsync()`, add filter: `WHERE NextRetryAt IS NULL OR NextRetryAt <= @now`.
-4. On success: reset `RetryCount = 0`, `NextRetryAt = null`, `LastError = null`.
-
-**Done when:** Failed operations back off exponentially. After 10 failures they move to the failed operations table and stop retrying.
+**What was implemented:**
+- WAL mode enabled via `PRAGMA journal_mode=WAL;` in `RunSchemaEvolutionAsync` (connection string keyword unsupported by `Microsoft.Data.Sqlite`; PRAGMA persists in DB file header)
+- `InitializeAsync`: runs `PRAGMA integrity_check;` after `EnsureCreatedAsync`; on failure (or any exception opening the DB) archives corrupt files as `{path}.corrupt.{yyyyMMddHHmmss}`, clears SQLite connection pools, recreates fresh DB, sets `_resetPaths` flag
+- `WasRecentlyReset(dbPath)`: returns `true` if DB was just recreated from corruption — `SyncEngine.StartAsync` logs a warning when this is true
+- `CheckpointWalAsync`: `PRAGMA wal_checkpoint(TRUNCATE)` — called from `SyncEngine.SyncAsync` after `UpdateCheckpointAsync` at the end of each sync pass
+- New tests: `InitializeAsync_EnablesWalMode`, `InitializeAsync_CorruptDb_ArchivesAndCreatesNewDb`, `CheckpointWalAsync_DoesNotThrow`
 
 ---
 
-**Request back after all three tasks:**
-- commit hash from `Windows11-TestDNC`
-- build output (0 errors expected)
-- brief confirmation that Task 1.5 retry loop is in place, Task 1.6 WAL file exists, Task 1.7 new columns added
+#### Task 1.7: Operation Retry Queue with Backoff ✅
+
+**What was implemented:**
+- `PendingOperationRecord` base class: added `NextRetryAt DateTime?` and `LastError string?`
+- `PendingOperationDbRow`: added `NextRetryAt` and `LastError` columns
+- `FailedOperationDbRow`: new entity (same schema + `FailedAt DateTime`); `LocalStateDbContext.FailedOperations` DbSet; EF model configured
+- Schema evolution in `RunSchemaEvolutionAsync`: `ALTER TABLE PendingOperations ADD COLUMN` for existing DBs; `CREATE TABLE IF NOT EXISTS FailedOperations`
+- `GetPendingOperationsAsync`: filter `WHERE NextRetryAt IS NULL OR NextRetryAt <= @now`
+- `UpdateOperationRetryAsync`: new interface + implementation method
+- `MoveToFailedAsync`: removes from `PendingOperations`, inserts into `FailedOperations` in one `SaveChangesAsync`
+- `SyncEngine.ApplyLocalChangesAsync`: on failure increments `RetryCount`, computes `NextRetryAt` per schedule — 1 min → 5 min → 15 min → 1 h → 6 h (repeat); at `RetryCount >= 10` calls `MoveToFailedAsync`
+- `ComputeNextRetryAt`: static helper for the backoff schedule
+- New tests: `GetPendingOperationsAsync_ExcludesFutureRetry`, `UpdateOperationRetryAsync_UpdatesRetryFields`, `MoveToFailedAsync_RemovesFromPendingAndAddsToFailed`
+
+**Validation results from Windows11-TestDNC:**
+- Commit: `1aa6b18`
+- Build: 0 errors
+- Tests: 64 passed, 0 failed (was 55, +9 new tests)
+- `push` failed (Gitea auth) — commit is local, user to push manually
+
+**Tasks 1.5, 1.6, 1.7: PASS**
 
 ---
 
