@@ -14,6 +14,7 @@ public sealed class IpcClientHandler : IAsyncDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions =
         new(JsonSerializerDefaults.Web) { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull };
+    private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
     private readonly Stream _stream;
     private readonly ISyncContextManager _contextManager;
@@ -36,8 +37,8 @@ public sealed class IpcClientHandler : IAsyncDisposable
         _stream = stream;
         _contextManager = contextManager;
         _logger = logger;
-        _writer = new StreamWriter(stream, Encoding.UTF8, leaveOpen: true) { AutoFlush = true };
-        _reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: true);
+        _writer = new StreamWriter(stream, Utf8NoBom, leaveOpen: true) { AutoFlush = true };
+        _reader = new StreamReader(stream, Utf8NoBom, leaveOpen: true);
     }
 
     /// <summary>

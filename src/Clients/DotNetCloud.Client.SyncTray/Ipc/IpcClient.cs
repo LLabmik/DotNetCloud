@@ -18,6 +18,7 @@ public sealed class IpcClient : IIpcClient, IAsyncDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions =
         new(JsonSerializerDefaults.Web) { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull };
+    private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
     /// <summary>Delay between reconnection attempts when the SyncService is unavailable.</summary>
     private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(5);
@@ -81,16 +82,22 @@ public sealed class IpcClient : IIpcClient, IAsyncDisposable
     /// <inheritdoc/>
     public async Task ConnectAsync(CancellationToken cancellationToken)
     {
+        _logger.LogInformation("IPC connect loop starting.");
+
         while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
+                _logger.LogInformation("Attempting to connect to SyncService IPC endpoint.");
                 await OpenConnectionAsync(cancellationToken);
                 SetConnected(true);
 
-                // Subscribe to push events, then read until disconnected.
+                // Start the read loop first so command responses can be dispatched.
+                var readLoopTask = ReadLoopAsync(cancellationToken);
+
+                // Subscribe to push events, then continue reading until disconnected.
                 await SubscribeAsync(cancellationToken);
-                await ReadLoopAsync(cancellationToken);
+                await readLoopTask;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -116,6 +123,8 @@ public sealed class IpcClient : IIpcClient, IAsyncDisposable
                 await Task.Delay(ReconnectDelay, cancellationToken).ConfigureAwait(false);
             }
         }
+
+        _logger.LogInformation("IPC connect loop stopped.");
     }
 
     private async Task OpenConnectionAsync(CancellationToken cancellationToken)
@@ -128,13 +137,16 @@ public sealed class IpcClient : IIpcClient, IAsyncDisposable
         }
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            _logger.LogDebug("Connecting to SyncService via named pipe '{Pipe}'.", IpcServer.PipeName);
+            _logger.LogInformation("Connecting to SyncService via named pipe '{Pipe}'.", IpcServer.PipeName);
 
             var pipe = new NamedPipeClientStream(
                 ".", IpcServer.PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
 
-            await pipe.ConnectAsync(3000, cancellationToken);
+            // Guard against ConnectAsync hanging unexpectedly on some environments.
+            var connectTask = pipe.ConnectAsync(cancellationToken);
+            await connectTask.WaitAsync(TimeSpan.FromSeconds(3), cancellationToken);
             _stream = pipe;
+            _logger.LogInformation("Named pipe handshake complete.");
         }
         else
         {
@@ -145,8 +157,10 @@ public sealed class IpcClient : IIpcClient, IAsyncDisposable
             _stream = new NetworkStream(socket, ownsSocket: true);
         }
 
-        _writer = new StreamWriter(_stream, Encoding.UTF8, leaveOpen: true) { AutoFlush = true };
-        _reader = new StreamReader(_stream, Encoding.UTF8, leaveOpen: true);
+        _writer = new StreamWriter(_stream, Utf8NoBom, leaveOpen: true) { AutoFlush = true };
+        _reader = new StreamReader(_stream, Utf8NoBom, leaveOpen: true);
+
+        _logger.LogInformation("IPC reader/writer initialized.");
 
         _logger.LogInformation("Connected to SyncService.");
     }
@@ -174,8 +188,19 @@ public sealed class IpcClient : IIpcClient, IAsyncDisposable
     private async Task SubscribeAsync(CancellationToken cancellationToken)
     {
         var cmd = new IpcCommand { Command = IpcCommands.Subscribe };
-        var response = await SendAndReceiveAsync(cmd, cancellationToken);
-        _logger.LogDebug("Subscribe response: Success={Success}", response?.Success);
+
+        using var subscribeCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        subscribeCts.CancelAfter(TimeSpan.FromSeconds(5));
+
+        var response = await SendAndReceiveAsync(cmd, subscribeCts.Token);
+        if (response?.Success != true)
+        {
+            var err = response?.Error ?? "No subscribe response";
+            _logger.LogWarning("Subscribe failed: {Error}", err);
+            throw new IOException($"Subscribe failed: {err}");
+        }
+
+        _logger.LogInformation("Subscribed to SyncService IPC events.");
     }
 
     private async Task ReadLoopAsync(CancellationToken cancellationToken)

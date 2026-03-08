@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
 using DotNetCloud.Client.Core.Auth;
 using DotNetCloud.Client.SyncTray.Ipc;
 using DotNetCloud.Client.SyncTray.Notifications;
@@ -46,6 +47,9 @@ public partial class App : Application
             // Connect to the background SyncService (reconnects automatically on failure).
             _ = _ipcClient.ConnectAsync(_cts.Token);
             logger.LogInformation("IPC client connection started");
+
+            // First-run onboarding: prompt for server/account when none exist.
+            _ = PromptForInitialAccountIfNeededAsync(_cts.Token);
 
             desktop.Exit += OnExit;
         }
@@ -97,6 +101,44 @@ public partial class App : Application
             NotificationServiceFactory.Create(sp.GetRequiredService<ILogger<INotificationService>>()));
 
         return services.BuildServiceProvider();
+    }
+
+    private async Task PromptForInitialAccountIfNeededAsync(CancellationToken cancellationToken)
+    {
+        if (_ipcClient is null || _services is null)
+            return;
+
+        var logger = _services.GetRequiredService<ILogger<App>>();
+
+        // Give IPC connection a short window to come online.
+        for (var i = 0; i < 10 && !_ipcClient.IsConnected && !cancellationToken.IsCancellationRequested; i++)
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+
+        if (!_ipcClient.IsConnected || cancellationToken.IsCancellationRequested)
+            return;
+
+        try
+        {
+            var contexts = await _ipcClient.ListContextsAsync(cancellationToken);
+            if (contexts.Count > 0)
+                return;
+
+            logger.LogInformation("No sync accounts configured. Launching first-run add-account flow.");
+
+            await Dispatcher.UIThread.InvokeAsync(async () =>
+            {
+                var vm = _services.GetRequiredService<SettingsViewModel>();
+                await vm.BeginAddAccountFlowAsync();
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected on shutdown.
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to launch first-run add-account flow.");
+        }
     }
 
     // ── Shutdown ──────────────────────────────────────────────────────────

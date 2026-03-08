@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Avalonia.Threading;
 using DotNetCloud.Client.SyncTray.ViewModels;
 using DotNetCloud.Client.SyncTray.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -118,21 +119,24 @@ public sealed class TrayIconManager : IDisposable
 
     private void OnTrayViewModelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(TrayViewModel.OverallState))
+        Dispatcher.UIThread.Post(() =>
         {
-            _trayIcon!.Icon = CreateStatusIcon(_trayVm.OverallState);
-        }
-        else if (e.PropertyName == nameof(TrayViewModel.Tooltip))
-        {
-            _trayIcon!.ToolTipText = _trayVm.Tooltip;
-            if (_statusItem is not null)
-                _statusItem.Header = _trayVm.Tooltip;
-        }
-        else if (e.PropertyName == nameof(TrayViewModel.IsPaused))
-        {
-            if (_pauseResumeItem is not null)
-                _pauseResumeItem.Header = _trayVm.IsPaused ? "Resume syncing" : "Pause syncing";
-        }
+            if (e.PropertyName == nameof(TrayViewModel.OverallState))
+            {
+                _trayIcon!.Icon = CreateStatusIcon(_trayVm.OverallState);
+            }
+            else if (e.PropertyName == nameof(TrayViewModel.Tooltip))
+            {
+                _trayIcon!.ToolTipText = _trayVm.Tooltip;
+                if (_statusItem is not null)
+                    _statusItem.Header = _trayVm.Tooltip;
+            }
+            else if (e.PropertyName == nameof(TrayViewModel.IsPaused))
+            {
+                if (_pauseResumeItem is not null)
+                    _pauseResumeItem.Header = _trayVm.IsPaused ? "Resume syncing" : "Pause syncing";
+            }
+        });
     }
 
     // ── Menu event handlers ───────────────────────────────────────────────

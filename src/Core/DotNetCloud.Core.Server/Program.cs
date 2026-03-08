@@ -85,6 +85,9 @@ public class Program
                 var adminSeeder = scope.ServiceProvider.GetRequiredService<AdminSeeder>();
                 await adminSeeder.SeedAsync();
 
+                var oidcClientSeeder = scope.ServiceProvider.GetRequiredService<OidcClientSeeder>();
+                await oidcClientSeeder.SeedAsync();
+
                 // Ensure module data stores are initialized.
                 var filesDbContext = scope.ServiceProvider.GetRequiredService<FilesDbContext>();
                 await EnsureModuleTablesCreatedAsync(filesDbContext, "FileNodes", logger);
@@ -241,6 +244,7 @@ public class Program
 
         // Register initialization services
         builder.Services.AddScoped<AdminSeeder>();
+        builder.Services.AddScoped<OidcClientSeeder>();
         builder.Services.AddHostedService<ModuleUiRegistrationHostedService>();
 
         // Configure forwarded headers for reverse proxy support

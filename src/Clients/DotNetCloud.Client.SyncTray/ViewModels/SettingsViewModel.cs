@@ -109,7 +109,7 @@ public sealed class SettingsViewModel : ViewModelBase
         _oauth2 = oauth2;
         _logger = logger;
 
-        ConnectCommand = new AsyncRelayCommand(OpenAddAccountDialogAsync);
+        ConnectCommand = new AsyncRelayCommand(BeginAddAccountFlowAsync);
         RemoveAccountCommand = new AsyncRelayCommand<Guid>(id => _trayVm.RemoveAccountAsync(id));
         CloseCommand = new RelayCommand(static () => { /* handled by the view via CloseCommand binding */ });
 
@@ -123,7 +123,11 @@ public sealed class SettingsViewModel : ViewModelBase
 
     // ── Add account flow ──────────────────────────────────────────────────
 
-    private async Task OpenAddAccountDialogAsync()
+    /// <summary>
+    /// Starts the interactive add-account flow by opening the add-account dialog.
+    /// Intended for both Settings UI command and first-run onboarding.
+    /// </summary>
+    public async Task BeginAddAccountFlowAsync()
     {
         var dialog = new AddAccountDialog(AddAccountServerUrl);
         // Show as a standalone window; owner resolution is handled at the call site.
