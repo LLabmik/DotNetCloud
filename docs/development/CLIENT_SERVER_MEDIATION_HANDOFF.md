@@ -19,7 +19,7 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 
 **Batch 1 complete.** All Tasks 1.1 through 1.9 are done (Issues #23–#29, all resolved).
 
-**Active:** Batch 2 — Efficiency: Bandwidth Savings. Task 2.1 (CDC) fully complete. Task 2.2 (Streaming Chunk Pipeline) is client-only — see Issue #31.
+**Batch 2 in progress.** Task 2.1 (CDC) fully complete. Task 2.2 (Streaming Chunk Pipeline) complete — see Issue #31. Awaiting next task from server.
 
 ## Environment
 
@@ -339,7 +339,7 @@ Pull latest (`git pull`) before starting — server Tasks 1.8 and 1.9 were compl
 ### Issue #31: Batch 2 Task 2.2 - Streaming Chunk Pipeline — Client only
 
 **Server-side status:** Not applicable (client-only task).
-**Client-side status:** 🔲 PENDING — `Windows11-TestDNC`.
+**Client-side status:** ✅ COMPLETE — commit `2e0788c` (2026-03-08).
 
 **⚠️ PROCESS NOTE FOR CLIENT AGENT:**
 Please follow the handoff process carefully:
@@ -348,6 +348,34 @@ Please follow the handoff process carefully:
 3. After committing, update this document with: commit hash, build result (0 errors), test count (was 66, should increase), and mark status ✅ COMPLETE.
 4. Use **targeted edits only** — do not replace the entire handoff file. Preserve all existing issue entries and the Process Rules / Key Architecture Decisions / Relay Template sections at the top.
 5. Push to `main` so the server agent can pull and move to the next task.
+
+**What was implemented:**
+
+**Upload — bounded-channel producer/consumer pipeline:**
+- `ChunkedTransferClient.cs`: replaced `SemaphoreSlim` + `Task.WhenAll(uploadTasks)` with a `Channel.CreateBounded<(ChunkData, int)>(capacity: 8)` pipeline.
+- Producer task iterates the pre-split chunk list and writes `(chunk, index)` tuples to the channel; completes writer when done.
+- `MaxConcurrency` (4) consumer tasks drain the channel via `ReadAllAsync`, handling per-chunk retry logic with exponential backoff exactly as before.
+- `ChannelCapacity = 8` constant added. Peak memory: ~32 MB (8 slots × 4 MB avg).
+- `using System.Threading.Channels` added to imports.
+
+**Download — temp-file-based streaming:**
+- `DownloadChunksAsync()` replaced: instead of accumulating `byte[][]` and assembling a `MemoryStream` holding the entire file, each verified chunk is written to `{TempPath}/dnc-chunks/{guid}/{index}`.
+- Parallel download (bounded by `SemaphoreSlim(MaxConcurrency)`) and integrity verification unchanged.
+- After all chunks downloaded, concatenates temp files into output `MemoryStream` one at a time (`CopyToAsync`). Memory at concatenation time: one chunk buffer.
+- `finally` block deletes temp dir (`Directory.Delete(tempDir, recursive: true)`) — logged warning on cleanup failure, never throws.
+
+**New tests:**
+- `UploadAsync_StreamingPipeline_BoundedMemoryUsage` — uploads 1 MB file via pipeline; asserts upload call count equals chunk count (all missing).
+- `DownloadAsync_StreamingToTempFiles_AssemblesCorrectly` — downloads 2-chunk file; verifies output stream length (1024) and byte-level ordering (chunk0 first, chunk1 second).
+
+**Validation results from Windows11-TestDNC:**
+- Commit: `2e0788c`
+- Build: 0 errors
+- Tests: 68 passed, 0 failed (was 66, +2 new streaming tests)
+- Channel-based upload confirmed: `UploadAsync_StreamingPipeline_BoundedMemoryUsage` PASS
+- Temp-file download confirmed: `DownloadAsync_StreamingToTempFiles_AssemblesCorrectly` PASS
+
+**Task 2.2: PASS (client complete)**
 
 **What to implement:**
 
