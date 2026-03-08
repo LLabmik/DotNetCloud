@@ -91,28 +91,80 @@ Open issue: Sync Improvement Batch 1 Task 1.3 (server-side rate limiting) — Ta
 
 ---
 
-### Issue #26: Batch 1 Task 1.3 - Server-Side Rate Limiting
+### Issue #26: Batch 1 Task 1.3 - Server-Side Rate Limiting on Sync Endpoints
 
 **Server-side status:** Pending implementation on `mint22`.
-**Client-side status:** Verify 429 + `Retry-After` handling; add log line on rate-limit events (client already has `Retry-After` parsing in `SendWithRetryAsync`).
+**Client-side status:** No changes needed — client already handles 429 + `Retry-After` in `DotNetCloudApiClient.SendWithRetryAsync()`.
 
-**What needs to happen on mint22:**
-- Configure `AddRateLimiter()` with sliding-window policies keyed on authenticated user ID:
+**IMPORTANT CONTEXT: Rate limiting infrastructure already exists.** Do NOT create new middleware or configuration classes. The following are already in place and working:
+- `src/Core/DotNetCloud.Core.Server/Configuration/RateLimitingConfiguration.cs` — has `AddDotNetCloudRateLimiting()`, policies (`"global"`, `"authenticated"`, per-module `"module-{name}"`), 429 rejection handler with `Retry-After` header.
+- `appsettings.json` already has a `"RateLimiting"` section with `Enabled`, `GlobalPermitLimit`, `AuthenticatedPermitLimit`, `ModuleLimits`, etc.
+- Pipeline: `app.UseDotNetCloudRateLimiting()` is already called in `Program.cs`.
 
-  | Endpoint | Limit | Window |
-  |----------|-------|--------|
-  | `/api/v1/sync/changes` | 60 req | 1 min |
-  | `/api/v1/sync/tree` | 10 req | 1 min |
-  | `/api/v1/sync/reconcile` | 30 req | 1 min |
-  | `/api/v1/files/upload/initiate` | 30 req | 1 min |
-  | `/api/v1/files/upload/*/chunks/*` | 300 req | 1 min |
-  | `/api/v1/files/*/download` | 120 req | 1 min |
-  | `/api/v1/files/chunks/*` | 300 req | 1 min |
+**What needs to happen (3 steps):**
 
-- Return `429 Too Many Requests` with `Retry-After` header
-- Configurable limits via `appsettings.json`
+**Step 1:** Add sync-specific module limits to `src/Core/DotNetCloud.Core.Server/appsettings.json` under `RateLimiting.ModuleLimits`:
+
+```json
+"ModuleLimits": {
+  "sync-changes":   { "PermitLimit": 60,  "WindowSeconds": 60 },
+  "sync-tree":      { "PermitLimit": 10,  "WindowSeconds": 60 },
+  "sync-reconcile": { "PermitLimit": 30,  "WindowSeconds": 60 },
+  "upload-initiate": { "PermitLimit": 30, "WindowSeconds": 60 },
+  "upload-chunks":  { "PermitLimit": 300, "WindowSeconds": 60 },
+  "download":       { "PermitLimit": 120, "WindowSeconds": 60 },
+  "chunks":         { "PermitLimit": 300, "WindowSeconds": 60 }
+}
+```
+
+**Step 2:** Add `[EnableRateLimiting("module-{name}")]` attributes to the specific methods. Add `using Microsoft.AspNetCore.RateLimiting;` to both controllers if not present.
+
+In `src/Core/DotNetCloud.Core.Server/Controllers/SyncController.cs`:
+```csharp
+[HttpGet("changes")]
+[EnableRateLimiting("module-sync-changes")]
+public Task<IActionResult> GetChangesAsync(...)
+
+[HttpGet("tree")]
+[EnableRateLimiting("module-sync-tree")]
+public Task<IActionResult> GetTreeAsync(...)
+
+[HttpPost("reconcile")]
+[EnableRateLimiting("module-sync-reconcile")]
+public Task<IActionResult> ReconcileAsync(...)
+```
+
+In `src/Core/DotNetCloud.Core.Server/Controllers/FilesController.cs`:
+```csharp
+[HttpPost("upload/initiate")]
+[EnableRateLimiting("module-upload-initiate")]
+public Task<IActionResult> InitiateUploadAsync(...)
+
+[HttpPut("upload/{sessionId:guid}/chunks/{chunkHash}")]
+[EnableRateLimiting("module-upload-chunks")]
+public Task<IActionResult> UploadChunkAsync(...)
+
+[HttpGet("{nodeId:guid}/download")]
+[EnableRateLimiting("module-download")]
+public Task<IActionResult> DownloadAsync(...)
+
+[HttpGet("{nodeId:guid}/chunks")]
+[EnableRateLimiting("module-chunks")]
+public Task<IActionResult> GetChunkManifestAsync(...)
+
+[HttpGet("chunks/{chunkHash}")]
+[EnableRateLimiting("module-chunks")]
+public Task<IActionResult> DownloadChunkAsync(...)
+```
+
+**Step 3:** Build and test:
+```bash
+cd /path/to/dotnetcloud
+dotnet build src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj
+dotnet test tests/DotNetCloud.Core.Server.Tests/
+```
 
 **Request back from server agent:**
 - commit hash
-- `appsettings.json` rate-limit config section sample
-- confirmation `429` is returned with `Retry-After` on a rapid-fire test
+- build output (0 errors expected)
+- confirm `appsettings.json` has the `ModuleLimits` section above
