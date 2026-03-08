@@ -31,8 +31,10 @@ public sealed class ConflictResolver : IConflictResolver
         File.Move(conflict.LocalPath, conflictCopyPath, overwrite: false);
 
         _logger.LogWarning(
-            "Conflict detected for {Path}. Local copy saved as {ConflictCopy}.",
-            conflict.LocalPath, conflictCopyPath);
+            "Conflict detected for {Path}. Reason={Reason}. Local copy saved as {ConflictCopy}.",
+            conflict.LocalPath,
+            "Local and remote file changed since last sync",
+            conflictCopyPath);
 
         ConflictDetected?.Invoke(this, new ConflictDetectedEventArgs
         {

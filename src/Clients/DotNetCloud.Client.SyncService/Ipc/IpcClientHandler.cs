@@ -110,6 +110,11 @@ public sealed class IpcClientHandler : IAsyncDisposable
 
     private async Task ExecuteAsync(IpcCommand command, CancellationToken cancellationToken)
     {
+        _logger.LogInformation(
+            "IPC command received: Command={Command}, ContextId={ContextId}.",
+            command.Command,
+            command.ContextId);
+
         switch (command.Command)
         {
             case IpcCommands.ListContexts:

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using DotNetCloud.Client.Core.Api;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 namespace DotNetCloud.Client.Core.Transfer;
 
@@ -36,57 +37,85 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
         var fileName = Path.GetFileName(localPath);
         var fileSize = fileStream.Length;
         var mimeType = MimeTypeFromExtension(Path.GetExtension(localPath));
+        var uploadTimer = Stopwatch.StartNew();
 
-        // Split file into chunks and compute hashes
-        var chunks = await SplitIntoChunksAsync(fileStream, cancellationToken);
-        _logger.LogDebug("Uploading {File}: {ChunkCount} chunks, {Size} bytes.", fileName, chunks.Count, fileSize);
+        _logger.LogInformation(
+            "File upload starting: FileName={FileName}, FileSize={FileSize}.",
+            fileName,
+            fileSize);
 
-        // Initiate session — server returns which chunks it already has
-        var session = await _api.InitiateUploadAsync(
-            fileName, null, fileSize, mimeType,
-            chunks.Select(c => c.Hash).ToList(),
-            cancellationToken);
-
-        var presentChunks = new HashSet<string>(session.PresentChunks, StringComparer.OrdinalIgnoreCase);
-        var sem = new SemaphoreSlim(MaxConcurrency, MaxConcurrency);
-        var uploaded = 0;
-        var skipped = 0;
-
-        var uploadTasks = chunks.Select(async (chunk, index) =>
+        try
         {
-            if (presentChunks.Contains(chunk.Hash))
-            {
-                Interlocked.Increment(ref skipped);
-                _logger.LogDebug("Chunk {Index} hash {Hash} already on server — skipping.", index, chunk.Hash);
-                return;
-            }
+            // Split file into chunks and compute hashes
+            var chunks = await SplitIntoChunksAsync(fileStream, cancellationToken);
+            _logger.LogDebug("Uploading {File}: {ChunkCount} chunks, {Size} bytes.", fileName, chunks.Count, fileSize);
 
-            await sem.WaitAsync(cancellationToken);
-            try
+            // Initiate session — server returns which chunks it already has
+            var session = await _api.InitiateUploadAsync(
+                fileName, null, fileSize, mimeType,
+                chunks.Select(c => c.Hash).ToList(),
+                cancellationToken);
+
+            var presentChunks = new HashSet<string>(session.PresentChunks, StringComparer.OrdinalIgnoreCase);
+            var sem = new SemaphoreSlim(MaxConcurrency, MaxConcurrency);
+            var uploaded = 0;
+            var skipped = 0;
+
+            var uploadTasks = chunks.Select(async (chunk, index) =>
             {
-                using var chunkStream = new MemoryStream(chunk.Data);
-                await _api.UploadChunkAsync(session.SessionId, index, chunk.Hash, chunkStream, cancellationToken);
-                var count = Interlocked.Increment(ref uploaded);
-                progress?.Report(new TransferProgress
+                if (presentChunks.Contains(chunk.Hash))
                 {
-                    BytesTransferred = (long)count * DefaultChunkSize,
-                    TotalBytes = fileSize,
-                    ChunksTransferred = count,
-                    TotalChunks = chunks.Count,
-                    ChunksSkipped = skipped,
-                });
-            }
-            finally
-            {
-                sem.Release();
-            }
-        });
+                    Interlocked.Increment(ref skipped);
+                    _logger.LogDebug("Chunk {Index} hash {Hash} already on server — skipping.", index, chunk.Hash);
+                    return;
+                }
 
-        await Task.WhenAll(uploadTasks);
+                await sem.WaitAsync(cancellationToken);
+                try
+                {
+                    using var chunkStream = new MemoryStream(chunk.Data);
+                    await _api.UploadChunkAsync(session.SessionId, index, chunk.Hash, chunkStream, cancellationToken);
+                    var count = Interlocked.Increment(ref uploaded);
+                    progress?.Report(new TransferProgress
+                    {
+                        BytesTransferred = (long)count * DefaultChunkSize,
+                        TotalBytes = fileSize,
+                        ChunksTransferred = count,
+                        TotalChunks = chunks.Count,
+                        ChunksSkipped = skipped,
+                    });
+                }
+                finally
+                {
+                    sem.Release();
+                }
+            });
 
-        var result = await _api.CompleteUploadAsync(session.SessionId, cancellationToken);
-        _logger.LogInformation("Upload complete: {File} → node {NodeId}.", fileName, result.Node.Id);
-        return result.Node.Id;
+            await Task.WhenAll(uploadTasks);
+
+            var result = await _api.CompleteUploadAsync(session.SessionId, cancellationToken);
+            uploadTimer.Stop();
+
+            _logger.LogInformation(
+                "File upload complete: FileName={FileName}, NodeId={NodeId}, FileSize={FileSize}, DurationMs={DurationMs}.",
+                fileName,
+                result.Node.Id,
+                fileSize,
+                uploadTimer.ElapsedMilliseconds);
+
+            return result.Node.Id;
+        }
+        catch (Exception ex)
+        {
+            uploadTimer.Stop();
+            _logger.LogError(
+                ex,
+                "File upload failed: FileName={FileName}, FileSize={FileSize}, DurationMs={DurationMs}.",
+                fileName,
+                fileSize,
+                uploadTimer.ElapsedMilliseconds);
+            throw;
+        }
     }
 
     /// <inheritdoc/>
@@ -95,15 +124,50 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
         IProgress<TransferProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        var manifest = await _api.GetChunkManifestAsync(nodeId, cancellationToken);
+        var downloadTimer = Stopwatch.StartNew();
 
-        if (!manifest.Chunks.Any())
+        _logger.LogInformation("File download starting: NodeId={NodeId}.", nodeId);
+
+        try
         {
-            // Small file or no manifest — fall back to direct download
-            return await _api.DownloadAsync(nodeId, cancellationToken);
-        }
+            var manifest = await _api.GetChunkManifestAsync(nodeId, cancellationToken);
 
-        return await DownloadChunksAsync(manifest, progress, cancellationToken);
+            if (!manifest.Chunks.Any())
+            {
+                // Small file or no manifest — fall back to direct download
+                var direct = await _api.DownloadAsync(nodeId, cancellationToken);
+                downloadTimer.Stop();
+
+                _logger.LogInformation(
+                    "File download complete: NodeId={NodeId}, FileSize={FileSize}, DurationMs={DurationMs}.",
+                    nodeId,
+                    manifest.TotalSize,
+                    downloadTimer.ElapsedMilliseconds);
+
+                return direct;
+            }
+
+            var stream = await DownloadChunksAsync(manifest, progress, cancellationToken);
+            downloadTimer.Stop();
+
+            _logger.LogInformation(
+                "File download complete: NodeId={NodeId}, FileSize={FileSize}, DurationMs={DurationMs}.",
+                nodeId,
+                manifest.TotalSize,
+                downloadTimer.ElapsedMilliseconds);
+
+            return stream;
+        }
+        catch (Exception ex)
+        {
+            downloadTimer.Stop();
+            _logger.LogError(
+                ex,
+                "File download failed: NodeId={NodeId}, DurationMs={DurationMs}.",
+                nodeId,
+                downloadTimer.ElapsedMilliseconds);
+            throw;
+        }
     }
 
     /// <inheritdoc/>

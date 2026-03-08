@@ -5,6 +5,7 @@ using DotNetCloud.Client.Core.LocalState;
 using DotNetCloud.Client.Core.SelectiveSync;
 using DotNetCloud.Client.Core.Transfer;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 namespace DotNetCloud.Client.Core.Sync;
 
@@ -92,23 +93,34 @@ public sealed class SyncEngine : ISyncEngine
         }
 
         await _syncLock.WaitAsync(cancellationToken);
+        var syncTimer = Stopwatch.StartNew();
         try
         {
+            _logger.LogInformation("Sync pass starting for context {ContextId}.", context.Id);
+
             SetState(SyncState.Syncing, context);
             await RefreshAccessTokenAsync(context, cancellationToken);
-            await ApplyRemoteChangesAsync(context, cancellationToken);
-            await ApplyLocalChangesAsync(context, cancellationToken);
+            var remoteChangesApplied = await ApplyRemoteChangesAsync(context, cancellationToken);
+            var localOperationsApplied = await ApplyLocalChangesAsync(context, cancellationToken);
             await _stateDb.UpdateCheckpointAsync(context.StateDatabasePath, DateTime.UtcNow, cancellationToken);
             SetState(SyncState.Idle, context);
-            _logger.LogDebug("Sync pass complete for context {ContextId}.", context.Id);
+            syncTimer.Stop();
+
+            _logger.LogInformation(
+                "Sync pass complete for context {ContextId}: DurationMs={DurationMs}, FileCount={FileCount}.",
+                context.Id,
+                syncTimer.ElapsedMilliseconds,
+                remoteChangesApplied + localOperationsApplied);
         }
         catch (OperationCanceledException)
         {
+            syncTimer.Stop();
             _logger.LogInformation("Sync cancelled for context {ContextId}.", context.Id);
             SetState(SyncState.Idle, context);
         }
         catch (Exception ex)
         {
+            syncTimer.Stop();
             _logger.LogError(ex, "Sync error for context {ContextId}.", context.Id);
             _lastError = ex.Message;
             SetState(SyncState.Error, context);
@@ -191,10 +203,11 @@ public sealed class SyncEngine : ISyncEngine
 
     // ── Private sync logic ──────────────────────────────────────────────────
 
-    private async Task ApplyRemoteChangesAsync(SyncContext context, CancellationToken cancellationToken)
+    private async Task<int> ApplyRemoteChangesAsync(SyncContext context, CancellationToken cancellationToken)
     {
         var checkpoint = await _stateDb.GetCheckpointAsync(context.StateDatabasePath, cancellationToken);
         var since = checkpoint ?? DateTime.UtcNow.AddDays(-365);
+        var appliedChanges = 0;
 
         var remoteChanges = await _api.GetChangesSinceAsync(since, null, cancellationToken);
         _logger.LogDebug("Found {Count} remote changes since {Since}.", remoteChanges.Count, since);
@@ -228,12 +241,16 @@ public sealed class SyncEngine : ISyncEngine
             if (change.IsDeleted)
             {
                 await HandleRemoteDeletionAsync(context, localPath, change.NodeId, cancellationToken);
+                appliedChanges++;
             }
             else if (change.NodeType == "File")
             {
                 await HandleRemoteUpdateAsync(context, localPath, change, cancellationToken);
+                appliedChanges++;
             }
         }
+
+        return appliedChanges;
     }
 
     private async Task HandleRemoteDeletionAsync(SyncContext context, string localPath, Guid nodeId, CancellationToken cancellationToken)
@@ -280,9 +297,10 @@ public sealed class SyncEngine : ISyncEngine
         }
     }
 
-    private async Task ApplyLocalChangesAsync(SyncContext context, CancellationToken cancellationToken)
+    private async Task<int> ApplyLocalChangesAsync(SyncContext context, CancellationToken cancellationToken)
     {
         var pendingOps = await _stateDb.GetPendingOperationsAsync(context.StateDatabasePath, cancellationToken);
+        var completedOperations = 0;
 
         foreach (var op in pendingOps)
         {
@@ -291,12 +309,15 @@ public sealed class SyncEngine : ISyncEngine
             {
                 await ExecutePendingOperationAsync(context, op, cancellationToken);
                 await _stateDb.RemoveOperationAsync(context.StateDatabasePath, op.Id, cancellationToken);
+                completedOperations++;
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to execute pending operation {OpId}. Will retry.", op.Id);
             }
         }
+
+        return completedOperations;
     }
 
     private async Task ExecutePendingOperationAsync(SyncContext context, PendingOperationRecord op, CancellationToken cancellationToken)
@@ -410,14 +431,20 @@ public sealed class SyncEngine : ISyncEngine
     private void OnFileSystemChanged(object sender, FileSystemEventArgs e)
     {
         if (_activeContext is null || _paused) return;
-        _logger.LogDebug("File system change detected: {ChangeType} {Path}.", e.ChangeType, e.FullPath);
+        _logger.LogInformation(
+            "FileSystemWatcher trigger: ChangeType={ChangeType}, Path={Path}.",
+            e.ChangeType,
+            e.FullPath);
         _ = Task.Run(() => SyncAsync(_activeContext, _cts?.Token ?? default));
     }
 
     private void OnFileSystemRenamed(object sender, RenamedEventArgs e)
     {
         if (_activeContext is null || _paused) return;
-        _logger.LogDebug("File renamed: {OldPath} → {NewPath}.", e.OldFullPath, e.FullPath);
+        _logger.LogInformation(
+            "FileSystemWatcher trigger: ChangeType=Renamed, OldPath={OldPath}, NewPath={NewPath}.",
+            e.OldFullPath,
+            e.FullPath);
         _ = Task.Run(() => SyncAsync(_activeContext, _cts?.Token ?? default));
     }
 

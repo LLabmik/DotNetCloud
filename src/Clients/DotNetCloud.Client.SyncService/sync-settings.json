@@ -1,0 +1,7 @@
+{
+  "logging": {
+    "retentionDays": 30,
+    "maxFileSizeMB": 50,
+    "minimumLevel": "Information"
+  }
+}

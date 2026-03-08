@@ -69,6 +69,7 @@
 | Phase 2.11 | 3 | 3 | 0 | 0 |
 | Phase 2.12 | 2 | 1 | 1 | 0 |
 | Phase 2.13 | 3 | 0 | 0 | 3 |
+| Sync Batch 1 | 10 | 0 | 1 | 9 |
 | Phase 3-9 | Summary | 0 | 0 | 1 |
 | Infrastructure | Summary | 0 | 0 | 1 |
 | Documentation | Summary | 0 | 0 | 1 |
@@ -3478,6 +3479,29 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ## How to Use This Plan
+
+## Sync Improvement Plan Execution
+
+### Step: sync-batch-1.1 - Sync Service Logging (Client)
+**Status:** in-progress
+**Duration:** ~1 hour
+**Description:** Add structured Serilog JSON logging to DotNetCloud client sync service and core sync lifecycle components.
+
+**Deliverables:**
+- ✓ Added `Serilog.AspNetCore`, `Serilog.Sinks.File`, and `Serilog.Formatting.Compact` to `src/Clients/DotNetCloud.Client.SyncService/DotNetCloud.Client.SyncService.csproj`
+- ✓ Configured `Log.Logger` in `src/Clients/DotNetCloud.Client.SyncService/Program.cs` for rolling JSON file output at `{DataRoot}/logs/sync-service.log`
+- ✓ Added configurable logging settings support from `sync-settings.json` (`retentionDays`, `maxFileSizeMB`, `minimumLevel`)
+- ✓ Added Linux owner-only (`600`) log-file permissions via `File.SetUnixFileMode()` on service startup
+- ✓ Added structured sync pass start/complete/error and watcher-trigger logs in `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs`
+- ✓ Added structured file upload/download start/complete/error logs (size + duration) in `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs`
+- ✓ Added conflict detection reason logging in `src/Clients/DotNetCloud.Client.Core/Conflict/ConflictResolver.cs`
+- ✓ Added token refresh success/failure logging in `src/Clients/DotNetCloud.Client.Core/Auth/OAuth2Service.cs` (no token value logging)
+- ✓ Added IPC command received logging in `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcClientHandler.cs`
+- ✓ Added `src/Clients/DotNetCloud.Client.SyncService/sync-settings.json` with default logging configuration
+
+**Notes:**
+- Client code changes are implemented, but task is not complete until build/test and runtime log verification are run on `Windows11-TestDNC` per Side requirements.
+- A Linux-side client build was run in error and is not counted as task validation; target-OS validation remains required.
 
 This plan is structured as a living document to guide the implementation of the DotNetCloud project
 in phases. Each phase is broken down into steps with assigned status, duration, description, tasks,

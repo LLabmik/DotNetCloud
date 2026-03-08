@@ -3776,5 +3776,20 @@ Before marking a phase complete:
 
 **Document Maintenance:** This checklist should be updated as implementation progresses, with status updates and task refinements captured in Git history via commit messages and pull request descriptions.
 
+## Sync Improvement Batch Tracking
+
+### Batch 1 - Foundation
+
+- ☐ Task 1.1: Add Serilog Logging to Sync Service (Client) - code complete, Windows build/validation pending
+- ☐ Task 1.1b: Add Sync Audit Logging (Server)
+- ☐ Task 1.2: Request Correlation IDs
+- ☐ Task 1.3: Server-Side Rate Limiting on Sync Endpoints
+- ☐ Task 1.4: Chunk Integrity Verification on Download
+- ☐ Task 1.5: Per-Chunk Retry with Exponential Backoff
+- ☐ Task 1.6: SQLite WAL + Connection Resilience
+- ☐ Task 1.7: Durable Retry Queue
+- ☐ Task 1.8: Safe Temp File Cleanup
+- ☐ Task 1.9: File Scan Hook (No Extension Blocking)
+
 **Last Reviewed:** 2026-03-02
 **Next Review:** Upon Phase 0 completion

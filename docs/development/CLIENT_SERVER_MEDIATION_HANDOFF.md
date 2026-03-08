@@ -17,7 +17,7 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 
 **Completed milestone:** End-to-end file sync with directory hierarchy (Issues #1–#22, all resolved).
 
-No open issues. No blockers.
+Open issue: Sync Improvement Batch 1 Task 1.1 (client logging) is code-complete but pending Windows11-TestDNC restore/build/runtime validation.
 
 ## Environment
 
@@ -45,3 +45,55 @@ No open issues. No blockers.
 - raw error/query params
 - raw log lines around the event (with timestamp)
 ```
+
+## Active Handoff
+
+### Issue #23: Batch 1 Task 1.1 - Sync Service Logging (Client only)
+
+**Server-side status:** Not applicable (client-only task).
+**Client-side status:** Awaiting implementation validation on `Windows11-TestDNC`.
+
+**What already changed in repo (code is ready for Windows validation):**
+- Updated `src/Clients/DotNetCloud.Client.SyncService/DotNetCloud.Client.SyncService.csproj`
+	- Added packages: `Serilog.AspNetCore`, `Serilog.Sinks.File`, `Serilog.Formatting.Compact`
+	- Added `sync-settings.json` as content with `CopyToOutputDirectory=PreserveNewest`
+- Updated `src/Clients/DotNetCloud.Client.SyncService/Program.cs`
+	- Added Serilog rolling JSON file configuration
+	- Added logging settings loader from `sync-settings.json`
+	- Added Linux `600` file mode handling path (safe no-op on Windows)
+- Updated logging in:
+	- `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs`
+	- `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs`
+	- `src/Clients/DotNetCloud.Client.Core/Conflict/ConflictResolver.cs`
+	- `src/Clients/DotNetCloud.Client.Core/Auth/OAuth2Service.cs`
+	- `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcClientHandler.cs`
+	- `src/Clients/DotNetCloud.Client.SyncService/SyncWorker.cs`
+- Added file:
+	- `src/Clients/DotNetCloud.Client.SyncService/sync-settings.json`
+
+**Client agent must run on Windows11-TestDNC (PowerShell):**
+```powershell
+Set-Location "D:\Repos\dotnetcloud"
+
+dotnet restore "src\Clients\DotNetCloud.Client.SyncService\DotNetCloud.Client.SyncService.csproj"
+dotnet build "src\Clients\DotNetCloud.Client.SyncService\DotNetCloud.Client.SyncService.csproj"
+
+# Run service once to create logs
+dotnet run --project "src\Clients\DotNetCloud.Client.SyncService\DotNetCloud.Client.SyncService.csproj"
+```
+
+**Validation required on Windows:**
+- Verify log file exists at `%APPDATA%\DotNetCloud\logs\sync-service.log`
+- Verify JSON log entries appear for:
+	- Sync pass start/complete/error
+	- Upload/download start/complete/error
+	- Conflict detection
+	- OAuth token refresh success/failure
+	- IPC commands received
+	- FileSystemWatcher-triggered sync events
+
+**Request back from Windows client agent:**
+- commit hash
+- raw restore/build errors (if any)
+- first 10 lines of `%APPDATA%\DotNetCloud\logs\sync-service.log`
+- confirmation of Task 1.1 acceptance criteria status (pass/fail)

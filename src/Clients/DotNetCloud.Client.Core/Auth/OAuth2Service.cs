@@ -150,6 +150,8 @@ public sealed class OAuth2Service : IOAuth2Service
         if (currentTokens.RefreshToken is null)
             throw new InvalidOperationException("No refresh token available.");
 
+        _logger.LogInformation("Refreshing OAuth token for server {ServerBaseUrl}.", serverBaseUrl);
+
         var form = new Dictionary<string, string>
         {
             ["grant_type"] = "refresh_token",
@@ -157,8 +159,17 @@ public sealed class OAuth2Service : IOAuth2Service
             ["refresh_token"] = currentTokens.RefreshToken,
         };
 
-        var tokenResponse = await PostFormAsync(serverBaseUrl, "connect/token", form, cancellationToken);
-        return MapTokenResponse(tokenResponse);
+        try
+        {
+            var tokenResponse = await PostFormAsync(serverBaseUrl, "connect/token", form, cancellationToken);
+            _logger.LogInformation("OAuth token refresh succeeded for server {ServerBaseUrl}.", serverBaseUrl);
+            return MapTokenResponse(tokenResponse);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "OAuth token refresh failed for server {ServerBaseUrl}.", serverBaseUrl);
+            throw;
+        }
     }
 
     /// <inheritdoc/>

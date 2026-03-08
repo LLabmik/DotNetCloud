@@ -32,6 +32,8 @@ public sealed class SyncWorker : BackgroundService
     {
         _logger.LogInformation("DotNetCloud Sync Service starting.");
 
+        _contextManager.SyncProgress += OnSyncProgress;
+
         // Load persisted contexts before accepting IPC connections
         await _contextManager.LoadContextsAsync(stoppingToken);
 
@@ -57,11 +59,23 @@ public sealed class SyncWorker : BackgroundService
     {
         _logger.LogInformation("DotNetCloud Sync Service stopping.");
 
+        _contextManager.SyncProgress -= OnSyncProgress;
+
         await _ipcServer.StopAsync(cancellationToken);
         await _contextManager.StopAllAsync(cancellationToken);
 
         await base.StopAsync(cancellationToken);
 
         _logger.LogInformation("DotNetCloud Sync Service stopped.");
+    }
+
+    private void OnSyncProgress(object? sender, SyncProgressEventArgs args)
+    {
+        _logger.LogInformation(
+            "Sync progress update: ContextId={ContextId}, State={State}, PendingUploads={PendingUploads}, PendingDownloads={PendingDownloads}.",
+            args.ContextId,
+            args.Status.State,
+            args.Status.PendingUploads,
+            args.Status.PendingDownloads);
     }
 }
