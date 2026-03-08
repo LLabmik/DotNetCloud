@@ -16,6 +16,7 @@ public static class OAuthHttpClientHandlerFactory
     public static HttpMessageHandler CreateHandler()
     {
         var handler = new HttpClientHandler();
+        handler.AutomaticDecompression = System.Net.DecompressionMethods.All;
         handler.ServerCertificateCustomValidationCallback = static (request, _, _, errors) =>
         {
             if (errors == SslPolicyErrors.None)

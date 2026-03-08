@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -155,8 +156,15 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
     public async Task UploadChunkAsync(Guid sessionId, int chunkIndex, string chunkHash, Stream chunkData, CancellationToken cancellationToken = default)
     {
         using var request = CreateAuthenticatedRequest(HttpMethod.Post, $"api/v1/files/upload/{sessionId}/chunks/{chunkIndex}");
-        request.Content = new StreamContent(chunkData);
+
+        var compressedMs = new MemoryStream();
+        await using (var gzip = new GZipStream(compressedMs, CompressionLevel.Fastest, leaveOpen: true))
+            await chunkData.CopyToAsync(gzip, cancellationToken);
+        compressedMs.Position = 0;
+
+        request.Content = new StreamContent(compressedMs);
         request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+        request.Content.Headers.ContentEncoding.Add("gzip");
         request.Headers.Add("X-Chunk-Hash", chunkHash);
         using var response = await _http.SendAsync(request, cancellationToken);
         response.EnsureSuccessStatusCode();

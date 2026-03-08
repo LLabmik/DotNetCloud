@@ -26,6 +26,10 @@ public static class ClientCoreServiceExtensions
     {
         services.AddTransient<CorrelationIdHandler>();
         services.AddHttpClient<DotNetCloudApiClient>()
+            .ConfigurePrimaryHttpMessageHandler(() => new System.Net.Http.HttpClientHandler
+            {
+                AutomaticDecompression = System.Net.DecompressionMethods.All,
+            })
             .AddHttpMessageHandler<CorrelationIdHandler>();
         services.AddTransient<IDotNetCloudApiClient, DotNetCloudApiClient>();
 

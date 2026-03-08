@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -159,5 +160,119 @@ public class DotNetCloudApiClientTests
 
         Assert.AreEqual(2, callCount);
         Assert.AreEqual("retry.txt", result.Name);
+    }
+
+    // ── Compression (Task 2.3) ──────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task UploadChunkAsync_SetsContentEncodingGzip()
+    {
+        // Arrange
+        var sessionId = Guid.NewGuid();
+        var chunkData = new byte[] { 10, 20, 30, 40, 50, 60, 70, 80 };
+        string? capturedEncoding = null;
+        byte[]? capturedBody = null;
+
+        // Capture inside the mock handler — before the request is disposed
+        var client = CreateMockHttpClient(req =>
+        {
+            capturedEncoding = req.Content?.Headers.ContentEncoding.FirstOrDefault();
+            capturedBody = req.Content?.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+        var apiClient = new DotNetCloudApiClient(client, NullLogger<DotNetCloudApiClient>.Instance);
+
+        // Act
+        await apiClient.UploadChunkAsync(sessionId, 0, "fakehash", new MemoryStream(chunkData));
+
+        // Assert: Content-Encoding header is "gzip"
+        Assert.AreEqual("gzip", capturedEncoding, "Content-Encoding should be 'gzip'.");
+
+        // Assert: decompressing the body yields the original bytes
+        Assert.IsNotNull(capturedBody, "Request body should not be null.");
+        using var ms = new MemoryStream(capturedBody!);
+        await using var gz = new GZipStream(ms, CompressionMode.Decompress);
+        using var decompressed = new MemoryStream();
+        await gz.CopyToAsync(decompressed);
+        CollectionAssert.AreEqual(chunkData, decompressed.ToArray(),
+            "Decompressed body should match the original chunk data.");
+    }
+
+    [TestMethod]
+    public async Task DownloadChunkByHashAsync_DecompressesGzipResponse()
+    {
+        // Arrange: raw bytes to serve, compressed as the server would send them
+        var rawBytes = new byte[] { 11, 22, 33, 44, 55, 66, 77, 88 };
+
+        var compressed = new MemoryStream();
+        await using (var gz = new GZipStream(compressed, CompressionLevel.Fastest, leaveOpen: true))
+            await gz.WriteAsync(rawBytes);
+        var compressedBytes = compressed.ToArray();
+
+        // Use a DelegatingHandler that decompresses gzip responses — simulates HttpClientHandler.AutomaticDecompression
+        var inner = new Mock<HttpMessageHandler>();
+        inner.Protected()
+            .Setup<Task<HttpResponseMessage>>("SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(() =>
+            {
+                var resp = new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent(compressedBytes),
+                };
+                resp.Content.Headers.ContentEncoding.Add("gzip");
+                return resp;
+            });
+
+        var httpClient = new HttpClient(new GzipDecompressionHandler(inner.Object))
+        {
+            BaseAddress = new Uri("https://cloud.example.com/"),
+        };
+        var apiClient = new DotNetCloudApiClient(httpClient, NullLogger<DotNetCloudApiClient>.Instance);
+
+        // Act
+        var resultStream = await apiClient.DownloadChunkByHashAsync("abc123");
+        using var ms = new MemoryStream();
+        await resultStream.CopyToAsync(ms);
+
+        // Assert: decompressed content matches original bytes
+        CollectionAssert.AreEqual(rawBytes, ms.ToArray(),
+            "DownloadChunkByHashAsync should return the decompressed content.");
+    }
+
+    /// <summary>
+    /// Simulates the decompression that <see cref="System.Net.Http.HttpClientHandler"/> performs
+    /// when <c>AutomaticDecompression = DecompressionMethods.All</c> is set.
+    /// </summary>
+    private sealed class GzipDecompressionHandler(HttpMessageHandler inner) : DelegatingHandler(inner)
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var response = await base.SendAsync(request, cancellationToken);
+
+            if (!response.Content.Headers.ContentEncoding.Contains("gzip"))
+                return response;
+
+            var decompressedMs = new MemoryStream();
+            await using (var gz = new GZipStream(
+                await response.Content.ReadAsStreamAsync(cancellationToken),
+                CompressionMode.Decompress))
+            {
+                await gz.CopyToAsync(decompressedMs, cancellationToken);
+            }
+
+            decompressedMs.Position = 0;
+            var newContent = new StreamContent(decompressedMs);
+            foreach (var header in response.Content.Headers)
+            {
+                if (!string.Equals(header.Key, "Content-Encoding", StringComparison.OrdinalIgnoreCase))
+                    newContent.Headers.TryAddWithoutValidation(header.Key, header.Value);
+            }
+
+            response.Content = newContent;
+            return response;
+        }
     }
 }

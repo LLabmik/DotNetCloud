@@ -19,7 +19,7 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 
 **Batch 1 complete.** All Tasks 1.1 through 1.9 are done (Issues #23–#29, all resolved).
 
-**Batch 2 in progress.** Task 2.1 (CDC) fully complete. Task 2.2 (Streaming Chunk Pipeline) complete — see Issue #31. Task 2.3 server-side complete (Issue #32 opened) — client side next.
+**Batch 2 in progress.** Task 2.1 (CDC) fully complete. Task 2.2 (Streaming Chunk Pipeline) complete — see Issue #31. Task 2.3 (Compression) fully complete — see Issue #32.
 
 ## Environment
 
@@ -464,7 +464,7 @@ Memory target: bounded regardless of file size (only one chunk in memory at a ti
 ### Issue #32: Batch 2 Task 2.3 - Compression for Chunk Transfers — Client side
 
 **Server-side status:** ✅ COMPLETE — commit `032f6a2` (2026-03-08).
-**Client-side status:** 🔲 PENDING — `Windows11-TestDNC`.
+**Client-side status:** ✅ COMPLETE — `Windows11-TestDNC` (2026-03-08).
 
 **⚠️ PROCESS NOTE FOR CLIENT AGENT:**
 Please follow the handoff process carefully:
@@ -558,3 +558,16 @@ dotnet test tests\DotNetCloud.Client.Core.Tests\
 - Test count (was 68, should increase by ≥ 2 new tests)
 - Confirm `AutomaticDecompression = All` is set on both HttpClient registrations
 - Confirm `Content-Encoding: gzip` is sent on chunk uploads
+
+**What was implemented (client) — `Windows11-TestDNC` (2026-03-08):**
+
+- `src/Clients/DotNetCloud.Client.Core/Auth/OAuthHttpClientHandlerFactory.cs` — `CreateHandler()` now sets `AutomaticDecompression = DecompressionMethods.All` on the `HttpClientHandler`. Covers the `"DotNetCloudSync"` named client and `OAuth2Service`.
+- `src/Clients/DotNetCloud.Client.Core/ClientCoreServiceExtensions.cs` — `DotNetCloudApiClient` HttpClient registration now includes `ConfigurePrimaryHttpMessageHandler` with a new `HttpClientHandler { AutomaticDecompression = All }`.
+- `src/Clients/DotNetCloud.Client.Core/Api/DotNetCloudApiClient.cs` — `UploadChunkAsync()` now gzip-compresses the chunk stream before sending: creates a `MemoryStream`, writes through `GZipStream(CompressionLevel.Fastest)`, sets `Content-Encoding: gzip` on the request content.
+- 2 new tests in `tests/DotNetCloud.Client.Core.Tests/Api/DotNetCloudApiClientTests.cs`:
+  - `UploadChunkAsync_SetsContentEncodingGzip` — captures request inside mock handler, verifies `Content-Encoding: gzip` is present, and decompresses body to confirm it matches original bytes.
+  - `DownloadChunkByHashAsync_DecompressesGzipResponse` — uses a local `GzipDecompressionHandler` delegating handler (simulating `AutomaticDecompression = All`), mock inner returns gzip-compressed bytes, verifies result stream contains original bytes.
+- Build: 0 errors.
+- Tests: 70 passed, 0 failed (was 68, +2 new compression tests).
+
+**Task 2.3: PASS (client complete)**
