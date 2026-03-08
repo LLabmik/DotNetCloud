@@ -1,3 +1,4 @@
+using DotNetCloud.Client.Core.Auth;
 using DotNetCloud.Client.SyncService.ContextManager;
 using DotNetCloud.Client.SyncService.Ipc;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,8 +18,11 @@ public static class SyncServiceExtensions
     public static IServiceCollection AddDotNetCloudSyncService(
         this IServiceCollection services)
     {
-        // Named HttpClient used by per-context API clients
-        services.AddHttpClient("DotNetCloudSync");
+        // Named HttpClient used by per-context API clients.
+        // Uses the same TLS bypass as OAuth2Service so self-signed certs
+        // on local/private hosts (e.g. mint22) are accepted.
+        services.AddHttpClient("DotNetCloudSync")
+            .ConfigurePrimaryHttpMessageHandler(OAuthHttpClientHandlerFactory.CreateHandler);
 
         services.AddSingleton<ISyncContextManager, SyncContextManager>();
         services.AddSingleton<IIpcServer, IpcServer>();
