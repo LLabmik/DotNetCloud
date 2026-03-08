@@ -2,7 +2,9 @@ using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection;
 using System.Security.Claims;
+using DotNetCloud.Core.Data.Entities.Identity;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
 using static OpenIddict.Abstractions.OpenIddictConstants;
@@ -81,50 +83,67 @@ public static class OpenIddictEndpointsExtensions
         });
     }
 
-    private static Task<IResult> HandleAuthorizeEndpoint(HttpContext context)
+    private static async Task<IResult> HandleAuthorizeEndpoint(HttpContext context)
     {
         var request = context.GetOpenIddictServerRequest()
             ?? throw new InvalidOperationException("The OpenID Connect request cannot be retrieved.");
 
         if (!context.User.Identity?.IsAuthenticated == true)
         {
-            return Task.FromResult<IResult>(Results.Challenge(
+            return Results.Challenge(
                 authenticationSchemes: [IdentityConstants.ApplicationScheme],
                 properties: new AuthenticationProperties
                 {
                     RedirectUri = context.Request.GetEncodedPathAndQuery()
-                }));
+                });
         }
 
         var identity = new ClaimsIdentity(
-            context.User.Claims,
             authenticationType: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
             nameType: Claims.Name,
             roleType: Claims.Role);
 
-        if (!identity.HasClaim(static c => c.Type == Claims.Subject))
-        {
-            var subject = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
-                ?? context.User.FindFirstValue(Claims.Subject);
+        // Resolve subject (user GUID) from the authenticated principal
+        var subject = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? context.User.FindFirstValue(Claims.Subject);
 
-            if (!string.IsNullOrWhiteSpace(subject))
-            {
-                identity.SetClaim(Claims.Subject, subject);
-            }
+        if (!string.IsNullOrWhiteSpace(subject))
+        {
+            identity.SetClaim(Claims.Subject, subject);
+        }
+
+        // Look up the user to populate OIDC-standard claims from the database
+        var userManager = context.RequestServices.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = subject is not null ? await userManager.FindByIdAsync(subject) : null;
+
+        if (user is not null)
+        {
+            identity.SetClaim(Claims.Name, user.DisplayName);
+            identity.SetClaim(Claims.PreferredUsername, user.UserName);
+            identity.SetClaim(Claims.Email, user.Email);
+        }
+
+        // Copy role claims from the authenticated principal
+        foreach (var roleClaim in context.User.FindAll(ClaimTypes.Role))
+        {
+            identity.AddClaim(Claims.Role, roleClaim.Value);
         }
 
         var principal = new ClaimsPrincipal(identity);
         principal.SetScopes(request.GetScopes());
+
+        // Route claims to appropriate token destinations
         principal.SetDestinations(static claim => claim.Type switch
         {
             Claims.Name or Claims.Email or Claims.Role or Claims.Subject
+                or Claims.PreferredUsername
                 => [Destinations.AccessToken, Destinations.IdentityToken],
             _ => [Destinations.AccessToken],
         });
 
-        return Task.FromResult<IResult>(Results.SignIn(
+        return Results.SignIn(
             principal,
-            authenticationScheme: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme));
+            authenticationScheme: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
     private static async Task<IResult> HandleLogoutEndpoint(HttpContext context)
@@ -156,20 +175,42 @@ public static class OpenIddictEndpointsExtensions
 
     private static async Task<IResult> HandleUserInfoEndpoint(HttpContext context)
     {
-        // Verify the access token
+        // Verify the access token (OpenIddict validates the bearer token via passthrough)
         if (!context.User.Identity?.IsAuthenticated == true)
         {
             return Results.Unauthorized();
         }
 
-        // Return user information
+        var sub = context.User.FindFirstValue(Claims.Subject)
+            ?? context.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        // Look up user from database for authoritative claim values
+        if (sub is not null)
+        {
+            var userManager = context.RequestServices.GetRequiredService<UserManager<ApplicationUser>>();
+            var user = await userManager.FindByIdAsync(sub);
+
+            if (user is not null)
+            {
+                return Results.Ok(new
+                {
+                    sub,
+                    email = user.Email,
+                    email_verified = user.EmailConfirmed,
+                    name = user.DisplayName,
+                    preferred_username = user.UserName
+                });
+            }
+        }
+
+        // Fallback: return whatever claims exist on the token
         return Results.Ok(new
         {
-            sub = context.User.FindFirst("sub")?.Value,
-            email = context.User.FindFirst("email")?.Value,
-            email_verified = bool.TryParse(context.User.FindFirst("email_verified")?.Value, out var verified) && verified,
-            name = context.User.FindFirst("name")?.Value,
-            preferred_username = context.User.FindFirst("preferred_username")?.Value
+            sub,
+            email = context.User.FindFirstValue(Claims.Email),
+            email_verified = bool.TryParse(context.User.FindFirstValue("email_verified"), out var verified) && verified,
+            name = context.User.FindFirstValue(Claims.Name),
+            preferred_username = context.User.FindFirstValue(Claims.PreferredUsername)
         });
     }
 

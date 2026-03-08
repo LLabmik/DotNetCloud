@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-07 (Windows11-TestDNC client agent)
+Last updated: 2026-03-08 (mint22 server agent)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -12,7 +12,7 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 
 ## Current Incident
 
-- Symptom: OAuth authorize + callback flow now succeeds; remaining validation is whether token exchange/account add succeeds with client TLS mitigation in place for local/LAN self-signed certs.
+- Symptom: Access token was not parseable by client — `UserId = Guid.Empty`, `DisplayName = "user @ mint22"`. Three root causes identified and fixed server-side.
 - Environment:
   - Client machine: `Windows11-TestDNC`
   - Server machine: `mint22`
@@ -121,6 +121,23 @@ Run this handoff loop each iteration:
 
 - 2026-03-08 (Windows11-TestDNC): Client `ExtractUserId()` in `SettingsViewModel.cs` attempts to decode the access token as a JWT (split on `.`, base64-decode payload, parse `sub` claim as GUID). It returns `Guid.Empty`, which means either: (a) the access token is not a JWT (opaque token), (b) the JWT has no `sub` claim, or (c) the `sub` claim is not in GUID format.
 - 2026-03-08 (Windows11-TestDNC): Client `BuildDisplayName()` similarly fails to find `preferred_username` or `email` claims, falling back to `"user"`, resulting in display name `"user @ mint22"`.
+- 2026-03-08 (mint22): **ROOT CAUSE ANALYSIS** — Three issues identified:
+  1. **Access tokens were encrypted (JWE)**: `AddEphemeralEncryptionKey()` caused OpenIddict to issue encrypted JWTs. Client cannot decode JWE without the server's encryption key → all claim parsing fails silently.
+  2. **`preferred_username` and `email` claims were never added**: The authorize endpoint copied raw ASP.NET Identity cookie claims (which use `ClaimTypes.*` long-form URIs) but never explicitly added OIDC-standard short-form claims (`preferred_username`, `email`, `name`).
+  3. **UserInfo endpoint was not registered with OpenIddict**: Missing `SetUserInfoEndpointUris()` and `EnableUserInfoEndpointPassthrough()` meant `/connect/userinfo` was not advertised in discovery and couldn't validate bearer tokens.
+- 2026-03-08 (mint22): **SERVER FIX APPLIED** — Three changes made:
+  1. `src/Core/DotNetCloud.Core.Auth/Extensions/AuthServiceExtensions.cs`:
+     - Added `options.DisableAccessTokenEncryption()` — access tokens are now plain signed JWTs (JWS) readable by clients.
+     - Added `options.SetUserInfoEndpointUris("/connect/userinfo")` — userinfo endpoint now registered and advertised in discovery.
+     - Added `.EnableUserInfoEndpointPassthrough()` — OpenIddict validates bearer token before passing to custom handler.
+  2. `src/Core/DotNetCloud.Core.Server/Extensions/OpenIddictEndpointsExtensions.cs`:
+     - Authorize endpoint now creates a clean `ClaimsIdentity` and looks up the `ApplicationUser` from the database via `UserManager<ApplicationUser>`.
+     - Explicitly sets OIDC-standard claims: `sub` (user GUID), `name` (DisplayName), `preferred_username` (UserName), `email` (Email).
+     - Destination routing updated to include `Claims.PreferredUsername` in both access token and ID token.
+     - UserInfo endpoint updated to look up user from DB for authoritative claim values.
+  3. Build: `dotnet build` succeeded (0 errors, 0 warnings). 305 server tests passed.
+- 2026-03-08 (mint22): Server redeployed via `./tools/redeploy-baremetal.sh`. Health probe: `https://localhost:15443/health/live` => `Healthy`.
+- 2026-03-08 (mint22): Discovery endpoint verification: `GET /.well-known/openid-configuration` now includes `"userinfo_endpoint": "https://localhost:15443/connect/userinfo"`.
 
 ## Client Evidence Snapshot (2026-03-07)
 
@@ -315,78 +332,57 @@ No sync accounts configured. Launching first-run add-account flow.
   - Token exchange now returns HTTP 200 without TLS exception.
   - Account appears persisted (first-run prompt no longer appears after restart).
 
-## Next Action Requested From Server Agent
+## Next Action Requested From Client Agent
 
-**BLOCKER: Access token does not contain user identity claims.**
+**Server fix deployed — client should re-test OAuth flow.**
 
-The client successfully completes the full OAuth2 PKCE flow (authorize → login → callback → token exchange HTTP 200), but the access token returned by the server cannot be parsed for user identity:
+All three root causes for `UserId = Guid.Empty` have been fixed server-side. The access token is now a plain signed JWT (JWS) containing:
 
-1. **`sub` claim**: Client needs a `sub` claim containing the user's ID as a **GUID** (e.g., `"sub": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"`). Currently either missing or not in GUID format, causing `UserId = Guid.Empty`.
+1. **`sub`** — User's database GUID (e.g., `"sub": "a1b2c3d4-..."`)
+2. **`name`** — User's `DisplayName` from the database
+3. **`preferred_username`** — User's `UserName` (typically their email)
+4. **`email`** — User's email address
 
-2. **`preferred_username` or `email` claim**: Client needs at least one of these to build a display name. Currently neither is present, causing fallback to `"user @ mint22"`.
+**What the client agent should do:**
+1. Pull latest `main` and build.
+2. Delete the existing `contexts.json` to force a fresh OAuth flow (the persisted account has `Guid.Empty` from the old broken token).
+3. Run SyncTray add-account flow end-to-end.
+4. After callback + token exchange, verify `contexts.json` now has a real GUID for `UserId` and a proper `DisplayName`.
+5. **Alternatively**, if the client wants to avoid a full re-auth, it can call `GET /connect/userinfo` with the existing access token as a Bearer header — the userinfo endpoint is now functional and returns `sub`, `name`, `preferred_username`, `email` from the database.
 
-**Possible causes:**
-- OpenIddict may be issuing **opaque** (reference) tokens instead of **JWT** access tokens. The client tries to base64-decode the token payload — if it's not a JWT with a `.`-separated structure, all claim parsing fails silently.
-- If the token IS a JWT, the `sub` claim may be a string (like a username) rather than a GUID, or may be omitted entirely.
-- The `profile` scope may not be mapped to include `preferred_username`/`email` claims in the access token.
-
-**What the server agent needs to verify/fix:**
-1. Check whether OpenIddict is configured to issue JWT access tokens or opaque reference tokens.
-2. If opaque: switch to JWT format for access tokens, OR expose a `/connect/userinfo` endpoint that the client can call.
-3. If JWT: ensure the `sub` claim is the user's database GUID (not a username string or integer).
-4. Ensure `preferred_username` and/or `email` claims are included in the access token (or userinfo response) when the `profile` scope is granted.
-5. **Alternatively**, confirm that `/connect/userinfo` is functional — the client can be updated to call userinfo as a fallback when JWT parsing fails.
-
-## Server Evidence Snapshot (2026-03-07 post-fix)
+## Server Evidence Snapshot (2026-03-08 post-fix)
 
 ### Deployed state
-- Server workspace commit on `mint22`: `47c0cc1`
-- Latest pulled commit includes: typed `IOAuth2Service` HttpClient wiring, OAuth token snake_case JSON mapping, and add-account debug default prefill.
-- Last deployed server code includes authorize passthrough fix from `41d53bf`
-- Additional deployed hotfix (local, not yet committed at time of probe): OpenIddict authorize/token passthrough handlers now issue protocol `SignIn`/`Forbid` flows instead of placeholder `200` JSON messages.
+- Server workspace commit on `mint22`: post-`412eb0c` (uncommitted fix applied and deployed)
+- Fix includes: `DisableAccessTokenEncryption()`, OIDC claim population from DB, userinfo endpoint registration
 - Service redeployed via `./tools/redeploy-baremetal.sh`
 - Health probe: `https://localhost:15443/health/live` => `Healthy`
 
 ### Code changes applied on server
-- `src/Core/DotNetCloud.Core.Server/Extensions/OpenIddictEndpointsExtensions.cs`
-  - Authorize endpoint mapping changed from POST-only to GET+POST:
-    - `app.MapMethods("/connect/authorize", ["GET", "POST"], ...)`
-  - Unauthenticated redirect path corrected:
-    - from `/login?returnUrl=...`
-    - to `/auth/login?returnUrl=...`
+
+1. `src/Core/DotNetCloud.Core.Auth/Extensions/AuthServiceExtensions.cs`:
+   - Added `options.DisableAccessTokenEncryption()` after `AddEphemeralSigningKey()`
+   - Added `options.SetUserInfoEndpointUris("/connect/userinfo")`
+   - Added `.EnableUserInfoEndpointPassthrough()` to ASP.NET Core options
+
+2. `src/Core/DotNetCloud.Core.Server/Extensions/OpenIddictEndpointsExtensions.cs`:
+   - Authorize endpoint: now creates clean identity, looks up `ApplicationUser` from DB, sets `sub` (GUID), `name` (DisplayName), `preferred_username` (UserName), `email` (Email)
+   - Destination routing: added `Claims.PreferredUsername` to access+identity token destinations
+   - UserInfo endpoint: now looks up user from DB for authoritative claims
 
 ### Raw endpoint diagnostics (server-side)
 
-1. Discovery endpoint works:
+1. Discovery endpoint includes userinfo:
 
 ```text
-GET https://mint22:15443/.well-known/openid-configuration
-HTTP/2 200
-authorization_endpoint: https://mint22:15443/connect/authorize
+GET https://localhost:15443/.well-known/openid-configuration
+"userinfo_endpoint": "https://localhost:15443/connect/userinfo"
 scopes_supported: openid offline_access profile email files:read files:write
 ```
 
-2. Exact client authorize URL after fix:
-
-```text
-GET https://mint22:15443/connect/authorize?response_type=code&client_id=dotnetcloud-desktop&redirect_uri=http%3a%2f%2flocalhost%3a52701%2foauth%2fcallback&scope=openid+profile+offline_access+files%3aread+files%3awrite&state=vjQGGMOXicZZq7dcqSCgLw&code_challenge=dAbwRP29DV1hPFJfENvB7N2KU7lnij3FUkE45_r1WXA&code_challenge_method=S256
-HTTP/2 302
-location: /auth/login?returnUrl=%2Fconnect%2Fauthorize%3Fresponse_type%3Dcode%26client_id%3Ddotnetcloud-desktop%26...
-```
-
-### Raw log evidence
-
-```text
-[2026-03-07 19:51:12.671 -06:00 INF] The request URI matched a server endpoint: Authorization. RequestPath: /connect/authorize
-[2026-03-07 19:51:12.776 -06:00 INF] The authorization request was successfully validated.
-[2026-03-07 19:51:02.286 -06:00 INF] Updated OIDC desktop client 'dotnetcloud-desktop' permissions/scopes.
-[2026-03-07 20:02:11.716 -06:00 INF] The request URI matched a server endpoint: Authorization. RequestPath: /connect/authorize
-[2026-03-07 20:02:11.721 -06:00 INF] The authorization request was successfully validated.
-[2026-03-07 20:09:13.106 -06:00 INF] The request URI matched a server endpoint: Authorization. RequestPath: /connect/authorize
-[2026-03-07 20:09:13.182 -06:00 INF] The authorization request was successfully validated.
-[2026-03-07 20:09:13.503 -06:00 INF] The request URI matched a server endpoint: Token. RequestPath: /connect/token
-[2026-03-07 20:09:13.507 -06:00 INF] The request was rejected because the mandatory 'Content-Type' header was missing.
-```
+2. Build/test results:
+   - `dotnet build` — 0 errors, 0 warnings
+   - `dotnet test tests/DotNetCloud.Core.Server.Tests/` — 305 passed, 0 failed
 
 ## Mandatory End-Of-Handoff Relay Instructions
 
@@ -417,20 +413,14 @@ If the handoff is server-to-client instead, replace `Send to Server Agent` with 
 
 ## Mediator Relay Instructions
 
-### Send to Server Agent
-OAuth token exchange now succeeds (HTTP 200), and the client persists the account context. However, the access token returned by the server does not contain parseable user identity claims. The client decodes the access token as a JWT and looks for a `sub` claim (GUID format) for the user ID, and `preferred_username` or `email` for the display name. All of these are missing or unparseable, resulting in `UserId = Guid.Empty` and `DisplayName = "user @ mint22"`. This is a blocker for sync — the server needs user requests to have a real user ID.
+### Send to Client Agent
+The server has fixed all three root causes for `UserId = Guid.Empty`. Access tokens were encrypted (JWE) so the client couldn't decode them — now disabled. The authorize endpoint wasn't populating OIDC-standard claims (`sub`, `name`, `preferred_username`, `email`) — now it looks up the user from the database and sets all four. The `/connect/userinfo` endpoint was not registered with OpenIddict — now it's registered, advertised in discovery, and validates bearer tokens.
 
-Please check 'docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md' on `main` (just pushed) for full details under "Next Action Requested From Server Agent". The key questions are:
-
-1. Is OpenIddict issuing JWT or opaque access tokens?
-2. Does the `sub` claim contain the user's database GUID?
-3. Are `preferred_username`/`email` claims included when `profile` scope is granted?
-4. Is `/connect/userinfo` functional as a fallback?
+Server redeployed on `mint22`. Please pull latest `main`, delete the existing `contexts.json` (it has `Guid.Empty` from the old broken token), and re-run the full SyncTray add-account OAuth flow. After token exchange, verify `contexts.json` has a real GUID for `UserId` and a proper `DisplayName`. See `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` for full details.
 
 ### Request Back
-- Server commit hash after any fix.
-- Whether access tokens are JWT or opaque reference tokens.
-- Sample decoded JWT payload (if JWT) showing which claims are present and their format.
-- If opaque: confirmation that `/connect/userinfo` returns `sub` (as GUID), `preferred_username`, and `email`.
-- Raw server log lines from a token exchange request (with timestamps).
-- Confirmation of redeploy on `mint22`.
+- Client commit hash after pull.
+- Raw `contexts.json` content after fresh OAuth flow (showing `UserId` and `DisplayName`).
+- Raw SyncTray log lines around token exchange and account persistence (with timestamps).
+- Confirmation that `UserId` is no longer `Guid.Empty`.
+- Any remaining errors or unexpected behavior.

@@ -106,7 +106,7 @@ public static class AuthServiceExtensions
                 // Endpoints
                 options.SetTokenEndpointUris("/connect/token");
                 options.SetAuthorizationEndpointUris("/connect/authorize");
-                // In OpenIddict 7.x, logout and userinfo endpoints are configured through event handlers
+                options.SetUserInfoEndpointUris("/connect/userinfo");
                 options.SetIntrospectionEndpointUris("/connect/introspect");
                 options.SetRevocationEndpointUris("/connect/revoke");
 
@@ -132,9 +132,14 @@ public static class AuthServiceExtensions
                 options.AddEphemeralEncryptionKey();
                 options.AddEphemeralSigningKey();
 
+                // Disable access token encryption so clients can read JWT claims directly.
+                // Without this, access tokens are JWE (encrypted) and clients cannot decode them.
+                options.DisableAccessTokenEncryption();
+
                 options.UseAspNetCore()
                     .EnableTokenEndpointPassthrough()
                     .EnableAuthorizationEndpointPassthrough()
+                    .EnableUserInfoEndpointPassthrough()
                     .EnableStatusCodePagesIntegration();
             })
             .AddValidation(options =>
