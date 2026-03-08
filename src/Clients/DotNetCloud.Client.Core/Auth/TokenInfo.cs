@@ -12,10 +12,10 @@ public sealed class TokenInfo
     public string? RefreshToken { get; set; }
 
     /// <summary>UTC expiry time of the access token.</summary>
-    public DateTime ExpiresAt { get; set; }
+    public DateTimeOffset ExpiresAt { get; set; }
 
     /// <summary>Whether the access token is currently valid.</summary>
-    public bool IsExpired => DateTime.UtcNow >= ExpiresAt;
+    public bool IsExpired => DateTimeOffset.UtcNow >= ExpiresAt;
 
     /// <summary>Whether a refresh token is available.</summary>
     public bool CanRefresh => RefreshToken is not null;

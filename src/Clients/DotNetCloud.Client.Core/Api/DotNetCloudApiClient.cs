@@ -45,14 +45,29 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
     }
 
     /// <inheritdoc/>
-    public async Task<TokenResponse> RefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default)
+    public async Task<TokenResponse> RefreshTokenAsync(string refreshToken, string clientId, CancellationToken cancellationToken = default)
     {
         var form = new Dictionary<string, string>
         {
             ["grant_type"] = "refresh_token",
+            ["client_id"] = clientId,
             ["refresh_token"] = refreshToken,
         };
-        return await PostFormAsync<TokenResponse>("connect/token", form, withAuth: false, cancellationToken)
+
+        using var response = await SendWithRetryAsync(
+            () => CreateFormRequest(HttpMethod.Post, "connect/token", form, withAuth: false),
+            cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            throw new HttpRequestException(
+                $"Token refresh failed ({(int)response.StatusCode}): {body}",
+                null,
+                response.StatusCode);
+        }
+
+        return await response.Content.ReadFromJsonAsync<TokenResponse>(JsonOptions, cancellationToken)
                ?? throw new InvalidOperationException("Empty token response.");
     }
 

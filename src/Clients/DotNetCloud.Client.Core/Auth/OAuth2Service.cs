@@ -327,7 +327,7 @@ public sealed class OAuth2Service : IOAuth2Service
         {
             AccessToken = r.AccessToken,
             RefreshToken = r.RefreshToken,
-            ExpiresAt = DateTime.UtcNow.AddSeconds(r.ExpiresIn > 0 ? r.ExpiresIn - 30 : 3570),
+            ExpiresAt = DateTimeOffset.UtcNow.AddSeconds(r.ExpiresIn > 0 ? r.ExpiresIn - 30 : 3570),
         };
 
     // ── Browser launch ──────────────────────────────────────────────────────

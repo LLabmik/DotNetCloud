@@ -138,7 +138,7 @@ public sealed class AddAccountData
 
     /// <summary>UTC expiry time of the access token.</summary>
     [JsonPropertyName("expiresAt")]
-    public DateTime ExpiresAt { get; init; }
+    public DateTimeOffset ExpiresAt { get; init; }
 }
 
 // ── Response data types ───────────────────────────────────────────────────────

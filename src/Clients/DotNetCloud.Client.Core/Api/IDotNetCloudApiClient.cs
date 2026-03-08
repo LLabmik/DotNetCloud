@@ -14,7 +14,7 @@ public interface IDotNetCloudApiClient
     Task<TokenResponse> ExchangeCodeAsync(string code, string codeVerifier, string redirectUri, CancellationToken cancellationToken = default);
 
     /// <summary>Refreshes an access token using the given refresh token.</summary>
-    Task<TokenResponse> RefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default);
+    Task<TokenResponse> RefreshTokenAsync(string refreshToken, string clientId, CancellationToken cancellationToken = default);
 
     /// <summary>Revokes the given token (access or refresh).</summary>
     Task RevokeTokenAsync(string token, CancellationToken cancellationToken = default);

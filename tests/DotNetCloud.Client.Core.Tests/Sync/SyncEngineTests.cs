@@ -56,7 +56,7 @@ public class SyncEngineTests
 
         var tokenStoreMock = new Mock<ITokenStore>();
         tokenStoreMock.Setup(ts => ts.LoadAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TokenInfo { AccessToken = "test-token", ExpiresAt = DateTime.UtcNow.AddHours(1) });
+            .ReturnsAsync(new TokenInfo { AccessToken = "test-token", ExpiresAt = DateTimeOffset.UtcNow.AddHours(1) });
 
         _engine = new SyncEngine(
             _apiMock.Object,

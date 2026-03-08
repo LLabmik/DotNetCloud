@@ -12,7 +12,7 @@ public class TokenInfoTests
         var info = new TokenInfo
         {
             AccessToken = "abc",
-            ExpiresAt = DateTime.UtcNow.AddHours(1),
+            ExpiresAt = DateTimeOffset.UtcNow.AddHours(1),
         };
 
         Assert.IsFalse(info.IsExpired);
@@ -24,7 +24,7 @@ public class TokenInfoTests
         var info = new TokenInfo
         {
             AccessToken = "abc",
-            ExpiresAt = DateTime.UtcNow.AddSeconds(-1),
+            ExpiresAt = DateTimeOffset.UtcNow.AddSeconds(-1),
         };
 
         Assert.IsTrue(info.IsExpired);

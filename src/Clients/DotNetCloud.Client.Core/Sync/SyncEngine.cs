@@ -319,12 +319,29 @@ public sealed class SyncEngine : ISyncEngine
     private async Task RefreshAccessTokenAsync(SyncContext context, CancellationToken cancellationToken)
     {
         var tokens = await _tokenStore.LoadAsync(context.AccountKey, cancellationToken);
-        if (tokens is null) return;
+        if (tokens is null)
+        {
+            _logger.LogWarning("No tokens found for context {ContextId}.", context.Id);
+            return;
+        }
+
+        _logger.LogInformation(
+            "Token state for context {ContextId}: IsExpired={IsExpired}, CanRefresh={CanRefresh}, ExpiresAt={ExpiresAt}.",
+            context.Id, tokens.IsExpired, tokens.CanRefresh, tokens.ExpiresAt);
 
         if (tokens.IsExpired && tokens.CanRefresh)
         {
-            _logger.LogDebug("Refreshing access token for context {ContextId}.", context.Id);
-            // Token refresh is handled externally; just use the loaded token
+            _logger.LogInformation("Refreshing expired access token for context {ContextId}.", context.Id);
+            var refreshed = await _api.RefreshTokenAsync(tokens.RefreshToken!, OAuthConstants.ClientId, cancellationToken);
+            tokens = new TokenInfo
+            {
+                AccessToken = refreshed.AccessToken,
+                RefreshToken = refreshed.RefreshToken ?? tokens.RefreshToken,
+                ExpiresAt = DateTimeOffset.UtcNow.AddSeconds(refreshed.ExpiresIn),
+            };
+            await _tokenStore.SaveAsync(context.AccountKey, tokens, cancellationToken);
+            _logger.LogInformation("Access token refreshed successfully for context {ContextId}. New expiry: {ExpiresAt}.",
+                context.Id, tokens.ExpiresAt);
         }
 
         _api.AccessToken = tokens.AccessToken;

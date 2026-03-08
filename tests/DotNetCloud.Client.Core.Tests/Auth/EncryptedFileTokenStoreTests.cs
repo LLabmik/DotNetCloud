@@ -31,7 +31,7 @@ public class EncryptedFileTokenStoreTests
         {
             AccessToken = "access-token-abc",
             RefreshToken = "refresh-token-xyz",
-            ExpiresAt = new DateTime(2030, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            ExpiresAt = new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero),
         };
 
         await _store.SaveAsync("account-key-1", tokens);
@@ -54,7 +54,7 @@ public class EncryptedFileTokenStoreTests
     [TestMethod]
     public async Task DeleteAsync_RemovesToken()
     {
-        var tokens = new TokenInfo { AccessToken = "tok", ExpiresAt = DateTime.UtcNow.AddHours(1) };
+        var tokens = new TokenInfo { AccessToken = "tok", ExpiresAt = DateTimeOffset.UtcNow.AddHours(1) };
         await _store.SaveAsync("to-delete", tokens);
 
         await _store.DeleteAsync("to-delete");
@@ -66,8 +66,8 @@ public class EncryptedFileTokenStoreTests
     [TestMethod]
     public async Task SaveAsync_DifferentKeys_StoresSeparately()
     {
-        var tokens1 = new TokenInfo { AccessToken = "token-1", ExpiresAt = DateTime.UtcNow.AddHours(1) };
-        var tokens2 = new TokenInfo { AccessToken = "token-2", ExpiresAt = DateTime.UtcNow.AddHours(2) };
+        var tokens1 = new TokenInfo { AccessToken = "token-1", ExpiresAt = DateTimeOffset.UtcNow.AddHours(1) };
+        var tokens2 = new TokenInfo { AccessToken = "token-2", ExpiresAt = DateTimeOffset.UtcNow.AddHours(2) };
 
         await _store.SaveAsync("key-1", tokens1);
         await _store.SaveAsync("key-2", tokens2);

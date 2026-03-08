@@ -112,7 +112,7 @@ public class IpcProtocolTests
     public void AddAccountData_Deserialise_AllFieldsRestored()
     {
         var userId = Guid.NewGuid();
-        var expiry = DateTime.UtcNow.AddHours(1);
+        var expiry = DateTimeOffset.UtcNow.AddHours(1);
         var json = JsonSerializer.Serialize(new AddAccountData
         {
             ServerUrl = "https://cloud.example.com",

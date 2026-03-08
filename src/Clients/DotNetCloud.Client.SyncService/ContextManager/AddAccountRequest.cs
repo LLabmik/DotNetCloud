@@ -26,7 +26,7 @@ public sealed class AddAccountRequest
     public string? RefreshToken { get; init; }
 
     /// <summary>UTC expiry time of the access token.</summary>
-    public DateTime ExpiresAt { get; init; }
+    public DateTimeOffset ExpiresAt { get; init; }
 
     /// <summary>OS username of the account owner (defaults to the current user).</summary>
     public string OsUserName { get; init; } = Environment.UserName;

@@ -51,7 +51,7 @@ public sealed class SettingsViewModelTests
         {
             AccessToken = BuildFakeJwt(Guid.NewGuid()),
             RefreshToken = "refresh",
-            ExpiresAt = DateTime.UtcNow.AddHours(1),
+            ExpiresAt = DateTimeOffset.UtcNow.AddHours(1),
         };
 
         oauth2Mock
