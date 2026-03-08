@@ -19,7 +19,7 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 
 **Batch 1 complete.** All Tasks 1.1 through 1.9 are done (Issues #23–#29, all resolved).
 
-**Active:** Batch 2 — Efficiency: Bandwidth Savings. Task 2.1 (CDC) server side is complete at commit `3a7e0ae`. Client side is next.
+**Active:** Batch 2 — Efficiency: Bandwidth Savings. Task 2.1 (CDC) fully complete. Task 2.2 (Streaming Chunk Pipeline) is client-only — see Issue #31.
 
 ## Environment
 
@@ -335,3 +335,95 @@ Pull latest (`git pull`) before starting — server Tasks 1.8 and 1.9 were compl
 **Task 2.1: PASS (both sides complete)**
 
 ---
+
+### Issue #31: Batch 2 Task 2.2 - Streaming Chunk Pipeline — Client only
+
+**Server-side status:** Not applicable (client-only task).
+**Client-side status:** 🔲 PENDING — `Windows11-TestDNC`.
+
+**⚠️ PROCESS NOTE FOR CLIENT AGENT:**
+Please follow the handoff process carefully:
+1. Pull latest (`git pull`) before starting.
+2. Build and test on `Windows11-TestDNC` (Windows). Do NOT build this on the server — this is client-only code.
+3. After committing, update this document with: commit hash, build result (0 errors), test count (was 66, should increase), and mark status ✅ COMPLETE.
+4. Use **targeted edits only** — do not replace the entire handoff file. Preserve all existing issue entries and the Process Rules / Key Architecture Decisions / Relay Template sections at the top.
+5. Push to `main` so the server agent can pull and move to the next task.
+
+**What to implement:**
+
+Replace the in-memory bulk approach in `ChunkedTransferClient` with a bounded-channel producer/consumer pipeline for uploads, and temp-file-based streaming for downloads. The goal is bounded memory use regardless of file size.
+
+**File:** `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs`
+**Tests:** `tests/DotNetCloud.Client.Core.Tests/Transfer/ChunkedTransferClientTests.cs`
+
+**Upload — replace current `Task.WhenAll` approach with a bounded channel pipeline:**
+
+```csharp
+var channel = Channel.CreateBounded<ChunkData>(new BoundedChannelOptions(8)
+{
+    FullMode = BoundedChannelFullMode.Wait
+});
+
+// Producer: split file via CDC → write chunks to channel
+var producer = Task.Run(async () =>
+{
+    await foreach (var chunk in ChunkFileAsync(fileStream, cancellationToken))
+        await channel.Writer.WriteAsync(chunk, cancellationToken);
+    channel.Writer.Complete();
+}, cancellationToken);
+
+// Consumers: 4 parallel uploaders drain the channel
+var consumers = Enumerable.Range(0, MaxConcurrency).Select(_ => Task.Run(async () =>
+{
+    await foreach (var chunk in channel.Reader.ReadAllAsync(cancellationToken))
+        await UploadChunkAsync(sessionId, chunk, presentChunks, cancellationToken);
+}, cancellationToken));
+
+await Task.WhenAll(new[] { producer }.Concat(consumers));
+```
+
+Peak memory target: ~32 MB (8 slots × 4 MB avg).
+
+**Download — stream chunks to temp files, then concatenate:**
+
+Instead of holding all `byte[]` chunks in a `chunks[]` array, download each chunk to a temp file, then concatenate into the target stream. Clean up temp files afterwards.
+
+```csharp
+// For each chunk: download → write to temp file
+var tempDir = Path.Combine(Path.GetTempPath(), "dnc-chunks", Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(tempDir);
+try
+{
+    // Download all chunks in parallel (bounded by MaxConcurrency) → temp files
+    // ...
+
+    // Concatenate in order into output stream
+    var output = new MemoryStream();
+    for (var i = 0; i < manifest.Chunks.Count; i++)
+    {
+        var chunkPath = Path.Combine(tempDir, $"{i}");
+        using var f = File.OpenRead(chunkPath);
+        await f.CopyToAsync(output, cancellationToken);
+    }
+    output.Seek(0, SeekOrigin.Begin);
+    return output;
+}
+finally
+{
+    Directory.Delete(tempDir, recursive: true);
+}
+```
+
+Memory target: bounded regardless of file size (only one chunk in memory at a time during concatenation).
+
+**New tests to add:**
+- `UploadAsync_StreamingPipeline_BoundedMemoryUsage` — upload multi-chunk file, confirm channel-based upload completes correctly (count of upload calls matches missing chunks).
+- `DownloadAsync_StreamingToTempFiles_AssemblesCorrectly` — download multi-chunk file, confirm all chunks downloaded and output stream length is correct.
+
+**No server changes required.** The server API is unchanged. This is purely a client-side refactor.
+
+**Request back from client agent:**
+- Commit hash
+- Build: 0 errors
+- Test count (was 66, should increase by ≥2 new tests)
+- Confirm memory behavior: channel-based upload, temp-file-based download
