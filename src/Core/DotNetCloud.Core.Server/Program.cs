@@ -20,6 +20,7 @@ using DotNetCloud.UI.Web.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -250,6 +251,23 @@ public class Program
         // Add CORS with enhanced configuration
         builder.Services.AddDotNetCloudCors(builder.Configuration);
 
+        // Add response compression (Brotli preferred, Gzip fallback; applies to chunk/file downloads)
+        builder.Services.AddResponseCompression(options =>
+        {
+            options.EnableForHttps = true;
+            options.Providers.Add<BrotliCompressionProvider>();
+            options.Providers.Add<GzipCompressionProvider>();
+            // Include octet-stream so raw chunk downloads are eligible for compression.
+            // Already-compressed formats (JPEG, ZIP, etc.) use their own MIME types
+            // (image/jpeg, application/zip) which are not in this list, so they are skipped.
+            options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(
+                ["application/octet-stream"]);
+        });
+        builder.Services.Configure<BrotliCompressionProviderOptions>(options =>
+            options.Level = System.IO.Compression.CompressionLevel.Fastest);
+        builder.Services.Configure<GzipCompressionProviderOptions>(options =>
+            options.Level = System.IO.Compression.CompressionLevel.Fastest);
+
         // Add rate limiting
         builder.Services.AddDotNetCloudRateLimiting(builder.Configuration);
 
@@ -382,6 +400,10 @@ public class Program
     {
         // Forwarded headers (must be first for reverse proxy support)
         app.UseForwardedHeaders();
+
+        // Response compression — must be before any middleware that writes response bodies.
+        // Client advertises support via Accept-Encoding: br, gzip.
+        app.UseResponseCompression();
 
         // Apply middleware (security headers, exception handler, request logging)
         app.UseDotNetCloudMiddleware(headers =>

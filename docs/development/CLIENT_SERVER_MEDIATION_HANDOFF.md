@@ -19,7 +19,7 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 
 **Batch 1 complete.** All Tasks 1.1 through 1.9 are done (Issues #23–#29, all resolved).
 
-**Batch 2 in progress.** Task 2.1 (CDC) fully complete. Task 2.2 (Streaming Chunk Pipeline) complete — see Issue #31. Awaiting next task from server.
+**Batch 2 in progress.** Task 2.1 (CDC) fully complete. Task 2.2 (Streaming Chunk Pipeline) complete — see Issue #31. Task 2.3 server-side complete (Issue #32 opened) — client side next.
 
 ## Environment
 
@@ -458,3 +458,103 @@ Memory target: bounded regardless of file size (only one chunk in memory at a ti
 - Build: 0 errors
 - Test count (was 66, should increase by ≥2 new tests)
 - Confirm memory behavior: channel-based upload, temp-file-based download
+
+---
+
+### Issue #32: Batch 2 Task 2.3 - Compression for Chunk Transfers — Client side
+
+**Server-side status:** ✅ COMPLETE — commit `TBD` (2026-03-08).
+**Client-side status:** 🔲 PENDING — `Windows11-TestDNC`.
+
+**⚠️ PROCESS NOTE FOR CLIENT AGENT:**
+Please follow the handoff process carefully:
+1. Pull latest (`git pull`) before starting.
+2. Build and test on `Windows11-TestDNC` (Windows). Do NOT build this on the server — this is client-only code.
+3. After committing, update this document with: commit hash, build result (0 errors), test count (was 68, should increase), and mark status ✅ COMPLETE.
+4. Use **targeted edits only** — do not replace the entire handoff file. Preserve all existing issue entries and the Process Rules / Key Architecture Decisions / Relay Template sections at the top.
+5. Push to `main` so the server agent can pull and move to the next task.
+
+**What was implemented (server) — response compression middleware:**
+
+- `src/Core/DotNetCloud.Core.Server/Program.cs`:
+  - Added `using Microsoft.AspNetCore.ResponseCompression;`
+  - In `ConfigureServices`: registered `AddResponseCompression()` with Brotli (preferred) + Gzip (fallback). `EnableForHttps = true`. MIME types = `ResponseCompressionDefaults.MimeTypes` + `"application/octet-stream"` (covers raw chunk downloads). Both providers set to `CompressionLevel.Fastest`.
+  - In `ConfigurePipeline`: added `app.UseResponseCompression()` immediately after `app.UseForwardedHeaders()` (before all other middleware).
+- `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/FilesController.cs`: no changes needed — the global middleware handles all responses matching the MIME type list.
+- **MIME type strategy:** `application/octet-stream` added for chunk downloads. Already-compressed MIME types (e.g. `image/jpeg`, `video/mp4`, `application/zip`) are NOT in the list, so `DownloadAsync` for those files skips compression automatically.
+- **X-Content-Type-Options: nosniff** — already set globally by `SecurityHeadersMiddleware`. NOT added per-endpoint.
+- Build: 0 errors. 304 server tests + 524 files tests passed.
+
+**What the client needs to do:**
+
+**File:** `src/Clients/DotNetCloud.Client.Core/ClientCoreServiceExtensions.cs`  
+**Also:** `src/Clients/DotNetCloud.Client.SyncService/SyncServiceExtensions.cs`  
+**Tests:** `tests/DotNetCloud.Client.Core.Tests/`
+
+**Step 1: Enable automatic decompression on both HttpClient registrations.**
+
+Check `ClientCoreServiceExtensions.cs` — find where the typed `DotNetCloudApiClient` HttpClient is registered (look for `.AddHttpClient<DotNetCloudApiClient>` or similar). If the handler uses `HttpClientHandler` or `SocketsHttpHandler`, add:
+```csharp
+AutomaticDecompression = System.Net.DecompressionMethods.All
+```
+
+If using `HttpClientHandler`:
+```csharp
+var handler = new HttpClientHandler
+{
+    AutomaticDecompression = System.Net.DecompressionMethods.All
+};
+```
+
+If using `SocketsHttpHandler`:
+```csharp
+var handler = new SocketsHttpHandler
+{
+    AutomaticDecompression = System.Net.DecompressionMethods.All
+};
+```
+
+Repeat the same for the named `"DotNetCloudSync"` HttpClient in `SyncServiceExtensions.cs`.
+
+**Note:** When `AutomaticDecompression = DecompressionMethods.All` is set, `HttpClient` automatically adds `Accept-Encoding: br, gzip, deflate` to outgoing requests and transparently decompresses the response. Once the server sends `Content-Encoding: br` or `Content-Encoding: gzip`, the client handles decompression without any extra code.
+
+**Step 2: Gzip-wrap upload chunk streams.**
+
+In `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs`, in the chunk upload method (look for where `HttpClient.PutAsync` or `UploadChunkAsync` actually sends the chunk bytes), wrap the chunk content in GZip:
+
+```csharp
+using System.IO.Compression;
+
+// When building the HttpContent for a chunk upload:
+var compressedMs = new MemoryStream();
+await using (var gzip = new GZipStream(compressedMs, CompressionLevel.Fastest, leaveOpen: true))
+    await gzip.WriteAsync(chunkBytes, cancellationToken);
+compressedMs.Position = 0;
+
+var content = new StreamContent(compressedMs);
+content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+content.Headers.ContentEncoding.Add("gzip");
+```
+
+**Skip compression for already-compressed MIME types.** If you know the file's MIME type at upload time (e.g. from the `PendingOperationRecord` or `SyncEngine`), skip gzip for: `image/*`, `video/*`, `audio/*`, `application/zip`, `application/gzip`, `application/x-rar-compressed`, `application/x-7z-compressed`, `application/pdf`. Otherwise, apply gzip for all other types (especially `text/*`, `application/json`, `application/xml`, `application/javascript`).
+
+If MIME type is not available at chunk upload time, it is acceptable to always apply gzip — the overhead for already-compressed content is minimal (+0.1 to 1%) and the savings for compressible content are large (50–80%).
+
+**Step 3: Build and test:**
+```powershell
+dotnet build src\Clients\DotNetCloud.Client.Core\DotNetCloud.Client.Core.csproj
+dotnet test tests\DotNetCloud.Client.Core.Tests\
+```
+
+**New tests to add:**
+- `UploadAsync_CompressedChunks_SetsContentEncodingGzip` — verify that the HTTP request for a chunk upload includes `Content-Encoding: gzip` header.
+- `DownloadAsync_DecompressesResponse_WhenContentEncodingGzip` — mock server returns gzip-compressed chunk bytes, verify client returns the original uncompressed bytes.
+
+**No server-side changes are needed beyond what was already implemented.** The server's response compression middleware handles all decompression of client uploads automatically (ASP.NET Core decompresses request bodies when `Content-Encoding: gzip` is present).
+
+**Request back from client agent:**
+- Commit hash
+- Build: 0 errors
+- Test count (was 68, should increase by ≥ 2 new tests)
+- Confirm `AutomaticDecompression = All` is set on both HttpClient registrations
+- Confirm `Content-Encoding: gzip` is sent on chunk uploads
