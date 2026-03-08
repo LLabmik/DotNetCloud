@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http.Extensions;
+using Microsoft.AspNetCore.Identity;
+using System.Security.Claims;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
 using static OpenIddict.Abstractions.OpenIddictConstants;
@@ -34,44 +36,95 @@ public static class OpenIddictEndpointsExtensions
         var request = context.GetOpenIddictServerRequest()
             ?? throw new InvalidOperationException("The OpenID Connect request cannot be retrieved.");
 
-        // Extract the flow type
-        var grantType = request.GrantType;
+        if (request.IsAuthorizationCodeGrantType() || request.IsRefreshTokenGrantType())
+        {
+            var authenticationResult = await context.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+            if (authenticationResult.Succeeded && authenticationResult.Principal is not null)
+            {
+                return Results.SignIn(
+                    authenticationResult.Principal,
+                    authenticationScheme: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+            }
 
-        if (grantType == GrantTypes.AuthorizationCode)
-        {
-            // Authorization Code flow - handled by ASP.NET Core and OpenIddict
-            return Results.Ok(new { message = "Authorization Code flow - token will be issued by OpenIddict" });
+            return Results.Forbid(
+                authenticationSchemes: [OpenIddictServerAspNetCoreDefaults.AuthenticationScheme],
+                properties: new AuthenticationProperties(new Dictionary<string, string?>
+                {
+                    [OpenIddictServerAspNetCoreConstants.Properties.Error] = OpenIddictConstants.Errors.InvalidGrant,
+                    [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "The authorization grant is no longer valid.",
+                }));
         }
-        else if (grantType == GrantTypes.RefreshToken)
+
+        if (request.IsClientCredentialsGrantType())
         {
-            // Refresh Token flow - handled by ASP.NET Core and OpenIddict
-            return Results.Ok(new { message = "Refresh Token flow - new token will be issued by OpenIddict" });
+            var identity = new ClaimsIdentity(
+                authenticationType: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
+                nameType: Claims.Name,
+                roleType: Claims.Role);
+
+            identity.SetClaim(Claims.Subject, request.ClientId ?? string.Empty);
+            identity.SetClaim(Claims.Name, request.ClientId ?? string.Empty);
+
+            var principal = new ClaimsPrincipal(identity);
+            principal.SetScopes(request.GetScopes());
+            principal.SetDestinations(static _ => [Destinations.AccessToken]);
+
+            return Results.SignIn(
+                principal,
+                authenticationScheme: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
-        else if (grantType == GrantTypes.ClientCredentials)
+
+        return Results.BadRequest(new
         {
-            // Client Credentials flow - for service-to-service authentication
-            return Results.Ok(new { message = "Client Credentials flow - token will be issued by OpenIddict" });
-        }
-        else
-        {
-            // Unsupported grant type
-            return Results.BadRequest(new { error = "unsupported_grant_type", error_description = $"The '{grantType}' grant type is not supported." });
-        }
+            error = OpenIddictConstants.Errors.UnsupportedGrantType,
+            error_description = $"The '{request.GrantType}' grant type is not supported."
+        });
     }
 
-    private static async Task<IResult> HandleAuthorizeEndpoint(HttpContext context)
+    private static Task<IResult> HandleAuthorizeEndpoint(HttpContext context)
     {
         var request = context.GetOpenIddictServerRequest()
             ?? throw new InvalidOperationException("The OpenID Connect request cannot be retrieved.");
 
-        // For authorization code flow, redirect to login if not authenticated
         if (!context.User.Identity?.IsAuthenticated == true)
         {
-            return Results.Redirect($"/auth/login?returnUrl={Uri.EscapeDataString(context.Request.GetEncodedPathAndQuery())}");
+            return Task.FromResult<IResult>(Results.Challenge(
+                authenticationSchemes: [IdentityConstants.ApplicationScheme],
+                properties: new AuthenticationProperties
+                {
+                    RedirectUri = context.Request.GetEncodedPathAndQuery()
+                }));
         }
 
-        // After login, OpenIddict handles the consent screen and code generation
-        return Results.Ok(new { message = "Authorization endpoint - redirect to consent page or issue code" });
+        var identity = new ClaimsIdentity(
+            context.User.Claims,
+            authenticationType: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
+            nameType: Claims.Name,
+            roleType: Claims.Role);
+
+        if (!identity.HasClaim(static c => c.Type == Claims.Subject))
+        {
+            var subject = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? context.User.FindFirstValue(Claims.Subject);
+
+            if (!string.IsNullOrWhiteSpace(subject))
+            {
+                identity.SetClaim(Claims.Subject, subject);
+            }
+        }
+
+        var principal = new ClaimsPrincipal(identity);
+        principal.SetScopes(request.GetScopes());
+        principal.SetDestinations(static claim => claim.Type switch
+        {
+            Claims.Name or Claims.Email or Claims.Role or Claims.Subject
+                => [Destinations.AccessToken, Destinations.IdentityToken],
+            _ => [Destinations.AccessToken],
+        });
+
+        return Task.FromResult<IResult>(Results.SignIn(
+            principal,
+            authenticationScheme: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme));
     }
 
     private static async Task<IResult> HandleLogoutEndpoint(HttpContext context)

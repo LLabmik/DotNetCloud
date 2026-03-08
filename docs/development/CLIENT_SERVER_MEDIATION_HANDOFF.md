@@ -83,6 +83,8 @@ Run this handoff loop each iteration:
 - 2026-03-07 (mint22): Fresh server validation at `20:02` confirms discovery endpoint advertises `files:read`/`files:write`, and full client-like authorize request validates then redirects `302` to `/auth/login?returnUrl=...`.
 - 2026-03-07 (Windows11-TestDNC, commit `2516894`): Direct client probe confirms `GET /connect/authorize?...` returns `HTTP 302` to `/auth/login?returnUrl=...`; following redirects lands at `https://mint22:15443/auth/login?...` with `HTTP 200` HTML login page.
 - 2026-03-07 (Windows11-TestDNC, mediator screenshot): Browser also showed `200` JSON body at `/connect/authorize?...` with message `"Authorization endpoint - redirect to consent page or issue code"`; this may indicate an authenticated-session path through authorize endpoint.
+- 2026-03-07 (mint22): Reworked OpenIddict passthrough handlers so authenticated authorize requests return OpenIddict `SignIn` (not placeholder JSON), and token endpoint now follows protocol validation paths.
+- 2026-03-07 (mint22): Post-patch probes at `20:09` show authorize still validates then redirects to `/auth/login`, and token endpoint returns OpenIddict JSON error (`invalid_request`) for malformed calls (no placeholder body).
 
 ## Client Evidence Snapshot (2026-03-07)
 
@@ -214,6 +216,7 @@ TLS_OR_HTTP_EXCEPTION=The SSL connection could not be established, see inner exc
 ### Deployed state
 - Server workspace commit on `mint22`: `66a90a1`
 - Last deployed server code includes authorize passthrough fix from `41d53bf`
+- Additional deployed hotfix (local, not yet committed at time of probe): OpenIddict authorize/token passthrough handlers now issue protocol `SignIn`/`Forbid` flows instead of placeholder `200` JSON messages.
 - Service redeployed via `./tools/redeploy-baremetal.sh`
 - Health probe: `https://localhost:15443/health/live` => `Healthy`
 
@@ -252,6 +255,10 @@ location: /auth/login?returnUrl=%2Fconnect%2Fauthorize%3Fresponse_type%3Dcode%26
 [2026-03-07 19:51:02.286 -06:00 INF] Updated OIDC desktop client 'dotnetcloud-desktop' permissions/scopes.
 [2026-03-07 20:02:11.716 -06:00 INF] The request URI matched a server endpoint: Authorization. RequestPath: /connect/authorize
 [2026-03-07 20:02:11.721 -06:00 INF] The authorization request was successfully validated.
+[2026-03-07 20:09:13.106 -06:00 INF] The request URI matched a server endpoint: Authorization. RequestPath: /connect/authorize
+[2026-03-07 20:09:13.182 -06:00 INF] The authorization request was successfully validated.
+[2026-03-07 20:09:13.503 -06:00 INF] The request URI matched a server endpoint: Token. RequestPath: /connect/token
+[2026-03-07 20:09:13.507 -06:00 INF] The request was rejected because the mandatory 'Content-Type' header was missing.
 ```
 
 ## Mandatory End-Of-Handoff Relay Instructions
@@ -284,11 +291,12 @@ If the handoff is server-to-client instead, replace `Send to Server Agent` with 
 ## Mediator Relay Instructions
 
 ### Send to Client Agent
-Server-side fix is now deployed on `mint22`: `/connect/authorize` is mapped for GET+POST, and unauthenticated authorize requests now redirect to `/auth/login` instead of returning direct 404. The exact authorize URL that previously failed now returns `HTTP 302` with `location: /auth/login?returnUrl=...`. Please pull latest `main`, rerun SyncTray add-account flow, and capture what happens after redirect to `/auth/login`.
+Server-side fixes are deployed on `mint22`: `/connect/authorize` handles GET+POST, login redirect path is `/auth/login`, and passthrough handlers were updated so authenticated authorize/token flow no longer returns placeholder JSON. Please pull latest `main`, run full SyncTray add-account login flow, complete credentials in browser, and capture the final callback/result.
 
 ### Request Back
 - Client commit hash after pull.
-- Raw browser URL transitions (initial `/connect/authorize...`, redirected `/auth/login...`, and final outcome URL).
+- Raw browser URL transitions (initial `/connect/authorize...`, redirected `/auth/login...`, post-login redirect, and final callback URL including query params).
 - Raw error/query params from any failure page.
 - Raw SyncTray OAuth log lines around scope selection and browser launch (with timestamps).
+- Raw SyncTray log lines after callback handling (token exchange success/failure, account add success/failure).
 - Any client-side TLS/certificate warnings observed during this run.
