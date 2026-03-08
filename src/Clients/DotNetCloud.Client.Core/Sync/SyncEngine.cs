@@ -199,11 +199,28 @@ public sealed class SyncEngine : ISyncEngine
         var remoteChanges = await _api.GetChangesSinceAsync(since, null, cancellationToken);
         _logger.LogDebug("Found {Count} remote changes since {Since}.", remoteChanges.Count, since);
 
+        // Build nodeId → relative-path map from server folder tree so we can
+        // reconstruct the full directory hierarchy for each changed node.
+        var tree = await _api.GetFolderTreeAsync(null, cancellationToken);
+        var pathMap = new Dictionary<Guid, string>();
+        BuildPathMap(tree, "", pathMap);
+
+        // Process folder changes first (create directories before files)
+        foreach (var change in remoteChanges.Where(c => c.NodeType == "Folder" && !c.IsDeleted))
+        {
+            if (pathMap.TryGetValue(change.NodeId, out var relPath))
+            {
+                var dirPath = Path.Combine(context.LocalFolderPath, relPath);
+                Directory.CreateDirectory(dirPath);
+                _logger.LogDebug("Ensured directory {Path} for folder node {NodeId}.", dirPath, change.NodeId);
+            }
+        }
+
         foreach (var change in remoteChanges)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var localPath = await ResolveLocalPathAsync(context, change.NodeId, change.Name, cancellationToken);
+            var localPath = await ResolveLocalPathAsync(context, change.NodeId, change.Name, pathMap, cancellationToken);
 
             if (!_selectiveSync.IsIncluded(context.Id, localPath))
                 continue;
@@ -212,7 +229,7 @@ public sealed class SyncEngine : ISyncEngine
             {
                 await HandleRemoteDeletionAsync(context, localPath, change.NodeId, cancellationToken);
             }
-            else
+            else if (change.NodeType == "File")
             {
                 await HandleRemoteUpdateAsync(context, localPath, change, cancellationToken);
             }
@@ -347,12 +364,31 @@ public sealed class SyncEngine : ISyncEngine
         _api.AccessToken = tokens.AccessToken;
     }
 
-    private async Task<string> ResolveLocalPathAsync(SyncContext context, Guid nodeId, string name, CancellationToken cancellationToken)
+    private async Task<string> ResolveLocalPathAsync(SyncContext context, Guid nodeId, string name, Dictionary<Guid, string> pathMap, CancellationToken cancellationToken)
     {
         var existing = await _stateDb.GetFileRecordByNodeIdAsync(context.StateDatabasePath, nodeId, cancellationToken);
         if (existing is not null)
             return existing.LocalPath;
+
+        // Use the tree-derived path map when available
+        if (pathMap.TryGetValue(nodeId, out var relativePath))
+            return Path.Combine(context.LocalFolderPath, relativePath);
+
         return Path.Combine(context.LocalFolderPath, name);
+    }
+
+    private static void BuildPathMap(SyncTreeNodeResponse node, string parentPath, Dictionary<Guid, string> map)
+    {
+        // The virtual root (NodeId == Guid.Empty, Name == "/") has no path segment
+        var currentPath = node.NodeId == Guid.Empty
+            ? parentPath
+            : string.IsNullOrEmpty(parentPath) ? node.Name : Path.Combine(parentPath, node.Name);
+
+        if (node.NodeId != Guid.Empty)
+            map[node.NodeId] = currentPath;
+
+        foreach (var child in node.Children)
+            BuildPathMap(child, currentPath, map);
     }
 
     private static bool IsLocallyModified(LocalFileRecord record, string localPath)

@@ -53,6 +53,8 @@ public class SyncEngineTests
 
         _apiMock.Setup(a => a.GetChangesSinceAsync(It.IsAny<DateTime>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
+        _apiMock.Setup(a => a.GetFolderTreeAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SyncTreeNodeResponse { NodeId = Guid.Empty, Name = "/", NodeType = "Folder" });
 
         var tokenStoreMock = new Mock<ITokenStore>();
         tokenStoreMock.Setup(ts => ts.LoadAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))

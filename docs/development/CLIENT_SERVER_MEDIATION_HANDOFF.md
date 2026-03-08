@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-08 (client agent — Issue #21 RESOLVED: chunk manifest deserialization fix; end-to-end sync working)
+Last updated: 2026-03-08 (client agent — Issue #22 RESOLVED: directory structure preservation fix; end-to-end sync with full hierarchy verified)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -30,7 +30,8 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 - **Files API response envelope**: RESOLVED (Issue #19) — `FilesController` endpoints now return raw payloads via `Ok(data)` instead of `Ok(Envelope(data))`; `ResponseEnvelopeMiddleware` handles wrapping automatically
 - **Sync changes endpoint**: RESOLVED (Issue #20) — `since` query parameter was parsed as `DateTime` with `Kind=Unspecified`, which Npgsql rejects for `timestamptz` columns. Fixed by converting to UTC kind before EF Core query. Also added general exception handler to `ExecuteAsync` so future errors return structured JSON instead of empty 500.
 - **Chunk manifest deserialization**: RESOLVED (Issue #21, client-side) — server's `GetChunkManifestAsync` returns `IReadOnlyList<string>` (flat array of chunk hashes), but client expected `ChunkManifestResponse` object with `Chunks` (objects) and `TotalSize`. Client now deserializes `string[]` and maps to `ChunkManifestResponse`. Download logic changed to read chunks dynamically instead of pre-allocating fixed-size buffers.
-- **END-TO-END SYNC WORKING** — Full sync flow verified: changes → tree → reconcile → chunk manifest → chunk download → file assembly. 7 files synced successfully (images, documents, 84 MB tarball).
+- **Directory structure flattening**: RESOLVED (Issue #22, client-side) — `ResolveLocalPathAsync` used `Path.Combine(localFolder, name)` ignoring server directory hierarchy. Fix: fetch folder tree via `GetFolderTreeAsync`, build `nodeId→relativePath` map, create directories before files, resolve full paths. All 7 files now sync into correct subdirectories.
+- **END-TO-END SYNC WITH DIRECTORY HIERARCHY** — Full sync flow verified: changes → tree → reconcile → chunk manifest → chunk download → file assembly. 7 files synced into correct directories (`clients/`, `Finance/`, `Pictures/`, `Test/`, root).
 
 ## Server Resolution (Latest)
 
@@ -263,14 +264,22 @@ fail: Sync error for context 16ce0169-59b1-4895-b4d9-b5e07b8b433b.
 | 19 | Files API responses double-envelope wrapped | `FilesController` endpoints call `Ok(Envelope(data))`, but `ResponseEnvelopeMiddleware` also wraps `/api/` responses → `{"success":true,"data":{"success":true,"data":...}}` | Removed `Envelope()` calls from all `FilesController` endpoints. Endpoints now return `Ok(data)` / `Created(url, data)`. Middleware handles wrapping automatically. Both `Core.Server` and `Files.Host` controllers updated. | 2026-03-08 |
 | 20 | Sync changes endpoint returns 500 | `since` parsed as `DateTime Kind=Unspecified`; Npgsql rejects for `timestamptz` columns; no general exception handler in `ExecuteAsync` | Server: `DateTime.SpecifyKind(since, DateTimeKind.Utc)` in `SyncController`; added `catch (Exception)` to `ExecuteAsync` | 2026-03-08 |
 | 21 | Chunk manifest deserialization failure | Server `GetChunkManifestAsync` returns `IReadOnlyList<string>` (chunk hashes); client tries to deserialize as `ChunkManifestResponse` object with `Chunks` + `TotalSize` → `JsonException` at position 1 (array `[` vs object `{`) | Client: `GetChunkManifestAsync` now deserializes `List<string>` and maps to `ChunkManifestResponse`; `DownloadChunksAsync` reads chunks dynamically via `CopyToAsync` instead of pre-sized `byte[]` | 2026-03-08 |
+| 22 | Sync flattens directory structure | `ResolveLocalPathAsync` only used `Path.Combine(localFolder, name)` — just the filename, ignoring `ParentId` and server directory hierarchy. All files ended up flat in sync root. | Client: `ApplyRemoteChangesAsync` now fetches folder tree via `GetFolderTreeAsync`, builds `nodeId→relativePath` dictionary via recursive `BuildPathMap`, creates directories before files, resolves full relative paths for file placement. Folder-type changes create directories instead of downloading. | 2026-03-08 |
 
 ## Current Verified State
 
-### Client (Windows11-TestDNC, commit `69dd5eb` — Issue #21 fix, end-to-end sync verified)
+### Client (Windows11-TestDNC, commit `69dd5eb` — Issue #22 fix, end-to-end sync with directory hierarchy verified)
 
 **Build:** 0 errors, 0 warnings
 **Tests:** 53 Core + 24 SyncService + 24 SyncTray = **101 passed**
-**Sync status:** END-TO-END WORKING — 7 files synced from server (2.5 MB PNG, 2.8 MB PNG, 25 KB ODS, 5 KB DOCX, 9 KB ODT, 84 MB tar.gz, 0.1 KB SHA256)
+**Sync status:** END-TO-END WITH DIRECTORY HIERARCHY — 7 files synced into correct subdirectories:
+- `clients\dotnetcloud-desktop-client-linux-x64-0.1.0-alpha-local.1.tar.gz` (84332.4 KB)
+- `clients\dotnetcloud-desktop-client-linux-x64-0.1.0-alpha-local.1.tar.gz.sha256` (0.1 KB)
+- `Finance\Checkbook Register - 2026.ods` (25.3 KB)
+- `Pictures\Escape Monkeys with Grape Suckers.png` (2812.9 KB)
+- `Test\BenK Toy Package.png` (2560.8 KB)
+- `test1.docx` (5 KB) — root
+- `test1.odt` (9.3 KB) — root
 
 **Client-side fixes applied this session:**
 
@@ -303,6 +312,14 @@ fail: Sync error for context 16ce0169-59b1-4895-b4d9-b5e07b8b433b.
 6. **Chunk manifest deserialization fix** (`DotNetCloudApiClient.cs`, `ChunkedTransferClient.cs`):
    - `GetChunkManifestAsync` now deserializes server response as `List<string>` (flat array of chunk hashes) and maps to `ChunkManifestResponse` with `ChunkManifestEntry` objects
    - `DownloadChunksAsync` now reads chunks dynamically via `CopyToAsync` into `MemoryStream` instead of pre-allocating `byte[chunk.Size]` — server manifest doesn't include per-chunk sizes
+
+7. **Directory structure preservation** (`SyncEngine.cs`):
+   - `ApplyRemoteChangesAsync` now fetches the server folder tree via `GetFolderTreeAsync(null, ct)` before processing changes
+   - New `BuildPathMap` static method recursively walks `SyncTreeNodeResponse` tree to build `Dictionary<Guid, string>` mapping `nodeId → relative path` (handles virtual root with `NodeId == Guid.Empty`)
+   - Folder-type changes (`NodeType == "Folder"`) now create directories via `Directory.CreateDirectory` instead of being sent to `HandleRemoteUpdateAsync`
+   - File-type changes are placed in correct subdirectories by looking up `NodeId` in the path map
+   - `ResolveLocalPathAsync` signature updated to accept `Dictionary<Guid, string> pathMap` — looks up `nodeId` for full relative path, falls back to filename-only if not in map
+   - Test mock updated (`SyncEngineTests.cs`) — `GetFolderTreeAsync` returns empty root node
 
 **Issue #17 verification evidence (2026-03-08):**
 
