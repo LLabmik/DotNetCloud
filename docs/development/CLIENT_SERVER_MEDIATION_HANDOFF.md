@@ -81,6 +81,8 @@ Run this handoff loop each iteration:
 - 2026-03-07 (mint22): After redeploy, same authorize URL now returns `302` to `/auth/login?returnUrl=...` (no direct `404` on `/connect/authorize`).
 - 2026-03-07 (Windows11-TestDNC): Rerun with user-entered Add Account values captured fresh OAuth logs at `17:59:21`; client opened authorize URL with expected scopes and server transitioned to `302` `/auth/login?returnUrl=...`.
 - 2026-03-07 (mint22): Fresh server validation at `20:02` confirms discovery endpoint advertises `files:read`/`files:write`, and full client-like authorize request validates then redirects `302` to `/auth/login?returnUrl=...`.
+- 2026-03-07 (Windows11-TestDNC, commit `2516894`): Direct client probe confirms `GET /connect/authorize?...` returns `HTTP 302` to `/auth/login?returnUrl=...`; following redirects lands at `https://mint22:15443/auth/login?...` with `HTTP 200` HTML login page.
+- 2026-03-07 (Windows11-TestDNC, mediator screenshot): Browser also showed `200` JSON body at `/connect/authorize?...` with message `"Authorization endpoint - redirect to consent page or issue code"`; this may indicate an authenticated-session path through authorize endpoint.
 
 ## Client Evidence Snapshot (2026-03-07)
 
@@ -172,6 +174,33 @@ System.Net.Http.HttpRequestException: The SSL connection could not be establishe
 GET https://mint22:15443/connect/authorize?response_type=code&client_id=dotnetcloud-desktop&redirect_uri=http%3a%2f%2flocalhost%3a52701%2foauth%2fcallback&scope=openid+profile+offline_access+files%3aread+files%3awrite&state=vjQGGMOXicZZq7dcqSCgLw&code_challenge=dAbwRP29DV1hPFJfENvB7N2KU7lnij3FUkE45_r1WXA&code_challenge_method=S256
 HTTP 302
 Location: /auth/login?returnUrl=%2Fconnect%2Fauthorize%3Fresponse_type%3Dcode%26client_id%3Ddotnetcloud-desktop%26redirect_uri%3Dhttp%253a%252f%252flocalhost%253a52701%252foauth%252fcallback%26scope%3Dopenid%2Bprofile%2Boffline_access%2Bfiles%253aread%2Bfiles%253awrite%26state%3DvjQGGMOXicZZq7dcqSCgLw%26code_challenge%3DdAbwRP29DV1hPFJfENvB7N2KU7lnij3FUkE45_r1WXA%26code_challenge_method%3DS256
+```
+
+### Latest direct probe after pull to `2516894`
+
+- Client commit hash:
+  - `2516894d253f69e2b3b9ff745bf28201f06e7c6e`
+
+- Raw initial authorize response (no redirect follow, `-SkipCertificateCheck`):
+
+```text
+STATUS=302
+LOCATION=/auth/login?returnUrl=%2Fconnect%2Fauthorize%3Fresponse_type%3Dcode%26client_id%3Ddotnetcloud-desktop%26redirect_uri%3Dhttp%253a%252f%252flocalhost%253a52701%252foauth%252fcallback%26scope%3Dopenid%2Bprofile%2Boffline_access%2Bfiles%253aread%2Bfiles%253awrite%26state%3DvjQGGMOXicZZq7dcqSCgLw%26code_challenge%3DdAbwRP29DV1hPFJfENvB7N2KU7lnij3FUkE45_r1WXA%26code_challenge_method%3DS256
+```
+
+- Raw final response after redirect follow (`-SkipCertificateCheck`):
+
+```text
+FINAL_STATUS=200
+FINAL_URI=https://mint22:15443/auth/login?returnUrl=%2Fconnect%2Fauthorize%3Fresponse_type%3Dcode%26client_id%3Ddotnetcloud-desktop%26redirect_uri%3Dhttp%253a%252f%252flocalhost%253a52701%252foauth%252fcallback%26scope%3Dopenid%2Bprofile%2Boffline_access%2Bfiles%253aread%2Bfiles%253awrite%26state%3DvjQGGMOXicZZq7dcqSCgLw%26code_challenge%3DdAbwRP29DV1hPFJfENvB7N2KU7lnij3FUkE45_r1WXA%26code_challenge_method%3DS256
+BODY_SNIPPET=<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+```
+
+- TLS/certificate behavior without bypass:
+
+```text
+TLS_OR_HTTP_EXCEPTION=The SSL connection could not be established, see inner exception.
 ```
 
 ## Next Action Requested From Server Agent
