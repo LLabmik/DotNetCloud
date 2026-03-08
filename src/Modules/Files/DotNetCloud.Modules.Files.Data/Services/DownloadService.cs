@@ -1,9 +1,11 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Files.Models;
+using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using SharePermission = DotNetCloud.Modules.Files.Models.SharePermission;
 
 namespace DotNetCloud.Modules.Files.Data.Services;
@@ -17,13 +19,20 @@ internal sealed class DownloadService : IDownloadService
     private readonly IFileStorageEngine _storageEngine;
     private readonly ILogger<DownloadService> _logger;
     private readonly IPermissionService _permissions;
+    private readonly string _tmpPath;
 
-    public DownloadService(FilesDbContext db, IFileStorageEngine storageEngine, ILogger<DownloadService> logger, IPermissionService permissions)
+    public DownloadService(
+        FilesDbContext db,
+        IFileStorageEngine storageEngine,
+        ILogger<DownloadService> logger,
+        IPermissionService permissions,
+        IOptions<FileUploadOptions> uploadOptions)
     {
         _db = db;
         _storageEngine = storageEngine;
         _logger = logger;
         _permissions = permissions;
+        _tmpPath = uploadOptions.Value.TmpPath ?? Path.GetTempPath();
     }
 
     /// <inheritdoc />
@@ -153,7 +162,7 @@ internal sealed class DownloadService : IDownloadService
         if (versionChunks.Count == 0)
             return Stream.Null;
 
-        var tempPath = Path.Combine(Path.GetTempPath(), $"dotnetcloud-download-{versionId:N}-{Guid.NewGuid():N}.bin");
+        var tempPath = Path.Combine(_tmpPath, $"dotnetcloud-download-{versionId:N}-{Guid.NewGuid():N}.bin");
 
         try
         {

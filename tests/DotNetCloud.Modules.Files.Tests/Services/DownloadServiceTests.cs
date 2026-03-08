@@ -4,9 +4,11 @@ using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Data.Services;
 using DotNetCloud.Modules.Files.Models;
+using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 
 namespace DotNetCloud.Modules.Files.Tests.Services;
@@ -23,7 +25,8 @@ public class DownloadServiceTests
     }
 
     private static DownloadService CreateService(FilesDbContext db, IFileStorageEngine? storage = null) =>
-        new(db, storage ?? Mock.Of<IFileStorageEngine>(), NullLogger<DownloadService>.Instance, new PermissionService(db));
+        new(db, storage ?? Mock.Of<IFileStorageEngine>(), NullLogger<DownloadService>.Instance, new PermissionService(db),
+            Microsoft.Extensions.Options.Options.Create(new FileUploadOptions()));
 
     private static CallerContext UserCaller(Guid userId) => new(userId, Array.Empty<string>(), CallerType.User);
 

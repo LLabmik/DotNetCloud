@@ -44,6 +44,13 @@ public sealed class LocalFileStorageEngine : IFileStorageEngine
 
         await File.WriteAllBytesAsync(fullPath, data.ToArray(), cancellationToken);
 
+        // Prevent execute bits on stored chunk files — chunks are content-addressable
+        // data, never executables. Restrict to user read/write only (600 on Linux/macOS).
+        if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
+        {
+            File.SetUnixFileMode(fullPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        }
+
         _logger.LogDebug("Chunk written: {StoragePath} ({Size} bytes)", storagePath, data.Length);
     }
 

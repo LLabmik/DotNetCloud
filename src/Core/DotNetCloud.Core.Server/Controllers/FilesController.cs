@@ -231,6 +231,7 @@ public sealed class FilesController : FilesControllerBase
                 return NotFound(ErrorEnvelope("not_found", "Version not found."));
 
             var stream = await _downloadService.DownloadVersionAsync(ver.Id, caller);
+            Response.Headers["X-Content-Type-Options"] = "nosniff";
             return File(stream, NormalizeDownloadMimeType(ver.MimeType));
         }
 
@@ -239,6 +240,7 @@ public sealed class FilesController : FilesControllerBase
             return NotFound(ErrorEnvelope("not_found", "Node not found."));
 
         var downloadStream = await _downloadService.DownloadCurrentAsync(nodeId, caller);
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
         return File(downloadStream, NormalizeDownloadMimeType(node.MimeType), node.Name, enableRangeProcessing: false);
     });
 
@@ -266,9 +268,10 @@ public sealed class FilesController : FilesControllerBase
     public Task<IActionResult> DownloadChunkByHashAsync(string chunkHash) => ExecuteAsync(async () =>
     {
         var stream = await _downloadService.DownloadChunkByHashAsync(chunkHash, GetAuthenticatedCaller());
-        return stream is null
-            ? NotFound(ErrorEnvelope("not_found", "Chunk not found."))
-            : File(stream, "application/octet-stream", enableRangeProcessing: false);
+        if (stream is null)
+            return NotFound(ErrorEnvelope("not_found", "Chunk not found."));
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(stream, "application/octet-stream", chunkHash, enableRangeProcessing: false);
     });
 
     /// <summary>

@@ -198,3 +198,104 @@ dotnet test tests/DotNetCloud.Core.Server.Tests/
 - Build: 0 errors. All 55 `DotNetCloud.Client.Core.Tests` pass.
 
 **Task 1.4: PASS (client complete)**
+
+---
+
+### Issue #28: Batch 1 Tasks 1.5, 1.6, 1.7 — Client-only (Windows11-TestDNC)
+
+**Server-side status:** Not applicable (all three are client-only).
+**Client-side status:** Pending implementation on `Windows11-TestDNC`.
+
+Pull latest (`git pull`) before starting — server Tasks 1.8 and 1.9 were completed in the same push.
+
+---
+
+#### Task 1.5: Per-Chunk Retry with Exponential Backoff
+
+**File:** `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs`
+
+Wrap each chunk download/upload in a retry loop. Only retry on `HttpRequestException` and 5xx status codes; do NOT retry on 4xx or 429.
+
+Add a `ChunkTransferResult` record and log the final result per chunk:
+
+```csharp
+record ChunkTransferResult(string Hash, bool Success, int Attempts, string? Error);
+```
+
+```csharp
+int maxRetries = 3;
+for (int attempt = 1; attempt <= maxRetries; attempt++)
+{
+    try
+    {
+        await UploadChunkAsync(chunk, cancellationToken);
+        break;
+    }
+    catch (HttpRequestException ex) when (attempt < maxRetries)
+    {
+        var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt - 1))
+                    + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 500));
+        _logger.LogWarning(ex, "Chunk {Hash} attempt {Attempt} failed. Retrying in {Delay}ms.",
+            chunk.Hash, attempt, delay.TotalMilliseconds);
+        await Task.Delay(delay, cancellationToken);
+    }
+}
+```
+
+**Done when:** Each chunk retries independently with jittered backoff. A single chunk failure does not abort the full transfer.
+
+---
+
+#### Task 1.6: SQLite WAL Mode + Corruption Recovery
+
+**File:** `LocalStateDb` / `LocalStateDbContext` in Client Core.
+
+1. Add `Journal Mode=Wal` to the SQLite connection string.
+2. On `InitializeAsync()` (or equivalent startup), run `PRAGMA integrity_check;`. If result ≠ `"ok"`, log error, rename the corrupt files with a timestamp suffix, recreate the DB with `EnsureCreatedAsync()`, set a `_needsFullResync = true` flag, and notify the user.
+3. After each complete sync pass, run `PRAGMA wal_checkpoint(TRUNCATE);`.
+
+**Done when:** `state.db-wal` exists during sync. Corrupt DB is detected on startup, preserved as `state.db.corrupt.<timestamp>`, and a fresh DB is created.
+
+---
+
+#### Task 1.7: Operation Retry Queue with Backoff
+
+**Files:** `LocalStateDb` + `SyncEngine` in Client Core.
+
+1. Add `NextRetryAt DateTime?` and `LastError string?` columns to `PendingOperationDbRow` (EF Core migration needed for client SQLite DB).
+2. In `ExecutePendingOperationAsync()`, on failure set `RetryCount++`, compute `NextRetryAt` with the schedule: 1 min → 5 min → 15 min → 1 h → 6 h (repeating). After `RetryCount >= 10`, move to a `FailedOperationDbRow` table (same schema + `FailedAt DateTime`).
+3. In `GetPendingOperationsAsync()`, add filter: `WHERE NextRetryAt IS NULL OR NextRetryAt <= @now`.
+4. On success: reset `RetryCount = 0`, `NextRetryAt = null`, `LastError = null`.
+
+**Done when:** Failed operations back off exponentially. After 10 failures they move to the failed operations table and stop retrying.
+
+---
+
+**Request back after all three tasks:**
+- commit hash from `Windows11-TestDNC`
+- build output (0 errors expected)
+- brief confirmation that Task 1.5 retry loop is in place, Task 1.6 WAL file exists, Task 1.7 new columns added
+
+---
+
+### Issue #29: Batch 1 Tasks 1.8 + 1.9 — Server-side (mint22)
+
+**Server-side status:** ✅ COMPLETE — commit to be pushed shortly.
+**Client-side status:** Not applicable.
+
+**What was implemented (Task 1.8 — Secure Temp File Handling):**
+- New `FileUploadOptions` class (`src/Modules/Files/DotNetCloud.Modules.Files/Options/FileUploadOptions.cs`) — holds `MaxFileSizeBytes` (default 15 GB) and `TmpPath` (set programmatically)
+- `Program.cs` — computes `{DOTNETCLOUD_DATA_DIR}/tmp/`, creates it with `700` permissions (Linux), wires into `FileUploadOptions.TmpPath` via `PostConfigure`
+- `DownloadService.cs` — injects `IOptions<FileUploadOptions>`; uses `TmpPath` for all temp files instead of `Path.GetTempPath()`
+- New `TempFileCleanupService` hosted service — on startup, ensures `tmp/` dir exists with `700` permissions and deletes any files older than 1 hour
+
+**What was implemented (Task 1.9 — File Scanning Interface + Execution Prevention):**
+- `FileScanStatus` enum: `NotScanned = 0`, `Clean = 1`, `Threat = 2`, `Error = 3`
+- `IFileScanner` interface + `ScanResult` record (`src/Modules/Files/DotNetCloud.Modules.Files/Services/IFileScanner.cs`)
+- `NoOpFileScanner` — always returns `IsClean: true`; registered as `services.AddSingleton<IFileScanner, NoOpFileScanner>()`
+- `FileVersion` model — new nullable `ScanStatus` property; EF migration `AddFileVersionScanStatus` generated
+- `LocalFileStorageEngine.WriteChunkAsync()` — `File.SetUnixFileMode(fullPath, UserRead | UserWrite)` after writing (Linux/macOS only)
+- `FilesController.DownloadAsync` + `DownloadChunkByHashAsync` — `Response.Headers["X-Content-Type-Options"] = "nosniff"` before returning file
+- `ChunkedUploadService.InitiateUploadAsync()` — rejects uploads where `dto.TotalSize > _maxFileSizeBytes`
+- `appsettings.json` — `"FileUpload": { "MaxFileSizeBytes": 16106127360 }`
+- Build: 0 errors; 304 server tests + 513 files tests pass

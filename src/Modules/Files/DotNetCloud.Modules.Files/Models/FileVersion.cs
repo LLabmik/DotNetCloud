@@ -41,4 +41,10 @@ public sealed class FileVersion
 
     /// <summary>Optional label for this version (e.g., "Final draft").</summary>
     public string? Label { get; set; }
+
+    /// <summary>
+    /// Content-scan status for this version. <see langword="null"/> and
+    /// <see cref="FileScanStatus.NotScanned"/> are equivalent; scanning is not yet enforced.
+    /// </summary>
+    public FileScanStatus? ScanStatus { get; set; }
 }

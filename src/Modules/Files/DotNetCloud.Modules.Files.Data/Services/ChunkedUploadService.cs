@@ -5,9 +5,11 @@ using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Models;
+using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace DotNetCloud.Modules.Files.Data.Services;
 
@@ -21,19 +23,22 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
     private readonly IQuotaService _quotaService;
     private readonly IEventBus _eventBus;
     private readonly ILogger<ChunkedUploadService> _logger;
+    private readonly long _maxFileSizeBytes;
 
     public ChunkedUploadService(
         FilesDbContext db,
         IFileStorageEngine storageEngine,
         IQuotaService quotaService,
         IEventBus eventBus,
-        ILogger<ChunkedUploadService> logger)
+        ILogger<ChunkedUploadService> logger,
+        IOptions<FileUploadOptions> uploadOptions)
     {
         _db = db;
         _storageEngine = storageEngine;
         _quotaService = quotaService;
         _eventBus = eventBus;
         _logger = logger;
+        _maxFileSizeBytes = uploadOptions.Value.MaxFileSizeBytes;
     }
 
     /// <inheritdoc />
@@ -41,6 +46,10 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
     {
         ArgumentNullException.ThrowIfNull(dto);
         ArgumentNullException.ThrowIfNull(caller);
+
+        if (dto.TotalSize > _maxFileSizeBytes)
+            throw new Core.Errors.ValidationException("TotalSize",
+                $"File size {dto.TotalSize:N0} bytes exceeds the maximum allowed size of {_maxFileSizeBytes:N0} bytes.");
 
         // Ensure every uploader has a quota row before checking available space.
         await _quotaService.GetOrCreateQuotaAsync(caller.UserId, caller, cancellationToken);

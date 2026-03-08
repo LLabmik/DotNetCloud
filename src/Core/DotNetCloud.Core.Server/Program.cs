@@ -172,13 +172,27 @@ public class Program
         builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
 
         var filesStoragePath = builder.Configuration.GetValue<string>("Files:StoragePath");
+        var dataDirForStorage = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
         if (string.IsNullOrWhiteSpace(filesStoragePath))
         {
-            var dataDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
-            filesStoragePath = !string.IsNullOrWhiteSpace(dataDir)
-                ? Path.Combine(dataDir, "storage")
+            filesStoragePath = !string.IsNullOrWhiteSpace(dataDirForStorage)
+                ? Path.Combine(dataDirForStorage, "storage")
                 : Path.Combine(builder.Environment.ContentRootPath, "storage");
         }
+
+        // Create the server-owned temp directory with restricted permissions (700).
+        var tmpDir = !string.IsNullOrWhiteSpace(dataDirForStorage)
+            ? Path.Combine(dataDirForStorage, "tmp")
+            : Path.Combine(builder.Environment.ContentRootPath, "tmp");
+        Directory.CreateDirectory(tmpDir);
+        if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
+        {
+            File.SetUnixFileMode(tmpDir,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+
+        builder.Services.PostConfigure<DotNetCloud.Modules.Files.Options.FileUploadOptions>(o => o.TmpPath = tmpDir);
+
         builder.Services.AddSingleton<IFileStorageEngine>(sp =>
             new LocalFileStorageEngine(filesStoragePath, sp.GetRequiredService<ILogger<LocalFileStorageEngine>>()));
 

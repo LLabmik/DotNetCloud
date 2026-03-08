@@ -7,10 +7,12 @@ using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Data.Services;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Models;
+using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 
 namespace DotNetCloud.Modules.Files.Tests.Services;
@@ -35,7 +37,8 @@ public class ChunkedUploadServiceTests
         var quotaMock = quotaService ?? CreateMockQuotaService(true);
         return new ChunkedUploadService(
             db, storageMock, quotaMock,
-            Mock.Of<IEventBus>(), NullLoggerFactory.Instance.CreateLogger<ChunkedUploadService>());
+            Mock.Of<IEventBus>(), NullLoggerFactory.Instance.CreateLogger<ChunkedUploadService>(),
+            Microsoft.Extensions.Options.Options.Create(new FileUploadOptions()));
     }
 
     private static IQuotaService CreateMockQuotaService(bool hasSufficientQuota)

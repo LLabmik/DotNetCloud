@@ -3788,8 +3788,8 @@ Before marking a phase complete:
 - ☐ Task 1.5: Per-Chunk Retry with Exponential Backoff
 - ☐ Task 1.6: SQLite WAL + Connection Resilience
 - ☐ Task 1.7: Durable Retry Queue
-- ☐ Task 1.8: Safe Temp File Cleanup
-- ☐ Task 1.9: File Scan Hook (No Extension Blocking)
+- ✓ Task 1.8: Safe Temp File Cleanup
+- ✓ Task 1.9: File Scan Hook (No Extension Blocking)
 
 **Last Reviewed:** 2026-03-02
 **Next Review:** Upon Phase 0 completion
