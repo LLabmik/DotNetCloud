@@ -463,7 +463,7 @@ Memory target: bounded regardless of file size (only one chunk in memory at a ti
 
 ### Issue #32: Batch 2 Task 2.3 - Compression for Chunk Transfers — Client side
 
-**Server-side status:** ✅ COMPLETE — commit `TBD` (2026-03-08).
+**Server-side status:** ✅ COMPLETE — commit `032f6a2` (2026-03-08).
 **Client-side status:** 🔲 PENDING — `Windows11-TestDNC`.
 
 **⚠️ PROCESS NOTE FOR CLIENT AGENT:**
