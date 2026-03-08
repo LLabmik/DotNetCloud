@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-08 (server agent, Issue #17 resolved — [Authorize] with OpenIddict bearer scheme on FilesControllerBase)
+Last updated: 2026-03-08 (client agent — Issue #17 verified resolved, Issues #18/#19 opened)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -22,10 +22,13 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 - **Sync endpoints**: RESOLVED — `/api/v1/files/sync/{changes,tree,reconcile}` now mapped and require bearer auth (was 404)
 - **TLS cert bypass for sync client**: RESOLVED — `DotNetCloudSync` named HttpClient now uses same `OAuthHttpClientHandlerFactory` cert bypass (was missing, would fail on self-signed cert)
 - **Sync API `userId` contract**: RESOLVED — server now derives caller user ID from bearer token claims (`sub`/`nameidentifier`) for all sync endpoints
-- **Sync API response shape**: RESOLVED — sync endpoints now return raw payloads (`[]`/object) instead of envelope wrappers
+- **Sync API response shape**: RESOLVED — sync endpoints return `Ok(data)` without `Envelope()` calls; `ResponseEnvelopeMiddleware` wraps all `/api/` responses automatically; client unwraps the envelope
 - **Refresh token `invalid_grant`**: RESOLVED — ephemeral keys replaced with persistent RSA key files; tokens survive restarts
 - **Sync bearer auth 403**: RESOLVED — added `[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]` to `FilesControllerBase`; unauthenticated requests now return 401 (not 403 ForbiddenException)
-- **Next milestone**: Client re-authenticates and verifies sync API returns 200 with valid bearer token; then test token refresh flow
+- **Sync API response envelope**: RESOLVED (client-side) — server's `ResponseEnvelopeMiddleware` wraps all `/api/` responses in `{"success":true,"data":...}`; client now unwraps the envelope before deserializing
+- **Files API `userId` contract**: OPEN (Issue #18) — all 20 authenticated `FilesController` endpoints still require `[FromQuery] Guid userId` and call `ToCaller(userId)`, same pattern that was fixed on `SyncController` (Issue #11); client doesn't send `userId` → 403 "Caller user ID does not match"
+- **Files API response envelope**: OPEN (Issue #19) — `FilesController` endpoints still call `Ok(Envelope(data))`, double-wrapping with middleware → `{"success":true,"data":{"success":true,"data":...}}`; client envelope unwrapper handles this but the double-wrap should be removed for consistency
+- **Next milestone**: Server removes `userId` query param and `Envelope()` calls from `FilesController` endpoints (Issues #18 and #19); then client can complete file download sync flow
 
 ## Server Resolution (Latest)
 
@@ -164,10 +167,12 @@ ec42f03569d6e2c3  signing-key.pem
 | 15 | `DateTime` serialization bug — tokens appear unexpired | `TokenInfo.ExpiresAt` was `DateTime`. After JSON roundtrip through `EncryptedFileTokenStore`, the `DateTimeKind` was lost (became `Unspecified`/`Local`), making `DateTime.UtcNow >= ExpiresAt` return `False` for genuinely expired tokens | Changed `ExpiresAt` from `DateTime` to `DateTimeOffset` across entire client chain (`TokenInfo`, `AddAccountRequest`, `AddAccountData` IPC model, `OAuth2Service`, `SyncEngine`, all tests) | 2026-03-08 |
 | 16 | Refresh token `invalid_grant` | `AddEphemeralEncryptionKey()`/`AddEphemeralSigningKey()` generate new in-memory RSA keys on every server restart; OpenIddict cannot decrypt stored refresh token payloads after restart | Created `OidcKeyManager` to persist RSA keys as PEM files; replaced ephemeral with persistent keys; fixed config key name mismatch; increased refresh lifetime to 14 days; purged orphaned tokens | 2026-03-08 |
 | 17 | Sync API returns 403 with valid bearer token | `SyncController` has no `[Authorize]` attribute, so ASP.NET Core auth middleware never runs; default auth scheme is `Identity.Application` (cookies) not OpenIddict bearer, so even with `[Authorize]` it would try cookie auth | Added `[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]` to `FilesControllerBase` (inherited by `SyncController` and `FilesController`); also added `[Authorize]` to Files.Host `FilesControllerBase` | 2026-03-08 |
+| 18 | Files API returns 403 "Caller user ID does not match" | All 20 authenticated `FilesController` endpoints accept `[FromQuery] Guid userId` and call `ToCaller(userId)`. Client sends bearer token but no `userId` query param → server receives `userId=Guid.Empty` → doesn't match JWT `sub` claim | **OPEN — requires server fix**: Change all `FilesController` endpoints to use `GetAuthenticatedCaller()` (same fix as Issue #11 for `SyncController`). Remove `[FromQuery] Guid userId` parameter. Both `Core.Server` and `Files.Host` controllers need updating. | OPEN |
+| 19 | Files API responses double-envelope wrapped | `FilesController` endpoints call `Ok(Envelope(data))`, but `ResponseEnvelopeMiddleware` also wraps `/api/` responses → `{"success":true,"data":{"success":true,"data":...}}` | **OPEN — requires server fix**: Remove `Envelope()` calls from `FilesController` (same fix as Issue #12 for `SyncController`). Middleware handles wrapping automatically. | OPEN |
 
 ## Current Verified State
 
-### Client (Windows11-TestDNC, commit pending — token refresh + DateTimeOffset fixes)
+### Client (Windows11-TestDNC, commit pending — envelope unwrap + Issue #17 verification)
 
 **Build:** 0 errors, 0 warnings
 **Tests:** 53 Core + 24 SyncService + 24 SyncTray = **101 passed**
@@ -194,42 +199,33 @@ ec42f03569d6e2c3  signing-key.pem
 4. **Diagnostic response body in RefreshTokenAsync** (`DotNetCloudApiClient.cs`):
    - On non-success status, reads response body and includes it in the exception message for debugging
 
-**Sync-now evidence (2026-03-08):**
+5. **Server response envelope unwrapping** (`DotNetCloudApiClient.cs`):
+   - Added `ReadEnvelopeDataAsync<T>()` method that detects `{"success":true,"data":...}` envelope format
+   - Extracts `.data` property for deserialization; falls back to root if no envelope detected
+   - Applied to `GetAsync<T>`, `PostJsonAsync<T>`, `PutJsonAsync<T>` (all `/api/` endpoints)
+   - NOT applied to `PostFormAsync<T>` (used for OAuth `/connect/token` which isn't envelope-wrapped)
 
-Token expiry detection is now working correctly:
+**Issue #17 verification evidence (2026-03-08):**
+
+Sync API now returns **200** with valid bearer token (was 403):
 ```
-info: Token state for context b44b9f3f-fc25-45ae-9e7b-c3dca382f83d: IsExpired=True, CanRefresh=True, ExpiresAt=03/08/2026 05:43:14 +00:00.
-info: Refreshing expired access token for context b44b9f3f-fc25-45ae-9e7b-c3dca382f83d.
-info: Start processing HTTP request POST https://mint22:15443/connect/token
-info: Received HTTP response headers after 157.3763ms - 400
-fail: Sync error for context b44b9f3f-fc25-45ae-9e7b-c3dca382f83d.
-      System.Net.Http.HttpRequestException: Token refresh failed (400): {
-  "error": "invalid_grant",
-  "error_description": "The specified token is invalid.",
-  "error_uri": "https://documentation.openiddict.com/errors/ID2004"
-}
+info: Token state for context 16ce0169-59b1-4895-b4d9-b5e07b8b433b: IsExpired=False, CanRefresh=True, ExpiresAt=03/08/2026 07:14:53 +00:00.
+info: Start processing HTTP request GET https://mint22:15443/api/v1/files/sync/changes?*
+info: Received HTTP response headers after 542.2632ms - 200
+info: End processing HTTP request after 561.0684ms - 200
 ```
 
-**Analysis:** The access token (issued ~03/08 05:43 UTC) is correctly detected as expired. The client properly attempts a refresh with `grant_type=refresh_token`, `client_id=dotnetcloud-desktop`, and the stored refresh token. The server responds **400 `invalid_grant`** — the refresh token itself is expired or revoked server-side.
+Sync changes deserialized successfully after envelope unwrapping. Sync flow progresses to tree and reconcile endpoints (both 200), then attempts file download via `GET api/v1/files/{nodeId}/chunks` which returns **403** (Issue #18).
 
-**The user was not re-prompted for login** when trying to re-add the account via tray, which suggests an existing session may be interfering or the re-authentication flow didn't trigger.
+**Issue #18 evidence (2026-03-08):**
 
-## Issue #16 Resolution: Persistent OIDC Keys
+```
+info: Start processing HTTP request GET https://mint22:15443/api/v1/files/80147381-5315-4e66-879d-8e533d056ff9/chunks
+info: Received HTTP response headers after 3.322ms - 403
+fail: HTTP 403 on GET api/v1/files/{nodeId}/chunks. Body: {"success":false,"error":{"code":"AUTH_FORBIDDEN","message":"Caller user ID does not match the authenticated identity."}}
+```
 
-**Issue #16 (RESOLVED):** Server returned `invalid_grant` because ephemeral RSA keys were regenerated on every restart, making stored refresh token payloads undecryptable.
-
-**Root cause confirmed:** `AddEphemeralEncryptionKey()` and `AddEphemeralSigningKey()` in OpenIddict config generate random in-memory keys. After any server restart (including `redeploy-baremetal.sh`), these keys are lost. OpenIddict stores refresh token payloads encrypted with the encryption key — when the key changes, decryption fails → `invalid_grant`.
-
-**Fix applied:**
-- Created `OidcKeyManager.cs` — generates RSA-2048 keys, persists as PEM files with `600` permissions
-- Keys stored at `{DOTNETCLOUD_DATA_DIR}/oidc-keys/{signing-key.pem, encryption-key.pem}`
-- `AuthServiceExtensions.cs` now calls `options.AddSigningKey()` / `options.AddEncryptionKey()` with persistent keys
-- Fixed appsettings config key names: `AccessTokenLifetime` → `AccessTokenLifetimeMinutes`, `RefreshTokenLifetime` → `RefreshTokenLifetimeDays`
-- Refresh token lifetime set to 14 days
-- Purged 20 orphaned tokens + 8 authorizations from DB (encrypted with defunct ephemeral keys)
-- Verified key checksums survive restart (md5 identical before/after `systemctl restart`)
-
-**Client action required:** Old tokens were purged from the database. The client must re-authenticate (remove and re-add the account, or trigger a fresh OAuth flow). After re-authentication, refresh tokens will work across server restarts.
+Root cause: `FilesController.GetChunkManifestAsync` accepts `[FromQuery] Guid userId` and calls `ToCaller(userId)`. Client doesn't send `userId` query parameter → server receives `Guid.Empty` → doesn't match JWT `sub` claim. Same pattern as Issue #11 (fixed for `SyncController`, not yet applied to `FilesController`).
 
 ### Server (mint22, [Authorize] bearer auth fix deployed)
 
@@ -267,32 +263,62 @@ fail: Sync error for context b44b9f3f-fc25-45ae-9e7b-c3dca382f83d.
 
 ## Mediator Relay Instructions
 
-### Send to Client Agent
+### Send to Server Agent
 
-Issue #17 is RESOLVED. Root cause confirmed: `FilesControllerBase` (parent of `SyncController` and `FilesController`) had no `[Authorize]` attribute, so ASP.NET Core auth middleware never ran. Additionally, the default auth scheme was `Identity.Application` (cookies), not OpenIddict bearer.
+Issues #18 and #19 need server-side fixes. These are the same patterns as Issues #11 and #12 (already fixed for `SyncController`), now applied to `FilesController`.
 
-**What was fixed:**
-- Added `[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]` to `FilesControllerBase` in Core.Server
-- This is inherited by both `SyncController` and `FilesController`
-- Added `[Authorize]` to `FilesControllerBase` in Files.Host (for future module use)
-- Unauthenticated requests now return **401** (OpenIddict validation challenge) instead of 403 (controller-level ForbiddenException)
+**Issue #18: `FilesController` endpoints require redundant `userId` query parameter**
 
-**Verification:**
-- `curl -k -sS -w "\nHTTP_CODE: %{http_code}\n" "https://localhost:15443/api/v1/files/sync/changes?since=2025-01-01T00:00:00Z"` → `HTTP_CODE: 401` (correct — no bearer token)
-- Build: 0 errors, 0 warnings; Tests: 305 + 85 + 513 = 903 passed (0 failures)
-- Server redeployed and healthy
+All 20 authenticated endpoints in `FilesController` (both `Core.Server/Controllers/FilesController.cs` and `Files.Host/Controllers/FilesController.cs`) accept `[FromQuery] Guid userId` and call `ToCaller(userId)`. The client sends a bearer token but no `userId` query param → server receives `Guid.Empty` → comparison fails → 403.
 
-**Client action required:**
-- Pull latest main
-- Re-authenticate (fresh OAuth flow) to get new tokens signed with persistent keys
-- Verify sync API returns **200** with valid bearer token (not 401 or 403)
-- Test token refresh after access token expires (60 min lifetime, 14 day refresh)
-- No client-side code changes needed
+**Requested fix (same as SyncController Issue #11):**
+- Change all `FilesController` endpoints to use `GetAuthenticatedCaller()` instead of `ToCaller(userId)`
+- Remove `[FromQuery] Guid userId` parameter from all endpoint signatures
+- Apply to both `Core.Server/Controllers/FilesController.cs` and `Files.Host/Controllers/FilesController.cs`
+- `GetAuthenticatedCaller()` already exists in `FilesControllerBase` and extracts user identity from the JWT `sub`/`NameIdentifier` claim
 
-**Important note on HTTP status codes:** The client should now expect **401** (not 403) for authentication failures. The previous 403 was a quirk of the controller code running before auth middleware. With the `[Authorize]` attribute, OpenIddict's validation handler issues a proper 401 challenge. If the client has error handling that checks for 403, it should also handle 401.
+**Affected endpoints (all 20 authenticated ones):**
+1. `GET api/v1/files` (ListChildren)
+2. `GET api/v1/files/{nodeId}` (GetNode)
+3. `POST api/v1/files/folders` (CreateFolder)
+4. `PUT api/v1/files/{nodeId}/rename` (Rename)
+5. `PUT api/v1/files/{nodeId}/move` (Move)
+6. `POST api/v1/files/{nodeId}/copy` (Copy)
+7. `DELETE api/v1/files/{nodeId}` (Delete)
+8. `POST api/v1/files/{nodeId}/favorite` (ToggleFavorite)
+9. `GET api/v1/files/favorites` (ListFavorites)
+10. `GET api/v1/files/recent` (ListRecent)
+11. `GET api/v1/files/search` (Search)
+12. `POST api/v1/files/upload/initiate` (InitiateUpload)
+13. `PUT api/v1/files/upload/{sessionId}/chunks/{chunkHash}` (UploadChunk)
+14. `POST api/v1/files/upload/{sessionId}/complete` (CompleteUpload)
+15. `DELETE api/v1/files/upload/{sessionId}` (CancelUpload)
+16. `GET api/v1/files/upload/{sessionId}` (GetUploadSession)
+17. `GET api/v1/files/{nodeId}/download` (Download)
+18. `GET api/v1/files/{nodeId}/chunks` (GetChunkManifest)
+19. `GET api/v1/files/chunks/{chunkHash}` (DownloadChunkByHash)
+20. `GET api/v1/files/shared-with-me` (SharedWithMe)
+
+**Issue #19: `FilesController` endpoints double-envelope responses**
+
+`FilesController` endpoints call `Ok(Envelope(data))`, but `ResponseEnvelopeMiddleware` also wraps all `/api/` responses → double envelope: `{"success":true,"data":{"success":true,"data":...}}`.
+
+**Requested fix (same as SyncController Issue #12):**
+- Change all `Ok(Envelope(data))` calls to `Ok(data)` in `FilesController`
+- The `ResponseEnvelopeMiddleware` already handles wrapping automatically
+- Apply to both `Core.Server/Controllers/FilesController.cs` and `Files.Host/Controllers/FilesController.cs`
+
+**Client evidence:**
+- Sync endpoints return HTTP 200 ✓ (Issue #17 verified resolved)
+- Sync changes/tree/reconcile deserialization works after client-side envelope unwrapping
+- File download endpoints return HTTP 403 ✗ due to Issue #18
+- Token state is valid (not expired, can refresh)
+- Client build: 0 errors, 0 warnings; Tests: 101 passed
+- Client commit hash will be provided after push
 
 ### Request Back
-- Confirmation that sync API returns 200 with valid bearer token
-- Token refresh test result
-- Any remaining sync errors
-- Commit hash of any client-side changes
+- Confirmation that `FilesController` uses `GetAuthenticatedCaller()` (no `userId` query param)
+- Confirmation that `FilesController` returns `Ok(data)` (no `Envelope()` calls)
+- Build + test results
+- Commit hash
+- Verification: `curl -k -H "Authorization: Bearer <token>" "https://localhost:15443/api/v1/files/{nodeId}/chunks"` returns 200 (not 403)

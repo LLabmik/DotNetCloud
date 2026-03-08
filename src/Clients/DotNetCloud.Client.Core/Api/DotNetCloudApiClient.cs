@@ -256,7 +256,7 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
                 (int)response.StatusCode, path, wwwAuth, body);
         }
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<T>(JsonOptions, cancellationToken);
+        return await ReadEnvelopeDataAsync<T>(response, cancellationToken);
     }
 
     private async Task<T?> PostJsonAsync<T>(string path, object body, CancellationToken cancellationToken)
@@ -270,7 +270,7 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
             },
             cancellationToken);
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<T>(JsonOptions, cancellationToken);
+        return await ReadEnvelopeDataAsync<T>(response, cancellationToken);
     }
 
     private async Task<T?> PutJsonAsync<T>(string path, object body, CancellationToken cancellationToken)
@@ -284,7 +284,7 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
             },
             cancellationToken);
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<T>(JsonOptions, cancellationToken);
+        return await ReadEnvelopeDataAsync<T>(response, cancellationToken);
     }
 
     private async Task<T?> PostFormAsync<T>(string path, Dictionary<string, string> form, bool withAuth, CancellationToken cancellationToken)
@@ -358,6 +358,25 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
 
         // Unreachable, but satisfies compiler
         return await _http.SendAsync(requestFactory(), cancellationToken);
+    }
+
+    /// <summary>
+    /// Reads the response body, unwrapping the server's standard envelope format
+    /// (<c>{"success":true,"data":...}</c>) if present. Falls back to direct deserialization
+    /// if the response is not envelope-wrapped.
+    /// </summary>
+    private static async Task<T?> ReadEnvelopeDataAsync<T>(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        using var doc = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
+
+        if (doc.RootElement.ValueKind == JsonValueKind.Object &&
+            doc.RootElement.TryGetProperty("data", out var dataProp))
+        {
+            return dataProp.Deserialize<T>(JsonOptions);
+        }
+
+        return doc.RootElement.Deserialize<T>(JsonOptions);
     }
 
     private static async Task DelayAsync(int attempt, TimeSpan? retryAfter, CancellationToken cancellationToken)
