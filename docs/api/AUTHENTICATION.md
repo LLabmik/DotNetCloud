@@ -2,7 +2,7 @@
 
 > **Purpose:** Detailed documentation of DotNetCloud authentication flows  
 > **Stack:** ASP.NET Core Identity + OpenIddict (OAuth2/OIDC)  
-> **Last Updated:** 2026-03-03
+> **Last Updated:** 2026-03-07
 
 ---
 
@@ -190,6 +190,21 @@ Codes are shown **once** and stored as SHA-256 hashes in the database.
 | **Access Token** | Short-lived (default: 1 hour) | Client memory or `Authorization: Bearer` header |
 | **Refresh Token** | Long-lived (default: 14 days) | Client secure storage |
 | **ID Token** | Short-lived | Client (OIDC identity claims) |
+
+### First-Party Desktop OAuth Client (Auto-Registered)
+
+The server auto-registers the desktop SyncTray OAuth client during startup if it is missing.
+
+| Field | Value |
+|---|---|
+| `client_id` | `dotnetcloud-desktop` |
+| `redirect_uri` | `http://localhost:52701/oauth/callback` |
+| `client_type` | `public` |
+| Required auth feature | PKCE (`S256`) |
+| Enabled grants | Authorization Code, Refresh Token |
+| Common scopes | `openid`, `offline_access`, `profile`, `files:read`, `files:write` |
+
+This supports local-loopback browser sign-in for desktop onboarding and ongoing sync authorization.
 
 ### Token Refresh Flow
 

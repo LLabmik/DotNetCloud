@@ -1,6 +1,6 @@
 # DotNetCloud Server — Configuration Reference
 
-> **Last Updated:** 2026-03-03  
+> **Last Updated:** 2026-03-07  
 > **Applies To:** DotNetCloud 1.0.x  
 > **Audience:** System administrators
 
@@ -210,6 +210,27 @@ To enable "Sign in with Google/GitHub/etc.", configure external providers in `ap
   }
 }
 ```
+
+### Built-In OIDC Client Seeding (First-Party Desktop)
+
+On startup, DotNetCloud seeds required first-party OpenIddict applications if they do not already exist.
+This currently includes the desktop SyncTray public client used for OAuth2 Authorization Code + PKCE.
+
+| Property | Value |
+|---|---|
+| `client_id` | `dotnetcloud-desktop` |
+| `client_type` | `public` |
+| Redirect URI | `http://localhost:52701/oauth/callback` |
+| Grant types | `authorization_code`, `refresh_token` |
+| Response type | `code` |
+| Required feature | `PKCE` |
+| Default scopes | `openid`, `offline_access`, `profile`, `files:read`, `files:write` |
+
+Operational notes:
+
+- Seeding runs during server startup database initialization.
+- If `dotnetcloud-desktop` already exists, it is left unchanged.
+- If it is missing (for example after a manual DB cleanup), it is recreated automatically on next successful startup.
 
 ---
 
