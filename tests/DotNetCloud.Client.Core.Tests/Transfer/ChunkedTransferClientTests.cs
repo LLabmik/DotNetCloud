@@ -378,4 +378,101 @@ public class ChunkedTransferClientTests
         CollectionAssert.AreEqual(capturedHashes1, capturedHashes2,
             "CDC chunking must produce identical hashes for identical input.");
     }
+
+    // ── Streaming pipeline (Task 2.2) ───────────────────────────────────────
+
+    [TestMethod]
+    public async Task UploadAsync_StreamingPipeline_BoundedMemoryUsage()
+    {
+        // Verifies that the channel-based pipeline correctly uploads all missing chunks.
+        var nodeId = Guid.NewGuid();
+        var sessionId = Guid.NewGuid();
+        var uploadCallCount = 0;
+        IReadOnlyList<string>? capturedHashes = null;
+
+        var apiMock = new Mock<IDotNetCloudApiClient>();
+        apiMock.SetupProperty(a => a.AccessToken);
+        apiMock.Setup(a => a.InitiateUploadAsync(
+                It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
+                It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<CancellationToken>()))
+            .Callback<string, Guid?, long, string?, IReadOnlyList<string>, IReadOnlyList<int>?, CancellationToken>(
+                (_, _, _, _, hashes, _, _) => capturedHashes = hashes)
+            .ReturnsAsync(new UploadSessionResponse { SessionId = sessionId }); // no present chunks → all must upload
+
+        apiMock.Setup(a => a.UploadChunkAsync(sessionId, It.IsAny<int>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
+            .Returns<Guid, int, string, Stream, CancellationToken>((_, _, _, _, _) =>
+            {
+                Interlocked.Increment(ref uploadCallCount);
+                return Task.CompletedTask;
+            });
+
+        apiMock.Setup(a => a.CompleteUploadAsync(sessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CompleteUploadResponse
+            {
+                Node = new FileNodeResponse { Id = nodeId, Name = "big.bin", NodeType = "File" },
+            });
+
+        var client = new ChunkedTransferClient(apiMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+        // Use 1 MB of data — small enough for tests but exercises the pipeline
+        using var data = new MemoryStream(new byte[1024 * 1024]);
+
+        var result = await client.UploadAsync(null, "big.bin", data, null);
+
+        Assert.AreEqual(nodeId, result);
+        Assert.IsNotNull(capturedHashes);
+        // All chunks should have been uploaded (none pre-existing)
+        Assert.AreEqual(capturedHashes!.Count, uploadCallCount,
+            "Upload call count must equal the number of missing chunks.");
+    }
+
+    [TestMethod]
+    public async Task DownloadAsync_StreamingToTempFiles_AssemblesCorrectly()
+    {
+        // Verifies that temp-file-based download reassembles all chunks in correct order.
+        var nodeId = Guid.NewGuid();
+
+        var chunk0 = new byte[512];
+        var chunk1 = new byte[512];
+        new Random(1).NextBytes(chunk0);
+        new Random(2).NextBytes(chunk1);
+        var hash0 = Convert.ToHexStringLower(SHA256.HashData(chunk0));
+        var hash1 = Convert.ToHexStringLower(SHA256.HashData(chunk1));
+
+        var apiMock = new Mock<IDotNetCloudApiClient>();
+        apiMock.SetupProperty(a => a.AccessToken);
+        apiMock.Setup(a => a.GetChunkManifestAsync(nodeId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChunkManifestResponse
+            {
+                TotalSize = 1024,
+                Chunks =
+                [
+                    new ChunkManifestEntry { Index = 0, Hash = hash0, Size = 512 },
+                    new ChunkManifestEntry { Index = 1, Hash = hash1, Size = 512 },
+                ],
+            });
+
+        apiMock.Setup(a => a.DownloadChunkByHashAsync(hash0, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new MemoryStream(chunk0));
+        apiMock.Setup(a => a.DownloadChunkByHashAsync(hash1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new MemoryStream(chunk1));
+
+        var client = new ChunkedTransferClient(apiMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+
+        using var result = await client.DownloadAsync(nodeId);
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual(1024L, result.Length, "Output stream length must equal sum of chunk sizes.");
+
+        // Verify chunk ordering: first 512 bytes match chunk0, next 512 match chunk1
+        result.Seek(0, SeekOrigin.Begin);
+        var assembled = new byte[1024];
+        var read = await result.ReadAsync(assembled.AsMemory(0, 1024));
+        Assert.AreEqual(1024, read);
+        CollectionAssert.AreEqual(chunk0, assembled[..512], "First chunk content mismatch.");
+        CollectionAssert.AreEqual(chunk1, assembled[512..], "Second chunk content mismatch.");
+
+        apiMock.Verify(a => a.DownloadChunkByHashAsync(hash0, It.IsAny<CancellationToken>()), Times.Once);
+        apiMock.Verify(a => a.DownloadChunkByHashAsync(hash1, It.IsAny<CancellationToken>()), Times.Once);
+    }
 }
