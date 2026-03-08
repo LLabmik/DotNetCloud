@@ -93,7 +93,7 @@ Open issue: Sync Improvement Batch 1 Task 1.3 (server-side rate limiting) — Ta
 
 ### Issue #26: Batch 1 Task 1.3 - Server-Side Rate Limiting on Sync Endpoints
 
-**Server-side status:** Pending implementation on `mint22`.
+**Server-side status:** ✅ COMPLETE — commit to be pushed shortly.
 **Client-side status:** No changes needed — client already handles 429 + `Retry-After` in `DotNetCloudApiClient.SendWithRetryAsync()`.
 
 **IMPORTANT CONTEXT: Rate limiting infrastructure already exists.** Do NOT create new middleware or configuration classes. The following are already in place and working:

@@ -1,6 +1,7 @@
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace DotNetCloud.Core.Server.Controllers;
 
@@ -24,6 +25,7 @@ public sealed class SyncController : FilesControllerBase
     /// Gets all changes since a given timestamp.
     /// </summary>
     [HttpGet("changes")]
+    [EnableRateLimiting("module-sync-changes")]
     public Task<IActionResult> GetChangesAsync(
         [FromQuery] DateTime since,
         [FromQuery] Guid? folderId) => ExecuteAsync(async () =>
@@ -39,6 +41,7 @@ public sealed class SyncController : FilesControllerBase
     /// Gets a full folder tree snapshot with content hashes.
     /// </summary>
     [HttpGet("tree")]
+    [EnableRateLimiting("module-sync-tree")]
     public Task<IActionResult> GetTreeAsync(
         [FromQuery] Guid? folderId) => ExecuteAsync(async () =>
     {
@@ -50,6 +53,7 @@ public sealed class SyncController : FilesControllerBase
     /// Reconciles client state against the server.
     /// </summary>
     [HttpPost("reconcile")]
+    [EnableRateLimiting("module-sync-reconcile")]
     public Task<IActionResult> ReconcileAsync(
         [FromBody] SyncReconcileRequestDto request) => ExecuteAsync(async () =>
     {

@@ -2,6 +2,7 @@ using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace DotNetCloud.Core.Server.Controllers;
 
@@ -162,6 +163,7 @@ public sealed class FilesController : FilesControllerBase
     /// Initiates a chunked upload session.
     /// </summary>
     [HttpPost("upload/initiate")]
+    [EnableRateLimiting("module-upload-initiate")]
     public Task<IActionResult> InitiateUploadAsync([FromBody] InitiateUploadDto dto) => ExecuteAsync(async () =>
     {
         var session = await _uploadService.InitiateUploadAsync(dto, GetAuthenticatedCaller());
@@ -172,6 +174,7 @@ public sealed class FilesController : FilesControllerBase
     /// Uploads a single chunk.
     /// </summary>
     [HttpPut("upload/{sessionId:guid}/chunks/{chunkHash}")]
+    [EnableRateLimiting("module-upload-chunks")]
     public Task<IActionResult> UploadChunkAsync(Guid sessionId, string chunkHash) => ExecuteAsync(async () =>
     {
         using var ms = new MemoryStream();
@@ -216,6 +219,7 @@ public sealed class FilesController : FilesControllerBase
     /// Downloads a file. Optionally specify a version number.
     /// </summary>
     [HttpGet("{nodeId:guid}/download")]
+    [EnableRateLimiting("module-download")]
     public Task<IActionResult> DownloadAsync(Guid nodeId, [FromQuery] int? version = null) => ExecuteAsync(async () =>
     {
         var caller = GetAuthenticatedCaller();
@@ -247,6 +251,7 @@ public sealed class FilesController : FilesControllerBase
     /// Gets the chunk manifest (ordered hashes) for a file.
     /// </summary>
     [HttpGet("{nodeId:guid}/chunks")]
+    [EnableRateLimiting("module-chunks")]
     public Task<IActionResult> GetChunkManifestAsync(Guid nodeId) => ExecuteAsync(async () =>
     {
         var manifest = await _downloadService.GetChunkManifestAsync(nodeId, GetAuthenticatedCaller());
@@ -257,6 +262,7 @@ public sealed class FilesController : FilesControllerBase
     /// Downloads a raw chunk by its SHA-256 hash. Used by sync clients for efficient chunk retrieval.
     /// </summary>
     [HttpGet("chunks/{chunkHash}")]
+    [EnableRateLimiting("module-chunks")]
     public Task<IActionResult> DownloadChunkByHashAsync(string chunkHash) => ExecuteAsync(async () =>
     {
         var stream = await _downloadService.DownloadChunkByHashAsync(chunkHash, GetAuthenticatedCaller());
