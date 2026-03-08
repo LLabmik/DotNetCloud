@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace DotNetCloud.Client.Core.Api;
 
 /// <summary>
@@ -219,15 +221,19 @@ public sealed record QuotaResponse
 public sealed record TokenResponse
 {
     /// <summary>Access token.</summary>
+    [JsonPropertyName("access_token")]
     public required string AccessToken { get; init; }
 
     /// <summary>Refresh token.</summary>
+    [JsonPropertyName("refresh_token")]
     public string? RefreshToken { get; init; }
 
     /// <summary>Token type (typically "Bearer").</summary>
+    [JsonPropertyName("token_type")]
     public string TokenType { get; init; } = "Bearer";
 
     /// <summary>Expiry in seconds.</summary>
+    [JsonPropertyName("expires_in")]
     public int ExpiresIn { get; init; }
 
     /// <summary>Granted scopes.</summary>

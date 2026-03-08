@@ -41,7 +41,7 @@ public sealed class AddAccountDialogViewModel : ViewModels.ViewModelBase
 {
     private readonly Window _owner;
     private string _serverUrl;
-    private string _localFolderPath = string.Empty;
+    private string _localFolderPath = @"C:\Users\benk\Documents\synctray";
     private string _errorMessage = string.Empty;
     private bool _isBusy;
     private AddAccountResult? _dialogResult;

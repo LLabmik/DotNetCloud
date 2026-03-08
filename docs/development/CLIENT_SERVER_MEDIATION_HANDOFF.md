@@ -88,6 +88,9 @@ Run this handoff loop each iteration:
 - 2026-03-07 (Windows11-TestDNC, commit `d4f608d`): End-to-end browser flow reached localhost callback success page (`Authorization successful!`) at `http://localhost:52701/oauth/callback?...`.
 - 2026-03-07 (Windows11-TestDNC, commit `d4f608d`): After callback, SyncTray attempted `POST /connect/token` but failed due TLS certificate validation (`RemoteCertificateNameMismatch`, `RemoteCertificateChainErrors`), so account add still failed client-side.
 - 2026-03-07 (mint22, commit `01e5f79` workspace baseline): Implemented client OAuth HTTP handler for local/LAN targets to allow self-signed cert validation bypass only for non-public hosts (for example `mint22`), intended to unblock discovery/token calls during self-host testing.
+- 2026-03-07 (Windows11-TestDNC, commit `3e9ce40`): Client rerun reached localhost callback success page again; discovery and token calls both returned HTTP 200 with no TLS exceptions.
+- 2026-03-07 (Windows11-TestDNC, local unpushed fix): Corrected DI wiring to use typed `HttpClient<IOAuth2Service, OAuth2Service>` and mapped OAuth token JSON snake_case fields (`access_token`, `refresh_token`, `token_type`, `expires_in`) to client DTO.
+- 2026-03-07 (Windows11-TestDNC): After restart at `18:24`, SyncTray connected without logging `No sync accounts configured`, indicating account context persisted.
 
 ## Client Evidence Snapshot (2026-03-07)
 
@@ -241,6 +244,46 @@ System.Net.Http.HttpRequestException: The SSL connection could not be establishe
 - Conclusion for this run:
   - OAuth authorize + callback path is now functional.
   - Remaining blocker is TLS trust/hostname validation on client HTTP calls to `https://mint22:15443` (discovery + token exchange).
+
+### Latest end-to-end rerun on `3e9ce40` (18:22 local)
+
+- Client commit hash:
+  - `3e9ce402a8534a53fedf69539a1f412b59af9a54`
+
+- Browser callback evidence (mediator screenshot):
+
+```text
+URL shown: http://localhost:52701/oauth/callback?code=...
+Page text: Authorization successful! You may close this window.
+```
+
+- Raw OAuth + token lines from SyncTray log:
+
+```text
+[18:22:49 INF] OAuth scope selection for https://mint22:15443: requested=[openid, profile, offline_access, files:read, files:write] effective=[openid, profile, offline_access, files:read, files:write]
+[18:22:49 INF] Opening OAuth authorize URL for client 'dotnetcloud-desktop' with scope 'openid profile offline_access files:read files:write'.
+[18:22:49 INF] Start processing HTTP request POST https://mint22:15443/connect/token
+[18:22:49 INF] Received HTTP response headers after 46.4274ms - 200
+[18:22:49 INF] End processing HTTP request after 47.6867ms - 200
+```
+
+- Restart persistence signal:
+
+```text
+[18:24:00 INF] DotNetCloud SyncTray starting...
+[18:24:00 INF] Connected to SyncService.
+```
+
+- Not observed after restart:
+
+```text
+No sync accounts configured. Launching first-run add-account flow.
+```
+
+- Conclusion for this run:
+  - Callback success still reproducible.
+  - Token exchange now returns HTTP 200 without TLS exception.
+  - Account appears persisted (first-run prompt no longer appears after restart).
 
 ## Next Action Requested From Server Agent
 

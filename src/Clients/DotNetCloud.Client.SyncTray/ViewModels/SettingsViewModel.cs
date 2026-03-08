@@ -18,7 +18,7 @@ public sealed class SettingsViewModel : ViewModelBase
     private readonly IOAuth2Service _oauth2;
     private readonly ILogger<SettingsViewModel> _logger;
 
-    private string _addAccountServerUrl = string.Empty;
+    private string _addAccountServerUrl = "https://mint22:15443/";
     private string _addAccountClientId = "dotnetcloud-desktop";
     private string _addAccountError = string.Empty;
     private bool _isAddingAccount;

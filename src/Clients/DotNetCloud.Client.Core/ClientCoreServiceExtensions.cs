@@ -27,9 +27,8 @@ public static class ClientCoreServiceExtensions
         services.AddHttpClient<DotNetCloudApiClient>();
         services.AddTransient<IDotNetCloudApiClient, DotNetCloudApiClient>();
 
-        services.AddHttpClient<OAuth2Service>()
+        services.AddHttpClient<IOAuth2Service, OAuth2Service>()
             .ConfigurePrimaryHttpMessageHandler(OAuthHttpClientHandlerFactory.CreateHandler);
-        services.AddTransient<IOAuth2Service, OAuth2Service>();
 
         services.AddSingleton<ITokenStore>(sp =>
             new EncryptedFileTokenStore(
