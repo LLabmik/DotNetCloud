@@ -16,6 +16,38 @@
 | Client (future) | `mint-dnc-client` | Linux Mint | For Linux client testing |
 | Client (future) | — | macOS | Third-party contributor will supply Apple implementation |
 
+## Operational Notes (Read Before Implementing)
+
+These are hard-won lessons from previous implementation sessions. Read them before starting any task.
+
+1. **Repo paths are NOT the same on every machine.** Server (`mint22`) may have the repo at `~/dotnetcloud`. Client (`Windows11-TestDNC`) has it at `C:\Repos\dotnetcloud`. All file references in this document use paths relative to the repo root (e.g., `src/Clients/...`). Never hardcode absolute paths.
+
+2. **Serilog rolling file date suffix.** When using `RollingInterval.Day`, Serilog appends `YYYYMMDD` to the log filename. A file configured as `sync-service.log` will actually write to `sync-service20260308.log`. When verifying logging output, always look for date-suffixed files, not the base name.
+
+3. **Triggering a sync pass for testing.** The sync engine runs on a 5-minute timer (`FullScanInterval: 00:05:00`). To trigger an immediate sync pass without waiting, send a `sync-now` command to the IPC named pipe:
+   - **Windows:** `echo '{"command":"sync-now"}' | & { $pipe = New-Object System.IO.Pipes.NamedPipeClientStream('.','dotnetcloud-sync','InOut'); $pipe.Connect(5000); $w = New-Object System.IO.StreamWriter($pipe); $w.WriteLine('{"command":"sync-now"}'); $w.Flush(); $r = New-Object System.IO.StreamReader($pipe); Write-Output $r.ReadLine(); $pipe.Close() }`
+   - **Linux:** `echo '{"command":"sync-now"}' | socat - UNIX-CONNECT:/run/dotnetcloud/sync.sock`
+   - Expected response: `{"success":true,"data":{"started":true}}`
+
+4. **Check what already exists before creating anything.** Before implementing any task, read the files listed in the "Files to modify" table. Previous implementations have made the mistake of creating new middleware/config/services that duplicate infrastructure that already existed (e.g., rate limiting middleware was already fully implemented when Task 1.3 was assigned).
+
+5. **Build and test from repo root.** Always build and test using repo-relative project paths:
+   ```bash
+   dotnet build src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj
+   dotnet test tests/DotNetCloud.Client.Core.Tests/
+   ```
+
+6. **SyncService background process.** When running the sync service for testing:
+   ```bash
+   dotnet run --project src/Clients/DotNetCloud.Client.SyncService/DotNetCloud.Client.SyncService.csproj
+   ```
+   Stop with Ctrl+C. Check logs at `%APPDATA%\DotNetCloud\logs\` (Windows) or `~/.local/share/DotNetCloud/logs/` (Linux). Remember the date-suffix naming (Note 2 above).
+
+7. **HttpClient registration.** Two HttpClient registrations exist:
+   - **Typed client** for `DotNetCloudApiClient` — registered in `src/Clients/DotNetCloud.Client.Core/ClientCoreServiceExtensions.cs`
+   - **Named client** `"DotNetCloudSync"` — registered in `src/Clients/DotNetCloud.Client.SyncService/SyncServiceExtensions.cs`
+   - Any new `DelegatingHandler` (like `CorrelationIdHandler`) must be added to BOTH registrations.
+
 ## Rules
 
 1. **Server changes** → implemented directly on `mint22`
@@ -24,6 +56,96 @@
 4. **Linux readiness** → all client code must account for Linux differences; platform-specific code behind `RuntimeInformation` / `OperatingSystem` checks
 5. **macOS awareness** → design interfaces and abstractions so a future macOS contributor can plug in without restructuring (no Windows-only assumptions baked into core logic)
 6. **All file types sync** — this is a backup system; never block file extensions. Security is enforced via server-side execution prevention and scanning, not upload rejection.
+7. **All file paths in this document are relative to the repo root.** The repo lives at different absolute paths on the server (`~/dotnetcloud`) and client (`C:\Repos\dotnetcloud`). Never use absolute paths in task descriptions. Always write paths like `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs`.
+8. **Check what already exists before creating new code.** Before implementing any task, read the files listed in the "Files to modify" section to understand current state. Do NOT create new middleware, configuration classes, or services that duplicate existing infrastructure.
+9. **Build/test commands** — always run from the repo root:
+   - Build: `dotnet build <project-relative-path>.csproj`
+   - Test: `dotnet test <test-project-relative-path>/`
+   - Full build: `dotnet build`
+   - Full test: `dotnet test`
+10. **Serilog rolling files** — Serilog with `RollingInterval.Day` appends a date suffix to log filenames. A file configured as `sync-service.log` will actually write to `sync-service20260308.log` (YYYYMMDD). Always check for date-suffixed files when verifying logging.
+11. **IPC "sync-now" command** — To trigger an immediate sync pass for testing (instead of waiting for the 5-minute timer), pipe a JSON command to the IPC named pipe:
+    - Windows: `echo '{"command":"sync-now"}' | & { $pipe = New-Object System.IO.Pipes.NamedPipeClientStream('.','dotnetcloud-sync','InOut'); $pipe.Connect(5000); $w = New-Object System.IO.StreamWriter($pipe); $w.WriteLine('{"command":"sync-now"}'); $w.Flush(); $r = New-Object System.IO.StreamReader($pipe); Write-Output $r.ReadLine(); $pipe.Close() }`
+    - Linux: `echo '{"command":"sync-now"}' | socat - UNIX-CONNECT:/run/dotnetcloud/sync.sock`
+
+---
+
+## Component File Reference (Repo-Relative Paths)
+
+Use these paths whenever a task references a component by name. All paths are relative to the repository root.
+
+### Client — Core Library (`src/Clients/DotNetCloud.Client.Core/`)
+
+| Component | File Path |
+|-----------|-----------|
+| **ChunkedTransferClient** | `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs` |
+| **IChunkedTransferClient** | `src/Clients/DotNetCloud.Client.Core/Transfer/IChunkedTransferClient.cs` |
+| **TransferProgress** | `src/Clients/DotNetCloud.Client.Core/Transfer/TransferProgress.cs` |
+| **SyncEngine** | `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` |
+| **ISyncEngine** | `src/Clients/DotNetCloud.Client.Core/Sync/ISyncEngine.cs` |
+| **SyncState enum** | `src/Clients/DotNetCloud.Client.Core/Sync/SyncState.cs` |
+| **SyncContext** | `src/Clients/DotNetCloud.Client.Core/Sync/SyncContext.cs` |
+| **SyncStatus** | `src/Clients/DotNetCloud.Client.Core/Sync/SyncStatus.cs` |
+| **DotNetCloudApiClient** | `src/Clients/DotNetCloud.Client.Core/Api/DotNetCloudApiClient.cs` |
+| **IDotNetCloudApiClient** | `src/Clients/DotNetCloud.Client.Core/Api/IDotNetCloudApiClient.cs` |
+| **CorrelationIdHandler** | `src/Clients/DotNetCloud.Client.Core/Api/CorrelationIdHandler.cs` |
+| **LocalStateDbContext** | `src/Clients/DotNetCloud.Client.Core/LocalState/LocalStateDbContext.cs` |
+| **PendingOperationDbRow** | `src/Clients/DotNetCloud.Client.Core/LocalState/LocalStateDbContext.cs` (line ~49) |
+| **PendingOperationRecord** | `src/Clients/DotNetCloud.Client.Core/LocalState/Entities/PendingOperationRecord.cs` |
+| **LocalFileRecord** | `src/Clients/DotNetCloud.Client.Core/LocalState/Entities/LocalFileRecord.cs` |
+| **ConflictResolver** | `src/Clients/DotNetCloud.Client.Core/Conflict/ConflictResolver.cs` |
+| **IConflictResolver** | `src/Clients/DotNetCloud.Client.Core/Conflict/IConflictResolver.cs` |
+| **ConflictInfo** | `src/Clients/DotNetCloud.Client.Core/Conflict/ConflictInfo.cs` |
+| **SelectiveSyncConfig** | `src/Clients/DotNetCloud.Client.Core/SelectiveSync/SelectiveSyncConfig.cs` |
+| **ClientCoreServiceExtensions** | `src/Clients/DotNetCloud.Client.Core/ClientCoreServiceExtensions.cs` |
+| **Client.Core .csproj** | `src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj` |
+
+### Client — Sync Service (`src/Clients/DotNetCloud.Client.SyncService/`)
+
+| Component | File Path |
+|-----------|-----------|
+| **SyncContextManager** | `src/Clients/DotNetCloud.Client.SyncService/ContextManager/SyncContextManager.cs` |
+| **ISyncContextManager** | `src/Clients/DotNetCloud.Client.SyncService/ContextManager/ISyncContextManager.cs` |
+| **SyncContextRegistration** | `src/Clients/DotNetCloud.Client.SyncService/ContextManager/SyncContextRegistration.cs` |
+| **SyncServiceExtensions** | `src/Clients/DotNetCloud.Client.SyncService/SyncServiceExtensions.cs` |
+| **SyncWorker** | `src/Clients/DotNetCloud.Client.SyncService/SyncWorker.cs` |
+| **Program.cs** | `src/Clients/DotNetCloud.Client.SyncService/Program.cs` |
+| **sync-settings.json** | `src/Clients/DotNetCloud.Client.SyncService/sync-settings.json` |
+| **IpcServer** | `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcServer.cs` |
+| **IpcProtocol** | `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcProtocol.cs` |
+| **IpcClientHandler** | `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcClientHandler.cs` |
+| **SyncService .csproj** | `src/Clients/DotNetCloud.Client.SyncService/DotNetCloud.Client.SyncService.csproj` |
+
+### Client — SyncTray (`src/Clients/DotNetCloud.Client.SyncTray/`)
+
+| Component | File Path |
+|-----------|-----------|
+| **SyncTray .csproj** | `src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj` |
+
+### Server — Core Server (`src/Core/DotNetCloud.Core.Server/`)
+
+| Component | File Path |
+|-----------|-----------|
+| **RateLimitingConfiguration** | `src/Core/DotNetCloud.Core.Server/Configuration/RateLimitingConfiguration.cs` |
+| **Server appsettings.json** | `src/Core/DotNetCloud.Core.Server/appsettings.json` |
+| **Server Program.cs** | `src/Core/DotNetCloud.Core.Server/Program.cs` |
+
+### Server — Files Module (`src/Modules/Files/`)
+
+| Component | File Path |
+|-----------|-----------|
+| **ContentHasher** | `src/Modules/Files/DotNetCloud.Modules.Files/Services/ContentHasher.cs` |
+| **SyncController** | `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/SyncController.cs` |
+| **FilesController** | `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/FilesController.cs` |
+
+### Tests
+
+| Component | File Path |
+|-----------|-----------|
+| **Client.Core Tests** | `tests/DotNetCloud.Client.Core.Tests/` |
+| **SyncService Tests** | `tests/DotNetCloud.Client.SyncService.Tests/` |
+| **Server Tests** | `tests/DotNetCloud.Core.Server.Tests/` |
+| **Files Module Tests** | `tests/DotNetCloud.Modules.Files.Tests/` |
 
 ---
 
@@ -31,92 +153,41 @@
 
 **Goal:** Make what we have today robust and debuggable before adding new capabilities.
 
-### 1.1 — Sync Service Logging (Client + Server)
+### 1.1 — Sync Service Logging (Client + Server) ✅ COMPLETE
 
-**Approved Proposal:** 3.6 (Audit Logging) + user requirement for client-side sync service logs
-
-**Problem:** The sync service on the client has no structured logging. The server has no sync-specific audit trail. When something goes wrong, there's no way to investigate.
-
-**Scope:**
-
-**Server (mint22):**
-- Add structured Serilog logging to all sync/file operations in `ChunkedUploadService`, `DownloadService`, `FileService`, `SyncService`
-- Log events: `file.uploaded`, `file.downloaded`, `file.deleted`, `file.moved`, `file.shared`, `sync.reconcile.completed`
-- Structured fields per event: `Timestamp`, `UserId`, `ClientIp`, `RequestId`, `NodeId`, `FileName`, `Action`, `Result`, `FileSize`, `ClientVersion`
-- Dedicated audit log sink (separate from application log): `{DOTNETCLOUD_DATA_DIR}/logs/audit-sync.log`
-- Same rolling-file config as existing server logs
-
-**Client (Windows11-TestDNC):**
-- Add Serilog to `DotNetCloud.Client.SyncService` with structured JSON logging
-- Log to: `{DataRoot}/logs/sync-service.log` (Windows: `%APPDATA%\DotNetCloud\logs\`, Linux: `~/.local/share/DotNetCloud/logs/`)
-- Events to log:
-  - Sync pass start/complete/error (with duration, files processed, conflicts)
-  - Each file upload/download start/complete/error (with file name, size, duration, chunk stats)
-  - Conflict detection (original path, conflict path, reason)
-  - Auth token refresh (success/failure, no token values)
-  - IPC commands received/responded
-  - FileSystemWatcher events that trigger sync
-- **Configurable rotation:** Default 30-day retention, rolling daily files, configurable via `sync-settings.json`:
-  ```json
-  {
-    "logging": {
-      "retentionDays": 30,
-      "maxFileSizeMB": 50,
-      "rollingInterval": "Day",
-      "minimumLevel": "Information"
-    }
-  }
-  ```
-- Config changes take effect on service restart
-- Log level overridable per-category for debugging (e.g., set `Transfer` to `Debug` for chunk-level detail)
-
-**Linux/macOS Considerations:**
-- Same logging infrastructure; only the path differs (already platform-aware via `GetSystemDataRoot()`)
-- Log file permissions: `600` on Linux (owner-only read/write)
+**Status:** ✅ Both sides complete. Client validated at commit `c69aeac`. Server audit logging at commit `c585dae`.
 
 **Deliverables:**
-- ☐ Server: Serilog structured audit logging in sync/file service classes
-- ☐ Server: Dedicated `audit-sync.log` rolling file sink
-- ☐ Client: Serilog integration in SyncService with rolling file sink
-- ☐ Client: Structured log events for all sync lifecycle operations
-- ☐ Client: `sync-settings.json` logging configuration section
-- ☐ Client: Log rotation with configurable retention (default 30 days)
-- ☐ Client: Platform-appropriate log directory and file permissions
+- ✓ Server: Serilog structured audit logging in sync/file service classes
+- ✓ Server: Dedicated `audit-sync.log` rolling file sink
+- ✓ Client: Serilog integration in SyncService with rolling file sink
+- ✓ Client: Structured log events for all sync lifecycle operations
+- ✓ Client: `sync-settings.json` logging configuration section
+- ✓ Client: Log rotation with configurable retention (default 30 days)
+- ✓ Client: Platform-appropriate log directory and file permissions
 
-**Side:** Both
-**Complexity:** Medium
+**Files modified:**
+- Client: `src/Clients/DotNetCloud.Client.SyncService/Program.cs` — Serilog setup with `LoadLoggingSettings()` and `BuildLogPath()`
+- Client: `src/Clients/DotNetCloud.Client.SyncService/sync-settings.json` — logging config section
+- Client: `src/Clients/DotNetCloud.Client.SyncService/DotNetCloud.Client.SyncService.csproj` — Serilog NuGet packages
+
+**Operational note:** Serilog `RollingInterval.Day` appends YYYYMMDD to log filenames. A file configured as `sync-service.log` will actually write to `sync-service20260308.log`. Always look for date-suffixed files when verifying logging output.
 
 ---
 
-### 1.2 — Request Correlation IDs
+### 1.2 — Request Correlation IDs ✅ COMPLETE
 
-**Approved Proposal:** 3.2
-
-**Problem:** No way to match a client-side error to the server-side log entry that caused it.
-
-**Scope:**
-
-**Server (mint22):**
-- Add middleware (in `ServiceDefaults` or `Program.cs`) that:
-  - Reads `X-Request-ID` header from incoming request (or generates a new GUID if absent)
-  - Pushes it into Serilog `LogContext` as `RequestId` property
-  - Adds `X-Request-ID` to response headers
-- All log entries within that request automatically include the correlation ID
-
-**Client (Windows11-TestDNC):**
-- `DotNetCloudApiClient`: Generate `Guid.NewGuid()` for each API call, attach as `X-Request-ID` header
-- Log the request ID alongside every API call start/complete/error
-- On error, include the request ID in the user-facing error message and log (makes support easier: "Please share your sync log and reference request ID `abc-123`")
-
-**Linux/macOS Considerations:** None — pure HTTP/log concern, fully cross-platform.
+**Status:** ✅ Both sides complete. Server middleware at commit `16dd7df`. Client handler at commit `97afdd8`.
 
 **Deliverables:**
-- ☐ Server: `RequestCorrelationMiddleware` reads/generates `X-Request-ID`, pushes to Serilog context, returns in response
-- ☐ Client: `DotNetCloudApiClient` generates and sends `X-Request-ID` on every request
-- ☐ Client: Request ID logged with every API operation
+- ✓ Server: `RequestCorrelationMiddleware` reads/generates `X-Request-ID`, pushes to Serilog context, returns in response
+- ✓ Client: `CorrelationIdHandler` (`DelegatingHandler`) generates and sends `X-Request-ID` on every request
+- ✓ Client: Request ID logged with every API operation
 
-**Side:** Both
-**Complexity:** Low
+**Files modified:**
+- Client: `src/Clients/DotNetCloud.Client.Core/Api/CorrelationIdHandler.cs` — created (DelegatingHandler)
+- Client: `src/Clients/DotNetCloud.Client.Core/ClientCoreServiceExtensions.cs` — registered handler on typed HttpClient
+- Client: `src/Clients/DotNetCloud.Client.SyncService/SyncServiceExtensions.cs` — registered handler on named `"DotNetCloudSync"` HttpClient
 
 ---
 
@@ -126,37 +197,96 @@
 
 **Problem:** No rate limiting on sync endpoints. A misbehaving client can DoS the server.
 
-**Scope:**
+**⚠️ IMPORTANT: Rate limiting infrastructure ALREADY EXISTS. Do NOT create new middleware or configuration classes.**
 
-**Server (mint22):**
-- Configure ASP.NET Core rate limiting middleware (`AddRateLimiter()`) with sliding-window policies keyed on authenticated user ID:
+**What already exists (DO NOT recreate):**
+- `src/Core/DotNetCloud.Core.Server/Configuration/RateLimitingConfiguration.cs` — has `AddDotNetCloudRateLimiting()` extension method with sliding-window policies (`"global"`, `"authenticated"`, per-module `"module-{name}"`), and a 429 rejection handler that returns `Retry-After` header.
+- `src/Core/DotNetCloud.Core.Server/appsettings.json` — already has a `"RateLimiting"` section with `Enabled`, `GlobalPermitLimit`, `AuthenticatedPermitLimit`, `ModuleLimits`, etc.
+- `src/Core/DotNetCloud.Core.Server/Program.cs` — already calls `app.UseDotNetCloudRateLimiting()` in the pipeline.
 
-  | Endpoint Pattern | Limit | Window |
-  |-----------------|-------|--------|
-  | `/api/v1/sync/changes` | 60 req | 1 min |
-  | `/api/v1/sync/tree` | 10 req | 1 min |
-  | `/api/v1/sync/reconcile` | 30 req | 1 min |
-  | `/api/v1/files/upload/initiate` | 30 req | 1 min |
-  | `/api/v1/files/upload/*/chunks/*` | 300 req | 1 min |
-  | `/api/v1/files/*/download` | 120 req | 1 min |
-  | `/api/v1/files/chunks/*` | 300 req | 1 min |
+**Files to modify:**
 
-- Return `429 Too Many Requests` with `Retry-After` header
-- Configurable limits via `appsettings.json` (admins can adjust for their environment)
+| File (repo-relative) | What to do |
+|---|---|
+| `src/Core/DotNetCloud.Core.Server/appsettings.json` | Add sync-specific entries under `RateLimiting.ModuleLimits` |
+| `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/SyncController.cs` | Add `[EnableRateLimiting]` attributes to sync methods |
+| `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/FilesController.cs` | Add `[EnableRateLimiting]` attributes to upload/download methods |
 
-**Client (Windows11-TestDNC):**
-- `DotNetCloudApiClient` already handles 429 with retry — verify `Retry-After` header is respected in backoff logic
-- Log when rate-limited (useful for debugging aggressive sync intervals)
+**Step-by-step implementation:**
 
-**Linux/macOS Considerations:** None — server-side only.
+**Step 1:** Add sync-specific module limits to `src/Core/DotNetCloud.Core.Server/appsettings.json` under the existing `RateLimiting.ModuleLimits` key:
+
+```json
+"ModuleLimits": {
+  "sync-changes":    { "PermitLimit": 60,  "WindowSeconds": 60 },
+  "sync-tree":       { "PermitLimit": 10,  "WindowSeconds": 60 },
+  "sync-reconcile":  { "PermitLimit": 30,  "WindowSeconds": 60 },
+  "upload-initiate": { "PermitLimit": 30,  "WindowSeconds": 60 },
+  "upload-chunks":   { "PermitLimit": 300, "WindowSeconds": 60 },
+  "download":        { "PermitLimit": 120, "WindowSeconds": 60 },
+  "chunks":          { "PermitLimit": 300, "WindowSeconds": 60 }
+}
+```
+
+**Step 2:** Add `[EnableRateLimiting("module-{name}")]` attributes to controller methods. Add `using Microsoft.AspNetCore.RateLimiting;` to both controllers if not already present.
+
+In `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/SyncController.cs`:
+```csharp
+[HttpGet("changes")]
+[EnableRateLimiting("module-sync-changes")]
+public Task<IActionResult> GetChangesAsync(...)
+
+[HttpGet("tree")]
+[EnableRateLimiting("module-sync-tree")]
+public Task<IActionResult> GetTreeAsync(...)
+
+[HttpPost("reconcile")]
+[EnableRateLimiting("module-sync-reconcile")]
+public Task<IActionResult> ReconcileAsync(...)
+```
+
+In `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/FilesController.cs`:
+```csharp
+[HttpPost("upload/initiate")]
+[EnableRateLimiting("module-upload-initiate")]
+public Task<IActionResult> InitiateUploadAsync(...)
+
+[HttpPut("upload/{sessionId:guid}/chunks/{chunkHash}")]
+[EnableRateLimiting("module-upload-chunks")]
+public Task<IActionResult> UploadChunkAsync(...)
+
+[HttpGet("{nodeId:guid}/download")]
+[EnableRateLimiting("module-download")]
+public Task<IActionResult> DownloadAsync(...)
+
+[HttpGet("{nodeId:guid}/chunks")]
+[EnableRateLimiting("module-chunks")]
+public Task<IActionResult> GetChunkManifestAsync(...)
+
+[HttpGet("chunks/{chunkHash}")]
+[EnableRateLimiting("module-chunks")]
+public Task<IActionResult> DownloadChunkAsync(...)
+```
+
+**Step 3:** Build and test:
+```bash
+dotnet build src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj
+dotnet build src/Modules/Files/DotNetCloud.Modules.Files.Host/DotNetCloud.Modules.Files.Host.csproj
+dotnet test tests/DotNetCloud.Core.Server.Tests/
+dotnet test tests/DotNetCloud.Modules.Files.Tests/
+```
+
+**Client-side verification (no code changes needed):**
+- Client already handles 429 + `Retry-After` in `src/Clients/DotNetCloud.Client.Core/Api/DotNetCloudApiClient.cs` inside `SendWithRetryAsync()`. Verify this by reading the method — it should check for `HttpStatusCode.TooManyRequests` and read the `Retry-After` header.
+- Optionally add a log line when rate-limited, but this is low priority.
 
 **Deliverables:**
-- ☐ Server: Rate limiting middleware configured with per-user sliding-window policies
-- ☐ Server: `[EnableRateLimiting]` attributes on sync/file controllers
-- ☐ Server: Configurable limits in `appsettings.json`
-- ☐ Client: Verify 429 + `Retry-After` handling; add logging on rate-limit events
+- ☐ Server: Sync-specific module limits added to `appsettings.json` under `RateLimiting.ModuleLimits`
+- ☐ Server: `[EnableRateLimiting]` attributes on sync controller methods in `SyncController.cs`
+- ☐ Server: `[EnableRateLimiting]` attributes on file controller methods in `FilesController.cs`
+- ☐ Client: Verify 429 + `Retry-After` handling exists (read `DotNetCloudApiClient.SendWithRetryAsync()`)
 
-**Side:** Server (+ client verification)
+**Side:** Server (+ client verification only)
 **Complexity:** Low
 
 ---
@@ -167,22 +297,51 @@
 
 **Problem:** Client doesn't verify downloaded chunk data matches the expected SHA-256 hash. Corrupted downloads are silently accepted.
 
-**Scope:**
+**Files to modify:**
 
-**Client (Windows11-TestDNC):**
-- In `ChunkedTransferClient.DownloadAsync()`, after downloading each chunk:
-  1. Compute SHA-256 of received bytes
-  2. Compare to expected hash from the chunk manifest
-  3. If mismatch: log warning, discard, retry download (up to 3 times)
-  4. If still mismatched after retries: fail the file download, log error with request ID
-- Reuse existing `ContentHasher.ComputeHash()` 
+| File (repo-relative) | What to do |
+|---|---|
+| `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs` | Add SHA-256 verification after each chunk download in `DownloadChunksAsync()` / `DownloadAsync()` |
 
-**Linux/macOS Considerations:** None — pure in-memory SHA-256 comparison, fully cross-platform.
+**What already exists:**
+- `ChunkedTransferClient.DownloadAsync()` downloads a chunk manifest (list of hashes) then downloads each chunk by hash via `DotNetCloudApiClient.DownloadChunkByHashAsync()`.
+- The hash of each chunk IS known from the manifest — it's the `chunkHash` string used to request the download.
+- `System.Security.Cryptography.SHA256` is available in the runtime (no NuGet needed).
+- There is a `ContentHasher` on the server at `src/Modules/Files/DotNetCloud.Modules.Files/Services/ContentHasher.cs` with `ComputeHash(ReadOnlySpan<byte>)` — but this is server-side only. The client needs its own inline SHA-256 computation (it's a one-liner: `Convert.ToHexStringLower(SHA256.HashData(bytes))`).
+
+**Step-by-step implementation:**
+
+**Step 1:** In `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs`, find the method that downloads chunks (likely `DownloadChunksAsync` or inside `DownloadAsync`). After receiving each chunk's byte array from the API:
+
+```csharp
+// After downloading chunk bytes:
+var actualHash = Convert.ToHexStringLower(SHA256.HashData(chunkBytes));
+if (!string.Equals(actualHash, expectedHash, StringComparison.OrdinalIgnoreCase))
+{
+    _logger.LogWarning("Chunk hash mismatch for {ExpectedHash}: got {ActualHash}. Retrying ({Attempt}/3)...",
+        expectedHash, actualHash, attempt);
+    // Retry up to 3 times
+    continue;
+}
+```
+
+**Step 2:** Wrap the download + verify in a retry loop (max 3 attempts). If all 3 fail, throw an exception with the request ID (from `CorrelationIdHandler`) included in the log:
+
+```csharp
+_logger.LogError("Chunk {ExpectedHash} failed integrity verification after 3 attempts. Aborting file download.", expectedHash);
+throw new ChunkIntegrityException($"Chunk {expectedHash} corrupted after 3 download attempts.");
+```
+
+**Step 3:** Build and test:
+```bash
+dotnet build src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj
+dotnet test tests/DotNetCloud.Client.Core.Tests/
+```
 
 **Deliverables:**
-- ☐ Client: Post-download SHA-256 verification for every chunk
+- ☐ Client: Post-download SHA-256 verification for every chunk in `ChunkedTransferClient`
 - ☐ Client: Retry on hash mismatch (up to 3 attempts)
-- ☐ Client: Clear error logging with request ID on persistent corruption
+- ☐ Client: Clear error logging with chunk hash on persistent corruption
 
 **Side:** Client only
 **Complexity:** Low
@@ -195,25 +354,76 @@
 
 **Problem:** A single chunk failure aborts the entire file transfer.
 
-**Scope:**
+**Files to modify:**
 
-**Client (Windows11-TestDNC):**
-- Wrap each chunk upload/download call in a retry loop:
-  - Max retries: 3
-  - Backoff: 1s → 2s → 4s + random jitter (0–500ms)
-  - Retry on: network errors, 5xx responses, timeout
-  - Do NOT retry on: 4xx responses (client error), 429 (handle separately via `Retry-After`)
-- If a chunk fails after max retries:
-  - Upload: mark transfer as partial; on next sync pass, `InitiateUpload` dedup will skip already-uploaded chunks
-  - Download: fail the file (integrity can't be guaranteed with missing chunks)
-- Add `ChunkTransferResult` record to track per-chunk outcomes for logging
+| File (repo-relative) | What to do |
+|---|---|
+| `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs` | Add per-chunk retry loop with exponential backoff in upload and download methods |
+| `src/Clients/DotNetCloud.Client.Core/Transfer/TransferProgress.cs` | Add `ChunksSkipped` already exists — verify it's used |
 
-**Linux/macOS Considerations:** None — HTTP retry logic, fully cross-platform.
+**What already exists:**
+- `ChunkedTransferClient` at `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs` has `UploadAsync()` and `DownloadAsync()` methods that process chunks sequentially.
+- `DotNetCloudApiClient` at `src/Clients/DotNetCloud.Client.Core/Api/DotNetCloudApiClient.cs` already has retry logic in `SendWithRetryAsync()` (max 3 retries, 500ms base delay). The per-chunk retry in this task is SEPARATE from the API-level retry — this is a higher-level retry that wraps the entire chunk operation (hash + download/upload + verify).
+- `TransferProgress` at `src/Clients/DotNetCloud.Client.Core/Transfer/TransferProgress.cs` already has `ChunksSkipped` (int).
+
+**Step-by-step implementation:**
+
+**Step 1:** In `ChunkedTransferClient.cs`, wrap each chunk upload/download call in a retry loop:
+
+```csharp
+private async Task<byte[]> DownloadChunkWithRetryAsync(
+    string chunkHash, int chunkIndex, int totalChunks, CancellationToken ct)
+{
+    const int maxRetries = 3;
+    var baseDelay = TimeSpan.FromSeconds(1);
+
+    for (int attempt = 1; attempt <= maxRetries; attempt++)
+    {
+        try
+        {
+            var bytes = await _apiClient.DownloadChunkByHashAsync(chunkHash, ct);
+            // Integrity check (from Task 1.4)
+            var actualHash = Convert.ToHexStringLower(SHA256.HashData(bytes));
+            if (!string.Equals(actualHash, chunkHash, StringComparison.OrdinalIgnoreCase))
+                throw new ChunkIntegrityException($"Hash mismatch: expected {chunkHash}, got {actualHash}");
+            return bytes;
+        }
+        catch (Exception ex) when (attempt < maxRetries && ShouldRetryChunk(ex))
+        {
+            var jitter = TimeSpan.FromMilliseconds(Random.Shared.Next(0, 500));
+            var delay = baseDelay * Math.Pow(2, attempt - 1) + jitter;
+            _logger.LogWarning(ex, "Chunk {ChunkIndex}/{TotalChunks} ({Hash}) failed on attempt {Attempt}/{MaxRetries}. Retrying in {Delay}ms...",
+                chunkIndex, totalChunks, chunkHash, attempt, maxRetries, delay.TotalMilliseconds);
+            await Task.Delay(delay, ct);
+        }
+    }
+    throw new ChunkTransferException($"Chunk {chunkHash} failed after {maxRetries} attempts");
+}
+
+private static bool ShouldRetryChunk(Exception ex) => ex switch
+{
+    HttpRequestException => true,           // Network errors
+    TaskCanceledException => false,         // User cancellation — don't retry
+    ChunkIntegrityException => true,        // Hash mismatch — retry download
+    _ when ex.Message.Contains("5") => true, // 5xx server errors
+    _ => false
+};
+```
+
+**Step 2:** Do NOT retry on 4xx responses (client error) or 429 (handled separately by `SendWithRetryAsync` in `DotNetCloudApiClient`).
+
+**Step 3:** For upload failures after max retries: leave the upload session open (it can be resumed on the next sync pass because `InitiateUpload` dedup will skip already-uploaded chunks). Log the partial state.
+
+**Step 4:** Build and test:
+```bash
+dotnet build src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj
+dotnet test tests/DotNetCloud.Client.Core.Tests/
+```
 
 **Deliverables:**
-- ☐ Client: Per-chunk retry loop with exponential backoff + jitter
-- ☐ Client: `ChunkTransferResult` tracking per-chunk success/failure/retries
-- ☐ Client: Detailed logging per chunk (hash, attempt number, duration, error)
+- ☐ Client: Per-chunk retry loop with exponential backoff + jitter in `ChunkedTransferClient`
+- ☐ Client: `ShouldRetryChunk()` logic (retry network/5xx/hash-mismatch, NOT 4xx/429/cancellation)
+- ☐ Client: Detailed logging per chunk (hash, attempt number, delay, error)
 
 **Side:** Client only
 **Complexity:** Low-Medium
@@ -226,32 +436,81 @@
 
 **Problem:** Client SQLite uses slow DELETE journal mode with no corruption detection.
 
-**Scope:**
+**Files to modify:**
 
-**Client (Windows11-TestDNC):**
-- Enable WAL mode in `LocalStateDbContext` connection string: `Journal Mode=Wal`
-- On `InitializeAsync()`:
-  1. Run `PRAGMA integrity_check` — if it returns anything other than `"ok"`:
-     - Log the corruption details
-     - Rename `state.db` → `state.db.corrupt.{timestamp}`
-     - Also rename `state.db-wal` and `state.db-shm` if they exist
-     - Create fresh DB via `EnsureCreatedAsync()`
-     - Set flag to trigger full sync on next pass
-     - Send notification to tray: "Sync database was corrupted and has been reset. A full re-sync will occur."
-  2. If integrity check passes, proceed normally
-- After each complete sync pass: run `PRAGMA wal_checkpoint(TRUNCATE)` to prevent WAL growth
+| File (repo-relative) | What to do |
+|---|---|
+| `src/Clients/DotNetCloud.Client.Core/LocalState/LocalStateDbContext.cs` | Add `Journal Mode=Wal` to connection string; add `InitializeAsync()` integrity check |
+| `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` | Run WAL checkpoint after each complete sync pass |
 
-**Linux/macOS Considerations:**
-- WAL mode works identically on all platforms with SQLite
-- Same corruption recovery logic
-- File rename operations use `File.Move()` (cross-platform)
+**What already exists:**
+- `LocalStateDbContext` at `src/Clients/DotNetCloud.Client.Core/LocalState/LocalStateDbContext.cs` uses `UseSqlite($"Data Source={dbPath}")` for the connection string. The `dbPath` comes from the sync context data directory.
+- The DbContext has `DbSet<LocalFileRecord>`, `DbSet<PendingOperationDbRow>`, and `DbSet<SyncCheckpointRow>`.
+- `SyncEngine` at `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` has `SyncAsync()` which is the main sync pass method. WAL checkpoint should run at the end of a successful `SyncAsync()`.
+
+**Step-by-step implementation:**
+
+**Step 1:** In `LocalStateDbContext.cs`, change the SQLite connection string to enable WAL mode:
+```csharp
+// Change from:
+optionsBuilder.UseSqlite($"Data Source={dbPath}");
+// To:
+optionsBuilder.UseSqlite($"Data Source={dbPath};Journal Mode=Wal");
+```
+
+**Step 2:** Add an `InitializeAsync()` method to `LocalStateDbContext` (or a wrapper service) that runs on startup:
+```csharp
+public async Task<bool> InitializeAsync(CancellationToken ct = default)
+{
+    var connection = Database.GetDbConnection();
+    await connection.OpenAsync(ct);
+
+    await using var cmd = connection.CreateCommand();
+    cmd.CommandText = "PRAGMA integrity_check";
+    var result = await cmd.ExecuteScalarAsync(ct);
+
+    if (result?.ToString() != "ok")
+    {
+        _logger.LogError("SQLite database corruption detected: {Details}", result);
+        await connection.CloseAsync();
+
+        // Preserve corrupt DB for post-mortem
+        var timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss");
+        var dbPath = connection.DataSource;
+        File.Move(dbPath, $"{dbPath}.corrupt.{timestamp}");
+        if (File.Exists($"{dbPath}-wal"))
+            File.Move($"{dbPath}-wal", $"{dbPath}-wal.corrupt.{timestamp}");
+        if (File.Exists($"{dbPath}-shm"))
+            File.Move($"{dbPath}-shm", $"{dbPath}-shm.corrupt.{timestamp}");
+
+        // Recreate
+        await Database.EnsureCreatedAsync(ct);
+        return false; // Signals that a full re-sync is needed
+    }
+    return true;
+}
+```
+
+**Step 3:** In `SyncEngine.cs`, after a successful sync pass in `SyncAsync()`, run WAL checkpoint:
+```csharp
+// After sync completes successfully:
+await using var cmd = _dbContext.Database.GetDbConnection().CreateCommand();
+cmd.CommandText = "PRAGMA wal_checkpoint(TRUNCATE)";
+await cmd.ExecuteNonQueryAsync(ct);
+```
+
+**Step 4:** Build and test:
+```bash
+dotnet build src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj
+dotnet test tests/DotNetCloud.Client.Core.Tests/
+```
 
 **Deliverables:**
-- ☐ Client: WAL journal mode enabled
-- ☐ Client: Startup integrity check with automatic recovery
-- ☐ Client: Corrupt DB preservation (renamed, not deleted) for post-mortem
-- ☐ Client: Post-sync WAL checkpoint
-- ☐ Client: User notification on corruption recovery
+- ☐ Client: WAL journal mode enabled in `LocalStateDbContext` connection string
+- ☐ Client: Startup integrity check with automatic recovery in `InitializeAsync()`
+- ☐ Client: Corrupt DB preservation (renamed with timestamp, not deleted), for post-mortem
+- ☐ Client: Post-sync WAL checkpoint in `SyncEngine.SyncAsync()`
+- ☐ Client: User notification on corruption recovery (log error + set flag for tray notification)
 
 **Side:** Client only
 **Complexity:** Low
@@ -264,30 +523,99 @@
 
 **Problem:** `RetryCount` field exists but is never used. Failed operations retry every 5 minutes indefinitely without backoff.
 
-**Scope:**
+**Files to modify:**
 
-**Client (Windows11-TestDNC):**
-- Add columns to `PendingOperationDbRow`: `NextRetryAt` (DateTime?), `LastError` (string?)
-- In `SyncEngine.ExecutePendingOperationAsync()`:
-  - On failure: increment `RetryCount`, set `LastError` to exception message, compute `NextRetryAt`:
-    - Retry 1: now + 1 min
-    - Retry 2: now + 5 min
-    - Retry 3: now + 15 min
-    - Retry 4: now + 1 hour
-    - Retry 5–9: now + 6 hours
-    - Retry 10+: move to `FailedOperationDbRow` table, stop retrying
-  - On success: clear `RetryCount`, `NextRetryAt`, `LastError`
-- In `GetPendingOperationsAsync()`: filter `WHERE NextRetryAt IS NULL OR NextRetryAt <= @now`
-- Failed operations visible in tray UI (future: manual retry button)
-- Log each retry attempt and final failure
+| File (repo-relative) | What to do |
+|---|---|
+| `src/Clients/DotNetCloud.Client.Core/LocalState/LocalStateDbContext.cs` | Add `NextRetryAt` and `LastError` columns to `PendingOperationDbRow`; add `FailedOperationDbRow` entity + DbSet |
+| `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` | Update `ExecutePendingOperationAsync()` to implement backoff schedule; update query in pending operations retrieval to filter by `NextRetryAt` |
 
-**Linux/macOS Considerations:** None — SQLite schema + logic, fully cross-platform.
+**What already exists:**
+- `PendingOperationDbRow` (defined at ~line 49 in `src/Clients/DotNetCloud.Client.Core/LocalState/LocalStateDbContext.cs`) has:
+  - `Id` (int), `OperationType` (string), `LocalPath` (string?), `NodeId` (Guid?), `QueuedAt` (DateTime), `RetryCount` (int)
+  - The `RetryCount` field EXISTS but it is never incremented or checked anywhere.
+- `SyncEngine.ExecutePendingOperationAsync()` at `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` processes pending operations but does not implement any backoff logic.
+- The sync pass runs every 5 minutes via `RunPeriodicScanAsync()`, so without backoff, every failed operation retries every 5 minutes forever.
+
+**Step-by-step implementation:**
+
+**Step 1:** Add new columns to `PendingOperationDbRow` in `LocalStateDbContext.cs`:
+```csharp
+public class PendingOperationDbRow
+{
+    // ... existing properties ...
+    public DateTime? NextRetryAt { get; set; }
+    public string? LastError { get; set; }
+}
+```
+
+**Step 2:** Add `FailedOperationDbRow` entity for permanently failed operations:
+```csharp
+public class FailedOperationDbRow
+{
+    public int Id { get; set; }
+    public string OperationType { get; set; } = string.Empty;
+    public string? LocalPath { get; set; }
+    public Guid? NodeId { get; set; }
+    public DateTime QueuedAt { get; set; }
+    public DateTime FailedAt { get; set; }
+    public int RetryCount { get; set; }
+    public string? LastError { get; set; }
+}
+```
+Add `DbSet<FailedOperationDbRow> FailedOperations { get; set; }` to `LocalStateDbContext`.
+
+**Step 3:** In `SyncEngine.ExecutePendingOperationAsync()`, implement backoff on failure:
+```csharp
+// On failure:
+operation.RetryCount++;
+operation.LastError = ex.Message;
+operation.NextRetryAt = operation.RetryCount switch
+{
+    1 => DateTime.UtcNow.AddMinutes(1),
+    2 => DateTime.UtcNow.AddMinutes(5),
+    3 => DateTime.UtcNow.AddMinutes(15),
+    4 => DateTime.UtcNow.AddHours(1),
+    >= 5 and < 10 => DateTime.UtcNow.AddHours(6),
+    _ => null // Will be moved to FailedOperations
+};
+
+if (operation.RetryCount >= 10)
+{
+    // Move to FailedOperations table
+    _dbContext.FailedOperations.Add(new FailedOperationDbRow { /* copy fields */ });
+    _dbContext.PendingOperations.Remove(operation);
+    _logger.LogError("Operation {OperationType} for {LocalPath} permanently failed after {RetryCount} attempts: {Error}",
+        operation.OperationType, operation.LocalPath, operation.RetryCount, operation.LastError);
+}
+await _dbContext.SaveChangesAsync(ct);
+```
+
+**Step 4:** In the method that retrieves pending operations (look for LINQ query on `PendingOperations`), add a filter:
+```csharp
+.Where(op => op.NextRetryAt == null || op.NextRetryAt <= DateTime.UtcNow)
+```
+
+**Step 5:** On success, clear retry state:
+```csharp
+operation.RetryCount = 0;
+operation.NextRetryAt = null;
+operation.LastError = null;
+```
+
+**Step 6:** Build and test:
+```bash
+dotnet build src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj
+dotnet test tests/DotNetCloud.Client.Core.Tests/
+```
+
+**Note:** Since this changes the SQLite schema, existing `state.db` files will need migration. EF Core `EnsureCreatedAsync()` handles this for fresh databases. For existing databases, either add an EF migration or use `ALTER TABLE` SQL in the initialization code.
 
 **Deliverables:**
-- ☐ Client: `NextRetryAt` and `LastError` columns on pending operations
-- ☐ Client: Exponential backoff schedule in `ExecutePendingOperationAsync()`
-- ☐ Client: `FailedOperationDbRow` table for permanently failed operations
-- ☐ Client: Filter pending operations by `NextRetryAt` eligibility
+- ☐ Client: `NextRetryAt` and `LastError` columns on `PendingOperationDbRow` in `LocalStateDbContext.cs`
+- ☐ Client: `FailedOperationDbRow` entity + DbSet in `LocalStateDbContext.cs`
+- ☐ Client: Exponential backoff schedule in `SyncEngine.ExecutePendingOperationAsync()`
+- ☐ Client: Filter pending operations by `NextRetryAt` eligibility in query
 - ☐ Client: Logging of retry attempts and final failures
 
 **Side:** Client only
@@ -301,24 +629,73 @@
 
 **Problem:** Server uses system temp dir for download reconstruction. Temp files are world-readable on Linux and persist on crash.
 
-**Scope:**
+**Files to modify:**
 
-**Server (mint22):**
-- Create dedicated temp directory: `{DOTNETCLOUD_DATA_DIR}/tmp/`
-- Set permissions on creation: `chmod 700` (Linux), restricted ACL (Windows)
-- Modify `DownloadService.cs` to use this directory instead of `Path.GetTempPath()`
-- Add startup cleanup: `IHostedService` that deletes all files in `{DATA_DIR}/tmp/` older than 1 hour on startup
-- Continue using `FileOptions.DeleteOnClose` as primary cleanup mechanism
+| File (repo-relative) | What to do |
+|---|---|
+| Server: `src/Modules/Files/DotNetCloud.Modules.Files/Services/DownloadService.cs` (or equivalent) | Change temp directory from `Path.GetTempPath()` to `{DOTNETCLOUD_DATA_DIR}/tmp/` |
+| Server: A new `TempFileCleanupService.cs` (suggest `src/Modules/Files/DotNetCloud.Modules.Files/Services/TempFileCleanupService.cs`) | `IHostedService` that deletes stale temp files on startup |
 
-**Linux/macOS Considerations:**
-- `chmod 700` via `File.SetUnixFileMode()` on directory creation
-- Avoids shared `/tmp/` security risk
+**What already exists:**
+- The server uses `Path.GetTempPath()` for file reconstruction during downloads. Find the exact location by searching for `GetTempPath` in the `src/Modules/Files/` directory.
+- `FileOptions.DeleteOnClose` is already used as the primary cleanup mechanism.
+- `DOTNETCLOUD_DATA_DIR` environment variable is the root for all server data storage.
+
+**Step-by-step implementation:**
+
+**Step 1:** Create a helper method to get the app-specific temp directory:
+```csharp
+private static string GetAppTempDirectory()
+{
+    var dataDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR")
+        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DotNetCloud");
+    var tempDir = Path.Combine(dataDir, "tmp");
+    if (!Directory.Exists(tempDir))
+    {
+        Directory.CreateDirectory(tempDir);
+        if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
+            File.SetUnixFileMode(tempDir, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); // 700
+    }
+    return tempDir;
+}
+```
+
+**Step 2:** Replace all `Path.GetTempPath()` calls in DownloadService with `GetAppTempDirectory()`.
+
+**Step 3:** Create `TempFileCleanupService` as an `IHostedService`:
+```csharp
+public class TempFileCleanupService : IHostedService
+{
+    public Task StartAsync(CancellationToken ct)
+    {
+        var tempDir = GetAppTempDirectory();
+        foreach (var file in Directory.EnumerateFiles(tempDir))
+        {
+            if (File.GetLastWriteTimeUtc(file) < DateTime.UtcNow.AddHours(-1))
+            {
+                try { File.Delete(file); }
+                catch (IOException) { /* in use, skip */ }
+            }
+        }
+        return Task.CompletedTask;
+    }
+    public Task StopAsync(CancellationToken ct) => Task.CompletedTask;
+}
+```
+
+**Step 4:** Register in DI (`builder.Services.AddHostedService<TempFileCleanupService>()`).
+
+**Step 5:** Build and test:
+```bash
+dotnet build src/Modules/Files/DotNetCloud.Modules.Files/DotNetCloud.Modules.Files.csproj
+dotnet test tests/DotNetCloud.Modules.Files.Tests/
+```
 
 **Deliverables:**
-- ☐ Server: Dedicated temp directory under `DOTNETCLOUD_DATA_DIR`
-- ☐ Server: Restrictive permissions on temp directory creation
-- ☐ Server: `DownloadService` uses app-specific temp dir
-- ☐ Server: Startup cleanup `IHostedService` for stale temp files
+- ☐ Server: Dedicated temp directory under `DOTNETCLOUD_DATA_DIR/tmp/`
+- ☐ Server: Restrictive permissions (`chmod 700`) on temp directory creation (Linux)
+- ☐ Server: `DownloadService` uses app-specific temp dir instead of `Path.GetTempPath()`
+- ☐ Server: `TempFileCleanupService` (`IHostedService`) deletes files older than 1 hour on startup
 
 **Side:** Server only
 **Complexity:** Low
@@ -331,38 +708,82 @@
 
 **Problem (revised):** This is a backup system — ALL file types must sync, including `.exe`, `.sh`, `.bat`, etc. But the server must never execute uploaded content, and ideally should detect obviously malicious uploads.
 
-**Scope:**
+**Files to modify:**
 
-**Server (mint22):**
-- **Execution prevention (mandatory):**
-  - Stored files have NO execute permission: `chmod 600` (or `644` max) on chunk storage directory
-  - Storage engine enforced: `LocalFileStorageEngine.WriteChunkAsync()` sets `UnixFileMode.None` for execute bits on written files
-  - Chunk storage paths are content-addressed hashes (no user-supplied filenames in storage layer) — already the case, confirm and document
-  - `X-Content-Type-Options: nosniff` header on all download responses (prevents browser MIME sniffing)
-  - `Content-Disposition: attachment` on file download responses (prevents inline execution in browser)
-- **Optional ClamAV scanning (future-ready interface):**
-  - Define `IFileScanner` interface: `Task<ScanResult> ScanAsync(Stream content, string fileName, CancellationToken ct)`
-  - `ScanResult`: `{IsClean, ThreatName?, ScannerName}`
-  - Default implementation: `NoOpFileScanner` (passes everything)
-  - Future ClamAV implementation: scans on `CompleteUploadAsync()`, quarantines threats (marks in DB, doesn't serve to clients), notifies admin
-  - Scan results stored on `FileVersion`: nullable `ScanStatus` enum (`NotScanned`, `Clean`, `Threat`, `Error`)
-  - Admin API to view quarantined files and release false positives
-- **Max file size enforcement:**
-  - Configurable via `appsettings.json`: `"FileUpload:MaxFileSizeBytes": 16106127360` (15GB default)
-  - Checked on `InitiateUploadAsync()` — reject before any chunks transfer
-  - Per-user overrides possible via admin API (future)
+| File (repo-relative) | What to do |
+|---|---|
+| Server: Find the storage engine file (search for `WriteChunkAsync` in `src/Modules/Files/`) | Enforce no-execute permissions on written chunk files |
+| Server: Find the download endpoint (search for `DownloadAsync` or `DownloadChunkAsync` in `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/`) | Add `X-Content-Type-Options: nosniff` and `Content-Disposition: attachment` headers |
+| Server: Create new `src/Modules/Files/DotNetCloud.Modules.Files/Services/IFileScanner.cs` | Scanner interface for future ClamAV integration |
+| Server: Create new `src/Modules/Files/DotNetCloud.Modules.Files/Services/NoOpFileScanner.cs` | Default pass-through implementation |
+| Server: Find the `FileVersion` model (search in `src/Core/DotNetCloud.Core/` or `src/Modules/Files/`) | Add nullable `ScanStatus` enum field |
+| Server: `src/Core/DotNetCloud.Core.Server/appsettings.json` | Add `FileUpload:MaxFileSizeBytes` config |
+| Server: Find `InitiateUploadAsync` in the upload service | Add max file size check before accepting chunks |
 
-**Linux/macOS Considerations:**
-- `File.SetUnixFileMode()` for chunk permission enforcement on Linux/macOS servers
-- Windows servers: rely on ACL-based restrictions (no execute for IIS app pool identity)
+**What already exists:**
+- Chunk storage paths are content-addressed hashes (not user-supplied filenames) — verify this in the `LocalFileStorageEngine` or equivalent storage engine class. If confirmed, document it.
+- Security headers middleware in `src/Core/DotNetCloud.Core.ServiceDefaults/` may already add `X-Content-Type-Options: nosniff` globally — check before adding per-endpoint.
+
+**Step-by-step implementation:**
+
+**Step 1: Execution prevention (mandatory)**
+- In the storage engine (`WriteChunkAsync`), after writing a chunk file on Linux:
+```csharp
+if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
+    File.SetUnixFileMode(chunkPath, UnixFileMode.UserRead | UnixFileMode.UserWrite); // 600, no execute
+```
+
+**Step 2: Response headers**
+- On download endpoints, add response headers:
+```csharp
+Response.Headers["X-Content-Type-Options"] = "nosniff";
+Response.Headers["Content-Disposition"] = $"attachment; filename=\"{fileName}\"";
+```
+- Check `src/Core/DotNetCloud.Core.ServiceDefaults/` first — if `nosniff` is already set globally, skip the per-endpoint header.
+
+**Step 3: Scanner interface**
+```csharp
+// IFileScanner.cs
+public interface IFileScanner
+{
+    Task<ScanResult> ScanAsync(Stream content, string fileName, CancellationToken ct);
+}
+
+public record ScanResult(bool IsClean, string? ThreatName = null, string ScannerName = "NoOp");
+
+// NoOpFileScanner.cs
+public class NoOpFileScanner : IFileScanner
+{
+    public Task<ScanResult> ScanAsync(Stream content, string fileName, CancellationToken ct)
+        => Task.FromResult(new ScanResult(IsClean: true));
+}
+```
+Register `NoOpFileScanner` as the default `IFileScanner` in DI.
+
+**Step 4: ScanStatus enum on FileVersion** (nullable, for future use):
+```csharp
+public enum ScanStatus { NotScanned, Clean, Threat, Error }
+// Add to FileVersion model: public ScanStatus? ScanStatus { get; set; }
+```
+
+**Step 5: Max file size**
+- In `appsettings.json`: `"FileUpload": { "MaxFileSizeBytes": 16106127360 }` (15 GB default)
+- In `InitiateUploadAsync()`: check total file size before accepting, return `413 Payload Too Large` if exceeded.
+
+**Step 6:** Build and test:
+```bash
+dotnet build src/Modules/Files/DotNetCloud.Modules.Files/DotNetCloud.Modules.Files.csproj
+dotnet build src/Modules/Files/DotNetCloud.Modules.Files.Host/DotNetCloud.Modules.Files.Host.csproj
+dotnet test tests/DotNetCloud.Modules.Files.Tests/
+```
 
 **Deliverables:**
-- ☐ Server: Chunk storage file permissions enforced (no execute bits)
-- ☐ Server: Confirm content-addressed storage paths (no user filenames on disk)
-- ☐ Server: `X-Content-Type-Options: nosniff` + `Content-Disposition: attachment` headers
-- ☐ Server: `IFileScanner` interface + `NoOpFileScanner` default
+- ☐ Server: Chunk storage file permissions enforced (no execute bits) in storage engine
+- ☐ Server: Confirm and document content-addressed storage paths (no user filenames on disk)
+- ☐ Server: `X-Content-Type-Options: nosniff` + `Content-Disposition: attachment` headers on downloads
+- ☐ Server: `IFileScanner` interface + `NoOpFileScanner` default implementation
 - ☐ Server: `ScanStatus` field on `FileVersion` model (nullable, for future use)
-- ☐ Server: Configurable max file size with pre-upload rejection
+- ☐ Server: Configurable max file size with pre-upload rejection (`413 Payload Too Large`)
 
 **Side:** Server only
 **Complexity:** Medium
@@ -378,6 +799,20 @@
 **Approved Proposal:** 1.1
 
 **Problem:** Fixed 4MB chunks mean a 1-byte edit can force re-upload of all subsequent chunks.
+
+**Files to modify:**
+
+| File (repo-relative) | What to do |
+|---|---|
+| `src/Modules/Files/DotNetCloud.Modules.Files/Services/ContentHasher.cs` | Add `ChunkAndHashCdcAsync()` method implementing FastCDC algorithm |
+| Server: FileVersionChunk model (find via search for `FileVersionChunk` in `src/`) | Add `Offset` (long) and `ChunkSize` (int) columns |
+| Server: `InitiateUploadDto` / gRPC request (find via search for `InitiateUpload` in `src/`) | Add `ChunkSizes` array field |
+| `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs` | Replace `SplitIntoChunksAsync()` with FastCDC-based splitting |
+| `src/Clients/DotNetCloud.Client.Core/Api/DotNetCloudApiClient.cs` | Update `InitiateUploadAsync()` to send chunk sizes |
+
+**What already exists:**
+- `ContentHasher.ChunkAndHashAsync()` at `src/Modules/Files/DotNetCloud.Modules.Files/Services/ContentHasher.cs` — current fixed-size (4MB) chunking. The CDC version should be a NEW method alongside the existing one, not a replacement (for backward compat).
+- `ChunkedTransferClient.SplitIntoChunksAsync()` at `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs` — current client-side fixed chunking.
 
 **Scope:**
 
@@ -419,6 +854,16 @@
 
 **Problem:** All chunks buffered in memory simultaneously — OOM risk on large files.
 
+**Files to modify:**
+
+| File (repo-relative) | What to do |
+|---|---|
+| `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs` | Refactor `UploadAsync()` and download to use `Channel<ChunkData>` bounded producer-consumer pattern |
+
+**What already exists:**
+- `ChunkedTransferClient.UploadAsync()` at `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs` — currently buffers all chunks.
+- `TransferProgress` at `src/Clients/DotNetCloud.Client.Core/Transfer/TransferProgress.cs` — has `ChunksTransferred`, `TotalChunks`, `BytesTransferred`, `TotalBytes`.
+
 **Scope:**
 
 **Client (Windows11-TestDNC):**
@@ -453,6 +898,20 @@
 **Approved Proposal:** 1.5
 
 **Problem:** Raw bytes transferred even for highly compressible content (text, code, documents).
+
+**Files to modify:**
+
+| File (repo-relative) | What to do |
+|---|---|
+| Server: `src/Core/DotNetCloud.Core.Server/Program.cs` (or ServiceDefaults) | Add `AddResponseCompression()` with Brotli + Gzip |
+| `src/Clients/DotNetCloud.Client.Core/ClientCoreServiceExtensions.cs` | Ensure `AutomaticDecompression = DecompressionMethods.All` on HttpClient handler |
+| `src/Clients/DotNetCloud.Client.SyncService/SyncServiceExtensions.cs` | Same for named `"DotNetCloudSync"` HttpClient |
+| `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs` | Gzip-wrap upload chunk streams + `Content-Encoding: gzip` header |
+
+**What already exists:**
+- `ClientCoreServiceExtensions` registers the typed `DotNetCloudApiClient` HttpClient — check if `HttpClientHandler { AutomaticDecompression = ... }` is already configured. If not, add it.
+- `SyncServiceExtensions` registers the named `"DotNetCloudSync"` HttpClient — same check.
+- Security headers middleware at `src/Core/DotNetCloud.Core.ServiceDefaults/` may already handle some response headers.
 
 **Scope:**
 
@@ -494,6 +953,21 @@
 **Approved Proposal:** 1.3
 
 **Problem:** Timestamp-based delta sync is vulnerable to clock skew, timezone bugs, and missed changes at millisecond resolution.
+
+**Files to modify:**
+
+| File (repo-relative) | What to do |
+|---|---|
+| Server: New model `UserSyncCounter` (add in Core.Data or Files module models) | Per-user monotonic sequence counter |
+| Server: `FileNode` model (find via search for `FileNode` in `src/`) | Add `SyncSequence long?` column |
+| Server: `SyncController.cs` at `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/SyncController.cs` | Accept `cursor` query param, return `nextCursor` |
+| Server: SyncService (find via search for `GetChangesSinceAsync` in `src/Modules/Files/`) | Add cursor-based overload |
+| `src/Clients/DotNetCloud.Client.Core/Api/DotNetCloudApiClient.cs` | Add cursor overload for `GetChangesSinceAsync()` |
+| `src/Clients/DotNetCloud.Client.Core/LocalState/LocalStateDbContext.cs` | Replace `SyncCheckpointRow.LastSyncedAt` with `SyncCursor` string |
+
+**What already exists:**
+- `DotNetCloudApiClient.GetChangesSinceAsync()` at `src/Clients/DotNetCloud.Client.Core/Api/DotNetCloudApiClient.cs` — currently uses a `DateTime since` parameter.
+- `SyncCheckpointRow` in `LocalStateDbContext` — currently stores `LastSyncedAt` (DateTime).
 
 **Scope:**
 
@@ -543,6 +1017,17 @@
 
 **Problem:** All changes returned in a single response. Large deltas after long offline periods = slow/huge payloads.
 
+**Files to modify:**
+
+| File (repo-relative) | What to do |
+|---|---|
+| Server: `SyncController.cs` at `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/SyncController.cs` | Accept `limit` query param, return `hasMore` + `nextCursor` |
+| `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` | Add pagination loop in `ApplyRemoteChangesAsync()` |
+| `src/Clients/DotNetCloud.Client.Core/Api/DotNetCloudApiClient.cs` | Update `GetChangesSinceAsync()` to accept `limit` param and return `hasMore` |
+
+**What already exists:**
+- `SyncEngine.ApplyRemoteChangesAsync()` at `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` — currently processes all remote changes in one call.
+
 **Scope:**
 
 **Server (mint22):**
@@ -582,6 +1067,16 @@
 
 **Problem:** Re-downloading chunks the client already has (e.g., after partial sync failure retry).
 
+**Files to modify:**
+
+| File (repo-relative) | What to do |
+|---|---|
+| Server: chunk download endpoint in `FilesController.cs` at `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/FilesController.cs` | Add `ETag` response header, handle `If-None-Match` → `304` |
+| `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs` | Send `If-None-Match` header before downloading, handle `304 Not Modified` |
+
+**What already exists:**
+- `DotNetCloudApiClient.DownloadChunkByHashAsync()` at `src/Clients/DotNetCloud.Client.Core/Api/DotNetCloudApiClient.cs` — downloads a chunk by its content hash. The hash IS the ETag (content-addressed storage).
+
 **Scope:**
 
 **Server (mint22):**
@@ -616,6 +1111,20 @@
 **Approved Proposal:** 4.1 + user requirement for client-side UI
 
 **Problem:** No way to ignore OS junk files, temp files, build artifacts. Current selective sync is folder-level only.
+
+**Files to modify:**
+
+| File (repo-relative) | What to do |
+|---|---|
+| Create: `src/Clients/DotNetCloud.Client.Core/SyncIgnore/SyncIgnoreParser.cs` | New class: `.gitignore`-compatible pattern parser |
+| `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` | Add `SyncIgnoreParser.IsIgnored()` checks before upload queue / download apply / periodic scan |
+| `src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj` | Add `Microsoft.Extensions.FileSystemGlobbing` NuGet |
+| `src/Clients/DotNetCloud.Client.Core/ClientCoreServiceExtensions.cs` | Register `SyncIgnoreParser` in DI |
+| `src/Clients/DotNetCloud.Client.SyncTray/` (views/viewmodels) | "Ignored Files" settings panel |
+
+**What already exists:**
+- `SelectiveSyncConfig` at `src/Clients/DotNetCloud.Client.Core/SelectiveSync/SelectiveSyncConfig.cs` — folder-level selective sync. The `.syncignore` system is complementary (not a replacement). Selective sync controls which folders to sync; `.syncignore` controls which files/patterns to skip within synced folders.
+- `SyncEngine` at `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` — has `ApplyRemoteChangesAsync()`, `ApplyLocalChangesAsync()`, and `RunPeriodicScanAsync()` where ignore checks need to be added.
 
 **Scope:**
 
@@ -698,6 +1207,19 @@
 
 **Problem:** Client crash during upload = entire file must be re-uploaded.
 
+**Files to modify:**
+
+| File (repo-relative) | What to do |
+|---|---|
+| `src/Clients/DotNetCloud.Client.Core/LocalState/LocalStateDbContext.cs` | Add `ActiveUploadSessionRecord` entity + DbSet |
+| `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs` | Persist session after `InitiateUploadAsync()`, update after each chunk, delete after `CompleteUploadAsync()` |
+| `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` | On startup, query `ActiveUploadSessionRecord` for incomplete sessions and resume |
+
+**What already exists:**
+- `ChunkedTransferClient.UploadAsync()` at `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs` — calls `InitiateUploadAsync()` → uploads chunks → `CompleteUploadAsync()`. Session persistence needs to wrap this flow.
+- `LocalStateDbContext` at `src/Clients/DotNetCloud.Client.Core/LocalState/LocalStateDbContext.cs` — where the new entity goes.
+- `SyncEngine.StartAsync()` at `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` — startup hook for resuming incomplete sessions.
+
 **Scope:**
 
 **Client (Windows11-TestDNC):**
@@ -743,6 +1265,23 @@
 **Approved Proposal:** 2.3
 
 **Problem:** Files locked by other processes cause immediate sync failure on Windows. Common with Office documents, databases, and other apps that hold exclusive locks.
+
+**Files to modify:**
+
+| File (repo-relative) | What to do |
+|---|---|
+| `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` | Replace `File.OpenRead()` calls with `FileShare.ReadWrite \| FileShare.Delete`; add retry loop for sharing violations |
+| Create: `src/Clients/DotNetCloud.Client.Core/Platform/ILockedFileReader.cs` | Interface for Tier 3 (VSS) locked file reading |
+| Create: `src/Clients/DotNetCloud.Client.Core/Platform/VssLockedFileReader.cs` | Windows VSS implementation (AlphaVSS) |
+| Create: `src/Clients/DotNetCloud.Client.Core/Platform/NoOpLockedFileReader.cs` | Linux/macOS fallback (returns null) |
+| `src/Clients/DotNetCloud.Client.Core/Sync/SyncState.cs` | Add `Deferred` value to `SyncStateTag` or `LocalFileRecord.SyncStateTag` |
+| `src/Clients/DotNetCloud.Client.Core/ClientCoreServiceExtensions.cs` | Register `ILockedFileReader` with platform detection |
+| `src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj` | Add `AlphaVSS` NuGet package (Windows-only conditional) |
+
+**What already exists:**
+- `SyncEngine` file read operations — search for `File.OpenRead`, `File.ReadAllBytes`, or `FileStream` usage in `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs`.
+- `SyncState.cs` at `src/Clients/DotNetCloud.Client.Core/Sync/SyncState.cs` has enum values: `Idle`, `Syncing`, `Paused`, `Error`, `Offline`.
+- `LocalFileRecord.SyncStateTag` (string property) uses values "Synced", "Pending", "Conflict" — add "Deferred" as a new value.
 
 **Scope:**
 
@@ -810,6 +1349,20 @@
 
 **Problem:** Users see "Syncing" but don't know which files or how far along transfers are.
 
+**Files to modify:**
+
+| File (repo-relative) | What to do |
+|---|---|
+| `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs` | Already has `IProgress<TransferProgress>` — make sure it's wired through to IPC events |
+| `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcProtocol.cs` | Add `transfer-progress` and `transfer-complete` event types |
+| `src/Clients/DotNetCloud.Client.SyncService/ContextManager/SyncContextManager.cs` | Wire `TransferProgress` callback to IPC event publishing with throttling (max 2/sec/file) |
+| `src/Clients/DotNetCloud.Client.SyncTray/` (views/viewmodels) | `ActiveTransfersViewModel` with progress bars |
+
+**What already exists:**
+- `TransferProgress` at `src/Clients/DotNetCloud.Client.Core/Transfer/TransferProgress.cs` — has `BytesTransferred`, `TotalBytes`, `ChunksTransferred`, `TotalChunks`, `ChunksSkipped`, `PercentComplete`.
+- `IpcProtocol` at `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcProtocol.cs` — existing IPC message protocol.
+- `SyncContextManager` at `src/Clients/DotNetCloud.Client.SyncService/ContextManager/SyncContextManager.cs` — already raises `SyncProgress`, `SyncComplete`, `SyncError`, `ConflictDetected` events.
+
 **Scope:**
 
 **Client (SyncService → SyncTray):**
@@ -861,6 +1414,24 @@
 **Approved Proposal:** 4.3
 
 **Problem:** Conflicts silently create copies that users may not notice or know how to resolve.
+
+**Files to modify:**
+
+| File (repo-relative) | What to do |
+|---|---|
+| `src/Clients/DotNetCloud.Client.Core/LocalState/LocalStateDbContext.cs` | Add `ConflictRecord` entity + DbSet |
+| `src/Clients/DotNetCloud.Client.Core/Conflict/ConflictResolver.cs` | Save `ConflictRecord` to DB; implement auto-resolution pipeline (5 strategies) |
+| `src/Clients/DotNetCloud.Client.Core/Conflict/ConflictInfo.cs` | May need extension with `BaseContentHash`, `AutoResolved` etc. |
+| `src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj` | Add `DiffPlex` NuGet for text diff/merge; `Microsoft.XmlDiffPatch` for XML merge |
+| `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcProtocol.cs` | Add `list-conflicts` and `resolve-conflict` IPC commands |
+| `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcClientHandler.cs` | Handle new commands |
+| `src/Clients/DotNetCloud.Client.SyncTray/` (views/viewmodels) | "Conflicts" panel, tray icon warning state, badge, merge editor window |
+
+**What already exists:**
+- `ConflictResolver` at `src/Clients/DotNetCloud.Client.Core/Conflict/ConflictResolver.cs` — currently creates conflict copies and fires `ConflictDetected` event. Uses `BuildConflictCopyPath()` to generate `{baseName} (conflict - {user} - {date}){ext}` filename.
+- `ConflictInfo` at `src/Clients/DotNetCloud.Client.Core/Conflict/ConflictInfo.cs` — describes a conflict with local path, node ID, remote timestamp, and remote content hash.
+- `IpcClientHandler` at `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcClientHandler.cs` — handles existing IPC commands like `sync-now`, `list-contexts`, etc.
+- `SyncContextManager` already raises `ConflictDetected` event at `src/Clients/DotNetCloud.Client.SyncService/ContextManager/SyncContextManager.cs`.
 
 **Scope:**
 
@@ -1060,6 +1631,19 @@ The goal is to resolve the vast majority of conflicts automatically, so users on
 
 **Problem:** Crash after upload but before local DB update → duplicate version created on server.
 
+**Files to modify:**
+
+| File (repo-relative) | What to do |
+|---|---|
+| `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` | Add pre-upload content hash comparison in `ApplyLocalChangesAsync()` or `ExecutePendingOperationAsync()` |
+| `src/Clients/DotNetCloud.Client.Core/Api/DotNetCloudApiClient.cs` | Use `GetNodeAsync()` to fetch current server content hash for comparison |
+
+**What already exists:**
+- `SyncEngine.ApplyLocalChangesAsync()` at `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` — processes pending uploads. This is where the hash comparison should go.
+- `DotNetCloudApiClient.GetNodeAsync()` at `src/Clients/DotNetCloud.Client.Core/Api/DotNetCloudApiClient.cs` — fetches node metadata including content hash.
+- `SyncEngine.ComputeFileHashAsync()` at `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` — computes SHA-256 of a local file.
+- `DotNetCloudApiClient.InitiateUploadAsync()` already returns which chunks exist on the server (dedup). If ALL chunks in manifest already exist, `CompleteUploadAsync()` is essentially free (no chunk transfers). This means the system is ALREADY partially idempotent at the chunk level — this task formalizes it at the file level.
+
 **Scope:**
 
 **Client (Windows11-TestDNC):**
@@ -1092,6 +1676,18 @@ The goal is to resolve the vast majority of conflicts automatically, so users on
 **Approved Proposal:** 5.5
 
 **Problem:** Linux allows `Report.docx` and `report.docx` in the same folder. Windows treats them as the same file → data loss on sync.
+
+**Files to modify:**
+
+| File (repo-relative) | What to do |
+|---|---|
+| Server: File service (search for `CreateFolderAsync` and `RenameAsync` in `src/Modules/Files/`) | Add case-insensitive uniqueness check before file/folder creation |
+| Server: Upload service (search for `CompleteUploadAsync` in `src/Modules/Files/`) | Same check on new file creation |
+| Server: `src/Core/DotNetCloud.Core.Server/appsettings.json` | Add `FileSystem:EnforceCaseInsensitiveUniqueness` config |
+| `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` | Check for case-insensitive name collisions before applying remote changes |
+
+**What already exists:**
+- `SyncEngine.ApplyRemoteChangesAsync()` at `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` — applies server changes to local filesystem. Case conflict detection should go here.
 
 **Scope:**
 
@@ -1132,6 +1728,17 @@ The goal is to resolve the vast majority of conflicts automatically, so users on
 **Approved Proposal:** 5.2
 
 **Problem:** Linux executable scripts lose execute bit when synced through Windows. Read-only config files become writable. Linux-to-Linux transfers through the server should preserve full POSIX permissions — Linux must not be a second-class citizen.
+
+**Files to modify:**
+
+| File (repo-relative) | What to do |
+|---|---|
+| Server: `FileNode` model (search in `src/`) | Add `PosixMode int?` and `PosixOwnerHint string?` columns |
+| Server: `FileVersion` model (search in `src/`) | Add `PosixMode int?` column |
+| Server: DTOs (`FileNodeDto`, `SyncChangeDto`, `SyncTreeNodeDto`) | Add `PosixMode` + `PosixOwnerHint` fields |
+| Server: gRPC `FileNodeInfo` message | Add fields |
+| `src/Clients/DotNetCloud.Client.Core/Api/DotNetCloudApiClient.cs` | Include `PosixMode`/`PosixOwnerHint` in upload/download DTOs |
+| `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` | Linux: read/apply file permissions; Windows: pass null, ignore on download |
 
 **Scope:**
 
@@ -1200,6 +1807,19 @@ The goal is to resolve the vast majority of conflicts automatically, so users on
 
 **Problem:** FileSystemWatcher follows symlinks on Linux, causing loops or syncing unintended directories. Naively following symlinks would duplicate content on the server and risk infinite recursion with circular links.
 
+**Files to modify:**
+
+| File (repo-relative) | What to do |
+|---|---|
+| `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` | Add symlink detection in FileSystemWatcher handlers and periodic scan |
+| `src/Clients/DotNetCloud.Client.SyncService/sync-settings.json` | Add `"symlinks": { "mode": "ignore" }` config |
+| Server: `FileNode` model | Add `NodeType.SymbolicLink` enum value, `LinkTarget string?` column |
+| `src/Clients/DotNetCloud.Client.SyncTray/` (settings views) | Symlink mode dropdown |
+
+**What already exists:**
+- `SyncEngine` file watcher event handlers — search for `FileSystemWatcher` setup in `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs`.
+- .NET 7+ `FileSystemInfo.LinkTarget` property can detect symlinks.
+
 **Scope:**
 
 **Default behavior: Ignore symlinks (safe default)**
@@ -1267,6 +1887,19 @@ When `"sync-as-link"` is enabled:
 **Approved Proposal:** 5.4
 
 **Problem:** Linux inotify has a per-user watch limit (default 8192). Large sync folders can exceed this, causing silent failures. Affects both the client (watching sync folder) and the server (watching storage directories). Additionally, running out of inodes on ext4/XFS prevents new file creation even when disk space remains — a silent killer for storage-heavy servers.
+
+**Files to modify:**
+
+| File (repo-relative) | What to do |
+|---|---|
+| `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` | On startup (Linux only): read inotify limits, estimate needed, offer auto-fix, fallback to fast periodic scan |
+| `src/Core/DotNetCloud.Core.Server/Program.cs` (or health check service) | Server startup inotify/inode checks, health endpoint degraded status |
+| `tools/install.sh` | Set recommended inotify limit during installation |
+
+**What already exists:**
+- `SyncEngine.StartAsync()` at `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` — startup hook where inotify checks should go (guarded by `OperatingSystem.IsLinux()`).
+- `SyncEngine.RunPeriodicScanAsync()` — the fallback that runs every 5 minutes. When inotify fails, switch to 30-second interval.
+- Server health checks may exist at `src/Core/DotNetCloud.Core.ServiceDefaults/` — search for "health" to find existing health check registration.
 
 **Scope:**
 
@@ -1381,6 +2014,20 @@ Running out of inodes means no new files can be created even with plenty of disk
 
 **Problem:** Windows has a historical 260-character total path limit (`MAX_PATH`). Linux allows 4,096-character paths and 255-character filenames. macOS allows 255-character filenames with ~1,024-character paths. Files created on Linux with deep nesting or long names will fail to sync to Windows clients.
 
+**Files to modify:**
+
+| File (repo-relative) | What to do |
+|---|---|
+| `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` | Add path length checks before writing files; use `\\?\` prefix fallback on Windows; add `SyncStateTag.PathTooLong` |
+| `src/Clients/DotNetCloud.Client.Core/Sync/SyncState.cs` | Add `PathTooLong` to state tag values |
+| Server: File service (upload/rename handlers) | Validate filename characters (reject Windows-illegal chars) and reserved names |
+| Server: `src/Core/DotNetCloud.Core.Server/appsettings.json` | Add `FileSystem:MaxPathWarningThreshold` config |
+| Client: App manifest (build config in `.csproj`) | Add `<longPathAware>true</longPathAware>` |
+
+**What already exists:**
+- `SyncEngine.ApplyRemoteChangesAsync()` — where downloads/writes happen. Path length check should go before file write operations.
+- `LocalFileRecord.SyncStateTag` (string) — uses "Synced", "Pending", "Conflict". Add "PathTooLong" as a new value.
+
 **Filesystem limits reference:**
 
 | OS/FS | Max filename | Max full path | Notes |
@@ -1462,6 +2109,20 @@ Running out of inodes means no new files can be created even with plenty of disk
 
 **Problem:** Settings UI has upload/download limit fields but they're not implemented.
 
+**Files to modify:**
+
+| File (repo-relative) | What to do |
+|---|---|
+| Create: `src/Clients/DotNetCloud.Client.Core/Transfer/ThrottledStream.cs` | Token bucket rate-limiting stream wrapper |
+| Create: `src/Clients/DotNetCloud.Client.Core/Api/ThrottledHttpHandler.cs` | `DelegatingHandler` wrapping request/response streams in `ThrottledStream` |
+| `src/Clients/DotNetCloud.Client.SyncService/SyncServiceExtensions.cs` | Wire `ThrottledHttpHandler` into `HttpClientFactory` |
+| `src/Clients/DotNetCloud.Client.SyncService/ContextManager/SyncContextManager.cs` | Read throttle limits from `SyncContext` config and apply to engine |
+
+**What already exists:**
+- `SyncContext` at `src/Clients/DotNetCloud.Client.Core/Sync/SyncContext.cs` — already has `UploadLimitKbps` and `DownloadLimitKbps` fields (verify by reading the file).
+- `SyncServiceExtensions` at `src/Clients/DotNetCloud.Client.SyncService/SyncServiceExtensions.cs` — where HttpClient is configured. The `ThrottledHttpHandler` should be registered alongside `CorrelationIdHandler`.
+- Settings UI already has input fields for bandwidth limits — they just don't do anything yet.
+
 **Scope:**
 
 **Client (Windows11-TestDNC):**
@@ -1490,6 +2151,19 @@ Running out of inodes means no new files can be created even with plenty of disk
 **Approved Proposal:** 4.5
 
 **Problem:** Users must know folder names to configure selective sync. No browsable view.
+
+**Files to modify:**
+
+| File (repo-relative) | What to do |
+|---|---|
+| Create: `src/Clients/DotNetCloud.Client.SyncTray/Views/FolderBrowserView.axaml` + `.axaml.cs` | Avalonia TreeView with checkboxes |
+| Create: `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/FolderBrowserViewModel.cs` | Fetches tree from server API, manages check states |
+| `src/Clients/DotNetCloud.Client.Core/SelectiveSync/SelectiveSyncConfig.cs` | Update from browser selections |
+| `src/Clients/DotNetCloud.Client.Core/Api/DotNetCloudApiClient.cs` | Already has `GetFolderTreeAsync()` — verify it returns enough data for the browser |
+
+**What already exists:**
+- `SelectiveSyncConfig` at `src/Clients/DotNetCloud.Client.Core/SelectiveSync/SelectiveSyncConfig.cs` — in-memory selective sync config with JSON persistence.
+- `DotNetCloudApiClient.GetFolderTreeAsync()` at `src/Clients/DotNetCloud.Client.Core/Api/DotNetCloudApiClient.cs` — fetches the folder tree from the server.
 
 **Scope:**
 
