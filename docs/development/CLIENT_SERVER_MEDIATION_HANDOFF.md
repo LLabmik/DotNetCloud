@@ -6,7 +6,7 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 
 ## Current Incident
 
-- Symptom: `/connect/authorize` no longer hard-fails with `404`; flow now redirects to `/auth/login` and needs end-to-end client verification after login.
+- Symptom: OAuth authorize + callback flow now succeeds; remaining validation is whether token exchange/account add succeeds with client TLS mitigation in place for local/LAN self-signed certs.
 - Environment:
   - Client machine: `Windows11-TestDNC`
   - Server machine: `mint22`
@@ -87,6 +87,7 @@ Run this handoff loop each iteration:
 - 2026-03-07 (mint22): Post-patch probes at `20:09` show authorize still validates then redirects to `/auth/login`, and token endpoint returns OpenIddict JSON error (`invalid_request`) for malformed calls (no placeholder body).
 - 2026-03-07 (Windows11-TestDNC, commit `d4f608d`): End-to-end browser flow reached localhost callback success page (`Authorization successful!`) at `http://localhost:52701/oauth/callback?...`.
 - 2026-03-07 (Windows11-TestDNC, commit `d4f608d`): After callback, SyncTray attempted `POST /connect/token` but failed due TLS certificate validation (`RemoteCertificateNameMismatch`, `RemoteCertificateChainErrors`), so account add still failed client-side.
+- 2026-03-07 (mint22, commit `01e5f79` workspace baseline): Implemented client OAuth HTTP handler for local/LAN targets to allow self-signed cert validation bypass only for non-public hosts (for example `mint22`), intended to unblock discovery/token calls during self-host testing.
 
 ## Client Evidence Snapshot (2026-03-07)
 
@@ -250,7 +251,7 @@ System.Net.Http.HttpRequestException: The SSL connection could not be establishe
 ## Server Evidence Snapshot (2026-03-07 post-fix)
 
 ### Deployed state
-- Server workspace commit on `mint22`: `66a90a1`
+- Server workspace commit on `mint22` before TLS mitigation patch: `01e5f79`
 - Last deployed server code includes authorize passthrough fix from `41d53bf`
 - Additional deployed hotfix (local, not yet committed at time of probe): OpenIddict authorize/token passthrough handlers now issue protocol `SignIn`/`Forbid` flows instead of placeholder `200` JSON messages.
 - Service redeployed via `./tools/redeploy-baremetal.sh`
@@ -327,7 +328,7 @@ If the handoff is server-to-client instead, replace `Send to Server Agent` with 
 ## Mediator Relay Instructions
 
 ### Send to Client Agent
-Server-side fixes are deployed on `mint22`: `/connect/authorize` handles GET+POST, login redirect path is `/auth/login`, and passthrough handlers were updated so authenticated authorize/token flow no longer returns placeholder JSON. Please pull latest `main`, run full SyncTray add-account login flow, complete credentials in browser, and capture the final callback/result.
+New client-side OAuth TLS mitigation has been added for local/LAN self-host targets (including `mint22`) so the token exchange should no longer fail on cert chain/name mismatch during local testing. Please pull latest `main`, run full SyncTray add-account flow end-to-end, complete browser login, and confirm whether account add now succeeds after callback.
 
 ### Request Back
 - Client commit hash after pull.
@@ -335,4 +336,4 @@ Server-side fixes are deployed on `mint22`: `/connect/authorize` handles GET+POS
 - Raw error/query params from any failure page.
 - Raw SyncTray OAuth log lines around scope selection and browser launch (with timestamps).
 - Raw SyncTray log lines after callback handling (token exchange success/failure, account add success/failure).
-- Any client-side TLS/certificate warnings observed during this run.
+- Any remaining client-side TLS/certificate warnings observed during this run.

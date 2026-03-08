@@ -83,7 +83,8 @@ public partial class App : Application
 
         // HTTP client factory for OAuth2 flows.
         services.AddHttpClient();
-        services.AddHttpClient<OAuth2Service>();
+        services.AddHttpClient<OAuth2Service>()
+            .ConfigurePrimaryHttpMessageHandler(OAuthHttpClientHandlerFactory.CreateHandler);
         services.AddTransient<IOAuth2Service, OAuth2Service>();
 
         // Core view-models.
