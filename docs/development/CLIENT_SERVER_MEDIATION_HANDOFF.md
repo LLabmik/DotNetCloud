@@ -17,7 +17,7 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 
 **Completed milestone:** End-to-end file sync with directory hierarchy (Issues #1–#22, all resolved).
 
-Open issue: Sync Improvement Batch 1 Task 1.1b (server audit logging on mint22) — client side VALIDATED.
+Open issue: Sync Improvement Batch 1 Task 1.3 (server-side rate limiting) — Tasks 1.1 and 1.2 complete on both sides.
 
 ## Environment
 
@@ -78,76 +78,41 @@ Open issue: Sync Improvement Batch 1 Task 1.1b (server audit logging on mint22) 
 ### Issue #25: Batch 1 Task 1.2 - Request Correlation IDs (Client side)
 
 **Server-side status:** ✅ COMPLETE — commit `16dd7df` (2026-03-08).
-Server now has `RequestCorrelationMiddleware` that reads `X-Request-ID` from every incoming request (or generates one), sets it as `TraceIdentifier`, and echoes it back on the response.
+**Client-side status:** ✅ COMPLETE — commit `97afdd8` (2026-03-08).
 
-**Client-side status:** Pending implementation on `Windows11-TestDNC`.
+**What was implemented:**
+- `src/Clients/DotNetCloud.Client.Core/Api/CorrelationIdHandler.cs` — `DelegatingHandler` that attaches `X-Request-ID: <guid>` and logs every outgoing call + failures
+- Registered on typed `DotNetCloudApiClient` HttpClient (via `ClientCoreServiceExtensions`)
+- Registered on named `"DotNetCloudSync"` HttpClient (via `SyncServiceExtensions`)
+- Build: 0 errors
+- `sync-now` IPC accepted (`"success":true`)
 
-**What needs to happen on Windows11-TestDNC:**
+**Task 1.2: PASS (both sides complete)**
 
-Pull `main`, then implement a `DelegatingHandler` that attaches `X-Request-ID` to every outgoing API call.
+---
 
-1. Create `src/Clients/DotNetCloud.Client.Core/Api/CorrelationIdHandler.cs`:
+### Issue #26: Batch 1 Task 1.3 - Server-Side Rate Limiting
 
-```csharp
-using Microsoft.Extensions.Logging;
-using System.Net.Http;
+**Server-side status:** Pending implementation on `mint22`.
+**Client-side status:** Verify 429 + `Retry-After` handling; add log line on rate-limit events (client already has `Retry-After` parsing in `SendWithRetryAsync`).
 
-namespace DotNetCloud.Client.Core.Api;
+**What needs to happen on mint22:**
+- Configure `AddRateLimiter()` with sliding-window policies keyed on authenticated user ID:
 
-/// <summary>
-/// DelegatingHandler that attaches a unique X-Request-ID header to every outgoing HTTP request
-/// and logs it so client and server logs can be correlated.
-/// </summary>
-public class CorrelationIdHandler : DelegatingHandler
-{
-    private readonly ILogger<CorrelationIdHandler> _logger;
+  | Endpoint | Limit | Window |
+  |----------|-------|--------|
+  | `/api/v1/sync/changes` | 60 req | 1 min |
+  | `/api/v1/sync/tree` | 10 req | 1 min |
+  | `/api/v1/sync/reconcile` | 30 req | 1 min |
+  | `/api/v1/files/upload/initiate` | 30 req | 1 min |
+  | `/api/v1/files/upload/*/chunks/*` | 300 req | 1 min |
+  | `/api/v1/files/*/download` | 120 req | 1 min |
+  | `/api/v1/files/chunks/*` | 300 req | 1 min |
 
-    public CorrelationIdHandler(ILogger<CorrelationIdHandler> logger)
-    {
-        _logger = logger;
-    }
+- Return `429 Too Many Requests` with `Retry-After` header
+- Configurable limits via `appsettings.json`
 
-    protected override async Task<HttpResponseMessage> SendAsync(
-        HttpRequestMessage request, CancellationToken cancellationToken)
-    {
-        var requestId = Guid.NewGuid().ToString("N");
-        request.Headers.TryAddWithoutValidation("X-Request-ID", requestId);
-        _logger.LogInformation("API call {Method} {Url} RequestId={RequestId}",
-            request.Method, request.RequestUri, requestId);
-
-        var response = await base.SendAsync(request, cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            _logger.LogError("API call failed. RequestId={RequestId}, Status={StatusCode}",
-                requestId, (int)response.StatusCode);
-        }
-
-        return response;
-    }
-}
-```
-
-2. Register the handler on the `HttpClient` used by `DotNetCloudApiClient`. Find where `HttpClient` / `DotNetCloudApiClient` is registered in DI (likely `Program.cs` or a service registration extension). Add:
-
-```csharp
-services.AddTransient<CorrelationIdHandler>();
-services.AddHttpClient<DotNetCloudApiClient>()
-    .AddHttpMessageHandler<CorrelationIdHandler>();
-```
-
-If `DotNetCloudApiClient` constructs its own `HttpClient` rather than using DI, add the handler manually:
-```csharp
-var handler = new CorrelationIdHandler(logger);
-handler.InnerHandler = new HttpClientHandler();
-var httpClient = new HttpClient(handler);
-```
-
-3. Build with `dotnet build`. Run a sync pass. Confirm:
-   - Client log shows lines like: `API call POST https://mint22:15443/api/v1/files/sync/reconcile RequestId=abc123...`
-   - Failure lines show: `API call failed. RequestId=abc123..., Status=401`
-
-**Request back from client agent:**
+**Request back from server agent:**
 - commit hash
-- sample log line showing `RequestId=` on an outgoing call
-- confirmation build succeeded (0 errors)
+- `appsettings.json` rate-limit config section sample
+- confirmation `429` is returned with `Retry-After` on a rapid-fire test

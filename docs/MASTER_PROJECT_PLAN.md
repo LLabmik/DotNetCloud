@@ -69,7 +69,7 @@
 | Phase 2.11 | 3 | 3 | 0 | 0 |
 | Phase 2.12 | 2 | 1 | 1 | 0 |
 | Phase 2.13 | 3 | 0 | 0 | 3 |
-| Sync Batch 1 | 10 | 1 | 0 | 9 |
+| Sync Batch 1 | 10 | 2 | 0 | 8 |
 | Phase 3-9 | Summary | 0 | 0 | 1 |
 | Infrastructure | Summary | 0 | 0 | 1 |
 | Documentation | Summary | 0 | 0 | 1 |
@@ -3523,6 +3523,26 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - All 513 Files module tests pass.
 - Rename handler fetches old name before rename to capture `OldName` → `NewName` in audit log.
 - Ready for Task 1.2 client side (Windows — `DotNetCloudApiClient` `DelegatingHandler`).
+
+### Step: sync-batch-1.2-client - Request Correlation IDs (Client)
+**Status:** completed ✅
+**Duration:** ~20 minutes
+**Description:** Add `CorrelationIdHandler` DelegatingHandler to attach `X-Request-ID` to every outgoing API call and log it.
+
+**Deliverables:**
+- ✓ Created `src/Clients/DotNetCloud.Client.Core/Api/CorrelationIdHandler.cs`
+  - Generates `Guid.NewGuid()` per request, attaches as `X-Request-ID` header
+  - Logs outgoing call: Method, URL, RequestId (Information level)
+  - Logs failure: RequestId, StatusCode (Error level) on non-2xx responses
+- ✓ Registered as `AddTransient<CorrelationIdHandler>()` in `ClientCoreServiceExtensions`
+- ✓ Added `.AddHttpMessageHandler<CorrelationIdHandler>()` to typed `DotNetCloudApiClient` HttpClient
+- ✓ Registered in `SyncServiceExtensions` on named `"DotNetCloudSync"` HttpClient (used by `SyncContextManager`)
+
+**Notes:**
+- Commit `97afdd8` on `Windows11-TestDNC` (2026-03-08).
+- Build succeeded with 0 errors on `DotNetCloud.Client.SyncService`.
+- `sync-now` IPC triggered successfully (`"success":true,"data":{"started":true}`).
+- RequestId log entries will appear on server-reachable sync passes.
 
 ### Step: sync-batch-1.2-server - Request Correlation IDs (Server)
 **Status:** completed ✅
