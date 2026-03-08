@@ -69,7 +69,7 @@
 | Phase 2.11 | 3 | 3 | 0 | 0 |
 | Phase 2.12 | 2 | 1 | 1 | 0 |
 | Phase 2.13 | 3 | 0 | 0 | 3 |
-| Sync Batch 1 | 10 | 0 | 1 | 9 |
+| Sync Batch 1 | 10 | 1 | 0 | 9 |
 | Phase 3-9 | Summary | 0 | 0 | 1 |
 | Infrastructure | Summary | 0 | 0 | 1 |
 | Documentation | Summary | 0 | 0 | 1 |
@@ -3483,7 +3483,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ## Sync Improvement Plan Execution
 
 ### Step: sync-batch-1.1 - Sync Service Logging (Client)
-**Status:** in-progress
+**Status:** completed ✅
 **Duration:** ~1 hour
 **Description:** Add structured Serilog JSON logging to DotNetCloud client sync service and core sync lifecycle components.
 
@@ -3500,8 +3500,11 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Added `src/Clients/DotNetCloud.Client.SyncService/sync-settings.json` with default logging configuration
 
 **Notes:**
-- Client code changes are implemented, but task is not complete until build/test and runtime log verification are run on `Windows11-TestDNC` per Side requirements.
-- A Linux-side client build was run in error and is not counted as task validation; target-OS validation remains required.
+- VALIDATED on `Windows11-TestDNC` at commit `c69aeac` (2026-03-08).
+- `dotnet restore` and `dotnet build` passed with no errors.
+- Service started, loaded 1 persisted context, IPC server started on Named Pipe — all logged as structured JSON to `%APPDATA%\DotNetCloud\logs\sync-service20260308.log`.
+- Graceful shutdown sequence also fully logged.
+- Server-side audit logging (Task 1.1b) remains pending on `mint22`.
 
 This plan is structured as a living document to guide the implementation of the DotNetCloud project
 in phases. Each phase is broken down into steps with assigned status, duration, description, tasks,
