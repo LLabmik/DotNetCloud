@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-08 (mint22 server agent)
+Last updated: 2026-03-08 (mint22 server agent, sync endpoint fix)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -12,7 +12,8 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 
 ## Current Incident
 
-- Symptom: Access token was not parseable by client — `UserId = Guid.Empty`, `DisplayName = "user @ mint22"`. Three root causes identified and fixed server-side.
+- Symptom (resolved): OAuth claims blocker — `UserId = Guid.Empty`. Fixed server-side, verified client-side.
+- Current: Sync endpoints were returning `404` because `SyncController` was in `Files.Host` assembly (not loaded by server). Fixed by adding `SyncController` to `Core.Server`.
 - Environment:
   - Client machine: `Windows11-TestDNC`
   - Server machine: `mint22`
@@ -138,6 +139,20 @@ Run this handoff loop each iteration:
   3. Build: `dotnet build` succeeded (0 errors, 0 warnings). 305 server tests passed.
 - 2026-03-08 (mint22): Server redeployed via `./tools/redeploy-baremetal.sh`. Health probe: `https://localhost:15443/health/live` => `Healthy`.
 - 2026-03-08 (mint22): Discovery endpoint verification: `GET /.well-known/openid-configuration` now includes `"userinfo_endpoint": "https://localhost:15443/connect/userinfo"`.
+- 2026-03-08 (mint22): **SYNC ENDPOINT FIX** — `GET /api/v1/files/sync/changes` was returning `404` because the `SyncController` existed only in `DotNetCloud.Modules.Files.Host` (not referenced by the server). The server references `Files.Data` (services/DI) but not `Files.Host` (controllers). Fix: added `SyncController.cs` to `src/Core/DotNetCloud.Core.Server/Controllers/` — mirrors the `Files.Host` version, using the same `FilesControllerBase` and `ISyncService` already in DI.
+- 2026-03-08 (mint22): All three sync endpoints now mapped and functional:
+  - `GET /api/v1/files/sync/changes` — returns `403` without auth (was `404` before fix)
+  - `GET /api/v1/files/sync/tree` — returns `403` without auth
+  - `POST /api/v1/files/sync/reconcile` — returns `403` without auth
+- 2026-03-08 (mint22): Raw endpoint probe (unauthenticated):
+
+```text
+GET https://localhost:15443/api/v1/files/sync/changes?since=2020-01-01T00:00:00Z&userId=019cc1ac-da42-737c-b0ab-d0f2ecca8019
+HTTP 403
+{"success":false,"error":{"code":"AUTH_FORBIDDEN","message":"Authentication is required."}}
+```
+
+- 2026-03-08 (mint22): Build: `dotnet build` succeeded (0 errors, 0 warnings). `dotnet test tests/DotNetCloud.Core.Server.Tests/` — 305 passed, 0 failed. Server redeployed and healthy.
 - 2026-03-08 (Windows11-TestDNC, commit `ca365e5`): **VERIFICATION — UserId RESOLVED** ✅ — Deleted old `contexts.json`, rebuilt client, re-ran full OAuth flow. Token exchange HTTP 200. Fresh `contexts.json` now shows:
 
 ```json
@@ -447,12 +462,14 @@ If the handoff is server-to-client instead, replace `Send to Server Agent` with 
 
 ## Mediator Relay Instructions
 
-### Send to Server Agent
-UserId blocker is **RESOLVED**. Client pulled `ca365e5`, deleted old context, re-ran OAuth flow. Token exchange HTTP 200 and `contexts.json` now has `UserId: 019cc1ac-da42-737c-b0ab-d0f2ecca8019` and `DisplayName: testdude@llabmik.net @ mint22`. All three fixes confirmed working.
+### Send to Client Agent
+Sync endpoints were returning `404` because the `SyncController` only existed in the `Files.Host` assembly (not loaded by the server process). Fixed by adding a `SyncController` to the server project directly. All three sync endpoints are now live (`/api/v1/files/sync/changes`, `/api/v1/files/sync/tree`, `/api/v1/files/sync/reconcile`). They correctly return `403` when called without a bearer token.
 
-Next milestone: **actual file sync**. The SyncEngine calls `GET /api/v1/files/sync/changes?since={timestamp}` for remote changes, and upload/download via the Files API. Need to verify the server sync endpoints accept bearer token auth and return valid responses. No client action needed right now — this is informational.
+Server redeployed on `mint22` at commit post-`f2cd278`. Please pull latest `main`, then run an end-to-end sync test. The SyncEngine should be able to call `GET /api/v1/files/sync/changes?since=...&userId=...` with the bearer token from the persisted account context. Even if the response is an empty changes list, a successful HTTP `200` confirms the full auth+sync pipeline is working.
 
 ### Request Back
-- Confirmation that `/api/v1/files/sync/changes` endpoint is functional and accepts bearer token auth.
-- Sample response from the sync changes endpoint (even if empty).
-- Any server-side sync-related log lines when the client's SyncEngine polls.
+- Client commit hash after pull.
+- Raw SyncEngine log lines showing the sync poll request and response (with timestamps).
+- HTTP status code from the `/api/v1/files/sync/changes` call.
+- If sync poll succeeds: sample response body (even if empty `[]`).
+- Any errors or unexpected behavior during sync.
