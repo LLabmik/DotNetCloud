@@ -69,7 +69,7 @@
 | Phase 2.11 | 3 | 3 | 0 | 0 |
 | Phase 2.12 | 2 | 1 | 1 | 0 |
 | Phase 2.13 | 3 | 0 | 0 | 3 |
-| Sync Batch 1 | 10 | 3 | 0 | 7 |
+| Sync Batch 1 | 10 | 5 | 0 | 5 |
 | Phase 3-9 | Summary | 0 | 0 | 1 |
 | Infrastructure | Summary | 0 | 0 | 1 |
 | Documentation | Summary | 0 | 0 | 1 |
@@ -3559,6 +3559,36 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Notes:**
 - Build succeeded with 0 warnings, 0 errors (ServiceDefaults + Server).
 - Client side (Task 1.2) next: add `X-Request-ID` in `DotNetCloudApiClient` / `DelegatingHandler` on Windows.
+
+### Step: sync-batch-1.3 - Server-Side Rate Limiting on Sync Endpoints
+**Status:** completed ✅
+**Duration:** ~30 minutes
+**Description:** Apply `[EnableRateLimiting]` attributes to sync and file controller endpoints using existing rate limiting infrastructure.
+
+**Deliverables:**
+- ✓ `src/Core/DotNetCloud.Core.Server/appsettings.json` — `RateLimiting.ModuleLimits` populated: `sync-changes` (60/min), `sync-tree` (10/min), `sync-reconcile` (30/min), `upload-initiate` (30/min), `upload-chunks` (300/min), `download` (120/min), `chunks` (300/min)
+- ✓ `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/SyncController.cs` — `[EnableRateLimiting]` on `GetChanges`, `GetTree`, `Reconcile`
+- ✓ `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/FilesController.cs` — `[EnableRateLimiting]` on `InitiateUpload`, `UploadChunk`, `Download`, `GetChunkManifest`, `DownloadChunkByHash`
+
+**Notes:**
+- Commit `4570c16` on `mint22` (2026-03-08). Build: 0 errors; 304 server tests passed.
+- Client required no changes — `SendWithRetryAsync()` already handles 429 + `Retry-After`.
+
+### Step: sync-batch-1.4 - Chunk Integrity Verification on Download
+**Status:** completed ✅
+**Duration:** ~30 minutes
+**Description:** Add SHA-256 post-download verification for every chunk in `ChunkedTransferClient`, with 3 retries on mismatch and `ChunkIntegrityException` on persistent failure.
+
+**Deliverables:**
+- ✓ Created `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkIntegrityException.cs`
+- ✓ `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs` — `DownloadChunksAsync()` now verifies `SHA256.HashData(bytes)` against manifest hash after each chunk download
+- ✓ Retry loop (max 3 attempts) with `LogWarning` on mismatch
+- ✓ `LogError` + `ChunkIntegrityException` thrown if all 3 attempts fail
+- ✓ Existing test updated: `DownloadAsync_WithManifest_DownloadsChunks` uses real SHA-256 hash
+- ✓ New tests: `DownloadAsync_ChunkHashMismatch_RetriesAndSucceeds`, `DownloadAsync_ChunkHashAlwaysMismatch_ThrowsChunkIntegrityException`
+
+**Notes:**
+- Build: 0 errors. All 55 `DotNetCloud.Client.Core.Tests` pass (including 3 new/updated transfer tests).
 
 This plan is structured as a living document to guide the implementation of the DotNetCloud project
 in phases. Each phase is broken down into steps with assigned status, duration, description, tasks,

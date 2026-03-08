@@ -3784,7 +3784,7 @@ Before marking a phase complete:
 - ✓ Task 1.1b: Add Sync Audit Logging (Server)
 - ✓ Task 1.2: Request Correlation IDs
 - ✓ Task 1.3: Server-Side Rate Limiting on Sync Endpoints
-- ☐ Task 1.4: Chunk Integrity Verification on Download
+- ✓ Task 1.4: Chunk Integrity Verification on Download
 - ☐ Task 1.5: Per-Chunk Retry with Exponential Backoff
 - ☐ Task 1.6: SQLite WAL + Connection Resilience
 - ☐ Task 1.7: Durable Retry Queue

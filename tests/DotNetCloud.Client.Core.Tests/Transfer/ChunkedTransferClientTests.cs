@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using DotNetCloud.Client.Core.Api;
 using DotNetCloud.Client.Core.Transfer;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -102,8 +103,8 @@ public class ChunkedTransferClientTests
     public async Task DownloadAsync_WithManifest_DownloadsChunks()
     {
         var nodeId = Guid.NewGuid();
-        var chunkHash = "abc123";
         var chunkData = new byte[512];
+        var chunkHash = Convert.ToHexStringLower(SHA256.HashData(chunkData));
 
         var apiMock = new Mock<IDotNetCloudApiClient>();
         apiMock.SetupProperty(a => a.AccessToken);
@@ -124,5 +125,72 @@ public class ChunkedTransferClientTests
         Assert.IsNotNull(result);
         Assert.AreEqual(chunkData.Length, result.Length);
         apiMock.Verify(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task DownloadAsync_ChunkHashMismatch_RetriesAndSucceeds()
+    {
+        var nodeId = Guid.NewGuid();
+        var chunkData = new byte[512];
+        var chunkHash = Convert.ToHexStringLower(SHA256.HashData(chunkData));
+        var corruptData = new byte[512];
+        corruptData[0] = 0xFF; // one byte differs → different hash
+
+        var apiMock = new Mock<IDotNetCloudApiClient>();
+        apiMock.SetupProperty(a => a.AccessToken);
+        apiMock.Setup(a => a.GetChunkManifestAsync(nodeId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChunkManifestResponse
+            {
+                TotalSize = chunkData.Length,
+                Chunks = [new ChunkManifestEntry { Index = 0, Hash = chunkHash, Size = chunkData.Length }],
+            });
+
+        // First call returns corrupt data, second returns correct data
+        var callCount = 0;
+        apiMock.Setup(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() =>
+            {
+                callCount++;
+                return new MemoryStream(callCount == 1 ? corruptData : chunkData);
+            });
+
+        var client = new ChunkedTransferClient(apiMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+
+        using var result = await client.DownloadAsync(nodeId);
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual(chunkData.Length, result.Length);
+        apiMock.Verify(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    [TestMethod]
+    public async Task DownloadAsync_ChunkHashAlwaysMismatch_ThrowsChunkIntegrityException()
+    {
+        var nodeId = Guid.NewGuid();
+        var chunkHash = "0000000000000000000000000000000000000000000000000000000000000000";
+        var corruptData = new byte[512]; // SHA-256 of this does NOT equal chunkHash
+
+        var apiMock = new Mock<IDotNetCloudApiClient>();
+        apiMock.SetupProperty(a => a.AccessToken);
+        apiMock.Setup(a => a.GetChunkManifestAsync(nodeId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChunkManifestResponse
+            {
+                TotalSize = corruptData.Length,
+                Chunks = [new ChunkManifestEntry { Index = 0, Hash = chunkHash, Size = corruptData.Length }],
+            });
+
+        apiMock.Setup(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new MemoryStream(corruptData));
+
+        var client = new ChunkedTransferClient(apiMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+
+        ChunkIntegrityException? caught = null;
+        try { await client.DownloadAsync(nodeId); }
+        catch (ChunkIntegrityException ex) { caught = ex; }
+
+        Assert.IsNotNull(caught, "Expected ChunkIntegrityException but none was thrown.");
+
+        // Should have retried 3 times
+        apiMock.Verify(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<CancellationToken>()), Times.Exactly(3));
     }
 }

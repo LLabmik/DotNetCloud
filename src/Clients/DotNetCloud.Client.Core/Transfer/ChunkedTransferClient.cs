@@ -180,6 +180,8 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
 
     // ── Private helpers ─────────────────────────────────────────────────────
 
+    private const int ChunkDownloadMaxAttempts = 3;
+
     private async Task<Stream> DownloadChunksAsync(
         ChunkManifestResponse manifest,
         IProgress<TransferProgress>? progress,
@@ -195,10 +197,37 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
             await sem.WaitAsync(cancellationToken);
             try
             {
-                using var chunkStream = await _api.DownloadChunkByHashAsync(chunk.Hash, cancellationToken);
-                using var ms = new MemoryStream();
-                await chunkStream.CopyToAsync(ms, cancellationToken);
-                chunks[index] = ms.ToArray();
+                byte[]? chunkBytes = null;
+
+                for (var attempt = 1; attempt <= ChunkDownloadMaxAttempts; attempt++)
+                {
+                    using var chunkStream = await _api.DownloadChunkByHashAsync(chunk.Hash, cancellationToken);
+                    using var ms = new MemoryStream();
+                    await chunkStream.CopyToAsync(ms, cancellationToken);
+                    var bytes = ms.ToArray();
+
+                    var actualHash = Convert.ToHexStringLower(SHA256.HashData(bytes));
+                    if (string.Equals(actualHash, chunk.Hash, StringComparison.OrdinalIgnoreCase))
+                    {
+                        chunkBytes = bytes;
+                        break;
+                    }
+
+                    _logger.LogWarning(
+                        "Chunk hash mismatch: ExpectedHash={ExpectedHash}, ActualHash={ActualHash}, Attempt={Attempt}/{MaxAttempts}.",
+                        chunk.Hash, actualHash, attempt, ChunkDownloadMaxAttempts);
+                }
+
+                if (chunkBytes is null)
+                {
+                    _logger.LogError(
+                        "Chunk integrity verification failed after {MaxAttempts} attempts: ExpectedHash={ExpectedHash}.",
+                        ChunkDownloadMaxAttempts, chunk.Hash);
+                    throw new ChunkIntegrityException(
+                        $"Chunk {chunk.Hash} failed integrity verification after {ChunkDownloadMaxAttempts} download attempts.");
+                }
+
+                chunks[index] = chunkBytes;
 
                 var count = Interlocked.Increment(ref downloaded);
                 progress?.Report(new TransferProgress

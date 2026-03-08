@@ -17,7 +17,7 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 
 **Completed milestone:** End-to-end file sync with directory hierarchy (Issues #1–#22, all resolved).
 
-Open issue: Sync Improvement Batch 1 Task 1.3 (server-side rate limiting) — Tasks 1.1 and 1.2 complete on both sides.
+Open issue: Sync Improvement Batch 1 — Tasks 1.1 through 1.4 complete. Task 1.5 (per-chunk retry with exponential backoff) is next.
 
 ## Environment
 
@@ -176,3 +176,25 @@ dotnet test tests/DotNetCloud.Core.Server.Tests/
 - commit hash
 - build output (0 errors expected)
 - confirm `appsettings.json` has the `ModuleLimits` section above
+
+---
+
+### Issue #27: Batch 1 Task 1.4 - Chunk Integrity Verification on Download (Client only)
+
+**Server-side status:** Not applicable (client-only task).
+**Client-side status:** ✅ COMPLETE — `Windows11-TestDNC` (2026-03-08).
+
+**What was implemented:**
+- Created `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkIntegrityException.cs` — exception thrown when a chunk fails integrity check after all retries
+- Modified `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs` — `DownloadChunksAsync()` now:
+  - Computes `SHA256.HashData(bytes)` on every downloaded chunk
+  - Compares against the manifest hash (`StringComparison.OrdinalIgnoreCase`)
+  - Retries up to 3 times on mismatch (`LogWarning` per failed attempt)
+  - Throws `ChunkIntegrityException` after 3 failures (`LogError`)
+- Updated `tests/DotNetCloud.Client.Core.Tests/Transfer/ChunkedTransferClientTests.cs`:
+  - Fixed existing `DownloadAsync_WithManifest_DownloadsChunks` to use real SHA-256 hash (was using fake `"abc123"`)
+  - Added `DownloadAsync_ChunkHashMismatch_RetriesAndSucceeds` — verifies retry on first bad chunk, succeeds on second
+  - Added `DownloadAsync_ChunkHashAlwaysMismatch_ThrowsChunkIntegrityException` — verifies 3 retries then exception
+- Build: 0 errors. All 55 `DotNetCloud.Client.Core.Tests` pass.
+
+**Task 1.4: PASS (client complete)**

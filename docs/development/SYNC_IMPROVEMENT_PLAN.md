@@ -191,11 +191,9 @@ Use these paths whenever a task references a component by name. All paths are re
 
 ---
 
-### 1.3 — Server-Side Rate Limiting on Sync Endpoints
+### 1.3 — Server-Side Rate Limiting on Sync Endpoints ✅ COMPLETE
 
-**Approved Proposal:** 3.1
-
-**Problem:** No rate limiting on sync endpoints. A misbehaving client can DoS the server.
+**Status:** ✅ Both sides complete. Server at commit `4570c16`. Client required no changes.
 
 **⚠️ IMPORTANT: Rate limiting infrastructure ALREADY EXISTS. Do NOT create new middleware or configuration classes.**
 
@@ -281,21 +279,19 @@ dotnet test tests/DotNetCloud.Modules.Files.Tests/
 - Optionally add a log line when rate-limited, but this is low priority.
 
 **Deliverables:**
-- ☐ Server: Sync-specific module limits added to `appsettings.json` under `RateLimiting.ModuleLimits`
-- ☐ Server: `[EnableRateLimiting]` attributes on sync controller methods in `SyncController.cs`
-- ☐ Server: `[EnableRateLimiting]` attributes on file controller methods in `FilesController.cs`
-- ☐ Client: Verify 429 + `Retry-After` handling exists (read `DotNetCloudApiClient.SendWithRetryAsync()`)
+- ✓ Server: Sync-specific module limits added to `appsettings.json` under `RateLimiting.ModuleLimits`
+- ✓ Server: `[EnableRateLimiting]` attributes on sync controller methods in `SyncController.cs`
+- ✓ Server: `[EnableRateLimiting]` attributes on file controller methods in `FilesController.cs`
+- ✓ Client: 429 + `Retry-After` handling already present in `DotNetCloudApiClient.SendWithRetryAsync()` — no changes needed
 
 **Side:** Server (+ client verification only)
 **Complexity:** Low
 
 ---
 
-### 1.4 — Chunk Integrity Verification on Download
+### 1.4 — Chunk Integrity Verification on Download ✅ COMPLETE
 
-**Approved Proposal:** 3.3
-
-**Problem:** Client doesn't verify downloaded chunk data matches the expected SHA-256 hash. Corrupted downloads are silently accepted.
+**Status:** ✅ Client complete. Commit on `Windows11-TestDNC` (2026-03-08). 55 tests pass.
 
 **Files to modify:**
 
@@ -339,9 +335,11 @@ dotnet test tests/DotNetCloud.Client.Core.Tests/
 ```
 
 **Deliverables:**
-- ☐ Client: Post-download SHA-256 verification for every chunk in `ChunkedTransferClient`
-- ☐ Client: Retry on hash mismatch (up to 3 attempts)
-- ☐ Client: Clear error logging with chunk hash on persistent corruption
+- ✓ Client: Created `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkIntegrityException.cs`
+- ✓ Client: Post-download SHA-256 verification for every chunk in `ChunkedTransferClient.DownloadChunksAsync()`
+- ✓ Client: Retry on hash mismatch (up to 3 attempts) with `LogWarning`
+- ✓ Client: `LogError` + `ChunkIntegrityException` thrown after all 3 attempts fail
+- ✓ Tests: 3 new/updated transfer tests pass
 
 **Side:** Client only
 **Complexity:** Low
