@@ -59,12 +59,12 @@ function Get-WindowsSdkTool {
         throw "Windows SDK bin path not found at '$kitsRoot'. Install Windows 10/11 SDK."
     }
 
-    $candidates = Get-ChildItem -Path $kitsRoot -Directory |
+    $candidates = @(Get-ChildItem -Path $kitsRoot -Directory |
         Sort-Object -Property Name -Descending |
         ForEach-Object { Join-Path $_.FullName "x64\$ToolName" } |
-        Where-Object { Test-Path $_ }
+        Where-Object { Test-Path $_ })
 
-    if (-not $candidates) {
+    if ($candidates.Count -eq 0) {
         throw "Unable to locate '$ToolName' in Windows SDK path '$kitsRoot'."
     }
 
@@ -204,7 +204,7 @@ $manifestContent = $manifestContent.Replace("__PUBLISHER__", $Publisher)
 $manifestContent = $manifestContent.Replace("__VERSION__", $msixVersion)
 $manifestContent = $manifestContent.Replace("__DISPLAY_NAME__", $PackageDisplayName)
 $manifestContent = $manifestContent.Replace("__PUBLISHER_DISPLAY_NAME__", $PublisherDisplayName)
-$manifestContent = $manifestContent.Replace("__EXECUTABLE__", "SyncTray\\dotnetcloud-sync-tray.exe")
+$manifestContent = $manifestContent.Replace("__EXECUTABLE__", "SyncTray/dotnetcloud-sync-tray.exe")
 
 Set-Content -Path (Join-Path $stagingRoot "AppxManifest.xml") -Value $manifestContent -Encoding UTF8
 
@@ -215,7 +215,7 @@ if (Test-Path $outputMsix) {
     Remove-Item -Path $outputMsix -Force
 }
 
-& $makeAppx pack /d $stagingRoot /p $outputMsix /o
+& "$makeAppx" pack /d "$stagingRoot" /p "$outputMsix" /o
 
 if ($LASTEXITCODE -ne 0) {
     throw "makeappx.exe failed with exit code $LASTEXITCODE."
@@ -247,7 +247,7 @@ if ($Sign) {
 
     Write-Host "[4/4] Signing MSIX..." -ForegroundColor Yellow
     $signtool = Get-WindowsSdkTool -ToolName "signtool.exe"
-    & $signtool sign /fd SHA256 /f $resolvedCertificatePath /p $CertificatePassword $outputMsix
+    & "$signtool" sign /fd SHA256 /f "$resolvedCertificatePath" /p "$CertificatePassword" "$outputMsix"
 
     if ($LASTEXITCODE -ne 0) {
         throw "signtool.exe failed with exit code $LASTEXITCODE."
