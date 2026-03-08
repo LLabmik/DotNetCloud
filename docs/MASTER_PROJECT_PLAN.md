@@ -3504,7 +3504,25 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - `dotnet restore` and `dotnet build` passed with no errors.
 - Service started, loaded 1 persisted context, IPC server started on Named Pipe — all logged as structured JSON to `%APPDATA%\DotNetCloud\logs\sync-service20260308.log`.
 - Graceful shutdown sequence also fully logged.
-- Server-side audit logging (Task 1.1b) remains pending on `mint22`.
+- Server-side audit logging (Task 1.1b) completed on `mint22`.
+
+### Step: sync-batch-1.1b - Sync Audit Logging (Server)
+**Status:** completed ✅
+**Duration:** ~30 minutes
+**Description:** Add structured Serilog audit logging to server sync/file operations with a dedicated audit log file sink.
+
+**Deliverables:**
+- ✓ Added `ILogger<FilesController>` injection with structured audit logs for `file.uploaded`, `file.downloaded`, `file.deleted`, `file.moved`, `file.renamed` events
+- ✓ Added `ILogger<SyncController>` injection with structured audit log for `sync.reconcile.completed` (includes UserId, ChangeCount, DurationMs)
+- ✓ Added `AuditFilePath` option to `SerilogOptions` (default: `logs/audit-sync-.log`)
+- ✓ Added dedicated audit log file sink in `SerilogConfiguration.cs` filtering on `file.*` and `sync.*` message templates
+- ✓ Audit sink uses same rolling-file settings (daily, 31-day retention) as main log sink
+
+**Notes:**
+- Build succeeded with 0 warnings, 0 errors.
+- All 513 Files module tests pass.
+- Rename handler fetches old name before rename to capture `OldName` → `NewName` in audit log.
+- Ready for Task 1.2 (Request Correlation IDs).
 
 This plan is structured as a living document to guide the implementation of the DotNetCloud project
 in phases. Each phase is broken down into steps with assigned status, duration, description, tasks,

@@ -2,6 +2,7 @@ using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Modules.Files.Host.Controllers;
 
@@ -17,6 +18,7 @@ public class FilesController : FilesControllerBase
     private readonly IDownloadService _downloadService;
     private readonly IVersionService _versionService;
     private readonly IShareService _shareService;
+    private readonly ILogger<FilesController> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FilesController"/> class.
@@ -26,13 +28,15 @@ public class FilesController : FilesControllerBase
         IChunkedUploadService uploadService,
         IDownloadService downloadService,
         IVersionService versionService,
-        IShareService shareService)
+        IShareService shareService,
+        ILogger<FilesController> logger)
     {
         _fileService = fileService;
         _uploadService = uploadService;
         _downloadService = downloadService;
         _versionService = versionService;
         _shareService = shareService;
+        _logger = logger;
     }
 
     /// <summary>
@@ -79,7 +83,12 @@ public class FilesController : FilesControllerBase
     [HttpPut("{nodeId:guid}/rename")]
     public Task<IActionResult> RenameAsync(Guid nodeId, [FromBody] RenameNodeDto dto) => ExecuteAsync(async () =>
     {
-        var node = await _fileService.RenameAsync(nodeId, dto, GetAuthenticatedCaller());
+        var caller = GetAuthenticatedCaller();
+        var existing = await _fileService.GetNodeAsync(nodeId, caller);
+        var oldName = existing?.Name;
+        var node = await _fileService.RenameAsync(nodeId, dto, caller);
+        _logger.LogInformation("file.renamed {NodeId} {OldName} {NewName} {UserId}",
+            nodeId, oldName, node.Name, caller.UserId);
         return Ok(node);
     });
 
@@ -89,7 +98,10 @@ public class FilesController : FilesControllerBase
     [HttpPut("{nodeId:guid}/move")]
     public Task<IActionResult> MoveAsync(Guid nodeId, [FromBody] MoveNodeDto dto) => ExecuteAsync(async () =>
     {
-        var node = await _fileService.MoveAsync(nodeId, dto, GetAuthenticatedCaller());
+        var caller = GetAuthenticatedCaller();
+        var node = await _fileService.MoveAsync(nodeId, dto, caller);
+        _logger.LogInformation("file.moved {NodeId} {FileName} {TargetParentId} {UserId}",
+            nodeId, node.Name, dto.TargetParentId, caller.UserId);
         return Ok(node);
     });
 
@@ -109,7 +121,10 @@ public class FilesController : FilesControllerBase
     [HttpDelete("{nodeId:guid}")]
     public Task<IActionResult> DeleteAsync(Guid nodeId) => ExecuteAsync(async () =>
     {
-        await _fileService.DeleteAsync(nodeId, GetAuthenticatedCaller());
+        var caller = GetAuthenticatedCaller();
+        await _fileService.DeleteAsync(nodeId, caller);
+        _logger.LogInformation("file.deleted {NodeId} {UserId}",
+            nodeId, caller.UserId);
         return Ok(new { deleted = true });
     });
 
@@ -184,7 +199,10 @@ public class FilesController : FilesControllerBase
     [HttpPost("upload/{sessionId:guid}/complete")]
     public Task<IActionResult> CompleteUploadAsync(Guid sessionId) => ExecuteAsync(async () =>
     {
-        var node = await _uploadService.CompleteUploadAsync(sessionId, GetAuthenticatedCaller());
+        var caller = GetAuthenticatedCaller();
+        var node = await _uploadService.CompleteUploadAsync(sessionId, caller);
+        _logger.LogInformation("file.uploaded {NodeId} {FileName} {FileSize} {UserId}",
+            node.Id, node.Name, node.Size, caller.UserId);
         return Ok(node);
     });
 
@@ -225,6 +243,8 @@ public class FilesController : FilesControllerBase
                 return NotFound(ErrorEnvelope("not_found", "Version not found."));
 
             var stream = await _downloadService.DownloadVersionAsync(ver.Id, caller);
+            _logger.LogInformation("file.downloaded {NodeId} {FileSize} {UserId} {Version}",
+                nodeId, ver.Size, caller.UserId, version.Value);
             return File(stream, ver.MimeType ?? "application/octet-stream");
         }
 
@@ -233,6 +253,8 @@ public class FilesController : FilesControllerBase
             return NotFound(ErrorEnvelope("not_found", "Node not found."));
 
         var downloadStream = await _downloadService.DownloadCurrentAsync(nodeId, caller);
+        _logger.LogInformation("file.downloaded {NodeId} {FileName} {FileSize} {UserId}",
+            nodeId, node.Name, node.Size, caller.UserId);
         return File(downloadStream, node.MimeType ?? "application/octet-stream", node.Name, enableRangeProcessing: false);
     });
 

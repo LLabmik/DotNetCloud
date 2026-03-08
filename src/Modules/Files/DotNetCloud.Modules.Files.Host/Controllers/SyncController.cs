@@ -1,6 +1,8 @@
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 namespace DotNetCloud.Modules.Files.Host.Controllers;
 
@@ -11,13 +13,15 @@ namespace DotNetCloud.Modules.Files.Host.Controllers;
 public class SyncController : FilesControllerBase
 {
     private readonly ISyncService _syncService;
+    private readonly ILogger<SyncController> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SyncController"/> class.
     /// </summary>
-    public SyncController(ISyncService syncService)
+    public SyncController(ISyncService syncService, ILogger<SyncController> logger)
     {
         _syncService = syncService;
+        _logger = logger;
     }
 
     /// <summary>
@@ -53,7 +57,12 @@ public class SyncController : FilesControllerBase
     public Task<IActionResult> ReconcileAsync(
         [FromBody] SyncReconcileRequestDto request) => ExecuteAsync(async () =>
     {
-        var result = await _syncService.ReconcileAsync(request, GetAuthenticatedCaller());
+        var caller = GetAuthenticatedCaller();
+        var sw = Stopwatch.StartNew();
+        var result = await _syncService.ReconcileAsync(request, caller);
+        sw.Stop();
+        _logger.LogInformation("sync.reconcile.completed {UserId} {ChangeCount} {DurationMs}",
+            caller.UserId, result.Actions.Count, sw.ElapsedMilliseconds);
         return Ok(result);
     });
 }

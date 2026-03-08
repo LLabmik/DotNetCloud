@@ -3781,7 +3781,7 @@ Before marking a phase complete:
 ### Batch 1 - Foundation
 
 - ✓ Task 1.1: Add Serilog Logging to Sync Service (Client)
-- ☐ Task 1.1b: Add Sync Audit Logging (Server)
+- ✓ Task 1.1b: Add Sync Audit Logging (Server)
 - ☐ Task 1.2: Request Correlation IDs
 - ☐ Task 1.3: Server-Side Rate Limiting on Sync Endpoints
 - ☐ Task 1.4: Chunk Integrity Verification on Download

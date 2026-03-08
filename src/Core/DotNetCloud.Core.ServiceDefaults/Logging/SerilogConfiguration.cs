@@ -46,6 +46,11 @@ public class SerilogOptions
     public bool UseStructuredFormat { get; set; } = true;
 
     /// <summary>
+    /// Gets or sets the path for the audit log file. Null disables the dedicated audit sink.
+    /// </summary>
+    public string? AuditFilePath { get; set; } = "logs/audit-sync-.log";
+
+    /// <summary>
     /// Gets or sets module names to exclude from logging.
     /// </summary>
     public HashSet<string> ExcludedModules { get; set; } = new();
@@ -146,5 +151,23 @@ public static class SerilogConfigurationExtensions
             outputTemplate: OutputTemplate,
             shared: true,
             flushToDiskInterval: TimeSpan.FromSeconds(1));
+
+        // Audit log sink — captures file and sync operations
+        if (!string.IsNullOrEmpty(options.AuditFilePath))
+        {
+            configuration.WriteTo.Logger(lc => lc
+                .Filter.ByIncludingOnly(e =>
+                    e.MessageTemplate.Text.StartsWith("file.", StringComparison.Ordinal) ||
+                    e.MessageTemplate.Text.StartsWith("sync.", StringComparison.Ordinal))
+                .WriteTo.File(
+                    path: options.AuditFilePath,
+                    restrictedToMinimumLevel: LogEventLevel.Information,
+                    rollingInterval: options.RollingDaily ? RollingInterval.Day : RollingInterval.Infinite,
+                    retainedFileCountLimit: options.RetainedFileCountLimit,
+                    fileSizeLimitBytes: options.FileSizeLimitBytes,
+                    outputTemplate: OutputTemplate,
+                    shared: true,
+                    flushToDiskInterval: TimeSpan.FromSeconds(1)));
+        }
     }
 }
