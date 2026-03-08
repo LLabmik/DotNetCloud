@@ -99,6 +99,28 @@ Run this handoff loop each iteration:
 - 2026-03-07 (Windows11-TestDNC): After restart at `18:24`, SyncTray connected without logging `No sync accounts configured`, indicating account context persisted.
 - 2026-03-07 (mint22, pulled commit `47c0cc1`): Confirmed latest client OAuth fixes are now on `main` (typed OAuth client wiring + token JSON mapping + debug prefill values).
 - 2026-03-07 (mint22): `dotnet build src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj` succeeded on `47c0cc1`.
+- 2026-03-08 (Windows11-TestDNC): Full sanity check of sync readiness. SyncService + SyncTray launched successfully (build first, then `--no-build` run). SyncTray connected to SyncService via named pipe IPC and subscribed to events. No `No sync accounts configured` message — account persisted from previous OAuth flow.
+- 2026-03-08 (Windows11-TestDNC): **CRITICAL FINDING** — Persisted sync context at `C:\ProgramData\DotNetCloud\Sync\contexts.json` shows `UserId: "00000000-0000-0000-0000-000000000000"` (Guid.Empty) and `DisplayName: "user @ mint22"`. This means the access token returned by the server does not contain a parseable `sub` claim (GUID format) or `preferred_username`/`email` claims.
+- 2026-03-08 (Windows11-TestDNC): Raw `contexts.json` content:
+
+```json
+{
+  "Registrations": [
+    {
+      "ContextId": "3daee4a8-...",
+      "ServerUrl": "https://mint22:15443",
+      "UserId": "00000000-0000-0000-0000-000000000000",
+      "DisplayName": "user @ mint22",
+      "LocalFolderPath": "C:\\Users\\benk\\Documents\\synctray",
+      "AccountKey": "https://mint22:15443:00000000-0000-0000-0000-000000000000",
+      "RegisteredAtUtc": "2026-03-08T02:22:49.8019526Z"
+    }
+  ]
+}
+```
+
+- 2026-03-08 (Windows11-TestDNC): Client `ExtractUserId()` in `SettingsViewModel.cs` attempts to decode the access token as a JWT (split on `.`, base64-decode payload, parse `sub` claim as GUID). It returns `Guid.Empty`, which means either: (a) the access token is not a JWT (opaque token), (b) the JWT has no `sub` claim, or (c) the `sub` claim is not in GUID format.
+- 2026-03-08 (Windows11-TestDNC): Client `BuildDisplayName()` similarly fails to find `preferred_username` or `email` claims, falling back to `"user"`, resulting in display name `"user @ mint22"`.
 
 ## Client Evidence Snapshot (2026-03-07)
 
@@ -295,9 +317,25 @@ No sync accounts configured. Launching first-run add-account flow.
 
 ## Next Action Requested From Server Agent
 
-- Verify active deployed server binary includes scope registration for `files:read` and `files:write`.
-- Verify `dotnetcloud-desktop` OpenIddict application record has both scope permissions.
-- If existing client record predates update logic, force-update it via startup seeder or admin script.
+**BLOCKER: Access token does not contain user identity claims.**
+
+The client successfully completes the full OAuth2 PKCE flow (authorize → login → callback → token exchange HTTP 200), but the access token returned by the server cannot be parsed for user identity:
+
+1. **`sub` claim**: Client needs a `sub` claim containing the user's ID as a **GUID** (e.g., `"sub": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"`). Currently either missing or not in GUID format, causing `UserId = Guid.Empty`.
+
+2. **`preferred_username` or `email` claim**: Client needs at least one of these to build a display name. Currently neither is present, causing fallback to `"user @ mint22"`.
+
+**Possible causes:**
+- OpenIddict may be issuing **opaque** (reference) tokens instead of **JWT** access tokens. The client tries to base64-decode the token payload — if it's not a JWT with a `.`-separated structure, all claim parsing fails silently.
+- If the token IS a JWT, the `sub` claim may be a string (like a username) rather than a GUID, or may be omitted entirely.
+- The `profile` scope may not be mapped to include `preferred_username`/`email` claims in the access token.
+
+**What the server agent needs to verify/fix:**
+1. Check whether OpenIddict is configured to issue JWT access tokens or opaque reference tokens.
+2. If opaque: switch to JWT format for access tokens, OR expose a `/connect/userinfo` endpoint that the client can call.
+3. If JWT: ensure the `sub` claim is the user's database GUID (not a username string or integer).
+4. Ensure `preferred_username` and/or `email` claims are included in the access token (or userinfo response) when the `profile` scope is granted.
+5. **Alternatively**, confirm that `/connect/userinfo` is functional — the client can be updated to call userinfo as a fallback when JWT parsing fails.
 
 ## Server Evidence Snapshot (2026-03-07 post-fix)
 
@@ -379,13 +417,20 @@ If the handoff is server-to-client instead, replace `Send to Server Agent` with 
 
 ## Mediator Relay Instructions
 
-### Send to Client Agent
-New client-side OAuth TLS mitigation has been added for local/LAN self-host targets (including `mint22`) so the token exchange should no longer fail on cert chain/name mismatch during local testing. Please pull latest `main`, run full SyncTray add-account flow end-to-end, complete browser login, and confirm whether account add now succeeds after callback.
+### Send to Server Agent
+OAuth token exchange now succeeds (HTTP 200), and the client persists the account context. However, the access token returned by the server does not contain parseable user identity claims. The client decodes the access token as a JWT and looks for a `sub` claim (GUID format) for the user ID, and `preferred_username` or `email` for the display name. All of these are missing or unparseable, resulting in `UserId = Guid.Empty` and `DisplayName = "user @ mint22"`. This is a blocker for sync — the server needs user requests to have a real user ID.
+
+Please check 'docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md' on `main` (just pushed) for full details under "Next Action Requested From Server Agent". The key questions are:
+
+1. Is OpenIddict issuing JWT or opaque access tokens?
+2. Does the `sub` claim contain the user's database GUID?
+3. Are `preferred_username`/`email` claims included when `profile` scope is granted?
+4. Is `/connect/userinfo` functional as a fallback?
 
 ### Request Back
-- Client commit hash after pull.
-- Raw browser URL transitions (initial `/connect/authorize...`, redirected `/auth/login...`, post-login redirect, and final callback URL including query params).
-- Raw error/query params from any failure page.
-- Raw SyncTray OAuth log lines around scope selection and browser launch (with timestamps).
-- Raw SyncTray log lines after callback handling (token exchange success/failure, account add success/failure).
-- Any remaining client-side TLS/certificate warnings observed during this run.
+- Server commit hash after any fix.
+- Whether access tokens are JWT or opaque reference tokens.
+- Sample decoded JWT payload (if JWT) showing which claims are present and their format.
+- If opaque: confirmation that `/connect/userinfo` returns `sub` (as GUID), `preferred_username`, and `email`.
+- Raw server log lines from a token exchange request (with timestamps).
+- Confirmation of redeploy on `mint22`.
