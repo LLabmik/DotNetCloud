@@ -93,8 +93,16 @@ Open issue: Sync Improvement Batch 1 Task 1.3 (server-side rate limiting) — Ta
 
 ### Issue #26: Batch 1 Task 1.3 - Server-Side Rate Limiting on Sync Endpoints
 
-**Server-side status:** ✅ COMPLETE — commit to be pushed shortly.
-**Client-side status:** No changes needed — client already handles 429 + `Retry-After` in `DotNetCloudApiClient.SendWithRetryAsync()`.
+**Server-side status:** ✅ COMPLETE — commit `4570c16` (2026-03-08).
+**Client-side status:** ✅ No changes needed — client already handles 429 + `Retry-After` in `DotNetCloudApiClient.SendWithRetryAsync()`.
+
+**What was implemented:**
+- `appsettings.json`: `ModuleLimits` populated — `sync-changes` (60/min), `sync-tree` (10/min), `sync-reconcile` (30/min), `upload-initiate` (30/min), `upload-chunks` (300/min), `download` (120/min), `chunks` (300/min)
+- `SyncController.cs`: `[EnableRateLimiting("module-sync-changes|tree|reconcile")]` on the three sync endpoints
+- `FilesController.cs`: `[EnableRateLimiting(...)]` on `InitiateUpload`, `UploadChunk`, `Download`, `GetChunkManifest`, `DownloadChunkByHash`
+- Build: 0 errors; 304 server tests passed
+
+**Task 1.3: PASS (server complete, client no changes needed)**
 
 **IMPORTANT CONTEXT: Rate limiting infrastructure already exists.** Do NOT create new middleware or configuration classes. The following are already in place and working:
 - `src/Core/DotNetCloud.Core.Server/Configuration/RateLimitingConfiguration.cs` — has `AddDotNetCloudRateLimiting()`, policies (`"global"`, `"authenticated"`, per-module `"module-{name}"`), 429 rejection handler with `Retry-After` header.
