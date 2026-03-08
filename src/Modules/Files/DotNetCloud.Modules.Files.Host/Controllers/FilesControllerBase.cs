@@ -13,6 +13,26 @@ namespace DotNetCloud.Modules.Files.Host.Controllers;
 public abstract class FilesControllerBase : ControllerBase
 {
     /// <summary>
+    /// Creates a <see cref="CallerContext"/> from the authenticated bearer token claims.
+    /// </summary>
+    protected CallerContext GetAuthenticatedCaller()
+    {
+        if (User?.Identity?.IsAuthenticated != true)
+            throw new ForbiddenException("Authentication is required.");
+
+        var claimValue = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+        if (!Guid.TryParse(claimValue, out var userId))
+            throw new ForbiddenException("Authenticated user identifier is invalid.");
+
+        var roles = User.FindAll(ClaimTypes.Role)
+            .Select(c => c.Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return new CallerContext(userId, roles, CallerType.User);
+    }
+
+    /// <summary>
     /// Creates a <see cref="CallerContext"/> for the given user ID.
     /// </summary>
     protected CallerContext ToCaller(Guid userId)

@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-08 (client agent, sync contract analysis)
+Last updated: 2026-03-08 (mint22 server agent, sync contract fixes applied)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -21,17 +21,19 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 - **Account persistence**: RESOLVED — `contexts.json` has real `UserId` GUID and proper `DisplayName`
 - **Sync endpoints**: RESOLVED — `/api/v1/files/sync/{changes,tree,reconcile}` now mapped and require bearer auth (was 404)
 - **TLS cert bypass for sync client**: RESOLVED — `DotNetCloudSync` named HttpClient now uses same `OAuthHttpClientHandlerFactory` cert bypass (was missing, would fail on self-signed cert)
-- **Next milestone**: Fix client/server sync API contract mismatches (see **Active Blockers** below), then verify end-to-end sync pass
+- **Sync API `userId` contract**: RESOLVED — server now derives caller user ID from bearer token claims (`sub`/`nameidentifier`) for all sync endpoints
+- **Sync API response shape**: RESOLVED — sync endpoints now return raw payloads (`[]`/object) instead of envelope wrappers
+- **Next milestone**: Client runs end-to-end sync verification against latest server commit and reports HTTP status/body evidence
 
-## Active Blockers (Must Fix Before Sync Works)
+## Server Resolution (Latest)
 
-### Blocker 1: `userId` Query Parameter Mismatch
+### Applied Fix 1: Removed `userId` query parameter requirement on sync endpoints
 
-**Severity:** BLOCKING — sync calls will return 403
+**Status:** RESOLVED
 
-**Problem:** `SyncController.cs` on the server requires `[FromQuery] Guid userId` on all three endpoints (`changes`, `tree`, `reconcile`). The client's `DotNetCloudApiClient.cs` does NOT send `userId` in the query string. ASP.NET Core model binding will set `userId = Guid.Empty`, then `FilesControllerBase.ToCaller()` compares `authenticatedUserId != Guid.Empty` → throws `ForbiddenException` → HTTP 403.
+**What changed:** `SyncController` no longer accepts `[FromQuery] Guid userId` on `changes`, `tree`, or `reconcile`. All actions now call `GetAuthenticatedCaller()` and derive user context from bearer token claims.
 
-**Client URLs (what it sends):**
+**Current sync endpoint shapes:**
 ```
 GET api/v1/files/sync/changes?since=2025-03-08T00:00:00.0000000Z
 GET api/v1/files/sync/tree
@@ -39,95 +41,34 @@ GET api/v1/files/sync/tree?folderId={id}
 POST api/v1/files/sync/reconcile  (body only)
 ```
 
-**Server expects:**
-```
-GET api/v1/files/sync/changes?since=...&userId={guid}
-GET api/v1/files/sync/tree?userId={guid}
-POST api/v1/files/sync/reconcile?userId={guid}
-```
+**Files updated:**
+- `src/Core/DotNetCloud.Core.Server/Controllers/FilesControllerBase.cs`
+- `src/Core/DotNetCloud.Core.Server/Controllers/SyncController.cs`
+- `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/FilesControllerBase.cs`
+- `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/SyncController.cs`
 
-**Recommended server-side fix:** Extract `userId` from the bearer token's `sub` claim directly in the controller actions, instead of requiring it as a query parameter. The bearer token already contains the authenticated user identity. This is more secure (no client-supplied userId to validate), simpler (fewer query params), and matches standard REST API patterns. Concretely:
+### Applied Fix 2: Removed envelope wrapper from sync responses
 
-```csharp
-// BEFORE (current):
-[HttpGet("changes")]
-public Task<IActionResult> GetChangesAsync(
-    [FromQuery] DateTime since,
-    [FromQuery] Guid? folderId,
-    [FromQuery] Guid userId) => ExecuteAsync(async () =>
-{
-    var changes = await _syncService.GetChangesSinceAsync(since, folderId, ToCaller(userId));
-    return Ok(Envelope(changes));
-});
+**Status:** RESOLVED
 
-// AFTER (recommended):
-[HttpGet("changes")]
-public Task<IActionResult> GetChangesAsync(
-    [FromQuery] DateTime since,
-    [FromQuery] Guid? folderId) => ExecuteAsync(async () =>
-{
-    var caller = GetAuthenticatedCaller(); // new helper — extracts userId from bearer sub claim
-    var changes = await _syncService.GetChangesSinceAsync(since, folderId, caller);
-    return Ok(Envelope(changes));
-});
-```
+**What changed:** `SyncController` now returns raw payloads via `Ok(changes)`, `Ok(tree)`, and `Ok(result)` instead of `Ok(Envelope(...))`.
 
-Add to `FilesControllerBase`:
-```csharp
-protected CallerContext GetAuthenticatedCaller()
-{
-    if (User?.Identity?.IsAuthenticated != true)
-        throw new ForbiddenException("Authentication is required.");
-
-    var claimValue = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
-    if (!Guid.TryParse(claimValue, out var userId))
-        throw new ForbiddenException("Authenticated user identifier is invalid.");
-
-    var roles = User.FindAll(ClaimTypes.Role)
-        .Select(c => c.Value)
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .ToArray();
-
-    return new CallerContext(userId, roles, CallerType.User);
-}
-```
-
-Apply the same change to all three `SyncController` actions: `GetChangesAsync`, `GetTreeAsync`, `ReconcileAsync`.
-
-### Blocker 2: Response Envelope Mismatch
-
-**Severity:** BLOCKING — sync deserialization will fail
-
-**Problem:** `SyncController` wraps all responses in `Envelope()` → `{ success: true, data: [...] }`. The client's `DotNetCloudApiClient.GetAsync<T>()` calls `response.Content.ReadFromJsonAsync<T>()` expecting a raw array/object directly (e.g., `List<SyncChangeResponse>`), not wrapped in an envelope.
-
-**Server currently returns:**
-```json
-{
-  "success": true,
-  "data": [
-    { "nodeId": "...", "name": "...", "isDeleted": false, ... }
-  ]
-}
-```
-
-**Client expects (deserializes as `List<SyncChangeResponse>`):**
+**Sync responses now return:**
 ```json
 [
   { "nodeId": "...", "name": "...", "isDeleted": false, ... }
 ]
 ```
 
-**Recommended server-side fix:** Return raw data from `SyncController` actions (these are client-facing sync endpoints, not browser-facing UI APIs). Change `Ok(Envelope(data))` to `Ok(data)` in all three `SyncController` actions:
+### Validation Evidence (mint22)
 
-```csharp
-// BEFORE:
-return Ok(Envelope(changes));
-
-// AFTER:
-return Ok(changes);
-```
-
-**Alternative client-side fix (if server wants to keep envelopes):** Add an `EnvelopeResponse<T>` wrapper class to the client and unwrap in `GetAsync<T>`. But this adds complexity for no benefit on machine-to-machine sync APIs.
+- `dotnet build DotNetCloud.sln -c Release` -> success (0 errors, 0 warnings)
+- `dotnet test tests/DotNetCloud.Core.Server.Tests/DotNetCloud.Core.Server.Tests.csproj -c Release --no-build` -> **305 passed**
+- `dotnet test tests/DotNetCloud.Modules.Files.Tests/DotNetCloud.Modules.Files.Tests.csproj -c Release --no-build` -> **513 passed**
+- Redeploy: `tools/redeploy-baremetal.sh` complete
+- Health probe: `https://localhost:15443/health/live` -> `Healthy`
+- Unauthenticated sync endpoints continue to return `403` (expected bearer requirement)
+- Authenticated sync probe with live bearer token is pending client relay evidence
 
 ## Environment
 
@@ -163,6 +104,8 @@ return Ok(changes);
 | 8 | `UserId = Guid.Empty` | Access tokens encrypted (JWE); no OIDC claims; no userinfo endpoint | `DisableAccessTokenEncryption()`, DB claim lookup, userinfo registration | 2026-03-08 |
 | 9 | Sync endpoints `404` | `SyncController` in `Files.Host` (not loaded) | Added `SyncController` to `Core.Server` | 2026-03-08 |
 | 10 | TLS errors on sync API calls | `DotNetCloudSync` named HttpClient had no cert bypass (only OAuth client had it) | Added `ConfigurePrimaryHttpMessageHandler(OAuthHttpClientHandlerFactory.CreateHandler)` to named client registration | 2026-03-08 |
+| 11 | Sync calls required `userId` query parameter | Server controller bound `userId` and rejected client calls that relied on bearer identity | Derived `CallerContext` from bearer claims and removed `userId` query requirement on sync endpoints | 2026-03-08 |
+| 12 | Sync response deserialization mismatch | Server returned envelope-wrapped sync payloads; client expects raw JSON payloads | Changed sync responses from `Ok(Envelope(...))` to `Ok(...)` on all sync endpoints | 2026-03-08 |
 
 ## Current Verified State
 
@@ -184,12 +127,14 @@ return Ok(changes);
 - `SyncServiceExtensions.cs` — Added `ConfigurePrimaryHttpMessageHandler(OAuthHttpClientHandlerFactory.CreateHandler)` to the `DotNetCloudSync` named HttpClient registration. This applies the same self-signed cert bypass used by OAuth2Service to all sync API HTTP calls.
 - Build: 0 errors, 0 warnings. 24 SyncService tests pass.
 
-### Server (mint22, commit `a52d16d`)
+### Server (mint22, commit pending push from this update)
 
 - Health: `https://localhost:15443/health/live` → `Healthy`
 - Discovery: `userinfo_endpoint` advertised
-- Sync endpoints: all return `403` without auth (correctly require bearer token)
-- Build: 0 errors, 0 warnings. 305 server tests passed.
+- Sync endpoints: no `userId` query parameter required; all return raw payloads
+- Unauthenticated sync endpoints still return `403` (correctly require bearer token)
+- Build: 0 errors, 0 warnings
+- Tests: 305 server tests passed, 513 files-module tests passed
 
 ## Mediator Checklist (User)
 
@@ -218,37 +163,31 @@ return Ok(changes);
 
 ### Send to Server Agent
 
-Two blocking contract mismatches found between client and server sync API:
-
-**Fix 1 (REQUIRED): Remove `userId` query parameter from `SyncController` actions.**
-The client sends bearer tokens with `sub` claim but does NOT send `userId` in query strings. The server's `SyncController` binds `userId = Guid.Empty` → `ToCaller()` throws → 403.
-
-Fix: Add a `GetAuthenticatedCaller()` helper to `FilesControllerBase` that extracts userId from the bearer token's `sub` claim. Then update all three `SyncController` actions to use it instead of `[FromQuery] Guid userId`. See detailed code in "Active Blockers > Blocker 1" section above.
-
-**Fix 2 (REQUIRED): Return raw data from `SyncController` (no envelope wrapper).**
-The client's `DotNetCloudApiClient` deserializes responses as raw types (e.g. `List<SyncChangeResponse>`), not `{ success: true, data: [...] }`. The `Envelope()` wrapper in the current controller will cause deserialization to fail silently (all fields null/default) or throw.
-
-Fix: Change `Ok(Envelope(changes))` to `Ok(changes)` in all three `SyncController` actions. The sync API is machine-to-machine (desktop clients), not browser-facing — envelopes add no value here.
-
-After fixing: rebuild, run tests, push to main.
+No additional server action pending for this relay. Server-side sync contract fixes are implemented and validated locally (build/tests/redeploy/health all green). Awaiting client end-to-end sync evidence on latest `main`.
 
 ### Request Back
-- commit hash
-- confirmation that `GET /api/v1/files/sync/changes?since=2020-01-01T00:00:00Z` with a valid bearer token returns a raw JSON array (not envelope-wrapped)
-- HTTP status code of the above request
-- raw response body sample
+- none (waiting for client verification relay)
 ```
 
 ## Mediator Relay Instructions
 
 ### Send to Client Agent
-Sync endpoints were returning `404` because the `SyncController` only existed in the `Files.Host` assembly (not loaded by the server process). Fixed by adding a `SyncController` to the server project directly. All three sync endpoints are now live (`/api/v1/files/sync/changes`, `/api/v1/files/sync/tree`, `/api/v1/files/sync/reconcile`). They correctly return `403` when called without a bearer token.
+Server-side sync API contract fixes are now implemented and deployed on `mint22`.
 
-Server redeployed on `mint22` at commit `a52d16d`. Please pull latest `main`, then run an end-to-end sync test. The SyncEngine should be able to call `GET /api/v1/files/sync/changes?since=...&userId=...` with the bearer token from the persisted account context. Even if the response is an empty changes list, a successful HTTP `200` confirms the full auth+sync pipeline is working.
+What changed:
+- `userId` query parameter requirement was removed from sync endpoints.
+- Server now derives caller identity from bearer token claims (`sub`/`nameidentifier`).
+- Sync responses are now raw JSON payloads (no `{ success, data }` envelope).
+
+Please pull latest `main`, then run end-to-end sync verification from the desktop client. Use:
+- `GET /api/v1/files/sync/changes?since=...` (no `userId` query parameter)
+- with bearer token from persisted account context.
+
+Expected success shape: HTTP `200` with a raw JSON array body (possibly empty `[]`).
 
 ### Request Back
 - Client commit hash after pull.
 - Raw SyncEngine log lines showing the sync poll request and response (with timestamps).
 - HTTP status code from the `/api/v1/files/sync/changes` call.
-- If sync poll succeeds: sample response body (even if empty `[]`).
+- Raw response body sample from `/api/v1/files/sync/changes` (even if empty `[]`).
 - Any errors or unexpected behavior during sync.

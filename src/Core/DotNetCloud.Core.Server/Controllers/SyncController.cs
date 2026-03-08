@@ -26,11 +26,10 @@ public sealed class SyncController : FilesControllerBase
     [HttpGet("changes")]
     public Task<IActionResult> GetChangesAsync(
         [FromQuery] DateTime since,
-        [FromQuery] Guid? folderId,
-        [FromQuery] Guid userId) => ExecuteAsync(async () =>
+        [FromQuery] Guid? folderId) => ExecuteAsync(async () =>
     {
-        var changes = await _syncService.GetChangesSinceAsync(since, folderId, ToCaller(userId));
-        return Ok(Envelope(changes));
+        var changes = await _syncService.GetChangesSinceAsync(since, folderId, GetAuthenticatedCaller());
+        return Ok(changes);
     });
 
     /// <summary>
@@ -38,11 +37,10 @@ public sealed class SyncController : FilesControllerBase
     /// </summary>
     [HttpGet("tree")]
     public Task<IActionResult> GetTreeAsync(
-        [FromQuery] Guid? folderId,
-        [FromQuery] Guid userId) => ExecuteAsync(async () =>
+        [FromQuery] Guid? folderId) => ExecuteAsync(async () =>
     {
-        var tree = await _syncService.GetFolderTreeAsync(folderId, ToCaller(userId));
-        return Ok(Envelope(tree));
+        var tree = await _syncService.GetFolderTreeAsync(folderId, GetAuthenticatedCaller());
+        return Ok(tree);
     });
 
     /// <summary>
@@ -50,10 +48,9 @@ public sealed class SyncController : FilesControllerBase
     /// </summary>
     [HttpPost("reconcile")]
     public Task<IActionResult> ReconcileAsync(
-        [FromBody] SyncReconcileRequestDto request,
-        [FromQuery] Guid userId) => ExecuteAsync(async () =>
+        [FromBody] SyncReconcileRequestDto request) => ExecuteAsync(async () =>
     {
-        var result = await _syncService.ReconcileAsync(request, ToCaller(userId));
-        return Ok(Envelope(result));
+        var result = await _syncService.ReconcileAsync(request, GetAuthenticatedCaller());
+        return Ok(result);
     });
 }
