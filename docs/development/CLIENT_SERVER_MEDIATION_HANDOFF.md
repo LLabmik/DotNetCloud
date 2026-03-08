@@ -138,6 +138,40 @@ Run this handoff loop each iteration:
   3. Build: `dotnet build` succeeded (0 errors, 0 warnings). 305 server tests passed.
 - 2026-03-08 (mint22): Server redeployed via `./tools/redeploy-baremetal.sh`. Health probe: `https://localhost:15443/health/live` => `Healthy`.
 - 2026-03-08 (mint22): Discovery endpoint verification: `GET /.well-known/openid-configuration` now includes `"userinfo_endpoint": "https://localhost:15443/connect/userinfo"`.
+- 2026-03-08 (Windows11-TestDNC, commit `ca365e5`): **VERIFICATION — UserId RESOLVED** ✅ — Deleted old `contexts.json`, rebuilt client, re-ran full OAuth flow. Token exchange HTTP 200. Fresh `contexts.json` now shows:
+
+```json
+{
+  "Id": "b44b9f3f-fc25-45ae-9e7b-c3dca382f83d",
+  "ServerBaseUrl": "https://mint22:15443",
+  "UserId": "019cc1ac-da42-737c-b0ab-d0f2ecca8019",
+  "LocalFolderPath": "C:\\Users\\benk\\Documents\\synctray",
+  "DisplayName": "testdude@llabmik.net @ mint22",
+  "AccountKey": "https://mint22:15443:019cc1ac-da42-737c-b0ab-d0f2ecca8019",
+  "OsUserName": "benk",
+  "DataDirectory": "C:\\ProgramData\\DotNetCloud\\Sync\\b44b9f3ffc2545ae9e7bc3dca382f83d",
+  "FullScanInterval": "00:05:00",
+  "RegisteredAt": "2026-03-08T04:43:45.0755872Z"
+}
+```
+
+  - `UserId` is a real GUID (no longer `Guid.Empty`) ✅
+  - `DisplayName` is `"testdude@llabmik.net @ mint22"` (email parsed from `preferred_username` claim) ✅
+  - `AccountKey` includes real user GUID ✅
+
+- 2026-03-08 (Windows11-TestDNC): Raw SyncTray log from fresh OAuth flow:
+
+```text
+[20:43:39 INF] Connected to SyncService.
+[20:43:39 INF] Subscribed to SyncService IPC events.
+[20:43:40 INF] No sync accounts configured. Launching first-run add-account flow.
+[20:43:43 INF] OAuth scope selection for https://mint22:15443: requested=[openid, profile, offline_access, files:read, files:write] effective=[openid, profile, offline_access, files:read, files:write]
+[20:43:43 INF] Opening OAuth authorize URL for client 'dotnetcloud-desktop' with scope 'openid profile offline_access files:read files:write'.
+[20:43:43 INF] Opening browser for OAuth2 authorization.
+[20:43:44 INF] Start processing HTTP request POST https://mint22:15443/connect/token
+[20:43:45 INF] Received HTTP response headers after 286.1409ms - 200
+[20:43:45 INF] End processing HTTP request after 287.4587ms - 200
+```
 
 ## Client Evidence Snapshot (2026-03-07)
 
@@ -413,14 +447,12 @@ If the handoff is server-to-client instead, replace `Send to Server Agent` with 
 
 ## Mediator Relay Instructions
 
-### Send to Client Agent
-The server has fixed all three root causes for `UserId = Guid.Empty`. Access tokens were encrypted (JWE) so the client couldn't decode them — now disabled. The authorize endpoint wasn't populating OIDC-standard claims (`sub`, `name`, `preferred_username`, `email`) — now it looks up the user from the database and sets all four. The `/connect/userinfo` endpoint was not registered with OpenIddict — now it's registered, advertised in discovery, and validates bearer tokens.
+### Send to Server Agent
+UserId blocker is **RESOLVED**. Client pulled `ca365e5`, deleted old context, re-ran OAuth flow. Token exchange HTTP 200 and `contexts.json` now has `UserId: 019cc1ac-da42-737c-b0ab-d0f2ecca8019` and `DisplayName: testdude@llabmik.net @ mint22`. All three fixes confirmed working.
 
-Server redeployed on `mint22`. Please pull latest `main`, delete the existing `contexts.json` (it has `Guid.Empty` from the old broken token), and re-run the full SyncTray add-account OAuth flow. After token exchange, verify `contexts.json` has a real GUID for `UserId` and a proper `DisplayName`. See `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` for full details.
+Next milestone: **actual file sync**. The SyncEngine calls `GET /api/v1/files/sync/changes?since={timestamp}` for remote changes, and upload/download via the Files API. Need to verify the server sync endpoints accept bearer token auth and return valid responses. No client action needed right now — this is informational.
 
 ### Request Back
-- Client commit hash after pull.
-- Raw `contexts.json` content after fresh OAuth flow (showing `UserId` and `DisplayName`).
-- Raw SyncTray log lines around token exchange and account persistence (with timestamps).
-- Confirmation that `UserId` is no longer `Guid.Empty`.
-- Any remaining errors or unexpected behavior.
+- Confirmation that `/api/v1/files/sync/changes` endpoint is functional and accepts bearer token auth.
+- Sample response from the sync changes endpoint (even if empty).
+- Any server-side sync-related log lines when the client's SyncEngine polls.
