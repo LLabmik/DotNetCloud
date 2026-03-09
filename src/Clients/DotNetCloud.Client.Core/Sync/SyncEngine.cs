@@ -107,6 +107,7 @@ public sealed class SyncEngine : ISyncEngine
             _watcher.Changed += OnFileSystemChanged;
             _watcher.Deleted += OnFileSystemChanged;
             _watcher.Renamed += OnFileSystemRenamed;
+            _watcher.Error += OnFileSystemWatcherError;
             _watcher.EnableRaisingEvents = true;
         }
         catch (IOException ex) when (OperatingSystem.IsLinux())
@@ -361,6 +362,16 @@ public sealed class SyncEngine : ISyncEngine
 
     private async Task HandleRemoteUpdateAsync(SyncContext context, string localPath, Api.SyncChangeResponse change, CancellationToken cancellationToken)
     {
+        // Issue #51: case-conflict detection on case-insensitive filesystems.
+        var resolvedPath = ResolveCaseConflict(localPath);
+        if (!string.Equals(resolvedPath, localPath, StringComparison.Ordinal))
+        {
+            _logger.LogWarning(
+                "Case conflict detected: requested path '{RequestedPath}' conflicts with existing file. Renamed to '{ResolvedPath}'.",
+                localPath, resolvedPath);
+        }
+        localPath = resolvedPath;
+
         var localRecord = await _stateDb.GetFileRecordAsync(context.StateDatabasePath, localPath, cancellationToken);
 
         if (localRecord is not null && IsLocallyModified(localRecord, localPath))
@@ -909,6 +920,67 @@ public sealed class SyncEngine : ISyncEngine
         throw new LockedFileException(path);
     }
 
+    // ── Issue #51: Case-sensitivity helpers ─────────────────────────────────
+
+    /// <summary>
+    /// On case-insensitive filesystems (Windows, macOS), checks whether a file
+    /// with different casing already exists at <paramref name="localPath"/>.
+    /// If so, renames the incoming path to <c>filename (case conflict).ext</c>.
+    /// </summary>
+    internal static string ResolveCaseConflict(string localPath)
+    {
+        // Only applies on case-insensitive filesystems.
+        if (!IsCaseInsensitiveFileSystem())
+            return localPath;
+
+        var directory = Path.GetDirectoryName(localPath);
+        if (directory is null || !Directory.Exists(directory))
+            return localPath;
+
+        var fileName = Path.GetFileName(localPath);
+        string[] siblings;
+        try { siblings = Directory.GetFileSystemEntries(directory); }
+        catch { return localPath; }
+
+        foreach (var existing in siblings)
+        {
+            var existingName = Path.GetFileName(existing);
+            // Same name ignoring case, but different actual casing → conflict.
+            if (string.Equals(existingName, fileName, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(existingName, fileName, StringComparison.Ordinal))
+            {
+                return BuildCaseConflictPath(localPath);
+            }
+        }
+
+        return localPath;
+    }
+
+    /// <summary>
+    /// Builds a case-conflict path: <c>{baseName} (case conflict).ext</c>.
+    /// </summary>
+    internal static string BuildCaseConflictPath(string originalPath)
+    {
+        var directory = Path.GetDirectoryName(originalPath) ?? string.Empty;
+        var ext = Path.GetExtension(originalPath);
+        var baseName = Path.GetFileNameWithoutExtension(originalPath);
+
+        var candidate = Path.Combine(directory, $"{baseName} (case conflict){ext}");
+        var n = 1;
+        while (File.Exists(candidate))
+        {
+            candidate = Path.Combine(directory, $"{baseName} (case conflict {n}){ext}");
+            n++;
+        }
+        return candidate;
+    }
+
+    /// <summary>
+    /// Returns <c>true</c> on Windows and macOS (case-insensitive filesystems).
+    /// </summary>
+    private static bool IsCaseInsensitiveFileSystem() =>
+        OperatingSystem.IsWindows() || OperatingSystem.IsMacOS();
+
     // ── FileSystemWatcher handlers ──────────────────────────────────────────
 
     // Issue #44: inotify limit check (Linux only).
@@ -972,6 +1044,35 @@ public sealed class SyncEngine : ISyncEngine
             e.OldFullPath,
             e.FullPath);
         _ = Task.Run(() => SyncAsync(_activeContext, _cts?.Token ?? default));
+    }
+
+    // Issue #57: handle FSW.Error to detect internal buffer overflows or watch failures.
+    private void OnFileSystemWatcherError(object sender, ErrorEventArgs e)
+    {
+        var ex = e.GetException();
+        _logger.LogError(ex,
+            "FileSystemWatcher error for context {ContextId}. Falling back to polling.",
+            _activeContext?.Id);
+
+        _pollingFallback = true;
+
+        // Disable the broken watcher to avoid repeated errors.
+        if (_watcher is not null)
+            _watcher.EnableRaisingEvents = false;
+
+        // Raise a status change so the tray UI can notify the user.
+        if (_activeContext is not null)
+        {
+            StatusChanged?.Invoke(this, new SyncStatusChangedEventArgs
+            {
+                Context = _activeContext,
+                Status = new SyncStatus
+                {
+                    State = _state,
+                    LastError = $"File watcher error: {ex.Message}. Switched to polling.",
+                },
+            });
+        }
     }
 
     // ── Periodic full scan ──────────────────────────────────────────────────

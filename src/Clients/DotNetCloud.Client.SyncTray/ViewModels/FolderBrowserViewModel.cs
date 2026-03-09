@@ -17,6 +17,7 @@ public sealed class FolderBrowserViewModel : ViewModelBase
     private readonly Guid _contextId;
     private readonly ISelectiveSyncConfig _selectiveSync;
     private readonly string _configFilePath;
+    private SyncTreeNodeResponse? _fullTree;
 
     private bool _isLoading;
     private string? _errorMessage;
@@ -43,6 +44,19 @@ public sealed class FolderBrowserViewModel : ViewModelBase
 
     /// <summary>Saves the current folder selection as selective sync rules.</summary>
     public ICommand SaveCommand { get; }
+
+    /// <summary>
+    /// Optional sync root path for local file cleanup when folders are excluded.
+    /// Set when the view-model is used within a context that has a local folder.
+    /// </summary>
+    public string? LocalSyncRoot { get; set; }
+
+    /// <summary>
+    /// Callback invoked before deleting local files for a newly excluded folder.
+    /// Returns <c>true</c> to confirm deletion, <c>false</c> to skip.
+    /// Defaults to always-true (no confirmation) for non-UI/test scenarios.
+    /// </summary>
+    public Func<string, Task<bool>>? ConfirmDeletionAsync { get; set; }
 
     /// <summary>Initializes a new <see cref="FolderBrowserViewModel"/>.</summary>
     /// <param name="ipc">IPC client for communicating with SyncService.</param>
@@ -73,20 +87,20 @@ public sealed class FolderBrowserViewModel : ViewModelBase
 
         try
         {
-            var tree = await _ipc.GetFolderTreeAsync(_contextId);
-            if (tree is null)
+            _fullTree = await _ipc.GetFolderTreeAsync(_contextId);
+            if (_fullTree is null)
             {
                 ErrorMessage = "Failed to load folder tree from server.";
                 return;
             }
 
-            // Build view-model tree from the API response (folders only).
-            foreach (var child in tree.Children)
+            // Build top-level items only (children are lazy-loaded on expand).
+            foreach (var child in _fullTree.Children)
             {
                 if (!string.Equals(child.NodeType, "Folder", StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                var item = BuildItem(child, parentPath: string.Empty, parent: null);
+                var item = BuildItemLazy(child, parentPath: string.Empty, parent: null);
                 RootItems.Add(item);
             }
 
@@ -106,16 +120,42 @@ public sealed class FolderBrowserViewModel : ViewModelBase
     /// <summary>Persists the current folder selection as selective sync rules.</summary>
     public async Task SaveAsync()
     {
+        // Collect previously excluded paths before saving new state.
+        var previousExclusions = new HashSet<string>(
+            _selectiveSync.GetRules(_contextId)
+                .Where(r => !r.IsInclude)
+                .Select(r => r.FolderPath),
+            StringComparer.OrdinalIgnoreCase);
+
         _selectiveSync.ClearRules(_contextId);
 
+        var newExclusions = new List<string>();
         CollectExcludedPaths(RootItems, path =>
-            _selectiveSync.Exclude(_contextId, path));
+        {
+            _selectiveSync.Exclude(_contextId, path);
+            newExclusions.Add(path);
+        });
 
         await _selectiveSync.SaveAsync(_configFilePath);
+
+        // Issue #58: clean up local files for newly excluded folders.
+        if (LocalSyncRoot is not null)
+        {
+            foreach (var excluded in newExclusions)
+            {
+                if (previousExclusions.Contains(excluded))
+                    continue; // Already excluded before — no cleanup needed.
+
+                await CleanupExcludedFolderAsync(excluded);
+            }
+        }
     }
 
-    // TODO: Add lazy loading of children for large trees.
-    private static FolderBrowserItemViewModel BuildItem(
+    /// <summary>
+    /// Builds a tree item with lazy-loaded children. Child nodes are populated
+    /// as placeholder stubs; actual children are loaded when the node is expanded.
+    /// </summary>
+    private FolderBrowserItemViewModel BuildItemLazy(
         SyncTreeNodeResponse node, string parentPath, FolderBrowserItemViewModel? parent)
     {
         var relativePath = string.IsNullOrEmpty(parentPath)
@@ -127,16 +167,56 @@ public sealed class FolderBrowserViewModel : ViewModelBase
             Parent = parent,
         };
 
-        foreach (var child in node.Children)
-        {
-            if (!string.Equals(child.NodeType, "Folder", StringComparison.OrdinalIgnoreCase))
-                continue;
+        // Check if this node has folder children at all.
+        var hasChildFolders = node.Children.Any(c =>
+            string.Equals(c.NodeType, "Folder", StringComparison.OrdinalIgnoreCase));
 
-            var childItem = BuildItem(child, relativePath, item);
-            item.Children.Add(childItem);
+        if (hasChildFolders)
+        {
+            // Add a loading placeholder so the UI shows an expander arrow.
+            item.Children.Add(new FolderBrowserItemViewModel(
+                Guid.Empty, "(loading...)", $"{relativePath}/(loading)"));
+            item.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(FolderBrowserItemViewModel.IsExpanded) && item.IsExpanded)
+                    _ = LoadChildrenAsync(item, node);
+            };
         }
 
         return item;
+    }
+
+    /// <summary>
+    /// Lazy-loads children for a node on first expand. Replaces the placeholder.
+    /// </summary>
+    internal async Task LoadChildrenAsync(FolderBrowserItemViewModel item, SyncTreeNodeResponse sourceNode)
+    {
+        // Guard against double-load.
+        if (item.Children.Count == 1 && item.Children[0].NodeId == Guid.Empty)
+        {
+            item.Children.Clear();
+
+            foreach (var child in sourceNode.Children)
+            {
+                if (!string.Equals(child.NodeType, "Folder", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var childItem = BuildItemLazy(child, item.RelativePath, item);
+                item.Children.Add(childItem);
+            }
+
+            // Re-apply rules for the newly loaded children.
+            var rules = _selectiveSync.GetRules(_contextId);
+            if (rules.Count > 0)
+            {
+                var excludedPaths = new HashSet<string>(
+                    rules.Where(r => !r.IsInclude).Select(r => r.FolderPath),
+                    StringComparer.OrdinalIgnoreCase);
+                ApplyRulesToItems(item.Children, excludedPaths);
+            }
+        }
+
+        await Task.CompletedTask;
     }
 
     private void ApplyExistingRules()
@@ -181,6 +261,34 @@ public sealed class FolderBrowserViewModel : ViewModelBase
                 CollectExcludedPaths(item.Children, excludeAction);
             }
             // IsChecked == true → fully included, nothing to record.
+        }
+    }
+
+    /// <summary>
+    /// Deletes local files for a folder that was newly excluded from sync.
+    /// Shows a confirmation dialog via <see cref="ConfirmDeletionAsync"/> before proceeding.
+    /// </summary>
+    private async Task CleanupExcludedFolderAsync(string relativePath)
+    {
+        if (LocalSyncRoot is null) return;
+
+        var localPath = Path.Combine(LocalSyncRoot, relativePath.Replace('/', Path.DirectorySeparatorChar));
+        if (!Directory.Exists(localPath)) return;
+
+        // Ask for confirmation before deleting.
+        if (ConfirmDeletionAsync is not null)
+        {
+            var confirmed = await ConfirmDeletionAsync(relativePath);
+            if (!confirmed) return;
+        }
+
+        try
+        {
+            Directory.Delete(localPath, recursive: true);
+        }
+        catch
+        {
+            // Silently skip — files may be in use or permissions may prevent deletion.
         }
     }
 }

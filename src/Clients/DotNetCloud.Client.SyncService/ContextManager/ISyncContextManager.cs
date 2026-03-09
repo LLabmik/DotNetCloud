@@ -78,6 +78,14 @@ public interface ISyncContextManager
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Persists conflict resolution settings to <c>sync-settings.json</c> and
+    /// applies them to all active engines.
+    /// </summary>
+    Task PersistConflictResolutionSettingsAsync(
+        DotNetCloud.Client.Core.Conflict.ConflictResolutionSettings settings,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Returns the server-side folder tree for the given context (for selective sync UI).
     /// </summary>
     Task<SyncTreeNodeResponse?> GetFolderTreeAsync(

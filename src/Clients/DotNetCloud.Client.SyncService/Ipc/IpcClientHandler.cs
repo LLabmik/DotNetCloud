@@ -170,6 +170,10 @@ public sealed class IpcClientHandler : IAsyncDisposable
                 await HandleUpdateBandwidthAsync(command, cancellationToken);
                 break;
 
+            case IpcCommands.UpdateConflictSettings:
+                await HandleUpdateConflictSettingsAsync(command, cancellationToken);
+                break;
+
             case IpcCommands.GetFolderTree:
                 await HandleGetFolderTreeAsync(command, cancellationToken);
                 break;
@@ -399,6 +403,33 @@ public sealed class IpcClientHandler : IAsyncDisposable
 
         await _contextManager.UpdateBandwidthAsync(
             data.UploadLimitKbps, data.DownloadLimitKbps, cancellationToken);
+
+        await SendResponseAsync(command.Command, new { updated = true }, cancellationToken);
+    }
+
+    private async Task HandleUpdateConflictSettingsAsync(IpcCommand command, CancellationToken cancellationToken)
+    {
+        if (command.Data is null)
+        {
+            await SendErrorAsync(command.Command, "Missing 'data' payload.", cancellationToken);
+            return;
+        }
+
+        var data = command.Data.Value.Deserialize<ConflictSettingsData>(JsonOptions);
+        if (data is null)
+        {
+            await SendErrorAsync(command.Command, "Invalid 'data' payload.", cancellationToken);
+            return;
+        }
+
+        var settings = new DotNetCloud.Client.Core.Conflict.ConflictResolutionSettings
+        {
+            AutoResolveEnabled = data.AutoResolveEnabled,
+            NewerWinsThresholdMinutes = data.NewerWinsThresholdMinutes,
+            EnabledStrategies = data.EnabledStrategies,
+        };
+
+        await _contextManager.PersistConflictResolutionSettingsAsync(settings, cancellationToken);
 
         await SendResponseAsync(command.Command, new { updated = true }, cancellationToken);
     }

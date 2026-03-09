@@ -92,16 +92,16 @@ This plan organizes them into prioritized remediation batches with clear SERVER/
 
 ---
 
-### Issue #51: Client Case-Sensitivity Handling (Task 4.1) — CLIENT
+### Issue #51: Client Case-Sensitivity Handling (Task 4.1) — CLIENT ✅
 
 **What's missing:** Server-side case checks exist, but client has no explicit case-conflict handling. No `StringComparer.OrdinalIgnoreCase` in `SyncEngine`, no `(case conflict)` suffix renaming.
 
 **Deliverables:**
-- ☐ `SyncEngine`: use `StringComparer.OrdinalIgnoreCase` for path comparisons on Windows/macOS
-- ☐ Before applying remote file: check if file with different casing already exists locally
-- ☐ If conflict on case-insensitive FS: rename to `filename (case conflict).ext`
-- ☐ Log warning with both path variants
-- ☐ Unit tests for case-conflict detection and renaming
+- ✓ `SyncEngine`: use `StringComparer.OrdinalIgnoreCase` for path comparisons on Windows/macOS
+- ✓ Before applying remote file: check if file with different casing already exists locally
+- ✓ If conflict on case-insensitive FS: rename to `filename (case conflict).ext`
+- ✓ Log warning with both path variants
+- ✓ Unit tests for case-conflict detection and renaming
 
 **Complexity:** MEDIUM — needs careful platform-conditional logic.
 
@@ -150,12 +150,12 @@ This plan organizes them into prioritized remediation batches with clear SERVER/
 
 ---
 
-### Issue #55: Conflict Resolution Settings in sync-settings.json (Task 3.5b) — CLIENT
+### Issue #55: Conflict Resolution Settings in sync-settings.json (Task 3.5b) — CLIENT ✅
 
 **What's missing:** `sync-settings.json` has no `conflictResolution` section. Strategy 4 (newer-wins) threshold is hardcoded at 5 minutes.
 
 **Deliverables:**
-- ☐ Add `conflictResolution` section to `sync-settings.json` schema and defaults:
+- ✓ Add `conflictResolution` section to `sync-settings.json` schema and defaults:
   ```json
   "conflictResolution": {
     "autoResolveEnabled": true,
@@ -163,8 +163,8 @@ This plan organizes them into prioritized remediation batches with clear SERVER/
     "enabledStrategies": ["identical", "fast-forward", "clean-merge", "newer-wins", "append-only"]
   }
   ```
-- ☐ `ConflictResolver` reads settings from config instead of hardcoded values
-- ☐ Settings UI: checkboxes for each strategy, threshold slider
+- ✓ `ConflictResolver` reads settings from config instead of hardcoded values
+- ✓ Settings UI: checkboxes for each strategy, threshold slider
 
 **Complexity:** MEDIUM — config plumbing + UI.
 
@@ -183,27 +183,27 @@ This plan organizes them into prioritized remediation batches with clear SERVER/
 
 ---
 
-### Issue #57: FSW.Error Event + Symlink Config (Tasks 4.3, 4.4) — CLIENT
+### Issue #57: FSW.Error Event + Symlink Config (Tasks 4.3, 4.4) — CLIENT ✅
 
 **What's partial:** `FileSystemWatcher.Error` event not subscribed (only Created/Changed/Deleted/Renamed). Symlink mode not configurable in `sync-settings.json`.
 
 **Deliverables:**
-- ☐ Subscribe to `FileSystemWatcher.Error` → log error + set `_pollingFallback = true` + notify user
-- ☐ Add `symlinks` section to `sync-settings.json`: `{ "mode": "ignore" | "sync-as-link" }`
-- ☐ Settings UI: dropdown for symlink mode
+- ✓ Subscribe to `FileSystemWatcher.Error` → log error + set `_pollingFallback = true` + notify user
+- ✓ Add `symlinks` section to `sync-settings.json`: `{ "mode": "ignore" | "sync-as-link" }`
+- ✓ Settings UI: dropdown for symlink mode
 
 **Complexity:** LOW — 2 small changes.
 
 ---
 
-### Issue #58: Selective Sync Cleanup + Lazy Load (Task 5.2) — CLIENT
+### Issue #58: Selective Sync Cleanup + Lazy Load (Task 5.2) — CLIENT ✅
 
 **What's partial:** Lazy-load children has a TODO comment. When selections change, excluded files are not actively deleted locally.
 
 **Deliverables:**
-- ☐ Implement lazy-load children on expand in `FolderBrowserViewModel`
-- ☐ When folder is unchecked: delete local files for that folder (with confirmation dialog)
-- ☐ Unit tests for lazy-load and cleanup behavior
+- ✓ Implement lazy-load children on expand in `FolderBrowserViewModel`
+- ✓ When folder is unchecked: delete local files for that folder (with confirmation dialog)
+- ✓ Unit tests for lazy-load and cleanup behavior
 
 **Complexity:** MEDIUM — deletion needs careful UX.
 
@@ -258,11 +258,11 @@ All LOW complexity. Can be done in one session per side.
 **Server (#52, #54):** LogContext.PushProperty + Content-Disposition fix  
 **Client (#49, #50, #59, #61):** ETag headers + compression skip + timeout retry + session window
 
-### Remediation Batch B — Medium Items (Issues #51, #55, #56, #57, #58)
+### Remediation Batch B — Medium Items (Issues #51, #55, #56, #57, #58) ✅
 
 MEDIUM complexity. One session per side.
 
-**Client (#51, #55, #57, #58):** Case sensitivity + conflict config + FSW.Error + selective sync  
+**Client (#51, #55, #57, #58):** Case sensitivity + conflict config + FSW.Error + selective sync — ✅ All resolved  
 **Server:** None in this batch.
 
 ### Remediation Batch C — Merge Editor (Issue #48)

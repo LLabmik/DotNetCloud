@@ -15,12 +15,20 @@ public sealed class ConflictResolver : IConflictResolver
 {
     private readonly ILocalStateDb _stateDb;
     private readonly ILogger<ConflictResolver> _logger;
+    private ConflictResolutionSettings _settings = new();
 
     /// <inheritdoc/>
     public event EventHandler<ConflictAutoResolvedEventArgs>? AutoResolved;
 
     /// <inheritdoc/>
     public event EventHandler<ConflictDetectedEventArgs>? ConflictDetected;
+
+    /// <summary>Gets or sets the conflict resolution settings (config-driven).</summary>
+    public ConflictResolutionSettings Settings
+    {
+        get => _settings;
+        set => _settings = value ?? new ConflictResolutionSettings();
+    }
 
     /// <summary>Initializes a new <see cref="ConflictResolver"/>.</summary>
     public ConflictResolver(ILocalStateDb stateDb, ILogger<ConflictResolver> logger)
@@ -37,8 +45,15 @@ public sealed class ConflictResolver : IConflictResolver
         if (!File.Exists(conflict.LocalPath))
             return ConflictResolutionOutcome.ConflictCopyCreated;
 
+        // If auto-resolution is disabled, skip directly to conflict copy.
+        if (!_settings.AutoResolveEnabled)
+        {
+            _logger.LogInformation("Auto-resolution disabled by settings for {Path}. Creating conflict copy.", conflict.LocalPath);
+            return await CreateConflictCopyAsync(conflict, cancellationToken);
+        }
+
         // ── Strategy 1: Identical content (hash match) ─────────────────────
-        if (!string.IsNullOrEmpty(conflict.LocalContentHash) &&
+        if (_settings.IsStrategyEnabled("identical") &&!string.IsNullOrEmpty(conflict.LocalContentHash) &&
             !string.IsNullOrEmpty(conflict.RemoteContentHash) &&
             conflict.LocalContentHash.Equals(conflict.RemoteContentHash, StringComparison.OrdinalIgnoreCase))
         {
@@ -52,7 +67,8 @@ public sealed class ConflictResolver : IConflictResolver
         }
 
         // ── Strategy 2: One side unchanged (fast-forward) ──────────────────
-        if (!string.IsNullOrEmpty(conflict.BaseContentHash))
+        if (_settings.IsStrategyEnabled("fast-forward") &&
+            !string.IsNullOrEmpty(conflict.BaseContentHash))
         {
             // If local = base, the local copy hasn't changed → server version wins.
             if (!string.IsNullOrEmpty(conflict.LocalContentHash) &&
@@ -83,7 +99,8 @@ public sealed class ConflictResolver : IConflictResolver
 
         // ── Strategy 3: Non-overlapping text merge (three-way) ─────────────
         // Requires base content, local content, and server content (all as text).
-        if (conflict.BaseContent is not null &&
+        if (_settings.IsStrategyEnabled("clean-merge") &&
+            conflict.BaseContent is not null &&
             conflict.LocalContent is not null &&
             conflict.ServerContent is not null &&
             FileTypeClassifier.IsTextBased(conflict.LocalPath))
@@ -111,11 +128,12 @@ public sealed class ConflictResolver : IConflictResolver
         }
 
         // ── Strategy 4: Timestamp + single-user heuristic ──────────────────
-        // If both timestamps are set and differ by >5 minutes, keep the newer one.
-        if (conflict.LocalModifiedAt != default && conflict.RemoteUpdatedAt != default)
+        // If both timestamps are set and differ by >threshold minutes, keep the newer one.
+        if (_settings.IsStrategyEnabled("newer-wins") &&
+            conflict.LocalModifiedAt != default && conflict.RemoteUpdatedAt != default)
         {
             var diff = (conflict.LocalModifiedAt - conflict.RemoteUpdatedAt).Duration();
-            if (diff > TimeSpan.FromMinutes(5))
+            if (diff > TimeSpan.FromMinutes(_settings.NewerWinsThresholdMinutes))
             {
                 var localIsNewer = conflict.LocalModifiedAt > conflict.RemoteUpdatedAt;
                 return await AutoResolveAsync(
@@ -132,7 +150,8 @@ public sealed class ConflictResolver : IConflictResolver
 
         // ── Strategy 5: Append-only file detection ──────────────────────────
         // Requires both local and server content as text.
-        if (conflict.LocalContent is not null &&
+        if (_settings.IsStrategyEnabled("append-only") &&
+            conflict.LocalContent is not null &&
             conflict.ServerContent is not null &&
             FileTypeClassifier.IsTextBased(conflict.LocalPath))
         {
@@ -161,6 +180,13 @@ public sealed class ConflictResolver : IConflictResolver
         }
 
         // ── All strategies failed — create conflict copy ────────────────────
+        return await CreateConflictCopyAsync(conflict, cancellationToken);
+    }
+
+    /// <summary>Creates a conflict copy and notifies listeners.</summary>
+    private async Task<ConflictResolutionOutcome> CreateConflictCopyAsync(
+        ConflictInfo conflict, CancellationToken cancellationToken)
+    {
         var conflictCopyPath = BuildConflictCopyPath(conflict.LocalPath);
         File.Move(conflict.LocalPath, conflictCopyPath, overwrite: false);
 

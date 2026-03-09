@@ -376,4 +376,81 @@ public class ConflictResolverTests
         Assert.AreNotEqual(firstConflict, secondConflict);
         StringAssert.Contains(secondConflict, "1");
     }
+
+    // ── Issue #55: Settings-driven conflict resolution ──────────────────────
+
+    [TestMethod]
+    public async Task ResolveAsync_AutoResolveDisabled_CreatesConflictCopyImmediately()
+    {
+        var localPath = Path.Combine(_tempDir, "file.txt");
+        await File.WriteAllTextAsync(localPath, "content");
+
+        _resolver.Settings = new ConflictResolutionSettings { AutoResolveEnabled = false };
+
+        var outcome = await _resolver.ResolveAsync(new ConflictInfo
+        {
+            LocalPath = localPath,
+            NodeId = Guid.NewGuid(),
+            RemoteUpdatedAt = DateTime.UtcNow,
+            LocalContentHash = "same",
+            RemoteContentHash = "same", // Would be identical, but auto-resolve is off
+        });
+
+        Assert.AreEqual(ConflictResolutionOutcome.ConflictCopyCreated, outcome);
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_IdenticalDisabled_SkipsStrategy1()
+    {
+        var localPath = Path.Combine(_tempDir, "file.txt");
+        await File.WriteAllTextAsync(localPath, "content");
+
+        _resolver.Settings = new ConflictResolutionSettings
+        {
+            EnabledStrategies = ["fast-forward", "clean-merge", "newer-wins", "append-only"],
+        };
+
+        var outcome = await _resolver.ResolveAsync(new ConflictInfo
+        {
+            LocalPath = localPath,
+            NodeId = Guid.NewGuid(),
+            RemoteUpdatedAt = DateTime.UtcNow,
+            LocalContentHash = "same",
+            RemoteContentHash = "same",
+        });
+
+        // "identical" disabled → falls through to conflict copy
+        Assert.AreEqual(ConflictResolutionOutcome.ConflictCopyCreated, outcome);
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_CustomThreshold_UsesSettings()
+    {
+        var localPath = Path.Combine(_tempDir, "file.txt");
+        await File.WriteAllTextAsync(localPath, "content");
+
+        // Set threshold to 1 minute (default is 5)
+        _resolver.Settings = new ConflictResolutionSettings { NewerWinsThresholdMinutes = 1 };
+
+        var now = DateTime.UtcNow;
+        // 3-minute diff — would fail default 5-min threshold, but passes 1-min threshold
+        var outcome = await _resolver.ResolveAsync(new ConflictInfo
+        {
+            LocalPath = localPath,
+            NodeId = Guid.NewGuid(),
+            LocalModifiedAt = now,
+            RemoteUpdatedAt = now.AddMinutes(-3),
+        });
+
+        Assert.AreEqual(ConflictResolutionOutcome.AutoResolvedLocalWins, outcome);
+    }
+
+    [TestMethod]
+    public void ConflictResolutionSettings_IsStrategyEnabled_CaseInsensitive()
+    {
+        var settings = new ConflictResolutionSettings();
+        Assert.IsTrue(settings.IsStrategyEnabled("IDENTICAL"));
+        Assert.IsTrue(settings.IsStrategyEnabled("Newer-Wins"));
+        Assert.IsFalse(settings.IsStrategyEnabled("nonexistent"));
+    }
 }

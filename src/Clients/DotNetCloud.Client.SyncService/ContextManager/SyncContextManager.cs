@@ -458,6 +458,9 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             stateDb,
             _loggerFactory.CreateLogger<ConflictResolver>());
 
+        // Issue #55: load conflict resolution settings from sync-settings.json.
+        conflictResolver.Settings = LoadConflictResolutionSettings();
+
         var transfer = new ChunkedTransferClient(
             apiClient,
             stateDb,
@@ -646,6 +649,96 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
         catch
         {
             return (0, 0);
+        }
+    }
+
+    /// <summary>
+    /// Loads conflict resolution settings from <c>sync-settings.json</c>.
+    /// Returns defaults if the file or section is not found.
+    /// </summary>
+    internal static ConflictResolutionSettings LoadConflictResolutionSettings()
+    {
+        var candidates = new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, "sync-settings.json"),
+            Path.Combine(GetSystemDataRoot(), "sync-settings.json"),
+            Path.Combine(Directory.GetCurrentDirectory(), "sync-settings.json"),
+        };
+
+        var settingsPath = candidates.FirstOrDefault(File.Exists);
+        if (settingsPath is null)
+            return new ConflictResolutionSettings();
+
+        try
+        {
+            using var stream = File.OpenRead(settingsPath);
+            using var doc = System.Text.Json.JsonDocument.Parse(stream);
+
+            if (!doc.RootElement.TryGetProperty("conflictResolution", out var cr))
+                return new ConflictResolutionSettings();
+
+            var settings = new ConflictResolutionSettings();
+
+            if (cr.TryGetProperty("autoResolveEnabled", out var are))
+                settings.AutoResolveEnabled = are.GetBoolean();
+
+            if (cr.TryGetProperty("newerWinsThresholdMinutes", out var nwt) && nwt.TryGetInt32(out var nwtVal))
+                settings.NewerWinsThresholdMinutes = nwtVal;
+
+            if (cr.TryGetProperty("enabledStrategies", out var es) && es.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+                settings.EnabledStrategies = [];
+                foreach (var item in es.EnumerateArray())
+                {
+                    var val = item.GetString();
+                    if (val is not null)
+                        settings.EnabledStrategies.Add(val);
+                }
+            }
+
+            return settings;
+        }
+        catch
+        {
+            return new ConflictResolutionSettings();
+        }
+    }
+
+    /// <summary>
+    /// Persists conflict resolution settings to <c>sync-settings.json</c>.
+    /// </summary>
+    public async Task PersistConflictResolutionSettingsAsync(
+        ConflictResolutionSettings settings,
+        CancellationToken cancellationToken)
+    {
+        var settingsPath = FindOrCreateSyncSettingsPath();
+        try
+        {
+            Dictionary<string, object> root;
+            if (File.Exists(settingsPath))
+            {
+                await using var readStream = File.OpenRead(settingsPath);
+                root = await JsonSerializer.DeserializeAsync<Dictionary<string, object>>(
+                    readStream, JsonOptions, cancellationToken) ?? [];
+            }
+            else
+            {
+                root = [];
+            }
+
+            root["conflictResolution"] = new Dictionary<string, object>
+            {
+                ["autoResolveEnabled"] = settings.AutoResolveEnabled,
+                ["newerWinsThresholdMinutes"] = settings.NewerWinsThresholdMinutes,
+                ["enabledStrategies"] = settings.EnabledStrategies,
+            };
+
+            await using var writeStream = File.Create(settingsPath);
+            await JsonSerializer.SerializeAsync(writeStream, root, JsonOptions, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to persist conflict resolution settings to {Path}.", settingsPath);
         }
     }
 

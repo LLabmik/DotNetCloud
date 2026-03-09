@@ -41,6 +41,9 @@ public static class IpcCommands
     /// <summary>Update global bandwidth throttle limits.</summary>
     public const string UpdateBandwidth = "update-bandwidth";
 
+    /// <summary>Update conflict resolution settings.</summary>
+    public const string UpdateConflictSettings = "update-conflict-settings";
+
     /// <summary>Fetch the server-side folder tree for a context (for selective sync).</summary>
     public const string GetFolderTree = "get-folder-tree";
 }
@@ -172,6 +175,25 @@ public sealed class BandwidthData
     /// <summary>Download limit in KB/s (0 = unlimited).</summary>
     [JsonPropertyName("downloadLimitKbps")]
     public decimal DownloadLimitKbps { get; init; }
+}
+
+/// <summary>Payload for the <c>update-conflict-settings</c> command.</summary>
+public sealed class ConflictSettingsData
+{
+    /// <summary>Whether auto-resolution is enabled.</summary>
+    [JsonPropertyName("autoResolveEnabled")]
+    public bool AutoResolveEnabled { get; init; } = true;
+
+    /// <summary>Newer-wins threshold in minutes.</summary>
+    [JsonPropertyName("newerWinsThresholdMinutes")]
+    public int NewerWinsThresholdMinutes { get; init; } = 5;
+
+    /// <summary>List of enabled strategy names.</summary>
+    [JsonPropertyName("enabledStrategies")]
+    public List<string> EnabledStrategies { get; init; } =
+    [
+        "identical", "fast-forward", "clean-merge", "newer-wins", "append-only"
+    ];
 }
 
 // ── Response data types ───────────────────────────────────────────────────────

@@ -87,12 +87,12 @@ Full plan: [SYNC_REMEDIATION_PLAN.md](SYNC_REMEDIATION_PLAN.md)
 
 ### Remediation Batch B — Medium Items (next up)
 
-| Issue | Task | Owner | Complexity | Description |
-|-------|------|-------|------------|-------------|
-| #51 | 4.1 | CLIENT | MEDIUM | Case-sensitivity handling in SyncEngine |
-| #55 | 3.5b | CLIENT | MEDIUM | Conflict resolution settings in sync-settings.json |
-| #57 | 4.3/4.4 | CLIENT | LOW | FSW.Error event + symlink config |
-| #58 | 5.2 | CLIENT | MEDIUM | Selective sync cleanup + lazy load |
+| Issue | Task | Owner | Complexity | Description | Status |
+|-------|------|-------|------------|-------------|--------|
+| #51 | 4.1 | CLIENT | MEDIUM | Case-sensitivity handling in SyncEngine | ✅ |
+| #55 | 3.5b | CLIENT | MEDIUM | Conflict resolution settings in sync-settings.json | ✅ |
+| #57 | 4.3/4.4 | CLIENT | LOW | FSW.Error event + symlink config | ✅ |
+| #58 | 5.2 | CLIENT | MEDIUM | Selective sync cleanup + lazy load | ✅ |
 
 **All client-side. No server work in this batch.**
 
@@ -128,7 +128,7 @@ Full plan: [SYNC_REMEDIATION_PLAN.md](SYNC_REMEDIATION_PLAN.md)
 
 Update `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` — mark all four issues in the Batch B table with ✅ and commit hashes. Update `docs/development/SYNC_REMEDIATION_PLAN.md` to mark #51, #55, #57, and #58 as ✓.
 
-### Status: ☐ Not started — awaiting client agent.
+### Status: ✅ Batch B fully resolved.
 
 ---
 

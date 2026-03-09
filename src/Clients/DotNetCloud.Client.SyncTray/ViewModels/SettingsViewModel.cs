@@ -46,6 +46,18 @@ public sealed class SettingsViewModel : ViewModelBase
     private int _selectedConflictsTab; // 0 = active, 1 = history
     private int _selectedSettingsTab;  // outer tab index (0=Accounts, 1=General, 2=Ignored, 3=Transfers, 4=Conflicts)
 
+    // Issue #55: Conflict resolution settings
+    private bool _autoResolveEnabled = true;
+    private int _newerWinsThresholdMinutes = 5;
+    private bool _strategyIdentical = true;
+    private bool _strategyFastForward = true;
+    private bool _strategyCleanMerge = true;
+    private bool _strategyNewerWins = true;
+    private bool _strategyAppendOnly = true;
+
+    // Issue #57: Symlink mode setting
+    private string _symlinkMode = "ignore";
+
     // ── Properties ────────────────────────────────────────────────────────
 
     /// <summary>Server URL entered by the user when adding a new account.</summary>
@@ -176,6 +188,69 @@ public sealed class SettingsViewModel : ViewModelBase
         get => _selectedSettingsTab;
         set => SetProperty(ref _selectedSettingsTab, value);
     }
+
+    // ── Conflict Resolution Settings (Issue #55) ──────────────────────────
+
+    /// <summary>Whether auto-resolution is enabled.</summary>
+    public bool AutoResolveEnabled
+    {
+        get => _autoResolveEnabled;
+        set { if (SetProperty(ref _autoResolveEnabled, value)) _ = PersistConflictSettingsAsync(); }
+    }
+
+    /// <summary>Newer-wins threshold in minutes.</summary>
+    public int NewerWinsThresholdMinutes
+    {
+        get => _newerWinsThresholdMinutes;
+        set { if (SetProperty(ref _newerWinsThresholdMinutes, value)) _ = PersistConflictSettingsAsync(); }
+    }
+
+    /// <summary>Whether the "identical" conflict strategy is enabled.</summary>
+    public bool StrategyIdentical
+    {
+        get => _strategyIdentical;
+        set { if (SetProperty(ref _strategyIdentical, value)) _ = PersistConflictSettingsAsync(); }
+    }
+
+    /// <summary>Whether the "fast-forward" conflict strategy is enabled.</summary>
+    public bool StrategyFastForward
+    {
+        get => _strategyFastForward;
+        set { if (SetProperty(ref _strategyFastForward, value)) _ = PersistConflictSettingsAsync(); }
+    }
+
+    /// <summary>Whether the "clean-merge" conflict strategy is enabled.</summary>
+    public bool StrategyCleanMerge
+    {
+        get => _strategyCleanMerge;
+        set { if (SetProperty(ref _strategyCleanMerge, value)) _ = PersistConflictSettingsAsync(); }
+    }
+
+    /// <summary>Whether the "newer-wins" conflict strategy is enabled.</summary>
+    public bool StrategyNewerWins
+    {
+        get => _strategyNewerWins;
+        set { if (SetProperty(ref _strategyNewerWins, value)) _ = PersistConflictSettingsAsync(); }
+    }
+
+    /// <summary>Whether the "append-only" conflict strategy is enabled.</summary>
+    public bool StrategyAppendOnly
+    {
+        get => _strategyAppendOnly;
+        set { if (SetProperty(ref _strategyAppendOnly, value)) _ = PersistConflictSettingsAsync(); }
+    }
+
+    // ── Symlink Mode (Issue #57) ──────────────────────────────────────────
+
+    /// <summary>Symlink handling mode: "ignore" or "sync-as-link".</summary>
+    public string SymlinkMode
+    {
+        get => _symlinkMode;
+        set { if (SetProperty(ref _symlinkMode, value)) _ = PersistConflictSettingsAsync(); }
+    }
+
+    /// <summary>Available symlink mode options for the UI dropdown.</summary>
+    public IReadOnlyList<string> SymlinkModeOptions { get; } = ["ignore", "sync-as-link"];
 
     // ── Commands ──────────────────────────────────────────────────────────
 
@@ -434,6 +509,30 @@ public sealed class SettingsViewModel : ViewModelBase
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to persist bandwidth settings via IPC.");
+        }
+    }
+
+    /// <summary>
+    /// Persists the conflict resolution settings via IPC.
+    /// Issue #55: settings are saved to sync-settings.json by the service.
+    /// </summary>
+    private async Task PersistConflictSettingsAsync()
+    {
+        try
+        {
+            var strategies = new List<string>();
+            if (_strategyIdentical) strategies.Add("identical");
+            if (_strategyFastForward) strategies.Add("fast-forward");
+            if (_strategyCleanMerge) strategies.Add("clean-merge");
+            if (_strategyNewerWins) strategies.Add("newer-wins");
+            if (_strategyAppendOnly) strategies.Add("append-only");
+
+            await _ipc.UpdateConflictSettingsAsync(
+                _autoResolveEnabled, _newerWinsThresholdMinutes, strategies);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to persist conflict resolution settings via IPC.");
         }
     }
 

@@ -489,6 +489,25 @@ public sealed class IpcClient : IIpcClient, IAsyncDisposable
     }
 
     /// <inheritdoc/>
+    public async Task UpdateConflictSettingsAsync(
+        bool autoResolveEnabled, int newerWinsThresholdMinutes, List<string> enabledStrategies,
+        CancellationToken cancellationToken = default)
+    {
+        var data = JsonSerializer.SerializeToElement(
+            new ConflictSettingsData
+            {
+                AutoResolveEnabled = autoResolveEnabled,
+                NewerWinsThresholdMinutes = newerWinsThresholdMinutes,
+                EnabledStrategies = enabledStrategies,
+            },
+            JsonOptions);
+
+        await SendAndReceiveAsync(
+            new IpcCommand { Command = IpcCommands.UpdateConflictSettings, Data = data },
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async Task<SyncTreeNodeResponse?> GetFolderTreeAsync(Guid contextId, CancellationToken cancellationToken = default)
     {
         if (!_connected) return null;

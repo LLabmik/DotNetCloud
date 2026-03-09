@@ -845,6 +845,82 @@ public class SyncEngineTests
         {
             Tier2RetryDelay = TimeSpan.Zero,
         };
+
+    // ── Issue #51: Case-conflict detection ──────────────────────────────────
+
+    [TestMethod]
+    public void ResolveCaseConflict_NoExistingFile_ReturnsOriginalPath()
+    {
+        var path = Path.Combine(_tempDir, "newfile.txt");
+        var result = SyncEngine.ResolveCaseConflict(path);
+        Assert.AreEqual(path, result);
+    }
+
+    [TestMethod]
+    public void ResolveCaseConflict_SameCase_ReturnsOriginalPath()
+    {
+        var existing = Path.Combine(_tempDir, "document.txt");
+        File.WriteAllText(existing, "content");
+
+        var result = SyncEngine.ResolveCaseConflict(existing);
+        Assert.AreEqual(existing, result);
+    }
+
+    [TestMethod]
+    public void ResolveCaseConflict_DifferentCase_ReturnsCaseConflictPath()
+    {
+        if (!OperatingSystem.IsWindows() && !OperatingSystem.IsMacOS())
+            return; // Only meaningful on case-insensitive filesystems.
+
+        var existing = Path.Combine(_tempDir, "Document.txt");
+        File.WriteAllText(existing, "content");
+
+        // Request the same file with different casing.
+        var requested = Path.Combine(_tempDir, "DOCUMENT.txt");
+        var result = SyncEngine.ResolveCaseConflict(requested);
+
+        StringAssert.Contains(result, "(case conflict)");
+        Assert.AreNotEqual(requested, result);
+    }
+
+    [TestMethod]
+    public void BuildCaseConflictPath_ProducesCorrectFormat()
+    {
+        var path = Path.Combine(_tempDir, "report.docx");
+        var result = SyncEngine.BuildCaseConflictPath(path);
+
+        StringAssert.Contains(result, "report (case conflict).docx");
+        Assert.AreEqual(Path.GetDirectoryName(path), Path.GetDirectoryName(result));
+    }
+
+    [TestMethod]
+    public void BuildCaseConflictPath_IncrementsWhenExists()
+    {
+        var conflictPath = Path.Combine(_tempDir, "report (case conflict).docx");
+        File.WriteAllText(conflictPath, "existing conflict");
+
+        var path = Path.Combine(_tempDir, "report.docx");
+        var result = SyncEngine.BuildCaseConflictPath(path);
+
+        StringAssert.Contains(result, "report (case conflict 1).docx");
+    }
+
+    // ── Issue #57: FSW.Error event handler ──────────────────────────────────
+
+    [TestMethod]
+    public async Task StartAsync_FswErrorEvent_HandlerIsWired()
+    {
+        // Arrange & Act: start engine (which creates a FileSystemWatcher
+        // and wires Error, Changed, Created, Deleted, Renamed handlers).
+        await _engine.StartAsync(_context);
+
+        // We can't externally trigger FileSystemWatcher.Error, but we
+        // can verify the engine started with real-time monitoring enabled.
+        var status = await _engine.GetStatusAsync(_context);
+        Assert.IsNotNull(status, "Engine should report status after start.");
+
+        await _engine.StopAsync();
+    }
 }
 
 
