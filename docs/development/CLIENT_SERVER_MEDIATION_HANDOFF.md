@@ -17,10 +17,12 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 
 **Issues #1–#42 fully resolved.** See [CLIENT_SERVER_MEDIATION_ARCHIVE.md](CLIENT_SERVER_MEDIATION_ARCHIVE.md) for details.
 
-**Batch 4 remaining — server-side complete, client-side pending:**
-- Issue #43 (Task 4.3): Symbolic link policy — server ✅ complete, client ☐ pending
-- Issue #44 (Task 4.4): inotify/inode health monitoring — server ✅ complete, client ☐ pending
-- Issue #45 (Task 4.5): Path length/filename validation — server ✅ complete, client ☐ pending
+**Batch 4 — ALL ISSUES RESOLVED:**
+- Issue #43 (Task 4.3): Symbolic link policy — server ✅ complete, client ✅ complete (commit `1cd594a`)
+- Issue #44 (Task 4.4): inotify/inode health monitoring — server ✅ complete, client ✅ complete (commit `1cd594a`)
+- Issue #45 (Task 4.5): Path length/filename validation — server ✅ complete, client ✅ complete (commit `1cd594a`)
+
+**No pending issues. All Batch 4 items resolved.**
 
 ## Environment
 
@@ -62,13 +64,21 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 - All `SyncChangeDto`/`SyncTreeNodeDto` constructions in `SyncService` set `LinkTarget`
 - EF migration `AddSymlinkSupport` applied on server start
 
-**Client-side status:** ☐ PENDING
+**Client-side status:** ✅ COMPLETE — commit `1cd594a` (2026-03-09) includes:
+- `LinkTarget string?` added to `FileNodeResponse`, `SyncChangeResponse`, `SyncTreeNodeResponse` in `ApiModels.cs`
+- `LinkTarget string?` added to `LocalFileRecord`, `PendingDownload`, `PendingOperationDbRow`
+- Schema migrations: `ALTER TABLE FileRecords ADD COLUMN LinkTarget TEXT NULL` and `ALTER TABLE PendingOperations ADD COLUMN LinkTarget TEXT NULL` in `RunSchemaEvolutionAsync`
+- `IDotNetCloudApiClient.InitiateUploadAsync` gains `string? linkTarget = null` parameter
+- `DotNetCloudApiClient.InitiateUploadAsync` rewritten to raw HTTP to check `X-Path-Warning` header; sends `linkTarget` in request body
+- `SyncEngine`: detects local symlinks via `fileInfo.LinkTarget` and `FileAttributes.ReparsePoint`; uploads as zero-chunk session with `linkTarget`; no content transfer
+- `SyncEngine`: materializes remote symlinks via `File.CreateSymbolicLink`; gates `UnauthorizedAccessException` on Windows (Developer Mode / admin required)
+- 409 NameConflict handling preserved in rewritten `InitiateUploadAsync`
 
 ---
 
-#### What to implement (client):
+#### ~~What to implement (client):~~
 
-**Step 1 — Add `LinkTarget` to client API response models**
+~~**Step 1 — Add `LinkTarget` to client API response models**~~
 
 **File:** `src/Clients/DotNetCloud.Client.Core/Api/ApiModels.cs`
 
@@ -136,13 +146,16 @@ dotnet test tests\DotNetCloud.Client.Core.Tests\
 - Both registered in `Program.cs` (health check endpoint tag `"ready"`)
 - Registered in `appsettings.json` under `FileSystem.MaxPathWarningThreshold` / `EnforceWindowsFilenameCompatibility`
 
-**Client-side status:** ☐ PENDING
+**Client-side status:** ✅ COMPLETE — commit `1cd594a` (2026-03-09) includes:
+- `CheckInotifyLimit()` method in `SyncEngine`: reads `/proc/sys/fs/inotify/max_user_watches`, warns if < 65536 with fix command
+- `FileSystemWatcher` creation wrapped in `try/catch (IOException)` on Linux; `_pollingFallback = true` on failure
+- `RunPeriodicScanAsync` uses 30-second scan interval when `_pollingFallback = true`
 
 ---
 
-#### What to implement (client):
+#### ~~What to implement (client):~~
 
-**Step 1 — Check inotify limit on Linux startup**
+~~**Step 1 — Check inotify limit on Linux startup**~~
 
 **File:** `src/Clients/DotNetCloud.Client.SyncService/LinuxStartup.cs` (new file) or inline in the sync service startup.
 
@@ -218,13 +231,19 @@ dotnet test tests\DotNetCloud.Client.SyncService.Tests\
 - Both `DotNetCloud.Core.Server.Controllers.FilesController` and `DotNetCloud.Modules.Files.Host.Controllers.FilesController`:
   - `InitiateUploadAsync`: if `dto.FileName.Length > _fileSystemOptions.MaxPathWarningThreshold`, sets `X-Path-Warning: path-length-exceeds-windows-limit` response header
 
-**Client-side status:** ☐ PENDING
+**Client-side status:** ✅ COMPLETE — commit `1cd594a` (2026-03-09) includes:
+- `InitiateUploadAsync` checks `X-Path-Warning: path-length-exceeds-windows-limit` response header and logs warning
+- `ToWindowsLongPath(string path)` helper in `SyncEngine`: prepends `\\?\` prefix on Windows
+- Download path: `PathTooLongException` caught, retries with extended-length path prefix
+- Upload path (`ApplyLocalChangesAsync`): `PathTooLongException` marks `SyncStateTag = "PathTooLong"` + `MoveToFailedAsync`
+- UTF-8 byte-length check on Linux (>255 bytes per filename component → skip + mark PathTooLong)
+- Windows registry hint logged when `PathTooLongException` occurs on Windows
 
 ---
 
-#### What to implement (client):
+#### ~~What to implement (client):~~
 
-**Step 1 — Read and act on `X-Path-Warning` response header**
+~~**Step 1 — Read and act on `X-Path-Warning` response header**~~
 
 **File:** `src/Clients/DotNetCloud.Client.Core/Api/DotNetCloudApiClient.cs`
 
