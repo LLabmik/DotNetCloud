@@ -85,6 +85,53 @@ Full plan: [SYNC_REMEDIATION_PLAN.md](SYNC_REMEDIATION_PLAN.md)
 
 ---
 
+### Remediation Batch B — Medium Items (next up)
+
+| Issue | Task | Owner | Complexity | Description |
+|-------|------|-------|------------|-------------|
+| #51 | 4.1 | CLIENT | MEDIUM | Case-sensitivity handling in SyncEngine |
+| #55 | 3.5b | CLIENT | MEDIUM | Conflict resolution settings in sync-settings.json |
+| #57 | 4.3/4.4 | CLIENT | LOW | FSW.Error event + symlink config |
+| #58 | 5.2 | CLIENT | MEDIUM | Selective sync cleanup + lazy load |
+
+**All client-side. No server work in this batch.**
+
+#### Issue #51 (Task 4.1) — Case-Sensitivity Handling
+
+- In `SyncEngine`, use `StringComparer.OrdinalIgnoreCase` for path comparisons on Windows/macOS (check `RuntimeInformation.IsOSPlatform` or equivalent).
+- Before applying a remote file locally, check if a file with different casing already exists at the target path.
+- If a case conflict exists on a case-insensitive filesystem, rename the incoming file to `filename (case conflict).ext`.
+- Log a warning with both path variants.
+- Add unit tests for case-conflict detection and renaming logic.
+- Reference: `SYNC_IMPLEMENTATION_GUIDE.md` Task 4.1.
+
+#### Issue #55 (Task 3.5b) — Conflict Resolution Settings
+
+- Add a `conflictResolution` section to `sync-settings.json` with defaults: `{ "autoResolveEnabled": true, "newerWinsThresholdMinutes": 5, "enabledStrategies": ["identical", "fast-forward", "clean-merge", "newer-wins", "append-only"] }`.
+- Wire `ConflictResolver` to read these settings from config instead of hardcoded values (e.g., the 5-minute newer-wins threshold).
+- Add Settings UI controls: checkboxes for each strategy, a threshold input for `newerWinsThresholdMinutes`.
+- Add unit tests verifying config-driven behavior.
+
+#### Issue #57 (Tasks 4.3, 4.4) — FSW.Error Event + Symlink Config
+
+- Subscribe to `FileSystemWatcher.Error` event — log the error, set `_pollingFallback = true`, and notify the user via the tray/notification system.
+- Add a `symlinks` section to `sync-settings.json`: `{ "mode": "ignore" }` (with `"ignore"` and `"sync-as-link"` as valid values).
+- Add a Settings UI dropdown for symlink mode.
+
+#### Issue #58 (Task 5.2) — Selective Sync Cleanup + Lazy Load
+
+- In `FolderBrowserViewModel`, implement lazy-load children on expand (there's currently a TODO comment for this).
+- When a folder is unchecked in selective sync, delete local files for that folder (with a confirmation dialog before deletion).
+- Add unit tests for lazy-load and cleanup behavior.
+
+#### After completing all four
+
+Update `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` — mark all four issues in the Batch B table with ✅ and commit hashes. Update `docs/development/SYNC_REMEDIATION_PLAN.md` to mark #51, #55, #57, and #58 as ✓.
+
+### Status: ☐ Not started — awaiting client agent.
+
+---
+
 ## Resolved Issues Archive (Batch 5)
 
 Details of completed issue implementations preserved below for reference.
