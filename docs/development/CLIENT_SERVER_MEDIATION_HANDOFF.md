@@ -796,3 +796,63 @@ Full event pipeline from `SyncEngine` through IPC to `TrayViewModel` with live p
 - 24 files changed, 1820 insertions, 35 deletions
 
 **Task 3.5: PASS (client complete)**
+
+---
+
+### Issue #38: Batch 2 Tasks 2.4 + 2.5 — Server-Issued Sync Cursor + Paginated Change Responses
+
+**Server-side status:** ✅ COMPLETE at commit `c81495d` (2026-03-09, mint22).
+**Client-side status:** 🔲 PENDING — needs `DotNetCloudApiClient` + `LocalStateDb` cursor changes.
+
+**What was implemented (server):**
+- `UserSyncCounter` model: per-user monotonic counter persisted in `user_sync_counters` table
+- `SyncCursorHelper` (internal): `AssignNextSequenceAsync`, `EncodeCursor`, `DecodeCursor`
+  - Cursor format: base64url(`"{userId}:{sequence}"`)
+- EF migration `AddSyncCursorSupport`: nullable `sync_sequence` column on `file_nodes`,
+  `user_sync_counters` table, composite index `ix_file_nodes_owner_sync_sequence`
+- `SyncSequence` stamped on every file mutation:
+  - `FileService`: `CreateFolderAsync`, `RenameAsync`, `MoveAsync`, `CopyAsync`, `DeleteAsync`
+  - `ChunkedUploadService`: `CompleteUploadAsync`
+  - `TrashService`: `RestoreAsync`
+- `ISyncService.GetChangesSinceCursorAsync` + `SyncService` implementation:
+  - Merges active + deleted nodes, sorted by `SyncSequence`; fetches `limit+1` for `HasMore`
+  - Default page size: 500; max: 5000
+  - Returns `PagedSyncChangesDto { Changes, NextCursor, HasMore }`
+  - Invalid / mismatched-user cursor falls back to `sinceSequence = 0`
+- `SyncController.GetChangesAsync` rewritten: accepts `?cursor`, `?since` (legacy), `?limit`, `?folderId`
+  - Cursor path → returns `PagedSyncChangesDto`
+  - Legacy `?since=` path → returns `IReadOnlyList<SyncChangeDto>` (backward compat)
+  - Added `[EnableRateLimiting]` to `GetTreeAsync` and `ReconcileAsync`
+- Tests: +13 (8 `GetChangesSinceCursorAsync` scenarios, 5 `SyncCursorHelper` unit tests)
+
+**Client work needed (Windows11-TestDNC):**
+- `DotNetCloudApiClient.GetChangesSinceAsync()` — new overload `(string? cursor, int limit)`
+- `LocalStateDb` — replace `SyncCheckpointRow.LastSyncedAt DateTime` with `SyncCursor string?`
+- `SyncEngine.ApplyRemoteChangesAsync()` — pagination loop until `HasMore == false`;
+  store intermediate cursor after each page in case of crash mid-sync
+
+**Task 2.4 + 2.5: PASS (server complete)**
+
+---
+
+### Issue #39: Batch 2 Task 2.6 — ETag / If-None-Match for Chunk Downloads
+
+**Server-side status:** ✅ COMPLETE at commit `c81495d` (2026-03-09, mint22).
+**Client-side status:** 🔲 PENDING — needs `If-None-Match` header + local chunk cache lookup.
+
+**What was implemented (server):**
+- `FilesController.DownloadChunkByHashAsync`:
+  - ETag = `"<chunkHash>"` (content-addressed; hash IS identity)
+  - Reads `If-None-Match` request header; returns `304 Not Modified` if header matches ETag or is `*`
+  - On cache miss: sets `ETag` + `Cache-Control: private, max-age=31536000, immutable` response headers
+- Tests: +5 (`IfNoneMatchMatches_Returns304`, `IfNoneMatchWildcard_Returns304`,
+  `NoIfNoneMatch_ReturnsFileWithETag`, `DifferentIfNoneMatch_ReturnsFileWithETag`,
+  `ChunkNotFound_Returns404`)
+
+**Client work needed (Windows11-TestDNC):**
+- `ChunkedTransferClient.DownloadChunkAsync()`:
+  - Before downloading, check local chunk cache (by hash)
+  - If cached locally, send `If-None-Match: "<hash>"` header and short-circuit on `304`
+  - On `200`: store received chunk bytes in local cache keyed by hash
+
+**Task 2.6: PASS (server complete)**
