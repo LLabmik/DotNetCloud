@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-09 (Batch 5 complete)
+Last updated: 2026-03-09 (All sync improvement batches complete)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -25,6 +25,13 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 **Batch 5 — ALL ISSUES RESOLVED:**
 - Issue #46 (Task 5.1): Bandwidth throttling — client ✅ complete
 - Issue #47 (Task 5.2): Selective sync folder browser — client ✅ complete
+
+**All sync improvement batches (1–5) are now complete.** The sync improvement plan is closed.
+See [SYNC_IMPROVEMENT_PLAN.md](SYNC_IMPROVEMENT_PLAN.md) for full history.
+
+**Next work (server):** Phase 1.19.2 — broader Files API integration tests in
+`DotNetCloud.Integration.Tests` (File CRUD, chunked upload E2E, version/share/trash flows,
+WOPI endpoints, sync endpoints). See `docs/MASTER_PROJECT_PLAN.md` step `phase-1.19.2`.
 
 ## Environment
 
@@ -54,6 +61,15 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 ```
 
 ## Active Handoff
+
+*(No active issues — all 5 sync improvement batches resolved. Open a new entry here when the next
+batch of cross-agent work begins.)*
+
+---
+
+## Resolved Issues Archive (Batch 5)
+
+Details of completed issue implementations preserved below for reference.
 
 ### Issue #46: Batch 5 Task 5.1 — Bandwidth Throttling
 

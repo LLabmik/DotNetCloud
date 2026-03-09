@@ -69,7 +69,11 @@
 | Phase 2.11 | 3 | 3 | 0 | 0 |
 | Phase 2.12 | 2 | 1 | 1 | 0 |
 | Phase 2.13 | 3 | 0 | 0 | 3 |
-| Sync Batch 1 | 10 | 7 | 0 | 3 |
+| Sync Batch 1 | 10 | 10 | 0 | 0 |
+| Sync Batch 2 | 6 | 6 | 0 | 0 |
+| Sync Batch 3 | 6 | 6 | 0 | 0 |
+| Sync Batch 4 | 5 | 5 | 0 | 0 |
+| Sync Batch 5 | 2 | 2 | 0 | 0 |
 | Phase 3-9 | Summary | 0 | 0 | 1 |
 | Infrastructure | Summary | 0 | 0 | 1 |
 | Documentation | Summary | 0 | 0 | 1 |
@@ -3590,7 +3594,129 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Notes:**
 - Build: 0 errors. All 55 `DotNetCloud.Client.Core.Tests` pass (including 3 new/updated transfer tests).
 
-This plan is structured as a living document to guide the implementation of the DotNetCloud project
+---
+
+### Step: sync-batch-1.5 - Per-Chunk Retry with Exponential Backoff (Client)
+**Status:** completed ✅
+**Deliverables:**
+- ✓ Per-chunk retry loop (max 3 attempts) with exponential backoff + jitter in `ChunkedTransferClient`
+- ✓ `ShouldRetryChunk()` — retry on network/5xx/hash-mismatch, NOT on 4xx/429/cancellation
+- ✓ Detailed per-chunk logging (hash, attempt, delay, error)
+
+**Notes:** Commit `1aa6b18` on `Windows11-TestDNC` (2026-03-08). 64 tests pass.
+
+---
+
+### Step: sync-batch-1.6 - SQLite WAL Mode + Corruption Recovery (Client)
+**Status:** completed ✅
+**Deliverables:**
+- ✓ WAL journal mode via `PRAGMA journal_mode=WAL` in `RunSchemaEvolutionAsync`
+- ✓ Startup integrity check (`PRAGMA integrity_check`) with automatic recovery
+- ✓ Corrupt DB preserves (renamed with timestamp), fresh DB recreated
+- ✓ Post-sync WAL checkpoint via `CheckpointWalAsync()` in `SyncEngine`
+- ✓ `WasRecentlyReset()` flag for tray notification
+
+**Notes:** Commit `1aa6b18` on `Windows11-TestDNC` (2026-03-08). 64 tests pass.
+
+---
+
+### Step: sync-batch-1.7 - Operation Retry Queue with Backoff (Client)
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `NextRetryAt` + `LastError` columns on `PendingOperationDbRow`
+- ✓ `FailedOperationDbRow` entity + DbSet in `LocalStateDbContext`
+- ✓ Exponential backoff schedule (1m → 5m → 15m → 1h → 6h) in `SyncEngine.ApplyLocalChangesAsync()`
+- ✓ Pending operations filtered by `NextRetryAt` eligibility
+- ✓ Logging of retry attempts and permanent failures
+
+**Notes:** Commit `1aa6b18` on `Windows11-TestDNC` (2026-03-08). 64 tests pass.
+
+---
+
+### Step: sync-batch-1.8 - Secure Temp File Handling (Server)
+**Status:** completed ✅
+**Deliverables:**
+- ✓ Dedicated temp directory under `DOTNETCLOUD_DATA_DIR/tmp/` with `chmod 700` on Linux
+- ✓ `DownloadService` uses app-specific temp dir instead of `Path.GetTempPath()`
+- ✓ `TempFileCleanupService` (`IHostedService`) deletes files older than 1 hour on startup
+
+**Notes:** Commit `82ca53b` on `mint22` (2026-03-08).
+
+---
+
+### Step: sync-batch-1.9 - Server-Side File Scanning Interface (Server)
+**Status:** completed ✅
+**Deliverables:**
+- ✓ Chunk storage files have `600` permissions (no execute bits) after write
+- ✓ `X-Content-Type-Options: nosniff` + `Content-Disposition: attachment` on download endpoints
+- ✓ `IFileScanner` interface + `NoOpFileScanner` default implementation registered in DI
+- ✓ `ScanStatus` nullable enum field on `FileVersion` model
+- ✓ Configurable max file size (`FileUpload:MaxFileSizeBytes = 15GB`) enforced in `InitiateUploadAsync()`
+
+**Notes:** Commit `82ca53b` on `mint22` (2026-03-08).
+
+---
+
+### Step: sync-batch-2 - Efficiency: Bandwidth Savings (All)
+**Status:** completed ✅
+**Duration:** ~2 days
+**Description:** Six efficiency improvements reducing bandwidth and memory use: FastCDC chunking, streaming pipeline, Brotli/Gzip compression, monotonic sync cursor, paginated changes, and ETag chunk caching.
+
+**Deliverables:**
+- ✓ Task 2.1: FastCDC content-defined chunking in `ContentHasher` + `ChunkedTransferClient`; `Offset`+`ChunkSize` on `FileVersionChunk`; `ChunkSizes` in upload DTOs. Server `3a7e0ae`, Client `bc9e08a`.
+- ✓ Task 2.2: Bounded `Channel<ChunkData>` producer-consumer pipeline in `ChunkedTransferClient`; disk-based download assembly. Client `2e0788c`.
+- ✓ Task 2.3: Response compression (Brotli + Gzip) on server; `AutomaticDecompression = All` + gzip upload wrapping on client. Server `032f6a2`, Client (2026-03-08).
+- ✓ Task 2.4: `UserSyncCounter` table + `SyncSequence` on `FileNode`; cursor-based `GetChangesSinceAsync()`; `SyncCursor` replaces `LastSyncedAt` in client. Server `c81495d`, Client `1a9c4c6`.
+- ✓ Task 2.5: `limit` param + `hasMore`/`nextCursor` on changes endpoint; pagination loop in client `ApplyRemoteChangesAsync()` with per-page cursor persistence. Server `c81495d`, Client `1a9c4c6`.
+- ✓ Task 2.6: `ETag` + `If-None-Match` → `304` on chunk download endpoint; client sends `If-None-Match` and handles `304`. Server `c81495d`, Client `1a9c4c6`.
+
+**Notes:** All Batch 2 tasks complete. Bandwidth savings most visible on repeated syncs of large modified files (CDC) and compressible content (text/code/documents).
+
+---
+
+### Step: sync-batch-3 - User Experience (Client)
+**Status:** completed ✅
+**Duration:** ~2 days
+**Description:** Six UX improvements: .syncignore pattern parsing, crash-resilient upload resumption, locked file handling, per-file transfer progress, conflict resolution UI with auto-resolution engine, and idempotent uploads.
+
+**Deliverables:**
+- ✓ Task 3.1: `SyncIgnoreParser` with `.gitignore`-compatible glob matching; built-in OS/temp/VCS defaults; "Ignored Files" settings panel. Commit `a9c6812`.
+- ✓ Task 3.2: `ActiveUploadSessionRecord` for crash-resilient upload resumption; startup resume logic with server session validation. Commit `4243328`.
+- ✓ Task 3.3: 4-tier locked file handling (shared-read, retry, VSS/`ILockedFileReader`, defer); `SyncStateTag.Deferred`; tray notification. Commit `b971551`.
+- ✓ Task 3.4: `transfer-progress` + `transfer-complete` IPC events; `ActiveTransfersViewModel`; throttled progress events (max 2/sec). Commit `7f93226`.
+- ✓ Task 3.5: `ConflictRecord` entity; auto-resolution pipeline (5 strategies); three-pane merge editor (line-based `DiffPlex` + XML-aware `Microsoft.XmlDiffPatch`); conflict tray icon/badge/notifications. Commit `8508afc`.
+- ✓ Task 3.6: Pre-upload content hash comparison; skip upload when server hash matches; idempotent operations. Commit `3504932`. 119 tests pass.
+
+**Notes:** All Batch 3 tasks complete.
+
+---
+
+### Step: sync-batch-4 - Cross-Platform Hardening (Both)
+**Status:** completed ✅
+**Duration:** ~1 day
+**Description:** Five platform-hardening tasks ensuring correct sync between Linux and Windows clients sharing the same server account.
+
+**Deliverables:**
+- ✓ Task 4.1: Case-insensitive uniqueness check on server file create/rename; `409 Conflict` response; client renames incoming files with `(case conflict)` suffix. Server pre-existing + Client `3504932`.
+- ✓ Task 4.2: `PosixMode`+`PosixOwnerHint` on `FileNode`/`FileVersion`; included in all DTOs/gRPC; Linux client reads/applies permissions; setuid/setgid safety policy. Server `fa097bf`, Client `c70bd47`.
+- ✓ Task 4.3: Symlink detection (ignore by default); opt-in `sync-as-link` mode; symlink metadata-only upload; secure relative-only validation; settings UI. Server `d3a6422`, Client `1cd594a`.
+- ✓ Task 4.4: inotify limit + instance tracking + dynamic auto-fix with polkit; graceful fallback to fast periodic scan; inode usage check via `statvfs()`; server health check `degraded` on low inotify/inode. Server `d3a6422`, Client `1cd594a`.
+- ✓ Task 4.5: `longPathAware` app manifest; `\\?\` prefix fallback on Windows; `SyncStateTag.PathTooLong`; filename byte-length check on Linux (255-byte limit); server rejects Windows-illegal chars + reserved names. Server `d3a6422`, Client `1cd594a`.
+
+**Notes:** All Batch 4 tasks complete. 119 tests pass.
+
+---
+
+### Step: sync-batch-5 - Polish (Client)
+**Status:** completed ✅
+**Duration:** ~1 day
+**Description:** Two quality-of-life improvements: bandwidth throttling and a selective sync folder browser.
+
+**Deliverables:**
+- ✓ Task 5.1: `ThrottledStream` (token bucket); `ThrottledHttpHandler` (DelegatingHandler); `SyncContext.UploadLimitKbps`/`DownloadLimitKbps`; `sync-settings.json` bandwidth section; IPC persist path via `SyncContextManager`; 6 unit tests.
+- ✓ Task 5.2: `FolderBrowserItemViewModel` (three-state check + bubble-up); `FolderBrowserViewModel` (full tree load + save to `SelectiveSyncConfig`); `FolderBrowserView.axaml` + `FolderBrowserDialog.axaml`; add-account flow integration; Settings → Accounts → "Choose folders" button; 4 unit tests.
+
+**Notes:** All Batch 5 tasks complete. All 5 sync improvement batches now closed. Commit range `bbf8c6e` on main (2026-03-09). 15 new tests (4 stream + 11 browser/settings). Build: 0 errors, 3 pre-existing warnings. to guide the implementation of the DotNetCloud project
 in phases. Each phase is broken down into steps with assigned status, duration, description, tasks,
 dependencies, and testing requirements.
 

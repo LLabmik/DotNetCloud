@@ -3785,11 +3785,62 @@ Before marking a phase complete:
 - ✓ Task 1.2: Request Correlation IDs
 - ✓ Task 1.3: Server-Side Rate Limiting on Sync Endpoints
 - ✓ Task 1.4: Chunk Integrity Verification on Download
-- ☐ Task 1.5: Per-Chunk Retry with Exponential Backoff
-- ☐ Task 1.6: SQLite WAL + Connection Resilience
-- ☐ Task 1.7: Durable Retry Queue
+- ✓ Task 1.5: Per-Chunk Retry with Exponential Backoff
+- ✓ Task 1.6: SQLite WAL + Connection Resilience
+- ✓ Task 1.7: Durable Retry Queue
 - ✓ Task 1.8: Safe Temp File Cleanup
 - ✓ Task 1.9: File Scan Hook (No Extension Blocking)
 
-**Last Reviewed:** 2026-03-02
-**Next Review:** Upon Phase 0 completion
+**Status:** ✅ All 10 tasks complete
+**Last Reviewed:** 2026-03-09
+
+---
+
+### Batch 2 - Efficiency (Bandwidth Savings)
+
+- ✓ Task 2.1: Content-Defined Chunking / FastCDC (both sides)
+- ✓ Task 2.2: Streaming Chunk Pipeline / Bounded Channel (client)
+- ✓ Task 2.3: Brotli/Gzip Compression for Chunk Transfers (both sides)
+- ✓ Task 2.4: Server-Issued Sync Cursor (both sides)
+- ✓ Task 2.5: Paginated Change Responses (both sides)
+- ✓ Task 2.6: ETag / If-None-Match for Chunk Downloads (both sides)
+
+**Status:** ✅ All 6 tasks complete
+**Last Reviewed:** 2026-03-09
+
+---
+
+### Batch 3 - User Experience
+
+- ✓ Task 3.1: .syncignore with UI Support (client)
+- ✓ Task 3.2: Persistent Upload Sessions — Crash-Resilient Resumption (client)
+- ✓ Task 3.3: Locked File Handling — 4-Tier Fallback (client)
+- ✓ Task 3.4: Per-File Transfer Progress in Tray UI (client)
+- ✓ Task 3.5: Conflict Resolution UI + Auto-Resolution Engine (client)
+- ✓ Task 3.6: Idempotent Operations / Skip Duplicate Uploads (client)
+
+**Status:** ✅ All 6 tasks complete
+**Last Reviewed:** 2026-03-09
+
+---
+
+### Batch 4 - Cross-Platform Hardening
+
+- ✓ Task 4.1: Case-Sensitivity Conflict Detection (both sides)
+- ✓ Task 4.2: File Permission Metadata Sync / POSIX mode bits (both sides)
+- ✓ Task 4.3: Symbolic Link Policy — Ignore / Sync-as-Link (client)
+- ✓ Task 4.4: inotify Watch Limit + inode Awareness — Linux/macOS (both sides)
+- ✓ Task 4.5: Path Length + Filename Limit Handling (both sides)
+
+**Status:** ✅ All 5 tasks complete
+**Last Reviewed:** 2026-03-09
+
+---
+
+### Batch 5 - Polish
+
+- ✓ Task 5.1: Bandwidth Throttling — ThrottledStream + ThrottledHttpHandler (client)
+- ✓ Task 5.2: Selective Sync Folder Browser — FolderBrowserView + FolderBrowserViewModel (client)
+
+**Status:** ✅ All 2 tasks complete
+**Last Reviewed:** 2026-03-09

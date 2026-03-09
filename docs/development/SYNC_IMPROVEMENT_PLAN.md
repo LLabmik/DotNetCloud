@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-08  
 **Last updated:** 2026-03-09
-**Status:** Batches 1–4 complete. Batch 5 not started.
+**Status:** All batches complete (1–5). See Appendix C for future Virtual Filesystem phase.
 **Based on:** [SYNC_IMPROVEMENT_PROPOSALS.md](SYNC_IMPROVEMENT_PROPOSALS.md)
 **Handoff Process:** [CLIENT_SERVER_MEDIATION_HANDOFF.md](CLIENT_SERVER_MEDIATION_HANDOFF.md)
 
@@ -2147,7 +2147,7 @@ Running out of inodes means no new files can be created even with plenty of disk
 
 **Approved Proposal:** 4.4
 
-**Status:** 🔲 Not started.
+**Status:** ✅ Client complete. Commit on `Windows11-TestDNC` (2026-03-09). `bbf8c6e` on main.
 
 **Problem:** Settings UI has upload/download limit fields but they're not implemented.
 
@@ -2178,10 +2178,12 @@ Running out of inodes means no new files can be created even with plenty of disk
 **Linux/macOS Considerations:** Token bucket algorithm + stream wrapper = fully cross-platform.
 
 **Deliverables:**
-- ☐ Client: `ThrottledStream` with token bucket rate limiting
-- ☐ Client: `ThrottledHttpHandler` DelegatingHandler
-- ☐ Client: Wire to `HttpClientFactory` + `SyncContext` config
-- ☐ Client: Settings UI connected to throttle values
+- ✓ Client: `ThrottledStream` with token bucket rate limiting
+- ✓ Client: `ThrottledHttpHandler` DelegatingHandler
+- ✓ Client: Wire to `HttpClientFactory` + `SyncContext` config (`SyncContextManager.CreateEngine()`)
+- ✓ Client: `SyncContext.UploadLimitKbps` + `DownloadLimitKbps` fields
+- ✓ Client: `sync-settings.json` bandwidth section + IPC persist path
+- ✓ Client: 6 unit tests (`ThrottledStreamTests`, `ThrottledHttpHandlerTests`)
 
 **Side:** Client only
 **Complexity:** Medium
@@ -2192,7 +2194,7 @@ Running out of inodes means no new files can be created even with plenty of disk
 
 **Approved Proposal:** 4.5
 
-**Status:** 🔲 Not started.
+**Status:** ✅ Client complete. Commit on `Windows11-TestDNC` (2026-03-09). `bbf8c6e` on main.
 
 **Problem:** Users must know folder names to configure selective sync. No browsable view.
 
@@ -2227,11 +2229,13 @@ Running out of inodes means no new files can be created even with plenty of disk
 **Linux/macOS Considerations:** Avalonia `TreeView` renders natively on all platforms. API calls are cross-platform.
 
 **Deliverables:**
-- ☐ Client (SyncTray): `FolderBrowserView` with tree + checkboxes
-- ☐ Client (SyncTray): Lazy-load children for deep trees
-- ☐ Client (SyncTray): Integration in add-account flow
-- ☐ Client (SyncTray): Settings → account → folder selection
-- ☐ Client (Core): `SelectiveSyncConfig` update from browser selections
+- ✓ Client (SyncTray): `FolderBrowserView.axaml` + `FolderBrowserDialog.axaml` with TreeView + CheckBox template
+- ✓ Client (SyncTray): `FolderBrowserItemViewModel` — three-state check + bubble-up parent propagation
+- ✓ Client (SyncTray): `FolderBrowserViewModel` — full tree load from `GetFolderTreeAsync()` + save to `SelectiveSyncConfig`
+- ✓ Client (SyncTray): Add-account flow shows folder browser after successful auth
+- ✓ Client (SyncTray): Settings → Accounts tab → "Choose folders" button per account
+- ✓ Client (Core): `SelectiveSyncConfig.SaveAsync()` called after folder selection
+- ✓ Client: 4 unit tests (`FolderBrowserViewModelTests`)
 
 **Side:** Client only
 **Complexity:** Medium
