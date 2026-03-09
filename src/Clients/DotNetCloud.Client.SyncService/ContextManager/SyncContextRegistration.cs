@@ -41,6 +41,12 @@ public sealed class SyncContextRegistration
     /// <summary>Interval between periodic full-scan passes (default 5 minutes).</summary>
     public TimeSpan FullScanInterval { get; init; } = TimeSpan.FromMinutes(5);
 
+    /// <summary>Upload bandwidth limit in KB/s. 0 means unlimited.</summary>
+    public decimal UploadLimitKbps { get; init; }
+
+    /// <summary>Download bandwidth limit in KB/s. 0 means unlimited.</summary>
+    public decimal DownloadLimitKbps { get; init; }
+
     /// <summary>UTC timestamp when this context was first registered.</summary>
     public DateTime RegisteredAt { get; init; } = DateTime.UtcNow;
 }

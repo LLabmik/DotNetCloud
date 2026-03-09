@@ -1,4 +1,5 @@
 using DotNetCloud.Client.Core.Auth;
+using DotNetCloud.Client.Core.SelectiveSync;
 using DotNetCloud.Client.Core.SyncIgnore;
 using DotNetCloud.Client.SyncTray.Ipc;
 using DotNetCloud.Client.SyncTray.Notifications;
@@ -152,6 +153,7 @@ public sealed class SettingsViewModelTests
         var settingsVm = new SettingsViewModel(
             trayVm, ipcMock.Object, oauth2Mock.Object,
             new Mock<ISyncIgnoreParser>().Object,
+            new Mock<ISelectiveSyncConfig>().Object,
             NullLogger<SettingsViewModel>.Instance);
 
         return (settingsVm, ipcMock, oauth2Mock, notifMock);

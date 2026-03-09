@@ -1,3 +1,4 @@
+using DotNetCloud.Client.Core.Api;
 using DotNetCloud.Client.SyncService.Ipc;
 
 namespace DotNetCloud.Client.SyncTray.Ipc;
@@ -73,6 +74,12 @@ public interface IIpcClient
     /// <summary>Marks a conflict record as resolved with the given resolution string.</summary>
     Task ResolveConflictAsync(
         Guid contextId, int conflictId, string resolution, CancellationToken cancellationToken = default);
+
+    /// <summary>Updates the global bandwidth throttle limits (KB/s, 0 = unlimited).</summary>
+    Task UpdateBandwidthAsync(decimal uploadLimitKbps, decimal downloadLimitKbps, CancellationToken cancellationToken = default);
+
+    /// <summary>Fetches the server-side folder tree for the given context (for selective sync).</summary>
+    Task<SyncTreeNodeResponse?> GetFolderTreeAsync(Guid contextId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Event data for <see cref="IIpcClient.SyncProgressReceived"/>.</summary>

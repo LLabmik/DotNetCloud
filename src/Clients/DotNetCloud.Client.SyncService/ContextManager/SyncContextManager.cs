@@ -284,6 +284,29 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
     }
 
     /// <inheritdoc/>
+    public async Task UpdateBandwidthAsync(
+        decimal uploadLimitKbps, decimal downloadLimitKbps,
+        CancellationToken cancellationToken = default)
+    {
+        // Persist to sync-settings.json so new contexts pick up the values.
+        await PersistBandwidthSettingsAsync(uploadLimitKbps, downloadLimitKbps, cancellationToken);
+
+        _logger.LogInformation(
+            "Bandwidth limits updated: upload={Upload} KB/s, download={Download} KB/s.",
+            uploadLimitKbps, downloadLimitKbps);
+    }
+
+    /// <inheritdoc/>
+    public async Task<SyncTreeNodeResponse?> GetFolderTreeAsync(
+        Guid contextId, CancellationToken cancellationToken = default)
+    {
+        var running = await GetRunningContextAsync(contextId);
+        if (running is null) return null;
+
+        return await running.ApiClient.GetFolderTreeAsync(null, cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async ValueTask DisposeAsync()
     {
         await StopAllAsync(CancellationToken.None);
@@ -311,9 +334,11 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             StateDatabasePath = Path.Combine(registration.DataDirectory, "state.db"),
             AccountKey = registration.AccountKey,
             FullScanInterval = registration.FullScanInterval,
+            UploadLimitKbps = registration.UploadLimitKbps,
+            DownloadLimitKbps = registration.DownloadLimitKbps,
         };
 
-        var (engine, conflictResolver, stateDb) = CreateEngine(registration);
+        var (engine, conflictResolver, stateDb, apiClient) = CreateEngine(registration);
 
         // Forward conflict events with the context ID
         conflictResolver.ConflictDetected += (_, args) =>
@@ -383,20 +408,44 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             SyncContext = syncContext,
             Engine = engine,
             StateDb = stateDb,
+            ApiClient = apiClient,
         };
 
         _logger.LogDebug("Started sync engine for context {ContextId} ({DisplayName}).",
             registration.Id, registration.DisplayName);
     }
 
-    private (ISyncEngine engine, ConflictResolver conflictResolver, LocalStateDb stateDb) CreateEngine(
+    private (ISyncEngine engine, ConflictResolver conflictResolver, LocalStateDb stateDb, IDotNetCloudApiClient apiClient) CreateEngine(
         SyncContextRegistration registration)
     {
         var tokenStore = CreateTokenStore(registration.DataDirectory);
 
-        // Each context gets its own API client configured with the correct base URL
-        var httpClient = _httpClientFactory.CreateClient("DotNetCloudSync");
-        httpClient.BaseAddress = new Uri(registration.ServerBaseUrl.TrimEnd('/') + '/');
+        // Each context gets its own API client configured with the correct base URL.
+        // When bandwidth limits are set, build a custom pipeline with ThrottledHttpHandler.
+        var uploadBytes = (long)(registration.UploadLimitKbps * 1024);
+        var downloadBytes = (long)(registration.DownloadLimitKbps * 1024);
+
+        HttpClient httpClient;
+        if (uploadBytes > 0 || downloadBytes > 0)
+        {
+            var throttledHandler = new ThrottledHttpHandler(uploadBytes, downloadBytes)
+            {
+                InnerHandler = new CorrelationIdHandler(
+                    _loggerFactory.CreateLogger<CorrelationIdHandler>())
+                {
+                    InnerHandler = OAuthHttpClientHandlerFactory.CreateHandler()
+                }
+            };
+            httpClient = new HttpClient(throttledHandler)
+            {
+                BaseAddress = new Uri(registration.ServerBaseUrl.TrimEnd('/') + '/')
+            };
+        }
+        else
+        {
+            httpClient = _httpClientFactory.CreateClient("DotNetCloudSync");
+            httpClient.BaseAddress = new Uri(registration.ServerBaseUrl.TrimEnd('/') + '/');
+        }
 
         var apiClient = new DotNetCloudApiClient(
             httpClient,
@@ -435,7 +484,7 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             lockedFileReader,
             _loggerFactory.CreateLogger<SyncEngine>());
 
-        return (engine, conflictResolver, stateDb);
+        return (engine, conflictResolver, stateDb, apiClient);
     }
 
     private EncryptedFileTokenStore CreateTokenStore(string dataDirectory) =>
@@ -525,11 +574,99 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
                 "DotNetCloud", "Sync")
             : "/var/lib/dotnetcloud/sync";
 
+    /// <summary>
+    /// Persists bandwidth limits to <c>sync-settings.json</c> so they survive service restarts.
+    /// </summary>
+    private async Task PersistBandwidthSettingsAsync(
+        decimal uploadLimitKbps, decimal downloadLimitKbps,
+        CancellationToken cancellationToken)
+    {
+        var settingsPath = FindOrCreateSyncSettingsPath();
+        try
+        {
+            Dictionary<string, object> root;
+            if (File.Exists(settingsPath))
+            {
+                await using var readStream = File.OpenRead(settingsPath);
+                root = await JsonSerializer.DeserializeAsync<Dictionary<string, object>>(
+                    readStream, JsonOptions, cancellationToken) ?? [];
+            }
+            else
+            {
+                root = [];
+            }
+
+            root["bandwidth"] = new Dictionary<string, decimal>
+            {
+                ["uploadLimitKbps"] = uploadLimitKbps,
+                ["downloadLimitKbps"] = downloadLimitKbps,
+            };
+
+            await using var writeStream = File.Create(settingsPath);
+            await JsonSerializer.SerializeAsync(writeStream, root, JsonOptions, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to persist bandwidth settings to {Path}.", settingsPath);
+        }
+    }
+
+    /// <summary>
+    /// Loads bandwidth limits from <c>sync-settings.json</c>.
+    /// Returns (0, 0) if the file or section is not found.
+    /// </summary>
+    internal static (decimal uploadKbps, decimal downloadKbps) LoadBandwidthSettings()
+    {
+        var candidates = new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, "sync-settings.json"),
+            Path.Combine(GetSystemDataRoot(), "sync-settings.json"),
+            Path.Combine(Directory.GetCurrentDirectory(), "sync-settings.json"),
+        };
+
+        var settingsPath = candidates.FirstOrDefault(File.Exists);
+        if (settingsPath is null)
+            return (0, 0);
+
+        try
+        {
+            using var stream = File.OpenRead(settingsPath);
+            using var doc = System.Text.Json.JsonDocument.Parse(stream);
+
+            if (!doc.RootElement.TryGetProperty("bandwidth", out var bw))
+                return (0, 0);
+
+            var upload = bw.TryGetProperty("uploadLimitKbps", out var u) && u.TryGetDecimal(out var uv)
+                ? uv : 0;
+            var download = bw.TryGetProperty("downloadLimitKbps", out var d) && d.TryGetDecimal(out var dv)
+                ? dv : 0;
+
+            return (upload, download);
+        }
+        catch
+        {
+            return (0, 0);
+        }
+    }
+
+    private string FindOrCreateSyncSettingsPath()
+    {
+        var candidates = new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, "sync-settings.json"),
+            Path.Combine(_dataRoot, "sync-settings.json"),
+            Path.Combine(Directory.GetCurrentDirectory(), "sync-settings.json"),
+        };
+
+        return candidates.FirstOrDefault(File.Exists) ?? candidates[1];
+    }
+
     private sealed class RunningContext
     {
         public required SyncContextRegistration Registration { get; init; }
         public required SyncContext SyncContext { get; init; }
         public required ISyncEngine Engine { get; init; }
         public required LocalStateDb StateDb { get; init; }
+        public required IDotNetCloudApiClient ApiClient { get; init; }
     }
 }

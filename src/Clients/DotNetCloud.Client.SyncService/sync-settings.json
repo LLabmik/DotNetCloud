@@ -3,5 +3,9 @@
     "retentionDays": 30,
     "maxFileSizeMB": 50,
     "minimumLevel": "Information"
+  },
+  "bandwidth": {
+    "uploadLimitKbps": 0,
+    "downloadLimitKbps": 0
   }
 }

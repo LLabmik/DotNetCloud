@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-09 (Batch 5 handoff)
+Last updated: 2026-03-09 (Batch 5 complete)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -22,9 +22,9 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 - Issue #44 (Task 4.4): inotify/inode health monitoring — server ✅ `d3a6422`, client ✅ `1cd594a`
 - Issue #45 (Task 4.5): Path length/filename validation — server ✅ `d3a6422`, client ✅ `1cd594a`
 
-**Batch 5 — in progress:**
-- Issue #46 (Task 5.1): Bandwidth throttling — client ☐ pending
-- Issue #47 (Task 5.2): Selective sync folder browser — client ☐ pending
+**Batch 5 — ALL ISSUES RESOLVED:**
+- Issue #46 (Task 5.1): Bandwidth throttling — client ✅ complete
+- Issue #47 (Task 5.2): Selective sync folder browser — client ✅ complete
 
 ## Environment
 
@@ -59,11 +59,11 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 
 **Server-side status:** N/A — client only.
 
-**Client-side status:** ☐ PENDING
+**Client-side status:** ✅ COMPLETE
 
 ---
 
-#### What to implement (client):
+#### What was implemented (client):
 
 **Background:**  
 `SettingsViewModel` already has `UploadLimitKbps` and `DownloadLimitKbps` properties (decimal, 0 = unlimited) bound to the UI in `SettingsWindow.axaml`. `SyncContext` does **not** yet have these fields. `sync-settings.json` does not yet have a `bandwidth` section. Nothing wires the UI values into actual rate limiting.
@@ -167,12 +167,12 @@ Add to `tests/DotNetCloud.Client.Core.Tests/Transfer/ThrottledStreamTests.cs`:
 - `ThrottledHttpHandler_ZeroLimits_DoesNotWrapContent` — verify content is not wrapped when both limits are 0.
 
 **Deliverables:**
-- ☐ Client: `SyncContext.UploadLimitKbps` + `DownloadLimitKbps` fields
-- ☐ Client: `ThrottledStream` with token bucket algorithm
-- ☐ Client: `ThrottledHttpHandler` DelegatingHandler  
-- ☐ Client: `SyncContextManager.CreateEngine()` wired to throttled pipeline when limits > 0
-- ☐ Client: `sync-settings.json` bandwidth section persisted from Settings UI
-- ☐ Client: 3 unit tests for `ThrottledStream` / `ThrottledHttpHandler`
+- ✅ Client: `SyncContext.UploadLimitKbps` + `DownloadLimitKbps` fields
+- ✅ Client: `ThrottledStream` with token bucket algorithm
+- ✅ Client: `ThrottledHttpHandler` DelegatingHandler  
+- ✅ Client: `SyncContextManager.CreateEngine()` wired to throttled pipeline when limits > 0
+- ✅ Client: `sync-settings.json` bandwidth section persisted from Settings UI via IPC
+- ✅ Client: 6 unit tests for `ThrottledStream` / `ThrottledHttpHandler` (4 stream + 2 handler)
 
 ---
 
@@ -180,11 +180,11 @@ Add to `tests/DotNetCloud.Client.Core.Tests/Transfer/ThrottledStreamTests.cs`:
 
 **Server-side status:** N/A — client only. `GET /api/v1/sync/tree` already returns the full tree via `SyncTreeNodeResponse` with `Children` recursively populated. `DotNetCloudApiClient.GetFolderTreeAsync(Guid? folderId)` already exists.
 
-**Client-side status:** ☐ PENDING
+**Client-side status:** ✅ COMPLETE
 
 ---
 
-#### What to implement (client):
+#### What was implemented (client):
 
 **Background:**  
 `SelectiveSyncConfig` at `src/Clients/DotNetCloud.Client.Core/SelectiveSync/SelectiveSyncConfig.cs` already provides `Include(contextId, path)`, `Exclude(contextId, path)`, `GetRules(contextId)`, and JSON persistence via `SaveAsync`/`LoadAsync`. `SyncTreeNodeResponse` has `NodeId`, `Name`, `NodeType` (`"File"` | `"Folder"` | `"SymbolicLink"`), `Children`. The add-account flow is in `SettingsViewModel.BeginAddAccountFlowAsync()` → launches `AddAccountDialog`. No folder browser view exists yet.
@@ -285,10 +285,10 @@ Add to `tests/DotNetCloud.Client.SyncTray.Tests/` (or `DotNetCloud.Client.Core.T
 - `FolderBrowserItem_MixedChildren_ParentIndeterminate` — check one child, uncheck another, verify parent is `null` (indeterminate).
 
 **Deliverables:**
-- ☐ Client: `FolderBrowserItemViewModel` with three-state check + bubble-up propagation
-- ☐ Client: `FolderBrowserViewModel` with full tree load + save to `SelectiveSyncConfig`
-- ☐ Client: `FolderBrowserView` Avalonia UserControl with `TreeView` + checkboxes
-- ☐ Client: Add-account flow shows folder browser after successful auth
-- ☐ Client: Settings → Accounts tab → "Choose folders" button per account
-- ☐ Client: `SelectiveSyncConfig.SaveAsync` called after folder selection; IPC `sync-now` triggered
-- ☐ Client: 4 unit tests
+- ✅ Client: `FolderBrowserItemViewModel` with three-state check + bubble-up propagation
+- ✅ Client: `FolderBrowserViewModel` with full tree load + save to `SelectiveSyncConfig`
+- ✅ Client: `FolderBrowserView` + `FolderBrowserDialog` Avalonia UserControl/Window with `TreeView` + checkboxes
+- ✅ Client: Add-account flow shows folder browser after successful auth
+- ✅ Client: Settings → Accounts tab → "Choose folders" button per account
+- ✅ Client: `SelectiveSyncConfig.SaveAsync` called after folder selection via `FolderBrowserViewModel.SaveCommand`
+- ✅ Client: 4 unit tests (tree build, exclusion save, parent propagation, indeterminate state)

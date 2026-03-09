@@ -37,6 +37,12 @@ public static class IpcCommands
 
     /// <summary>Resolve a conflict record with a user-chosen resolution.</summary>
     public const string ResolveConflict = "resolve-conflict";
+
+    /// <summary>Update global bandwidth throttle limits.</summary>
+    public const string UpdateBandwidth = "update-bandwidth";
+
+    /// <summary>Fetch the server-side folder tree for a context (for selective sync).</summary>
+    public const string GetFolderTree = "get-folder-tree";
 }
 
 /// <summary>IPC event names pushed from service to subscribed clients.</summary>
@@ -154,6 +160,18 @@ public sealed class AddAccountData
     /// <summary>UTC expiry time of the access token.</summary>
     [JsonPropertyName("expiresAt")]
     public DateTimeOffset ExpiresAt { get; init; }
+}
+
+/// <summary>Payload for the <c>update-bandwidth</c> command.</summary>
+public sealed class BandwidthData
+{
+    /// <summary>Upload limit in KB/s (0 = unlimited).</summary>
+    [JsonPropertyName("uploadLimitKbps")]
+    public decimal UploadLimitKbps { get; init; }
+
+    /// <summary>Download limit in KB/s (0 = unlimited).</summary>
+    [JsonPropertyName("downloadLimitKbps")]
+    public decimal DownloadLimitKbps { get; init; }
 }
 
 // ── Response data types ───────────────────────────────────────────────────────

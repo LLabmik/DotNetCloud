@@ -166,6 +166,14 @@ public sealed class IpcClientHandler : IAsyncDisposable
                 await HandleResolveConflictAsync(command, cancellationToken);
                 break;
 
+            case IpcCommands.UpdateBandwidth:
+                await HandleUpdateBandwidthAsync(command, cancellationToken);
+                break;
+
+            case IpcCommands.GetFolderTree:
+                await HandleGetFolderTreeAsync(command, cancellationToken);
+                break;
+
             default:
                 await SendErrorAsync(command.Command, $"Unknown command: '{command.Command}'.", cancellationToken);
                 break;
@@ -372,6 +380,45 @@ public sealed class IpcClientHandler : IAsyncDisposable
             command.ContextId.Value, data.ConflictId, data.Resolution, cancellationToken);
 
         await SendResponseAsync(command.Command, new { resolved = true }, cancellationToken);
+    }
+
+    private async Task HandleUpdateBandwidthAsync(IpcCommand command, CancellationToken cancellationToken)
+    {
+        if (command.Data is null)
+        {
+            await SendErrorAsync(command.Command, "Missing 'data' payload.", cancellationToken);
+            return;
+        }
+
+        var data = command.Data.Value.Deserialize<BandwidthData>(JsonOptions);
+        if (data is null)
+        {
+            await SendErrorAsync(command.Command, "Invalid 'data' payload.", cancellationToken);
+            return;
+        }
+
+        await _contextManager.UpdateBandwidthAsync(
+            data.UploadLimitKbps, data.DownloadLimitKbps, cancellationToken);
+
+        await SendResponseAsync(command.Command, new { updated = true }, cancellationToken);
+    }
+
+    private async Task HandleGetFolderTreeAsync(IpcCommand command, CancellationToken cancellationToken)
+    {
+        if (command.ContextId is null)
+        {
+            await SendErrorAsync(command.Command, "Missing 'contextId'.", cancellationToken);
+            return;
+        }
+
+        var tree = await _contextManager.GetFolderTreeAsync(command.ContextId.Value, cancellationToken);
+        if (tree is null)
+        {
+            await SendErrorAsync(command.Command, "Context not found.", cancellationToken);
+            return;
+        }
+
+        await SendResponseAsync(command.Command, tree, cancellationToken);
     }
 
     // ── Event subscription ────────────────────────────────────────────────

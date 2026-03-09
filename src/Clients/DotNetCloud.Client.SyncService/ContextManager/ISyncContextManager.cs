@@ -1,3 +1,4 @@
+using DotNetCloud.Client.Core.Api;
 using DotNetCloud.Client.Core.Sync;
 
 namespace DotNetCloud.Client.SyncService.ContextManager;
@@ -67,6 +68,20 @@ public interface ISyncContextManager
     Task ResolveConflictAsync(
         Guid contextId, int conflictId, string resolution,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates the global bandwidth throttle limits, persists them to <c>sync-settings.json</c>,
+    /// and updates all registrations for newly created engines.
+    /// </summary>
+    Task UpdateBandwidthAsync(
+        decimal uploadLimitKbps, decimal downloadLimitKbps,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the server-side folder tree for the given context (for selective sync UI).
+    /// </summary>
+    Task<SyncTreeNodeResponse?> GetFolderTreeAsync(
+        Guid contextId, CancellationToken cancellationToken = default);
 
     // ── Events ─────────────────────────────────────────────────────────────
 

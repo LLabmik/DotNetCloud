@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using DotNetCloud.Client.Core.Api;
 using DotNetCloud.Client.SyncService.Ipc;
 using Microsoft.Extensions.Logging;
 
@@ -473,6 +474,36 @@ public sealed class IpcClient : IIpcClient, IAsyncDisposable
         await SendAndReceiveAsync(
             new IpcCommand { Command = IpcCommands.ResolveConflict, ContextId = contextId, Data = data },
             cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task UpdateBandwidthAsync(decimal uploadLimitKbps, decimal downloadLimitKbps, CancellationToken cancellationToken = default)
+    {
+        var data = JsonSerializer.SerializeToElement(
+            new BandwidthData { UploadLimitKbps = uploadLimitKbps, DownloadLimitKbps = downloadLimitKbps },
+            JsonOptions);
+
+        await SendAndReceiveAsync(
+            new IpcCommand { Command = IpcCommands.UpdateBandwidth, Data = data },
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<SyncTreeNodeResponse?> GetFolderTreeAsync(Guid contextId, CancellationToken cancellationToken = default)
+    {
+        if (!_connected) return null;
+
+        var response = await SendAndReceiveAsync(
+            new IpcCommand { Command = IpcCommands.GetFolderTree, ContextId = contextId },
+            cancellationToken);
+
+        if (response?.Success is true && response.Data is not null)
+        {
+            var json = JsonSerializer.Serialize(response.Data, JsonOptions);
+            return JsonSerializer.Deserialize<SyncTreeNodeResponse>(json, JsonOptions);
+        }
+
+        return null;
     }
 
     // ── Send helpers ──────────────────────────────────────────────────────

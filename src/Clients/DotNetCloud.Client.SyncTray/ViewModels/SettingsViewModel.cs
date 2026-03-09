@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Windows.Input;
 using DotNetCloud.Client.Core.Auth;
+using DotNetCloud.Client.Core.SelectiveSync;
 using DotNetCloud.Client.Core.SyncIgnore;
 using DotNetCloud.Client.SyncService.Ipc;
 using DotNetCloud.Client.SyncTray.Ipc;
@@ -20,6 +21,7 @@ public sealed class SettingsViewModel : ViewModelBase
     private readonly IIpcClient _ipc;
     private readonly IOAuth2Service _oauth2;
     private readonly ISyncIgnoreParser _syncIgnore;
+    private readonly ISelectiveSyncConfig _selectiveSync;
     private readonly ILogger<SettingsViewModel> _logger;
 
     private string _addAccountServerUrl = "https://mint22:15443/";
@@ -89,14 +91,22 @@ public sealed class SettingsViewModel : ViewModelBase
     public decimal UploadLimitKbps
     {
         get => _uploadLimitKbps;
-        set => SetProperty(ref _uploadLimitKbps, value);
+        set
+        {
+            if (SetProperty(ref _uploadLimitKbps, value))
+                _ = PersistBandwidthAsync();
+        }
     }
 
     /// <summary>Download bandwidth limit in KB/s (0 = unlimited).</summary>
     public decimal DownloadLimitKbps
     {
         get => _downloadLimitKbps;
-        set => SetProperty(ref _downloadLimitKbps, value);
+        set
+        {
+            if (SetProperty(ref _downloadLimitKbps, value))
+                _ = PersistBandwidthAsync();
+        }
     }
 
     /// <summary>Accounts list exposed from the tray view-model.</summary>
@@ -190,6 +200,9 @@ public sealed class SettingsViewModel : ViewModelBase
     /// <summary>Refreshes the active conflicts list from SyncService.</summary>
     public ICommand RefreshConflictsCommand { get; }
 
+    /// <summary>Opens the folder browser for a specific account to configure selective sync.</summary>
+    public ICommand ChooseFoldersCommand { get; }
+
     // ── Constructor ───────────────────────────────────────────────────────
 
     /// <summary>Initializes a new <see cref="SettingsViewModel"/>.</summary>
@@ -198,12 +211,14 @@ public sealed class SettingsViewModel : ViewModelBase
         IIpcClient ipc,
         IOAuth2Service oauth2,
         ISyncIgnoreParser syncIgnore,
+        ISelectiveSyncConfig selectiveSync,
         ILogger<SettingsViewModel> logger)
     {
         _trayVm = trayVm;
         _ipc = ipc;
         _oauth2 = oauth2;
         _syncIgnore = syncIgnore;
+        _selectiveSync = selectiveSync;
         _logger = logger;
 
         ConnectCommand = new AsyncRelayCommand(BeginAddAccountFlowAsync);
@@ -213,6 +228,7 @@ public sealed class SettingsViewModel : ViewModelBase
         RemoveIgnorePatternCommand = new AsyncRelayCommand<string>(RemoveIgnorePatternAsync);
         EditSyncIgnoreFileCommand = new RelayCommand(OpenSyncIgnoreInEditor);
         RefreshConflictsCommand = new AsyncRelayCommand(RefreshConflictsAsync);
+        ChooseFoldersCommand = new AsyncRelayCommand<Guid>(ShowFolderBrowserForAccountAsync);
 
         // Forward account list changes from the tray view-model.
         _trayVm.PropertyChanged += (_, e) =>
@@ -297,6 +313,9 @@ public sealed class SettingsViewModel : ViewModelBase
 
             AddAccountServerUrl = string.Empty;
             await _trayVm.RefreshAccountsAsync();
+
+            // Offer selective sync folder browser after successful add.
+            await ShowFolderBrowserAsync(data.UserId);
         }
         catch (OperationCanceledException)
         {
@@ -405,6 +424,70 @@ public sealed class SettingsViewModel : ViewModelBase
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
+
+    private async Task PersistBandwidthAsync()
+    {
+        try
+        {
+            await _ipc.UpdateBandwidthAsync(_uploadLimitKbps, _downloadLimitKbps);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to persist bandwidth settings via IPC.");
+        }
+    }
+
+    /// <summary>
+    /// Shows the folder browser dialog for the most recently added account.
+    /// Used after add-account flow completes.
+    /// </summary>
+    private async Task ShowFolderBrowserAsync(Guid userId)
+    {
+        // Find the context that matches the just-added user.
+        var account = _trayVm.Accounts.FirstOrDefault(a => a.ContextId != Guid.Empty);
+        if (account is null) return;
+        await ShowFolderBrowserForAccountAsync(account.ContextId);
+    }
+
+    /// <summary>
+    /// Shows the folder browser dialog for a specific account context.
+    /// </summary>
+    private async Task ShowFolderBrowserForAccountAsync(Guid contextId)
+    {
+        try
+        {
+            var account = _trayVm.Accounts.FirstOrDefault(a => a.ContextId == contextId);
+            var configDir = account?.LocalFolderPath ?? string.Empty;
+            var configPath = Path.Combine(configDir, ".selective-sync.json");
+
+            await _selectiveSync.LoadAsync(configPath);
+
+            var vm = new FolderBrowserViewModel(_ipc, contextId, _selectiveSync, configPath);
+            var dialog = new FolderBrowserDialog(vm);
+            dialog.Show();
+
+            var tcs = new TaskCompletionSource();
+            dialog.Closed += (_, _) => tcs.TrySetResult();
+            await tcs.Task;
+
+            if (dialog.Saved)
+            {
+                // Trigger re-sync so the engine picks up the new selective sync rules.
+                try
+                {
+                    await _ipc.SyncNowAsync(contextId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to trigger sync-now after folder selection.");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to open folder browser for context {ContextId}.", contextId);
+        }
+    }
 
     private static void ApplyStartOnLogin(bool enable)
     {

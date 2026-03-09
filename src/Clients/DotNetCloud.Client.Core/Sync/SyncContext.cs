@@ -28,4 +28,10 @@ public sealed class SyncContext
 
     /// <summary>Interval for periodic full-scan fallback (default 5 minutes).</summary>
     public TimeSpan FullScanInterval { get; init; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>Upload bandwidth limit in KB/s. 0 means unlimited.</summary>
+    public decimal UploadLimitKbps { get; init; }
+
+    /// <summary>Download bandwidth limit in KB/s. 0 means unlimited.</summary>
+    public decimal DownloadLimitKbps { get; init; }
 }

@@ -1,0 +1,54 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:DotNetCloud.Client.SyncTray.ViewModels"
+             x:Class="DotNetCloud.Client.SyncTray.Views.FolderBrowserView"
+             x:DataType="vm:FolderBrowserViewModel">
+
+    <DockPanel Margin="8">
+
+        <!-- Error message -->
+        <TextBlock DockPanel.Dock="Top"
+                   Text="{Binding ErrorMessage}"
+                   Foreground="Red"
+                   FontSize="11"
+                   Margin="0,0,0,8"
+                   TextWrapping="Wrap"
+                   IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+        <!-- Loading indicator -->
+        <StackPanel DockPanel.Dock="Top"
+                    Orientation="Horizontal"
+                    Spacing="8"
+                    Margin="0,0,0,8"
+                    IsVisible="{Binding IsLoading}">
+            <ProgressBar IsIndeterminate="True"
+                         Width="120" Height="16" />
+            <TextBlock Text="Loading folders…"
+                       FontSize="11"
+                       VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+        </StackPanel>
+
+        <!-- Save button -->
+        <Button DockPanel.Dock="Bottom"
+                Content="Save Selection"
+                HorizontalAlignment="Right"
+                Margin="0,8,0,0"
+                Command="{Binding SaveCommand}" />
+
+        <!-- Folder tree -->
+        <TreeView ItemsSource="{Binding RootItems}">
+            <TreeView.ItemTemplate>
+                <TreeDataTemplate ItemsSource="{Binding Children}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <CheckBox IsChecked="{Binding IsChecked}"
+                                  IsThreeState="True" />
+                        <TextBlock Text="{Binding Name}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </TreeDataTemplate>
+            </TreeView.ItemTemplate>
+        </TreeView>
+
+    </DockPanel>
+</UserControl>

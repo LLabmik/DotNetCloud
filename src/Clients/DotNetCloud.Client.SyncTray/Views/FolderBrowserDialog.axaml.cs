@@ -1,0 +1,41 @@
+using Avalonia.Controls;
+using Avalonia.Interactivity;
+using DotNetCloud.Client.SyncTray.ViewModels;
+
+namespace DotNetCloud.Client.SyncTray.Views;
+
+/// <summary>
+/// Dialog window for the selective sync folder browser.
+/// </summary>
+public partial class FolderBrowserDialog : Window
+{
+    /// <summary>Whether the user saved their selection (vs. skipping/closing).</summary>
+    public bool Saved { get; private set; }
+
+    /// <summary>Initializes a new <see cref="FolderBrowserDialog"/>.</summary>
+    public FolderBrowserDialog()
+    {
+        InitializeComponent();
+    }
+
+    /// <summary>
+    /// Initializes a new <see cref="FolderBrowserDialog"/> with the given view-model
+    /// and triggers loading the folder tree.
+    /// </summary>
+    public FolderBrowserDialog(FolderBrowserViewModel vm) : this()
+    {
+        BrowserView.DataContext = vm;
+        Opened += async (_, _) => await vm.LoadTreeAsync();
+    }
+
+    private async void OnSave(object? sender, RoutedEventArgs e)
+    {
+        if (BrowserView.DataContext is FolderBrowserViewModel vm)
+            await vm.SaveAsync();
+
+        Saved = true;
+        Close();
+    }
+
+    private void OnSkip(object? sender, RoutedEventArgs e) => Close();
+}

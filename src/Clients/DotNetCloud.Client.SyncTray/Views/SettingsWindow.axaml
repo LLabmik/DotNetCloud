@@ -54,7 +54,7 @@
                                 <DataTemplate DataType="vm:AccountViewModel">
                                     <Border BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
                                             BorderThickness="0,0,0,1" Padding="0,6">
-                                        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                                        <Grid ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto,Auto">
                                             <TextBlock Grid.Row="0" Grid.Column="0"
                                                        Text="{Binding DisplayName}"
                                                        FontWeight="SemiBold" />
@@ -63,6 +63,13 @@
                                                        FontSize="11"
                                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                             <Button Grid.Row="0" Grid.Column="1" Grid.RowSpan="2"
+                                                    Content="Choose folders"
+                                                    FontSize="11"
+                                                    Margin="0,0,6,0"
+                                                    VerticalAlignment="Center"
+                                                    Command="{Binding $parent[Window].DataContext.ChooseFoldersCommand}"
+                                                    CommandParameter="{Binding ContextId}" />
+                                            <Button Grid.Row="0" Grid.Column="2" Grid.RowSpan="2"
                                                     Content="Remove"
                                                     Classes="danger"
                                                     Tag="{Binding ContextId}"
