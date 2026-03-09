@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using DotNetCloud.Client.SyncTray.Ipc;
 using DotNetCloud.Client.SyncTray.Notifications;
 using Microsoft.Extensions.Logging;
@@ -23,6 +24,10 @@ public sealed class TrayViewModel : ViewModelBase
     // Keyed by context ID for O(1) lookup on push events.
     private readonly Dictionary<Guid, AccountViewModel> _accounts = [];
     private readonly List<AccountViewModel> _accountList = [];
+
+    // Active transfers: keyed by TransferKey (contextId:fileName:direction) for O(1) update.
+    private readonly Dictionary<string, ActiveTransferViewModel> _transfersById = [];
+    private readonly ObservableCollection<ActiveTransferViewModel> _activeTransfers = [];
 
     // ── Properties ────────────────────────────────────────────────────────
 
@@ -57,6 +62,9 @@ public sealed class TrayViewModel : ViewModelBase
     /// <summary>Snapshot list of connected account view-models.</summary>
     public IReadOnlyList<AccountViewModel> Accounts => _accountList;
 
+    /// <summary>Observable list of active and recently completed file transfers.</summary>
+    public ObservableCollection<ActiveTransferViewModel> ActiveTransfers => _activeTransfers;
+
     // ── Constructor ───────────────────────────────────────────────────────
 
     /// <summary>Initializes a new <see cref="TrayViewModel"/>.</summary>
@@ -71,6 +79,8 @@ public sealed class TrayViewModel : ViewModelBase
         _ipc.SyncCompleteReceived += OnSyncComplete;
         _ipc.SyncErrorReceived += OnSyncError;
         _ipc.ConflictDetected += OnConflictDetected;
+        _ipc.TransferProgressReceived += OnTransferProgress;
+        _ipc.TransferCompleteReceived += OnTransferComplete;
     }
 
     // ── Commands (called from TrayIconManager / menu) ─────────────────────
@@ -247,6 +257,43 @@ public sealed class TrayViewModel : ViewModelBase
             "File conflict",
             $"Conflict in \"{fileName}\". A conflict copy was saved.",
             NotificationType.Warning);
+    }
+
+    private void OnTransferProgress(object? sender, TransferProgressEventData e)
+    {
+        var key = $"{e.ContextId}:{e.FileName}:{e.Direction}";
+
+        if (!_transfersById.TryGetValue(key, out var vm))
+        {
+            vm = new ActiveTransferViewModel(e.ContextId, e.FileName, e.Direction);
+            _transfersById[key] = vm;
+            _activeTransfers.Add(vm);
+        }
+
+        vm.Update(e.BytesTransferred, e.TotalBytes, e.ChunksCompleted, e.ChunksTotal, e.PercentComplete);
+    }
+
+    private void OnTransferComplete(object? sender, TransferCompleteEventData e)
+    {
+        var key = $"{e.ContextId}:{e.FileName}:{e.Direction}";
+
+        if (!_transfersById.TryGetValue(key, out var vm))
+        {
+            // May arrive without prior progress event (small file, single chunk).
+            vm = new ActiveTransferViewModel(e.ContextId, e.FileName, e.Direction);
+            _transfersById[key] = vm;
+            _activeTransfers.Add(vm);
+        }
+
+        vm.MarkComplete(e.TotalBytes);
+
+        // Auto-dismiss after 5 seconds.
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(5));
+            if (_transfersById.Remove(key))
+                _activeTransfers.Remove(vm);
+        });
     }
 
     // ── Aggregate state computation ───────────────────────────────────────

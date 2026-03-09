@@ -44,3 +44,47 @@ public sealed class SyncConflictDetectedEventArgs : EventArgs
     /// <summary>Path of the local conflict copy that was created.</summary>
     public required string ConflictCopyPath { get; init; }
 }
+
+/// <summary>Event arguments raised when progress is reported for an individual file transfer.</summary>
+public sealed class ContextTransferProgressEventArgs : EventArgs
+{
+    /// <summary>Identifier of the context in which the transfer is occurring.</summary>
+    public required Guid ContextId { get; init; }
+
+    /// <summary>File name (leaf only).</summary>
+    public required string FileName { get; init; }
+
+    /// <summary><c>"upload"</c> or <c>"download"</c>.</summary>
+    public required string Direction { get; init; }
+
+    /// <summary>Bytes transferred so far.</summary>
+    public long BytesTransferred { get; init; }
+
+    /// <summary>Total file size in bytes.</summary>
+    public long TotalBytes { get; init; }
+
+    /// <summary>Chunks completed so far.</summary>
+    public int ChunksTransferred { get; init; }
+
+    /// <summary>Total number of chunks.</summary>
+    public int TotalChunks { get; init; }
+
+    /// <summary>Percentage complete (0–100).</summary>
+    public double PercentComplete { get; init; }
+}
+
+/// <summary>Event arguments raised when an individual file transfer completes.</summary>
+public sealed class ContextTransferCompleteEventArgs : EventArgs
+{
+    /// <summary>Identifier of the context in which the transfer completed.</summary>
+    public required Guid ContextId { get; init; }
+
+    /// <summary>File name (leaf only).</summary>
+    public required string FileName { get; init; }
+
+    /// <summary><c>"upload"</c> or <c>"download"</c>.</summary>
+    public required string Direction { get; init; }
+
+    /// <summary>Total bytes transferred.</summary>
+    public long TotalBytes { get; init; }
+}

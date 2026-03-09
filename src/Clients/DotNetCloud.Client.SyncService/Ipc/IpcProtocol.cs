@@ -47,6 +47,12 @@ public static class IpcEvents
 
     /// <summary>A sync error occurred.</summary>
     public const string Error = "error";
+
+    /// <summary>Per-file transfer progress (upload or download).</summary>
+    public const string TransferProgress = "transfer-progress";
+
+    /// <summary>A file transfer completed.</summary>
+    public const string TransferComplete = "transfer-complete";
 }
 
 // ── Wire types ────────────────────────────────────────────────────────────────
@@ -181,4 +187,52 @@ public sealed class ContextInfo
     /// <summary>Last error message (null when healthy).</summary>
     [JsonPropertyName("lastError")]
     public string? LastError { get; init; }
+}
+
+/// <summary>Payload for the <c>transfer-progress</c> push event.</summary>
+public sealed class TransferProgressPayload
+{
+    /// <summary>File name (leaf only).</summary>
+    [JsonPropertyName("fileName")]
+    public string? FileName { get; init; }
+
+    /// <summary><c>"upload"</c> or <c>"download"</c>.</summary>
+    [JsonPropertyName("direction")]
+    public string? Direction { get; init; }
+
+    /// <summary>Bytes transferred so far.</summary>
+    [JsonPropertyName("bytesTransferred")]
+    public long BytesTransferred { get; init; }
+
+    /// <summary>Total file size in bytes.</summary>
+    [JsonPropertyName("totalBytes")]
+    public long TotalBytes { get; init; }
+
+    /// <summary>Chunks completed so far.</summary>
+    [JsonPropertyName("chunksCompleted")]
+    public int ChunksCompleted { get; init; }
+
+    /// <summary>Total number of chunks.</summary>
+    [JsonPropertyName("chunksTotal")]
+    public int ChunksTotal { get; init; }
+
+    /// <summary>Percentage complete (0–100).</summary>
+    [JsonPropertyName("percentComplete")]
+    public double PercentComplete { get; init; }
+}
+
+/// <summary>Payload for the <c>transfer-complete</c> push event.</summary>
+public sealed class TransferCompletePayload
+{
+    /// <summary>File name (leaf only).</summary>
+    [JsonPropertyName("fileName")]
+    public string? FileName { get; init; }
+
+    /// <summary><c>"upload"</c> or <c>"download"</c>.</summary>
+    [JsonPropertyName("direction")]
+    public string? Direction { get; init; }
+
+    /// <summary>Total bytes transferred.</summary>
+    [JsonPropertyName("totalBytes")]
+    public long TotalBytes { get; init; }
 }

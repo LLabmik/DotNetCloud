@@ -30,6 +30,8 @@ public sealed class IpcClientHandler : IAsyncDisposable
     private EventHandler<SyncCompleteEventArgs>? _completeHandler;
     private EventHandler<SyncErrorEventArgs>? _errorHandler;
     private EventHandler<SyncConflictDetectedEventArgs>? _conflictHandler;
+    private EventHandler<ContextTransferProgressEventArgs>? _transferProgressHandler;
+    private EventHandler<ContextTransferCompleteEventArgs>? _transferCompleteHandler;
 
     /// <summary>Initializes a new <see cref="IpcClientHandler"/>.</summary>
     public IpcClientHandler(Stream stream, ISyncContextManager contextManager, ILogger logger)
@@ -335,10 +337,32 @@ public sealed class IpcClientHandler : IAsyncDisposable
                 conflictCopyPath = args.ConflictCopyPath,
             });
 
+        _transferProgressHandler = (_, args) =>
+            _ = PushEventAsync(IpcEvents.TransferProgress, args.ContextId, new TransferProgressPayload
+            {
+                FileName = args.FileName,
+                Direction = args.Direction,
+                BytesTransferred = args.BytesTransferred,
+                TotalBytes = args.TotalBytes,
+                ChunksCompleted = args.ChunksTransferred,
+                ChunksTotal = args.TotalChunks,
+                PercentComplete = args.PercentComplete,
+            });
+
+        _transferCompleteHandler = (_, args) =>
+            _ = PushEventAsync(IpcEvents.TransferComplete, args.ContextId, new TransferCompletePayload
+            {
+                FileName = args.FileName,
+                Direction = args.Direction,
+                TotalBytes = args.TotalBytes,
+            });
+
         _contextManager.SyncProgress += _progressHandler;
         _contextManager.SyncComplete += _completeHandler;
         _contextManager.SyncError += _errorHandler;
         _contextManager.ConflictDetected += _conflictHandler;
+        _contextManager.TransferProgress += _transferProgressHandler;
+        _contextManager.TransferComplete += _transferCompleteHandler;
     }
 
     private void Unsubscribe()
@@ -350,6 +374,8 @@ public sealed class IpcClientHandler : IAsyncDisposable
         if (_completeHandler is not null) _contextManager.SyncComplete -= _completeHandler;
         if (_errorHandler is not null) _contextManager.SyncError -= _errorHandler;
         if (_conflictHandler is not null) _contextManager.ConflictDetected -= _conflictHandler;
+        if (_transferProgressHandler is not null) _contextManager.TransferProgress -= _transferProgressHandler;
+        if (_transferCompleteHandler is not null) _contextManager.TransferComplete -= _transferCompleteHandler;
     }
 
     private async Task PushEventAsync(string eventName, Guid contextId, object data)

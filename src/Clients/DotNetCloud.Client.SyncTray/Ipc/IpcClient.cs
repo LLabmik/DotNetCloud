@@ -48,6 +48,12 @@ public sealed class IpcClient : IIpcClient, IAsyncDisposable
     public event EventHandler<SyncConflictEventData>? ConflictDetected;
 
     /// <inheritdoc/>
+    public event EventHandler<TransferProgressEventData>? TransferProgressReceived;
+
+    /// <inheritdoc/>
+    public event EventHandler<TransferCompleteEventData>? TransferCompleteReceived;
+
+    /// <inheritdoc/>
     public event EventHandler<bool>? ConnectionStateChanged;
 
     /// <inheritdoc/>
@@ -304,6 +310,38 @@ public sealed class IpcClient : IIpcClient, IAsyncDisposable
                 }
                 break;
 
+            case IpcEvents.TransferProgress:
+                var xferProgress = ParseData<TransferProgressPayload>(message.Data);
+                if (xferProgress is not null)
+                {
+                    TransferProgressReceived?.Invoke(this, new TransferProgressEventData
+                    {
+                        ContextId = contextId,
+                        FileName = xferProgress.FileName ?? string.Empty,
+                        Direction = xferProgress.Direction ?? "upload",
+                        BytesTransferred = xferProgress.BytesTransferred,
+                        TotalBytes = xferProgress.TotalBytes,
+                        ChunksCompleted = xferProgress.ChunksCompleted,
+                        ChunksTotal = xferProgress.ChunksTotal,
+                        PercentComplete = xferProgress.PercentComplete,
+                    });
+                }
+                break;
+
+            case IpcEvents.TransferComplete:
+                var xferComplete = ParseData<TransferCompletePayload>(message.Data);
+                if (xferComplete is not null)
+                {
+                    TransferCompleteReceived?.Invoke(this, new TransferCompleteEventData
+                    {
+                        ContextId = contextId,
+                        FileName = xferComplete.FileName ?? string.Empty,
+                        Direction = xferComplete.Direction ?? "upload",
+                        TotalBytes = xferComplete.TotalBytes,
+                    });
+                }
+                break;
+
             default:
                 _logger.LogDebug("Unrecognised IPC event: '{Event}'.", message.Event);
                 break;
@@ -471,5 +509,23 @@ public sealed class IpcClient : IIpcClient, IAsyncDisposable
     {
         public string? OriginalPath { get; init; }
         public string? ConflictCopyPath { get; init; }
+    }
+
+    private sealed class TransferProgressPayload
+    {
+        public string? FileName { get; init; }
+        public string? Direction { get; init; }
+        public long BytesTransferred { get; init; }
+        public long TotalBytes { get; init; }
+        public int ChunksCompleted { get; init; }
+        public int ChunksTotal { get; init; }
+        public double PercentComplete { get; init; }
+    }
+
+    private sealed class TransferCompletePayload
+    {
+        public string? FileName { get; init; }
+        public string? Direction { get; init; }
+        public long TotalBytes { get; init; }
     }
 }

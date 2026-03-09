@@ -45,6 +45,12 @@ public sealed class SyncEngine : ISyncEngine
     /// <inheritdoc/>
     public event EventHandler<SyncStatusChangedEventArgs>? StatusChanged;
 
+    /// <inheritdoc/>
+    public event EventHandler<FileTransferProgressEventArgs>? FileTransferProgress;
+
+    /// <inheritdoc/>
+    public event EventHandler<FileTransferCompleteEventArgs>? FileTransferComplete;
+
     /// <summary>Initializes a new <see cref="SyncEngine"/>.</summary>
     public SyncEngine(
         IDotNetCloudApiClient api,
@@ -407,10 +413,28 @@ public sealed class SyncEngine : ISyncEngine
     {
         if (op is PendingUpload upload)
         {
+            var fileName = Path.GetFileName(upload.LocalPath);
+            var uploadProgress = new Progress<TransferProgress>(p =>
+                FileTransferProgress?.Invoke(this, new FileTransferProgressEventArgs
+                {
+                    FileName = fileName,
+                    Direction = "upload",
+                    Progress = p,
+                }));
+
             await using var fileStream = await OpenFileForSyncAsync(upload.LocalPath, cancellationToken);
             var nodeId = await _transfer.UploadAsync(
-                upload.NodeId, upload.LocalPath, fileStream, null, cancellationToken,
+                upload.NodeId, upload.LocalPath, fileStream, uploadProgress, cancellationToken,
                 context.StateDatabasePath);
+
+            FileTransferComplete?.Invoke(this, new FileTransferCompleteEventArgs
+            {
+                FileName = fileName,
+                Direction = "upload",
+                TotalBytes = fileStream.Length,
+                TotalChunks = 0,
+            });
+
             var hash = await ComputeFileHashAsync(upload.LocalPath, cancellationToken);
             await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, new LocalFileRecord
             {
@@ -428,10 +452,29 @@ public sealed class SyncEngine : ISyncEngine
                 _logger.LogDebug("Skipping download of ignored file {RelPath}.", dlRelPath);
                 return;
             }
-            using var stream = await _transfer.DownloadAsync(download.NodeId, null, cancellationToken);
+
+            var fileName = Path.GetFileName(download.LocalPath);
+            var downloadProgress = new Progress<TransferProgress>(p =>
+                FileTransferProgress?.Invoke(this, new FileTransferProgressEventArgs
+                {
+                    FileName = fileName,
+                    Direction = "download",
+                    Progress = p,
+                }));
+
+            using var stream = await _transfer.DownloadAsync(download.NodeId, downloadProgress, cancellationToken);
             Directory.CreateDirectory(Path.GetDirectoryName(download.LocalPath)!);
             await using var output = File.Create(download.LocalPath);
             await stream.CopyToAsync(output, cancellationToken);
+
+            FileTransferComplete?.Invoke(this, new FileTransferCompleteEventArgs
+            {
+                FileName = fileName,
+                Direction = "download",
+                TotalBytes = stream.Length,
+                TotalChunks = 0,
+            });
+
             var hash = await ComputeFileHashAsync(download.LocalPath, cancellationToken);
             await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, new LocalFileRecord
             {

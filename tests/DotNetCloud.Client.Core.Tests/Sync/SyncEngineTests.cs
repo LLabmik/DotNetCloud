@@ -384,4 +384,125 @@ public class SyncEngineTests
         // Assert: ReleaseSnapshot was called at least once (from SyncAsync finally block).
         _lockedFileReaderMock.Verify(r => r.ReleaseSnapshot(), Times.AtLeastOnce);
     }
+
+    [TestMethod]
+    public async Task SyncAsync_UploadPendingOperation_FiresFileTransferProgressAndCompleteEvents()
+    {
+        // Arrange: a pending upload; the UploadAsync mock invokes the progress reporter.
+        var filePath = Path.Combine(_tempDir, "progress-file.txt");
+        File.WriteAllText(filePath, "progress test content");
+
+        var transferMock = new Mock<IChunkedTransferClient>();
+        var expectedNodeId = Guid.NewGuid();
+        transferMock
+            .Setup(t => t.UploadAsync(
+                It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(),
+                It.IsNotNull<IProgress<TransferProgress>>(),
+                It.IsAny<CancellationToken>(), It.IsAny<string?>()))
+            .Callback<Guid?, string, Stream, IProgress<TransferProgress>?, CancellationToken, string?>(
+                (_, _, _, progress, _, _) =>
+                {
+                    // Simulate one progress callback before completing.
+                    progress?.Report(new TransferProgress
+                    {
+                        BytesTransferred = 512,
+                        TotalBytes = 1024,
+                        ChunksTransferred = 1,
+                        TotalChunks = 2,
+                    });
+                })
+            .ReturnsAsync(expectedNodeId);
+
+        _stateDbMock.Setup(db => db.RemoveOperationAsync(
+                It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _stateDbMock.Setup(db => db.UpsertFileRecordAsync(
+                It.IsAny<string>(), It.IsAny<LocalFileRecord>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        _stateDbMock
+            .Setup(db => db.GetPendingOperationsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new PendingUpload { Id = 1, LocalPath = filePath, RetryCount = 0 }]);
+
+        var engine = new SyncEngine(
+            _apiMock.Object,
+            new Mock<ITokenStore>().Object,
+            transferMock.Object,
+            new Mock<IConflictResolver>().Object,
+            _stateDbMock.Object,
+            new SelectiveSyncConfig(),
+            new DotNetCloud.Client.Core.SyncIgnore.SyncIgnoreParser(),
+            _lockedFileReaderMock.Object,
+            NullLogger<SyncEngine>.Instance);
+        engine.Tier2RetryDelay = TimeSpan.Zero;
+
+        var progressEvents = new List<FileTransferProgressEventArgs>();
+        var completeEvents = new List<FileTransferCompleteEventArgs>();
+        engine.FileTransferProgress += (_, e) => progressEvents.Add(e);
+        engine.FileTransferComplete += (_, e) => completeEvents.Add(e);
+
+        // Act
+        await engine.StartAsync(_context);
+        await engine.SyncAsync(_context);
+        await engine.StopAsync();
+
+        // Assert: at least one FileTransferProgress event with direction=upload.
+        Assert.IsTrue(progressEvents.Count >= 1, "Expected at least one FileTransferProgress event.");
+        Assert.AreEqual("upload", progressEvents[0].Direction);
+        Assert.AreEqual(Path.GetFileName(filePath), progressEvents[0].FileName);
+        Assert.AreEqual(512L, progressEvents[0].Progress.BytesTransferred);
+
+        // Assert: exactly one FileTransferComplete event with direction=upload.
+        Assert.AreEqual(1, completeEvents.Count, "Expected one FileTransferComplete event.");
+        Assert.AreEqual("upload", completeEvents[0].Direction);
+        Assert.AreEqual(Path.GetFileName(filePath), completeEvents[0].FileName);
+    }
+
+    [TestMethod]
+    public async Task SyncAsync_UploadNullProgress_DoesNotThrow()
+    {
+        // Verify that if no subscribers are attached, progress callbacks don't error.
+        var filePath = Path.Combine(_tempDir, "null-progress-file.txt");
+        File.WriteAllText(filePath, "null progress content");
+
+        var transferMock = new Mock<IChunkedTransferClient>();
+        transferMock
+            .Setup(t => t.UploadAsync(
+                It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(), It.IsAny<IProgress<TransferProgress>?>(),
+                It.IsAny<CancellationToken>(), It.IsAny<string?>()))
+            .ReturnsAsync(Guid.NewGuid());
+
+        _stateDbMock.Setup(db => db.RemoveOperationAsync(
+                It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _stateDbMock.Setup(db => db.UpsertFileRecordAsync(
+                It.IsAny<string>(), It.IsAny<LocalFileRecord>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        _stateDbMock
+            .Setup(db => db.GetPendingOperationsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new PendingUpload { Id = 1, LocalPath = filePath, RetryCount = 0 }]);
+
+        var engine = new SyncEngine(
+            _apiMock.Object,
+            new Mock<ITokenStore>().Object,
+            transferMock.Object,
+            new Mock<IConflictResolver>().Object,
+            _stateDbMock.Object,
+            new SelectiveSyncConfig(),
+            new DotNetCloud.Client.Core.SyncIgnore.SyncIgnoreParser(),
+            _lockedFileReaderMock.Object,
+            NullLogger<SyncEngine>.Instance);
+        engine.Tier2RetryDelay = TimeSpan.Zero;
+
+        // No event subscribers — should not throw.
+        await engine.StartAsync(_context);
+        await engine.SyncAsync(_context);
+        await engine.StopAsync();
+
+        transferMock.Verify(
+            t => t.UploadAsync(It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(),
+                It.IsAny<IProgress<TransferProgress>?>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()),
+            Times.Once);
+    }
 }

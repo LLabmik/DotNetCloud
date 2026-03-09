@@ -66,6 +66,12 @@ public interface ISyncContextManager
     /// <summary>Raised when a sync error occurs in any context.</summary>
     event EventHandler<SyncErrorEventArgs>? SyncError;
 
-    /// <summary>Raised when a conflict is detected in any context.</summary>
+    /// <summary>Raised when a sync conflict is detected in any context.</summary>
     event EventHandler<SyncConflictDetectedEventArgs>? ConflictDetected;
+
+    /// <summary>Raised when per-file transfer progress is reported in any context.</summary>
+    event EventHandler<ContextTransferProgressEventArgs>? TransferProgress;
+
+    /// <summary>Raised when an individual file transfer completes in any context.</summary>
+    event EventHandler<ContextTransferCompleteEventArgs>? TransferComplete;
 }

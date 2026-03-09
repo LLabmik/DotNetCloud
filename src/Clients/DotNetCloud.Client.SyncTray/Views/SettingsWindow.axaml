@@ -185,6 +185,83 @@
                 </DockPanel>
             </TabItem>
 
+            <!-- ── Transfers ── -->
+            <TabItem Header="Transfers">
+                <DockPanel Margin="8">
+
+                    <!-- Empty state -->
+                    <TextBlock DockPanel.Dock="Top"
+                               Text="No active transfers."
+                               FontSize="11"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Margin="0,4,0,0"
+                               IsVisible="{Binding ActiveTransfers.Count, Converter={x:Static ObjectConverters.IsNull}}" />
+
+                    <ScrollViewer>
+                        <ItemsControl ItemsSource="{Binding ActiveTransfers}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="vm:ActiveTransferViewModel">
+                                    <Border BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                            BorderThickness="0,0,0,1"
+                                            Padding="0,8">
+                                        <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="3">
+
+                                            <!-- Direction glyph -->
+                                            <TextBlock Grid.Row="0" Grid.Column="0"
+                                                       Text="{Binding DirectionGlyph}"
+                                                       FontSize="16"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,8,0" />
+
+                                            <!-- File name -->
+                                            <TextBlock Grid.Row="0" Grid.Column="1"
+                                                       Text="{Binding FileName}"
+                                                       FontWeight="SemiBold"
+                                                       TextTrimming="CharacterEllipsis" />
+
+                                            <!-- Speed / Done -->
+                                            <TextBlock Grid.Row="0" Grid.Column="2"
+                                                       Text="{Binding SpeedLabel}"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                       IsVisible="{Binding !IsComplete}"
+                                                       HorizontalAlignment="Right" />
+                                            <TextBlock Grid.Row="0" Grid.Column="2"
+                                                       Text="✓ Done"
+                                                       FontSize="11"
+                                                       Foreground="Green"
+                                                       IsVisible="{Binding IsComplete}"
+                                                       HorizontalAlignment="Right" />
+
+                                            <!-- Progress bar -->
+                                            <ProgressBar Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+                                                         Value="{Binding PercentComplete}"
+                                                         Minimum="0" Maximum="100"
+                                                         Height="6"
+                                                         IsVisible="{Binding !IsComplete}" />
+
+                                            <!-- Bytes / ETA -->
+                                            <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
+                                                       Text="{Binding BytesLabel}"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                       IsVisible="{Binding !IsComplete}" />
+                                            <TextBlock Grid.Row="2" Grid.Column="2"
+                                                       Text="{Binding Eta}"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                       IsVisible="{Binding !IsComplete}"
+                                                       HorizontalAlignment="Right" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                </DockPanel>
+            </TabItem>
+
         </TabControl>
 
         <!-- Close button -->

@@ -1,3 +1,5 @@
+using DotNetCloud.Client.Core.Transfer;
+
 namespace DotNetCloud.Client.Core.Sync;
 
 /// <summary>
@@ -7,6 +9,12 @@ public interface ISyncEngine : IAsyncDisposable
 {
     /// <summary>Raised when the sync status changes.</summary>
     event EventHandler<SyncStatusChangedEventArgs>? StatusChanged;
+
+    /// <summary>Raised when progress is reported for an individual file transfer (upload or download).</summary>
+    event EventHandler<FileTransferProgressEventArgs>? FileTransferProgress;
+
+    /// <summary>Raised when an individual file transfer completes.</summary>
+    event EventHandler<FileTransferCompleteEventArgs>? FileTransferComplete;
 
     /// <summary>
     /// Starts the sync engine (enables FileSystemWatcher and periodic scan).
@@ -41,4 +49,33 @@ public sealed class SyncStatusChangedEventArgs : EventArgs
 
     /// <summary>The sync context the status belongs to.</summary>
     public required SyncContext Context { get; init; }
+}
+
+/// <summary>Event arguments for per-file transfer progress.</summary>
+public sealed class FileTransferProgressEventArgs : EventArgs
+{
+    /// <summary>File name (leaf name only).</summary>
+    public required string FileName { get; init; }
+
+    /// <summary><c>"upload"</c> or <c>"download"</c>.</summary>
+    public required string Direction { get; init; }
+
+    /// <summary>Progress snapshot at the time of the event.</summary>
+    public required TransferProgress Progress { get; init; }
+}
+
+/// <summary>Event arguments raised when a per-file transfer finishes.</summary>
+public sealed class FileTransferCompleteEventArgs : EventArgs
+{
+    /// <summary>File name (leaf name only).</summary>
+    public required string FileName { get; init; }
+
+    /// <summary><c>"upload"</c> or <c>"download"</c>.</summary>
+    public required string Direction { get; init; }
+
+    /// <summary>Total bytes transferred.</summary>
+    public long TotalBytes { get; init; }
+
+    /// <summary>Total chunks transferred.</summary>
+    public int TotalChunks { get; init; }
 }

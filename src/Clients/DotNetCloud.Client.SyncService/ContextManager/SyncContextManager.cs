@@ -44,6 +44,12 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
     /// <inheritdoc/>
     public event EventHandler<SyncConflictDetectedEventArgs>? ConflictDetected;
 
+    /// <inheritdoc/>
+    public event EventHandler<ContextTransferProgressEventArgs>? TransferProgress;
+
+    /// <inheritdoc/>
+    public event EventHandler<ContextTransferCompleteEventArgs>? TransferComplete;
+
     /// <summary>Initializes a new <see cref="SyncContextManager"/>.</summary>
     public SyncContextManager(
         IHttpClientFactory httpClientFactory,
@@ -288,6 +294,45 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
                 OriginalPath = args.OriginalPath,
                 ConflictCopyPath = args.ConflictCopyPath,
             });
+
+        // Forward per-file transfer progress with throttling (max 2 events/sec per file).
+        // Key: "{contextId}:{fileName}:{direction}"
+        var progressThrottle = new System.Collections.Concurrent.ConcurrentDictionary<string, DateTime>();
+        engine.FileTransferProgress += (_, args) =>
+        {
+            var throttleKey = $"{registration.Id}:{args.FileName}:{args.Direction}";
+            var now = DateTime.UtcNow;
+            // Allow event if last event for this file was >500ms ago (or never sent).
+            if (progressThrottle.TryGetValue(throttleKey, out var lastSent)
+                && (now - lastSent).TotalMilliseconds < 500)
+                return;
+            progressThrottle[throttleKey] = now;
+
+            TransferProgress?.Invoke(this, new ContextTransferProgressEventArgs
+            {
+                ContextId = registration.Id,
+                FileName = args.FileName,
+                Direction = args.Direction,
+                BytesTransferred = args.Progress.BytesTransferred,
+                TotalBytes = args.Progress.TotalBytes,
+                ChunksTransferred = args.Progress.ChunksTransferred,
+                TotalChunks = args.Progress.TotalChunks,
+                PercentComplete = args.Progress.PercentComplete,
+            });
+        };
+
+        engine.FileTransferComplete += (_, args) =>
+        {
+            // Remove throttle entry for the completed file.
+            progressThrottle.TryRemove($"{registration.Id}:{args.FileName}:{args.Direction}", out DateTime _);
+            TransferComplete?.Invoke(this, new ContextTransferCompleteEventArgs
+            {
+                ContextId = registration.Id,
+                FileName = args.FileName,
+                Direction = args.Direction,
+                TotalBytes = args.TotalBytes,
+            });
+        };
 
         // Forward status changes as service-level events
         engine.StatusChanged += (_, args) => OnEngineStatusChanged(registration.Id, args.Status);
