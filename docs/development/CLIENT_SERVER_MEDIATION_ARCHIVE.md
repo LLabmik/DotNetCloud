@@ -75,8 +75,11 @@ Archived: 2026-03-09. Full git history preserved in commits `c69aeac` through `c
 | 40 | Batch 3 Task 3.6 — Idempotent upload operations (hash pre-check) | `3504932` | Client |
 | 41 | Batch 4 Task 4.1 — Case-sensitivity conflict detection (NAME_CONFLICT) | `3504932` | Client |
 | 42 | Batch 4 Task 4.2 — POSIX permission metadata sync | `c70bd47` | Both |
+| 43 | Batch 4 Task 4.3 — Symbolic link policy | Server `d3a6422`, Client `1cd594a` | Both |
+| 44 | Batch 4 Task 4.4 — inotify/inode health monitoring | Server `d3a6422`, Client `1cd594a` | Both |
+| 45 | Batch 4 Task 4.5 — Path length/filename compatibility validation | Server `d3a6422`, Client `1cd594a` | Both |
 
-### Verified State at Batch 1–4.2 Completion
+### Verified State at Batch 1–4.5 Completion
 
-**Server (mint22, commit `c81495d`):** Build 0 errors, all tests pass.  
-**Client (Windows11-TestDNC, commit `c70bd47`):** Build 0 errors, 123/123 tests pass.
+**Server (mint22, commit `d3a6422`):** Build 0 errors, all tests pass.  
+**Client (Windows11-TestDNC, commit `1cd594a`):** Build 0 errors, 123/123 tests pass.
