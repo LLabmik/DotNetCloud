@@ -332,4 +332,60 @@ public class DotNetCloudApiClientTests
             return response;
         }
     }
+
+    // ── NameConflictException (Issue #41) ───────────────────────────────────
+
+    [TestMethod]
+    public async Task CreateFolderAsync_409NameConflict_ThrowsNameConflictException()
+    {
+        var errorJson = """{"code":"NAME_CONFLICT","message":"A folder named 'Reports' already exists.","requestId":"test-rid","timestamp":"2026-01-01T00:00:00Z"}""";
+        var client = CreateMockHttpClient(_ => new HttpResponseMessage(HttpStatusCode.Conflict)
+        {
+            Content = new StringContent(errorJson, System.Text.Encoding.UTF8, "application/json"),
+        });
+        var apiClient = new DotNetCloudApiClient(client, NullLogger<DotNetCloudApiClient>.Instance);
+
+        NameConflictException? caught = null;
+        try { await apiClient.CreateFolderAsync("Reports", null); }
+        catch (NameConflictException ex) { caught = ex; }
+
+        Assert.IsNotNull(caught, "Expected NameConflictException but none was thrown.");
+        StringAssert.Contains(caught!.Message, "Reports");
+    }
+
+    [TestMethod]
+    public async Task InitiateUploadAsync_409NameConflict_ThrowsNameConflictException()
+    {
+        var errorJson = """{"code":"NAME_CONFLICT","message":"A file named 'report.pdf' conflicts with 'Report.pdf'.","requestId":"test-rid","timestamp":"2026-01-01T00:00:00Z"}""";
+        var client = CreateMockHttpClient(_ => new HttpResponseMessage(HttpStatusCode.Conflict)
+        {
+            Content = new StringContent(errorJson, System.Text.Encoding.UTF8, "application/json"),
+        });
+        var apiClient = new DotNetCloudApiClient(client, NullLogger<DotNetCloudApiClient>.Instance);
+
+        NameConflictException? caught = null;
+        try { await apiClient.InitiateUploadAsync("report.pdf", null, 100, null, ["hash1"]); }
+        catch (NameConflictException ex) { caught = ex; }
+
+        Assert.IsNotNull(caught, "Expected NameConflictException but none was thrown.");
+    }
+
+    [TestMethod]
+    public async Task PostJsonAsync_409WithOtherCode_ThrowsHttpRequestException()
+    {
+        // A 409 with a different error code should NOT throw NameConflictException.
+        var errorJson = """{"code":"INVALID_OPERATION","message":"Some other conflict."}""";
+        var client = CreateMockHttpClient(_ => new HttpResponseMessage(HttpStatusCode.Conflict)
+        {
+            Content = new StringContent(errorJson, System.Text.Encoding.UTF8, "application/json"),
+        });
+        var apiClient = new DotNetCloudApiClient(client, NullLogger<DotNetCloudApiClient>.Instance);
+
+        // Should throw HttpRequestException (from EnsureSuccessStatusCode), not NameConflictException.
+        HttpRequestException? caught = null;
+        try { await apiClient.CreateFolderAsync("test", null); }
+        catch (HttpRequestException ex) { caught = ex; }
+
+        Assert.IsNotNull(caught, "Expected HttpRequestException but none was thrown.");
+    }
 }

@@ -61,6 +61,8 @@ public class SyncEngineTests
             .ReturnsAsync([]);
         _apiMock.Setup(a => a.GetChangesSinceAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PagedSyncChangesResponse { Changes = [], NextCursor = null, HasMore = false });
+        _apiMock.Setup(a => a.GetNodeAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new FileNodeResponse { Id = Guid.NewGuid(), Name = "file", NodeType = "File" });
         _apiMock.Setup(a => a.GetFolderTreeAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new SyncTreeNodeResponse { NodeId = Guid.Empty, Name = "/", NodeType = "Folder" });
 
@@ -573,4 +575,210 @@ public class SyncEngineTests
 
         Assert.AreEqual("storedCursor", receivedCursor, "Expected stored cursor passed to GetChangesSinceAsync.");
     }
+
+    // ── Idempotent uploads (Issue #40) ──────────────────────────────────────
+
+    [TestMethod]
+    public async Task SyncAsync_ExistingFileServerHashMatches_SkipsUploadAndMarksSynced()
+    {
+        // Arrange: create a real file whose hash matches what the server reports.
+        var filePath = Path.Combine(_tempDir, "idempotent.txt");
+        var content = "already-synced content"u8.ToArray();
+        await File.WriteAllBytesAsync(filePath, content);
+        var hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(content));
+
+        var existingNodeId = Guid.NewGuid();
+        _apiMock.Setup(a => a.GetNodeAsync(existingNodeId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new FileNodeResponse { Id = existingNodeId, Name = "idempotent.txt", NodeType = "File", ContentHash = hash });
+
+        var transferMock = new Mock<IChunkedTransferClient>();
+        _stateDbMock.Setup(db => db.RemoveOperationAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _stateDbMock.Setup(db => db.UpsertFileRecordAsync(It.IsAny<string>(), It.IsAny<LocalFileRecord>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _stateDbMock.Setup(db => db.GetPendingOperationsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new PendingUpload { Id = 1, LocalPath = filePath, NodeId = existingNodeId, RetryCount = 0 }]);
+
+        await using var engine = BuildEngine(transferMock.Object);
+
+        // Act
+        await engine.StartAsync(_context);
+        await engine.SyncAsync(_context);
+        await engine.StopAsync();
+
+        // Assert: upload was NOT performed.
+        transferMock.Verify(
+            t => t.UploadAsync(It.IsAny<Guid?>(), It.IsAny<string>(), It.IsAny<Stream>(),
+                It.IsAny<IProgress<TransferProgress>?>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()),
+            Times.Never);
+
+        // Assert: local record was upserted (marked synced).
+        _stateDbMock.Verify(db => db.UpsertFileRecordAsync(
+            _context.StateDatabasePath,
+            It.Is<LocalFileRecord>(r => r.LocalPath == filePath && r.NodeId == existingNodeId),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task SyncAsync_ExistingFileServerHashMismatch_ProceedsWithUpload()
+    {
+        // Arrange: server has a different hash → normal upload should proceed.
+        var filePath = Path.Combine(_tempDir, "changed.txt");
+        await File.WriteAllTextAsync(filePath, "new content");
+
+        var existingNodeId = Guid.NewGuid();
+        _apiMock.Setup(a => a.GetNodeAsync(existingNodeId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new FileNodeResponse { Id = existingNodeId, Name = "changed.txt", NodeType = "File", ContentHash = "oldhashhex" });
+
+        var uploadedNodeId = Guid.NewGuid();
+        var transferMock = new Mock<IChunkedTransferClient>();
+        transferMock.Setup(t => t.UploadAsync(
+                It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(), It.IsAny<IProgress<TransferProgress>?>(),
+                It.IsAny<CancellationToken>(), It.IsAny<string?>()))
+            .ReturnsAsync(uploadedNodeId);
+
+        _stateDbMock.Setup(db => db.RemoveOperationAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _stateDbMock.Setup(db => db.UpsertFileRecordAsync(It.IsAny<string>(), It.IsAny<LocalFileRecord>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _stateDbMock.Setup(db => db.GetPendingOperationsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new PendingUpload { Id = 1, LocalPath = filePath, NodeId = existingNodeId, RetryCount = 0 }]);
+
+        await using var engine = BuildEngine(transferMock.Object);
+
+        // Act
+        await engine.StartAsync(_context);
+        await engine.SyncAsync(_context);
+        await engine.StopAsync();
+
+        // Assert: upload WAS called.
+        transferMock.Verify(
+            t => t.UploadAsync(existingNodeId, filePath, It.IsAny<Stream>(),
+                It.IsAny<IProgress<TransferProgress>?>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public async Task SyncAsync_NewFileNoNodeId_SkipsIdempotencyCheckAndUploads()
+    {
+        // Arrange: no NodeId on the operation → GetNodeAsync must never be called.
+        var filePath = Path.Combine(_tempDir, "newfile.txt");
+        await File.WriteAllTextAsync(filePath, "brand new");
+
+        var transferMock = new Mock<IChunkedTransferClient>();
+        transferMock.Setup(t => t.UploadAsync(
+                null, filePath, It.IsAny<Stream>(), It.IsAny<IProgress<TransferProgress>?>(),
+                It.IsAny<CancellationToken>(), It.IsAny<string?>()))
+            .ReturnsAsync(Guid.NewGuid());
+
+        _stateDbMock.Setup(db => db.RemoveOperationAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _stateDbMock.Setup(db => db.UpsertFileRecordAsync(It.IsAny<string>(), It.IsAny<LocalFileRecord>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _stateDbMock.Setup(db => db.GetPendingOperationsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new PendingUpload { Id = 1, LocalPath = filePath, NodeId = null, RetryCount = 0 }]);
+
+        await using var engine = BuildEngine(transferMock.Object);
+
+        // Act
+        await engine.StartAsync(_context);
+        await engine.SyncAsync(_context);
+        await engine.StopAsync();
+
+        // Assert: GetNodeAsync was never called since there's no existing NodeId.
+        _apiMock.Verify(a => a.GetNodeAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+
+        // Assert: upload proceeded normally.
+        transferMock.Verify(
+            t => t.UploadAsync(null, filePath, It.IsAny<Stream>(),
+                It.IsAny<IProgress<TransferProgress>?>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()),
+            Times.Once);
+    }
+
+    // ── Case-sensitivity conflict (Issue #41) ───────────────────────────────
+
+    [TestMethod]
+    public async Task SyncAsync_NameConflictException_MovesOperationToFailedWithoutRetry()
+    {
+        // Arrange: upload throws NameConflictException (server 409 NAME_CONFLICT).
+        var filePath = Path.Combine(_tempDir, "conflict.txt");
+        await File.WriteAllTextAsync(filePath, "conflict test");
+
+        var transferMock = new Mock<IChunkedTransferClient>();
+        transferMock.Setup(t => t.UploadAsync(
+                It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(), It.IsAny<IProgress<TransferProgress>?>(),
+                It.IsAny<CancellationToken>(), It.IsAny<string?>()))
+            .ThrowsAsync(new NameConflictException("A file named 'Conflict.txt' already exists."));
+
+        _stateDbMock.Setup(db => db.MoveToFailedAsync(
+                It.IsAny<string>(), It.IsAny<PendingOperationRecord>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var pendingOp = new PendingUpload { Id = 1, LocalPath = filePath, NodeId = null, RetryCount = 0 };
+        _stateDbMock.Setup(db => db.GetPendingOperationsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([pendingOp]);
+        await using var engine = BuildEngine(transferMock.Object);
+
+        // Act
+        await engine.StartAsync(_context);
+        await engine.SyncAsync(_context);
+        await engine.StopAsync();
+
+        // Assert: moved to failed queue immediately.
+        _stateDbMock.Verify(db => db.MoveToFailedAsync(
+            _context.StateDatabasePath,
+            pendingOp,
+            It.Is<string>(s => s.Contains("Conflict.txt")),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task SyncAsync_NameConflictException_DoesNotRetry()
+    {
+        // Upload throws NameConflictException → UpdateOperationRetryAsync must never be called.
+        var filePath = Path.Combine(_tempDir, "no-retry.txt");
+        await File.WriteAllTextAsync(filePath, "no retry test");
+
+        var transferMock = new Mock<IChunkedTransferClient>();
+        transferMock.Setup(t => t.UploadAsync(
+                It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(), It.IsAny<IProgress<TransferProgress>?>(),
+                It.IsAny<CancellationToken>(), It.IsAny<string?>()))
+            .ThrowsAsync(new NameConflictException("Conflict."));
+
+        _stateDbMock.Setup(db => db.MoveToFailedAsync(
+                It.IsAny<string>(), It.IsAny<PendingOperationRecord>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        _stateDbMock.Setup(db => db.GetPendingOperationsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new PendingUpload { Id = 2, LocalPath = filePath, NodeId = null, RetryCount = 0 }]);
+
+        await using var engine = BuildEngine(transferMock.Object);
+
+        // Act
+        await engine.StartAsync(_context);
+        await engine.SyncAsync(_context);
+        await engine.StopAsync();
+
+        // Assert: retry scheduling was NOT called.
+        _stateDbMock.Verify(db => db.UpdateOperationRetryAsync(
+            It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(),
+            It.IsAny<DateTime?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // ── Private helpers ─────────────────────────────────────────────────────
+
+    private SyncEngine BuildEngine(IChunkedTransferClient? transfer = null) =>
+        new(
+            _apiMock.Object,
+            new Mock<ITokenStore>().Object,
+            transfer ?? new Mock<IChunkedTransferClient>().Object,
+            new Mock<IConflictResolver>().Object,
+            _stateDbMock.Object,
+            new SelectiveSyncConfig(),
+            new DotNetCloud.Client.Core.SyncIgnore.SyncIgnoreParser(),
+            _lockedFileReaderMock.Object,
+            NullLogger<SyncEngine>.Instance)
+        {
+            Tier2RetryDelay = TimeSpan.Zero,
+        };
 }

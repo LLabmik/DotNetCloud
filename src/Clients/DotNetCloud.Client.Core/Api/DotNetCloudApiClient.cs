@@ -294,6 +294,8 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
                 return req;
             },
             cancellationToken);
+        if (response.StatusCode == HttpStatusCode.Conflict)
+            await ThrowIfNameConflictAsync(response, cancellationToken);
         response.EnsureSuccessStatusCode();
         return await ReadEnvelopeDataAsync<T>(response, cancellationToken);
     }
@@ -308,6 +310,8 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
                 return req;
             },
             cancellationToken);
+        if (response.StatusCode == HttpStatusCode.Conflict)
+            await ThrowIfNameConflictAsync(response, cancellationToken);
         response.EnsureSuccessStatusCode();
         return await ReadEnvelopeDataAsync<T>(response, cancellationToken);
     }
@@ -402,6 +406,24 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
         }
 
         return doc.RootElement.Deserialize<T>(JsonOptions);
+    }
+
+    private static async Task ThrowIfNameConflictAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var doc = await JsonDocument.ParseAsync(
+                await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
+            if (doc.RootElement.TryGetProperty("code", out var codeProp) &&
+                string.Equals(codeProp.GetString(), "NAME_CONFLICT", StringComparison.Ordinal))
+            {
+                var message = doc.RootElement.TryGetProperty("message", out var msgProp)
+                    ? msgProp.GetString() ?? "Name conflict."
+                    : "Name conflict.";
+                throw new NameConflictException(message);
+            }
+        }
+        catch (JsonException) { /* Not a JSON body — fall through to EnsureSuccessStatusCode */ }
     }
 
     private static async Task DelayAsync(int attempt, TimeSpan? retryAfter, CancellationToken cancellationToken)

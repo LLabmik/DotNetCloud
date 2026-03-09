@@ -399,6 +399,15 @@ public sealed class SyncEngine : ISyncEngine
                 await _stateDb.RemoveOperationAsync(context.StateDatabasePath, op.Id, cancellationToken);
                 completedOperations++;
             }
+            catch (NameConflictException ncEx)
+            {
+                // Issue #41: case-sensitivity conflict — move to failed immediately, no retry.
+                _logger.LogWarning(
+                    "Case-sensitivity conflict for '{FileName}': {Message}. Operation {OpId} moved to failed queue.",
+                    op is PendingUpload u ? Path.GetFileName(u.LocalPath) : string.Empty,
+                    ncEx.Message, op.Id);
+                await _stateDb.MoveToFailedAsync(context.StateDatabasePath, op, ncEx.Message, cancellationToken);
+            }
             catch (LockedFileException lockEx)
             {
                 // Locked files are not sync failures — defer without consuming the retry budget.
@@ -459,6 +468,36 @@ public sealed class SyncEngine : ISyncEngine
     {
         if (op is PendingUpload upload)
         {
+            // Issue #40: idempotency check — skip upload if server already has this version.
+            if (upload.NodeId.HasValue)
+            {
+                FileNodeResponse? serverNode = null;
+                try { serverNode = await _api.GetNodeAsync(upload.NodeId.Value, cancellationToken); }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogDebug(ex, "Could not fetch node {NodeId} for idempotency check; proceeding with upload.", upload.NodeId.Value);
+                }
+
+                if (serverNode?.ContentHash is not null)
+                {
+                    var localHash = await ComputeFileHashAsync(upload.LocalPath, cancellationToken);
+                    if (string.Equals(serverNode.ContentHash, localHash, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _logger.LogInformation(
+                            "Skipping upload of {LocalPath} — server already has this version (hash match).",
+                            upload.LocalPath);
+                        await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, new LocalFileRecord
+                        {
+                            LocalPath = upload.LocalPath,
+                            NodeId = upload.NodeId.Value,
+                            ContentHash = localHash,
+                            LastSyncedAt = DateTime.UtcNow,
+                            LocalModifiedAt = File.GetLastWriteTimeUtc(upload.LocalPath),
+                        }, cancellationToken);
+                        return;
+                    }
+                }
+            }
             var fileName = Path.GetFileName(upload.LocalPath);
             var uploadProgress = new Progress<TransferProgress>(p =>
                 FileTransferProgress?.Invoke(this, new FileTransferProgressEventArgs
