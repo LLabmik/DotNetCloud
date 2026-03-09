@@ -648,3 +648,39 @@ dotnet test tests\DotNetCloud.Client.Core.Tests\
 - "Ignored Files" panel present in SyncTray Settings: ✓
 
 **Task 3.1: PASS (client complete)**
+
+---
+
+### Issue #34: Batch 3 Task 3.2 — Persistent Upload Sessions (Client only)
+
+**Server-side status:** Not applicable (client-only task).
+**Client-side status:** ✅ COMPLETE — commit `4243328` (2026-03-08).
+
+**What was implemented:**
+
+- `src/Clients/DotNetCloud.Client.Core/LocalState/LocalStateDbContext.cs` — New `ActiveUploadSessionRecord` entity with fields: `SessionId` (Guid, unique index), `LocalPath`, `NodeId?`, `TotalChunks`, `UploadedChunkHashesJson` (JSON array), `FileSize`, `FileModifiedAt`, `CreatedAt`. Added `ActiveUploadSessions` DbSet + EF model configuration.
+- `src/Clients/DotNetCloud.Client.Core/LocalState/ILocalStateDb.cs` — 5 new methods: `SaveActiveUploadSessionAsync`, `UpdateActiveUploadSessionChunksAsync`, `DeleteActiveUploadSessionAsync`, `GetActiveUploadSessionsAsync`, `DeleteStaleActiveUploadSessionsAsync`.
+- `src/Clients/DotNetCloud.Client.Core/LocalState/LocalStateDb.cs` — Implementations for all 5 new methods. Schema evolution in `RunSchemaEvolutionAsync` adds `ActiveUploadSessions` table via `CREATE TABLE IF NOT EXISTS`.
+- `src/Clients/DotNetCloud.Client.Core/Transfer/IChunkedTransferClient.cs` — Added `string? stateDatabasePath = null` parameter to `UploadAsync`.
+- `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs` — Injected `ILocalStateDb?`; added `SessionResumeWindow = 18h` constant. `UploadAsync` now:
+  - On startup: queries for existing session matching `localPath`; deletes if > 18 h old or file changed (size or mtime); resumes unchanged sessions
+  - Fresh start path: calls `InitiateUploadAsync`, persists `ActiveUploadSessionRecord` immediately after
+  - After each successful chunk upload: acquires `hashFlushLock`, adds hash to set, calls `UpdateActiveUploadSessionChunksAsync`
+  - After `CompleteUploadAsync`: calls `DeleteActiveUploadSessionAsync`
+  - On failure: session record is left in DB (enables future resumption)
+  - Resume path: reuses existing `SessionId`, populates `presentChunks` from `UploadedChunkHashesJson` (no `InitiateUploadAsync` call)
+- `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` — In `StartAsync`: calls `DeleteStaleActiveUploadSessionsAsync(> 48h)` at boot. In `ExecutePendingOperationAsync`: passes `context.StateDatabasePath` to `UploadAsync`.
+- `src/Clients/DotNetCloud.Client.SyncService/ContextManager/SyncContextManager.cs` — Passes `stateDb` instance to `ChunkedTransferClient` constructor (reordered `stateDb` creation before `transfer`).
+- `tests/DotNetCloud.Client.Core.Tests/Transfer/ChunkedTransferClientTests.cs` — All 13 existing `new ChunkedTransferClient(...)` updated to pass `null` for `stateDb`. 4 new tests:
+  - `UploadAsync_PersistsAndDeletesSessionRecord_OnSuccess` — verifies save + delete called
+  - `UploadAsync_ResumesSession_SkipsAlreadyUploadedChunks` — real temp file, existing session with uploaded hash → `InitiateUploadAsync` never called, `UploadChunkAsync` never called, `CompleteUploadAsync` called with resumed session ID
+  - `UploadAsync_StaleSession_DeletesRecordAndStartsFresh` — 20h old session → old deleted, fresh `InitiateUploadAsync` called
+  - `UploadAsync_FileChanged_DeletesSessionAndStartsFresh` — file size mismatch → old deleted, fresh initiate
+
+**Validation results from Windows11-TestDNC:**
+- Build: 0 errors
+- Tests: 84 passed, 0 failed (was 80, +4 new session persistence tests)
+- Session save/delete lifecycle verified via mock assertions
+- Resume path (skip already-uploaded chunks) verified with real temp file + controlled mtime
+
+**Task 3.2: PASS (client complete)**
