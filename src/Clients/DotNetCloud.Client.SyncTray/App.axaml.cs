@@ -3,6 +3,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using DotNetCloud.Client.Core.Auth;
+using DotNetCloud.Client.Core.SyncIgnore;
 using DotNetCloud.Client.SyncTray.Ipc;
 using DotNetCloud.Client.SyncTray.Notifications;
 using DotNetCloud.Client.SyncTray.ViewModels;
@@ -89,6 +90,9 @@ public partial class App : Application
         // Core view-models.
         services.AddSingleton<TrayViewModel>();
         services.AddSingleton<SettingsViewModel>();
+
+        // Sync ignore parser (used by settings UI).
+        services.AddTransient<ISyncIgnoreParser, SyncIgnoreParser>();
 
         // IPC client for communication with SyncService.
         services.AddSingleton<IIpcClient, IpcClient>();

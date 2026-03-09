@@ -4,6 +4,7 @@ using DotNetCloud.Client.Core.Conflict;
 using DotNetCloud.Client.Core.LocalState;
 using DotNetCloud.Client.Core.SelectiveSync;
 using DotNetCloud.Client.Core.Sync;
+using DotNetCloud.Client.Core.SyncIgnore;
 using DotNetCloud.Client.Core.Transfer;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -45,6 +46,7 @@ public static class ClientCoreServiceExtensions
         services.AddTransient<IConflictResolver, ConflictResolver>();
         services.AddTransient<ILocalStateDb, LocalStateDb>();
         services.AddSingleton<ISelectiveSyncConfig, SelectiveSyncConfig>();
+        services.AddTransient<ISyncIgnoreParser, SyncIgnoreParser>();
         services.AddTransient<ISyncEngine, SyncEngine>();
 
         return services;

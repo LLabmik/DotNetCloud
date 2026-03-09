@@ -67,6 +67,7 @@ public class SyncEngineTests
             new Mock<IConflictResolver>().Object,
             _stateDbMock.Object,
             new SelectiveSyncConfig(),
+            new DotNetCloud.Client.Core.SyncIgnore.SyncIgnoreParser(),
             NullLogger<SyncEngine>.Instance);
     }
 

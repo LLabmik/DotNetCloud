@@ -3,6 +3,7 @@ using DotNetCloud.Client.Core.Auth;
 using DotNetCloud.Client.Core.Conflict;
 using DotNetCloud.Client.Core.LocalState;
 using DotNetCloud.Client.Core.SelectiveSync;
+using DotNetCloud.Client.Core.SyncIgnore;
 using DotNetCloud.Client.Core.Transfer;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
@@ -21,6 +22,7 @@ public sealed class SyncEngine : ISyncEngine
     private readonly IConflictResolver _conflictResolver;
     private readonly ILocalStateDb _stateDb;
     private readonly ISelectiveSyncConfig _selectiveSync;
+    private readonly ISyncIgnoreParser _syncIgnore;
     private readonly ILogger<SyncEngine> _logger;
 
     private FileSystemWatcher? _watcher;
@@ -43,6 +45,7 @@ public sealed class SyncEngine : ISyncEngine
         IConflictResolver conflictResolver,
         ILocalStateDb stateDb,
         ISelectiveSyncConfig selectiveSync,
+        ISyncIgnoreParser syncIgnore,
         ILogger<SyncEngine> logger)
     {
         _api = api;
@@ -51,6 +54,7 @@ public sealed class SyncEngine : ISyncEngine
         _conflictResolver = conflictResolver;
         _stateDb = stateDb;
         _selectiveSync = selectiveSync;
+        _syncIgnore = syncIgnore;
         _logger = logger;
     }
 
@@ -61,6 +65,8 @@ public sealed class SyncEngine : ISyncEngine
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
         await _stateDb.InitializeAsync(context.StateDatabasePath, cancellationToken);
+
+        _syncIgnore.Initialize(context.LocalFolderPath);
 
         _watcher = new FileSystemWatcher(context.LocalFolderPath)
         {
@@ -242,6 +248,14 @@ public sealed class SyncEngine : ISyncEngine
             if (!_selectiveSync.IsIncluded(context.Id, localPath))
                 continue;
 
+            var relativePathForIgnore = Path.GetRelativePath(context.LocalFolderPath, localPath);
+            if (_syncIgnore.IsIgnored(relativePathForIgnore))
+            {
+                _logger.LogDebug("Skipping ignored remote change {RelPath} for context {ContextId}.",
+                    relativePathForIgnore, context.Id);
+                continue;
+            }
+
             if (change.IsDeleted)
             {
                 await HandleRemoteDeletionAsync(context, localPath, change.NodeId, cancellationToken);
@@ -369,7 +383,12 @@ public sealed class SyncEngine : ISyncEngine
             }, cancellationToken);
         }
         else if (op is PendingDownload download)
-        {
+        {            var dlRelPath = Path.GetRelativePath(context.LocalFolderPath, download.LocalPath);
+            if (_syncIgnore.IsIgnored(dlRelPath))
+            {
+                _logger.LogDebug("Skipping download of ignored file {RelPath}.", dlRelPath);
+                return;
+            }
             using var stream = await _transfer.DownloadAsync(download.NodeId, null, cancellationToken);
             Directory.CreateDirectory(Path.GetDirectoryName(download.LocalPath)!);
             await using var output = File.Create(download.LocalPath);
@@ -463,6 +482,12 @@ public sealed class SyncEngine : ISyncEngine
     private void OnFileSystemChanged(object sender, FileSystemEventArgs e)
     {
         if (_activeContext is null || _paused) return;
+
+        // Pre-filter: skip events for known-ignored files to reduce unnecessary sync passes.
+        var relativePath = Path.GetRelativePath(_activeContext.LocalFolderPath, e.FullPath);
+        if (_syncIgnore.IsIgnored(relativePath))
+            return;
+
         _logger.LogInformation(
             "FileSystemWatcher trigger: ChangeType={ChangeType}, Path={Path}.",
             e.ChangeType,
@@ -473,6 +498,12 @@ public sealed class SyncEngine : ISyncEngine
     private void OnFileSystemRenamed(object sender, RenamedEventArgs e)
     {
         if (_activeContext is null || _paused) return;
+
+        // Pre-filter: skip events for known-ignored files.
+        var newRelPath = Path.GetRelativePath(_activeContext.LocalFolderPath, e.FullPath);
+        if (_syncIgnore.IsIgnored(newRelPath))
+            return;
+
         _logger.LogInformation(
             "FileSystemWatcher trigger: ChangeType=Renamed, OldPath={OldPath}, NewPath={NewPath}.",
             e.OldFullPath,

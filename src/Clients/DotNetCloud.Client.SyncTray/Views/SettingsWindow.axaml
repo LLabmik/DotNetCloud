@@ -97,6 +97,94 @@
                 </StackPanel>
             </TabItem>
 
+            <!-- ── Ignored Files ── -->
+            <TabItem Header="Ignored Files">
+                <DockPanel Margin="8">
+
+                    <!-- Test path input -->
+                    <Border DockPanel.Dock="Bottom"
+                            Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                            CornerRadius="4" Padding="8" Margin="0,8,0,0">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Test a path" FontWeight="SemiBold" />
+                            <TextBlock Text="Type a relative path to check whether it would be ignored."
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <TextBox Text="{Binding IgnoreTestPath}"
+                                     Watermark="e.g. build/output.log" />
+                            <TextBlock Text="{Binding IgnoreTestResult}"
+                                       FontSize="11"
+                                       IsVisible="{Binding IgnoreTestResult, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Add pattern row -->
+                    <Border DockPanel.Dock="Bottom"
+                            Padding="0,6,0,0">
+                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding NewIgnorePattern}"
+                                     Watermark="Add pattern (e.g. *.log, build/)" />
+                            <Button Grid.Column="1"
+                                    Content="Add"
+                                    Command="{Binding AddIgnorePatternCommand}" />
+                            <Button Grid.Column="2"
+                                    Content="Edit .syncignore"
+                                    Command="{Binding EditSyncIgnoreFileCommand}" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Rule lists -->
+                    <ScrollViewer>
+                        <StackPanel Spacing="8">
+
+                            <!-- User rules -->
+                            <TextBlock Text="Your rules" FontWeight="SemiBold" />
+                            <TextBlock Text="(none — all built-in defaults are active)"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       IsVisible="{Binding UserIgnorePatterns.Count, Converter={x:Static ObjectConverters.IsNull}}" />
+                            <ItemsControl ItemsSource="{Binding UserIgnorePatterns}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{Binding}"
+                                                       VerticalAlignment="Center"
+                                                       FontFamily="Monospace" />
+                                            <Button Grid.Column="1"
+                                                    Content="✕"
+                                                    Padding="4,2"
+                                                    Command="{Binding $parent[Window].DataContext.RemoveIgnorePatternCommand}"
+                                                    CommandParameter="{Binding}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <Separator Margin="0,4" />
+
+                            <!-- Built-in defaults (read-only) -->
+                            <TextBlock Text="System defaults (read-only)" FontWeight="SemiBold" />
+                            <ItemsControl ItemsSource="{Binding BuiltInIgnorePatterns}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}"
+                                                   FontFamily="Monospace"
+                                                   FontStyle="Italic"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                   Margin="0,1" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                        </StackPanel>
+                    </ScrollViewer>
+
+                </DockPanel>
+            </TabItem>
+
         </TabControl>
 
         <!-- Close button -->

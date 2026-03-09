@@ -18,5 +18,7 @@ public partial class SettingsWindow : Window
     public SettingsWindow(SettingsViewModel vm) : this()
     {
         DataContext = vm;
+        // Lazily initialise the sync-ignore parser when the window first opens.
+        Opened += (_, _) => vm.EnsureSyncIgnoreInitialized();
     }
 }

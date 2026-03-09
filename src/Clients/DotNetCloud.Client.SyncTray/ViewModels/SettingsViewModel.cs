@@ -1,5 +1,8 @@
+using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Windows.Input;
 using DotNetCloud.Client.Core.Auth;
+using DotNetCloud.Client.Core.SyncIgnore;
 using DotNetCloud.Client.SyncService.Ipc;
 using DotNetCloud.Client.SyncTray.Ipc;
 using DotNetCloud.Client.SyncTray.Views;
@@ -16,6 +19,7 @@ public sealed class SettingsViewModel : ViewModelBase
     private readonly TrayViewModel _trayVm;
     private readonly IIpcClient _ipc;
     private readonly IOAuth2Service _oauth2;
+    private readonly ISyncIgnoreParser _syncIgnore;
     private readonly ILogger<SettingsViewModel> _logger;
 
     private string _addAccountServerUrl = "https://mint22:15443/";
@@ -25,6 +29,13 @@ public sealed class SettingsViewModel : ViewModelBase
     private bool _startOnLogin;
     private decimal _uploadLimitKbps;
     private decimal _downloadLimitKbps;
+    private string? _syncIgnoreRoot;
+
+    // Ignored Files tab state
+    private readonly ObservableCollection<string> _userIgnorePatterns = [];
+    private string _newIgnorePattern = string.Empty;
+    private string _ignoreTestPath = string.Empty;
+    private string _ignoreTestResult = string.Empty;
 
     // ── Properties ────────────────────────────────────────────────────────
 
@@ -84,6 +95,39 @@ public sealed class SettingsViewModel : ViewModelBase
     /// <summary>Accounts list exposed from the tray view-model.</summary>
     public IReadOnlyList<AccountViewModel> Accounts => _trayVm.Accounts;
 
+    // ── Ignored Files tab ─────────────────────────────────────────────────
+
+    /// <summary>Built-in default ignore patterns (system-level, not editable).</summary>
+    public IReadOnlyList<string> BuiltInIgnorePatterns => _syncIgnore.BuiltInPatterns;
+
+    /// <summary>User-defined ignore patterns (editable).</summary>
+    public ObservableCollection<string> UserIgnorePatterns => _userIgnorePatterns;
+
+    /// <summary>Pattern typed by the user in the "Add pattern" input.</summary>
+    public string NewIgnorePattern
+    {
+        get => _newIgnorePattern;
+        set => SetProperty(ref _newIgnorePattern, value);
+    }
+
+    /// <summary>Path entered to preview whether it would be ignored.</summary>
+    public string IgnoreTestPath
+    {
+        get => _ignoreTestPath;
+        set
+        {
+            if (SetProperty(ref _ignoreTestPath, value))
+                UpdateIgnoreTestResult();
+        }
+    }
+
+    /// <summary>Result of the ignore-path test (feedback string for the user).</summary>
+    public string IgnoreTestResult
+    {
+        get => _ignoreTestResult;
+        private set => SetProperty(ref _ignoreTestResult, value);
+    }
+
     // ── Commands ──────────────────────────────────────────────────────────
 
     /// <summary>Opens the Add Account dialog and completes the OAuth2 flow on confirmation.</summary>
@@ -95,6 +139,15 @@ public sealed class SettingsViewModel : ViewModelBase
     /// <summary>Closes the Settings window.</summary>
     public ICommand CloseCommand { get; }
 
+    /// <summary>Adds <see cref="NewIgnorePattern"/> to the user ignore rules and saves.</summary>
+    public ICommand AddIgnorePatternCommand { get; }
+
+    /// <summary>Removes the pattern passed as parameter from the user ignore rules and saves.</summary>
+    public ICommand RemoveIgnorePatternCommand { get; }
+
+    /// <summary>Opens the <c>.syncignore</c> file in the system's default text editor.</summary>
+    public ICommand EditSyncIgnoreFileCommand { get; }
+
     // ── Constructor ───────────────────────────────────────────────────────
 
     /// <summary>Initializes a new <see cref="SettingsViewModel"/>.</summary>
@@ -102,16 +155,21 @@ public sealed class SettingsViewModel : ViewModelBase
         TrayViewModel trayVm,
         IIpcClient ipc,
         IOAuth2Service oauth2,
+        ISyncIgnoreParser syncIgnore,
         ILogger<SettingsViewModel> logger)
     {
         _trayVm = trayVm;
         _ipc = ipc;
         _oauth2 = oauth2;
+        _syncIgnore = syncIgnore;
         _logger = logger;
 
         ConnectCommand = new AsyncRelayCommand(BeginAddAccountFlowAsync);
         RemoveAccountCommand = new AsyncRelayCommand<Guid>(id => _trayVm.RemoveAccountAsync(id));
         CloseCommand = new RelayCommand(static () => { /* handled by the view via CloseCommand binding */ });
+        AddIgnorePatternCommand = new AsyncRelayCommand(AddIgnorePatternAsync);
+        RemoveIgnorePatternCommand = new AsyncRelayCommand<string>(RemoveIgnorePatternAsync);
+        EditSyncIgnoreFileCommand = new RelayCommand(OpenSyncIgnoreInEditor);
 
         // Forward account list changes from the tray view-model.
         _trayVm.PropertyChanged += (_, e) =>
@@ -214,6 +272,94 @@ public sealed class SettingsViewModel : ViewModelBase
 
     /// <summary>Removes the account with the specified context ID.</summary>
     public Task RemoveAccountAsync(Guid contextId) => _trayVm.RemoveAccountAsync(contextId);
+
+    // ── Ignored Files tab ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// Ensures the sync-ignore parser is initialised from the first configured
+    /// account's sync root.  A no-op if already initialised or no accounts exist.
+    /// </summary>
+    public void EnsureSyncIgnoreInitialized()
+    {
+        var account = _trayVm.Accounts.FirstOrDefault();
+        if (account is null || _syncIgnoreRoot == account.LocalFolderPath)
+            return;
+
+        _syncIgnoreRoot = account.LocalFolderPath;
+        _syncIgnore.Initialize(_syncIgnoreRoot);
+        _userIgnorePatterns.Clear();
+        foreach (var p in _syncIgnore.UserPatterns)
+            _userIgnorePatterns.Add(p);
+        OnPropertyChanged(nameof(BuiltInIgnorePatterns));
+        UpdateIgnoreTestResult();
+    }
+
+    private async Task AddIgnorePatternAsync()
+    {
+        var pattern = NewIgnorePattern.Trim();
+        if (string.IsNullOrEmpty(pattern) || _userIgnorePatterns.Contains(pattern))
+            return;
+
+        _userIgnorePatterns.Add(pattern);
+        _syncIgnore.SetUserPatterns(_userIgnorePatterns.ToList());
+        NewIgnorePattern = string.Empty;
+        UpdateIgnoreTestResult();
+        await PersistIgnoreRulesAsync();
+    }
+
+    private async Task RemoveIgnorePatternAsync(string pattern)
+    {
+        if (_userIgnorePatterns.Remove(pattern))
+        {
+            _syncIgnore.SetUserPatterns(_userIgnorePatterns.ToList());
+            UpdateIgnoreTestResult();
+            await PersistIgnoreRulesAsync();
+        }
+    }
+
+    private void OpenSyncIgnoreInEditor()
+    {
+        if (_syncIgnoreRoot is null) return;
+        var path = Path.Combine(_syncIgnoreRoot, ".syncignore");
+        // Ensure the file exists so the editor can open it.
+        if (!File.Exists(path))
+            File.WriteAllText(path, string.Empty);
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to open .syncignore in system editor.");
+        }
+    }
+
+    private void UpdateIgnoreTestResult()
+    {
+        var path = IgnoreTestPath.Trim();
+        if (string.IsNullOrEmpty(path))
+        {
+            IgnoreTestResult = string.Empty;
+            return;
+        }
+
+        IgnoreTestResult = _syncIgnore.IsIgnored(path)
+            ? $"\u2714 \"{path}\" would be ignored."
+            : $"\u2718 \"{path}\" would NOT be ignored.";
+    }
+
+    private async Task PersistIgnoreRulesAsync()
+    {
+        if (_syncIgnoreRoot is null) return;
+        try
+        {
+            await _syncIgnore.SaveAsync(_syncIgnoreRoot);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to save .syncignore.");
+        }
+    }
 
     // ── Helpers ───────────────────────────────────────────────────────────
 

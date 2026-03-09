@@ -5,6 +5,7 @@ using DotNetCloud.Client.Core.Conflict;
 using DotNetCloud.Client.Core.LocalState;
 using DotNetCloud.Client.Core.SelectiveSync;
 using DotNetCloud.Client.Core.Sync;
+using DotNetCloud.Client.Core.SyncIgnore;
 using DotNetCloud.Client.Core.Transfer;
 using Microsoft.Extensions.Logging;
 
@@ -328,6 +329,8 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
 
         var selectiveSync = new SelectiveSyncConfig();
 
+        var syncIgnore = new SyncIgnoreParser();
+
         var engine = new SyncEngine(
             apiClient,
             tokenStore,
@@ -335,6 +338,7 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             conflictResolver,
             stateDb,
             selectiveSync,
+            syncIgnore,
             _loggerFactory.CreateLogger<SyncEngine>());
 
         return (engine, conflictResolver);
