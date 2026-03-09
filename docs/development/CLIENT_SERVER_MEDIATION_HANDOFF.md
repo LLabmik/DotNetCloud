@@ -684,3 +684,45 @@ dotnet test tests\DotNetCloud.Client.Core.Tests\
 - Resume path (skip already-uploaded chunks) verified with real temp file + controlled mtime
 
 **Task 3.2: PASS (client complete)**
+
+---
+
+### Issue #35: Batch 3 Task 3.3 — Locked File Handling (Client only)
+
+**Server-side status:** Not applicable (client-only task).
+**Client-side status:** ✅ COMPLETE — commit `b971551` (2026-03-08).
+
+**What was implemented:**
+
+- `src/Clients/DotNetCloud.Client.Core/Platform/ILockedFileReader.cs` — `ILockedFileReader : IDisposable` interface with `TryReadLockedFileAsync(path, ct)` and `ReleaseSnapshot()`.
+- `src/Clients/DotNetCloud.Client.Core/Platform/LockedFileException.cs` — exception thrown by Tier 4 when all strategies fail; carries `FilePath` property.
+- `src/Clients/DotNetCloud.Client.Core/Platform/NoOpLockedFileReader.cs` — Linux/macOS stub (always returns null, ReleaseSnapshot is a no-op).
+- `src/Clients/DotNetCloud.Client.Core/Platform/VssLockedFileReader.cs` — Windows VSS implementation via `System.Management` WMI (`Win32_ShadowCopy.Create`). Lazily creates one shadow copy per sync pass on first locked-file encounter; reuses the same snapshot for additional files on the same volume; released via `ReleaseSnapshot()` in `SyncAsync` finally block. Guarded by `[SupportedOSPlatform("windows")]` and `#if WINDOWS_BUILD`.
+- `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs`:
+  - `ILockedFileReader` injected via constructor.
+  - `internal TimeSpan Tier2RetryDelay` (default 2s) for test overrides.
+  - New `OpenFileForSyncAsync(path, ct)`: Tier 1 (`FileShare.ReadWrite | FileShare.Delete`), Tier 2 (3× retry with `Tier2RetryDelay`), Tier 3 (`ILockedFileReader.TryReadLockedFileAsync`), Tier 4 (throws `LockedFileException`).
+  - `ExecutePendingOperationAsync`: `File.OpenRead` replaced with `OpenFileForSyncAsync`.
+  - `ComputeFileHashAsync`: `File.OpenRead` replaced with `FileShare.ReadWrite | FileShare.Delete`.
+  - `SyncAsync` finally block: `_lockedFileReader.ReleaseSnapshot()` called after every pass.
+  - `ApplyLocalChangesAsync`: new `catch (LockedFileException)` — logs warning, sets `SyncStateTag = "Deferred"` on existing file record, schedules 2-minute retry WITHOUT incrementing `RetryCount`; `catch (Exception)` for all other failures unchanged.
+  - `DisposeAsync`: disposes `ILockedFileReader` if it implements `IDisposable`.
+- `src/Clients/DotNetCloud.Client.Core/ClientCoreServiceExtensions.cs` — registers `VssLockedFileReader` on Windows, `NoOpLockedFileReader` on Linux/macOS as `Transient`.
+- `src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj`:
+  - `InternalsVisibleTo("DotNetCloud.Client.Core.Tests")` (for `Tier2RetryDelay` override).
+  - `WINDOWS_BUILD` define constant (conditional on `$(OS) == Windows_NT`).
+  - `System.Management` 8.0.0 package reference (Windows-conditional).
+- `src/Clients/DotNetCloud.Client.SyncService/ContextManager/SyncContextManager.cs` — `CreateEngine()` now instantiates `VssLockedFileReader` (Windows) or `NoOpLockedFileReader` (Linux/macOS) and passes it to `SyncEngine`.
+- `tests/DotNetCloud.Client.Core.Tests/Sync/SyncEngineTests.cs` — added `Mock<ILockedFileReader>` to test setup (with `Tier2RetryDelay = TimeSpan.Zero`); 4 new tests:
+  - `SyncAsync_FileOpenedWithReadWriteShare_UploadsSuccessfully` — Tier 1 path (file held open by another stream with ReadWrite share)
+  - `SyncAsync_LockedFileVssSucceeds_UploadsFromVssStream` — Tier 3 path (locked file, VSS mock returns stream)
+  - `SyncAsync_LockedFileAllTiersFail_DefersWithoutIncrementingRetryCount` — Tier 4 path (all tiers fail, RetryCount unchanged)
+  - `SyncAsync_AfterSyncPass_ReleasesLockedFileReaderSnapshot` — verifies `ReleaseSnapshot()` called after each pass
+
+**Validation results from Windows11-TestDNC:**
+- Build: 0 errors
+- Tests: 88 passed, 0 failed (was 84, +4 new locked file tests)
+- All 4 tiers implemented: FileShare.ReadWrite (Tier 1), retry loop (Tier 2), VSS via WMI (Tier 3), Deferred without RetryCount increment (Tier 4)
+- `ReleaseSnapshot()` verified called in SyncAsync finally block
+
+**Task 3.3: PASS (client complete)**
