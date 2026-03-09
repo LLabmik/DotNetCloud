@@ -5,10 +5,12 @@ using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Models;
+using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
 using SharePermission = DotNetCloud.Modules.Files.Models.SharePermission;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace DotNetCloud.Modules.Files.Data.Services;
 
@@ -26,14 +28,16 @@ internal sealed class FileService : IFileService
     private readonly IPermissionService _permissions;
 
     private readonly IQuotaService _quotaService;
+    private readonly FileSystemOptions _fileSystemOptions;
 
-    public FileService(FilesDbContext db, IEventBus eventBus, ILogger<FileService> logger, IPermissionService permissions, IQuotaService quotaService)
+    public FileService(FilesDbContext db, IEventBus eventBus, ILogger<FileService> logger, IPermissionService permissions, IQuotaService quotaService, IOptions<FileSystemOptions> fileSystemOptions)
     {
         _db = db;
         _eventBus = eventBus;
         _logger = logger;
         _permissions = permissions;
         _quotaService = quotaService;
+        _fileSystemOptions = fileSystemOptions.Value;
     }
 
     /// <inheritdoc />
@@ -465,6 +469,18 @@ internal sealed class FileService : IFileService
 
         if (await query.AnyAsync(cancellationToken))
             throw new Core.Errors.ValidationException("Name", $"A node named '{name}' already exists in this folder.");
+
+        // Prevent case-insensitive name collisions that would cause data loss on Windows/macOS.
+        if (_fileSystemOptions.EnforceCaseInsensitiveUniqueness)
+        {
+            var caseQuery = _db.FileNodes.Where(n => n.ParentId == parentId && n.Name.ToLower() == name.ToLower() && n.Name != name);
+            if (excludeId.HasValue)
+                caseQuery = caseQuery.Where(n => n.Id != excludeId.Value);
+
+            var conflictingName = await caseQuery.Select(n => n.Name).FirstOrDefaultAsync(cancellationToken);
+            if (conflictingName is not null)
+                throw new NameConflictException(conflictingName);
+        }
     }
 
     private async Task ValidateRootNameUniqueAsync(Guid ownerId, string name, Guid? excludeId, CancellationToken cancellationToken)
@@ -475,6 +491,18 @@ internal sealed class FileService : IFileService
 
         if (await query.AnyAsync(cancellationToken))
             throw new Core.Errors.ValidationException("Name", $"A node named '{name}' already exists at the root level.");
+
+        // Prevent case-insensitive name collisions that would cause data loss on Windows/macOS.
+        if (_fileSystemOptions.EnforceCaseInsensitiveUniqueness)
+        {
+            var caseQuery = _db.FileNodes.Where(n => n.OwnerId == ownerId && n.ParentId == null && n.Name.ToLower() == name.ToLower() && n.Name != name);
+            if (excludeId.HasValue)
+                caseQuery = caseQuery.Where(n => n.Id != excludeId.Value);
+
+            var conflictingName = await caseQuery.Select(n => n.Name).FirstOrDefaultAsync(cancellationToken);
+            if (conflictingName is not null)
+                throw new NameConflictException(conflictingName);
+        }
     }
 
     private async Task<string> GetCopyNameAsync(Guid parentId, string originalName, CancellationToken cancellationToken)

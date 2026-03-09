@@ -118,6 +118,11 @@ public class GlobalExceptionHandlerMiddleware
                 "INVALID_ARGUMENT",
                 exception.Message),
 
+            NameConflictException => (
+                (int)HttpStatusCode.Conflict,
+                "NAME_CONFLICT",
+                exception.Message),
+
             System.InvalidOperationException => (
                 (int)HttpStatusCode.Conflict,
                 "INVALID_OPERATION",

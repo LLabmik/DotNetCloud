@@ -5,10 +5,12 @@ using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Data.Services;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Models;
+using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 using FilesFileShare = DotNetCloud.Modules.Files.Models.FileShare;
 
@@ -25,8 +27,9 @@ public class FileServiceTests
         return new FilesDbContext(options);
     }
 
-    private static FileService CreateService(FilesDbContext db, IQuotaService? quotaService = null) =>
-        new(db, Mock.Of<IEventBus>(), NullLoggerFactory.Instance.CreateLogger<FileService>(), new PermissionService(db), quotaService ?? Mock.Of<IQuotaService>());
+    private static FileService CreateService(FilesDbContext db, IQuotaService? quotaService = null, FileSystemOptions? fileSystemOptions = null) =>
+        new(db, Mock.Of<IEventBus>(), NullLoggerFactory.Instance.CreateLogger<FileService>(), new PermissionService(db), quotaService ?? Mock.Of<IQuotaService>(),
+            Microsoft.Extensions.Options.Options.Create(fileSystemOptions ?? new FileSystemOptions()));
 
     private static CallerContext UserCaller(Guid userId) => new(userId, Array.Empty<string>(), CallerType.User);
 
@@ -445,5 +448,69 @@ public class FileServiceTests
 
         Assert.AreEqual(1, result.Count);
         Assert.AreEqual("mine.txt", result[0].Name);
+    }
+
+    [TestMethod]
+    public async Task CreateFolderAsync_CaseInsensitiveDuplicate_ThrowsNameConflictException()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        db.FileNodes.Add(new FileNode { Name = "Documents", NodeType = FileNodeType.Folder, OwnerId = userId });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.NameConflictException>(
+            () => service.CreateFolderAsync(
+                new CreateFolderDto { Name = "documents" },
+                UserCaller(userId)));
+    }
+
+    [TestMethod]
+    public async Task CreateFolderAsync_CaseInsensitiveDuplicate_Disabled_Succeeds()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        db.FileNodes.Add(new FileNode { Name = "Documents", NodeType = FileNodeType.Folder, OwnerId = userId });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, fileSystemOptions: new FileSystemOptions { EnforceCaseInsensitiveUniqueness = false });
+        var result = await service.CreateFolderAsync(
+            new CreateFolderDto { Name = "documents" },
+            UserCaller(userId));
+
+        Assert.AreEqual("documents", result.Name);
+    }
+
+    [TestMethod]
+    public async Task RenameAsync_CaseInsensitiveDuplicate_ThrowsNameConflictException()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        db.FileNodes.Add(new FileNode { Name = "Report.txt", NodeType = FileNodeType.File, OwnerId = userId });
+        var target = new FileNode { Name = "notes.txt", NodeType = FileNodeType.File, OwnerId = userId };
+        db.FileNodes.Add(target);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.NameConflictException>(
+            () => service.RenameAsync(target.Id, new RenameNodeDto { Name = "REPORT.TXT" }, UserCaller(userId)));
+    }
+
+    [TestMethod]
+    public async Task RenameAsync_SameNameDifferentCase_Self_Succeeds()
+    {
+        // Renaming "file.txt" to "File.txt" — the only case-variant is itself (excluded by ID), should not throw.
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var node = new FileNode { Name = "file.txt", NodeType = FileNodeType.File, OwnerId = userId };
+        db.FileNodes.Add(node);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.RenameAsync(node.Id, new RenameNodeDto { Name = "File.txt" }, UserCaller(userId));
+
+        Assert.AreEqual("File.txt", result.Name);
     }
 }

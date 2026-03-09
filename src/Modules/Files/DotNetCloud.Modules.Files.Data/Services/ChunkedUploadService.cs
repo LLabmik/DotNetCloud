@@ -24,6 +24,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
     private readonly IEventBus _eventBus;
     private readonly ILogger<ChunkedUploadService> _logger;
     private readonly long _maxFileSizeBytes;
+    private readonly FileSystemOptions _fileSystemOptions;
 
     public ChunkedUploadService(
         FilesDbContext db,
@@ -31,7 +32,8 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         IQuotaService quotaService,
         IEventBus eventBus,
         ILogger<ChunkedUploadService> logger,
-        IOptions<FileUploadOptions> uploadOptions)
+        IOptions<FileUploadOptions> uploadOptions,
+        IOptions<FileSystemOptions> fileSystemOptions)
     {
         _db = db;
         _storageEngine = storageEngine;
@@ -39,6 +41,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         _eventBus = eventBus;
         _logger = logger;
         _maxFileSizeBytes = uploadOptions.Value.MaxFileSizeBytes;
+        _fileSystemOptions = fileSystemOptions.Value;
     }
 
     /// <inheritdoc />
@@ -194,6 +197,22 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
                     parentPath = parent.MaterializedPath;
                     parentDepth = parent.Depth;
                 }
+            }
+
+            // Guard against case-insensitive name collisions before creating the node.
+            if (_fileSystemOptions.EnforceCaseInsensitiveUniqueness)
+            {
+                IQueryable<FileNode> siblingQuery = session.TargetParentId.HasValue
+                    ? _db.FileNodes.Where(n => n.ParentId == session.TargetParentId.Value)
+                    : _db.FileNodes.Where(n => n.OwnerId == caller.UserId && n.ParentId == null);
+
+                var conflictingName = await siblingQuery
+                    .Where(n => n.Name.ToLower() == session.FileName.ToLower() && n.Name != session.FileName)
+                    .Select(n => n.Name)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (conflictingName is not null)
+                    throw new NameConflictException(conflictingName);
             }
 
             fileNode = new FileNode

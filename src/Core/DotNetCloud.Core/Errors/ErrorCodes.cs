@@ -186,6 +186,9 @@ public static class ErrorCodes
     /// <summary>Error code for file not found.</summary>
     public const string FileNotFound = "FILE_NOT_FOUND";
 
+    /// <summary>Error code for case-insensitive name conflict (cross-platform safety).</summary>
+    public const string NameConflict = "FILE_NAME_CONFLICT";
+
     /// <summary>Error code for insufficient storage space.</summary>
     public const string InsufficientStorage = "FILE_INSUFFICIENT_STORAGE";
 

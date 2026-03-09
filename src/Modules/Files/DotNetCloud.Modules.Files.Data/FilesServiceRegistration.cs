@@ -27,6 +27,7 @@ public static class FilesServiceRegistration
             services.Configure<QuotaOptions>(configuration.GetSection(QuotaOptions.SectionName));
             services.Configure<CollaboraOptions>(configuration.GetSection(CollaboraOptions.SectionName));
             services.Configure<FileUploadOptions>(configuration.GetSection(FileUploadOptions.SectionName));
+            services.Configure<FileSystemOptions>(configuration.GetSection(FileSystemOptions.SectionName));
         }
         else
         {
@@ -35,6 +36,7 @@ public static class FilesServiceRegistration
             services.Configure<QuotaOptions>(_ => { }); // use defaults
             services.Configure<CollaboraOptions>(_ => { }); // use defaults
             services.Configure<FileUploadOptions>(_ => { }); // use defaults
+            services.Configure<FileSystemOptions>(_ => { }); // use defaults
         }
 
         // File scanner (NoOp until a real scanner such as ClamAV is integrated)

@@ -38,7 +38,8 @@ public class ChunkedUploadServiceTests
         return new ChunkedUploadService(
             db, storageMock, quotaMock,
             Mock.Of<IEventBus>(), NullLoggerFactory.Instance.CreateLogger<ChunkedUploadService>(),
-            Microsoft.Extensions.Options.Options.Create(new FileUploadOptions()));
+            Microsoft.Extensions.Options.Options.Create(new FileUploadOptions()),
+            Microsoft.Extensions.Options.Options.Create(new FileSystemOptions()));
     }
 
     private static IQuotaService CreateMockQuotaService(bool hasSufficientQuota)
@@ -366,5 +367,53 @@ public class ChunkedUploadServiceTests
 
         var session = await db.UploadSessions.FirstAsync();
         Assert.IsNull(session.ChunkSizesManifest, "Legacy uploads must not have a ChunkSizesManifest.");
+    }
+
+    [TestMethod]
+    public async Task CompleteUploadAsync_NewFile_CaseInsensitiveSiblingExists_ThrowsNameConflictException()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var chunkHash = "aabbccdd1122";
+
+        // Existing sibling with different casing
+        var parent = new FileNode
+        {
+            Name = "MyFolder",
+            NodeType = FileNodeType.Folder,
+            OwnerId = userId,
+            Depth = 0
+        };
+        parent.MaterializedPath = $"/{parent.Id}";
+        db.FileNodes.Add(parent);
+        db.FileNodes.Add(new FileNode
+        {
+            Name = "Report.pdf",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            ParentId = parent.Id
+        });
+
+        db.FileChunks.Add(new FileChunk { ChunkHash = chunkHash, StoragePath = "chunks/aa/bb/aabbccdd1122", Size = 50 });
+
+        var session = new ChunkedUploadSession
+        {
+            FileName = "report.pdf",   // lowercase — case-insensitive conflict with "Report.pdf"
+            TotalSize = 50,
+            MimeType = "application/pdf",
+            TotalChunks = 1,
+            ReceivedChunks = 1,
+            ChunkManifest = System.Text.Json.JsonSerializer.Serialize(new[] { chunkHash }),
+            UserId = userId,
+            TargetParentId = parent.Id,
+            Status = UploadSessionStatus.InProgress
+        };
+        db.UploadSessions.Add(session);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.NameConflictException>(
+            () => service.CompleteUploadAsync(session.Id, UserCaller(userId)));
     }
 }

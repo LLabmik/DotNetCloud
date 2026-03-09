@@ -5,10 +5,12 @@ using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Data.Services;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Models;
+using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 
 namespace DotNetCloud.Modules.Files.Tests.Services;
@@ -31,7 +33,8 @@ public class BulkOperationTests
 
     private static FileService CreateFileService(FilesDbContext db, IQuotaService? quotaService = null) =>
         new(db, Mock.Of<IEventBus>(), NullLogger<FileService>.Instance,
-            new PermissionService(db), quotaService ?? Mock.Of<IQuotaService>());
+            new PermissionService(db), quotaService ?? Mock.Of<IQuotaService>(),
+            Microsoft.Extensions.Options.Options.Create(new FileSystemOptions()));
 
     private static TrashService CreateTrashService(FilesDbContext db) =>
         new(db, Mock.Of<IFileStorageEngine>(), Mock.Of<IEventBus>(),

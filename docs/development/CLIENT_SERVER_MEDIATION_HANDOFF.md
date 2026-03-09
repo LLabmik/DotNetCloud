@@ -862,3 +862,141 @@ Full event pipeline from `SyncEngine` through IPC to `TrayViewModel` with live p
 **Note:** Client uses file-system cache rather than `If-None-Match` HTTP header — functionally equivalent for content-addressed chunks (hash = identity, so a cached file is always current).
 
 **Task 2.6: COMPLETE (build: 0 errors, 111/111 tests pass)**
+
+---
+
+### Issue #40: Batch 3 Task 3.6 — Idempotent Operations (Client only)
+
+**Server-side status:** Not applicable (client-only task).
+**Client-side status:** 🔲 PENDING
+
+**⚠️ PROCESS NOTE FOR CLIENT AGENT:**
+1. Pull latest (`git pull`) before starting.
+2. Build and test on `Windows11-TestDNC`. Do NOT build on the server — client-only code.
+3. After committing, update this document with commit hash, build result, test count, and mark ✅ COMPLETE.
+4. Use **targeted edits only** — do not replace the entire handoff file.
+5. Push to `main` so the server agent can pull and move to the next task.
+
+**Problem:** A crash after a successful upload but before the local DB is updated causes the file to be re-uploaded on the next sync pass. This wastes bandwidth and can create duplicate file versions.
+
+**What to implement:**
+
+**File:** `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs`  
+**Also:** `src/Clients/DotNetCloud.Client.Core/Api/DotNetCloudApiClient.cs` (for `GetNodeAsync`)
+
+**Step 1:** In `SyncEngine.ApplyLocalChangesAsync()` (or `ExecutePendingOperationAsync()`), before executing a `PendingUpload` for an existing file:
+
+```csharp
+// If NodeId is known (existing file update, not a new file):
+if (operation.NodeId.HasValue)
+{
+    var serverNode = await _apiClient.GetNodeAsync(operation.NodeId.Value, cancellationToken);
+    if (serverNode?.ContentHash is not null)
+    {
+        var localHash = await ComputeFileHashAsync(localPath, cancellationToken);
+        if (string.Equals(serverNode.ContentHash, localHash, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogInformation("Skipping upload of {LocalPath} — server already has this version (hash match).", localPath);
+            // Update local record to match server, remove pending operation
+            await _stateDb.MarkFileAsSyncedAsync(operation.NodeId.Value, localHash, cancellationToken);
+            return;
+        }
+    }
+}
+```
+
+**Step 2:** For new files (no `NodeId`): proceed with upload as normal — name collision/dedup is handled server-side by `InitiateUploadAsync` (returns existing chunk matches).
+
+**Step 3:** Note that `InitiateUploadAsync` already performs chunk-level dedup (returns which chunks already exist). If ALL chunks in the manifest already exist on the server, `CompleteUploadAsync` is free (no chunk transfers). This makes uploads already partially idempotent at the chunk level. Task 3.6 formalizes idempotency at the file level.
+
+**Build and test:**
+```powershell
+dotnet build src\Clients\DotNetCloud.Client.Core\DotNetCloud.Client.Core.csproj
+dotnet test tests\DotNetCloud.Client.Core.Tests\
+```
+
+**New tests to add:**
+- `ExecutePendingOperationAsync_ServerHashMatchesLocal_SkipsUpload` — mock `GetNodeAsync` returns matching hash → verify `InitiateUploadAsync` never called, file marked synced
+- `ExecutePendingOperationAsync_ServerHashDiffers_ProceedsWithUpload` — mock returns different hash → normal upload proceeds
+- `ExecutePendingOperationAsync_NewFile_NoNodeId_SkipsHashCheck` — no `NodeId` → `GetNodeAsync` never called, upload proceeds normally
+
+**Request back from client agent:**
+- Commit hash
+- Build: 0 errors
+- Test count (was 111, should increase by ≥ 3)
+- Confirm: `GetNodeAsync` called before upload for existing files; skipped for new files
+
+---
+
+### Issue #41: Batch 4 Task 4.1 — Case-Sensitivity Conflict Detection (Client side)
+
+**⚠️ DO NOT START until Issue #40 is marked ✅ COMPLETE.**
+
+**Server-side status:** ✅ COMPLETE — server now returns `409 Conflict` with error code `FILE_NAME_CONFLICT` when a new file/folder name is a case-variant of an existing sibling (e.g. uploading `report.pdf` when `Report.pdf` already exists). Controlled by `FileSystemOptions.EnforceCaseInsensitiveUniqueness = true` (default on).
+
+**Client-side status:** 🔲 PENDING
+
+**⚠️ PROCESS NOTE FOR CLIENT AGENT:**
+1. Pull latest (`git pull`) before starting.
+2. Build and test on `Windows11-TestDNC`. Do NOT build on the server — client code only for this issue.
+3. After committing, update this document with commit hash, build result, test count, and mark ✅ COMPLETE.
+4. Use **targeted edits only** — do not replace the entire handoff file.
+5. Push to `main` so the server agent can pull and move to the next task.
+
+**Problem:** Linux is case-sensitive — a user can have `report.pdf` and `Report.pdf` in the same folder. When syncing to a server that enforces case-insensitive uniqueness (or syncing to a Windows/macOS client), this causes a `409 NAME_CONFLICT` error that must be surfaced clearly rather than silently retried or dropped.
+
+**What the server returns on conflict:**
+```json
+HTTP 409 Conflict
+{
+  "type": "NAME_CONFLICT",
+  "message": "A file or folder named 'Report.pdf' already exists in this location. Storing a case-variant of this name would cause conflicts on case-insensitive file systems (Windows, macOS). Please rename your file."
+}
+```
+
+**What to implement:**
+
+**File:** `src/Clients/DotNetCloud.Client.Core/Api/DotNetCloudApiClient.cs` (or wherever HTTP responses are handled)
+
+**Step 1:** When receiving a `409` response with error code `FILE_NAME_CONFLICT`, throw (or return) a typed error — do **not** retry. Example:
+```csharp
+if (response.StatusCode == HttpStatusCode.Conflict)
+{
+    var error = await response.Content.ReadFromJsonAsync<ApiErrorResponse>(cancellationToken);
+    if (error?.Type == "NAME_CONFLICT")
+        throw new NameConflictException(error.Message);
+    // other 409 handling...
+}
+```
+
+**File:** `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs`
+
+**Step 2:** In `ExecutePendingOperationAsync`, catch `NameConflictException` and mark the pending operation with an error state rather than retrying:
+```csharp
+catch (NameConflictException ex)
+{
+    _logger.LogWarning("Case-sensitivity conflict for '{FileName}': {Message}", operation.FileName, ex.Message);
+    await _stateDb.MarkOperationFailedAsync(operation.Id, ex.Message, cancellationToken);
+    // Surface to user via notification if available
+}
+```
+
+**File:** `src/Clients/DotNetCloud.Client.SyncTray/` (notification integration, if it exists)
+
+**Step 3 (optional if SyncTray has notification support):** Surface a user-visible notification with the conflict message so the user knows to rename the file.
+
+**Build and test:**
+```powershell
+dotnet build src\Clients\DotNetCloud.Client.Core\DotNetCloud.Client.Core.csproj
+dotnet test tests\DotNetCloud.Client.Core.Tests\
+```
+
+**New tests to add:**
+- `ExecutePendingOperationAsync_Server409NameConflict_MarksOperationFailed` — mock API returns `409 NAME_CONFLICT` → verify operation marked failed (not retried), correct message stored
+- `ExecutePendingOperationAsync_Server409NameConflict_DoesNotRetry` — same scenario, confirm `InitiateUploadAsync` called only once
+
+**Request back from client agent:**
+- Commit hash
+- Build: 0 errors
+- Test count (was the count after #40, should increase by ≥ 2)
+- Confirm: `409 NAME_CONFLICT` does NOT trigger retry; operation marked failed with message

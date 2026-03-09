@@ -279,3 +279,27 @@ public class InvalidOperationException : DotNetCloudException
     {
     }
 }
+
+/// <summary>
+/// Exception thrown when a filename conflicts case-insensitively with an existing node,
+/// which would cause data loss on case-insensitive file systems (Windows, macOS).
+/// </summary>
+public class NameConflictException : DotNetCloudException
+{
+    /// <summary>Gets the existing name that conflicts case-insensitively with the requested name.</summary>
+    public string ExistingName { get; }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="NameConflictException"/> class.
+    /// </summary>
+    /// <param name="existingName">The conflicting existing node name.</param>
+    public NameConflictException(string existingName)
+        : base(
+            ErrorCodes.NameConflict,
+            $"A file or folder named '{existingName}' already exists in this location. "
+            + "Storing a case-variant of this name would cause conflicts on case-insensitive "
+            + "file systems (Windows, macOS). Please rename your file.")
+    {
+        ExistingName = existingName;
+    }
+}
