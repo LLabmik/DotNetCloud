@@ -46,3 +46,37 @@ Only consult this if you encounter a regression or need to understand a past fix
 
 ### End-to-End Flow Verified
 OAuth login → token exchange → sync changes → tree → reconcile → chunk manifest → chunk download → file assembly. 7 files synced into `clients/`, `Finance/`, `Pictures/`, `Test/`, and root.
+
+---
+
+## Resolved Issues (Issues #23–#42, 2026-03-08 to 2026-03-09)
+
+Archived: 2026-03-09. Full git history preserved in commits `c69aeac` through `c70bd47`.
+
+| # | Issue | Commit(s) | Side |
+|---|-------|-----------|------|
+| 23 | Batch 1 Task 1.1 — Sync Service Logging | `c69aeac` | Client |
+| 24 | Batch 1 Task 1.1b — Audit Logging | `c585dae` | Server |
+| 25 | Batch 1 Task 1.2 — Request Correlation IDs | `97afdd8` | Client |
+| 26 | Batch 1 Task 1.3 — Rate Limiting | `4570c16` | Server |
+| 27 | Batch 1 Task 1.4 — Chunk Integrity (SHA-256) | Windows 2026-03-08 | Client |
+| 28 | Batch 1 Tasks 1.5/1.6/1.7 — Retry / WAL / Upload Queue | `1aa6b18` | Client |
+| 29 | Batch 1 Tasks 1.8/1.9 — Temp-file atomicity / Malware scanning stub | `82ca53b` | Client |
+| 30 | Batch 2 Task 2.1 — CDC chunking (FastCDC) | `3a7e0ae` / `bc9e08a` | Both |
+| 31 | Batch 2 Task 2.2 — Streaming upload/download pipeline | `7cbc12e` | Both |
+| 32 | Batch 2 Task 2.3 — Brotli compression for chunk transfers | `032f6a2` | Both |
+| 33 | Batch 3 Task 3.1 — `.syncignore` pattern matching | `a9c6812` | Client |
+| 34 | Batch 3 Task 3.2 — Persistent upload sessions (crash recovery) | `4243328` | Client |
+| 35 | Batch 3 Task 3.3 — Locked file handling (VSS on Windows) | `b971551` | Client |
+| 36 | Batch 3 Task 3.4 — Per-file transfer progress in Tray UI | `7f93226` | Client |
+| 37 | Batch 3 Task 3.5 — Conflict resolution UI (DiffPlex 5-strategy) | `8508afc` | Client |
+| 38 | Batch 2 Tasks 2.4+2.5 — Server-issued sync cursor + paginated changes | `c81495d` / `1a9c4c6` | Both |
+| 39 | Batch 2 Task 2.6 — ETag / chunk-download file-system cache | `c81495d` / `1a9c4c6` | Both |
+| 40 | Batch 3 Task 3.6 — Idempotent upload operations (hash pre-check) | `3504932` | Client |
+| 41 | Batch 4 Task 4.1 — Case-sensitivity conflict detection (NAME_CONFLICT) | `3504932` | Client |
+| 42 | Batch 4 Task 4.2 — POSIX permission metadata sync | `c70bd47` | Both |
+
+### Verified State at Batch 1–4.2 Completion
+
+**Server (mint22, commit `c81495d`):** Build 0 errors, all tests pass.  
+**Client (Windows11-TestDNC, commit `c70bd47`):** Build 0 errors, 123/123 tests pass.
