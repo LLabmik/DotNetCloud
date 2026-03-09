@@ -417,4 +417,110 @@ public class DotNetCloudApiClientTests
         StringAssert.Contains(capturedBody, "493");
         StringAssert.Contains(capturedBody, "alice:staff");
     }
+
+    // ── ETag / If-None-Match (Issue #49) ────────────────────────────────────
+
+    [TestMethod]
+    public async Task DownloadChunkByHashAsync_304NotModified_ReturnsStreamNull()
+    {
+        string? capturedIfNoneMatch = null;
+        var client = CreateMockHttpClient(req =>
+        {
+            capturedIfNoneMatch = req.Headers.IfNoneMatch.FirstOrDefault()?.Tag;
+            return new HttpResponseMessage(HttpStatusCode.NotModified);
+        });
+        var apiClient = new DotNetCloudApiClient(client, NullLogger<DotNetCloudApiClient>.Instance);
+
+        var result = await apiClient.DownloadChunkByHashAsync("abc123hash");
+
+        Assert.AreSame(Stream.Null, result, "Should return Stream.Null on 304.");
+        Assert.AreEqual("\"abc123hash\"", capturedIfNoneMatch, "If-None-Match header should contain the chunk hash.");
+    }
+
+    [TestMethod]
+    public async Task DownloadChunkByHashAsync_200OK_ReturnsStream()
+    {
+        var rawBytes = new byte[] { 1, 2, 3, 4, 5 };
+        string? capturedIfNoneMatch = null;
+        var client = CreateMockHttpClient(req =>
+        {
+            capturedIfNoneMatch = req.Headers.IfNoneMatch.FirstOrDefault()?.Tag;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(rawBytes),
+            };
+        });
+        var apiClient = new DotNetCloudApiClient(client, NullLogger<DotNetCloudApiClient>.Instance);
+
+        var result = await apiClient.DownloadChunkByHashAsync("somehash");
+
+        Assert.IsNotNull(capturedIfNoneMatch, "If-None-Match header should be sent.");
+        Assert.AreNotSame(Stream.Null, result, "Should return a real stream on 200.");
+        using var ms = new MemoryStream();
+        await result.CopyToAsync(ms);
+        CollectionAssert.AreEqual(rawBytes, ms.ToArray());
+    }
+
+    // ── Compression skip (Issue #50) ────────────────────────────────────────
+
+    [TestMethod]
+    public async Task UploadChunkAsync_PreCompressedExtension_SkipsGzip()
+    {
+        var sessionId = Guid.NewGuid();
+        var chunkData = new byte[] { 10, 20, 30, 40, 50, 60, 70, 80 };
+        string? capturedEncoding = null;
+        byte[]? capturedBody = null;
+
+        var client = CreateMockHttpClient(req =>
+        {
+            capturedEncoding = req.Content?.Headers.ContentEncoding.FirstOrDefault();
+            capturedBody = req.Content?.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+        var apiClient = new DotNetCloudApiClient(client, NullLogger<DotNetCloudApiClient>.Instance);
+
+        await apiClient.UploadChunkAsync(sessionId, 0, "fakehash", new MemoryStream(chunkData), default, ".jpg");
+
+        Assert.IsNull(capturedEncoding, "Content-Encoding should NOT be set for pre-compressed files.");
+        Assert.IsNotNull(capturedBody);
+        CollectionAssert.AreEqual(chunkData, capturedBody, "Body should be raw (uncompressed) for pre-compressed files.");
+    }
+
+    [TestMethod]
+    public async Task UploadChunkAsync_NonCompressedExtension_UsesGzip()
+    {
+        var sessionId = Guid.NewGuid();
+        var chunkData = new byte[] { 10, 20, 30, 40, 50, 60, 70, 80 };
+        string? capturedEncoding = null;
+
+        var client = CreateMockHttpClient(req =>
+        {
+            capturedEncoding = req.Content?.Headers.ContentEncoding.FirstOrDefault();
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+        var apiClient = new DotNetCloudApiClient(client, NullLogger<DotNetCloudApiClient>.Instance);
+
+        await apiClient.UploadChunkAsync(sessionId, 0, "fakehash", new MemoryStream(chunkData), default, ".txt");
+
+        Assert.AreEqual("gzip", capturedEncoding, "Content-Encoding should be 'gzip' for non-compressed files.");
+    }
+
+    [TestMethod]
+    public async Task UploadChunkAsync_NullExtension_UsesGzip()
+    {
+        var sessionId = Guid.NewGuid();
+        var chunkData = new byte[] { 10, 20, 30, 40, 50 };
+        string? capturedEncoding = null;
+
+        var client = CreateMockHttpClient(req =>
+        {
+            capturedEncoding = req.Content?.Headers.ContentEncoding.FirstOrDefault();
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+        var apiClient = new DotNetCloudApiClient(client, NullLogger<DotNetCloudApiClient>.Instance);
+
+        await apiClient.UploadChunkAsync(sessionId, 0, "fakehash", new MemoryStream(chunkData));
+
+        Assert.AreEqual("gzip", capturedEncoding, "Content-Encoding should be 'gzip' when no extension is provided.");
+    }
 }

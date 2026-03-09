@@ -52,7 +52,8 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
     {
         var fileName = Path.GetFileName(localPath);
         var fileSize = fileStream.Length;
-        var mimeType = MimeTypeFromExtension(Path.GetExtension(localPath));
+        var fileExtension = Path.GetExtension(localPath);
+        var mimeType = MimeTypeFromExtension(fileExtension);
         var uploadTimer = Stopwatch.StartNew();
 
         // Check for an existing upload session (crash-resilient resumption).
@@ -194,7 +195,7 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                         try
                         {
                             using var chunkStream = new MemoryStream(chunk.Data);
-                            await _api.UploadChunkAsync(capturedSessionId, index, chunk.Hash, chunkStream, cancellationToken);
+                            await _api.UploadChunkAsync(capturedSessionId, index, chunk.Hash, chunkStream, cancellationToken, fileExtension);
                             break;
                         }
                         catch (HttpRequestException ex) when (
@@ -205,6 +206,17 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                                         + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 500));
                             _logger.LogWarning(ex,
                                 "Chunk {Hash} upload attempt {Attempt}/{MaxAttempts} failed. Retrying in {DelayMs}ms.",
+                                chunk.Hash, attempt, ChunkUploadMaxRetries, (int)delay.TotalMilliseconds);
+                            await Task.Delay(delay, cancellationToken);
+                        }
+                        catch (TaskCanceledException ex) when (
+                            attempt < ChunkUploadMaxRetries &&
+                            !cancellationToken.IsCancellationRequested)
+                        {
+                            var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt - 1))
+                                        + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 500));
+                            _logger.LogWarning(ex,
+                                "Chunk {Hash} upload attempt {Attempt}/{MaxAttempts} timed out. Retrying in {DelayMs}ms.",
                                 chunk.Hash, attempt, ChunkUploadMaxRetries, (int)delay.TotalMilliseconds);
                             await Task.Delay(delay, cancellationToken);
                         }
@@ -337,8 +349,8 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
     /// <summary>Bounded channel capacity: limits peak memory to ~32 MB (8 × 4 MB avg).</summary>
     private const int ChannelCapacity = 8;
 
-    /// <summary>Maximum age of an upload session eligible for crash resumption. Server session TTL is 24 h.</summary>
-    private static readonly TimeSpan SessionResumeWindow = TimeSpan.FromHours(18);
+    /// <summary>Maximum age of an upload session eligible for crash resumption. Aligned with server cleanup window (48 h).</summary>
+    private static readonly TimeSpan SessionResumeWindow = TimeSpan.FromHours(48);
 
     private async Task<Stream> DownloadChunksAsync(
         ChunkManifestResponse manifest,
@@ -400,6 +412,17 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                                         + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 500));
                             _logger.LogWarning(ex,
                                 "Chunk {Hash} download attempt {Attempt}/{MaxAttempts} failed with network error. Retrying in {DelayMs}ms.",
+                                chunk.Hash, attempt, ChunkDownloadMaxAttempts, (int)delay.TotalMilliseconds);
+                            await Task.Delay(delay, cancellationToken);
+                        }
+                        catch (TaskCanceledException ex) when (
+                            attempt < ChunkDownloadMaxAttempts &&
+                            !cancellationToken.IsCancellationRequested)
+                        {
+                            var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt - 1))
+                                        + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 500));
+                            _logger.LogWarning(ex,
+                                "Chunk {Hash} download attempt {Attempt}/{MaxAttempts} timed out. Retrying in {DelayMs}ms.",
                                 chunk.Hash, attempt, ChunkDownloadMaxAttempts, (int)delay.TotalMilliseconds);
                             await Task.Delay(delay, cancellationToken);
                         }
@@ -479,9 +502,18 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
             return await File.ReadAllBytesAsync(cachePath, cancellationToken);
         }
 
-        // Cache miss — download from server. The caller verifies the hash and calls
-        // PersistChunkToCacheAsync only after the chunk passes integrity verification.
+        // Send If-None-Match with the chunk hash. The server returns 304 if it matches,
+        // meaning the client already has the chunk locally (Stream.Null is returned).
+        // In practice, a cache miss + 304 means the cache file was deleted but the
+        // server confirms the hash — this shouldn't happen, so fall through to error.
         using var chunkStream = await _api.DownloadChunkByHashAsync(hash, cancellationToken);
+        if (chunkStream == Stream.Null)
+        {
+            // 304 but no local cache — should not happen; log and re-download without ETag.
+            _logger.LogWarning("Server returned 304 for chunk {Hash} but no local cache exists. This is unexpected.", hash);
+            throw new InvalidOperationException($"Chunk {hash}: server returned 304 Not Modified but chunk is not in local cache.");
+        }
+
         using var ms = new MemoryStream();
         await chunkStream.CopyToAsync(ms, cancellationToken);
         return ms.ToArray();

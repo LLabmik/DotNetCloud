@@ -47,8 +47,8 @@ public interface IDotNetCloudApiClient
     /// <summary>Initiates a chunked upload session.</summary>
     Task<UploadSessionResponse> InitiateUploadAsync(string fileName, Guid? parentId, long totalSize, string? mimeType, IReadOnlyList<string> chunkHashes, IReadOnlyList<int>? chunkSizes = null, int? posixMode = null, string? posixOwnerHint = null, string? linkTarget = null, CancellationToken cancellationToken = default);
 
-    /// <summary>Uploads a single chunk.</summary>
-    Task UploadChunkAsync(Guid sessionId, int chunkIndex, string chunkHash, Stream chunkData, CancellationToken cancellationToken = default);
+    /// <summary>Uploads a single chunk. Pass <paramref name="fileExtension"/> to skip compression for pre-compressed formats.</summary>
+    Task UploadChunkAsync(Guid sessionId, int chunkIndex, string chunkHash, Stream chunkData, CancellationToken cancellationToken = default, string? fileExtension = null);
 
     /// <summary>Completes a chunked upload session.</summary>
     Task<CompleteUploadResponse> CompleteUploadAsync(Guid sessionId, CancellationToken cancellationToken = default);

@@ -173,19 +173,40 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
                ?? throw new InvalidOperationException("Server returned null for upload initiation.");
     }
 
+    /// <summary>File extensions that are already compressed — GZip wrapping is skipped for these.</summary>
+    private static readonly HashSet<string> PreCompressedExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".jpg", ".jpeg", ".png", ".gif", ".webp",
+        ".zip", ".gz", ".bz2", ".xz", ".7z", ".rar",
+        ".mp4", ".mp3", ".mkv", ".avi", ".webm", ".flac", ".ogg",
+        ".woff2",
+    };
+
     /// <inheritdoc/>
-    public async Task UploadChunkAsync(Guid sessionId, int chunkIndex, string chunkHash, Stream chunkData, CancellationToken cancellationToken = default)
+    public async Task UploadChunkAsync(Guid sessionId, int chunkIndex, string chunkHash, Stream chunkData, CancellationToken cancellationToken = default, string? fileExtension = null)
     {
         using var request = CreateAuthenticatedRequest(HttpMethod.Post, $"api/v1/files/upload/{sessionId}/chunks/{chunkIndex}");
 
-        var compressedMs = new MemoryStream();
-        await using (var gzip = new GZipStream(compressedMs, CompressionLevel.Fastest, leaveOpen: true))
-            await chunkData.CopyToAsync(gzip, cancellationToken);
-        compressedMs.Position = 0;
+        var skipCompression = fileExtension is not null && PreCompressedExtensions.Contains(fileExtension);
 
-        request.Content = new StreamContent(compressedMs);
+        Stream contentStream;
+        if (skipCompression)
+        {
+            contentStream = chunkData;
+        }
+        else
+        {
+            var compressedMs = new MemoryStream();
+            await using (var gzip = new GZipStream(compressedMs, CompressionLevel.Fastest, leaveOpen: true))
+                await chunkData.CopyToAsync(gzip, cancellationToken);
+            compressedMs.Position = 0;
+            contentStream = compressedMs;
+        }
+
+        request.Content = new StreamContent(contentStream);
         request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-        request.Content.Headers.ContentEncoding.Add("gzip");
+        if (!skipCompression)
+            request.Content.Headers.ContentEncoding.Add("gzip");
         request.Headers.Add("X-Chunk-Hash", chunkHash);
         using var response = await _http.SendAsync(request, cancellationToken);
         response.EnsureSuccessStatusCode();
@@ -224,8 +245,20 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
     public async Task<Stream> DownloadChunkByHashAsync(string chunkHash, CancellationToken cancellationToken = default)
     {
         var response = await SendWithRetryAsync(
-            () => CreateAuthenticatedRequest(HttpMethod.Get, $"api/v1/files/chunks/{chunkHash}"),
+            () =>
+            {
+                var req = CreateAuthenticatedRequest(HttpMethod.Get, $"api/v1/files/chunks/{chunkHash}");
+                req.Headers.IfNoneMatch.Add(new EntityTagHeaderValue($"\"{chunkHash}\""));
+                return req;
+            },
             cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.NotModified)
+        {
+            response.Dispose();
+            return Stream.Null;
+        }
+
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsStreamAsync(cancellationToken);
     }

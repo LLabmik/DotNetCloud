@@ -57,7 +57,7 @@ public class ChunkedTransferClientTests
         var result = await client.UploadAsync(null, "test.txt", data, null);
 
         Assert.AreEqual(nodeId, result);
-        apiMock.Verify(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()), Times.Once);
+        apiMock.Verify(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()), Times.Once);
         apiMock.Verify(a => a.CompleteUploadAsync(sessionId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -95,7 +95,7 @@ public class ChunkedTransferClientTests
 
         // Chunk should NOT be uploaded (deduplication)
         apiMock.Verify(a => a.UploadChunkAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<string>(),
-            It.IsAny<Stream>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<Stream>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()), Times.Never);
     }
 
     [TestMethod]
@@ -114,8 +114,8 @@ public class ChunkedTransferClientTests
             .ReturnsAsync(new UploadSessionResponse { SessionId = sessionId });
 
         // First upload call throws a network error; second succeeds
-        apiMock.Setup(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
-            .Returns<Guid, int, string, Stream, CancellationToken>((_, _, _, _, _) =>
+        apiMock.Setup(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()))
+            .Returns<Guid, int, string, Stream, CancellationToken, string?>((_, _, _, _, _, _) =>
             {
                 callCount++;
                 if (callCount == 1)
@@ -136,7 +136,7 @@ public class ChunkedTransferClientTests
 
         Assert.AreEqual(nodeId, result);
         // Should have been called twice (one failure + one success)
-        apiMock.Verify(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
+        apiMock.Verify(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()), Times.Exactly(2));
     }
 
     [TestMethod]
@@ -153,7 +153,7 @@ public class ChunkedTransferClientTests
             .ReturnsAsync(new UploadSessionResponse { SessionId = sessionId });
 
         // Always throw network error
-        apiMock.Setup(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
+        apiMock.Setup(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()))
             .ThrowsAsync(new HttpRequestException("Network unreachable"));
 
         var client = CreateClient(apiMock.Object);
@@ -165,7 +165,7 @@ public class ChunkedTransferClientTests
         Assert.IsNotNull(caught, "Expected HttpRequestException but none was thrown.");
 
         // Should have been called ChunkUploadMaxRetries (3) times
-        apiMock.Verify(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()), Times.Exactly(3));
+        apiMock.Verify(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()), Times.Exactly(3));
     }
 
     [TestMethod]
@@ -182,7 +182,7 @@ public class ChunkedTransferClientTests
             .ReturnsAsync(new UploadSessionResponse { SessionId = sessionId });
 
         // 4xx client error — should NOT be retried
-        apiMock.Setup(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
+        apiMock.Setup(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()))
             .ThrowsAsync(new HttpRequestException("Forbidden", null, System.Net.HttpStatusCode.Forbidden));
 
         var client = CreateClient(apiMock.Object);
@@ -194,7 +194,7 @@ public class ChunkedTransferClientTests
         Assert.IsNotNull(caught, "Expected HttpRequestException but none was thrown.");
 
         // Should have been called exactly once (no retry on 4xx)
-        apiMock.Verify(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()), Times.Once);
+        apiMock.Verify(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()), Times.Once);
     }
 
     // ── DownloadAsync ───────────────────────────────────────────────────────
@@ -334,7 +334,7 @@ public class ChunkedTransferClientTests
                 (_, _, _, _, hashes, sizes, _, _, _, _) => { capturedHashes = hashes; capturedSizes = sizes; })
             .ReturnsAsync(new UploadSessionResponse { SessionId = sessionId });
 
-        apiMock.Setup(a => a.UploadChunkAsync(sessionId, It.IsAny<int>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
+        apiMock.Setup(a => a.UploadChunkAsync(sessionId, It.IsAny<int>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()))
             .Returns(Task.CompletedTask);
 
         apiMock.Setup(a => a.CompleteUploadAsync(sessionId, It.IsAny<CancellationToken>()))
@@ -378,7 +378,7 @@ public class ChunkedTransferClientTests
                 (_, _, _, _, hashes, _, _, _, _, _) => captureTarget.AddRange(hashes))
             .ReturnsAsync(new UploadSessionResponse { SessionId = Guid.NewGuid() });
 
-        apiMock.Setup(a => a.UploadChunkAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
+        apiMock.Setup(a => a.UploadChunkAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()))
             .Returns(Task.CompletedTask);
 
         apiMock.Setup(a => a.CompleteUploadAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
@@ -419,8 +419,8 @@ public class ChunkedTransferClientTests
                 (_, _, _, _, hashes, _, _, _, _, _) => capturedHashes = hashes)
             .ReturnsAsync(new UploadSessionResponse { SessionId = sessionId }); // no present chunks → all must upload
 
-        apiMock.Setup(a => a.UploadChunkAsync(sessionId, It.IsAny<int>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
-            .Returns<Guid, int, string, Stream, CancellationToken>((_, _, _, _, _) =>
+        apiMock.Setup(a => a.UploadChunkAsync(sessionId, It.IsAny<int>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()))
+            .Returns<Guid, int, string, Stream, CancellationToken, string?>((_, _, _, _, _, _) =>
             {
                 Interlocked.Increment(ref uploadCallCount);
                 return Task.CompletedTask;
@@ -589,7 +589,7 @@ public class ChunkedTransferClientTests
             // Single chunk already uploaded — UploadChunkAsync must NOT be called
             apiMock.Verify(a => a.UploadChunkAsync(
                 It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<string>(),
-                It.IsAny<Stream>(), It.IsAny<CancellationToken>()), Times.Never);
+                It.IsAny<Stream>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()), Times.Never);
             // Complete called with the resumed session ID
             apiMock.Verify(a => a.CompleteUploadAsync(sessionId, It.IsAny<CancellationToken>()), Times.Once);
             Assert.AreEqual(nodeId, result);
@@ -603,7 +603,7 @@ public class ChunkedTransferClientTests
     [TestMethod]
     public async Task UploadAsync_StaleSession_DeletesRecordAndStartsFresh()
     {
-        // Verifies that a session > 18 h old is discarded and a fresh upload is initiated.
+        // Verifies that a session > 48 h old is discarded and a fresh upload is initiated.
         var oldSessionId = Guid.NewGuid();
         var newSessionId = Guid.NewGuid();
         var nodeId = Guid.NewGuid();
@@ -613,10 +613,10 @@ public class ChunkedTransferClientTests
             SessionId = oldSessionId,
             LocalPath = "test.txt",
             FileSize = 1024,
-            FileModifiedAt = DateTime.UtcNow.AddHours(-20),
+            FileModifiedAt = DateTime.UtcNow.AddHours(-50),
             TotalChunks = 1,
             UploadedChunkHashesJson = "[]",
-            CreatedAt = DateTime.UtcNow.AddHours(-20), // > 18 h old
+            CreatedAt = DateTime.UtcNow.AddHours(-50), // > 48 h old
         };
 
         var apiMock = new Mock<IDotNetCloudApiClient>();
@@ -791,7 +791,7 @@ public class ChunkedTransferClientTests
                 (_, _, _, _, _, _, pm, oh, _, _) => { capturedPosixMode = pm; capturedOwnerHint = oh; })
             .ReturnsAsync(new UploadSessionResponse { SessionId = sessionId });
         apiMock
-            .Setup(a => a.UploadChunkAsync(sessionId, It.IsAny<int>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
+            .Setup(a => a.UploadChunkAsync(sessionId, It.IsAny<int>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()))
             .Returns(Task.CompletedTask);
         apiMock
             .Setup(a => a.CompleteUploadAsync(sessionId, It.IsAny<CancellationToken>()))
@@ -803,6 +803,147 @@ public class ChunkedTransferClientTests
 
         Assert.AreEqual(420, capturedPosixMode);
         Assert.AreEqual("bob:devs", capturedOwnerHint);
+    }
+
+    // ── TaskCanceledException retry (Issue #59) ─────────────────────────────
+
+    [TestMethod]
+    public async Task UploadAsync_TimeoutOnFirstAttempt_RetriesAndSucceeds()
+    {
+        var nodeId = Guid.NewGuid();
+        var sessionId = Guid.NewGuid();
+        var callCount = 0;
+
+        var apiMock = new Mock<IDotNetCloudApiClient>();
+        apiMock.SetupProperty(a => a.AccessToken);
+        apiMock.Setup(a => a.InitiateUploadAsync(
+                It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
+                It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new UploadSessionResponse { SessionId = sessionId });
+
+        // First upload call throws TaskCanceledException (timeout); second succeeds
+        apiMock.Setup(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()))
+            .Returns<Guid, int, string, Stream, CancellationToken, string?>((_, _, _, _, _, _) =>
+            {
+                callCount++;
+                if (callCount == 1)
+                    throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout.");
+                return Task.CompletedTask;
+            });
+
+        apiMock.Setup(a => a.CompleteUploadAsync(sessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CompleteUploadResponse
+            {
+                Node = new FileNodeResponse { Id = nodeId, Name = "file.txt", NodeType = "File" },
+            });
+
+        var client = CreateClient(apiMock.Object);
+        using var data = new MemoryStream(new byte[512]);
+
+        var result = await client.UploadAsync(null, "file.txt", data, null);
+
+        Assert.AreEqual(nodeId, result);
+        // Should have been called twice (one timeout + one success)
+        apiMock.Verify(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()), Times.Exactly(2));
+    }
+
+    [TestMethod]
+    public async Task DownloadAsync_TimeoutOnFirstAttempt_RetriesAndSucceeds()
+    {
+        var nodeId = Guid.NewGuid();
+        var chunkData = new byte[512];
+        var chunkHash = Convert.ToHexStringLower(SHA256.HashData(chunkData));
+        var callCount = 0;
+
+        var apiMock = new Mock<IDotNetCloudApiClient>();
+        apiMock.SetupProperty(a => a.AccessToken);
+        apiMock.Setup(a => a.GetChunkManifestAsync(nodeId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChunkManifestResponse
+            {
+                TotalSize = chunkData.Length,
+                Chunks = [new ChunkManifestEntry { Index = 0, Hash = chunkHash, Size = chunkData.Length }],
+            });
+
+        // First call throws timeout, second returns data
+        apiMock.Setup(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<CancellationToken>()))
+            .Returns<string, CancellationToken>((_, _) =>
+            {
+                callCount++;
+                if (callCount == 1)
+                    throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout.");
+                return Task.FromResult<Stream>(new MemoryStream(chunkData));
+            });
+
+        var client = CreateClient(apiMock.Object);
+
+        using var result = await client.DownloadAsync(nodeId);
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual(chunkData.Length, result.Length);
+        apiMock.Verify(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    // ── Session resume window (Issue #61) ───────────────────────────────────
+
+    [TestMethod]
+    public async Task UploadAsync_SessionAt20Hours_StillResumes()
+    {
+        // Session is 20h old — used to be discarded at 18h, now should resume at 48h window.
+        var sessionId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        var fileData = new byte[1024];
+        new Random(42).NextBytes(fileData);
+        var chunkHash = Convert.ToHexStringLower(SHA256.HashData(fileData));
+
+        var tempFile = Path.GetTempFileName();
+        try
+        {
+            await File.WriteAllBytesAsync(tempFile, fileData);
+            var knownModifiedAt = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+            File.SetLastWriteTimeUtc(tempFile, knownModifiedAt);
+
+            var existingSession = new ActiveUploadSessionRecord
+            {
+                SessionId = sessionId,
+                LocalPath = tempFile,
+                FileSize = fileData.Length,
+                FileModifiedAt = knownModifiedAt,
+                TotalChunks = 1,
+                UploadedChunkHashesJson = JsonSerializer.Serialize(new[] { chunkHash }),
+                CreatedAt = DateTime.UtcNow.AddHours(-20), // 20h old — within new 48h window
+            };
+
+            var apiMock = new Mock<IDotNetCloudApiClient>();
+            apiMock.SetupProperty(a => a.AccessToken);
+            apiMock.Setup(a => a.CompleteUploadAsync(sessionId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new CompleteUploadResponse
+                {
+                    Node = new FileNodeResponse { Id = nodeId, Name = Path.GetFileName(tempFile), NodeType = "File" },
+                });
+
+            var dbMock = new Mock<ILocalStateDb>();
+            dbMock.Setup(d => d.GetActiveUploadSessionsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync([existingSession]);
+
+            var client = CreateClient(apiMock.Object, dbMock.Object);
+            using var stream = File.OpenRead(tempFile);
+
+            var result = await client.UploadAsync(null, tempFile, stream, null, default, "/state/db");
+
+            // Should resume, NOT start fresh (InitiateUploadAsync not called)
+            apiMock.Verify(a => a.InitiateUploadAsync(
+                It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
+                It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()), Times.Never);
+            apiMock.Verify(a => a.CompleteUploadAsync(sessionId, It.IsAny<CancellationToken>()), Times.Once);
+            Assert.AreEqual(nodeId, result);
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
     }
 }
 
