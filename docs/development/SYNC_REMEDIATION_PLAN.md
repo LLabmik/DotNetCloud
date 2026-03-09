@@ -58,35 +58,35 @@ This plan organizes them into prioritized remediation batches with clear SERVER/
 
 ---
 
-### Issue #49: Client ETag/If-None-Match (Task 2.6) — BOTH
+### Issue #49: Client ETag/If-None-Match (Task 2.6) — BOTH ✅
 
 **What's missing:** Client never sends conditional GET requests. `DownloadChunkByHashAsync()` is a plain GET with no `If-None-Match` header and no 304 handling.
 
 **Server status:** ✓ Already returns `ETag` header and handles `If-None-Match` → 304.
 
 **Deliverables:**
-- ☐ `DotNetCloudApiClient.DownloadChunkByHashAsync()`: add `If-None-Match: "{chunkHash}"` header
-- ☐ Handle `HttpStatusCode.NotModified` (304) — return cached chunk from local filesystem
-- ☐ Unit tests for conditional GET logic (304 path, 200 path, cache miss path)
+- ✓ `DotNetCloudApiClient.DownloadChunkByHashAsync()`: add `If-None-Match: "{chunkHash}"` header
+- ✓ Handle `HttpStatusCode.NotModified` (304) — return cached chunk from local filesystem
+- ✓ Unit tests for conditional GET logic (304 path, 200 path, cache miss path)
 
-**Complexity:** LOW — ~20 lines of code change in one method.
+**Complexity:** LOW — ~20 lines of code change in one method. **Resolved:** `158ebdc`
 
 **Reference:** [SYNC_IMPLEMENTATION_GUIDE.md](SYNC_IMPLEMENTATION_GUIDE.md) Task 2.6
 
 ---
 
-### Issue #50: Compression Skip for Pre-Compressed Types (Task 2.3) — CLIENT
+### Issue #50: Compression Skip for Pre-Compressed Types (Task 2.3) — CLIENT ✅
 
 **What's missing:** `UploadChunkAsync()` wraps ALL chunks in `GZipStream` unconditionally. No MIME type or extension parameter exists, so it cannot skip compression for already-compressed files.
 
 **Deliverables:**
-- ☐ Add `string? mimeType` or `string? fileExtension` parameter to `UploadChunkAsync()`
-- ☐ Define skip list: `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`, `.zip`, `.gz`, `.bz2`, `.xz`, `.7z`, `.rar`, `.mp4`, `.mp3`, `.mkv`, `.avi`, `.webm`, `.flac`, `.ogg`, `.woff2`
-- ☐ Skip GZip wrapping when file extension matches skip list
-- ☐ Caller (`ChunkedTransferClient`) passes file extension from upload context
-- ☐ Unit tests for skip logic
+- ✓ Add `string? mimeType` or `string? fileExtension` parameter to `UploadChunkAsync()`
+- ✓ Define skip list: `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`, `.zip`, `.gz`, `.bz2`, `.xz`, `.7z`, `.rar`, `.mp4`, `.mp3`, `.mkv`, `.avi`, `.webm`, `.flac`, `.ogg`, `.woff2`
+- ✓ Skip GZip wrapping when file extension matches skip list
+- ✓ Caller (`ChunkedTransferClient`) passes file extension from upload context
+- ✓ Unit tests for skip logic
 
-**Complexity:** LOW — ~30 lines across 2 files.
+**Complexity:** LOW — ~30 lines across 2 files. **Resolved:** `158ebdc`
 
 **Reference:** [SYNC_IMPLEMENTATION_GUIDE.md](SYNC_IMPLEMENTATION_GUIDE.md) Task 2.3
 
@@ -211,15 +211,15 @@ This plan organizes them into prioritized remediation batches with clear SERVER/
 
 ## P3 — Nice to Have (Minor Polish)
 
-### Issue #59: TaskCanceledException Retry (Task 1.5) — CLIENT
+### Issue #59: TaskCanceledException Retry (Task 1.5) — CLIENT ✅
 
 **What's partial:** Per-chunk retry catches `HttpRequestException` and 5xx but not `TaskCanceledException` (HTTP timeouts).
 
 **Deliverables:**
-- ☐ Add `TaskCanceledException` (when not user-cancelled) to retry conditions
-- ☐ Unit test for timeout retry
+- ✓ Add `TaskCanceledException` (when not user-cancelled) to retry conditions
+- ✓ Unit test for timeout retry
 
-**Complexity:** LOW — 3-line change.
+**Complexity:** LOW — 3-line change. **Resolved:** `158ebdc`
 
 ---
 
@@ -238,14 +238,14 @@ This plan organizes them into prioritized remediation batches with clear SERVER/
 
 ---
 
-### Issue #61: Session Resume Window Alignment (Task 3.2) — CLIENT
+### Issue #61: Session Resume Window Alignment (Task 3.2) — CLIENT ✅
 
 **What's partial:** Session resume window is 18 hours but cleanup is 48 hours. Spec said 48h for both.
 
 **Deliverables:**
-- ☐ Change `SessionResumeWindow` from 18h to 48h (or make configurable)
+- ✓ Change `SessionResumeWindow` from 18h to 48h (or make configurable)
 
-**Complexity:** LOW — 1-line change.
+**Complexity:** LOW — 1-line change. **Resolved:** `158ebdc`
 
 ---
 
