@@ -261,6 +261,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         session.TargetFileNodeId = fileNode.Id;
         session.UpdatedAt = DateTime.UtcNow;
 
+        await SyncCursorHelper.AssignNextSequenceAsync(_db, fileNode, caller.UserId, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
         // Update quota usage in real time

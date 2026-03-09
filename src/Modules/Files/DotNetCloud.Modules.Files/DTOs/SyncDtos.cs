@@ -31,6 +31,24 @@ public sealed record SyncChangeDto
 
     /// <summary>When the node was deleted (if applicable).</summary>
     public DateTime? DeletedAt { get; init; }
+
+    /// <summary>Sync sequence number for cursor-based sync (null for legacy rows).</summary>
+    public long? SyncSequence { get; init; }
+}
+
+/// <summary>
+/// Paginated, cursor-aware response for <c>GET /api/v1/files/sync/changes</c>.
+/// </summary>
+public sealed record PagedSyncChangesDto
+{
+    /// <summary>Changes in this page.</summary>
+    public required IReadOnlyList<SyncChangeDto> Changes { get; init; }
+
+    /// <summary>Opaque cursor to pass as <c>cursor</c> on the next request to get the following page.</summary>
+    public string? NextCursor { get; init; }
+
+    /// <summary>Whether more changes exist beyond this page.</summary>
+    public bool HasMore { get; init; }
 }
 
 /// <summary>

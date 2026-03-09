@@ -56,6 +56,9 @@ public class FilesDbContext : DbContext
     /// <summary>Active chunked upload sessions.</summary>
     public DbSet<ChunkedUploadSession> UploadSessions => Set<ChunkedUploadSession>();
 
+    /// <summary>Per-user monotonic sequence counters for cursor-based sync.</summary>
+    public DbSet<UserSyncCounter> UserSyncCounters => Set<UserSyncCounter>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -70,5 +73,6 @@ public class FilesDbContext : DbContext
         modelBuilder.ApplyConfiguration(new FileCommentConfiguration());
         modelBuilder.ApplyConfiguration(new FileQuotaConfiguration());
         modelBuilder.ApplyConfiguration(new ChunkedUploadSessionConfiguration());
+        modelBuilder.ApplyConfiguration(new UserSyncCounterConfiguration());
     }
 }

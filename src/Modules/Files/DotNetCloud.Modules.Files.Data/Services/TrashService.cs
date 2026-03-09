@@ -107,6 +107,7 @@ internal sealed class TrashService : ITrashService
             await RestoreDescendantsAsync(node, cancellationToken);
         }
 
+        await SyncCursorHelper.AssignNextSequenceAsync(_db, node, node.OwnerId, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
         await _eventBus.PublishAsync(new FileRestoredEvent

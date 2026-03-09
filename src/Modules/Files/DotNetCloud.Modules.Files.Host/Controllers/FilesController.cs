@@ -270,14 +270,30 @@ public class FilesController : FilesControllerBase
 
     /// <summary>
     /// Downloads a raw chunk by its SHA-256 hash. Used by sync clients for efficient chunk retrieval.
+    /// Supports <c>If-None-Match</c> conditional requests — returns <c>304 Not Modified</c>
+    /// if the client's cached chunk is still current.
     /// </summary>
     [HttpGet("chunks/{chunkHash}")]
     public Task<IActionResult> DownloadChunkByHashAsync(string chunkHash) => ExecuteAsync(async () =>
     {
+        // ETag = the chunk hash itself (content-addressed storage — hash IS identity)
+        var etag = $"\"{chunkHash}\"";
+
+        // Handle conditional request: If-None-Match
+        var ifNoneMatch = Request.Headers.IfNoneMatch.FirstOrDefault();
+        if (!string.IsNullOrEmpty(ifNoneMatch) &&
+            (ifNoneMatch == etag || ifNoneMatch == "*"))
+        {
+            return StatusCode(304);
+        }
+
         var stream = await _downloadService.DownloadChunkByHashAsync(chunkHash, GetAuthenticatedCaller());
-        return stream is null
-            ? NotFound(ErrorEnvelope("not_found", "Chunk not found."))
-            : File(stream, "application/octet-stream", enableRangeProcessing: false);
+        if (stream is null)
+            return NotFound(ErrorEnvelope("not_found", "Chunk not found."));
+
+        Response.Headers.ETag = etag;
+        Response.Headers.CacheControl = "private, max-age=31536000, immutable";
+        return File(stream, "application/octet-stream", enableRangeProcessing: false);
     });
 
     /// <summary>

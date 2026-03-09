@@ -8,8 +8,19 @@ namespace DotNetCloud.Modules.Files.Services;
 /// </summary>
 public interface ISyncService
 {
-    /// <summary>Gets all changes (created, updated, deleted) since a given timestamp.</summary>
+    /// <summary>
+    /// Gets all changes (created, updated, deleted) since a given timestamp.
+    /// Backward-compat fallback for clients that do not yet support cursors.
+    /// </summary>
     Task<IReadOnlyList<SyncChangeDto>> GetChangesSinceAsync(DateTime since, Guid? folderId, CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets a paginated, cursor-aware set of changes since the sequence encoded in <paramref name="cursor"/>.
+    /// Returns a <see cref="PagedSyncChangesDto"/> containing the page of changes plus a
+    /// <c>NextCursor</c> to use for the next request.
+    /// If <paramref name="cursor"/> is <c>null</c>, returns all changes (full sync) ordered by sequence number.
+    /// </summary>
+    Task<PagedSyncChangesDto> GetChangesSinceCursorAsync(string? cursor, Guid? folderId, int limit, CallerContext caller, CancellationToken cancellationToken = default);
 
     /// <summary>Gets a full folder tree snapshot with content hashes for sync comparison.</summary>
     Task<SyncTreeNodeDto> GetFolderTreeAsync(Guid? folderId, CallerContext caller, CancellationToken cancellationToken = default);

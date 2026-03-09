@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Models;
@@ -81,6 +82,7 @@ internal sealed class FileService : IFileService
             : $"{parentPath}/{folder.Id}";
 
         _db.FileNodes.Add(folder);
+        await SyncCursorHelper.AssignNextSequenceAsync(_db, folder, caller.UserId, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Folder '{Name}' created by {UserId} under {ParentId}",
@@ -167,6 +169,7 @@ internal sealed class FileService : IFileService
 
         node.Name = dto.Name;
         node.UpdatedAt = DateTime.UtcNow;
+        await SyncCursorHelper.AssignNextSequenceAsync(_db, node, node.OwnerId, cancellationToken);
 
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -218,6 +221,7 @@ internal sealed class FileService : IFileService
         var newPath = $"{targetParent.MaterializedPath}/{node.Id}";
         node.MaterializedPath = newPath;
         node.UpdatedAt = DateTime.UtcNow;
+        await SyncCursorHelper.AssignNextSequenceAsync(_db, node, node.OwnerId, cancellationToken);
 
         // Batch update descendant paths
         if (node.NodeType == FileNodeType.Folder)
@@ -294,6 +298,7 @@ internal sealed class FileService : IFileService
         };
         copy.MaterializedPath = $"{targetParent.MaterializedPath}/{copy.Id}";
 
+        await SyncCursorHelper.AssignNextSequenceAsync(_db, copy, caller.UserId, cancellationToken);
         _db.FileNodes.Add(copy);
 
         // Deep copy children for folders
@@ -329,6 +334,7 @@ internal sealed class FileService : IFileService
         node.DeletedByUserId = caller.UserId;
         node.OriginalParentId = node.ParentId;
         node.ParentId = null;
+        await SyncCursorHelper.AssignNextSequenceAsync(_db, node, node.OwnerId, cancellationToken);
 
         // Collect all affected node IDs (for share removal)
         var allNodeIds = new List<Guid> { nodeId };

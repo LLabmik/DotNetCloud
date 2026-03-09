@@ -370,4 +370,260 @@ public class SyncServiceTests
         Assert.AreEqual(1, result.Actions.Count);
         Assert.AreEqual("Conflict", result.Actions[0].Action);
     }
+
+    // ── Cursor-based delta sync (Tasks 2.4 + 2.5) ────────────────────────────
+
+    [TestMethod]
+    public async Task GetChangesSinceCursorAsync_NoCursor_ReturnsAllStampedChanges()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+
+        // Node with a SyncSequence (stamped mutation)
+        var stamped = new FileNode
+        {
+            Name = "stamped.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            SyncSequence = 1
+        };
+        // Node without SyncSequence (legacy, not yet mutated)
+        var legacy = new FileNode
+        {
+            Name = "legacy.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            SyncSequence = null
+        };
+        db.FileNodes.AddRange(stamped, legacy);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.GetChangesSinceCursorAsync(null, null, 500, UserCaller(userId));
+
+        Assert.AreEqual(1, result.Changes.Count);
+        Assert.AreEqual("stamped.txt", result.Changes[0].Name);
+        Assert.IsFalse(result.HasMore);
+        Assert.IsNotNull(result.NextCursor);
+    }
+
+    [TestMethod]
+    public async Task GetChangesSinceCursorAsync_WithCursor_ReturnsOnlyNewerChanges()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+
+        db.FileNodes.Add(new FileNode { Name = "seq1.txt", NodeType = FileNodeType.File, OwnerId = userId, SyncSequence = 1 });
+        db.FileNodes.Add(new FileNode { Name = "seq2.txt", NodeType = FileNodeType.File, OwnerId = userId, SyncSequence = 2 });
+        db.FileNodes.Add(new FileNode { Name = "seq3.txt", NodeType = FileNodeType.File, OwnerId = userId, SyncSequence = 3 });
+        await db.SaveChangesAsync();
+
+        var cursor = SyncCursorHelper.EncodeCursor(userId, 1); // "I've seen up to sequence 1"
+
+        var service = CreateService(db);
+        var result = await service.GetChangesSinceCursorAsync(cursor, null, 500, UserCaller(userId));
+
+        Assert.AreEqual(2, result.Changes.Count);
+        Assert.IsTrue(result.Changes.All(c => c.SyncSequence > 1));
+    }
+
+    [TestMethod]
+    public async Task GetChangesSinceCursorAsync_WithLimit_PaginatesCorrectly()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+
+        for (long seq = 1; seq <= 5; seq++)
+            db.FileNodes.Add(new FileNode { Name = $"f{seq}.txt", NodeType = FileNodeType.File, OwnerId = userId, SyncSequence = seq });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.GetChangesSinceCursorAsync(null, null, 3, UserCaller(userId));
+
+        Assert.AreEqual(3, result.Changes.Count);
+        Assert.IsTrue(result.HasMore);
+        Assert.IsNotNull(result.NextCursor);
+
+        // NextCursor decoded should point to sequence 3 (the last item in the page)
+        var decoded = SyncCursorHelper.DecodeCursor(result.NextCursor!);
+        Assert.IsNotNull(decoded);
+        Assert.AreEqual(userId, decoded!.Value.UserId);
+        Assert.AreEqual(3L, decoded.Value.Sequence);
+    }
+
+    [TestMethod]
+    public async Task GetChangesSinceCursorAsync_InvalidCursor_StartsFromBeginning()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+
+        db.FileNodes.Add(new FileNode { Name = "file.txt", NodeType = FileNodeType.File, OwnerId = userId, SyncSequence = 1 });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        // Garbage input — should fall back to sinceSequence=0
+        var result = await service.GetChangesSinceCursorAsync("not-valid-base64!!", null, 500, UserCaller(userId));
+
+        Assert.AreEqual(1, result.Changes.Count);
+    }
+
+    [TestMethod]
+    public async Task GetChangesSinceCursorAsync_CursorFromDifferentUser_StartsFromBeginning()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var otherUserId = Guid.NewGuid();
+
+        db.FileNodes.Add(new FileNode { Name = "mine.txt", NodeType = FileNodeType.File, OwnerId = userId, SyncSequence = 1 });
+        await db.SaveChangesAsync();
+
+        // Cursor encoded for a different user
+        var foreignCursor = SyncCursorHelper.EncodeCursor(otherUserId, 999);
+
+        var service = CreateService(db);
+        var result = await service.GetChangesSinceCursorAsync(foreignCursor, null, 500, UserCaller(userId));
+
+        // Falls back to seq 0 — returns the file
+        Assert.AreEqual(1, result.Changes.Count);
+        Assert.AreEqual("mine.txt", result.Changes[0].Name);
+    }
+
+    [TestMethod]
+    public async Task GetChangesSinceCursorAsync_DeletedNodeWithSequence_IncludedInResults()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+
+        var deleted = new FileNode
+        {
+            Name = "deleted.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            IsDeleted = true,
+            DeletedAt = DateTime.UtcNow,
+            DeletedByUserId = userId,
+            OriginalParentId = Guid.NewGuid(),
+            SyncSequence = 2
+        };
+        deleted.MaterializedPath = $"/{deleted.Id}";
+        db.FileNodes.Add(deleted);
+        await db.SaveChangesAsync();
+
+        var cursor = SyncCursorHelper.EncodeCursor(userId, 1);
+        var service = CreateService(db);
+        var result = await service.GetChangesSinceCursorAsync(cursor, null, 500, UserCaller(userId));
+
+        Assert.AreEqual(1, result.Changes.Count);
+        Assert.IsTrue(result.Changes[0].IsDeleted);
+        Assert.AreEqual("deleted.txt", result.Changes[0].Name);
+    }
+
+    [TestMethod]
+    public async Task GetChangesSinceCursorAsync_EmptyResult_NextCursorEncodesSinceSequence()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+
+        var cursor = SyncCursorHelper.EncodeCursor(userId, 42);
+        var service = CreateService(db);
+        var result = await service.GetChangesSinceCursorAsync(cursor, null, 500, UserCaller(userId));
+
+        Assert.AreEqual(0, result.Changes.Count);
+        Assert.IsFalse(result.HasMore);
+        // When no items found, cursor stays at sinceSequence (42)
+        var decoded = SyncCursorHelper.DecodeCursor(result.NextCursor!);
+        Assert.IsNotNull(decoded);
+        Assert.AreEqual(42L, decoded!.Value.Sequence);
+    }
+
+    // ── SyncCursorHelper unit tests ───────────────────────────────────────────
+
+    [TestMethod]
+    public void SyncCursorHelper_EncodeDecode_RoundTrip()
+    {
+        var userId = Guid.NewGuid();
+        const long seq = 12345L;
+
+        var cursor = SyncCursorHelper.EncodeCursor(userId, seq);
+        var decoded = SyncCursorHelper.DecodeCursor(cursor);
+
+        Assert.IsNotNull(decoded);
+        Assert.AreEqual(userId, decoded!.Value.UserId);
+        Assert.AreEqual(seq, decoded.Value.Sequence);
+    }
+
+    [TestMethod]
+    public void SyncCursorHelper_DecodeInvalidBase64_ReturnsNull()
+    {
+        var result = SyncCursorHelper.DecodeCursor("!!!not-base64!!!");
+        Assert.IsNull(result);
+    }
+
+    [TestMethod]
+    public void SyncCursorHelper_DecodeValidBase64ButBadFormat_ReturnsNull()
+    {
+        // Valid base64 but not "guid:long" format
+        var raw = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("notavalidformat"));
+        var result = SyncCursorHelper.DecodeCursor(raw);
+        Assert.IsNull(result);
+    }
+
+    [TestMethod]
+    public void SyncCursorHelper_DecodeNoColon_ReturnsNull()
+    {
+        var raw = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(Guid.NewGuid().ToString()));
+        var result = SyncCursorHelper.DecodeCursor(raw);
+        Assert.IsNull(result);
+    }
+
+    [TestMethod]
+    public async Task SyncCursorHelper_AssignNextSequenceAsync_CreatesCounterAndAssignsSequence()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var node = new FileNode { Name = "f.txt", NodeType = FileNodeType.File, OwnerId = userId };
+
+        await SyncCursorHelper.AssignNextSequenceAsync(db, node, userId);
+
+        Assert.AreEqual(1L, node.SyncSequence);
+        var counter = await db.UserSyncCounters.FindAsync(userId);
+        Assert.IsNotNull(counter);
+        Assert.AreEqual(1L, counter!.CurrentSequence);
+    }
+
+    [TestMethod]
+    public async Task SyncCursorHelper_AssignNextSequenceAsync_IncrementsExistingCounter()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+
+        // Pre-seed counter at 10
+        db.UserSyncCounters.Add(new UserSyncCounter { UserId = userId, CurrentSequence = 10 });
+        await db.SaveChangesAsync();
+
+        var node = new FileNode { Name = "f.txt", NodeType = FileNodeType.File, OwnerId = userId };
+        await SyncCursorHelper.AssignNextSequenceAsync(db, node, userId);
+
+        Assert.AreEqual(11L, node.SyncSequence);
+        var counter = await db.UserSyncCounters.FindAsync(userId);
+        Assert.AreEqual(11L, counter!.CurrentSequence);
+    }
+
+    [TestMethod]
+    public async Task SyncCursorHelper_AssignNextSequenceAsync_MultipleNodes_SequenceMonotonicallyIncreases()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var node1 = new FileNode { Name = "a.txt", NodeType = FileNodeType.File, OwnerId = userId };
+        var node2 = new FileNode { Name = "b.txt", NodeType = FileNodeType.File, OwnerId = userId };
+        var node3 = new FileNode { Name = "c.txt", NodeType = FileNodeType.File, OwnerId = userId };
+
+        await SyncCursorHelper.AssignNextSequenceAsync(db, node1, userId);
+        await SyncCursorHelper.AssignNextSequenceAsync(db, node2, userId);
+        await SyncCursorHelper.AssignNextSequenceAsync(db, node3, userId);
+
+        Assert.AreEqual(1L, node1.SyncSequence);
+        Assert.AreEqual(2L, node2.SyncSequence);
+        Assert.AreEqual(3L, node3.SyncSequence);
+    }
 }

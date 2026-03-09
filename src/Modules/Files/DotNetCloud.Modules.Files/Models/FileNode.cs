@@ -77,6 +77,12 @@ public sealed class FileNode
     /// <summary>When the node was last modified (UTC).</summary>
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>
+    /// Monotonically increasing sequence number assigned on every mutation.
+    /// Used for cursor-based delta sync (Task 2.4).
+    /// </summary>
+    public long? SyncSequence { get; set; }
+
     /// <summary>File versions (only for files).</summary>
     public ICollection<FileVersion> Versions { get; set; } = [];
 

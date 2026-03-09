@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Errors;
+using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Services;
@@ -13,6 +14,9 @@ namespace DotNetCloud.Modules.Files.Data.Services;
 /// </summary>
 internal sealed class SyncService : ISyncService
 {
+    private const int MaxPageLimit = 5000;
+    private const int DefaultPageLimit = 500;
+
     private readonly FilesDbContext _db;
     private readonly ILogger<SyncService> _logger;
 
@@ -45,7 +49,8 @@ internal sealed class SyncService : ISyncService
                 ContentHash = n.ContentHash,
                 Size = n.Size,
                 UpdatedAt = n.UpdatedAt,
-                IsDeleted = false
+                IsDeleted = false,
+                SyncSequence = n.SyncSequence
             })
             .ToListAsync(cancellationToken);
 
@@ -69,7 +74,8 @@ internal sealed class SyncService : ISyncService
                 Size = n.Size,
                 UpdatedAt = n.UpdatedAt,
                 IsDeleted = true,
-                DeletedAt = n.DeletedAt
+                DeletedAt = n.DeletedAt,
+                SyncSequence = n.SyncSequence
             })
             .ToListAsync(cancellationToken);
 
@@ -78,6 +84,108 @@ internal sealed class SyncService : ISyncService
             .ToList();
 
         return allChanges;
+    }
+
+    /// <inheritdoc />
+    public async Task<PagedSyncChangesDto> GetChangesSinceCursorAsync(string? cursor, Guid? folderId, int limit, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+
+        var effectiveLimit = Math.Clamp(limit, 1, MaxPageLimit);
+
+        long sinceSequence = 0;
+        if (cursor is not null)
+        {
+            var decoded = SyncCursorHelper.DecodeCursor(cursor);
+            if (decoded is null || decoded.Value.UserId != caller.UserId)
+            {
+                // Invalid or mismatched cursor — start from beginning
+                sinceSequence = 0;
+                _logger.LogWarning("sync.cursor.invalid {UserId} cursor='{Cursor}'", caller.UserId, cursor);
+            }
+            else
+            {
+                sinceSequence = decoded.Value.Sequence;
+            }
+        }
+
+        // Active nodes with SyncSequence > sinceSequence
+        var activeQuery = _db.FileNodes
+            .AsNoTracking()
+            .Where(n => n.OwnerId == caller.UserId &&
+                        n.SyncSequence != null &&
+                        n.SyncSequence > sinceSequence);
+
+        if (folderId.HasValue)
+            activeQuery = activeQuery.Where(n => n.ParentId == folderId.Value || n.Id == folderId.Value);
+
+        // Deleted nodes with SyncSequence > sinceSequence
+        var deletedQuery = _db.FileNodes
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(n => n.OwnerId == caller.UserId &&
+                        n.IsDeleted &&
+                        n.SyncSequence != null &&
+                        n.SyncSequence > sinceSequence);
+
+        if (folderId.HasValue)
+            deletedQuery = deletedQuery.Where(n => n.ParentId == folderId.Value || n.Id == folderId.Value);
+
+        // Fetch one extra item to determine hasMore
+        var fetchLimit = effectiveLimit + 1;
+
+        var activeChanges = await activeQuery
+            .OrderBy(n => n.SyncSequence)
+            .Take(fetchLimit)
+            .Select(n => new SyncChangeDto
+            {
+                NodeId = n.Id,
+                Name = n.Name,
+                NodeType = n.NodeType.ToString(),
+                ParentId = n.ParentId,
+                ContentHash = n.ContentHash,
+                Size = n.Size,
+                UpdatedAt = n.UpdatedAt,
+                IsDeleted = false,
+                SyncSequence = n.SyncSequence
+            })
+            .ToListAsync(cancellationToken);
+
+        var deletedChanges = await deletedQuery
+            .OrderBy(n => n.SyncSequence)
+            .Take(fetchLimit)
+            .Select(n => new SyncChangeDto
+            {
+                NodeId = n.Id,
+                Name = n.Name,
+                NodeType = n.NodeType.ToString(),
+                ParentId = n.ParentId,
+                ContentHash = n.ContentHash,
+                Size = n.Size,
+                UpdatedAt = n.UpdatedAt,
+                IsDeleted = true,
+                DeletedAt = n.DeletedAt,
+                SyncSequence = n.SyncSequence
+            })
+            .ToListAsync(cancellationToken);
+
+        // Merge, sort by SyncSequence, pick the window
+        var allChanges = activeChanges.Concat(deletedChanges)
+            .OrderBy(c => c.SyncSequence)
+            .ToList();
+
+        var hasMore = allChanges.Count > effectiveLimit;
+        var page = allChanges.Take(effectiveLimit).ToList();
+
+        var maxSequenceInPage = page.Count > 0 ? page.Max(c => c.SyncSequence ?? 0) : sinceSequence;
+        var nextCursor = SyncCursorHelper.EncodeCursor(caller.UserId, maxSequenceInPage);
+
+        return new PagedSyncChangesDto
+        {
+            Changes = page,
+            NextCursor = nextCursor,
+            HasMore = hasMore
+        };
     }
 
     /// <inheritdoc />
