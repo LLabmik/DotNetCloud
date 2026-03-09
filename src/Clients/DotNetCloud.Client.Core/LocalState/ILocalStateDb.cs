@@ -94,4 +94,21 @@ public interface ILocalStateDb
 
     /// <summary>Deletes upload session records created before the given timestamp (stale session cleanup).</summary>
     Task DeleteStaleActiveUploadSessionsAsync(string dbPath, DateTime olderThan, CancellationToken cancellationToken = default);
+
+    // ── Conflict Records ────────────────────────────────────────────────────
+
+    /// <summary>Inserts a new conflict record (detected or auto-resolved).</summary>
+    Task SaveConflictRecordAsync(string dbPath, ConflictRecord record, CancellationToken cancellationToken = default);
+
+    /// <summary>Returns all conflict records that have not yet been resolved.</summary>
+    Task<IReadOnlyList<ConflictRecord>> GetUnresolvedConflictsAsync(string dbPath, CancellationToken cancellationToken = default);
+
+    /// <summary>Returns conflict records detected or resolved within the last 30 days.</summary>
+    Task<IReadOnlyList<ConflictRecord>> GetConflictHistoryAsync(string dbPath, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Marks the conflict with <paramref name="conflictId"/> as resolved with the given
+    /// <paramref name="resolution"/> string, setting <c>ResolvedAt</c> to UTC now.
+    /// </summary>
+    Task ResolveConflictAsync(string dbPath, int conflictId, string resolution, CancellationToken cancellationToken = default);
 }

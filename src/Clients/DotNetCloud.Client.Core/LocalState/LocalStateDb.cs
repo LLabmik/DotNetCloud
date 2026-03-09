@@ -324,6 +324,50 @@ public sealed class LocalStateDb : ILocalStateDb
         }
     }
 
+    // ── Conflict Records ─────────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    public async Task SaveConflictRecordAsync(string dbPath, ConflictRecord record, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        ctx.ConflictRecords.Add(record);
+        await ctx.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<ConflictRecord>> GetUnresolvedConflictsAsync(string dbPath, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        return await ctx.ConflictRecords
+            .Where(r => r.ResolvedAt == null)
+            .OrderByDescending(r => r.DetectedAt)
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<ConflictRecord>> GetConflictHistoryAsync(string dbPath, CancellationToken cancellationToken = default)
+    {
+        var cutoff = DateTime.UtcNow.AddDays(-30);
+        await using var ctx = CreateContext(dbPath);
+        return await ctx.ConflictRecords
+            .Where(r => r.DetectedAt >= cutoff)
+            .OrderByDescending(r => r.DetectedAt)
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task ResolveConflictAsync(string dbPath, int conflictId, string resolution, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        var row = await ctx.ConflictRecords.FindAsync([conflictId], cancellationToken);
+        if (row is not null)
+        {
+            row.Resolution = resolution;
+            row.ResolvedAt = DateTime.UtcNow;
+            await ctx.SaveChangesAsync(cancellationToken);
+        }
+    }
+
     // ── Private helpers ─────────────────────────────────────────────────────
 
     private static string BuildConnectionString(string dbPath) =>
@@ -381,6 +425,22 @@ public sealed class LocalStateDb : ILocalStateDb
                 FileSize INTEGER NOT NULL DEFAULT 0,
                 FileModifiedAt TEXT NOT NULL DEFAULT '0001-01-01 00:00:00',
                 CreatedAt TEXT NOT NULL DEFAULT '0001-01-01 00:00:00'
+            )", cancellationToken);
+
+        // Create ConflictRecords table for conflict tracking and auto-resolution history
+        await ExecuteNonQueryAsync(conn, @"
+            CREATE TABLE IF NOT EXISTS ConflictRecords (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                OriginalPath TEXT NOT NULL,
+                ConflictCopyPath TEXT NOT NULL DEFAULT '',
+                NodeId TEXT NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
+                LocalModifiedAt TEXT NOT NULL DEFAULT '0001-01-01 00:00:00',
+                RemoteModifiedAt TEXT NOT NULL DEFAULT '0001-01-01 00:00:00',
+                DetectedAt TEXT NOT NULL DEFAULT '0001-01-01 00:00:00',
+                ResolvedAt TEXT NULL,
+                Resolution TEXT NULL,
+                BaseContentHash TEXT NULL,
+                AutoResolved INTEGER NOT NULL DEFAULT 0
             )", cancellationToken);
     }
 

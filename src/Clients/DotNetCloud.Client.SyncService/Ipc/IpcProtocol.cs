@@ -31,6 +31,12 @@ public static class IpcCommands
 
     /// <summary>Unsubscribe from push events on this connection.</summary>
     public const string Unsubscribe = "unsubscribe";
+
+    /// <summary>List all conflict records for a context (unresolved by default; history if requested).</summary>
+    public const string ListConflicts = "list-conflicts";
+
+    /// <summary>Resolve a conflict record with a user-chosen resolution.</summary>
+    public const string ResolveConflict = "resolve-conflict";
 }
 
 /// <summary>IPC event names pushed from service to subscribed clients.</summary>
@@ -53,6 +59,9 @@ public static class IpcEvents
 
     /// <summary>A file transfer completed.</summary>
     public const string TransferComplete = "transfer-complete";
+
+    /// <summary>A sync conflict was auto-resolved without user intervention.</summary>
+    public const string ConflictAutoResolved = "conflict-auto-resolved";
 }
 
 // ── Wire types ────────────────────────────────────────────────────────────────
@@ -219,6 +228,90 @@ public sealed class TransferProgressPayload
     /// <summary>Percentage complete (0–100).</summary>
     [JsonPropertyName("percentComplete")]
     public double PercentComplete { get; init; }
+}
+
+/// <summary>Payload for the <c>list-conflicts</c> command.</summary>
+public sealed class ListConflictsData
+{
+    /// <summary>When <c>true</c> returns resolved history in addition to unresolved conflicts.</summary>
+    [JsonPropertyName("includeHistory")]
+    public bool IncludeHistory { get; init; }
+}
+
+/// <summary>Payload for the <c>resolve-conflict</c> command.</summary>
+public sealed class ResolveConflictData
+{
+    /// <summary>Database row ID of the conflict to resolve.</summary>
+    [JsonPropertyName("conflictId")]
+    public int ConflictId { get; init; }
+
+    /// <summary>Human-readable resolution description (e.g. <c>"keep-local"</c>, <c>"keep-server"</c>).</summary>
+    [JsonPropertyName("resolution")]
+    public required string Resolution { get; init; }
+}
+
+/// <summary>Serialisable snapshot of a <c>ConflictRecord</c> sent over IPC.</summary>
+public sealed class ConflictRecordPayload
+{
+    /// <summary>Database row ID.</summary>
+    [JsonPropertyName("id")]
+    public int Id { get; init; }
+
+    /// <summary>Original (intended) local path.</summary>
+    [JsonPropertyName("originalPath")]
+    public string? OriginalPath { get; init; }
+
+    /// <summary>Path to the conflict-copy file (empty string when auto-resolved).</summary>
+    [JsonPropertyName("conflictCopyPath")]
+    public string? ConflictCopyPath { get; init; }
+
+    /// <summary>Server node ID.</summary>
+    [JsonPropertyName("nodeId")]
+    public string? NodeId { get; init; }
+
+    /// <summary>Local file modification time at conflict detection.</summary>
+    [JsonPropertyName("localModifiedAt")]
+    public DateTime? LocalModifiedAt { get; init; }
+
+    /// <summary>Server file modification time at conflict detection.</summary>
+    [JsonPropertyName("remoteModifiedAt")]
+    public DateTime? RemoteModifiedAt { get; init; }
+
+    /// <summary>UTC time the conflict was detected.</summary>
+    [JsonPropertyName("detectedAt")]
+    public DateTime DetectedAt { get; init; }
+
+    /// <summary>UTC time the conflict was resolved (null if unresolved).</summary>
+    [JsonPropertyName("resolvedAt")]
+    public DateTime? ResolvedAt { get; init; }
+
+    /// <summary>Human-readable resolution string (null if unresolved).</summary>
+    [JsonPropertyName("resolution")]
+    public string? Resolution { get; init; }
+
+    /// <summary>Content hash of the common base version.</summary>
+    [JsonPropertyName("baseContentHash")]
+    public string? BaseContentHash { get; init; }
+
+    /// <summary><c>true</c> when the conflict was resolved without user intervention.</summary>
+    [JsonPropertyName("autoResolved")]
+    public bool AutoResolved { get; init; }
+}
+
+/// <summary>Payload for the <c>conflict-auto-resolved</c> push event.</summary>
+public sealed class ConflictAutoResolvedPayload
+{
+    /// <summary>Local path of the file that was auto-resolved.</summary>
+    [JsonPropertyName("localPath")]
+    public string? LocalPath { get; init; }
+
+    /// <summary>Name of the strategy that resolved the conflict.</summary>
+    [JsonPropertyName("strategy")]
+    public string? Strategy { get; init; }
+
+    /// <summary>How the conflict was resolved (e.g. <c>"AutoResolvedLocalWins"</c>).</summary>
+    [JsonPropertyName("resolution")]
+    public string? Resolution { get; init; }
 }
 
 /// <summary>Payload for the <c>transfer-complete</c> push event.</summary>

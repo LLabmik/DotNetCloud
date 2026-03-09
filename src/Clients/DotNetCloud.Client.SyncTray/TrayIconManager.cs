@@ -28,6 +28,7 @@ public sealed class TrayIconManager : IDisposable
 
     // Menu items that need dynamic updates.
     private NativeMenuItem? _statusItem;
+    private NativeMenuItem? _conflictsItem;
     private NativeMenuItem? _syncNowItem;
     private NativeMenuItem? _pauseResumeItem;
 
@@ -74,6 +75,12 @@ public sealed class TrayIconManager : IDisposable
         // Status summary (read-only header)
         _statusItem = new NativeMenuItem(_trayVm.Tooltip) { IsEnabled = false };
         menu.Items.Add(_statusItem);
+
+        // Conflicts item — enabled only when there are unresolved conflicts
+        _conflictsItem = new NativeMenuItem("Conflicts (0)") { IsEnabled = false };
+        _conflictsItem.Click += (_, _) => OnConflictsClicked();
+        menu.Items.Add(_conflictsItem);
+
         menu.Items.Add(new NativeMenuItemSeparator());
 
         // Sync now
@@ -135,8 +142,16 @@ public sealed class TrayIconManager : IDisposable
             {
                 if (_pauseResumeItem is not null)
                     _pauseResumeItem.Header = _trayVm.IsPaused ? "Resume syncing" : "Pause syncing";
-            }
-        });
+            }            else if (e.PropertyName is nameof(TrayViewModel.ConflictCount) or nameof(TrayViewModel.HasConflicts))
+            {
+                if (_conflictsItem is not null)
+                {
+                    _conflictsItem.Header = _trayVm.ConflictCount == 0
+                        ? "Conflicts (0)"
+                        : $"View conflicts ({_trayVm.ConflictCount})…";
+                    _conflictsItem.IsEnabled = _trayVm.HasConflicts;
+                }
+            }        });
     }
 
     // ── Menu event handlers ───────────────────────────────────────────────
@@ -177,14 +192,38 @@ public sealed class TrayIconManager : IDisposable
 
     private void OnSettingsClicked(object? sender, EventArgs e)
     {
+        OpenSettingsWindow();
+    }
+
+    private void OnConflictsClicked()
+    {
+        OpenSettingsWindow(conflictsTab: true);
+    }
+
+    private void OpenSettingsWindow(bool conflictsTab = false)
+    {
         if (_settingsWindow is not null)
         {
+            if (conflictsTab)
+            {
+                if (_settingsWindow.DataContext is SettingsViewModel vm)
+                {
+                    vm.SelectedSettingsTab = 4; // Conflicts tab
+                    vm.SelectedConflictsTab = 0;
+                }
+            }
             _settingsWindow.Activate();
             return;
         }
 
-        var vm = _services.GetRequiredService<SettingsViewModel>();
-        _settingsWindow = new SettingsWindow(vm);
+        var settingsVm = _services.GetRequiredService<SettingsViewModel>();
+        if (conflictsTab)
+        {
+            settingsVm.SelectedSettingsTab = 4; // Conflicts tab
+            settingsVm.SelectedConflictsTab = 0;
+            _ = settingsVm.RefreshConflictsAsync();
+        }
+        _settingsWindow = new SettingsWindow(settingsVm);
         _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         _settingsWindow.Show();
     }
@@ -211,6 +250,7 @@ public sealed class TrayIconManager : IDisposable
             TrayState.Syncing => (0x00, 0x78, 0xD4),   // Windows blue
             TrayState.Paused => (0xFF, 0xA5, 0x00),    // Amber
             TrayState.Error => (0xC4, 0x1E, 0x3A),     // Crimson
+            TrayState.Conflict => (0xFF, 0x8C, 0x00),  // Dark orange
             _ => (0x70, 0x70, 0x70),                   // Grey (Offline)
         };
 

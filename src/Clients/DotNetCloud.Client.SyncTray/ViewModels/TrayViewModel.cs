@@ -20,6 +20,7 @@ public sealed class TrayViewModel : ViewModelBase
     private string _tooltip = "DotNetCloud Sync \u2014 service not running";
     private bool _isSyncing;
     private bool _isPaused;
+    private int _conflictCount;
 
     // Keyed by context ID for O(1) lookup on push events.
     private readonly Dictionary<Guid, AccountViewModel> _accounts = [];
@@ -59,6 +60,20 @@ public sealed class TrayViewModel : ViewModelBase
         private set => SetProperty(ref _isPaused, value);
     }
 
+    /// <summary>Total number of unresolved conflict copies requiring user attention.</summary>
+    public int ConflictCount
+    {
+        get => _conflictCount;
+        private set
+        {
+            if (SetProperty(ref _conflictCount, value))
+                OnPropertyChanged(nameof(HasConflicts));
+        }
+    }
+
+    /// <summary>Whether any unresolved conflict copies exist.</summary>
+    public bool HasConflicts => _conflictCount > 0;
+
     /// <summary>Snapshot list of connected account view-models.</summary>
     public IReadOnlyList<AccountViewModel> Accounts => _accountList;
 
@@ -79,6 +94,7 @@ public sealed class TrayViewModel : ViewModelBase
         _ipc.SyncCompleteReceived += OnSyncComplete;
         _ipc.SyncErrorReceived += OnSyncError;
         _ipc.ConflictDetected += OnConflictDetected;
+        _ipc.ConflictAutoResolved += OnConflictAutoResolved;
         _ipc.TransferProgressReceived += OnTransferProgress;
         _ipc.TransferCompleteReceived += OnTransferComplete;
     }
@@ -175,6 +191,24 @@ public sealed class TrayViewModel : ViewModelBase
         }
     }
 
+    /// <summary>Opens the Conflicts panel in the Settings window.</summary>
+    public async Task OpenConflictsAsync()
+    {
+        // Implementation wires to SettingsViewModel when available;
+        // the event-based navigation is handled by the UI layer.
+        await Task.CompletedTask;
+    }
+
+    /// <summary>Marks a conflict as resolved; decrements the conflict count.</summary>
+    public void OnConflictResolved()
+    {
+        if (ConflictCount > 0)
+        {
+            ConflictCount--;
+            UpdateAggregateState();
+        }
+    }
+
     // ── IPC event handlers ────────────────────────────────────────────────
     // NOTE: These handlers run on the thread that raises the event (IPC reader
     // thread or test thread).  Avalonia's property-binding infrastructure handles
@@ -253,10 +287,21 @@ public sealed class TrayViewModel : ViewModelBase
     private void OnConflictDetected(object? sender, SyncConflictEventData e)
     {
         var fileName = Path.GetFileName(e.OriginalPath);
+        ConflictCount++;
+        UpdateAggregateState();
         _notifications.ShowNotification(
             "File conflict",
             $"Conflict in \"{fileName}\". A conflict copy was saved.",
             NotificationType.Warning);
+    }
+
+    private void OnConflictAutoResolved(object? sender, ConflictAutoResolvedEventData e)
+    {
+        var fileName = Path.GetFileName(e.LocalPath ?? string.Empty);
+        _notifications.ShowNotification(
+            "Conflict auto-resolved",
+            $"\"{fileName}\" was automatically resolved ({e.Resolution ?? e.Strategy ?? "no details"}).",
+            NotificationType.Info);
     }
 
     private void OnTransferProgress(object? sender, TransferProgressEventData e)
@@ -345,8 +390,10 @@ public sealed class TrayViewModel : ViewModelBase
         bool hasError = _accountList.Any(a => a.State == "Error");
         bool isSyncing = _accountList.Any(a => a.State == "Syncing");
         bool allPaused = _accountList.All(a => a.State == "Paused");
+        bool hasConflicts = _conflictCount > 0;
 
         OverallState = hasError ? TrayState.Error
+            : hasConflicts ? TrayState.Conflict
             : isSyncing ? TrayState.Syncing
             : allPaused ? TrayState.Paused
             : TrayState.Idle;
@@ -360,6 +407,7 @@ public sealed class TrayViewModel : ViewModelBase
         Tooltip = OverallState switch
         {
             TrayState.Error => "DotNetCloud Sync \u2014 sync error (click for details)",
+            TrayState.Conflict => $"DotNetCloud Sync \u2014 {_conflictCount} conflict(s) need attention",
             TrayState.Syncing => $"DotNetCloud Sync \u2014 syncing ({totalUp} \u2191  {totalDown} \u2193)",
             TrayState.Paused => "DotNetCloud Sync \u2014 paused",
             _ => $"DotNetCloud Sync \u2014 up to date ({_accountList.Count} account(s))",
@@ -381,6 +429,9 @@ public enum TrayState
 
     /// <summary>One or more contexts have encountered an error.</summary>
     Error,
+
+    /// <summary>One or more unresolved file conflicts require user attention.</summary>
+    Conflict,
 
     /// <summary>SyncService is unreachable or no accounts are configured.</summary>
     Offline,

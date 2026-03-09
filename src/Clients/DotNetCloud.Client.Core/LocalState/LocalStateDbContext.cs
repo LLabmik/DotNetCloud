@@ -22,6 +22,9 @@ public sealed class LocalStateDbContext : DbContext
     /// <summary>Active (in-progress) upload sessions for crash-resilient resumption.</summary>
     public DbSet<ActiveUploadSessionRecord> ActiveUploadSessions => Set<ActiveUploadSessionRecord>();
 
+    /// <summary>Detected file conflict records (unresolved and history).</summary>
+    public DbSet<ConflictRecord> ConflictRecords => Set<ConflictRecord>();
+
     /// <summary>Initializes a new <see cref="LocalStateDbContext"/>.</summary>
     public LocalStateDbContext(DbContextOptions<LocalStateDbContext> options) : base(options) { }
 
@@ -58,6 +61,14 @@ public sealed class LocalStateDbContext : DbContext
             e.HasKey(r => r.Id);
             e.Property(r => r.LocalPath).IsRequired();
             e.HasIndex(r => r.SessionId).IsUnique();
+        });
+
+        modelBuilder.Entity<ConflictRecord>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.Property(r => r.OriginalPath).IsRequired();
+            e.HasIndex(r => r.DetectedAt);
+            e.HasIndex(r => r.ResolvedAt);
         });
     }
 }

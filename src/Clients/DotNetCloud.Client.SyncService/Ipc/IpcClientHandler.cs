@@ -30,6 +30,7 @@ public sealed class IpcClientHandler : IAsyncDisposable
     private EventHandler<SyncCompleteEventArgs>? _completeHandler;
     private EventHandler<SyncErrorEventArgs>? _errorHandler;
     private EventHandler<SyncConflictDetectedEventArgs>? _conflictHandler;
+    private EventHandler<SyncConflictAutoResolvedEventArgs>? _conflictAutoResolvedHandler;
     private EventHandler<ContextTransferProgressEventArgs>? _transferProgressHandler;
     private EventHandler<ContextTransferCompleteEventArgs>? _transferCompleteHandler;
 
@@ -155,6 +156,14 @@ public sealed class IpcClientHandler : IAsyncDisposable
             case IpcCommands.Unsubscribe:
                 Unsubscribe();
                 await SendResponseAsync(command.Command, new { subscribed = false }, cancellationToken);
+                break;
+
+            case IpcCommands.ListConflicts:
+                await HandleListConflictsAsync(command, cancellationToken);
+                break;
+
+            case IpcCommands.ResolveConflict:
+                await HandleResolveConflictAsync(command, cancellationToken);
                 break;
 
             default:
@@ -302,6 +311,69 @@ public sealed class IpcClientHandler : IAsyncDisposable
         await SendResponseAsync(command.Command, new { started = true }, cancellationToken);
     }
 
+    private async Task HandleListConflictsAsync(IpcCommand command, CancellationToken cancellationToken)
+    {
+        if (command.ContextId is null)
+        {
+            await SendErrorAsync(command.Command, "Missing 'contextId'.", cancellationToken);
+            return;
+        }
+
+        var includeHistory = false;
+        if (command.Data is not null)
+        {
+            var data = command.Data.Value.Deserialize<ListConflictsData>(JsonOptions);
+            includeHistory = data?.IncludeHistory ?? false;
+        }
+
+        var records = await _contextManager.ListConflictsAsync(
+            command.ContextId.Value, includeHistory, cancellationToken);
+
+        var payload = records.Select(r => new ConflictRecordPayload
+        {
+            Id = r.Id,
+            OriginalPath = r.OriginalPath,
+            ConflictCopyPath = r.ConflictCopyPath,
+            NodeId = r.NodeId.ToString(),
+            LocalModifiedAt = r.LocalModifiedAt,
+            RemoteModifiedAt = r.RemoteModifiedAt,
+            DetectedAt = r.DetectedAt,
+            ResolvedAt = r.ResolvedAt,
+            Resolution = r.Resolution,
+            BaseContentHash = r.BaseContentHash,
+            AutoResolved = r.AutoResolved,
+        }).ToList();
+
+        await SendResponseAsync(command.Command, command.ContextId.Value, payload, cancellationToken);
+    }
+
+    private async Task HandleResolveConflictAsync(IpcCommand command, CancellationToken cancellationToken)
+    {
+        if (command.ContextId is null)
+        {
+            await SendErrorAsync(command.Command, "Missing 'contextId'.", cancellationToken);
+            return;
+        }
+
+        if (command.Data is null)
+        {
+            await SendErrorAsync(command.Command, "Missing 'data' payload.", cancellationToken);
+            return;
+        }
+
+        var data = command.Data.Value.Deserialize<ResolveConflictData>(JsonOptions);
+        if (data is null)
+        {
+            await SendErrorAsync(command.Command, "Invalid 'data' payload.", cancellationToken);
+            return;
+        }
+
+        await _contextManager.ResolveConflictAsync(
+            command.ContextId.Value, data.ConflictId, data.Resolution, cancellationToken);
+
+        await SendResponseAsync(command.Command, new { resolved = true }, cancellationToken);
+    }
+
     // ── Event subscription ────────────────────────────────────────────────
 
     private void Subscribe()
@@ -337,6 +409,14 @@ public sealed class IpcClientHandler : IAsyncDisposable
                 conflictCopyPath = args.ConflictCopyPath,
             });
 
+        _conflictAutoResolvedHandler = (_, args) =>
+            _ = PushEventAsync(IpcEvents.ConflictAutoResolved, args.ContextId, new ConflictAutoResolvedPayload
+            {
+                LocalPath = args.LocalPath,
+                Strategy = args.Strategy,
+                Resolution = args.Resolution,
+            });
+
         _transferProgressHandler = (_, args) =>
             _ = PushEventAsync(IpcEvents.TransferProgress, args.ContextId, new TransferProgressPayload
             {
@@ -361,6 +441,7 @@ public sealed class IpcClientHandler : IAsyncDisposable
         _contextManager.SyncComplete += _completeHandler;
         _contextManager.SyncError += _errorHandler;
         _contextManager.ConflictDetected += _conflictHandler;
+        _contextManager.ConflictAutoResolved += _conflictAutoResolvedHandler;
         _contextManager.TransferProgress += _transferProgressHandler;
         _contextManager.TransferComplete += _transferCompleteHandler;
     }
@@ -374,6 +455,7 @@ public sealed class IpcClientHandler : IAsyncDisposable
         if (_completeHandler is not null) _contextManager.SyncComplete -= _completeHandler;
         if (_errorHandler is not null) _contextManager.SyncError -= _errorHandler;
         if (_conflictHandler is not null) _contextManager.ConflictDetected -= _conflictHandler;
+        if (_conflictAutoResolvedHandler is not null) _contextManager.ConflictAutoResolved -= _conflictAutoResolvedHandler;
         if (_transferProgressHandler is not null) _contextManager.TransferProgress -= _transferProgressHandler;
         if (_transferCompleteHandler is not null) _contextManager.TransferComplete -= _transferCompleteHandler;
     }

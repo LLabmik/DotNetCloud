@@ -48,6 +48,9 @@ public sealed class IpcClient : IIpcClient, IAsyncDisposable
     public event EventHandler<SyncConflictEventData>? ConflictDetected;
 
     /// <inheritdoc/>
+    public event EventHandler<ConflictAutoResolvedEventData>? ConflictAutoResolved;
+
+    /// <inheritdoc/>
     public event EventHandler<TransferProgressEventData>? TransferProgressReceived;
 
     /// <inheritdoc/>
@@ -342,6 +345,20 @@ public sealed class IpcClient : IIpcClient, IAsyncDisposable
                 }
                 break;
 
+            case IpcEvents.ConflictAutoResolved:
+                var autoResolved = ParseData<ConflictAutoResolvedPayload>(message.Data);
+                if (autoResolved is not null)
+                {
+                    ConflictAutoResolved?.Invoke(this, new ConflictAutoResolvedEventData
+                    {
+                        ContextId = contextId,
+                        LocalPath = autoResolved.LocalPath,
+                        Strategy = autoResolved.Strategy,
+                        Resolution = autoResolved.Resolution,
+                    });
+                }
+                break;
+
             default:
                 _logger.LogDebug("Unrecognised IPC event: '{Event}'.", message.Event);
                 break;
@@ -404,6 +421,57 @@ public sealed class IpcClient : IIpcClient, IAsyncDisposable
         var payload = JsonSerializer.SerializeToElement(data, JsonOptions);
         await SendAndReceiveAsync(
             new IpcCommand { Command = IpcCommands.AddAccount, Data = payload },
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<ConflictRecordData>> ListConflictsAsync(
+        Guid contextId, bool includeHistory = false, CancellationToken cancellationToken = default)
+    {
+        if (!_connected) return [];
+
+        var data = JsonSerializer.SerializeToElement(
+            new ListConflictsData { IncludeHistory = includeHistory }, JsonOptions);
+
+        var response = await SendAndReceiveAsync(
+            new IpcCommand { Command = IpcCommands.ListConflicts, ContextId = contextId, Data = data },
+            cancellationToken);
+
+        if (response?.Success is true && response.Data is not null)
+        {
+            var json = JsonSerializer.Serialize(response.Data, JsonOptions);
+            var payloads = JsonSerializer.Deserialize<List<ConflictRecordPayload>>(json, JsonOptions);
+            if (payloads is null) return [];
+
+            return payloads.Select(p => new ConflictRecordData
+            {
+                Id = p.Id,
+                ContextId = contextId,
+                OriginalPath = p.OriginalPath,
+                ConflictCopyPath = p.ConflictCopyPath,
+                NodeId = p.NodeId,
+                LocalModifiedAt = p.LocalModifiedAt,
+                RemoteModifiedAt = p.RemoteModifiedAt,
+                DetectedAt = p.DetectedAt,
+                ResolvedAt = p.ResolvedAt,
+                Resolution = p.Resolution,
+                BaseContentHash = p.BaseContentHash,
+                AutoResolved = p.AutoResolved,
+            }).ToList();
+        }
+
+        return [];
+    }
+
+    /// <inheritdoc/>
+    public async Task ResolveConflictAsync(
+        Guid contextId, int conflictId, string resolution, CancellationToken cancellationToken = default)
+    {
+        var data = JsonSerializer.SerializeToElement(
+            new ResolveConflictData { ConflictId = conflictId, Resolution = resolution }, JsonOptions);
+
+        await SendAndReceiveAsync(
+            new IpcCommand { Command = IpcCommands.ResolveConflict, ContextId = contextId, Data = data },
             cancellationToken);
     }
 
@@ -527,5 +595,12 @@ public sealed class IpcClient : IIpcClient, IAsyncDisposable
         public string? FileName { get; init; }
         public string? Direction { get; init; }
         public long TotalBytes { get; init; }
+    }
+
+    private sealed class ConflictAutoResolvedPayload
+    {
+        public string? LocalPath { get; init; }
+        public string? Strategy { get; init; }
+        public string? Resolution { get; init; }
     }
 }

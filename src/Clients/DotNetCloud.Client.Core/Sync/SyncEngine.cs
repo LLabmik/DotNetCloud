@@ -320,14 +320,45 @@ public sealed class SyncEngine : ISyncEngine
 
         if (localRecord is not null && IsLocallyModified(localRecord, localPath))
         {
-            // Both local and remote changed — conflict!
-            await _conflictResolver.ResolveAsync(new ConflictInfo
+            // Both local and remote changed — run auto-resolution pipeline.
+            string? localContentHash = null;
+            try
+            {
+                localContentHash = await ComputeFileHashAsync(localPath, cancellationToken);
+            }
+            catch { /* non-critical; resolver falls through to conflict copy if null */ }
+
+            var outcome = await _conflictResolver.ResolveAsync(new ConflictInfo
             {
                 LocalPath = localPath,
                 NodeId = change.NodeId,
                 RemoteUpdatedAt = change.UpdatedAt,
                 RemoteContentHash = change.ContentHash,
+                StateDatabasePath = context.StateDatabasePath,
+                LocalContentHash = localContentHash,
+                BaseContentHash = localRecord.ContentHash,
+                LocalModifiedAt = File.Exists(localPath) ? File.GetLastWriteTimeUtc(localPath) : default,
+                LocalUserId = context.UserId,
             }, cancellationToken);
+
+            switch (outcome)
+            {
+                case Conflict.ConflictResolutionOutcome.AutoResolvedServerWins:
+                    await _stateDb.QueueOperationAsync(context.StateDatabasePath,
+                        new PendingDownload { LocalPath = localPath, NodeId = change.NodeId }, cancellationToken);
+                    break;
+
+                case Conflict.ConflictResolutionOutcome.AutoResolvedIdentical:
+                    // Both sides identical — update file record to match synced state.
+                    localRecord.ContentHash = change.ContentHash;
+                    localRecord.SyncStateTag = "Synced";
+                    localRecord.LastSyncedAt = DateTime.UtcNow;
+                    await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, localRecord, cancellationToken);
+                    break;
+
+                // AutoResolvedLocalWins: local file kept, will be re-queued for upload on next scan.
+                // ConflictCopyCreated: server version will be downloaded on next sync cycle.
+            }
         }
         else if (localRecord is null || localRecord.ContentHash != change.ContentHash)
         {

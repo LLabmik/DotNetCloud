@@ -55,6 +55,19 @@ public interface ISyncContextManager
     /// <summary>Triggers an immediate full sync pass for a context.</summary>
     Task SyncNowAsync(Guid contextId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Returns the conflict records for the given context.
+    /// When <paramref name="includeHistory"/> is true, returns all records from the last 30 days
+    /// (including resolved). Otherwise only unresolved conflicts are returned.
+    /// </summary>
+    Task<IReadOnlyList<DotNetCloud.Client.Core.LocalState.ConflictRecord>> ListConflictsAsync(
+        Guid contextId, bool includeHistory = false, CancellationToken cancellationToken = default);
+
+    /// <summary>Marks a conflict record as resolved with the given resolution string.</summary>
+    Task ResolveConflictAsync(
+        Guid contextId, int conflictId, string resolution,
+        CancellationToken cancellationToken = default);
+
     // ── Events ─────────────────────────────────────────────────────────────
 
     /// <summary>Raised when a sync pass is in progress for any context.</summary>
@@ -68,6 +81,9 @@ public interface ISyncContextManager
 
     /// <summary>Raised when a sync conflict is detected in any context.</summary>
     event EventHandler<SyncConflictDetectedEventArgs>? ConflictDetected;
+
+    /// <summary>Raised when a sync conflict is auto-resolved in any context.</summary>
+    event EventHandler<SyncConflictAutoResolvedEventArgs>? ConflictAutoResolved;
 
     /// <summary>Raised when per-file transfer progress is reported in any context.</summary>
     event EventHandler<ContextTransferProgressEventArgs>? TransferProgress;

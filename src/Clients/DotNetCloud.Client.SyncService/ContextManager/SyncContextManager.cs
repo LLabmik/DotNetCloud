@@ -45,6 +45,9 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
     public event EventHandler<SyncConflictDetectedEventArgs>? ConflictDetected;
 
     /// <inheritdoc/>
+    public event EventHandler<SyncConflictAutoResolvedEventArgs>? ConflictAutoResolved;
+
+    /// <inheritdoc/>
     public event EventHandler<ContextTransferProgressEventArgs>? TransferProgress;
 
     /// <inheritdoc/>
@@ -255,6 +258,32 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
     }
 
     /// <inheritdoc/>
+    public async Task<IReadOnlyList<DotNetCloud.Client.Core.LocalState.ConflictRecord>> ListConflictsAsync(
+        Guid contextId, bool includeHistory, CancellationToken cancellationToken = default)
+    {
+        var running = await GetRunningContextAsync(contextId);
+        if (running is null) return [];
+
+        var dbPath = running.SyncContext.StateDatabasePath;
+        if (includeHistory)
+            return await running.StateDb.GetConflictHistoryAsync(dbPath, cancellationToken);
+
+        return await running.StateDb.GetUnresolvedConflictsAsync(dbPath, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task ResolveConflictAsync(
+        Guid contextId, int conflictId, string resolution,
+        CancellationToken cancellationToken = default)
+    {
+        var running = await GetRunningContextAsync(contextId);
+        if (running is null) return;
+
+        await running.StateDb.ResolveConflictAsync(
+            running.SyncContext.StateDatabasePath, conflictId, resolution, cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async ValueTask DisposeAsync()
     {
         await StopAllAsync(CancellationToken.None);
@@ -284,7 +313,7 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             FullScanInterval = registration.FullScanInterval,
         };
 
-        var (engine, conflictResolver) = CreateEngine(registration);
+        var (engine, conflictResolver, stateDb) = CreateEngine(registration);
 
         // Forward conflict events with the context ID
         conflictResolver.ConflictDetected += (_, args) =>
@@ -293,6 +322,15 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
                 ContextId = registration.Id,
                 OriginalPath = args.OriginalPath,
                 ConflictCopyPath = args.ConflictCopyPath,
+            });
+
+        conflictResolver.AutoResolved += (_, args) =>
+            ConflictAutoResolved?.Invoke(this, new SyncConflictAutoResolvedEventArgs
+            {
+                ContextId = registration.Id,
+                LocalPath = args.LocalPath,
+                Strategy = args.Strategy,
+                Resolution = args.Resolution,
             });
 
         // Forward per-file transfer progress with throttling (max 2 events/sec per file).
@@ -344,13 +382,14 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             Registration = registration,
             SyncContext = syncContext,
             Engine = engine,
+            StateDb = stateDb,
         };
 
         _logger.LogDebug("Started sync engine for context {ContextId} ({DisplayName}).",
             registration.Id, registration.DisplayName);
     }
 
-    private (ISyncEngine engine, ConflictResolver conflictResolver) CreateEngine(
+    private (ISyncEngine engine, ConflictResolver conflictResolver, LocalStateDb stateDb) CreateEngine(
         SyncContextRegistration registration)
     {
         var tokenStore = CreateTokenStore(registration.DataDirectory);
@@ -363,11 +402,12 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             httpClient,
             _loggerFactory.CreateLogger<DotNetCloudApiClient>());
 
-        var conflictResolver = new ConflictResolver(
-            _loggerFactory.CreateLogger<ConflictResolver>());
-
         var stateDb = new LocalStateDb(
             _loggerFactory.CreateLogger<LocalStateDb>());
+
+        var conflictResolver = new ConflictResolver(
+            stateDb,
+            _loggerFactory.CreateLogger<ConflictResolver>());
 
         var transfer = new ChunkedTransferClient(
             apiClient,
@@ -395,7 +435,7 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             lockedFileReader,
             _loggerFactory.CreateLogger<SyncEngine>());
 
-        return (engine, conflictResolver);
+        return (engine, conflictResolver, stateDb);
     }
 
     private EncryptedFileTokenStore CreateTokenStore(string dataDirectory) =>
@@ -490,5 +530,6 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
         public required SyncContextRegistration Registration { get; init; }
         public required SyncContext SyncContext { get; init; }
         public required ISyncEngine Engine { get; init; }
+        public required LocalStateDb StateDb { get; init; }
     }
 }

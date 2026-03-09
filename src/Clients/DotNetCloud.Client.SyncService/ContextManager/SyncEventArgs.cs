@@ -88,3 +88,19 @@ public sealed class ContextTransferCompleteEventArgs : EventArgs
     /// <summary>Total bytes transferred.</summary>
     public long TotalBytes { get; init; }
 }
+
+/// <summary>Event arguments raised when a sync conflict is auto-resolved without user intervention.</summary>
+public sealed class SyncConflictAutoResolvedEventArgs : EventArgs
+{
+    /// <summary>Identifier of the context in which the conflict was resolved.</summary>
+    public required Guid ContextId { get; init; }
+
+    /// <summary>Local path of the file that was auto-resolved.</summary>
+    public required string LocalPath { get; init; }
+
+    /// <summary>Name of the auto-resolution strategy that succeeded.</summary>
+    public required string Strategy { get; init; }
+
+    /// <summary>Human-readable description of the chosen resolution.</summary>
+    public required string Resolution { get; init; }
+}

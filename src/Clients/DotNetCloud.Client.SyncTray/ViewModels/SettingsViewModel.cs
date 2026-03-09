@@ -37,6 +37,13 @@ public sealed class SettingsViewModel : ViewModelBase
     private string _ignoreTestPath = string.Empty;
     private string _ignoreTestResult = string.Empty;
 
+    // Conflicts tab state
+    private readonly ObservableCollection<ConflictViewModel> _conflicts = [];
+    private readonly ObservableCollection<ConflictViewModel> _conflictHistory = [];
+    private bool _isLoadingConflicts;
+    private int _selectedConflictsTab; // 0 = active, 1 = history
+    private int _selectedSettingsTab;  // outer tab index (0=Accounts, 1=General, 2=Ignored, 3=Transfers, 4=Conflicts)
+
     // ── Properties ────────────────────────────────────────────────────────
 
     /// <summary>Server URL entered by the user when adding a new account.</summary>
@@ -95,6 +102,9 @@ public sealed class SettingsViewModel : ViewModelBase
     /// <summary>Accounts list exposed from the tray view-model.</summary>
     public IReadOnlyList<AccountViewModel> Accounts => _trayVm.Accounts;
 
+    /// <summary>Exposes the tray view-model for bindings that need it (e.g. conflict badge).</summary>
+    public TrayViewModel TrayVm => _trayVm;
+
     // ── Ignored Files tab ─────────────────────────────────────────────────
 
     /// <summary>Built-in default ignore patterns (system-level, not editable).</summary>
@@ -128,6 +138,35 @@ public sealed class SettingsViewModel : ViewModelBase
         private set => SetProperty(ref _ignoreTestResult, value);
     }
 
+    // ── Conflicts tab ─────────────────────────────────────────────────────
+
+    /// <summary>Active (unresolved) conflict view-models.</summary>
+    public ObservableCollection<ConflictViewModel> Conflicts => _conflicts;
+
+    /// <summary>Resolved conflict history view-models (last 30 days).</summary>
+    public ObservableCollection<ConflictViewModel> ConflictHistory => _conflictHistory;
+
+    /// <summary>Whether the conflict list is currently loading.</summary>
+    public bool IsLoadingConflicts
+    {
+        get => _isLoadingConflicts;
+        private set => SetProperty(ref _isLoadingConflicts, value);
+    }
+
+    /// <summary>Currently selected sub-tab index (0 = active, 1 = history).</summary>
+    public int SelectedConflictsTab
+    {
+        get => _selectedConflictsTab;
+        set => SetProperty(ref _selectedConflictsTab, value);
+    }
+
+    /// <summary>Currently selected outer Settings tab index.</summary>
+    public int SelectedSettingsTab
+    {
+        get => _selectedSettingsTab;
+        set => SetProperty(ref _selectedSettingsTab, value);
+    }
+
     // ── Commands ──────────────────────────────────────────────────────────
 
     /// <summary>Opens the Add Account dialog and completes the OAuth2 flow on confirmation.</summary>
@@ -147,6 +186,9 @@ public sealed class SettingsViewModel : ViewModelBase
 
     /// <summary>Opens the <c>.syncignore</c> file in the system's default text editor.</summary>
     public ICommand EditSyncIgnoreFileCommand { get; }
+
+    /// <summary>Refreshes the active conflicts list from SyncService.</summary>
+    public ICommand RefreshConflictsCommand { get; }
 
     // ── Constructor ───────────────────────────────────────────────────────
 
@@ -170,6 +212,7 @@ public sealed class SettingsViewModel : ViewModelBase
         AddIgnorePatternCommand = new AsyncRelayCommand(AddIgnorePatternAsync);
         RemoveIgnorePatternCommand = new AsyncRelayCommand<string>(RemoveIgnorePatternAsync);
         EditSyncIgnoreFileCommand = new RelayCommand(OpenSyncIgnoreInEditor);
+        RefreshConflictsCommand = new AsyncRelayCommand(RefreshConflictsAsync);
 
         // Forward account list changes from the tray view-model.
         _trayVm.PropertyChanged += (_, e) =>
@@ -436,6 +479,41 @@ public sealed class SettingsViewModel : ViewModelBase
             return $"{username} @ {uri.Host}";
 
         return $"{username} @ {serverUrl}";
+    }
+
+    // ── Conflicts tab ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Refreshes the active conflicts list from SyncService.
+    /// Called when the Conflicts tab becomes visible.
+    /// </summary>
+    public async Task RefreshConflictsAsync()
+    {
+        IsLoadingConflicts = true;
+        try
+        {
+            _conflicts.Clear();
+            _conflictHistory.Clear();
+
+            foreach (var account in _trayVm.Accounts)
+            {
+                var active = await _ipc.ListConflictsAsync(account.ContextId, includeHistory: false);
+                foreach (var r in active)
+                    _conflicts.Add(new ConflictViewModel(r, _ipc, _trayVm, _logger));
+
+                var history = await _ipc.ListConflictsAsync(account.ContextId, includeHistory: true);
+                foreach (var r in history.Where(h => h.IsResolved))
+                    _conflictHistory.Add(new ConflictViewModel(r, _ipc, _trayVm, _logger));
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load conflicts.");
+        }
+        finally
+        {
+            IsLoadingConflicts = false;
+        }
     }
 }
 

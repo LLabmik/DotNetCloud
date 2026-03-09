@@ -14,7 +14,8 @@
     <DockPanel>
 
         <!-- Tab strip -->
-        <TabControl DockPanel.Dock="Top" Margin="12">
+        <TabControl DockPanel.Dock="Top" Margin="12"
+                    SelectedIndex="{Binding SelectedSettingsTab}">
 
             <!-- ── Accounts ── -->
             <TabItem Header="Accounts">
@@ -258,6 +259,142 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </ScrollViewer>
+
+                </DockPanel>
+            </TabItem>
+
+            <!-- ── Conflicts ── -->
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="Conflicts" />
+                        <Border Background="#FFCC00"
+                                CornerRadius="8"
+                                Padding="4,1"
+                                IsVisible="{Binding TrayVm.HasConflicts}">
+                            <TextBlock Text="{Binding TrayVm.ConflictCount}"
+                                       FontSize="10"
+                                       FontWeight="Bold"
+                                       Foreground="Black" />
+                        </Border>
+                    </StackPanel>
+                </TabItem.Header>
+                <DockPanel Margin="8">
+
+                    <!-- Toolbar -->
+                    <StackPanel DockPanel.Dock="Top"
+                                Orientation="Horizontal"
+                                Spacing="8"
+                                Margin="0,0,0,8">
+                        <Button Content="Refresh"
+                                Command="{Binding RefreshConflictsCommand}" />
+                        <ProgressBar IsIndeterminate="True"
+                                     Width="80" Height="16"
+                                     VerticalAlignment="Center"
+                                     IsVisible="{Binding IsLoadingConflicts}" />
+                    </StackPanel>
+
+                    <!-- Sub-tabs: Active / History -->
+                    <TabControl SelectedIndex="{Binding SelectedConflictsTab}">
+
+                        <TabItem Header="Active">
+                            <DockPanel>
+                                <!-- Empty state -->
+                                <TextBlock DockPanel.Dock="Top"
+                                           Text="No unresolved conflicts."
+                                           FontSize="11"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                           Margin="0,8"
+                                           IsVisible="{Binding Conflicts.Count, Converter={x:Static ObjectConverters.IsNull}}" />
+
+                                <ScrollViewer>
+                                    <ItemsControl ItemsSource="{Binding Conflicts}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="vm:ConflictViewModel">
+                                                <Border BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                                        BorderThickness="0,0,0,1"
+                                                        Padding="0,8">
+                                                    <StackPanel Spacing="4">
+                                                        <!-- File name + timestamp -->
+                                                        <TextBlock Text="{Binding FileName}"
+                                                                   FontWeight="SemiBold"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Text="{Binding OriginalPath}"
+                                                                   FontSize="11"
+                                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="12">
+                                                            <TextBlock FontSize="11"
+                                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                                       Text="{Binding DetectedAt, StringFormat='Detected: {0:g}'}" />
+                                                        </StackPanel>
+                                                        <!-- Action buttons -->
+                                                        <StackPanel Orientation="Horizontal" Spacing="6"
+                                                                    IsVisible="{Binding !IsResolved}">
+                                                            <Button Content="Keep Local"
+                                                                    FontSize="11"
+                                                                    Command="{Binding KeepLocalCommand}" />
+                                                            <Button Content="Keep Server"
+                                                                    FontSize="11"
+                                                                    Command="{Binding KeepServerCommand}" />
+                                                            <Button Content="Keep Both"
+                                                                    FontSize="11"
+                                                                    Command="{Binding KeepBothCommand}" />
+                                                            <Button Content="Open Folder"
+                                                                    FontSize="11"
+                                                                    Command="{Binding OpenFolderCommand}" />
+                                                        </StackPanel>
+                                                        <!-- Resolved label -->
+                                                        <TextBlock FontSize="11"
+                                                                   Foreground="Green"
+                                                                   Text="{Binding ResolutionLabel, StringFormat='✓ Resolved: {0}'}"
+                                                                   IsVisible="{Binding IsResolved}" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </DockPanel>
+                        </TabItem>
+
+                        <TabItem Header="History">
+                            <ScrollViewer>
+                                <ItemsControl ItemsSource="{Binding ConflictHistory}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="vm:ConflictViewModel">
+                                            <Border BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                                    BorderThickness="0,0,0,1"
+                                                    Padding="0,6">
+                                                <StackPanel Spacing="2">
+                                                    <TextBlock Text="{Binding FileName}"
+                                                               FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="{Binding OriginalPath}"
+                                                               FontSize="11"
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <StackPanel Orientation="Horizontal" Spacing="12">
+                                                        <TextBlock FontSize="11"
+                                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                                   Text="{Binding DetectedAt, StringFormat='Detected: {0:g}'}" />
+                                                        <TextBlock FontSize="11"
+                                                                   Foreground="Green"
+                                                                   Text="{Binding ResolutionLabel, StringFormat='Resolved: {0}'}"
+                                                                   IsVisible="{Binding IsResolved}" />
+                                                        <TextBlock FontSize="11"
+                                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                                   Text="(auto)"
+                                                                   IsVisible="{Binding AutoResolved}" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </TabItem>
+                    </TabControl>
 
                 </DockPanel>
             </TabItem>

@@ -21,6 +21,9 @@ public interface IIpcClient
     /// <summary>Raised when a file conflict is detected and a conflict copy is created.</summary>
     event EventHandler<SyncConflictEventData>? ConflictDetected;
 
+    /// <summary>Raised when a conflict is auto-resolved without user intervention.</summary>
+    event EventHandler<ConflictAutoResolvedEventData>? ConflictAutoResolved;
+
     /// <summary>Raised when per-file transfer progress is received for a context.</summary>
     event EventHandler<TransferProgressEventData>? TransferProgressReceived;
 
@@ -59,6 +62,17 @@ public interface IIpcClient
 
     /// <summary>Registers a new account with the SyncService using the supplied OAuth2 tokens.</summary>
     Task AddAccountAsync(AddAccountData data, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists conflict records for the given context.
+    /// Pass <paramref name="includeHistory"/> as <c>true</c> to include resolved conflicts from the last 30 days.
+    /// </summary>
+    Task<IReadOnlyList<ConflictRecordData>> ListConflictsAsync(
+        Guid contextId, bool includeHistory = false, CancellationToken cancellationToken = default);
+
+    /// <summary>Marks a conflict record as resolved with the given resolution string.</summary>
+    Task ResolveConflictAsync(
+        Guid contextId, int conflictId, string resolution, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Event data for <see cref="IIpcClient.SyncProgressReceived"/>.</summary>
@@ -155,4 +169,66 @@ public sealed class TransferCompleteEventData
 
     /// <summary>Total bytes transferred.</summary>
     public long TotalBytes { get; init; }
+}
+
+/// <summary>Event data for <see cref="IIpcClient.ConflictAutoResolved"/>.</summary>
+public sealed class ConflictAutoResolvedEventData
+{
+    /// <summary>Context this event relates to.</summary>
+    public Guid ContextId { get; init; }
+
+    /// <summary>Local path of the auto-resolved file.</summary>
+    public string? LocalPath { get; init; }
+
+    /// <summary>Name of the auto-resolution strategy that succeeded.</summary>
+    public string? Strategy { get; init; }
+
+    /// <summary>Human-readable resolution description.</summary>
+    public string? Resolution { get; init; }
+}
+
+/// <summary>Snapshot of a conflict record returned by <see cref="IIpcClient.ListConflictsAsync"/>.</summary>
+public sealed class ConflictRecordData
+{
+    /// <summary>Database row ID.</summary>
+    public int Id { get; init; }
+
+    /// <summary>Identifier of the context this conflict belongs to.</summary>
+    public Guid ContextId { get; init; }
+
+    /// <summary>Original (intended) local path.</summary>
+    public string? OriginalPath { get; init; }
+
+    /// <summary>Path to the conflict-copy file (empty string when auto-resolved).</summary>
+    public string? ConflictCopyPath { get; init; }
+
+    /// <summary>Server node ID.</summary>
+    public string? NodeId { get; init; }
+
+    /// <summary>Local file modification time at conflict detection.</summary>
+    public DateTime? LocalModifiedAt { get; init; }
+
+    /// <summary>Server file modification time at conflict detection.</summary>
+    public DateTime? RemoteModifiedAt { get; init; }
+
+    /// <summary>UTC time the conflict was detected.</summary>
+    public DateTime DetectedAt { get; init; }
+
+    /// <summary>UTC time the conflict was resolved (null if unresolved).</summary>
+    public DateTime? ResolvedAt { get; init; }
+
+    /// <summary>Human-readable resolution string (null if unresolved).</summary>
+    public string? Resolution { get; init; }
+
+    /// <summary>Content hash of the common base version.</summary>
+    public string? BaseContentHash { get; init; }
+
+    /// <summary><c>true</c> when the conflict was resolved without user intervention.</summary>
+    public bool AutoResolved { get; init; }
+
+    /// <summary>File name derived from <see cref="OriginalPath"/>.</summary>
+    public string FileName => System.IO.Path.GetFileName(OriginalPath ?? string.Empty);
+
+    /// <summary><c>true</c> when <see cref="ResolvedAt"/> has a value.</summary>
+    public bool IsResolved => ResolvedAt.HasValue;
 }
