@@ -1029,7 +1029,22 @@ dotnet test tests\DotNetCloud.Client.Core.Tests\
 - `ChunkedUploadService`: preserves existing `PosixMode` when Windows client sends `null` (`session.PosixMode ?? fileNode.PosixMode`)
 - EF migration `AddPosixPermissions` applied automatically on server start
 
-**Client-side status:** ☐ PENDING — this issue
+**Client-side status:** ✅ COMPLETE — commit `c70bd47` (2026-03-09)
+- Build: 0 errors, 0 warnings
+- Tests: 123 passed (119 → 123, +4 new tests)
+- Linux upload: reads `File.GetUnixFileMode`, sends `PosixMode` to server via `InitiateUploadAsync`
+- Windows upload: sends `posixMode: null` (correct — server preserves existing mode)
+- Download on Linux: applies `PosixMode` with setuid/setgid stripped; `null` mode gets default `0o644` (420)
+- Download on Windows: POSIX calls skipped (gated on `OperatingSystem.IsLinux()`)
+
+**Files changed (13):**
+- `ApiModels.cs` — `PosixMode`/`PosixOwnerHint` on 3 response records
+- `LocalFileRecord.cs`, `PendingOperationRecord.cs`, `LocalStateDbContext.cs` — `PosixMode` fields
+- `LocalStateDb.cs` — schema evolution + Upsert/MapToRow/MapFromRow
+- `IDotNetCloudApiClient.cs`, `DotNetCloudApiClient.cs` — `InitiateUploadAsync` updated
+- `IChunkedTransferClient.cs`, `ChunkedTransferClient.cs` — `UploadAsync` updated
+- `SyncEngine.cs` — POSIX read on upload, apply on download, `TryGetUnixFileMode` helper `[SupportedOSPlatform("linux")]`
+- 3 test files — mock updates + 4 new tests
 
 **What to implement:**
 
