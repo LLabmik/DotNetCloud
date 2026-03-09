@@ -760,3 +760,39 @@ Full event pipeline from `SyncEngine` through IPC to `TrayViewModel` with live p
 - 13 files changed, 754 insertions
 
 **Task 3.4: PASS (client complete)**
+
+---
+
+### Issue #37: Batch 3 Task 3.5 — Conflict Resolution UI (Client only)
+
+**Server-side status:** Not applicable (client-only task).
+**Client-side status:** ✅ COMPLETE at commit `8508afc` (2026-03-08).
+
+**What was implemented:**
+- `ConflictRecord` entity + `ILocalStateDb`/`LocalStateDb` persistence for conflict history
+- `FileTypeClassifier` — detects text vs binary files for DiffPlex eligibility
+- `ConflictResolver` — 5-strategy auto-resolution pipeline:
+  - Strategy 1: Identical content hashes → auto-resolve (no conflict)
+  - Strategy 2: Unchanged-side wins (local unchanged → server wins; server unchanged → local wins)
+  - Strategy 3: DiffPlex 3-way text merge (non-overlapping edits merged automatically)
+  - Strategy 4: Newer-wins for single-user conflicts (> 10-minute time gap required)
+  - Strategy 5: Append-only local wins (local strictly extends server content)
+  - Fallback: create conflict copy + save `ConflictRecord` to local SQLite DB
+- `SyncEngine.HandleRemoteUpdateAsync` — detects conflicts and feeds `ConflictResolver`
+- IPC layer additions: `list-conflicts`, `resolve-conflict` commands; `conflict-auto-resolved` event
+- `SyncContextManager`: `ConflictAutoResolved` event, `ListConflictsAsync`, `ResolveConflictAsync`
+- `IpcClientHandler`: routes new commands, pushes `ConflictAutoResolved` events to tray
+- `IIpcClient`/`IpcClient`: `ListConflictsAsync`, `ResolveConflictAsync`, `ConflictAutoResolved` event
+- `ConflictViewModel`: per-conflict KeepLocal/KeepServer/KeepBoth/OpenFolder commands
+- `TrayViewModel`: `ConflictCount`, `HasConflicts`, `TrayState.Conflict` → orange tray icon
+- `SettingsViewModel`: Conflicts tab with active/history sub-tabs, `RefreshConflictsCommand`
+- `SettingsWindow.axaml`: Conflicts tab with count badge, action buttons, read-only history view
+- `TrayIconManager`: "Conflicts (N)" menu item, orange `(0xFF, 0x8C, 0x00)` icon state
+
+**Validation results:**
+- Build: 0 errors (all 3 projects: Client.Core, SyncService, SyncTray)
+- Tests: 149 passed, 0 failed (Client.Core: 101, SyncService: 24, SyncTray: 24)
+  - +11 new ConflictResolver strategy tests (Strategy 1–5, fallback, DB persistence)
+- 24 files changed, 1820 insertions, 35 deletions
+
+**Task 3.5: PASS (client complete)**
