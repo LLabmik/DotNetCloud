@@ -30,6 +30,10 @@ public sealed class TrayViewModel : ViewModelBase
     private readonly Dictionary<string, ActiveTransferViewModel> _transfersById = [];
     private readonly ObservableCollection<ActiveTransferViewModel> _activeTransfers = [];
 
+    // 24-hour recurring conflict reminder (Task 3.5c).
+    private DateTime _lastConflictNotificationUtc = DateTime.MinValue;
+    private Timer? _conflictReminderTimer;
+
     // ── Properties ────────────────────────────────────────────────────────
 
     /// <summary>Aggregate tray state computed from all sync contexts.</summary>
@@ -97,6 +101,13 @@ public sealed class TrayViewModel : ViewModelBase
         _ipc.ConflictAutoResolved += OnConflictAutoResolved;
         _ipc.TransferProgressReceived += OnTransferProgress;
         _ipc.TransferCompleteReceived += OnTransferComplete;
+
+        // Start a 1-hour periodic timer to check for stale unresolved conflicts.
+        _conflictReminderTimer = new Timer(
+            _ => CheckConflictReminder(),
+            state: null,
+            dueTime: TimeSpan.FromHours(1),
+            period: TimeSpan.FromHours(1));
     }
 
     // ── Commands (called from TrayIconManager / menu) ─────────────────────
@@ -289,6 +300,7 @@ public sealed class TrayViewModel : ViewModelBase
         var fileName = Path.GetFileName(e.OriginalPath);
         ConflictCount++;
         UpdateAggregateState();
+        _lastConflictNotificationUtc = DateTime.UtcNow;
         _notifications.ShowNotification(
             "File conflict",
             $"Conflict in \"{fileName}\". A conflict copy was saved.",
@@ -302,6 +314,26 @@ public sealed class TrayViewModel : ViewModelBase
             "Conflict auto-resolved",
             $"\"{fileName}\" was automatically resolved ({e.Resolution ?? e.Strategy ?? "no details"}).",
             NotificationType.Info);
+    }
+
+    /// <summary>
+    /// Periodic check: if unresolved conflicts exist and the last notification
+    /// was more than 24 hours ago, re-notify the user.
+    /// </summary>
+    private void CheckConflictReminder()
+    {
+        if (ConflictCount <= 0)
+            return;
+
+        var elapsed = DateTime.UtcNow - _lastConflictNotificationUtc;
+        if (elapsed < TimeSpan.FromHours(24))
+            return;
+
+        _lastConflictNotificationUtc = DateTime.UtcNow;
+        _notifications.ShowNotification(
+            "Unresolved conflicts",
+            $"You have {ConflictCount} unresolved conflict(s) that need attention.",
+            NotificationType.Warning);
     }
 
     private void OnTransferProgress(object? sender, TransferProgressEventData e)

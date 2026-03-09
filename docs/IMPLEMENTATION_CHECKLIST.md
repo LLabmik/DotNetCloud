@@ -2207,6 +2207,10 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Create conflict copies: `report (conflict - Ben - 2025-07-14).docx`
 - ✓ Notify user of conflicts (via SyncTray notification)
 - ✓ Preserve both versions (no silent data loss)
+- ✓ Three-pane merge editor (local vs server diff + editable merged result)
+- ✓ Auto-merge non-conflicting changes with DiffPlex
+- ✓ Conflict markers for overlapping changes
+- ✓ 24-hour recurring conflict re-notification
 
 #### Local State Database
 - ✓ Create SQLite database per sync context:

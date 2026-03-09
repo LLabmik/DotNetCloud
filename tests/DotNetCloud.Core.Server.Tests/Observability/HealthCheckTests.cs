@@ -262,18 +262,36 @@ public class LinuxResourceHealthCheckTests
     [TestMethod]
     public void MinRecommendedWatches_Is65536()
     {
-        Assert.AreEqual(65536, LinuxResourceHealthCheck.MinRecommendedWatches);
+        // Read via reflection to avoid MSTEST0032 (const-folding makes Assert trivially true)
+        var field = typeof(LinuxResourceHealthCheck).GetField(
+            nameof(LinuxResourceHealthCheck.MinRecommendedWatches),
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        Assert.IsNotNull(field);
+        var value = (int)field.GetRawConstantValue()!;
+        Assert.AreEqual(65536, value);
     }
 
     [TestMethod]
     public void InodeDegradedThreshold_Is10Percent()
     {
-        Assert.AreEqual(0.10, LinuxResourceHealthCheck.InodeDegradedThreshold, delta: 0.001);
+        // Read via reflection to avoid MSTEST0032 (const-folding makes Assert trivially true)
+        var field = typeof(LinuxResourceHealthCheck).GetField(
+            nameof(LinuxResourceHealthCheck.InodeDegradedThreshold),
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        Assert.IsNotNull(field);
+        var value = (double)field.GetRawConstantValue()!;
+        Assert.AreEqual(0.10, value, delta: 0.001);
     }
 
     [TestMethod]
     public void InodeUnhealthyThreshold_Is2Percent()
     {
-        Assert.AreEqual(0.02, LinuxResourceHealthCheck.InodeUnhealthyThreshold, delta: 0.001);
+        // Read via reflection to avoid MSTEST0032 (const-folding makes Assert trivially true)
+        var field = typeof(LinuxResourceHealthCheck).GetField(
+            nameof(LinuxResourceHealthCheck.InodeUnhealthyThreshold),
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        Assert.IsNotNull(field);
+        var value = (double)field.GetRawConstantValue()!;
+        Assert.AreEqual(0.02, value, delta: 0.001);
     }
 }

@@ -36,6 +36,11 @@ public sealed class ConflictViewModel : ViewModelBase
     /// <summary><c>true</c> when a physical conflict copy exists.</summary>
     public bool HasConflictCopy => !string.IsNullOrEmpty(ConflictCopyPath);
 
+    /// <summary><c>true</c> when the file type supports text merging (not binary).</summary>
+    public bool CanMerge => HasConflictCopy &&
+        DotNetCloud.Client.Core.Conflict.FileTypeClassifier.GetMergeMode(OriginalPath)
+            != DotNetCloud.Client.Core.Conflict.FileMergeMode.Binary;
+
     /// <summary>Local file modification time at conflict detection.</summary>
     public DateTime? LocalModifiedAt { get; }
 
@@ -73,6 +78,9 @@ public sealed class ConflictViewModel : ViewModelBase
     /// <summary>Keeps both versions (no further action, conflict copy remains).</summary>
     public ICommand KeepBothCommand { get; }
 
+    /// <summary>Opens the three-pane merge editor for this conflict.</summary>
+    public ICommand MergeCommand { get; }
+
     /// <summary>Opens the containing folder in the system file explorer.</summary>
     public ICommand OpenFolderCommand { get; }
 
@@ -105,10 +113,51 @@ public sealed class ConflictViewModel : ViewModelBase
         KeepBothCommand = new AsyncRelayCommand(
             () => IsResolved ? Task.CompletedTask : ResolveAsync("keep-both"));
 
+        MergeCommand = new AsyncRelayCommand(OpenMergeEditorAsync);
+
         OpenFolderCommand = new RelayCommand(OpenContainingFolder);
     }
 
     // ── Private helpers ───────────────────────────────────────────────────
+
+    private async Task OpenMergeEditorAsync()
+    {
+        if (IsResolved || !HasConflictCopy)
+            return;
+
+        // Determine merge capability — binary files cannot be merged.
+        var mergeMode = DotNetCloud.Client.Core.Conflict.FileTypeClassifier.GetMergeMode(OriginalPath);
+        if (mergeMode == DotNetCloud.Client.Core.Conflict.FileMergeMode.Binary)
+        {
+            _logger.LogInformation("Cannot merge binary file: {Path}", OriginalPath);
+            return;
+        }
+
+        try
+        {
+            var vm = new MergeEditorViewModel(_logger, async mergedContent =>
+            {
+                if (mergedContent is not null)
+                {
+                    // Write merged content to original path, delete conflict copy.
+                    await File.WriteAllTextAsync(OriginalPath, mergedContent);
+                    if (File.Exists(ConflictCopyPath))
+                        File.Delete(ConflictCopyPath);
+
+                    await ResolveAsync("merged");
+                }
+            });
+
+            vm.LoadConflict(OriginalPath, ConflictCopyPath);
+
+            var window = new Views.MergeEditorWindow(vm);
+            window.Show();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to open merge editor for conflict {Id}.", Id);
+        }
+    }
 
     private async Task ResolveAsync(string resolution)
     {

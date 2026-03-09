@@ -1,0 +1,239 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:DotNetCloud.Client.SyncTray.ViewModels"
+        x:Class="DotNetCloud.Client.SyncTray.Views.MergeEditorWindow"
+        x:DataType="vm:MergeEditorViewModel"
+        Title="{Binding FileName, StringFormat='Merge — {0}'}"
+        Width="1024"
+        Height="700"
+        MinWidth="700"
+        MinHeight="500"
+        WindowStartupLocation="CenterScreen"
+        CanResize="True"
+        Icon="/Assets/icon-idle.png">
+
+    <Window.Styles>
+        <!-- Diff line highlighting -->
+        <Style Selector="Border.diff-inserted">
+            <Setter Property="Background" Value="#2200AA00" />
+        </Style>
+        <Style Selector="Border.diff-deleted">
+            <Setter Property="Background" Value="#22DD0000" />
+        </Style>
+        <Style Selector="Border.diff-modified">
+            <Setter Property="Background" Value="#22FFCC00" />
+        </Style>
+        <Style Selector="Border.diff-filler">
+            <Setter Property="Background" Value="#11888888" />
+        </Style>
+
+        <!-- Line number styling -->
+        <Style Selector="TextBlock.line-number">
+            <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, monospace" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="Width" Value="40" />
+            <Setter Property="TextAlignment" Value="Right" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+        </Style>
+
+        <!-- Line text styling -->
+        <Style Selector="TextBlock.line-text">
+            <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, monospace" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextTrimming" Value="None" />
+        </Style>
+    </Window.Styles>
+
+    <DockPanel>
+
+        <!-- ── Toolbar ── -->
+        <Border DockPanel.Dock="Top"
+                BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="8,6">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right"
+                            Orientation="Horizontal"
+                            Spacing="6">
+                    <Button Content="Save &amp; Resolve"
+                            Classes="accent"
+                            Command="{Binding SaveAndResolveCommand}" />
+                    <Button Content="Cancel"
+                            Command="{Binding CancelCommand}" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Button Content="Accept All Local"
+                            FontSize="11"
+                            Command="{Binding AcceptAllLocalCommand}" />
+                    <Button Content="Accept All Server"
+                            FontSize="11"
+                            Command="{Binding AcceptAllServerCommand}" />
+                    <Button Content="Reset Merge"
+                            FontSize="11"
+                            Command="{Binding ResetMergeCommand}" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- ── Status bar ── -->
+        <Border DockPanel.Dock="Bottom"
+                BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="8,4">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Right"
+                           FontSize="11"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                           Text="{Binding FilePath}" />
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <TextBlock FontSize="11"
+                               Text="{Binding StatusText}" />
+                    <TextBlock FontSize="11"
+                               Foreground="Orange"
+                               Text="{Binding ConflictCount, StringFormat='⚠ {0} conflict(s)'}"
+                               IsVisible="{Binding HasConflicts}" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- ── Binary file warning (replaces diff panes when binary) ── -->
+        <StackPanel IsVisible="{Binding IsBinary}"
+                    VerticalAlignment="Center"
+                    HorizontalAlignment="Center"
+                    Spacing="12">
+            <TextBlock Text="⚠ Binary File"
+                       FontSize="18"
+                       FontWeight="Bold"
+                       HorizontalAlignment="Center" />
+            <TextBlock Text="Merge is not available for binary files."
+                       FontSize="13"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                       HorizontalAlignment="Center" />
+            <TextBlock Text="Use Keep Local or Keep Server from the Conflicts panel."
+                       FontSize="12"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                       HorizontalAlignment="Center" />
+        </StackPanel>
+
+        <!-- ── Main content (hidden when binary) ── -->
+        <Grid IsVisible="{Binding !IsBinary}"
+              RowDefinitions="*,4,*">
+
+            <!-- ── Top: Side-by-side diff panes ── -->
+            <Grid Grid.Row="0"
+                  ColumnDefinitions="*,4,*">
+
+                <!-- Left pane: LOCAL version -->
+                <DockPanel Grid.Column="0">
+                    <Border DockPanel.Dock="Top"
+                            Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                            Padding="8,4">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="LOCAL (your version)"
+                                       FontWeight="SemiBold"
+                                       FontSize="11" />
+                            <TextBlock Text="{Binding LocalChangeCount, StringFormat='{}{0} changes'}"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </Border>
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Auto"
+                                  Name="LocalScrollViewer">
+                        <ItemsControl ItemsSource="{Binding LocalLines}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="vm:DiffLineViewModel">
+                                    <Border Classes.diff-inserted="{Binding Type, Converter={x:Static vm:DiffLineConverters.IsInserted}}"
+                                            Classes.diff-deleted="{Binding Type, Converter={x:Static vm:DiffLineConverters.IsDeleted}}"
+                                            Classes.diff-modified="{Binding Type, Converter={x:Static vm:DiffLineConverters.IsModified}}"
+                                            Classes.diff-filler="{Binding Type, Converter={x:Static vm:DiffLineConverters.IsFiller}}"
+                                            Padding="2,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Classes="line-number"
+                                                       Text="{Binding LineNumber}" />
+                                            <TextBlock Classes="line-text"
+                                                       Text="{Binding Text}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+
+                <GridSplitter Grid.Column="1"
+                              ResizeDirection="Columns"
+                              Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
+
+                <!-- Right pane: SERVER version -->
+                <DockPanel Grid.Column="2">
+                    <Border DockPanel.Dock="Top"
+                            Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                            Padding="8,4">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="SERVER (remote version)"
+                                       FontWeight="SemiBold"
+                                       FontSize="11" />
+                            <TextBlock Text="{Binding ServerChangeCount, StringFormat='{}{0} changes'}"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </Border>
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Auto"
+                                  Name="ServerScrollViewer">
+                        <ItemsControl ItemsSource="{Binding ServerLines}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="vm:DiffLineViewModel">
+                                    <Border Classes.diff-inserted="{Binding Type, Converter={x:Static vm:DiffLineConverters.IsInserted}}"
+                                            Classes.diff-deleted="{Binding Type, Converter={x:Static vm:DiffLineConverters.IsDeleted}}"
+                                            Classes.diff-modified="{Binding Type, Converter={x:Static vm:DiffLineConverters.IsModified}}"
+                                            Classes.diff-filler="{Binding Type, Converter={x:Static vm:DiffLineConverters.IsFiller}}"
+                                            Padding="2,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Classes="line-number"
+                                                       Text="{Binding LineNumber}" />
+                                            <TextBlock Classes="line-text"
+                                                       Text="{Binding Text}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </Grid>
+
+            <GridSplitter Grid.Row="1"
+                          ResizeDirection="Rows"
+                          Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
+
+            <!-- ── Bottom: Merged result (editable) ── -->
+            <DockPanel Grid.Row="2">
+                <Border DockPanel.Dock="Top"
+                        Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                        Padding="8,4">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="MERGED RESULT"
+                                   FontWeight="SemiBold"
+                                   FontSize="11" />
+                        <TextBlock Text="(editable — resolve conflict markers manually)"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   IsVisible="{Binding HasConflicts}" />
+                    </StackPanel>
+                </Border>
+                <TextBox Text="{Binding MergedContent, Mode=TwoWay}"
+                         AcceptsReturn="True"
+                         AcceptsTab="True"
+                         TextWrapping="NoWrap"
+                         FontFamily="Cascadia Mono, Consolas, monospace"
+                         FontSize="12"
+                         Watermark="Merged content will appear here..."
+                         VerticalContentAlignment="Top" />
+            </DockPanel>
+        </Grid>
+
+    </DockPanel>
+</Window>

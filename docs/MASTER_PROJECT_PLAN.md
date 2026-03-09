@@ -74,6 +74,7 @@
 | Sync Batch 3 | 6 | 6 | 0 | 0 |
 | Sync Batch 4 | 5 | 5 | 0 | 0 |
 | Sync Batch 5 | 2 | 2 | 0 | 0 |
+| Sync Verification | 1 | 1 | 0 | 0 |
 | Phase 3-9 | Summary | 0 | 0 | 1 |
 | Infrastructure | Summary | 0 | 0 | 1 |
 | Documentation | Summary | 0 | 0 | 1 |
@@ -3716,35 +3717,25 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Task 5.1: `ThrottledStream` (token bucket); `ThrottledHttpHandler` (DelegatingHandler); `SyncContext.UploadLimitKbps`/`DownloadLimitKbps`; `sync-settings.json` bandwidth section; IPC persist path via `SyncContextManager`; 6 unit tests.
 - ✓ Task 5.2: `FolderBrowserItemViewModel` (three-state check + bubble-up); `FolderBrowserViewModel` (full tree load + save to `SelectiveSyncConfig`); `FolderBrowserView.axaml` + `FolderBrowserDialog.axaml`; add-account flow integration; Settings → Accounts → "Choose folders" button; 4 unit tests.
 
-**Notes:** All Batch 5 tasks complete. All 5 sync improvement batches now closed. Commit range `bbf8c6e` on main (2026-03-09). 15 new tests (4 stream + 11 browser/settings). Build: 0 errors, 3 pre-existing warnings. to guide the implementation of the DotNetCloud project
-in phases. Each phase is broken down into steps with assigned status, duration, description, tasks,
-dependencies, and testing requirements.
+**Notes:** All Batch 5 tasks complete. All 5 sync improvement batches now closed. Commit range `bbf8c6e` on main (2026-03-09). 15 new tests (4 stream + 11 browser/settings). Build: 0 errors, 3 pre-existing warnings.
 
-**Sections:**
-- `Pre-Implementation Setup`: Actions required before the main implementation phases
-- `Phase 0`: Foundational work for the entire project, subdivided into sections (0.1 - 0.19)
+---
 
-**Phase Structure:**
-Each phase follows a similar structure:
-- **Step ID** - Unique identifier for the step
-- **Status** - Current status (pending|in-progress|completed|failed|skipped)
-- **Duration** - Estimated time to complete
-- **Description** - High-level overview of the step
-- **Recommended Prompt** - Suggested AI prompt to execute the step
-- **Tasks** - Checklist of tasks to complete
-- **Dependencies** - Other steps that must be completed first
-- **Testing** - How the step will be validated
+### Step: sync-verification - Sync Verification & Remediation
+**Status:** completed ✅
+**Duration:** ~2 hours
+**Description:** Systematic verification of all 28 sync improvement tasks across Batches 1-5 using SYNC_VERIFICATION_PLAN.md. Identified gaps (4 Critical, 10 Partial) and resolved all of them — most were already implemented but the plan was outdated.
 
-**Using This Document:**
-- Review the `Quick Status Summary` for a high-level overview
-- Find your area of work in the detailed phases and steps
-- Update the status, add notes, and check off tasks as you work
-- Use the `Recommended Prompt` to guide AI assistance for your tasks
-- Ensure you meet the `Testing` requirements for your steps
+**Deliverables:**
+- ✓ Verified 3/4 "Critical Gaps" already implemented (Task 2.3 compression skip, Task 2.6 ETag/If-None-Match, Task 4.1 case-sensitivity)
+- ✓ Verified 7/9 "Partial" items already implemented in code
+- ✓ Implemented Three-Pane Merge Editor (Task 3.5e): `MergeEditorViewModel`, `MergeEditorWindow.axaml`, `DiffLineViewModel`, `DiffLineConverters`, DiffPlex integration
+- ✓ Implemented 24-hour conflict re-notification timer (Task 3.5c) in `TrayViewModel`
+- ✓ Integrated merge editor into `ConflictViewModel` (MergeCommand + CanMerge property) and `SettingsWindow.axaml` (Merge button)
+- ✓ 16 unit tests for `MergeEditorViewModel` (all pass)
+- ✓ Updated SYNC_VERIFICATION_PLAN.md: 28/28 tasks now ✓ (was 20✓/10⚠/4✗)
 
-**Maintainers:**
-This document is maintained by the Development Team. For questions or suggestions, please contact
-your project lead.
+**Notes:** Verification complete. All 28 sync improvement tasks confirmed implemented. Build: 0 errors. Tests: 1063/1065 passed (2 expected Linux-only failures). Merge editor uses DiffPlex for line-level diffs with three-way auto-merge and conflict markers for overlapping changes.
 
 ---
 
