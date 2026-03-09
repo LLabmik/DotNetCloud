@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
+using System.Text.Json;
 using DotNetCloud.Client.Core.Api;
+using DotNetCloud.Client.Core.LocalState;
 using DotNetCloud.Client.Core.Transfer;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -32,7 +34,7 @@ public class ChunkedTransferClientTests
                 Node = new FileNodeResponse { Id = nodeId, Name = "test.txt", NodeType = "File" },
             });
 
-        var client = new ChunkedTransferClient(apiMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+        var client = new ChunkedTransferClient(apiMock.Object, null, NullLogger<ChunkedTransferClient>.Instance);
         using var data = new MemoryStream(new byte[1024]);
 
         var result = await client.UploadAsync(null, "test.txt", data, null);
@@ -69,7 +71,7 @@ public class ChunkedTransferClientTests
                 Node = new FileNodeResponse { Id = Guid.NewGuid(), Name = "dedup.txt", NodeType = "File" },
             });
 
-        var client = new ChunkedTransferClient(apiMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+        var client = new ChunkedTransferClient(apiMock.Object, null, NullLogger<ChunkedTransferClient>.Instance);
         using var data = new MemoryStream(new byte[512]);
 
         await client.UploadAsync(null, "dedup.txt", data, null);
@@ -110,7 +112,7 @@ public class ChunkedTransferClientTests
                 Node = new FileNodeResponse { Id = nodeId, Name = "file.txt", NodeType = "File" },
             });
 
-        var client = new ChunkedTransferClient(apiMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+        var client = new ChunkedTransferClient(apiMock.Object, null, NullLogger<ChunkedTransferClient>.Instance);
         using var data = new MemoryStream(new byte[512]);
 
         var result = await client.UploadAsync(null, "file.txt", data, null);
@@ -137,7 +139,7 @@ public class ChunkedTransferClientTests
         apiMock.Setup(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("Network unreachable"));
 
-        var client = new ChunkedTransferClient(apiMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+        var client = new ChunkedTransferClient(apiMock.Object, null, NullLogger<ChunkedTransferClient>.Instance);
         using var data = new MemoryStream(new byte[512]);
 
         HttpRequestException? caught = null;
@@ -166,7 +168,7 @@ public class ChunkedTransferClientTests
         apiMock.Setup(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("Forbidden", null, System.Net.HttpStatusCode.Forbidden));
 
-        var client = new ChunkedTransferClient(apiMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+        var client = new ChunkedTransferClient(apiMock.Object, null, NullLogger<ChunkedTransferClient>.Instance);
         using var data = new MemoryStream(new byte[512]);
 
         HttpRequestException? caught = null;
@@ -192,7 +194,7 @@ public class ChunkedTransferClientTests
         apiMock.Setup(a => a.DownloadAsync(nodeId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream(new byte[100]));
 
-        var client = new ChunkedTransferClient(apiMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+        var client = new ChunkedTransferClient(apiMock.Object, null, NullLogger<ChunkedTransferClient>.Instance);
 
         using var result = await client.DownloadAsync(nodeId);
 
@@ -219,7 +221,7 @@ public class ChunkedTransferClientTests
         apiMock.Setup(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream(chunkData));
 
-        var client = new ChunkedTransferClient(apiMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+        var client = new ChunkedTransferClient(apiMock.Object, null, NullLogger<ChunkedTransferClient>.Instance);
 
         using var result = await client.DownloadAsync(nodeId);
 
@@ -255,7 +257,7 @@ public class ChunkedTransferClientTests
                 return new MemoryStream(callCount == 1 ? corruptData : chunkData);
             });
 
-        var client = new ChunkedTransferClient(apiMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+        var client = new ChunkedTransferClient(apiMock.Object, null, NullLogger<ChunkedTransferClient>.Instance);
 
         using var result = await client.DownloadAsync(nodeId);
 
@@ -283,7 +285,7 @@ public class ChunkedTransferClientTests
         apiMock.Setup(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => new MemoryStream(corruptData));
 
-        var client = new ChunkedTransferClient(apiMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+        var client = new ChunkedTransferClient(apiMock.Object, null, NullLogger<ChunkedTransferClient>.Instance);
 
         ChunkIntegrityException? caught = null;
         try { await client.DownloadAsync(nodeId); }
@@ -324,7 +326,7 @@ public class ChunkedTransferClientTests
                 Node = new FileNodeResponse { Id = nodeId, Name = "file.bin", NodeType = "File" },
             });
 
-        var client = new ChunkedTransferClient(apiMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+        var client = new ChunkedTransferClient(apiMock.Object, null, NullLogger<ChunkedTransferClient>.Instance);
         using var data = new MemoryStream(new byte[1024]);
 
         await client.UploadAsync(null, "file.bin", data, null);
@@ -368,7 +370,7 @@ public class ChunkedTransferClientTests
                 Node = new FileNodeResponse { Id = Guid.NewGuid(), Name = "f.bin", NodeType = "File" },
             });
 
-        var client = new ChunkedTransferClient(apiMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+        var client = new ChunkedTransferClient(apiMock.Object, null, NullLogger<ChunkedTransferClient>.Instance);
 
         await client.UploadAsync(null, "f.bin", new MemoryStream(fileData), null);
         captureTarget = capturedHashes2;
@@ -413,7 +415,7 @@ public class ChunkedTransferClientTests
                 Node = new FileNodeResponse { Id = nodeId, Name = "big.bin", NodeType = "File" },
             });
 
-        var client = new ChunkedTransferClient(apiMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+        var client = new ChunkedTransferClient(apiMock.Object, null, NullLogger<ChunkedTransferClient>.Instance);
         // Use 1 MB of data — small enough for tests but exercises the pipeline
         using var data = new MemoryStream(new byte[1024 * 1024]);
 
@@ -457,7 +459,7 @@ public class ChunkedTransferClientTests
         apiMock.Setup(a => a.DownloadChunkByHashAsync(hash1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => new MemoryStream(chunk1));
 
-        var client = new ChunkedTransferClient(apiMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+        var client = new ChunkedTransferClient(apiMock.Object, null, NullLogger<ChunkedTransferClient>.Instance);
 
         using var result = await client.DownloadAsync(nodeId);
 
@@ -474,5 +476,215 @@ public class ChunkedTransferClientTests
 
         apiMock.Verify(a => a.DownloadChunkByHashAsync(hash0, It.IsAny<CancellationToken>()), Times.Once);
         apiMock.Verify(a => a.DownloadChunkByHashAsync(hash1, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // ── Session Persistence (Task 3.2) ─────────────────────────────────────
+
+    [TestMethod]
+    public async Task UploadAsync_PersistsAndDeletesSessionRecord_OnSuccess()
+    {
+        // Verifies that a session record is saved after InitiateUpload and deleted after Complete.
+        var nodeId = Guid.NewGuid();
+        var sessionId = Guid.NewGuid();
+
+        var apiMock = new Mock<IDotNetCloudApiClient>();
+        apiMock.SetupProperty(a => a.AccessToken);
+        apiMock.Setup(a => a.InitiateUploadAsync(
+                It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
+                It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new UploadSessionResponse { SessionId = sessionId });
+        apiMock.Setup(a => a.CompleteUploadAsync(sessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CompleteUploadResponse
+            {
+                Node = new FileNodeResponse { Id = nodeId, Name = "test.txt", NodeType = "File" },
+            });
+
+        var dbMock = new Mock<ILocalStateDb>();
+        dbMock.Setup(d => d.GetActiveUploadSessionsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        var client = new ChunkedTransferClient(apiMock.Object, dbMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+        using var data = new MemoryStream(new byte[1024]);
+
+        await client.UploadAsync(null, "test.txt", data, null, default, "/state/db");
+
+        dbMock.Verify(d => d.SaveActiveUploadSessionAsync(
+            "/state/db",
+            It.Is<ActiveUploadSessionRecord>(r => r.SessionId == sessionId && r.LocalPath == "test.txt"),
+            It.IsAny<CancellationToken>()), Times.Once);
+        dbMock.Verify(d => d.DeleteActiveUploadSessionAsync(
+            "/state/db", sessionId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task UploadAsync_ResumesSession_SkipsAlreadyUploadedChunks()
+    {
+        // Verifies that when an existing session has chunk hashes recorded,
+        // those chunks are not re-uploaded (treated as already present).
+        var nodeId = Guid.NewGuid();
+        var sessionId = Guid.NewGuid();
+        var fileData = new byte[1024];
+        new Random(42).NextBytes(fileData);
+        // Single chunk (< CdcMinSize) — hash = SHA256 of entire file.
+        var chunkHash = Convert.ToHexStringLower(SHA256.HashData(fileData));
+
+        var tempFile = Path.GetTempFileName();
+        try
+        {
+            await File.WriteAllBytesAsync(tempFile, fileData);
+            var knownModifiedAt = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+            File.SetLastWriteTimeUtc(tempFile, knownModifiedAt);
+
+            var existingSession = new ActiveUploadSessionRecord
+            {
+                SessionId = sessionId,
+                LocalPath = tempFile,
+                FileSize = fileData.Length,
+                FileModifiedAt = knownModifiedAt,
+                TotalChunks = 1,
+                UploadedChunkHashesJson = JsonSerializer.Serialize(new[] { chunkHash }),
+                CreatedAt = DateTime.UtcNow.AddMinutes(-5),
+            };
+
+            var apiMock = new Mock<IDotNetCloudApiClient>();
+            apiMock.SetupProperty(a => a.AccessToken);
+            apiMock.Setup(a => a.CompleteUploadAsync(sessionId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new CompleteUploadResponse
+                {
+                    Node = new FileNodeResponse { Id = nodeId, Name = Path.GetFileName(tempFile), NodeType = "File" },
+                });
+
+            var dbMock = new Mock<ILocalStateDb>();
+            dbMock.Setup(d => d.GetActiveUploadSessionsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync([existingSession]);
+
+            var client = new ChunkedTransferClient(apiMock.Object, dbMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+            using var stream = File.OpenRead(tempFile);
+
+            var result = await client.UploadAsync(null, tempFile, stream, null, default, "/state/db");
+
+            // Resume path: InitiateUploadAsync must NOT be called
+            apiMock.Verify(a => a.InitiateUploadAsync(
+                It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
+                It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<CancellationToken>()), Times.Never);
+            // Single chunk already uploaded — UploadChunkAsync must NOT be called
+            apiMock.Verify(a => a.UploadChunkAsync(
+                It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<string>(),
+                It.IsAny<Stream>(), It.IsAny<CancellationToken>()), Times.Never);
+            // Complete called with the resumed session ID
+            apiMock.Verify(a => a.CompleteUploadAsync(sessionId, It.IsAny<CancellationToken>()), Times.Once);
+            Assert.AreEqual(nodeId, result);
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+    }
+
+    [TestMethod]
+    public async Task UploadAsync_StaleSession_DeletesRecordAndStartsFresh()
+    {
+        // Verifies that a session > 18 h old is discarded and a fresh upload is initiated.
+        var oldSessionId = Guid.NewGuid();
+        var newSessionId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+
+        var existingSession = new ActiveUploadSessionRecord
+        {
+            SessionId = oldSessionId,
+            LocalPath = "test.txt",
+            FileSize = 1024,
+            FileModifiedAt = DateTime.UtcNow.AddHours(-20),
+            TotalChunks = 1,
+            UploadedChunkHashesJson = "[]",
+            CreatedAt = DateTime.UtcNow.AddHours(-20), // > 18 h old
+        };
+
+        var apiMock = new Mock<IDotNetCloudApiClient>();
+        apiMock.SetupProperty(a => a.AccessToken);
+        apiMock.Setup(a => a.InitiateUploadAsync(
+                It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
+                It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new UploadSessionResponse { SessionId = newSessionId });
+        apiMock.Setup(a => a.CompleteUploadAsync(newSessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CompleteUploadResponse
+            {
+                Node = new FileNodeResponse { Id = nodeId, Name = "test.txt", NodeType = "File" },
+            });
+
+        var dbMock = new Mock<ILocalStateDb>();
+        dbMock.Setup(d => d.GetActiveUploadSessionsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([existingSession]);
+
+        var client = new ChunkedTransferClient(apiMock.Object, dbMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+        using var data = new MemoryStream(new byte[1024]);
+
+        await client.UploadAsync(null, "test.txt", data, null, default, "/state/db");
+
+        // Old session deleted
+        dbMock.Verify(d => d.DeleteActiveUploadSessionAsync(
+            "/state/db", oldSessionId, It.IsAny<CancellationToken>()), Times.Once);
+        // Fresh InitiateUpload called
+        apiMock.Verify(a => a.InitiateUploadAsync(
+            It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
+            It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
+            It.IsAny<IReadOnlyList<int>?>(), It.IsAny<CancellationToken>()), Times.Once);
+        apiMock.Verify(a => a.CompleteUploadAsync(newSessionId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task UploadAsync_FileChanged_DeletesSessionAndStartsFresh()
+    {
+        // Verifies that if the file size differs from the session record, the old session
+        // is discarded and a new upload is initiated.
+        var oldSessionId = Guid.NewGuid();
+        var newSessionId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+
+        var existingSession = new ActiveUploadSessionRecord
+        {
+            SessionId = oldSessionId,
+            LocalPath = "test.txt",
+            FileSize = 2048, // different from the 1024-byte stream below
+            FileModifiedAt = DateTime.UtcNow.AddMinutes(-5),
+            TotalChunks = 1,
+            UploadedChunkHashesJson = "[]",
+            CreatedAt = DateTime.UtcNow.AddMinutes(-5),
+        };
+
+        var apiMock = new Mock<IDotNetCloudApiClient>();
+        apiMock.SetupProperty(a => a.AccessToken);
+        apiMock.Setup(a => a.InitiateUploadAsync(
+                It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
+                It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new UploadSessionResponse { SessionId = newSessionId });
+        apiMock.Setup(a => a.CompleteUploadAsync(newSessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CompleteUploadResponse
+            {
+                Node = new FileNodeResponse { Id = nodeId, Name = "test.txt", NodeType = "File" },
+            });
+
+        var dbMock = new Mock<ILocalStateDb>();
+        dbMock.Setup(d => d.GetActiveUploadSessionsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([existingSession]);
+
+        var client = new ChunkedTransferClient(apiMock.Object, dbMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+        using var data = new MemoryStream(new byte[1024]); // 1024 != 2048 in session
+
+        await client.UploadAsync(null, "test.txt", data, null, default, "/state/db");
+
+        // Old session deleted because file changed
+        dbMock.Verify(d => d.DeleteActiveUploadSessionAsync(
+            "/state/db", oldSessionId, It.IsAny<CancellationToken>()), Times.Once);
+        // Fresh upload initiated
+        apiMock.Verify(a => a.InitiateUploadAsync(
+            It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
+            It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
+            It.IsAny<IReadOnlyList<int>?>(), It.IsAny<CancellationToken>()), Times.Once);
+        apiMock.Verify(a => a.CompleteUploadAsync(newSessionId, It.IsAny<CancellationToken>()), Times.Once);
     }
 }

@@ -14,13 +14,15 @@ public interface IChunkedTransferClient
     /// <param name="fileStream">Open, readable stream of the file.</param>
     /// <param name="progress">Optional progress reporter.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
+    /// <param name="stateDatabasePath">Path to the local state database for crash-resilient session persistence. Null disables persistence.</param>
     /// <returns>The node ID of the uploaded file.</returns>
     Task<Guid> UploadAsync(
         Guid? existingNodeId,
         string localPath,
         Stream fileStream,
         IProgress<TransferProgress>? progress,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? stateDatabasePath = null);
 
     /// <summary>
     /// Downloads a file using chunk-level delta sync.

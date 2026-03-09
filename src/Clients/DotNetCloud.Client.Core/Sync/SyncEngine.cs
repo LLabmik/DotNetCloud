@@ -66,6 +66,10 @@ public sealed class SyncEngine : ISyncEngine
 
         await _stateDb.InitializeAsync(context.StateDatabasePath, cancellationToken);
 
+        // Clean up stale upload sessions (created > 48 h ago; server TTL is 24 h).
+        await _stateDb.DeleteStaleActiveUploadSessionsAsync(
+            context.StateDatabasePath, DateTime.UtcNow.AddHours(-48), cancellationToken);
+
         _syncIgnore.Initialize(context.LocalFolderPath);
 
         _watcher = new FileSystemWatcher(context.LocalFolderPath)
@@ -371,7 +375,9 @@ public sealed class SyncEngine : ISyncEngine
         if (op is PendingUpload upload)
         {
             await using var fileStream = File.OpenRead(upload.LocalPath);
-            var nodeId = await _transfer.UploadAsync(upload.NodeId, upload.LocalPath, fileStream, null, cancellationToken);
+            var nodeId = await _transfer.UploadAsync(
+                upload.NodeId, upload.LocalPath, fileStream, null, cancellationToken,
+                context.StateDatabasePath);
             var hash = await ComputeFileHashAsync(upload.LocalPath, cancellationToken);
             await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, new LocalFileRecord
             {

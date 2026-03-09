@@ -19,6 +19,9 @@ public sealed class LocalStateDbContext : DbContext
     /// <summary>Sync checkpoint (single row).</summary>
     public DbSet<SyncCheckpointRow> Checkpoints => Set<SyncCheckpointRow>();
 
+    /// <summary>Active (in-progress) upload sessions for crash-resilient resumption.</summary>
+    public DbSet<ActiveUploadSessionRecord> ActiveUploadSessions => Set<ActiveUploadSessionRecord>();
+
     /// <summary>Initializes a new <see cref="LocalStateDbContext"/>.</summary>
     public LocalStateDbContext(DbContextOptions<LocalStateDbContext> options) : base(options) { }
 
@@ -49,7 +52,47 @@ public sealed class LocalStateDbContext : DbContext
         {
             e.HasKey(r => r.Id);
         });
+
+        modelBuilder.Entity<ActiveUploadSessionRecord>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.Property(r => r.LocalPath).IsRequired();
+            e.HasIndex(r => r.SessionId).IsUnique();
+        });
     }
+}
+
+/// <summary>
+/// Tracks an in-progress chunked upload session so uploads can be resumed after a crash.
+/// </summary>
+public sealed class ActiveUploadSessionRecord
+{
+    /// <summary>Row ID.</summary>
+    public int Id { get; set; }
+
+    /// <summary>Server-assigned upload session ID from <c>InitiateUploadAsync</c>.</summary>
+    public Guid SessionId { get; set; }
+
+    /// <summary>Full local path of the file being uploaded.</summary>
+    public required string LocalPath { get; set; }
+
+    /// <summary>Existing server node ID (null for new files).</summary>
+    public Guid? NodeId { get; set; }
+
+    /// <summary>Total chunk count for this upload.</summary>
+    public int TotalChunks { get; set; }
+
+    /// <summary>JSON array of chunk hashes that have been successfully uploaded to the server session.</summary>
+    public string UploadedChunkHashesJson { get; set; } = "[]";
+
+    /// <summary>File size at session creation time, used to detect file changes.</summary>
+    public long FileSize { get; set; }
+
+    /// <summary>File last-write time (UTC) at session creation, used to detect file changes.</summary>
+    public DateTime FileModifiedAt { get; set; }
+
+    /// <summary>UTC time when the upload session was initiated.</summary>
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
 /// <summary>

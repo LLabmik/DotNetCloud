@@ -77,4 +77,21 @@ public interface ILocalStateDb
 
     /// <summary>Updates the last sync checkpoint timestamp.</summary>
     Task UpdateCheckpointAsync(string dbPath, DateTime checkpoint, CancellationToken cancellationToken = default);
+
+    // ── Active Upload Sessions ──────────────────────────────────────────────
+
+    /// <summary>Saves a new active upload session record after <c>InitiateUploadAsync</c> succeeds.</summary>
+    Task SaveActiveUploadSessionAsync(string dbPath, ActiveUploadSessionRecord record, CancellationToken cancellationToken = default);
+
+    /// <summary>Updates the set of successfully uploaded chunk hashes for an active session.</summary>
+    Task UpdateActiveUploadSessionChunksAsync(string dbPath, Guid sessionId, IReadOnlyList<string> uploadedChunkHashes, CancellationToken cancellationToken = default);
+
+    /// <summary>Deletes an active upload session record after <c>CompleteUploadAsync</c> succeeds.</summary>
+    Task DeleteActiveUploadSessionAsync(string dbPath, Guid sessionId, CancellationToken cancellationToken = default);
+
+    /// <summary>Gets all active (incomplete) upload sessions.</summary>
+    Task<IReadOnlyList<ActiveUploadSessionRecord>> GetActiveUploadSessionsAsync(string dbPath, CancellationToken cancellationToken = default);
+
+    /// <summary>Deletes upload session records created before the given timestamp (stale session cleanup).</summary>
+    Task DeleteStaleActiveUploadSessionsAsync(string dbPath, DateTime olderThan, CancellationToken cancellationToken = default);
 }

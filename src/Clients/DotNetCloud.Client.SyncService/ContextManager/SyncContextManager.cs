@@ -317,15 +317,16 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             httpClient,
             _loggerFactory.CreateLogger<DotNetCloudApiClient>());
 
-        var transfer = new ChunkedTransferClient(
-            apiClient,
-            _loggerFactory.CreateLogger<ChunkedTransferClient>());
-
         var conflictResolver = new ConflictResolver(
             _loggerFactory.CreateLogger<ConflictResolver>());
 
         var stateDb = new LocalStateDb(
             _loggerFactory.CreateLogger<LocalStateDb>());
+
+        var transfer = new ChunkedTransferClient(
+            apiClient,
+            stateDb,
+            _loggerFactory.CreateLogger<ChunkedTransferClient>());
 
         var selectiveSync = new SelectiveSyncConfig();
 

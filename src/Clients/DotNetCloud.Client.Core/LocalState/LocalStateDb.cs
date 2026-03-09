@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Data;
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -267,6 +268,62 @@ public sealed class LocalStateDb : ILocalStateDb
         await ctx.SaveChangesAsync(cancellationToken);
     }
 
+    // ── Active Upload Sessions ───────────────────────────────────────────
+
+    /// <inheritdoc/>
+    public async Task SaveActiveUploadSessionAsync(string dbPath, ActiveUploadSessionRecord record, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        ctx.ActiveUploadSessions.Add(record);
+        await ctx.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task UpdateActiveUploadSessionChunksAsync(string dbPath, Guid sessionId, IReadOnlyList<string> uploadedChunkHashes, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        var row = await ctx.ActiveUploadSessions.FirstOrDefaultAsync(r => r.SessionId == sessionId, cancellationToken);
+        if (row is not null)
+        {
+            row.UploadedChunkHashesJson = JsonSerializer.Serialize(uploadedChunkHashes);
+            await ctx.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task DeleteActiveUploadSessionAsync(string dbPath, Guid sessionId, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        var row = await ctx.ActiveUploadSessions.FirstOrDefaultAsync(r => r.SessionId == sessionId, cancellationToken);
+        if (row is not null)
+        {
+            ctx.ActiveUploadSessions.Remove(row);
+            await ctx.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<ActiveUploadSessionRecord>> GetActiveUploadSessionsAsync(string dbPath, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        return await ctx.ActiveUploadSessions.ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task DeleteStaleActiveUploadSessionsAsync(string dbPath, DateTime olderThan, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        var stale = await ctx.ActiveUploadSessions
+            .Where(r => r.CreatedAt < olderThan)
+            .ToListAsync(cancellationToken);
+        if (stale.Count > 0)
+        {
+            ctx.ActiveUploadSessions.RemoveRange(stale);
+            await ctx.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Cleaned up {Count} stale upload session record(s) from {DbPath}.", stale.Count, dbPath);
+        }
+    }
+
     // ── Private helpers ─────────────────────────────────────────────────────
 
     private static string BuildConnectionString(string dbPath) =>
@@ -310,6 +367,20 @@ public sealed class LocalStateDb : ILocalStateDb
                 RetryCount INTEGER NOT NULL DEFAULT 0,
                 LastError TEXT NULL,
                 FailedAt TEXT NOT NULL DEFAULT '0001-01-01 00:00:00'
+            )", cancellationToken);
+
+        // Create ActiveUploadSessions table for crash-resilient upload resumption
+        await ExecuteNonQueryAsync(conn, @"
+            CREATE TABLE IF NOT EXISTS ActiveUploadSessions (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                SessionId TEXT NOT NULL,
+                LocalPath TEXT NOT NULL,
+                NodeId TEXT NULL,
+                TotalChunks INTEGER NOT NULL DEFAULT 0,
+                UploadedChunkHashesJson TEXT NOT NULL DEFAULT '[]',
+                FileSize INTEGER NOT NULL DEFAULT 0,
+                FileModifiedAt TEXT NOT NULL DEFAULT '0001-01-01 00:00:00',
+                CreatedAt TEXT NOT NULL DEFAULT '0001-01-01 00:00:00'
             )", cancellationToken);
     }
 

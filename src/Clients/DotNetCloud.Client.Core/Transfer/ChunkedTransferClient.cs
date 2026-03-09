@@ -1,8 +1,10 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
+using System.Text.Json;
 using System.Threading.Channels;
 using DotNetCloud.Client.Core.Api;
+using DotNetCloud.Client.Core.LocalState;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 
@@ -20,12 +22,14 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
     public int MaxConcurrency { get; set; } = 4;
 
     private readonly IDotNetCloudApiClient _api;
+    private readonly ILocalStateDb? _stateDb;
     private readonly ILogger<ChunkedTransferClient> _logger;
 
     /// <summary>Initializes a new <see cref="ChunkedTransferClient"/>.</summary>
-    public ChunkedTransferClient(IDotNetCloudApiClient api, ILogger<ChunkedTransferClient> logger)
+    public ChunkedTransferClient(IDotNetCloudApiClient api, ILocalStateDb? stateDb, ILogger<ChunkedTransferClient> logger)
     {
         _api = api;
+        _stateDb = stateDb;
         _logger = logger;
     }
 
@@ -35,12 +39,57 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
         string localPath,
         Stream fileStream,
         IProgress<TransferProgress>? progress,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? stateDatabasePath = null)
     {
         var fileName = Path.GetFileName(localPath);
         var fileSize = fileStream.Length;
         var mimeType = MimeTypeFromExtension(Path.GetExtension(localPath));
         var uploadTimer = Stopwatch.StartNew();
+
+        // Check for an existing upload session (crash-resilient resumption).
+        ActiveUploadSessionRecord? existingSession = null;
+        if (_stateDb is not null && stateDatabasePath is not null)
+        {
+            var sessions = await _stateDb.GetActiveUploadSessionsAsync(stateDatabasePath, cancellationToken);
+            existingSession = sessions.FirstOrDefault(s =>
+                string.Equals(s.LocalPath, localPath, StringComparison.OrdinalIgnoreCase));
+
+            if (existingSession is not null)
+            {
+                var sessionAge = DateTime.UtcNow - existingSession.CreatedAt;
+                if (sessionAge > SessionResumeWindow)
+                {
+                    _logger.LogInformation(
+                        "Upload session {SessionId} for {File} is {Age:0}h old (limit {Limit}h). Starting fresh.",
+                        existingSession.SessionId, fileName, sessionAge.TotalHours, SessionResumeWindow.TotalHours);
+                    await _stateDb.DeleteActiveUploadSessionAsync(stateDatabasePath, existingSession.SessionId, cancellationToken);
+                    existingSession = null;
+                }
+                else if (fileSize != existingSession.FileSize)
+                {
+                    _logger.LogInformation(
+                        "File {File} size changed since session {SessionId} was created. Starting fresh.",
+                        fileName, existingSession.SessionId);
+                    await _stateDb.DeleteActiveUploadSessionAsync(stateDatabasePath, existingSession.SessionId, cancellationToken);
+                    existingSession = null;
+                }
+                else if (File.GetLastWriteTimeUtc(localPath) != existingSession.FileModifiedAt)
+                {
+                    _logger.LogInformation(
+                        "File {File} modified since session {SessionId} was created. Starting fresh.",
+                        fileName, existingSession.SessionId);
+                    await _stateDb.DeleteActiveUploadSessionAsync(stateDatabasePath, existingSession.SessionId, cancellationToken);
+                    existingSession = null;
+                }
+                else
+                {
+                    _logger.LogInformation(
+                        "Resuming upload session {SessionId} for {File}.",
+                        existingSession.SessionId, fileName);
+                }
+            }
+        }
 
         _logger.LogInformation(
             "File upload starting: FileName={FileName}, FileSize={FileSize}.",
@@ -54,17 +103,51 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
             var metadata = await ComputeChunkMetadataAsync(fileStream, cancellationToken);
             _logger.LogDebug("Uploading {File}: {ChunkCount} CDC chunks, {Size} bytes.", fileName, metadata.Count, fileSize);
 
-            // Initiate session — server returns which chunks it already has
-            var session = await _api.InitiateUploadAsync(
-                fileName, null, fileSize, mimeType,
-                metadata.Select(m => m.Hash).ToList(),
-                metadata.Select(m => m.Size).ToList(),
-                cancellationToken);
+            Guid sessionId;
+            HashSet<string> presentChunks;
 
-            var presentChunks = new HashSet<string>(session.PresentChunks, StringComparer.OrdinalIgnoreCase);
+            if (existingSession is not null)
+            {
+                // Reuse the existing server session — skip chunks already recorded as uploaded.
+                sessionId = existingSession.SessionId;
+                var alreadyUploaded = JsonSerializer.Deserialize<List<string>>(existingSession.UploadedChunkHashesJson) ?? [];
+                presentChunks = new HashSet<string>(alreadyUploaded, StringComparer.OrdinalIgnoreCase);
+            }
+            else
+            {
+                // Fresh start: initiate upload session — server returns which chunks it already has.
+                var session = await _api.InitiateUploadAsync(
+                    fileName, null, fileSize, mimeType,
+                    metadata.Select(m => m.Hash).ToList(),
+                    metadata.Select(m => m.Size).ToList(),
+                    cancellationToken);
+                sessionId = session.SessionId;
+                presentChunks = new HashSet<string>(session.PresentChunks, StringComparer.OrdinalIgnoreCase);
+
+                // Persist the session for crash resilience.
+                if (_stateDb is not null && stateDatabasePath is not null)
+                {
+                    await _stateDb.SaveActiveUploadSessionAsync(stateDatabasePath, new ActiveUploadSessionRecord
+                    {
+                        SessionId = sessionId,
+                        LocalPath = localPath,
+                        NodeId = existingNodeId,
+                        FileSize = fileSize,
+                        FileModifiedAt = File.GetLastWriteTimeUtc(localPath),
+                        TotalChunks = metadata.Count,
+                        UploadedChunkHashesJson = "[]",
+                        CreatedAt = DateTime.UtcNow,
+                    }, cancellationToken);
+                }
+            }
+
             var uploaded = 0;
             var skipped = 0;
             var totalChunks = metadata.Count;
+
+            // Track uploaded hashes for incremental crash-resilience DB flushes.
+            var uploadedHashes = new HashSet<string>(presentChunks, StringComparer.OrdinalIgnoreCase);
+            var hashFlushLock = new SemaphoreSlim(1, 1);
 
             // Pass 2: re-read file via CDC, feed chunks into bounded channel.
             // Peak memory: ChannelCapacity × avg chunk size ≈ 32 MB.
@@ -72,6 +155,7 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
             var channel = Channel.CreateBounded<(ChunkData Chunk, int Index)>(
                 new BoundedChannelOptions(ChannelCapacity) { FullMode = BoundedChannelFullMode.Wait });
 
+            var capturedSessionId = sessionId;
             var producer = Task.Run(async () =>
             {
                 var index = 0;
@@ -90,7 +174,7 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                     if (presentChunks.Contains(chunk.Hash))
                     {
                         Interlocked.Increment(ref skipped);
-                        _logger.LogDebug("Chunk {Index} hash {Hash} already on server — skipping.", index, chunk.Hash);
+                        _logger.LogDebug("Chunk {Index} hash {Hash} already present — skipping.", index, chunk.Hash);
                         continue;
                     }
 
@@ -101,7 +185,7 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                         try
                         {
                             using var chunkStream = new MemoryStream(chunk.Data);
-                            await _api.UploadChunkAsync(session.SessionId, index, chunk.Hash, chunkStream, cancellationToken);
+                            await _api.UploadChunkAsync(capturedSessionId, index, chunk.Hash, chunkStream, cancellationToken);
                             break;
                         }
                         catch (HttpRequestException ex) when (
@@ -119,6 +203,19 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
 
                     _logger.LogDebug("Chunk {Hash} upload complete: Attempts={Attempts}.", chunk.Hash, uploadAttempts);
 
+                    // Persist progress after each successful chunk upload.
+                    if (_stateDb is not null && stateDatabasePath is not null)
+                    {
+                        await hashFlushLock.WaitAsync(cancellationToken);
+                        try
+                        {
+                            uploadedHashes.Add(chunk.Hash);
+                            await _stateDb.UpdateActiveUploadSessionChunksAsync(
+                                stateDatabasePath, capturedSessionId, [.. uploadedHashes], cancellationToken);
+                        }
+                        finally { hashFlushLock.Release(); }
+                    }
+
                     var count = Interlocked.Increment(ref uploaded);
                     progress?.Report(new TransferProgress
                     {
@@ -133,7 +230,12 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
 
             await Task.WhenAll(new[] { producer }.Concat(consumers));
 
-            var result = await _api.CompleteUploadAsync(session.SessionId, cancellationToken);
+            var result = await _api.CompleteUploadAsync(capturedSessionId, cancellationToken);
+
+            // Session complete: remove the tracking record.
+            if (_stateDb is not null && stateDatabasePath is not null)
+                await _stateDb.DeleteActiveUploadSessionAsync(stateDatabasePath, capturedSessionId, cancellationToken);
+
             uploadTimer.Stop();
 
             _logger.LogInformation(
@@ -225,6 +327,9 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
 
     /// <summary>Bounded channel capacity: limits peak memory to ~32 MB (8 × 4 MB avg).</summary>
     private const int ChannelCapacity = 8;
+
+    /// <summary>Maximum age of an upload session eligible for crash resumption. Server session TTL is 24 h.</summary>
+    private static readonly TimeSpan SessionResumeWindow = TimeSpan.FromHours(18);
 
     private async Task<Stream> DownloadChunksAsync(
         ChunkManifestResponse manifest,
