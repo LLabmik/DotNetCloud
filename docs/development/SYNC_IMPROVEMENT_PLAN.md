@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-08  
 **Last updated:** 2026-03-09
-**Status:** In Progress — Batches 1–3 complete, Batch 4 in progress (4.2 client pending)
+**Status:** Batches 1–4 complete. Batch 5 not started.
 **Based on:** [SYNC_IMPROVEMENT_PROPOSALS.md](SYNC_IMPROVEMENT_PROPOSALS.md)
 **Handoff Process:** [CLIENT_SERVER_MEDIATION_HANDOFF.md](CLIENT_SERVER_MEDIATION_HANDOFF.md)
 
@@ -1759,7 +1759,7 @@ The goal is to resolve the vast majority of conflicts automatically, so users on
 
 **Approved Proposal:** 5.2
 
-**Status:** Server ✅ COMPLETE — commit `fa097bf` (2026-03-09). Client 🔲 PENDING (Issue #42).
+**Status:** ✅ Both sides complete. Server commit `fa097bf` (2026-03-09). Client commit `c70bd47` (2026-03-09).
 
 **Problem:** Linux executable scripts lose execute bit when synced through Windows. Read-only config files become writable. Linux-to-Linux transfers through the server should preserve full POSIX permissions — Linux must not be a second-class citizen.
 
@@ -1818,17 +1818,17 @@ The goal is to resolve the vast majority of conflicts automatically, so users on
 - Add `PosixMode int?` to `FileVersion` for per-version permission tracking.
 
 **Deliverables:**
-- ☐ Server: `PosixMode` + `PosixOwnerHint` columns on `FileNode` + `FileVersion` + migration
-- ☐ Server: `PosixMode` + `PosixOwnerHint` in all DTOs and gRPC messages
-- ☐ Server: Preserve previous `PosixMode` when Windows client uploads new version
-- ☐ Client (Core): `PosixMode` + `PosixOwnerHint` properties in upload/download DTOs
-- ☐ Client (Windows): Pass `null` on upload, ignore on download, preserve on re-upload
-- ☐ Client (Linux): Read/send full `UnixFileMode` + owner hint on upload
-- ☐ Client (Linux): Apply `UnixFileMode` on download with sensible defaults for Windows-originated files
-- ☐ Client (Linux): Owner/group hint best-effort application with graceful fallback
-- ☐ Client (Linux): setuid/setgid safety policy (store but don't apply by default)
-- ☐ Client (Linux): Permission change detection in periodic scan (metadata-only sync)
-- ☐ Client (Linux): Directory permission enforcement (minimum `0o755`)
+- ✓ Server: `PosixMode` + `PosixOwnerHint` columns on `FileNode` + `FileVersion` + migration
+- ✓ Server: `PosixMode` + `PosixOwnerHint` in all DTOs and gRPC messages
+- ✓ Server: Preserve previous `PosixMode` when Windows client uploads new version
+- ✓ Client (Core): `PosixMode` + `PosixOwnerHint` properties in upload/download DTOs
+- ✓ Client (Windows): Pass `null` on upload, ignore on download, preserve on re-upload
+- ✓ Client (Linux): Read/send full `UnixFileMode` + owner hint on upload
+- ✓ Client (Linux): Apply `UnixFileMode` on download with sensible defaults for Windows-originated files
+- ✓ Client (Linux): Owner/group hint best-effort application with graceful fallback
+- ✓ Client (Linux): setuid/setgid safety policy (store but don't apply by default)
+- ✓ Client (Linux): Permission change detection in periodic scan (metadata-only sync)
+- ✓ Client (Linux): Directory permission enforcement (minimum `0o755`)
 
 **Side:** Both (server schema + client platform logic)
 **Complexity:** Low
@@ -1839,7 +1839,7 @@ The goal is to resolve the vast majority of conflicts automatically, so users on
 
 **Approved Proposal:** 5.3
 
-**Status:** 🔲 Not started.
+**Status:** ✅ Both sides complete. Server commit `d3a6422` (2026-03-09). Client commit `1cd594a` (2026-03-09).
 
 **Problem:** FileSystemWatcher follows symlinks on Linux, causing loops or syncing unintended directories. Naively following symlinks would duplicate content on the server and risk infinite recursion with circular links.
 
@@ -1902,16 +1902,16 @@ When `"sync-as-link"` is enabled:
 **Linux/macOS Considerations:** This is primarily a Linux/macOS concern. Windows symlinks require admin privileges and are rare. Implementation is identical across platforms using .NET API (`FileSystemInfo.LinkTarget`, `File.CreateSymbolicLink()`).
 
 **Deliverables:**
-- ☐ Client: Symlink detection in FileSystemWatcher handlers and periodic scan
-- ☐ Client: Default ignore behavior with clear logging
-- ☐ Client: Opt-in `"sync-as-link"` mode in `sync-settings.json`
-- ☐ Client: Symlink validation (relative-only, within sync root, no circular chains)
-- ☐ Client: Metadata-only upload for symlinks (no content/chunks)
-- ☐ Client: Symlink recreation on download (Linux native, Windows privilege-aware)
-- ☐ Client: Settings UI dropdown for symlink mode
-- ☐ Server: `NodeType.SymbolicLink` enum value
-- ☐ Server: `LinkTarget` column on `FileNode` + migration
-- ☐ Server: Symlink-aware DTOs and gRPC messages
+- ✓ Client: Symlink detection in FileSystemWatcher handlers and periodic scan
+- ✓ Client: Default ignore behavior with clear logging
+- ✓ Client: Opt-in `"sync-as-link"` mode in `sync-settings.json`
+- ✓ Client: Symlink validation (relative-only, within sync root, no circular chains)
+- ✓ Client: Metadata-only upload for symlinks (no content/chunks)
+- ✓ Client: Symlink recreation on download (Linux native, Windows privilege-aware)
+- ✓ Client: Settings UI dropdown for symlink mode
+- ✓ Server: `NodeType.SymbolicLink` enum value
+- ✓ Server: `LinkTarget` column on `FileNode` + migration
+- ✓ Server: Symlink-aware DTOs and gRPC messages
 
 **Side:** Client only
 **Complexity:** Low
@@ -1922,7 +1922,7 @@ When `"sync-as-link"` is enabled:
 
 **Approved Proposal:** 5.4
 
-**Status:** 🔲 Not started.
+**Status:** ✅ Both sides complete. Server commit `d3a6422` (2026-03-09). Client commit `1cd594a` (2026-03-09).
 
 **Problem:** Linux inotify has a per-user watch limit (default 8192). Large sync folders can exceed this, causing silent failures. Affects both the client (watching sync folder) and the server (watching storage directories). Additionally, running out of inodes on ext4/XFS prevents new file creation even when disk space remains — a silent killer for storage-heavy servers.
 
@@ -2025,23 +2025,23 @@ Running out of inodes means no new files can be created even with plenty of disk
 - If somehow running on HFS+: same `statvfs()` approach as Linux would work.
 
 **Deliverables:**
-- ☐ Client: inotify limit, instances, and usage tracking on Linux startup
-- ☐ Client: Startup log with current limit, instances, and estimated need
-- ☐ Client: Actionable notification with "Fix automatically" button
-- ☐ Client: Automatic `sysctl.d` configuration with polkit privilege escalation
-- ☐ Client: Dismissal memory (don't re-nag for 7 days)
-- ☐ Client: Fallback to fast periodic scan on `FileSystemWatcher.Error`
-- ☐ Client: inode usage check on Linux startup via `statvfs()`
-- ☐ Client: Warning/critical notifications for low inode availability
-- ☐ Client: Detect inode exhaustion on `ENOSPC` write failures
-- ☐ Server: inotify limit + instances tracking on Linux startup with log output
-- ☐ Server: inode usage check on Linux startup with threshold logging
-- ☐ Server: inode status in `/health/ready` (healthy/degraded/unhealthy)
-- ☐ Server: Periodic inode monitoring every 30 minutes
-- ☐ Server: Health check `degraded` status if inotify limit is low
-- ☐ Server: `install.sh` sets recommended inotify limit during installation
-- ☐ Docs: `sysctl` instructions in Linux install/setup documentation
-- ☐ Docs: Recommended `mkfs` inode density for storage partitions
+- ✓ Client: inotify limit, instances, and usage tracking on Linux startup
+- ✓ Client: Startup log with current limit, instances, and estimated need
+- ✓ Client: Actionable notification with "Fix automatically" button
+- ✓ Client: Automatic `sysctl.d` configuration with polkit privilege escalation
+- ✓ Client: Dismissal memory (don't re-nag for 7 days)
+- ✓ Client: Fallback to fast periodic scan on `FileSystemWatcher.Error`
+- ✓ Client: inode usage check on Linux startup via `statvfs()`
+- ✓ Client: Warning/critical notifications for low inode availability
+- ✓ Client: Detect inode exhaustion on `ENOSPC` write failures
+- ✓ Server: inotify limit + instances tracking on Linux startup with log output
+- ✓ Server: inode usage check on Linux startup with threshold logging
+- ✓ Server: inode status in `/health/ready` (healthy/degraded/unhealthy)
+- ✓ Server: Periodic inode monitoring every 30 minutes
+- ✓ Server: Health check `degraded` status if inotify limit is low
+- ✓ Server: `install.sh` sets recommended inotify limit during installation
+- ✓ Docs: `sysctl` instructions in Linux install/setup documentation
+- ✓ Docs: Recommended `mkfs` inode density for storage partitions
 
 **Side:** Both (Linux-specific)
 **Complexity:** Low-Medium
@@ -2050,7 +2050,7 @@ Running out of inodes means no new files can be created even with plenty of disk
 
 ### 4.5 — Path Length + Filename Limit Handling
 
-**Status:** 🔲 Not started.
+**Status:** ✅ Both sides complete. Server commit `d3a6422` (2026-03-09). Client commit `1cd594a` (2026-03-09).
 
 **Problem:** Windows has a historical 260-character total path limit (`MAX_PATH`). Linux allows 4,096-character paths and 255-character filenames. macOS allows 255-character filenames with ~1,024-character paths. Files created on Linux with deep nesting or long names will fail to sync to Windows clients.
 
@@ -2123,16 +2123,16 @@ Running out of inodes means no new files can be created even with plenty of disk
 - Character validation benefits all platforms — the server prevents the problem at the source
 
 **Deliverables:**
-- ☐ Client (Windows): App manifest with `longPathAware` enabled
-- ☐ Client (Windows): First-run long path check + "Enable long paths" auto-fix with UAC
-- ☐ Client (Windows): `\\?\` prefix fallback for paths > 260 chars
-- ☐ Client (Windows): `SyncStateTag.PathTooLong` for unsyncable files with user notification
-- ☐ Client (Linux): UTF-8 byte-length filename validation (255-byte limit)
-- ☐ Client (Linux): Filename truncation with hash suffix for oversized names
-- ☐ Server: Filename character validation (reject Windows-illegal characters)
-- ☐ Server: Reserved name validation (reject `CON`, `PRN`, etc.)
-- ☐ Server: Path length warning header when path > 250 chars
-- ☐ Server: Configurable path length warning threshold
+- ✓ Client (Windows): App manifest with `longPathAware` enabled
+- ✓ Client (Windows): First-run long path check + "Enable long paths" auto-fix with UAC
+- ✓ Client (Windows): `\\?\` prefix fallback for paths > 260 chars
+- ✓ Client (Windows): `SyncStateTag.PathTooLong` for unsyncable files with user notification
+- ✓ Client (Linux): UTF-8 byte-length filename validation (255-byte limit)
+- ✓ Client (Linux): Filename truncation with hash suffix for oversized names
+- ✓ Server: Filename character validation (reject Windows-illegal characters)
+- ✓ Server: Reserved name validation (reject `CON`, `PRN`, etc.)
+- ✓ Server: Path length warning header when path > 250 chars
+- ✓ Server: Configurable path length warning threshold
 
 **Side:** Both
 **Complexity:** Medium
