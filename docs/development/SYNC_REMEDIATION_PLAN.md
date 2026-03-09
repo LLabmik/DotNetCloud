@@ -111,16 +111,16 @@ This plan organizes them into prioritized remediation batches with clear SERVER/
 
 ## P2 — Should Fix (Partial Implementations)
 
-### Issue #52: RequestId in Serilog LogContext (Task 1.2) — SERVER
+### Issue #52: RequestId in Serilog LogContext (Task 1.2) — SERVER ✅
 
 **What's missing:** `RequestCorrelationMiddleware` sets `TraceIdentifier` but does NOT call `LogContext.PushProperty("RequestId", requestId)`. Structured logs don't include `RequestId` field.
 
 **Deliverables:**
-- ☐ In `RequestCorrelationMiddleware`: add `using (LogContext.PushProperty("RequestId", requestId))` around `await _next(context)`
-- ☐ Verify `UseSerilogRequestLogging()` picks up the property
-- ☐ Unit test: verify log entries include `RequestId` property
+- ✓ In `RequestCorrelationMiddleware`: add `using (LogContext.PushProperty("RequestId", requestId))` around `await _next(context)`
+- ✓ Verify `UseSerilogRequestLogging()` picks up the property
+- ✓ Unit test: verify log entries include `RequestId` property
 
-**Complexity:** LOW — 3-line change.
+**Complexity:** LOW — 3-line change. **Resolved:** `0a0ab19`
 
 ---
 
@@ -138,15 +138,15 @@ This plan organizes them into prioritized remediation batches with clear SERVER/
 
 ---
 
-### Issue #54: Content-Disposition on Versioned Downloads (Task 1.9) — SERVER
+### Issue #54: Content-Disposition on Versioned Downloads (Task 1.9) — SERVER ✅
 
 **What's missing:** Current-version downloads include `Content-Disposition: attachment` via `File()` helper with filename. Versioned download path calls `File(stream, mime)` without filename parameter.
 
 **Deliverables:**
-- ☐ In versioned download endpoint: add filename to `File()` call or set `Content-Disposition` header explicitly
-- ☐ Unit test: versioned download response includes `Content-Disposition: attachment; filename="..."`
+- ✓ In versioned download endpoint: add filename to `File()` call or set `Content-Disposition` header explicitly
+- ✓ Unit test: versioned download response includes `Content-Disposition: attachment; filename="..."`
 
-**Complexity:** LOW — 1-line fix.
+**Complexity:** LOW — 1-line fix. **Resolved:** `0a0ab19`
 
 ---
 

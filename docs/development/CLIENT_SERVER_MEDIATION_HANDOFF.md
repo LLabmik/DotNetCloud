@@ -73,15 +73,15 @@ Full plan: [SYNC_REMEDIATION_PLAN.md](SYNC_REMEDIATION_PLAN.md)
 |-------|------|-------|------------|-------------|
 | #49 | 2.6 | BOTH | LOW | Client ETag/If-None-Match for chunk downloads |
 | #50 | 2.3 | CLIENT | LOW | Compression skip for pre-compressed MIME types |
-| #52 | 1.2 | SERVER | LOW | RequestId in Serilog LogContext |
-| #54 | 1.9 | SERVER | LOW | Content-Disposition on versioned downloads |
+| #52 | 1.2 | SERVER | LOW | RequestId in Serilog LogContext — ✅ `0a0ab19` |
+| #54 | 1.9 | SERVER | LOW | Content-Disposition on versioned downloads — ✅ `0a0ab19` |
 | #59 | 1.5 | CLIENT | LOW | TaskCanceledException retry in chunk transfers |
 | #61 | 3.2 | CLIENT | LOW | Session resume window 18h → 48h |
 
-**Server issues (#52, #54):** Ready for server agent. Both are ~5-line fixes.  
+**Server issues (#52, #54):** ✅ COMPLETE — commit `0a0ab19`  
 **Client issues (#49, #50, #59, #61):** Ready for client agent on Windows11-TestDNC.
 
-### Status: ☐ Not started — awaiting next session
+### Status: Server issues resolved. Client issues pending.
 
 ---
 
