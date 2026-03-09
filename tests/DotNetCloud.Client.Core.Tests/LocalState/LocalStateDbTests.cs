@@ -322,4 +322,46 @@ public class LocalStateDbTests
         var pending = await _db.GetPendingOperationsAsync(_dbPath);
         Assert.AreEqual(0, pending.Count);
     }
+
+    // ── Sync Cursor (Tasks 2.4 + 2.5) ──────────────────────────────────────
+
+    [TestMethod]
+    public async Task GetSyncCursorAsync_InitialState_ReturnsNull()
+    {
+        var cursor = await _db.GetSyncCursorAsync(_dbPath);
+        Assert.IsNull(cursor, "Expected null cursor for a fresh database.");
+    }
+
+    [TestMethod]
+    public async Task UpdateAndGetSyncCursorAsync_RoundTrips()
+    {
+        const string expectedCursor = "dXNlcjoxMjM="; // base64url typical cursor
+        await _db.UpdateSyncCursorAsync(_dbPath, expectedCursor);
+        var loaded = await _db.GetSyncCursorAsync(_dbPath);
+        Assert.AreEqual(expectedCursor, loaded);
+    }
+
+    [TestMethod]
+    public async Task UpdateSyncCursorAsync_UpdatesExisting()
+    {
+        await _db.UpdateSyncCursorAsync(_dbPath, "cursor-v1");
+        await _db.UpdateSyncCursorAsync(_dbPath, "cursor-v2");
+        var loaded = await _db.GetSyncCursorAsync(_dbPath);
+        Assert.AreEqual("cursor-v2", loaded, "Expected the latest cursor to be persisted.");
+    }
+
+    [TestMethod]
+    public async Task UpdateSyncCursorAsync_IndependentOfLastSyncedAt()
+    {
+        // Cursor and LastSyncedAt should be updated independently.
+        var now = new DateTime(2026, 3, 9, 0, 0, 0, DateTimeKind.Utc);
+        await _db.UpdateCheckpointAsync(_dbPath, now);
+        await _db.UpdateSyncCursorAsync(_dbPath, "cursor-after-checkpoint");
+
+        var checkpoint = await _db.GetCheckpointAsync(_dbPath);
+        var cursor = await _db.GetSyncCursorAsync(_dbPath);
+
+        Assert.AreEqual(now, checkpoint, "LastSyncedAt should be unchanged.");
+        Assert.AreEqual("cursor-after-checkpoint", cursor, "Cursor should be set independently.");
+    }
 }

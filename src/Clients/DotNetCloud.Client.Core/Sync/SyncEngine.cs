@@ -237,57 +237,72 @@ public sealed class SyncEngine : ISyncEngine
 
     private async Task<int> ApplyRemoteChangesAsync(SyncContext context, CancellationToken cancellationToken)
     {
-        var checkpoint = await _stateDb.GetCheckpointAsync(context.StateDatabasePath, cancellationToken);
-        var since = checkpoint ?? DateTime.UtcNow.AddDays(-365);
+        // Load stored cursor (null = never synced → server will return full history)
+        var cursor = await _stateDb.GetSyncCursorAsync(context.StateDatabasePath, cancellationToken);
         var appliedChanges = 0;
 
-        var remoteChanges = await _api.GetChangesSinceAsync(since, null, cancellationToken);
-        _logger.LogDebug("Found {Count} remote changes since {Since}.", remoteChanges.Count, since);
-
-        // Build nodeId → relative-path map from server folder tree so we can
-        // reconstruct the full directory hierarchy for each changed node.
+        // Build nodeId → relative-path map once (shared across all pages)
         var tree = await _api.GetFolderTreeAsync(null, cancellationToken);
         var pathMap = new Dictionary<Guid, string>();
         BuildPathMap(tree, "", pathMap);
 
-        // Process folder changes first (create directories before files)
-        foreach (var change in remoteChanges.Where(c => c.NodeType == "Folder" && !c.IsDeleted))
+        // Paginated cursor loop — keeps fetching until HasMore == false
+        var hasMore = true;
+        while (hasMore)
         {
-            if (pathMap.TryGetValue(change.NodeId, out var relPath))
+            var page = await _api.GetChangesSinceAsync(cursor, limit: 500, cancellationToken);
+            _logger.LogDebug("Fetched {Count} remote changes (cursor={Cursor}, hasMore={HasMore}).",
+                page.Changes.Count, cursor ?? "(none)", page.HasMore);
+
+            // Ensure directories for folder changes before processing file changes
+            foreach (var change in page.Changes.Where(c => c.NodeType == "Folder" && !c.IsDeleted))
             {
-                var dirPath = Path.Combine(context.LocalFolderPath, relPath);
-                Directory.CreateDirectory(dirPath);
-                _logger.LogDebug("Ensured directory {Path} for folder node {NodeId}.", dirPath, change.NodeId);
-            }
-        }
-
-        foreach (var change in remoteChanges)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var localPath = await ResolveLocalPathAsync(context, change.NodeId, change.Name, pathMap, cancellationToken);
-
-            if (!_selectiveSync.IsIncluded(context.Id, localPath))
-                continue;
-
-            var relativePathForIgnore = Path.GetRelativePath(context.LocalFolderPath, localPath);
-            if (_syncIgnore.IsIgnored(relativePathForIgnore))
-            {
-                _logger.LogDebug("Skipping ignored remote change {RelPath} for context {ContextId}.",
-                    relativePathForIgnore, context.Id);
-                continue;
+                if (pathMap.TryGetValue(change.NodeId, out var relPath))
+                {
+                    var dirPath = Path.Combine(context.LocalFolderPath, relPath);
+                    Directory.CreateDirectory(dirPath);
+                    _logger.LogDebug("Ensured directory {Path} for folder node {NodeId}.", dirPath, change.NodeId);
+                }
             }
 
-            if (change.IsDeleted)
+            foreach (var change in page.Changes)
             {
-                await HandleRemoteDeletionAsync(context, localPath, change.NodeId, cancellationToken);
-                appliedChanges++;
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var localPath = await ResolveLocalPathAsync(context, change.NodeId, change.Name, pathMap, cancellationToken);
+
+                if (!_selectiveSync.IsIncluded(context.Id, localPath))
+                    continue;
+
+                var relativePathForIgnore = Path.GetRelativePath(context.LocalFolderPath, localPath);
+                if (_syncIgnore.IsIgnored(relativePathForIgnore))
+                {
+                    _logger.LogDebug("Skipping ignored remote change {RelPath} for context {ContextId}.",
+                        relativePathForIgnore, context.Id);
+                    continue;
+                }
+
+                if (change.IsDeleted)
+                {
+                    await HandleRemoteDeletionAsync(context, localPath, change.NodeId, cancellationToken);
+                    appliedChanges++;
+                }
+                else if (change.NodeType == "File")
+                {
+                    await HandleRemoteUpdateAsync(context, localPath, change, cancellationToken);
+                    appliedChanges++;
+                }
             }
-            else if (change.NodeType == "File")
+
+            // Persist cursor after each page for crash resilience — if interrupted mid-sync
+            // the next run resumes from the last successfully processed page.
+            if (page.NextCursor is not null)
             {
-                await HandleRemoteUpdateAsync(context, localPath, change, cancellationToken);
-                appliedChanges++;
+                cursor = page.NextCursor;
+                await _stateDb.UpdateSyncCursorAsync(context.StateDatabasePath, cursor, cancellationToken);
             }
+
+            hasMore = page.HasMore;
         }
 
         return appliedChanges;

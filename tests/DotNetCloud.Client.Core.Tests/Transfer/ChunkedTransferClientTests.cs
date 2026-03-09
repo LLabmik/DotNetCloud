@@ -12,7 +12,24 @@ namespace DotNetCloud.Client.Core.Tests.Transfer;
 [TestClass]
 public class ChunkedTransferClientTests
 {
-    // ── UploadAsync ─────────────────────────────────────────────────────────
+    private string _testCacheDir = null!;
+
+    [TestInitialize]
+    public void TestSetup() =>
+        _testCacheDir = Path.Combine(Path.GetTempPath(), $"dnc-test-cache-{Guid.NewGuid():N}");
+
+    [TestCleanup]
+    public void TestTeardown()
+    {
+        if (Directory.Exists(_testCacheDir))
+            Directory.Delete(_testCacheDir, recursive: true);
+    }
+
+    private ChunkedTransferClient CreateClient(IDotNetCloudApiClient api, ILocalStateDb? stateDb = null) =>
+        new(api, stateDb, NullLogger<ChunkedTransferClient>.Instance)
+        {
+            ChunkCacheDirectory = _testCacheDir,
+        };
 
     [TestMethod]
     public async Task UploadAsync_SmallFile_UploadsAsOneChunk()
@@ -34,7 +51,7 @@ public class ChunkedTransferClientTests
                 Node = new FileNodeResponse { Id = nodeId, Name = "test.txt", NodeType = "File" },
             });
 
-        var client = new ChunkedTransferClient(apiMock.Object, null, NullLogger<ChunkedTransferClient>.Instance);
+        var client = CreateClient(apiMock.Object);
         using var data = new MemoryStream(new byte[1024]);
 
         var result = await client.UploadAsync(null, "test.txt", data, null);
@@ -71,7 +88,7 @@ public class ChunkedTransferClientTests
                 Node = new FileNodeResponse { Id = Guid.NewGuid(), Name = "dedup.txt", NodeType = "File" },
             });
 
-        var client = new ChunkedTransferClient(apiMock.Object, null, NullLogger<ChunkedTransferClient>.Instance);
+        var client = CreateClient(apiMock.Object);
         using var data = new MemoryStream(new byte[512]);
 
         await client.UploadAsync(null, "dedup.txt", data, null);
@@ -112,7 +129,7 @@ public class ChunkedTransferClientTests
                 Node = new FileNodeResponse { Id = nodeId, Name = "file.txt", NodeType = "File" },
             });
 
-        var client = new ChunkedTransferClient(apiMock.Object, null, NullLogger<ChunkedTransferClient>.Instance);
+        var client = CreateClient(apiMock.Object);
         using var data = new MemoryStream(new byte[512]);
 
         var result = await client.UploadAsync(null, "file.txt", data, null);
@@ -139,7 +156,7 @@ public class ChunkedTransferClientTests
         apiMock.Setup(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("Network unreachable"));
 
-        var client = new ChunkedTransferClient(apiMock.Object, null, NullLogger<ChunkedTransferClient>.Instance);
+        var client = CreateClient(apiMock.Object);
         using var data = new MemoryStream(new byte[512]);
 
         HttpRequestException? caught = null;
@@ -168,7 +185,7 @@ public class ChunkedTransferClientTests
         apiMock.Setup(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("Forbidden", null, System.Net.HttpStatusCode.Forbidden));
 
-        var client = new ChunkedTransferClient(apiMock.Object, null, NullLogger<ChunkedTransferClient>.Instance);
+        var client = CreateClient(apiMock.Object);
         using var data = new MemoryStream(new byte[512]);
 
         HttpRequestException? caught = null;
@@ -194,7 +211,7 @@ public class ChunkedTransferClientTests
         apiMock.Setup(a => a.DownloadAsync(nodeId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream(new byte[100]));
 
-        var client = new ChunkedTransferClient(apiMock.Object, null, NullLogger<ChunkedTransferClient>.Instance);
+        var client = CreateClient(apiMock.Object);
 
         using var result = await client.DownloadAsync(nodeId);
 
@@ -221,7 +238,7 @@ public class ChunkedTransferClientTests
         apiMock.Setup(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream(chunkData));
 
-        var client = new ChunkedTransferClient(apiMock.Object, null, NullLogger<ChunkedTransferClient>.Instance);
+        var client = CreateClient(apiMock.Object);
 
         using var result = await client.DownloadAsync(nodeId);
 
@@ -257,7 +274,7 @@ public class ChunkedTransferClientTests
                 return new MemoryStream(callCount == 1 ? corruptData : chunkData);
             });
 
-        var client = new ChunkedTransferClient(apiMock.Object, null, NullLogger<ChunkedTransferClient>.Instance);
+        var client = CreateClient(apiMock.Object);
 
         using var result = await client.DownloadAsync(nodeId);
 
@@ -285,7 +302,7 @@ public class ChunkedTransferClientTests
         apiMock.Setup(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => new MemoryStream(corruptData));
 
-        var client = new ChunkedTransferClient(apiMock.Object, null, NullLogger<ChunkedTransferClient>.Instance);
+        var client = CreateClient(apiMock.Object);
 
         ChunkIntegrityException? caught = null;
         try { await client.DownloadAsync(nodeId); }
@@ -326,7 +343,7 @@ public class ChunkedTransferClientTests
                 Node = new FileNodeResponse { Id = nodeId, Name = "file.bin", NodeType = "File" },
             });
 
-        var client = new ChunkedTransferClient(apiMock.Object, null, NullLogger<ChunkedTransferClient>.Instance);
+        var client = CreateClient(apiMock.Object);
         using var data = new MemoryStream(new byte[1024]);
 
         await client.UploadAsync(null, "file.bin", data, null);
@@ -370,7 +387,7 @@ public class ChunkedTransferClientTests
                 Node = new FileNodeResponse { Id = Guid.NewGuid(), Name = "f.bin", NodeType = "File" },
             });
 
-        var client = new ChunkedTransferClient(apiMock.Object, null, NullLogger<ChunkedTransferClient>.Instance);
+        var client = CreateClient(apiMock.Object);
 
         await client.UploadAsync(null, "f.bin", new MemoryStream(fileData), null);
         captureTarget = capturedHashes2;
@@ -415,7 +432,7 @@ public class ChunkedTransferClientTests
                 Node = new FileNodeResponse { Id = nodeId, Name = "big.bin", NodeType = "File" },
             });
 
-        var client = new ChunkedTransferClient(apiMock.Object, null, NullLogger<ChunkedTransferClient>.Instance);
+        var client = CreateClient(apiMock.Object);
         // Use 1 MB of data — small enough for tests but exercises the pipeline
         using var data = new MemoryStream(new byte[1024 * 1024]);
 
@@ -459,7 +476,7 @@ public class ChunkedTransferClientTests
         apiMock.Setup(a => a.DownloadChunkByHashAsync(hash1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => new MemoryStream(chunk1));
 
-        var client = new ChunkedTransferClient(apiMock.Object, null, NullLogger<ChunkedTransferClient>.Instance);
+        var client = CreateClient(apiMock.Object);
 
         using var result = await client.DownloadAsync(nodeId);
 
@@ -504,7 +521,7 @@ public class ChunkedTransferClientTests
         dbMock.Setup(d => d.GetActiveUploadSessionsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
-        var client = new ChunkedTransferClient(apiMock.Object, dbMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+        var client = CreateClient(apiMock.Object, dbMock.Object);
         using var data = new MemoryStream(new byte[1024]);
 
         await client.UploadAsync(null, "test.txt", data, null, default, "/state/db");
@@ -559,7 +576,7 @@ public class ChunkedTransferClientTests
             dbMock.Setup(d => d.GetActiveUploadSessionsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync([existingSession]);
 
-            var client = new ChunkedTransferClient(apiMock.Object, dbMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+            var client = CreateClient(apiMock.Object, dbMock.Object);
             using var stream = File.OpenRead(tempFile);
 
             var result = await client.UploadAsync(null, tempFile, stream, null, default, "/state/db");
@@ -619,7 +636,7 @@ public class ChunkedTransferClientTests
         dbMock.Setup(d => d.GetActiveUploadSessionsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([existingSession]);
 
-        var client = new ChunkedTransferClient(apiMock.Object, dbMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+        var client = CreateClient(apiMock.Object, dbMock.Object);
         using var data = new MemoryStream(new byte[1024]);
 
         await client.UploadAsync(null, "test.txt", data, null, default, "/state/db");
@@ -672,7 +689,7 @@ public class ChunkedTransferClientTests
         dbMock.Setup(d => d.GetActiveUploadSessionsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([existingSession]);
 
-        var client = new ChunkedTransferClient(apiMock.Object, dbMock.Object, NullLogger<ChunkedTransferClient>.Instance);
+        var client = CreateClient(apiMock.Object, dbMock.Object);
         using var data = new MemoryStream(new byte[1024]); // 1024 != 2048 in session
 
         await client.UploadAsync(null, "test.txt", data, null, default, "/state/db");
@@ -686,5 +703,69 @@ public class ChunkedTransferClientTests
             It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
             It.IsAny<IReadOnlyList<int>?>(), It.IsAny<CancellationToken>()), Times.Once);
         apiMock.Verify(a => a.CompleteUploadAsync(newSessionId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // ── Chunk cache ──────────────────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task DownloadAsync_CacheMiss_DownloadsAndCachesChunk()
+    {
+        var nodeId = Guid.NewGuid();
+        var chunkData = new byte[512];
+        new Random(42).NextBytes(chunkData);
+        var chunkHash = Convert.ToHexStringLower(SHA256.HashData(chunkData));
+
+        var apiMock = new Mock<IDotNetCloudApiClient>();
+        apiMock.SetupProperty(a => a.AccessToken);
+        apiMock.Setup(a => a.GetChunkManifestAsync(nodeId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChunkManifestResponse
+            {
+                TotalSize = chunkData.Length,
+                Chunks = [new ChunkManifestEntry { Index = 0, Hash = chunkHash, Size = chunkData.Length }],
+            });
+        apiMock.Setup(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MemoryStream(chunkData));
+
+        var client = CreateClient(apiMock.Object);
+
+        using var result = await client.DownloadAsync(nodeId);
+
+        // API was called exactly once (cache was empty)
+        apiMock.Verify(a => a.DownloadChunkByHashAsync(chunkHash, It.IsAny<CancellationToken>()), Times.Once);
+        // Cache file was created
+        var cacheFile = Path.Combine(_testCacheDir, chunkHash);
+        Assert.IsTrue(File.Exists(cacheFile), "Chunk should have been written to cache.");
+        CollectionAssert.AreEqual(chunkData, await File.ReadAllBytesAsync(cacheFile));
+    }
+
+    [TestMethod]
+    public async Task DownloadAsync_CacheHit_SkipsApiCall()
+    {
+        var nodeId = Guid.NewGuid();
+        var chunkData = new byte[512];
+        new Random(99).NextBytes(chunkData);
+        var chunkHash = Convert.ToHexStringLower(SHA256.HashData(chunkData));
+
+        // Pre-populate cache
+        Directory.CreateDirectory(_testCacheDir);
+        await File.WriteAllBytesAsync(Path.Combine(_testCacheDir, chunkHash), chunkData);
+
+        var apiMock = new Mock<IDotNetCloudApiClient>();
+        apiMock.SetupProperty(a => a.AccessToken);
+        apiMock.Setup(a => a.GetChunkManifestAsync(nodeId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChunkManifestResponse
+            {
+                TotalSize = chunkData.Length,
+                Chunks = [new ChunkManifestEntry { Index = 0, Hash = chunkHash, Size = chunkData.Length }],
+            });
+
+        var client = CreateClient(apiMock.Object);
+
+        using var result = await client.DownloadAsync(nodeId);
+
+        // API should NOT have been called — data came from cache
+        apiMock.Verify(a => a.DownloadChunkByHashAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.IsNotNull(result);
+        Assert.AreEqual(chunkData.Length, result.Length);
     }
 }

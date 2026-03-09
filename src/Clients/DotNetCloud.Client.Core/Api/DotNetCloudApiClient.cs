@@ -232,6 +232,16 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
     }
 
     /// <inheritdoc/>
+    public async Task<PagedSyncChangesResponse> GetChangesSinceAsync(string? cursor, int limit = 500, CancellationToken cancellationToken = default)
+    {
+        var query = $"limit={limit}";
+        if (cursor is not null)
+            query += $"&cursor={Uri.EscapeDataString(cursor)}";
+        return await GetAsync<PagedSyncChangesResponse>($"api/v1/files/sync/changes?{query}", cancellationToken)
+               ?? new PagedSyncChangesResponse { Changes = [] };
+    }
+
+    /// <inheritdoc/>
     public async Task<SyncTreeNodeResponse> GetFolderTreeAsync(Guid? folderId, CancellationToken cancellationToken = default)
     {
         var path = folderId.HasValue

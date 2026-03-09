@@ -167,13 +167,16 @@ public sealed class FailedOperationDbRow
 }
 
 /// <summary>
-/// Single-row checkpoint table storing the last sync timestamp.
+/// Single-row checkpoint table storing the last sync timestamp and cursor.
 /// </summary>
 public sealed class SyncCheckpointRow
 {
     /// <summary>Always 1.</summary>
     public int Id { get; set; } = 1;
 
-    /// <summary>UTC timestamp of the last successful sync.</summary>
+    /// <summary>UTC timestamp of the last successful sync (used for display only).</summary>
     public DateTime? LastSyncedAt { get; set; }
+
+    /// <summary>Opaque server-issued cursor for cursor-based incremental sync. Null = never synced (triggers full sync).</summary>
+    public string? SyncCursor { get; set; }
 }

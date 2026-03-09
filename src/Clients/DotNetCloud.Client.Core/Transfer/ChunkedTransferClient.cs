@@ -21,6 +21,12 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
     /// <summary>Maximum concurrent chunk transfers.</summary>
     public int MaxConcurrency { get; set; } = 4;
 
+    /// <summary>
+    /// Directory used to cache downloaded chunks by hash. Chunks are content-addressed
+    /// so a cached chunk never expires. Set to a temp path for testing.
+    /// </summary>
+    public string ChunkCacheDirectory { get; set; } = Path.Combine(Path.GetTempPath(), "dnc-chunk-cache");
+
     private readonly IDotNetCloudApiClient _api;
     private readonly ILocalStateDb? _stateDb;
     private readonly ILogger<ChunkedTransferClient> _logger;
@@ -359,18 +365,19 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                     {
                         try
                         {
-                            using var chunkStream = await _api.DownloadChunkByHashAsync(chunk.Hash, cancellationToken);
-                            using var ms = new MemoryStream();
-                            await chunkStream.CopyToAsync(ms, cancellationToken);
-                            var bytes = ms.ToArray();
+                            // Check local cache first — chunks are content-addressed so a cached
+                            // copy is guaranteed correct and never needs re-downloading.
+                            chunkBytes = await FetchChunkWithCacheAsync(chunk.Hash, cancellationToken);
 
-                            var actualHash = Convert.ToHexStringLower(SHA256.HashData(bytes));
+                            var actualHash = Convert.ToHexStringLower(SHA256.HashData(chunkBytes));
                             if (string.Equals(actualHash, chunk.Hash, StringComparison.OrdinalIgnoreCase))
                             {
-                                chunkBytes = bytes;
+                                await PersistChunkToCacheAsync(chunk.Hash, chunkBytes, cancellationToken);
                                 break;
                             }
 
+                            // Hash mismatch (should not happen for cached chunks; retry from server)
+                            chunkBytes = null;
                             _logger.LogWarning(
                                 "Chunk hash mismatch: ExpectedHash={ExpectedHash}, ActualHash={ActualHash}, Attempt={Attempt}/{MaxAttempts}.",
                                 chunk.Hash, actualHash, attempt, ChunkDownloadMaxAttempts);
@@ -451,6 +458,43 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
             // Always clean up the per-chunk temp directory.
             try { Directory.Delete(tempDir, recursive: true); }
             catch (Exception ex) { _logger.LogWarning(ex, "Failed to clean up chunk temp dir: {TempDir}.", tempDir); }
+        }
+    }
+
+    // ── Local chunk cache ────────────────────────────────────────────────────
+    // Chunks are content-addressed: hash == identity, so a cached copy never expires.
+    // Cache check eliminates redundant downloads when the same chunk appears in multiple
+    // files or when retrying a partial sync after a failure.
+
+    private async Task<byte[]> FetchChunkWithCacheAsync(string hash, CancellationToken cancellationToken)
+    {
+        var cachePath = Path.Combine(ChunkCacheDirectory, hash);
+
+        if (File.Exists(cachePath))
+        {
+            _logger.LogDebug("Chunk cache hit: {Hash}.", hash);
+            return await File.ReadAllBytesAsync(cachePath, cancellationToken);
+        }
+
+        // Cache miss — download from server. The caller verifies the hash and calls
+        // PersistChunkToCacheAsync only after the chunk passes integrity verification.
+        using var chunkStream = await _api.DownloadChunkByHashAsync(hash, cancellationToken);
+        using var ms = new MemoryStream();
+        await chunkStream.CopyToAsync(ms, cancellationToken);
+        return ms.ToArray();
+    }
+
+    private async Task PersistChunkToCacheAsync(string hash, byte[] bytes, CancellationToken cancellationToken)
+    {
+        try
+        {
+            Directory.CreateDirectory(ChunkCacheDirectory);
+            await File.WriteAllBytesAsync(Path.Combine(ChunkCacheDirectory, hash), bytes, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // Cache write failure is non-fatal; log and continue.
+            _logger.LogWarning(ex, "Failed to write chunk {Hash} to cache.", hash);
         }
     }
 

@@ -268,6 +268,30 @@ public sealed class LocalStateDb : ILocalStateDb
         await ctx.SaveChangesAsync(cancellationToken);
     }
 
+    /// <inheritdoc/>
+    public async Task<string?> GetSyncCursorAsync(string dbPath, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        var row = await ctx.Checkpoints.FindAsync([1], cancellationToken);
+        return row?.SyncCursor;
+    }
+
+    /// <inheritdoc/>
+    public async Task UpdateSyncCursorAsync(string dbPath, string cursor, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        var row = await ctx.Checkpoints.FindAsync([1], cancellationToken);
+        if (row is null)
+        {
+            ctx.Checkpoints.Add(new SyncCheckpointRow { Id = 1, SyncCursor = cursor });
+        }
+        else
+        {
+            row.SyncCursor = cursor;
+        }
+        await ctx.SaveChangesAsync(cancellationToken);
+    }
+
     // ── Active Upload Sessions ───────────────────────────────────────────
 
     /// <inheritdoc/>
@@ -442,6 +466,11 @@ public sealed class LocalStateDb : ILocalStateDb
                 BaseContentHash TEXT NULL,
                 AutoResolved INTEGER NOT NULL DEFAULT 0
             )", cancellationToken);
+
+        // Add SyncCursor column to Checkpoints table if it predates cursor-based sync
+        var checkpointColumns = await GetColumnNamesAsync(conn, "Checkpoints", cancellationToken);
+        if (!checkpointColumns.Contains("SyncCursor"))
+            await ExecuteNonQueryAsync(conn, "ALTER TABLE Checkpoints ADD COLUMN SyncCursor TEXT NULL", cancellationToken);
     }
 
     private static async Task<HashSet<string>> GetColumnNamesAsync(SqliteConnection conn, string tableName, CancellationToken cancellationToken)

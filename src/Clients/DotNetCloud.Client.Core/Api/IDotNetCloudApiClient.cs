@@ -69,8 +69,11 @@ public interface IDotNetCloudApiClient
 
     // ── Sync Operations ─────────────────────────────────────────────────────
 
-    /// <summary>Gets all changes since a given timestamp.</summary>
+    /// <summary>Gets all changes since a given timestamp (legacy timestamp-based sync).</summary>
     Task<IReadOnlyList<SyncChangeResponse>> GetChangesSinceAsync(DateTime since, Guid? folderId, CancellationToken cancellationToken = default);
+
+    /// <summary>Gets a paginated page of changes using a server-issued cursor. Pass null cursor for the initial (full) sync.</summary>
+    Task<PagedSyncChangesResponse> GetChangesSinceAsync(string? cursor, int limit = 500, CancellationToken cancellationToken = default);
 
     /// <summary>Gets a full folder tree snapshot.</summary>
     Task<SyncTreeNodeResponse> GetFolderTreeAsync(Guid? folderId, CancellationToken cancellationToken = default);

@@ -46,6 +46,10 @@ public class SyncEngineTests
             .Returns(Task.CompletedTask);
         _stateDbMock.Setup(db => db.GetCheckpointAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((DateTime?)null);
+        _stateDbMock.Setup(db => db.GetSyncCursorAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string?)null);
+        _stateDbMock.Setup(db => db.UpdateSyncCursorAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
         _stateDbMock.Setup(db => db.GetPendingOperationCountAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PendingOperationCount());
         _stateDbMock.Setup(db => db.GetPendingOperationsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -55,6 +59,8 @@ public class SyncEngineTests
 
         _apiMock.Setup(a => a.GetChangesSinceAsync(It.IsAny<DateTime>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
+        _apiMock.Setup(a => a.GetChangesSinceAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedSyncChangesResponse { Changes = [], NextCursor = null, HasMore = false });
         _apiMock.Setup(a => a.GetFolderTreeAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new SyncTreeNodeResponse { NodeId = Guid.Empty, Name = "/", NodeType = "Folder" });
 
@@ -504,5 +510,67 @@ public class SyncEngineTests
             t => t.UploadAsync(It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(),
                 It.IsAny<IProgress<TransferProgress>?>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()),
             Times.Once);
+    }
+
+    // ── Cursor-based pagination (Tasks 2.4 + 2.5) ──────────────────────────
+
+    [TestMethod]
+    public async Task SyncAsync_PaginatedChanges_FetchesAllPagesAndPersistsCursor()
+    {
+        // Arrange: server returns two pages — page 1 (hasMore=true, cursor="page2"),
+        // page 2 (hasMore=false, no cursor).
+        var nodeId = Guid.NewGuid();
+        var page1 = new PagedSyncChangesResponse
+        {
+            Changes = [new SyncChangeResponse { NodeId = nodeId, Name = "file.txt", NodeType = "File", UpdatedAt = DateTime.UtcNow }],
+            NextCursor = "page2cursor",
+            HasMore = true,
+        };
+        var page2 = new PagedSyncChangesResponse
+        {
+            Changes = [new SyncChangeResponse { NodeId = Guid.NewGuid(), Name = "file2.txt", NodeType = "File", UpdatedAt = DateTime.UtcNow }],
+            NextCursor = "finalcursor",
+            HasMore = false,
+        };
+
+        var callCount = 0;
+        _apiMock.Setup(a => a.GetChangesSinceAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => callCount++ == 0 ? page1 : page2);
+
+        string? savedCursor = null;
+        _stateDbMock.Setup(db => db.UpdateSyncCursorAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, CancellationToken>((_, c, __) => savedCursor = c)
+            .Returns(Task.CompletedTask);
+
+        await _engine.StartAsync(_context);
+        await _engine.SyncAsync(_context);
+        await _engine.StopAsync();
+
+        // Both pages were fetched
+        Assert.AreEqual(2, callCount, "Expected exactly 2 pages fetched.");
+        // Cursor was persisted at least once (after page 1 and page 2)
+        _stateDbMock.Verify(db => db.UpdateSyncCursorAsync(
+            _context.StateDatabasePath, It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.AtLeast(1));
+        // Final saved cursor is from page 2
+        Assert.AreEqual("finalcursor", savedCursor);
+    }
+
+    [TestMethod]
+    public async Task SyncAsync_CursorFromPreviousSync_SentToServer()
+    {
+        // Arrange: stored cursor "storedCursor" should be passed to GetChangesSinceAsync on next sync.
+        _stateDbMock.Setup(db => db.GetSyncCursorAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("storedCursor");
+
+        string? receivedCursor = null;
+        _apiMock.Setup(a => a.GetChangesSinceAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Callback<string?, int, CancellationToken>((c, _, __) => receivedCursor = c)
+            .ReturnsAsync(new PagedSyncChangesResponse { Changes = [], NextCursor = null, HasMore = false });
+
+        await _engine.StartAsync(_context);
+        await _engine.SyncAsync(_context);
+        await _engine.StopAsync();
+
+        Assert.AreEqual("storedCursor", receivedCursor, "Expected stored cursor passed to GetChangesSinceAsync.");
     }
 }

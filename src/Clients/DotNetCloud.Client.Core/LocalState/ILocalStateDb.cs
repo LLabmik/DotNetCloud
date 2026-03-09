@@ -75,8 +75,14 @@ public interface ILocalStateDb
     /// <summary>Gets the last sync checkpoint timestamp. Returns null if never synced.</summary>
     Task<DateTime?> GetCheckpointAsync(string dbPath, CancellationToken cancellationToken = default);
 
-    /// <summary>Updates the last sync checkpoint timestamp.</summary>
+    /// <summary>Updates the last sync checkpoint timestamp (for UI display).</summary>
     Task UpdateCheckpointAsync(string dbPath, DateTime checkpoint, CancellationToken cancellationToken = default);
+
+    /// <summary>Gets the stored server-issued sync cursor. Returns null if no cursor yet (triggers full sync on next call).</summary>
+    Task<string?> GetSyncCursorAsync(string dbPath, CancellationToken cancellationToken = default);
+
+    /// <summary>Persists the server-issued sync cursor after each page of changes for crash resilience.</summary>
+    Task UpdateSyncCursorAsync(string dbPath, string cursor, CancellationToken cancellationToken = default);
 
     // ── Active Upload Sessions ──────────────────────────────────────────────
 

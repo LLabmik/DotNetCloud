@@ -125,6 +125,63 @@ public class DotNetCloudApiClientTests
         Assert.AreEqual("doc.txt", result[0].Name);
     }
 
+    [TestMethod]
+    public async Task GetChangesSinceAsync_CursorBased_SendsCursorAndDeserializesPagedResponse()
+    {
+        const string cursor = "dXNlcjoxMjM=";
+        var pagedResponse = new PagedSyncChangesResponse
+        {
+            Changes = [new SyncChangeResponse { NodeId = Guid.NewGuid(), Name = "file.txt", NodeType = "File", UpdatedAt = DateTime.UtcNow }],
+            NextCursor = "bmV4dEN1cnNvcg==",
+            HasMore = true,
+        };
+
+        string? capturedUrl = null;
+        var client = CreateMockHttpClient(req =>
+        {
+            capturedUrl = req.RequestUri?.ToString();
+            return JsonOk(pagedResponse);
+        });
+        var apiClient = new DotNetCloudApiClient(client, NullLogger<DotNetCloudApiClient>.Instance);
+
+        var result = await apiClient.GetChangesSinceAsync(cursor, limit: 100);
+
+        // Verify cursor and limit were sent in the query string
+        Assert.IsNotNull(capturedUrl);
+        Assert.IsTrue(capturedUrl.Contains("limit=100"), $"Expected 'limit=100' in URL: {capturedUrl}");
+        Assert.IsTrue(capturedUrl.Contains(Uri.EscapeDataString(cursor)), $"Expected cursor in URL: {capturedUrl}");
+
+        // Verify response deserialized correctly
+        Assert.AreEqual(1, result.Changes.Count);
+        Assert.AreEqual("bmV4dEN1cnNvcg==", result.NextCursor);
+        Assert.IsTrue(result.HasMore);
+    }
+
+    [TestMethod]
+    public async Task GetChangesSinceAsync_NullCursor_OmitsCursorFromQuery()
+    {
+        var pagedResponse = new PagedSyncChangesResponse
+        {
+            Changes = [],
+            NextCursor = "firstCursor",
+            HasMore = false,
+        };
+
+        string? capturedUrl = null;
+        var client = CreateMockHttpClient(req =>
+        {
+            capturedUrl = req.RequestUri?.ToString();
+            return JsonOk(pagedResponse);
+        });
+        var apiClient = new DotNetCloudApiClient(client, NullLogger<DotNetCloudApiClient>.Instance);
+
+        await apiClient.GetChangesSinceAsync(cursor: null);
+
+        Assert.IsNotNull(capturedUrl);
+        Assert.IsFalse(capturedUrl.Contains("cursor="), $"Expected no cursor in URL for null cursor: {capturedUrl}");
+        Assert.IsTrue(capturedUrl.Contains("limit="), $"Expected limit in URL: {capturedUrl}");
+    }
+
     // ── GetQuotaAsync ───────────────────────────────────────────────────────
 
     [TestMethod]

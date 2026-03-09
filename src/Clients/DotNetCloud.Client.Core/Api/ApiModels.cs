@@ -129,6 +129,24 @@ public sealed record SyncChangeResponse
 
     /// <summary>Whether the node was deleted.</summary>
     public bool IsDeleted { get; init; }
+
+    /// <summary>Server-assigned monotonic sync sequence number. Null for legacy rows.</summary>
+    public long? SyncSequence { get; init; }
+}
+
+/// <summary>
+/// Paginated, cursor-aware response for <c>GET /api/v1/files/sync/changes?cursor=...</c>.
+/// </summary>
+public sealed record PagedSyncChangesResponse
+{
+    /// <summary>Changes in this page.</summary>
+    public required IReadOnlyList<SyncChangeResponse> Changes { get; init; }
+
+    /// <summary>Opaque cursor to pass on the next request to retrieve the following page.</summary>
+    public string? NextCursor { get; init; }
+
+    /// <summary>Whether more changes exist beyond this page.</summary>
+    public bool HasMore { get; init; }
 }
 
 /// <summary>
