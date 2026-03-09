@@ -726,3 +726,37 @@ dotnet test tests\DotNetCloud.Client.Core.Tests\
 - `ReleaseSnapshot()` verified called in SyncAsync finally block
 
 **Task 3.3: PASS (client complete)**
+
+---
+
+### Issue #36: Batch 3 Task 3.4 — Per-File Transfer Progress in Tray UI (Client only)
+
+**Server-side status:** Not applicable (client-only task).
+**Client-side status:** ✅ COMPLETE — commit `7f93226` (2026-03-08).
+
+**What was implemented:**
+
+Full event pipeline from `SyncEngine` through IPC to `TrayViewModel` with live progress bars in the Settings UI.
+
+- `src/Clients/DotNetCloud.Client.Core/Sync/ISyncEngine.cs` — added `FileTransferProgress` and `FileTransferComplete` events; added `FileTransferProgressEventArgs` (FileName, Direction, Progress) and `FileTransferCompleteEventArgs` (FileName, Direction, TotalBytes, TotalChunks).
+- `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` — implemented both events; rewrote `ExecutePendingOperationAsync` to create real `IProgress<TransferProgress>` callbacks for upload and download paths that fire `FileTransferProgress` on each chunk and `FileTransferComplete` after each successful transfer.
+- `src/Clients/DotNetCloud.Client.SyncService/ContextManager/SyncEventArgs.cs` — added `ContextTransferProgressEventArgs` (ContextId, FileName, Direction, BytesTransferred, TotalBytes, ChunksTransferred, TotalChunks, PercentComplete) and `ContextTransferCompleteEventArgs` (ContextId, FileName, Direction, TotalBytes).
+- `src/Clients/DotNetCloud.Client.SyncService/ContextManager/ISyncContextManager.cs` — added `TransferProgress` and `TransferComplete` events.
+- `src/Clients/DotNetCloud.Client.SyncService/ContextManager/SyncContextManager.cs` — implemented both events; wires engine's `FileTransferProgress`/`FileTransferComplete` with per-file 500ms throttle (`ConcurrentDictionary<string, DateTime>` keyed by `"{contextId}:{fileName}:{direction}"`).
+- `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcProtocol.cs` — added `IpcEvents.TransferProgress = "transfer-progress"` and `IpcEvents.TransferComplete = "transfer-complete"`; added `TransferProgressPayload` and `TransferCompletePayload` record classes.
+- `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcClientHandler.cs` — subscribes to `SyncContextManager.TransferProgress` and `TransferComplete`; pushes IPC events to the tray.
+- `src/Clients/DotNetCloud.Client.SyncTray/Ipc/IIpcClient.cs` — added `TransferProgressReceived` and `TransferCompleteReceived` events; added `TransferProgressEventData` and `TransferCompleteEventData` types.
+- `src/Clients/DotNetCloud.Client.SyncTray/Ipc/IpcClient.cs` — implements both events; dispatches `transfer-progress` and `transfer-complete` IPC messages.
+- `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/ActiveTransferViewModel.cs` — new file; per-transfer view model with rolling speed calculation (≥250ms samples), ETA, `IsComplete`, `MarkComplete()`, 5-second auto-dismiss, `FormatBytes()` helper. Key: `"{contextId}:{fileName}:{direction}"`.
+- `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/TrayViewModel.cs` — added `ActiveTransfers : ObservableCollection<ActiveTransferViewModel>`; handles `OnTransferProgress` (upsert + update) and `OnTransferComplete` (upsert + mark complete + 5s auto-dismiss via `Task.Delay`).
+- `src/Clients/DotNetCloud.Client.SyncTray/Views/SettingsWindow.axaml` — added "Transfers" tab with `ItemsControl` bound to `ActiveTransfers`; each item shows direction glyph (↑/↓), file name, speed/Done label, progress bar, bytes transferred, and ETA.
+- `tests/DotNetCloud.Client.Core.Tests/Sync/SyncEngineTests.cs` — 2 new tests:
+  - `SyncAsync_UploadPendingOperation_FiresFileTransferProgressAndCompleteEvents` — verifies progress callback fires with correct direction + FileName, complete event fires once
+  - `SyncAsync_UploadNullProgress_DoesNotThrow` — verifies upload proceeds without error when no event subscribers
+
+**Validation results:**
+- Build: 0 errors (all 3 projects: Client.Core, SyncService, SyncTray)
+- Tests: 90 passed, 0 failed (was 88, +2 new transfer progress tests)
+- 13 files changed, 754 insertions
+
+**Task 3.4: PASS (client complete)**
