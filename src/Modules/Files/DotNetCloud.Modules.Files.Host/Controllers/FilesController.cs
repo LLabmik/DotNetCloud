@@ -250,10 +250,11 @@ public class FilesController : FilesControllerBase
             if (ver is null)
                 return NotFound(ErrorEnvelope("not_found", "Version not found."));
 
+            var versionedNode = await _fileService.GetNodeAsync(nodeId, caller);
             var stream = await _downloadService.DownloadVersionAsync(ver.Id, caller);
             _logger.LogInformation("file.downloaded {NodeId} {FileSize} {UserId} {Version}",
                 nodeId, ver.Size, caller.UserId, version.Value);
-            return File(stream, ver.MimeType ?? "application/octet-stream");
+            return File(stream, ver.MimeType ?? "application/octet-stream", versionedNode?.Name);
         }
 
         var node = await _fileService.GetNodeAsync(nodeId, caller);

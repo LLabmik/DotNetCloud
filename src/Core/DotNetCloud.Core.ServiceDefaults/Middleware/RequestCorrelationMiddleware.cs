@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Serilog.Context;
 
 namespace DotNetCloud.Core.ServiceDefaults.Middleware;
 
@@ -40,6 +41,9 @@ public class RequestCorrelationMiddleware
             return Task.CompletedTask;
         });
 
-        await _next(context);
+        using (LogContext.PushProperty("RequestId", requestId))
+        {
+            await _next(context);
+        }
     }
 }

@@ -475,6 +475,47 @@ public sealed class FilesControllerTests
     }
 
     [TestMethod]
+    public async Task DownloadAsync_VersionedDownload_IncludesContentDispositionFilename()
+    {
+        var userId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        var deps = CreateDeps();
+
+        deps.VersionService
+            .Setup(s => s.GetVersionByNumberAsync(nodeId, 2, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new FileVersionDto
+            {
+                Id = versionId,
+                ContentHash = "abc",
+                MimeType = "text/plain"
+            });
+
+        deps.FileService
+            .Setup(s => s.GetNodeAsync(nodeId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new FileNodeDto
+            {
+                Id = nodeId,
+                Name = "report.txt",
+                NodeType = "File",
+                MimeType = "text/plain",
+                OwnerId = userId
+            });
+
+        deps.DownloadService
+            .Setup(s => s.DownloadVersionAsync(versionId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MemoryStream(new byte[] { 0x01, 0x02 }));
+
+        var controller = deps.CreateController(userId);
+        var result = await controller.DownloadAsync(nodeId, version: 2);
+
+        Assert.IsInstanceOfType<FileStreamResult>(result);
+        var fileResult = (FileStreamResult)result;
+        Assert.AreEqual("report.txt", fileResult.FileDownloadName,
+            "Versioned download should include Content-Disposition with filename");
+    }
+
+    [TestMethod]
     public async Task GetChunkManifestAsync_ReturnsOk()
     {
         var userId = Guid.NewGuid();

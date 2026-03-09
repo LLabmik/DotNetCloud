@@ -238,9 +238,10 @@ public sealed class FilesController : FilesControllerBase
             if (ver is null)
                 return NotFound(ErrorEnvelope("not_found", "Version not found."));
 
+            var versionedNode = await _fileService.GetNodeAsync(nodeId, caller);
             var stream = await _downloadService.DownloadVersionAsync(ver.Id, caller);
             Response.Headers["X-Content-Type-Options"] = "nosniff";
-            return File(stream, NormalizeDownloadMimeType(ver.MimeType));
+            return File(stream, NormalizeDownloadMimeType(ver.MimeType), versionedNode?.Name);
         }
 
         var node = await _fileService.GetNodeAsync(nodeId, caller);
