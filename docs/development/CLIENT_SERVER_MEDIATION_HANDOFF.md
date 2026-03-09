@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-08
+Last updated: 2026-03-09
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -19,9 +19,9 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 
 **Batch 1 complete.** All Tasks 1.1 through 1.9 are done (Issues #23–#29, all resolved).
 
-**Batch 2 complete.** All Tasks 2.1–2.3 done (Issues #30–#32, all resolved).
+**Batch 2 complete.** All Tasks 2.1–2.6 done (Issues #30–#32, #38–#39, all resolved).
 
-**Batch 3 starting.** Task 3.1 (.syncignore) is next — see Issue #33. All Batch 3 tasks are client-only.
+**Batch 3 in progress.** Tasks 3.1–3.5 implemented (Issues #33–#37). All Batch 3 tasks are client-only.
 
 ## Environment
 
@@ -802,7 +802,7 @@ Full event pipeline from `SyncEngine` through IPC to `TrayViewModel` with live p
 ### Issue #38: Batch 2 Tasks 2.4 + 2.5 — Server-Issued Sync Cursor + Paginated Change Responses
 
 **Server-side status:** ✅ COMPLETE at commit `c81495d` (2026-03-09, mint22).
-**Client-side status:** 🔲 PENDING — needs `DotNetCloudApiClient` + `LocalStateDb` cursor changes.
+**Client-side status:** ✅ COMPLETE at commit `1a9c4c6` (2026-03-09, Windows11-TestDNC).
 
 **What was implemented (server):**
 - `UserSyncCounter` model: per-user monotonic counter persisted in `user_sync_counters` table
@@ -825,20 +825,22 @@ Full event pipeline from `SyncEngine` through IPC to `TrayViewModel` with live p
   - Added `[EnableRateLimiting]` to `GetTreeAsync` and `ReconcileAsync`
 - Tests: +13 (8 `GetChangesSinceCursorAsync` scenarios, 5 `SyncCursorHelper` unit tests)
 
-**Client work needed (Windows11-TestDNC):**
-- `DotNetCloudApiClient.GetChangesSinceAsync()` — new overload `(string? cursor, int limit)`
-- `LocalStateDb` — replace `SyncCheckpointRow.LastSyncedAt DateTime` with `SyncCursor string?`
-- `SyncEngine.ApplyRemoteChangesAsync()` — pagination loop until `HasMore == false`;
-  store intermediate cursor after each page in case of crash mid-sync
+**What was implemented (client):**
+- `ApiModels.cs`: `SyncSequence long?` on `SyncChangeResponse`; new `PagedSyncChangesResponse` record
+- `IDotNetCloudApiClient` + `DotNetCloudApiClient`: new `GetChangesSinceAsync(string? cursor, int limit)` overload
+- `LocalStateDbContext.SyncCheckpointRow`: added `SyncCursor string?` column (`LastSyncedAt` kept for UI)
+- `ILocalStateDb` + `LocalStateDb`: `GetSyncCursorAsync` / `UpdateSyncCursorAsync`; schema evolution `ALTER TABLE Checkpoints ADD COLUMN SyncCursor TEXT NULL`
+- `SyncEngine.ApplyRemoteChangesAsync`: full rewrite — cursor-based pagination loop (`HasMore`), cursor persisted after each page for crash resilience
+- Tests: +8 (2 `SyncEngine` pagination tests, 4 `LocalStateDb` cursor tests, 2 `DotNetCloudApiClient` cursor tests)
 
-**Task 2.4 + 2.5: PASS (server complete)**
+**Task 2.4 + 2.5: COMPLETE (build: 0 errors, 111/111 tests pass)**
 
 ---
 
 ### Issue #39: Batch 2 Task 2.6 — ETag / If-None-Match for Chunk Downloads
 
 **Server-side status:** ✅ COMPLETE at commit `c81495d` (2026-03-09, mint22).
-**Client-side status:** 🔲 PENDING — needs `If-None-Match` header + local chunk cache lookup.
+**Client-side status:** ✅ COMPLETE at commit `1a9c4c6` (2026-03-09, Windows11-TestDNC).
 
 **What was implemented (server):**
 - `FilesController.DownloadChunkByHashAsync`:
@@ -849,10 +851,14 @@ Full event pipeline from `SyncEngine` through IPC to `TrayViewModel` with live p
   `NoIfNoneMatch_ReturnsFileWithETag`, `DifferentIfNoneMatch_ReturnsFileWithETag`,
   `ChunkNotFound_Returns404`)
 
-**Client work needed (Windows11-TestDNC):**
-- `ChunkedTransferClient.DownloadChunkAsync()`:
-  - Before downloading, check local chunk cache (by hash)
-  - If cached locally, send `If-None-Match: "<hash>"` header and short-circuit on `304`
-  - On `200`: store received chunk bytes in local cache keyed by hash
+**What was implemented (client):**
+- `ChunkedTransferClient.ChunkCacheDirectory` property (default: `%TEMP%/dnc-chunk-cache`)
+- `FetchChunkWithCacheAsync`: checks local cache by hash before calling API
+- `PersistChunkToCacheAsync`: writes chunk to cache AFTER hash verification (never caches corrupt data)
+- Download loop updated to use `FetchChunkWithCacheAsync` + `PersistChunkToCacheAsync`
+- Tests: +2 (`DownloadAsync_CacheMiss_DownloadsAndCachesChunk`, `DownloadAsync_CacheHit_SkipsApiCall`)
+- Test isolation: per-test `_testCacheDir` via `[TestInitialize]`/`[TestCleanup]`; all `ChunkedTransferClient` constructions use `CreateClient()` helper
 
-**Task 2.6: PASS (server complete)**
+**Note:** Client uses file-system cache rather than `If-None-Match` HTTP header — functionally equivalent for content-addressed chunks (hash = identity, so a cached file is always current).
+
+**Task 2.6: COMPLETE (build: 0 errors, 111/111 tests pass)**
