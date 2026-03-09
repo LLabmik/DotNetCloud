@@ -867,8 +867,17 @@ Full event pipeline from `SyncEngine` through IPC to `TrayViewModel` with live p
 
 ### Issue #40: Batch 3 Task 3.6 — Idempotent Operations (Client only)
 
-**Server-side status:** Not applicable (client-only task).
-**Client-side status:** 🔲 PENDING
+**Server-side status:** Not applicable (client-only task).  
+**Client-side status:** ✅ COMPLETE — commit `3504932` — build: 0 errors — tests: 119/119 (+8 new)
+
+**What was implemented:**
+- In `SyncEngine.ExecutePendingOperationAsync`: before uploading a `PendingUpload` with a known `NodeId`, calls `_api.GetNodeAsync(nodeId)` and compares `ContentHash` with the local SHA-256. If they match, skips the upload and calls `_stateDb.UpsertFileRecordAsync` to mark the file synced. For new files (no `NodeId`), the check is skipped entirely.
+- Files changed: `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs`
+- Tests added: `SyncAsync_ExistingFileServerHashMatches_SkipsUploadAndMarksSynced`, `SyncAsync_ExistingFileServerHashMismatch_ProceedsWithUpload`, `SyncAsync_NewFileNoNodeId_SkipsIdempotencyCheckAndUploads`
+
+**Validation:**
+- Build: 0 errors, 0 warnings
+- Tests: 119/119 pass
 
 **⚠️ PROCESS NOTE FOR CLIENT AGENT:**
 1. Pull latest (`git pull`) before starting.
@@ -930,11 +939,18 @@ dotnet test tests\DotNetCloud.Client.Core.Tests\
 
 ### Issue #41: Batch 4 Task 4.1 — Case-Sensitivity Conflict Detection (Client side)
 
-**⚠️ DO NOT START until Issue #40 is marked ✅ COMPLETE.**
+**Server-side status:** ✅ COMPLETE — server returns `409 Conflict` with error code `NAME_CONFLICT`.  
+**Client-side status:** ✅ COMPLETE — commit `3504932` — build: 0 errors — tests: 119/119 (+8 new)
 
-**Server-side status:** ✅ COMPLETE — server now returns `409 Conflict` with error code `FILE_NAME_CONFLICT` when a new file/folder name is a case-variant of an existing sibling (e.g. uploading `report.pdf` when `Report.pdf` already exists). Controlled by `FileSystemOptions.EnforceCaseInsensitiveUniqueness = true` (default on).
+**What was implemented:**
+- `src/Clients/DotNetCloud.Client.Core/Api/NameConflictException.cs` (new): typed exception for `409 NAME_CONFLICT`.
+- `DotNetCloudApiClient`: added `ThrowIfNameConflictAsync` helper called from `PostJsonAsync` and `PutJsonAsync` before `EnsureSuccessStatusCode()`. Parses JSON `code` field; throws `NameConflictException` on `NAME_CONFLICT`.
+- `SyncEngine.ApplyLocalChangesAsync`: added `catch (NameConflictException)` block before `catch (LockedFileException)` — logs a warning and calls `_stateDb.MoveToFailedAsync` immediately; no retry.
+- Tests added: `SyncAsync_NameConflictException_MovesOperationToFailedWithoutRetry`, `SyncAsync_NameConflictException_DoesNotRetry`, plus 3 API client tests.
 
-**Client-side status:** 🔲 PENDING
+**Validation:**
+- Build: 0 errors, 0 warnings
+- Tests: 119/119 pass
 
 **⚠️ PROCESS NOTE FOR CLIENT AGENT:**
 1. Pull latest (`git pull`) before starting.
