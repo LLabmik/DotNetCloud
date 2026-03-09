@@ -7,6 +7,21 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
+  <!-- Expose internals to the unit test project (e.g. Tier2RetryDelay for locked file tests). -->
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>DotNetCloud.Client.Core.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <!-- Windows-specific: VSS shadow copy support via System.Management (WMI). -->
+  <PropertyGroup Condition="'$(OS)' == 'Windows_NT'">
+    <DefineConstants>$(DefineConstants);WINDOWS_BUILD</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(OS)' == 'Windows_NT'">
+    <PackageReference Include="System.Management" Version="8.0.0" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" Version="10.0.0" />

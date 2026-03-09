@@ -3,6 +3,7 @@ using DotNetCloud.Client.Core.Api;
 using DotNetCloud.Client.Core.Auth;
 using DotNetCloud.Client.Core.Conflict;
 using DotNetCloud.Client.Core.LocalState;
+using DotNetCloud.Client.Core.Platform;
 using DotNetCloud.Client.Core.SelectiveSync;
 using DotNetCloud.Client.Core.Sync;
 using DotNetCloud.Client.Core.SyncIgnore;
@@ -332,6 +333,12 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
 
         var syncIgnore = new SyncIgnoreParser();
 
+        // Use VssLockedFileReader on Windows (SYSTEM privilege required for VSS).
+        // Use NoOpLockedFileReader on Linux/macOS (advisory locks rarely block reads there).
+        ILockedFileReader lockedFileReader = OperatingSystem.IsWindows()
+            ? new VssLockedFileReader(_loggerFactory.CreateLogger<VssLockedFileReader>())
+            : new NoOpLockedFileReader();
+
         var engine = new SyncEngine(
             apiClient,
             tokenStore,
@@ -340,6 +347,7 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             stateDb,
             selectiveSync,
             syncIgnore,
+            lockedFileReader,
             _loggerFactory.CreateLogger<SyncEngine>());
 
         return (engine, conflictResolver);

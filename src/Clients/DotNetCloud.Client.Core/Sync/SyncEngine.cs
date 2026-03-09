@@ -2,6 +2,7 @@ using DotNetCloud.Client.Core.Api;
 using DotNetCloud.Client.Core.Auth;
 using DotNetCloud.Client.Core.Conflict;
 using DotNetCloud.Client.Core.LocalState;
+using DotNetCloud.Client.Core.Platform;
 using DotNetCloud.Client.Core.SelectiveSync;
 using DotNetCloud.Client.Core.SyncIgnore;
 using DotNetCloud.Client.Core.Transfer;
@@ -23,7 +24,14 @@ public sealed class SyncEngine : ISyncEngine
     private readonly ILocalStateDb _stateDb;
     private readonly ISelectiveSyncConfig _selectiveSync;
     private readonly ISyncIgnoreParser _syncIgnore;
+    private readonly ILockedFileReader _lockedFileReader;
     private readonly ILogger<SyncEngine> _logger;
+
+    /// <summary>
+    /// Delay between Tier 2 retry attempts for locked files.
+    /// Exposed as internal for test overrides.
+    /// </summary>
+    internal TimeSpan Tier2RetryDelay { get; set; } = TimeSpan.FromSeconds(2);
 
     private FileSystemWatcher? _watcher;
     private CancellationTokenSource? _cts;
@@ -46,6 +54,7 @@ public sealed class SyncEngine : ISyncEngine
         ILocalStateDb stateDb,
         ISelectiveSyncConfig selectiveSync,
         ISyncIgnoreParser syncIgnore,
+        ILockedFileReader lockedFileReader,
         ILogger<SyncEngine> logger)
     {
         _api = api;
@@ -55,6 +64,7 @@ public sealed class SyncEngine : ISyncEngine
         _stateDb = stateDb;
         _selectiveSync = selectiveSync;
         _syncIgnore = syncIgnore;
+        _lockedFileReader = lockedFileReader;
         _logger = logger;
     }
 
@@ -141,6 +151,7 @@ public sealed class SyncEngine : ISyncEngine
         }
         finally
         {
+            _lockedFileReader.ReleaseSnapshot();
             _syncLock.Release();
         }
     }
@@ -213,6 +224,7 @@ public sealed class SyncEngine : ISyncEngine
         await StopAsync();
         _cts?.Dispose();
         _syncLock.Dispose();
+        (_lockedFileReader as IDisposable)?.Dispose();
     }
 
     // ── Private sync logic ──────────────────────────────────────────────────
@@ -335,6 +347,27 @@ public sealed class SyncEngine : ISyncEngine
                 await _stateDb.RemoveOperationAsync(context.StateDatabasePath, op.Id, cancellationToken);
                 completedOperations++;
             }
+            catch (LockedFileException lockEx)
+            {
+                // Locked files are not sync failures — defer without consuming the retry budget.
+                _logger.LogWarning(
+                    "Skipping {Path} — file is locked by another process. Will retry automatically in 2 minutes. (Operation {OpId})",
+                    lockEx.FilePath, op.Id);
+
+                // Update SyncStateTag to "Deferred" if there is an existing file record.
+                var deferRecord = await _stateDb.GetFileRecordAsync(
+                    context.StateDatabasePath, lockEx.FilePath, cancellationToken);
+                if (deferRecord is not null)
+                {
+                    deferRecord.SyncStateTag = "Deferred";
+                    await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, deferRecord, cancellationToken);
+                }
+
+                // Schedule a short retry without incrementing RetryCount.
+                await _stateDb.UpdateOperationRetryAsync(
+                    context.StateDatabasePath, op.Id, op.RetryCount,
+                    DateTime.UtcNow.AddMinutes(2), lockEx.Message, cancellationToken);
+            }
             catch (Exception ex)
             {
                 var newRetryCount = op.RetryCount + 1;
@@ -374,7 +407,7 @@ public sealed class SyncEngine : ISyncEngine
     {
         if (op is PendingUpload upload)
         {
-            await using var fileStream = File.OpenRead(upload.LocalPath);
+            await using var fileStream = await OpenFileForSyncAsync(upload.LocalPath, cancellationToken);
             var nodeId = await _transfer.UploadAsync(
                 upload.NodeId, upload.LocalPath, fileStream, null, cancellationToken,
                 context.StateDatabasePath);
@@ -478,9 +511,63 @@ public sealed class SyncEngine : ISyncEngine
 
     private static async Task<string> ComputeFileHashAsync(string path, CancellationToken cancellationToken)
     {
-        await using var stream = File.OpenRead(path);
+        // Use shared-read mode so files open in other apps (e.g. Office) don't block hash computation.
+        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete);
         var hash = await System.Security.Cryptography.SHA256.HashDataAsync(stream, cancellationToken);
         return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Opens a file for reading using a 4-tier strategy for handling files locked by other processes.
+    /// </summary>
+    /// <param name="path">Full path to the file.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A readable stream for the file.</returns>
+    /// <exception cref="LockedFileException">Thrown when the file is still inaccessible after all tiers.</exception>
+    private async Task<Stream> OpenFileForSyncAsync(string path, CancellationToken cancellationToken)
+    {
+        // HResult for Win32 ERROR_SHARING_VIOLATION (0x80070020).
+        const int SharingViolationHResult = unchecked((int)0x80070020);
+
+        // Tier 1: shared-read open (FileShare.ReadWrite | FileShare.Delete).
+        // Fixes the common case where apps such as modern Office hold ReadWrite+Delete share
+        // but still allow concurrent readers.
+        try
+        {
+            return new FileStream(path, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+        }
+        catch (IOException ex) when (ex.HResult == SharingViolationHResult)
+        {
+            _logger.LogDebug("Tier 1 sharing violation on {Path}; attempting Tier 2 retry.", path);
+        }
+
+        // Tier 2: retry with backoff for transient locks (antivirus scanners, indexers).
+        for (var attempt = 1; attempt <= 3; attempt++)
+        {
+            await Task.Delay(Tier2RetryDelay, cancellationToken);
+            try
+            {
+                return new FileStream(path, FileMode.Open, FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete);
+            }
+            catch (IOException ex) when (ex.HResult == SharingViolationHResult)
+            {
+                _logger.LogDebug("Tier 2 attempt {Attempt}/3 still locked on {Path}.", attempt, path);
+            }
+        }
+
+        // Tier 3: VSS shadow copy (Windows-only; returns null on Linux/macOS or if VSS fails).
+        var vssStream = await _lockedFileReader.TryReadLockedFileAsync(path, cancellationToken);
+        if (vssStream is not null)
+        {
+            _logger.LogInformation("Opened {Path} via VSS shadow copy (Tier 3).", path);
+            return vssStream;
+        }
+
+        // Tier 4: defer — all strategies exhausted.
+        throw new LockedFileException(path);
     }
 
     // ── FileSystemWatcher handlers ──────────────────────────────────────────
