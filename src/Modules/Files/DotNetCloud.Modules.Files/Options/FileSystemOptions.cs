@@ -16,4 +16,20 @@ public sealed class FileSystemOptions
     /// Disable only if every client in your deployment runs a case-sensitive OS.
     /// </summary>
     public bool EnforceCaseInsensitiveUniqueness { get; set; } = true;
+
+    /// <summary>
+    /// Total relative path length (in characters) beyond which a warning header
+    /// <c>X-Path-Warning: path-length-exceeds-windows-limit</c> is returned.
+    /// Windows clients with long-path support disabled cannot sync paths longer than 260
+    /// characters total. Default: 250 (provides headroom for a typical sync-root prefix).
+    /// </summary>
+    public int MaxPathWarningThreshold { get; set; } = 250;
+
+    /// <summary>
+    /// When <see langword="true"/> (default), filenames containing characters that are
+    /// illegal on Windows (<c>\ / : * ? " &lt; &gt; |</c> and control characters 0x00–0x1F)
+    /// are rejected with <c>400 Bad Request</c>.
+    /// Disable only if all clients are on Linux/macOS and interop with Windows is not required.
+    /// </summary>
+    public bool EnforceWindowsFilenameCompatibility { get; set; } = true;
 }

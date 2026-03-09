@@ -358,7 +358,7 @@ message ToggleFavoriteResponse {
 message FileNodeMessage {
   string id = 1;
   string name = 2;
-  string node_type = 3;    // File or Folder
+  string node_type = 3;    // File, Folder, or SymbolicLink
   string mime_type = 4;
   int64 size = 5;
   string parent_id = 6;
@@ -373,6 +373,8 @@ message FileNodeMessage {
   optional int32 posix_mode = 14;
   // POSIX owner hint in "user:group" format. Empty string means not set.
   string posix_owner_hint = 15;
+  // For SymbolicLink nodes: relative target path within the sync root. Empty for files/folders.
+  string link_target = 16;
 }
 
 message FileVersionMessage {

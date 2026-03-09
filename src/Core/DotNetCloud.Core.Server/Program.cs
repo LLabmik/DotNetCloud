@@ -5,6 +5,7 @@ using DotNetCloud.Core.Data.Initialization;
 using DotNetCloud.Core.Localization;
 using DotNetCloud.Core.Server.Configuration;
 using DotNetCloud.Core.Server.Extensions;
+using DotNetCloud.Core.Server.HealthChecks;
 using DotNetCloud.Core.Server.Initialization;
 using DotNetCloud.Core.Server.Middleware;
 using DotNetCloud.Core.Server.Services;
@@ -270,6 +271,24 @@ public class Program
 
         // Add rate limiting
         builder.Services.AddDotNetCloudRateLimiting(builder.Configuration);
+
+        // Linux resource health check (inotify watch limit + inode availability).
+        // Runs silently on non-Linux platforms.
+        var linuxDataDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR")
+            ?? builder.Environment.ContentRootPath;
+        builder.Services.AddHealthChecks()
+            .Add(new Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckRegistration(
+                "linux-resources",
+                sp => new LinuxResourceHealthCheck(
+                    linuxDataDir,
+                    sp.GetRequiredService<ILogger<LinuxResourceHealthCheck>>()),
+                failureStatus: null,
+                tags: ["ready"]));
+        builder.Services.AddSingleton(sp =>
+            new LinuxResourceMonitorService(
+                linuxDataDir,
+                sp.GetRequiredService<ILogger<LinuxResourceMonitorService>>()));
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<LinuxResourceMonitorService>());
 
         // Add SignalR real-time communication
         builder.Services.AddDotNetCloudSignalR(builder.Configuration);

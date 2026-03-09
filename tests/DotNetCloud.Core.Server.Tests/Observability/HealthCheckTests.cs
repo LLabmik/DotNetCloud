@@ -1,5 +1,7 @@
 using DotNetCloud.Core.ServiceDefaults.HealthChecks;
+using DotNetCloud.Core.Server.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DotNetCloud.Core.Server.Tests.Observability;
 
@@ -212,5 +214,66 @@ public class HealthCheckTests
 
         public Task<ModuleHealthCheckResult> CheckHealthAsync(CancellationToken cancellationToken = default)
             => throw new InvalidOperationException("Module crashed");
+    }
+}
+
+// -----------------------------------------------------------------------
+// LinuxResourceHealthCheck (Task 4.4)
+// -----------------------------------------------------------------------
+
+[TestClass]
+public class LinuxResourceHealthCheckTests
+{
+    [TestMethod]
+    public async Task CheckHealthAsync_OnNonLinux_ReturnsHealthy()
+    {
+        if (OperatingSystem.IsLinux())
+            Assert.Inconclusive("This test only runs on non-Linux platforms.");
+
+        var check = new LinuxResourceHealthCheck("/tmp", NullLogger<LinuxResourceHealthCheck>.Instance);
+
+        var result = await check.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
+
+        Assert.AreEqual(HealthStatus.Healthy, result.Status);
+    }
+
+    [TestMethod]
+    public void ReadInotifyWatchLimit_OnLinux_ReturnsPositiveOrNegativeOne()
+    {
+        if (!OperatingSystem.IsLinux())
+            Assert.Inconclusive("inotify is Linux-only.");
+
+        var value = LinuxResourceHealthCheck.ReadInotifyWatchLimit();
+
+        Assert.IsTrue(value == -1 || value > 0, $"Expected positive int or -1, got {value}");
+    }
+
+    [TestMethod]
+    public void TryGetInodeInfo_OnNonLinux_ReturnsFalse()
+    {
+        if (OperatingSystem.IsLinux())
+            Assert.Inconclusive("This test only runs on non-Linux platforms.");
+
+        var result = LinuxResourceHealthCheck.TryGetInodeInfo("/tmp", out _, out _);
+
+        Assert.IsFalse(result);
+    }
+
+    [TestMethod]
+    public void MinRecommendedWatches_Is65536()
+    {
+        Assert.AreEqual(65536, LinuxResourceHealthCheck.MinRecommendedWatches);
+    }
+
+    [TestMethod]
+    public void InodeDegradedThreshold_Is10Percent()
+    {
+        Assert.AreEqual(0.10, LinuxResourceHealthCheck.InodeDegradedThreshold, delta: 0.001);
+    }
+
+    [TestMethod]
+    public void InodeUnhealthyThreshold_Is2Percent()
+    {
+        Assert.AreEqual(0.02, LinuxResourceHealthCheck.InodeUnhealthyThreshold, delta: 0.001);
     }
 }

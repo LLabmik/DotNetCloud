@@ -25,6 +25,28 @@ public class FileNodeTests
     }
 
     [TestMethod]
+    public void WhenCreatedWithSymlinkTypeThenLinkTargetIsStorable()
+    {
+        var node = new FileNode
+        {
+            Name = "link-to-docs",
+            NodeType = FileNodeType.SymbolicLink,
+            LinkTarget = "Documents/readme.md"
+        };
+
+        Assert.AreEqual(FileNodeType.SymbolicLink, node.NodeType);
+        Assert.AreEqual("Documents/readme.md", node.LinkTarget);
+    }
+
+    [TestMethod]
+    public void WhenCreatedAsFileThenLinkTargetIsNull()
+    {
+        var node = new FileNode { Name = "report.pdf" };
+
+        Assert.IsNull(node.LinkTarget);
+    }
+
+    [TestMethod]
     public void WhenCreatedThenSizeIsZero()
     {
         var node = new FileNode { Name = "test.txt" };

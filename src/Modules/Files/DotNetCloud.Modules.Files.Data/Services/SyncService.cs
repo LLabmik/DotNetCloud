@@ -52,7 +52,8 @@ internal sealed class SyncService : ISyncService
                 IsDeleted = false,
                 SyncSequence = n.SyncSequence,
                 PosixMode = n.PosixMode,
-                PosixOwnerHint = n.PosixOwnerHint
+                PosixOwnerHint = n.PosixOwnerHint,
+                LinkTarget = n.LinkTarget
             })
             .ToListAsync(cancellationToken);
 
@@ -79,7 +80,8 @@ internal sealed class SyncService : ISyncService
                 DeletedAt = n.DeletedAt,
                 SyncSequence = n.SyncSequence,
                 PosixMode = n.PosixMode,
-                PosixOwnerHint = n.PosixOwnerHint
+                PosixOwnerHint = n.PosixOwnerHint,
+                LinkTarget = n.LinkTarget
             })
             .ToListAsync(cancellationToken);
 
@@ -153,7 +155,8 @@ internal sealed class SyncService : ISyncService
                 IsDeleted = false,
                 SyncSequence = n.SyncSequence,
                 PosixMode = n.PosixMode,
-                PosixOwnerHint = n.PosixOwnerHint
+                PosixOwnerHint = n.PosixOwnerHint,
+                LinkTarget = n.LinkTarget
             })
             .ToListAsync(cancellationToken);
 
@@ -173,7 +176,8 @@ internal sealed class SyncService : ISyncService
                 DeletedAt = n.DeletedAt,
                 SyncSequence = n.SyncSequence,
                 PosixMode = n.PosixMode,
-                PosixOwnerHint = n.PosixOwnerHint
+                PosixOwnerHint = n.PosixOwnerHint,
+                LinkTarget = n.LinkTarget
             })
             .ToListAsync(cancellationToken);
 
@@ -381,7 +385,8 @@ internal sealed class SyncService : ISyncService
             UpdatedAt = node.UpdatedAt,
             Children = children,
             PosixMode = node.PosixMode,
-            PosixOwnerHint = node.PosixOwnerHint
+            PosixOwnerHint = node.PosixOwnerHint,
+            LinkTarget = node.LinkTarget
         };
     }
 }

@@ -56,6 +56,12 @@ public sealed record FileNodeDto
     /// POSIX owner hint in <c>"user:group"</c> format. Null for Windows-uploaded files.
     /// </summary>
     public string? PosixOwnerHint { get; init; }
+
+    /// <summary>
+    /// For symlink nodes (<c>NodeType == "SymbolicLink"</c>): the relative target path within
+    /// the sync root (e.g. <c>"../shared/config.json"</c>). Null for files and folders.
+    /// </summary>
+    public string? LinkTarget { get; init; }
 }
 
 /// <summary>

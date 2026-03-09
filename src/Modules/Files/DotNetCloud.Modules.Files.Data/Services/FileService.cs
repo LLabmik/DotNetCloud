@@ -11,6 +11,7 @@ using SharePermission = DotNetCloud.Modules.Files.Models.SharePermission;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Text.RegularExpressions;
 
 namespace DotNetCloud.Modules.Files.Data.Services;
 
@@ -21,6 +22,18 @@ internal sealed class FileService : IFileService
 {
     /// <summary>Maximum folder depth to prevent runaway nesting.</summary>
     private const int MaxDepth = 50;
+
+    // Characters that are illegal in Windows filenames (outside of path separators).
+    private static readonly char[] WindowsIllegalChars = ['\\', '/', ':', '*', '?', '"', '<', '>', '|'];
+
+    // Windows reserved device names (case-insensitive, any extension).
+    private static readonly HashSet<string> WindowsReservedNames =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "CON", "PRN", "AUX", "NUL",
+            "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+            "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
+        };
 
     private readonly FilesDbContext _db;
     private readonly IEventBus _eventBus;
@@ -45,6 +58,9 @@ internal sealed class FileService : IFileService
     {
         ArgumentNullException.ThrowIfNull(dto);
         ArgumentNullException.ThrowIfNull(caller);
+
+        // Validate the folder name for cross-platform compatibility before any DB work.
+        ValidateFilenameCompatibility(dto.Name, _fileSystemOptions);
 
         string parentPath;
         int parentDepth;
@@ -160,6 +176,7 @@ internal sealed class FileService : IFileService
         ArgumentNullException.ThrowIfNull(dto);
         ArgumentNullException.ThrowIfNull(caller);
         ArgumentException.ThrowIfNullOrWhiteSpace(dto.Name);
+        ValidateFilenameCompatibility(dto.Name, _fileSystemOptions);
 
         var node = await _db.FileNodes.FindAsync([nodeId], cancellationToken)
             ?? throw new NotFoundException("FileNode", nodeId);
@@ -597,6 +614,41 @@ internal sealed class FileService : IFileService
         ChildCount = childCount ?? 0,
         Tags = node.Tags?.Select(t => new FileTagDto { Id = t.Id, Name = t.Name, Color = t.Color, CreatedAt = t.CreatedAt }).ToList() ?? [],
         PosixMode = node.PosixMode,
-        PosixOwnerHint = node.PosixOwnerHint
+        PosixOwnerHint = node.PosixOwnerHint,
+        LinkTarget = node.LinkTarget
     };
+
+    /// <summary>
+    /// Validates that <paramref name="name"/> is safe to use on all target platforms.
+    /// Throws <see cref="Core.Errors.ValidationException"/> when the name contains
+    /// Windows-illegal characters or is a Windows reserved device name.
+    /// </summary>
+    /// <param name="name">The filename or folder name to validate.</param>
+    /// <param name="options">Current <see cref="FileSystemOptions"/>.</param>
+    internal static void ValidateFilenameCompatibility(string name, FileSystemOptions options)
+    {
+        if (!options.EnforceWindowsFilenameCompatibility)
+            return;
+
+        // Check for Windows-illegal characters (\ / : * ? " < > | and 0x00–0x1F control chars)
+        foreach (var ch in name)
+        {
+            if (ch < 0x20 || WindowsIllegalChars.Contains(ch))
+            {
+                throw new Core.Errors.ValidationException(
+                    "Name",
+                    $"Filename '{name}' contains the character '{(ch < 0x20 ? $"\\x{(int)ch:X2}" : ch.ToString())}' " +
+                    "which is not supported on Windows. Please rename the file or folder.");
+            }
+        }
+
+        // Check for Windows reserved device names (base name without extension)
+        var baseName = Path.GetFileNameWithoutExtension(name);
+        if (WindowsReservedNames.Contains(baseName))
+        {
+            throw new Core.Errors.ValidationException(
+                "Name",
+                $"Filename '{name}' is a reserved device name on Windows ('{baseName}') and cannot be synced to Windows clients. Please choose a different name.");
+        }
+    }
 }

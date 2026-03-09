@@ -2,6 +2,8 @@ using System.Security.Claims;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Server.Controllers;
 using DotNetCloud.Modules.Files.DTOs;
+using DotNetCloud.Modules.Files.Options;
+using Microsoft.Extensions.Options;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -248,6 +250,64 @@ public sealed class FilesControllerTests
         var result = await controller.InitiateUploadAsync(dto);
 
         Assert.IsInstanceOfType<CreatedResult>(result);
+    }
+
+    [TestMethod]
+    public async Task InitiateUploadAsync_LongFileName_SetsPathWarningHeader()
+    {
+        var userId = Guid.NewGuid();
+        var longName = new string('a', 260); // exceeds default threshold of 250
+        var dto = new InitiateUploadDto
+        {
+            FileName = longName,
+            TotalSize = 1,
+            ChunkHashes = ["h1"]
+        };
+
+        var deps = CreateDeps();
+        deps.UploadService
+            .Setup(s => s.InitiateUploadAsync(dto, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new UploadSessionDto
+            {
+                SessionId = Guid.NewGuid(),
+                ExistingChunks = [],
+                MissingChunks = ["h1"],
+                ExpiresAt = DateTime.UtcNow.AddHours(1)
+            });
+
+        var controller = deps.CreateController(userId);
+        await controller.InitiateUploadAsync(dto);
+
+        Assert.AreEqual("path-length-exceeds-windows-limit",
+            controller.Response.Headers["X-Path-Warning"].ToString());
+    }
+
+    [TestMethod]
+    public async Task InitiateUploadAsync_ShortFileName_NoPathWarningHeader()
+    {
+        var userId = Guid.NewGuid();
+        var dto = new InitiateUploadDto
+        {
+            FileName = "short.txt",
+            TotalSize = 1,
+            ChunkHashes = ["h1"]
+        };
+
+        var deps = CreateDeps();
+        deps.UploadService
+            .Setup(s => s.InitiateUploadAsync(dto, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new UploadSessionDto
+            {
+                SessionId = Guid.NewGuid(),
+                ExistingChunks = [],
+                MissingChunks = ["h1"],
+                ExpiresAt = DateTime.UtcNow.AddHours(1)
+            });
+
+        var controller = deps.CreateController(userId);
+        await controller.InitiateUploadAsync(dto);
+
+        Assert.IsFalse(controller.Response.Headers.ContainsKey("X-Path-Warning"));
     }
 
     [TestMethod]
@@ -578,7 +638,8 @@ public sealed class FilesControllerTests
                 UploadService.Object,
                 DownloadService.Object,
                 VersionService.Object,
-                ShareService.Object)
+                ShareService.Object,
+                Options.Create(new FileSystemOptions()))
             {
                 ControllerContext = new ControllerContext
                 {

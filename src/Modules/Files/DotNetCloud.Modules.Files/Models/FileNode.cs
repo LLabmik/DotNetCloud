@@ -84,6 +84,14 @@ public sealed class FileNode
     public long? SyncSequence { get; set; }
 
     /// <summary>
+    /// For <see cref="FileNodeType.SymbolicLink"/> nodes: the relative path the link
+    /// points to within the sync root (e.g. <c>"../shared/config.json"</c>).
+    /// Null for files and folders. Absolute targets and targets that escape the sync
+    /// root are rejected by the client before upload.
+    /// </summary>
+    public string? LinkTarget { get; set; }
+
+    /// <summary>
     /// POSIX file mode bitmask (e.g. <c>0o644</c> = 420, <c>0o755</c> = 493).
     /// Null for folders and for nodes uploaded from Windows clients.
     /// Stored to preserve Linux file permissions across sync clients.

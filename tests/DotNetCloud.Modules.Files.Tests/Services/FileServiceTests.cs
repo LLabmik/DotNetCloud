@@ -513,4 +513,84 @@ public class FileServiceTests
 
         Assert.AreEqual("File.txt", result.Name);
     }
+
+    // ---- Task 4.5: Filename compatibility validation ----
+
+    [TestMethod]
+    public void ValidateFilenameCompatibility_IllegalChar_ThrowsValidationException()
+    {
+        var options = new FileSystemOptions { EnforceWindowsFilenameCompatibility = true };
+        var ex = Assert.ThrowsExactly<Core.Errors.ValidationException>(
+            () => FileService.ValidateFilenameCompatibility("bad:name.txt", options));
+        StringAssert.Contains(ex.Message, ":");
+    }
+
+    [TestMethod]
+    public void ValidateFilenameCompatibility_ReservedName_ThrowsValidationException()
+    {
+        var options = new FileSystemOptions { EnforceWindowsFilenameCompatibility = true };
+        Assert.ThrowsExactly<Core.Errors.ValidationException>(
+            () => FileService.ValidateFilenameCompatibility("CON.txt", options));
+    }
+
+    [TestMethod]
+    public void ValidateFilenameCompatibility_ReservedNameCaseInsensitive_ThrowsValidationException()
+    {
+        var options = new FileSystemOptions { EnforceWindowsFilenameCompatibility = true };
+        Assert.ThrowsExactly<Core.Errors.ValidationException>(
+            () => FileService.ValidateFilenameCompatibility("nul", options));
+    }
+
+    [TestMethod]
+    public void ValidateFilenameCompatibility_ValidName_DoesNotThrow()
+    {
+        var options = new FileSystemOptions { EnforceWindowsFilenameCompatibility = true };
+        FileService.ValidateFilenameCompatibility("my-document (2024).pdf", options);
+    }
+
+    [TestMethod]
+    public void ValidateFilenameCompatibility_WhenDisabled_AllowsReservedName()
+    {
+        var options = new FileSystemOptions { EnforceWindowsFilenameCompatibility = false };
+        FileService.ValidateFilenameCompatibility("CON", options);
+    }
+
+    [TestMethod]
+    public void ValidateFilenameCompatibility_WhenDisabled_AllowsIllegalChar()
+    {
+        var options = new FileSystemOptions { EnforceWindowsFilenameCompatibility = false };
+        FileService.ValidateFilenameCompatibility("file:name.txt", options);
+    }
+
+    [TestMethod]
+    public async Task CreateFolderAsync_WindowsIllegalName_ThrowsValidationException()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var service = CreateService(db, fileSystemOptions: new FileSystemOptions
+        {
+            EnforceWindowsFilenameCompatibility = true
+        });
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
+            () => service.CreateFolderAsync(new CreateFolderDto { Name = "folder<name>" }, UserCaller(userId)));
+    }
+
+    [TestMethod]
+    public async Task RenameAsync_WindowsReservedName_ThrowsValidationException()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var node = new FileNode { Name = "notes.txt", NodeType = FileNodeType.File, OwnerId = userId };
+        db.FileNodes.Add(node);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, fileSystemOptions: new FileSystemOptions
+        {
+            EnforceWindowsFilenameCompatibility = true
+        });
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
+            () => service.RenameAsync(node.Id, new RenameNodeDto { Name = "AUX" }, UserCaller(userId)));
+    }
 }

@@ -1220,7 +1220,8 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
             ContentHash = node.ContentHash ?? string.Empty,
             CreatedAt = node.CreatedAt.ToString("O"),
             UpdatedAt = node.UpdatedAt.ToString("O"),
-            PosixOwnerHint = node.PosixOwnerHint ?? string.Empty
+            PosixOwnerHint = node.PosixOwnerHint ?? string.Empty,
+            LinkTarget = node.LinkTarget ?? string.Empty
         };
         if (node.PosixMode.HasValue)
             message.PosixMode = node.PosixMode.Value;

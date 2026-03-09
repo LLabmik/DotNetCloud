@@ -293,4 +293,59 @@ public class FileDtoTests
         Assert.IsNull(dto.DeletedByUserId);
         Assert.IsNull(dto.OriginalPath);
     }
+
+    // ---- Symlink support (Task 4.3) ----
+
+    [TestMethod]
+    public void WhenFileNodeDtoCreatedWithLinkTargetThenStoresValue()
+    {
+        var dto = new FileNodeDto
+        {
+            Id = Guid.NewGuid(),
+            Name = "link-to-docs",
+            NodeType = "SymbolicLink",
+            LinkTarget = "Documents/notes.md"
+        };
+
+        Assert.AreEqual("SymbolicLink", dto.NodeType);
+        Assert.AreEqual("Documents/notes.md", dto.LinkTarget);
+    }
+
+    [TestMethod]
+    public void WhenFileNodeDtoCreatedWithoutLinkTargetThenIsNull()
+    {
+        var dto = new FileNodeDto { Id = Guid.NewGuid(), Name = "file.txt", NodeType = "File" };
+
+        Assert.IsNull(dto.LinkTarget);
+    }
+
+    [TestMethod]
+    public void WhenSyncChangeDtoCreatedWithLinkTargetThenStoresValue()
+    {
+        var dto = new SyncChangeDto
+        {
+            NodeId = Guid.NewGuid(),
+            Name = "my-link",
+            NodeType = "SymbolicLink",
+            LinkTarget = "Photos/img.jpg"
+        };
+
+        Assert.AreEqual("SymbolicLink", dto.NodeType);
+        Assert.AreEqual("Photos/img.jpg", dto.LinkTarget);
+    }
+
+    [TestMethod]
+    public void WhenSyncTreeNodeDtoCreatedWithLinkTargetThenStoresValue()
+    {
+        var dto = new SyncTreeNodeDto
+        {
+            NodeId = Guid.NewGuid(),
+            Name = "link-node",
+            NodeType = "SymbolicLink",
+            LinkTarget = "Videos/movie.mp4"
+        };
+
+        Assert.AreEqual("SymbolicLink", dto.NodeType);
+        Assert.AreEqual("Videos/movie.mp4", dto.LinkTarget);
+    }
 }

@@ -1,8 +1,10 @@
 using DotNetCloud.Modules.Files.DTOs;
+using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace DotNetCloud.Modules.Files.Host.Controllers;
 
@@ -19,6 +21,7 @@ public class FilesController : FilesControllerBase
     private readonly IVersionService _versionService;
     private readonly IShareService _shareService;
     private readonly ILogger<FilesController> _logger;
+    private readonly FileSystemOptions _fileSystemOptions;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FilesController"/> class.
@@ -29,7 +32,8 @@ public class FilesController : FilesControllerBase
         IDownloadService downloadService,
         IVersionService versionService,
         IShareService shareService,
-        ILogger<FilesController> logger)
+        ILogger<FilesController> logger,
+        IOptions<FileSystemOptions> fileSystemOptions)
     {
         _fileService = fileService;
         _uploadService = uploadService;
@@ -37,6 +41,7 @@ public class FilesController : FilesControllerBase
         _versionService = versionService;
         _shareService = shareService;
         _logger = logger;
+        _fileSystemOptions = fileSystemOptions.Value;
     }
 
     /// <summary>
@@ -177,7 +182,10 @@ public class FilesController : FilesControllerBase
     [HttpPost("upload/initiate")]
     public Task<IActionResult> InitiateUploadAsync([FromBody] InitiateUploadDto dto) => ExecuteAsync(async () =>
     {
-        var session = await _uploadService.InitiateUploadAsync(dto, GetAuthenticatedCaller());
+        var caller = GetAuthenticatedCaller();
+        if (!string.IsNullOrEmpty(dto.FileName) && dto.FileName.Length > _fileSystemOptions.MaxPathWarningThreshold)
+            Response.Headers["X-Path-Warning"] = "path-length-exceeds-windows-limit";
+        var session = await _uploadService.InitiateUploadAsync(dto, caller);
         return Created($"/api/v1/files/upload/{session.SessionId}", session);
     });
 

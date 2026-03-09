@@ -1,8 +1,10 @@
 using DotNetCloud.Modules.Files.DTOs;
+using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Options;
 
 namespace DotNetCloud.Core.Server.Controllers;
 
@@ -20,6 +22,7 @@ public sealed class FilesController : FilesControllerBase
     private readonly IDownloadService _downloadService;
     private readonly IVersionService _versionService;
     private readonly IShareService _shareService;
+    private readonly FileSystemOptions _fileSystemOptions;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FilesController"/> class.
@@ -29,13 +32,15 @@ public sealed class FilesController : FilesControllerBase
         IChunkedUploadService uploadService,
         IDownloadService downloadService,
         IVersionService versionService,
-        IShareService shareService)
+        IShareService shareService,
+        IOptions<FileSystemOptions> fileSystemOptions)
     {
         _fileService = fileService;
         _uploadService = uploadService;
         _downloadService = downloadService;
         _versionService = versionService;
         _shareService = shareService;
+        _fileSystemOptions = fileSystemOptions.Value;
     }
 
     /// <summary>
@@ -166,7 +171,10 @@ public sealed class FilesController : FilesControllerBase
     [EnableRateLimiting("module-upload-initiate")]
     public Task<IActionResult> InitiateUploadAsync([FromBody] InitiateUploadDto dto) => ExecuteAsync(async () =>
     {
-        var session = await _uploadService.InitiateUploadAsync(dto, GetAuthenticatedCaller());
+        var caller = GetAuthenticatedCaller();
+        if (!string.IsNullOrEmpty(dto.FileName) && dto.FileName.Length > _fileSystemOptions.MaxPathWarningThreshold)
+            Response.Headers["X-Path-Warning"] = "path-length-exceeds-windows-limit";
+        var session = await _uploadService.InitiateUploadAsync(dto, caller);
         return Created($"/api/v1/files/upload/{session.SessionId}", session);
     });
 

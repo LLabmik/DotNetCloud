@@ -50,6 +50,8 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         ArgumentNullException.ThrowIfNull(dto);
         ArgumentNullException.ThrowIfNull(caller);
 
+        FileService.ValidateFilenameCompatibility(dto.FileName, _fileSystemOptions);
+
         if (dto.TotalSize > _maxFileSizeBytes)
             throw new Core.Errors.ValidationException("TotalSize",
                 $"File size {dto.TotalSize:N0} bytes exceeds the maximum allowed size of {_maxFileSizeBytes:N0} bytes.");

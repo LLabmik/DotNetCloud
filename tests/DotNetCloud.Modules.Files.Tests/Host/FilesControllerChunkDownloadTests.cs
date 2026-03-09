@@ -4,6 +4,7 @@ using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 
 namespace DotNetCloud.Modules.Files.Tests.Host;
@@ -31,7 +32,8 @@ public class FilesControllerChunkDownloadTests
             downloadMock.Object,
             Mock.Of<IVersionService>(),
             Mock.Of<IShareService>(),
-            NullLogger<FilesController>.Instance);
+            NullLogger<FilesController>.Instance,
+            Microsoft.Extensions.Options.Options.Create(new DotNetCloud.Modules.Files.Options.FileSystemOptions()));
 
         // Set up a minimal authenticated HttpContext
         var httpContext = new DefaultHttpContext();

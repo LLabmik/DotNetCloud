@@ -40,6 +40,12 @@ public sealed record SyncChangeDto
 
     /// <summary>POSIX owner hint in <c>"user:group"</c> format. Null for Windows-uploaded files.</summary>
     public string? PosixOwnerHint { get; init; }
+
+    /// <summary>
+    /// For symlink nodes (<c>NodeType == "SymbolicLink"</c>): the relative target path.
+    /// Null for files and folders.
+    /// </summary>
+    public string? LinkTarget { get; init; }
 }
 
 /// <summary>
@@ -88,6 +94,12 @@ public sealed record SyncTreeNodeDto
 
     /// <summary>POSIX owner hint in <c>"user:group"</c> format. Null for Windows-uploaded files.</summary>
     public string? PosixOwnerHint { get; init; }
+
+    /// <summary>
+    /// For symlink nodes (<c>NodeType == "SymbolicLink"</c>): the relative target path.
+    /// Null for files and folders.
+    /// </summary>
+    public string? LinkTarget { get; init; }
 }
 
 /// <summary>

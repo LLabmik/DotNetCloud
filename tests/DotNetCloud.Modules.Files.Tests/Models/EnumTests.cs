@@ -11,13 +11,14 @@ public class EnumTests
 #pragma warning disable MSTEST0032 // Canary tests guard compile-time constant enum values
 
     [TestMethod]
-    public void WhenFileNodeTypeCheckedThenHasTwoMembers()
+    public void WhenFileNodeTypeCheckedThenHasThreeMembers()
     {
         var values = Enum.GetValues<FileNodeType>();
 
-        Assert.AreEqual(2, values.Length);
+        Assert.AreEqual(3, values.Length);
         Assert.AreEqual(0, (int)FileNodeType.File);
         Assert.AreEqual(1, (int)FileNodeType.Folder);
+        Assert.AreEqual(2, (int)FileNodeType.SymbolicLink);
     }
 
     [TestMethod]
