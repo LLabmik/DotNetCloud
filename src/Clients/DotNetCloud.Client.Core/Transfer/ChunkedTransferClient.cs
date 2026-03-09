@@ -46,7 +46,9 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
         Stream fileStream,
         IProgress<TransferProgress>? progress,
         CancellationToken cancellationToken = default,
-        string? stateDatabasePath = null)
+        string? stateDatabasePath = null,
+        int? posixMode = null,
+        string? posixOwnerHint = null)
     {
         var fileName = Path.GetFileName(localPath);
         var fileSize = fileStream.Length;
@@ -126,6 +128,7 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                     fileName, null, fileSize, mimeType,
                     metadata.Select(m => m.Hash).ToList(),
                     metadata.Select(m => m.Size).ToList(),
+                    posixMode, posixOwnerHint,
                     cancellationToken);
                 sessionId = session.SessionId;
                 presentChunks = new HashSet<string>(session.PresentChunks, StringComparer.OrdinalIgnoreCase);

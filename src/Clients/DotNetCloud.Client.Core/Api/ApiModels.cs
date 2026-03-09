@@ -45,6 +45,12 @@ public sealed record FileNodeResponse
 
     /// <summary>Tags applied to this node.</summary>
     public IReadOnlyList<string> Tags { get; init; } = [];
+
+    /// <summary>POSIX permission bitmask (e.g. 493 = 0o755). Null for Windows-originated files.</summary>
+    public int? PosixMode { get; init; }
+
+    /// <summary>POSIX owner hint in "user:group" format. Null for Windows-originated files.</summary>
+    public string? PosixOwnerHint { get; init; }
 }
 
 /// <summary>
@@ -132,6 +138,12 @@ public sealed record SyncChangeResponse
 
     /// <summary>Server-assigned monotonic sync sequence number. Null for legacy rows.</summary>
     public long? SyncSequence { get; init; }
+
+    /// <summary>POSIX permission bitmask. Null for Windows-originated files.</summary>
+    public int? PosixMode { get; init; }
+
+    /// <summary>POSIX owner/group hint. Null for Windows-originated files.</summary>
+    public string? PosixOwnerHint { get; init; }
 }
 
 /// <summary>
@@ -174,6 +186,12 @@ public sealed record SyncTreeNodeResponse
 
     /// <summary>Children (for folders).</summary>
     public IReadOnlyList<SyncTreeNodeResponse> Children { get; init; } = [];
+
+    /// <summary>POSIX permission bitmask. Null for Windows-originated files.</summary>
+    public int? PosixMode { get; init; }
+
+    /// <summary>POSIX owner/group hint. Null for Windows-originated files.</summary>
+    public string? PosixOwnerHint { get; init; }
 }
 
 /// <summary>

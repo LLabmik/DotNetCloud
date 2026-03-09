@@ -8,6 +8,7 @@ using DotNetCloud.Client.Core.SyncIgnore;
 using DotNetCloud.Client.Core.Transfer;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
+using System.Runtime.Versioning;
 
 namespace DotNetCloud.Client.Core.Sync;
 
@@ -360,7 +361,7 @@ public sealed class SyncEngine : ISyncEngine
             {
                 case Conflict.ConflictResolutionOutcome.AutoResolvedServerWins:
                     await _stateDb.QueueOperationAsync(context.StateDatabasePath,
-                        new PendingDownload { LocalPath = localPath, NodeId = change.NodeId }, cancellationToken);
+                        new PendingDownload { LocalPath = localPath, NodeId = change.NodeId, PosixMode = change.PosixMode }, cancellationToken);
                     break;
 
                 case Conflict.ConflictResolutionOutcome.AutoResolvedIdentical:
@@ -379,7 +380,7 @@ public sealed class SyncEngine : ISyncEngine
         {
             // Download the remote version
             await _stateDb.QueueOperationAsync(context.StateDatabasePath,
-                new PendingDownload { LocalPath = localPath, NodeId = change.NodeId }, cancellationToken);
+                new PendingDownload { LocalPath = localPath, NodeId = change.NodeId, PosixMode = change.PosixMode }, cancellationToken);
         }
     }
 
@@ -493,6 +494,9 @@ public sealed class SyncEngine : ISyncEngine
                             ContentHash = localHash,
                             LastSyncedAt = DateTime.UtcNow,
                             LocalModifiedAt = File.GetLastWriteTimeUtc(upload.LocalPath),
+                            PosixMode = OperatingSystem.IsLinux()
+                                ? TryGetUnixFileMode(upload.LocalPath)
+                                : null,
                         }, cancellationToken);
                         return;
                     }
@@ -507,10 +511,21 @@ public sealed class SyncEngine : ISyncEngine
                     Progress = p,
                 }));
 
+            // Read POSIX mode on Linux before opening the file stream.
+            int? posixMode = null;
+            if (OperatingSystem.IsLinux())
+            {
+                try { posixMode = (int)File.GetUnixFileMode(upload.LocalPath); }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Could not read UnixFileMode for {Path}; uploading without PosixMode.", upload.LocalPath);
+                }
+            }
+
             await using var fileStream = await OpenFileForSyncAsync(upload.LocalPath, cancellationToken);
             var nodeId = await _transfer.UploadAsync(
                 upload.NodeId, upload.LocalPath, fileStream, uploadProgress, cancellationToken,
-                context.StateDatabasePath);
+                context.StateDatabasePath, posixMode);
 
             FileTransferComplete?.Invoke(this, new FileTransferCompleteEventArgs
             {
@@ -528,6 +543,7 @@ public sealed class SyncEngine : ISyncEngine
                 ContentHash = hash,
                 LastSyncedAt = DateTime.UtcNow,
                 LocalModifiedAt = File.GetLastWriteTimeUtc(upload.LocalPath),
+                PosixMode = posixMode,
             }, cancellationToken);
         }
         else if (op is PendingDownload download)
@@ -560,6 +576,27 @@ public sealed class SyncEngine : ISyncEngine
                 TotalChunks = 0,
             });
 
+            // Apply POSIX mode on Linux after writing the file.
+            if (OperatingSystem.IsLinux())
+            {
+                if (download.PosixMode.HasValue)
+                {
+                    // Strip setuid (bit 11) and setgid (bit 10) for security.
+                    const int SetuidSetgidMask = 0b_110_000_000_000; // 0o6000
+                    var safeMode = (UnixFileMode)(download.PosixMode.Value & ~SetuidSetgidMask);
+                    try { File.SetUnixFileMode(download.LocalPath, safeMode); }
+                    catch (Exception ex) { _logger.LogDebug(ex, "Could not set UnixFileMode {Mode} on {Path}.", safeMode, download.LocalPath); }
+                }
+                else
+                {
+                    // Windows-originated file: apply sensible Linux default 0o644.
+                    var defaultMode = UnixFileMode.UserRead | UnixFileMode.UserWrite
+                        | UnixFileMode.GroupRead | UnixFileMode.OtherRead;
+                    try { File.SetUnixFileMode(download.LocalPath, defaultMode); }
+                    catch (Exception ex) { _logger.LogDebug(ex, "Could not apply default UnixFileMode on {Path}.", download.LocalPath); }
+                }
+            }
+
             var hash = await ComputeFileHashAsync(download.LocalPath, cancellationToken);
             await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, new LocalFileRecord
             {
@@ -568,6 +605,7 @@ public sealed class SyncEngine : ISyncEngine
                 ContentHash = hash,
                 LastSyncedAt = DateTime.UtcNow,
                 LocalModifiedAt = File.GetLastWriteTimeUtc(download.LocalPath),
+                PosixMode = download.PosixMode,
             }, cancellationToken);
         }
     }
@@ -644,6 +682,13 @@ public sealed class SyncEngine : ISyncEngine
             FileShare.ReadWrite | FileShare.Delete);
         var hash = await System.Security.Cryptography.SHA256.HashDataAsync(stream, cancellationToken);
         return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
+    [SupportedOSPlatform("linux")]
+    private static int? TryGetUnixFileMode(string path)
+    {
+        try { return (int)File.GetUnixFileMode(path); }
+        catch { return null; }
     }
 
     /// <summary>

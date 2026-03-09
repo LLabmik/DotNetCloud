@@ -46,6 +46,9 @@ public sealed class PendingDownload : PendingOperationRecord
     /// <summary>Target local file path.</summary>
     public required string LocalPath { get; set; }
 
+    /// <summary>POSIX mode from server. Applied after download on Linux.</summary>
+    public int? PosixMode { get; set; }
+
     /// <summary>Initializes a new <see cref="PendingDownload"/>.</summary>
     public PendingDownload() { OperationType = "Download"; }
 }

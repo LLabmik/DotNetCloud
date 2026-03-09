@@ -25,4 +25,7 @@ public sealed class LocalFileRecord
 
     /// <summary>Sync state tag (Synced, Pending, Conflict).</summary>
     public string SyncStateTag { get; set; } = "Synced";
+
+    /// <summary>POSIX file mode last synced to/from server. Null on Windows or if not yet synced.</summary>
+    public int? PosixMode { get; set; }
 }

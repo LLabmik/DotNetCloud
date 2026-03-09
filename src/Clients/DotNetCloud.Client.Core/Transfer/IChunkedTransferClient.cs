@@ -15,6 +15,8 @@ public interface IChunkedTransferClient
     /// <param name="progress">Optional progress reporter.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <param name="stateDatabasePath">Path to the local state database for crash-resilient session persistence. Null disables persistence.</param>
+    /// <param name="posixMode">POSIX permission bitmask to send with the upload. Null on Windows or non-Linux systems.</param>
+    /// <param name="posixOwnerHint">POSIX owner/group hint ("user:group"). Null if not known.</param>
     /// <returns>The node ID of the uploaded file.</returns>
     Task<Guid> UploadAsync(
         Guid? existingNodeId,
@@ -22,7 +24,9 @@ public interface IChunkedTransferClient
         Stream fileStream,
         IProgress<TransferProgress>? progress,
         CancellationToken cancellationToken = default,
-        string? stateDatabasePath = null);
+        string? stateDatabasePath = null,
+        int? posixMode = null,
+        string? posixOwnerHint = null);
 
     /// <summary>
     /// Downloads a file using chunk-level delta sync.

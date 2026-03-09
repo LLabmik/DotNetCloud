@@ -134,6 +134,9 @@ public sealed class PendingOperationDbRow
 
     /// <summary>Error message from the most recent failure.</summary>
     public string? LastError { get; set; }
+
+    /// <summary>POSIX mode for downloads (applied to file after download on Linux).</summary>
+    public int? PosixMode { get; set; }
 }
 
 /// <summary>

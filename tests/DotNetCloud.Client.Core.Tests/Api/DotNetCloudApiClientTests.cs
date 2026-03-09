@@ -388,4 +388,33 @@ public class DotNetCloudApiClientTests
 
         Assert.IsNotNull(caught, "Expected HttpRequestException but none was thrown.");
     }
+
+    // ── POSIX metadata (Issue #42) ──────────────────────────────────────────
+
+    [TestMethod]
+    public async Task InitiateUploadAsync_IncludesPosixModeInRequestBody()
+    {
+        string? capturedBody = null;
+        var responseBody = JsonSerializer.Serialize(new
+        {
+            data = new { sessionId = Guid.NewGuid(), expiresAt = DateTime.UtcNow, presentChunks = Array.Empty<string>() },
+        }, JsonOptions);
+
+        var client = CreateMockHttpClient(req =>
+        {
+            capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(responseBody, System.Text.Encoding.UTF8, "application/json"),
+            };
+        });
+        var apiClient = new DotNetCloudApiClient(client, NullLogger<DotNetCloudApiClient>.Instance);
+
+        await apiClient.InitiateUploadAsync("file.txt", null, 100, null, ["hash1"], null,
+            posixMode: 493, posixOwnerHint: "alice:staff");
+
+        Assert.IsNotNull(capturedBody);
+        StringAssert.Contains(capturedBody, "493");
+        StringAssert.Contains(capturedBody, "alice:staff");
+    }
 }

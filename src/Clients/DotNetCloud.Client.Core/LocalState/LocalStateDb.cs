@@ -125,6 +125,7 @@ public sealed class LocalStateDb : ILocalStateDb
             existing.LastSyncedAt = record.LastSyncedAt;
             existing.LocalModifiedAt = record.LocalModifiedAt;
             existing.SyncStateTag = record.SyncStateTag;
+            existing.PosixMode = record.PosixMode;
         }
         await ctx.SaveChangesAsync(cancellationToken);
     }
@@ -471,6 +472,16 @@ public sealed class LocalStateDb : ILocalStateDb
         var checkpointColumns = await GetColumnNamesAsync(conn, "Checkpoints", cancellationToken);
         if (!checkpointColumns.Contains("SyncCursor"))
             await ExecuteNonQueryAsync(conn, "ALTER TABLE Checkpoints ADD COLUMN SyncCursor TEXT NULL", cancellationToken);
+
+        // Add PosixMode column to PendingOperations if it predates POSIX permission sync
+        var pendingCols2 = await GetColumnNamesAsync(conn, "PendingOperations", cancellationToken);
+        if (!pendingCols2.Contains("PosixMode"))
+            await ExecuteNonQueryAsync(conn, "ALTER TABLE PendingOperations ADD COLUMN PosixMode INTEGER NULL", cancellationToken);
+
+        // Add PosixMode column to FileRecords if it predates POSIX permission sync
+        var fileRecordColumns = await GetColumnNamesAsync(conn, "FileRecords", cancellationToken);
+        if (!fileRecordColumns.Contains("PosixMode"))
+            await ExecuteNonQueryAsync(conn, "ALTER TABLE FileRecords ADD COLUMN PosixMode INTEGER NULL", cancellationToken);
     }
 
     private static async Task<HashSet<string>> GetColumnNamesAsync(SqliteConnection conn, string tableName, CancellationToken cancellationToken)
@@ -518,6 +529,7 @@ public sealed class LocalStateDb : ILocalStateDb
             RetryCount = d.RetryCount,
             NextRetryAt = d.NextRetryAt,
             LastError = d.LastError,
+            PosixMode = d.PosixMode,
         },
         _ => throw new ArgumentException($"Unknown operation type: {op.GetType().Name}"),
     };
@@ -543,6 +555,7 @@ public sealed class LocalStateDb : ILocalStateDb
             RetryCount = row.RetryCount,
             NextRetryAt = row.NextRetryAt,
             LastError = row.LastError,
+            PosixMode = row.PosixMode,
         },
         _ => throw new ArgumentException($"Unknown operation type: {row.OperationType}"),
     };
