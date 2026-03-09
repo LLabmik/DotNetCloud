@@ -1,7 +1,8 @@
 # Sync Improvement Implementation Plan
 
-**Date:** 2026-03-08
-**Status:** Approved — Ready for Implementation
+**Date:** 2026-03-08  
+**Last updated:** 2026-03-09
+**Status:** In Progress — Batches 1–3 complete, Batch 4 in progress (4.2 client pending)
 **Based on:** [SYNC_IMPROVEMENT_PROPOSALS.md](SYNC_IMPROVEMENT_PROPOSALS.md)
 **Handoff Process:** [CLIENT_SERVER_MEDIATION_HANDOFF.md](CLIENT_SERVER_MEDIATION_HANDOFF.md)
 
@@ -798,11 +799,11 @@ dotnet test tests/DotNetCloud.Modules.Files.Tests/
 
 **Goal:** Reduce bandwidth consumption significantly for common workflows (editing existing files, re-syncing after partial failure).
 
-### 2.1 — Content-Defined Chunking (CDC)
+### 2.1 — Content-Defined Chunking (CDC) ✅ COMPLETE
 
 **Approved Proposal:** 1.1
 
-**Status:** Server ✅ COMPLETE — commit `3a7e0ae` (2026-03-08). Client 🔲 PENDING.
+**Status:** ✅ Both sides complete. Server commit `3a7e0ae` (2026-03-08). Client commit `bc9e08a` (2026-03-08).
 
 **Problem:** Fixed 4MB chunks mean a 1-byte edit can force re-upload of all subsequent chunks.
 
@@ -855,9 +856,11 @@ dotnet test tests/DotNetCloud.Modules.Files.Tests/
 
 ---
 
-### 2.2 — Streaming Chunk Pipeline
+### 2.2 — Streaming Chunk Pipeline ✅ COMPLETE
 
 **Approved Proposal:** 1.2
+
+**Status:** ✅ Client complete. Commit `2e0788c` (2026-03-08).
 
 **Problem:** All chunks buffered in memory simultaneously — OOM risk on large files.
 
@@ -900,9 +903,11 @@ dotnet test tests/DotNetCloud.Modules.Files.Tests/
 
 ---
 
-### 2.3 — Compression for Chunk Transfers
+### 2.3 — Compression for Chunk Transfers ✅ COMPLETE
 
 **Approved Proposal:** 1.5
+
+**Status:** ✅ Both sides complete. Server commit `032f6a2` (2026-03-08). Client commit `Windows11-TestDNC` (2026-03-08).
 
 **Problem:** Raw bytes transferred even for highly compressible content (text, code, documents).
 
@@ -955,9 +960,11 @@ dotnet test tests/DotNetCloud.Modules.Files.Tests/
 
 ---
 
-### 2.4 — Server-Issued Sync Cursor
+### 2.4 — Server-Issued Sync Cursor ✅ COMPLETE
 
 **Approved Proposal:** 1.3
+
+**Status:** ✅ Both sides complete. Server commit `c81495d` (2026-03-09). Client commit `1a9c4c6` (2026-03-09).
 
 **Problem:** Timestamp-based delta sync is vulnerable to clock skew, timezone bugs, and missed changes at millisecond resolution.
 
@@ -1018,9 +1025,11 @@ dotnet test tests/DotNetCloud.Modules.Files.Tests/
 
 ---
 
-### 2.5 — Paginated Change Responses
+### 2.5 — Paginated Change Responses ✅ COMPLETE
 
 **Approved Proposal:** 1.4
+
+**Status:** ✅ Both sides complete. Server commit `c81495d` (2026-03-09). Client commit `1a9c4c6` (2026-03-09).
 
 **Problem:** All changes returned in a single response. Large deltas after long offline periods = slow/huge payloads.
 
@@ -1068,9 +1077,11 @@ dotnet test tests/DotNetCloud.Modules.Files.Tests/
 
 ---
 
-### 2.6 — ETag / If-None-Match for Chunk Downloads
+### 2.6 — ETag / If-None-Match for Chunk Downloads ✅ COMPLETE
 
 **Approved Proposal:** 1.6
+
+**Status:** ✅ Both sides complete. Server commit `c81495d` (2026-03-09). Client commit `1a9c4c6` (2026-03-09).
 
 **Problem:** Re-downloading chunks the client already has (e.g., after partial sync failure retry).
 
@@ -1113,9 +1124,11 @@ dotnet test tests/DotNetCloud.Modules.Files.Tests/
 
 **Goal:** Make sync intuitive, informative, and forgiving for everyday users.
 
-### 3.1 — .syncignore with UI Support
+### 3.1 — .syncignore with UI Support ✅ COMPLETE
 
 **Approved Proposal:** 4.1 + user requirement for client-side UI
+
+**Status:** ✅ Client complete. Commit `a9c6812` (2026-03-08).
 
 **Problem:** No way to ignore OS junk files, temp files, build artifacts. Current selective sync is folder-level only.
 
@@ -1208,9 +1221,11 @@ dotnet test tests/DotNetCloud.Modules.Files.Tests/
 
 ---
 
-### 3.2 — Persistent Upload Sessions (Crash-Resilient Resumption)
+### 3.2 — Persistent Upload Sessions (Crash-Resilient Resumption) ✅ COMPLETE
 
 **Approved Proposal:** 2.1
+
+**Status:** ✅ Client complete. Commit `4243328` (2026-03-08).
 
 **Problem:** Client crash during upload = entire file must be re-uploaded.
 
@@ -1267,9 +1282,11 @@ dotnet test tests/DotNetCloud.Modules.Files.Tests/
 
 ---
 
-### 3.3 — Locked File Handling
+### 3.3 — Locked File Handling ✅ COMPLETE
 
 **Approved Proposal:** 2.3
+
+**Status:** ✅ Client complete. Commit `b971551` (2026-03-08).
 
 **Problem:** Files locked by other processes cause immediate sync failure on Windows. Common with Office documents, databases, and other apps that hold exclusive locks.
 
@@ -1350,9 +1367,11 @@ dotnet test tests/DotNetCloud.Modules.Files.Tests/
 
 ---
 
-### 3.4 — Per-File Transfer Progress in Tray UI
+### 3.4 — Per-File Transfer Progress in Tray UI ✅ COMPLETE
 
 **Approved Proposal:** 4.2
+
+**Status:** ✅ Client complete. Commit `7f93226` (2026-03-08).
 
 **Problem:** Users see "Syncing" but don't know which files or how far along transfers are.
 
@@ -1416,9 +1435,11 @@ dotnet test tests/DotNetCloud.Modules.Files.Tests/
 
 ---
 
-### 3.5 — Conflict Resolution UI
+### 3.5 — Conflict Resolution UI ✅ COMPLETE
 
 **Approved Proposal:** 4.3
+
+**Status:** ✅ Client complete. Commit `8508afc` (2026-03-08).
 
 **Problem:** Conflicts silently create copies that users may not notice or know how to resolve.
 
@@ -1632,9 +1653,11 @@ The goal is to resolve the vast majority of conflicts automatically, so users on
 
 ---
 
-### 3.6 — Idempotent Operations
+### 3.6 — Idempotent Operations ✅ COMPLETE
 
 **Approved Proposal:** 2.5
+
+**Status:** ✅ Client complete. Commit `3504932` (2026-03-09). 119 tests pass.
 
 **Problem:** Crash after upload but before local DB update → duplicate version created on server.
 
@@ -1678,9 +1701,11 @@ The goal is to resolve the vast majority of conflicts automatically, so users on
 
 **Goal:** Ensure sync works correctly when Linux and Windows clients share the same server account.
 
-### 4.1 — Case-Sensitivity Conflict Detection
+### 4.1 — Case-Sensitivity Conflict Detection ✅ COMPLETE
 
 **Approved Proposal:** 5.5
+
+**Status:** ✅ Both sides complete. Server implementation pre-existing. Client commit `3504932` (2026-03-09). 119 tests pass.
 
 **Problem:** Linux allows `Report.docx` and `report.docx` in the same folder. Windows treats them as the same file → data loss on sync.
 
@@ -1733,6 +1758,8 @@ The goal is to resolve the vast majority of conflicts automatically, so users on
 ### 4.2 — File Permission Metadata Sync
 
 **Approved Proposal:** 5.2
+
+**Status:** Server ✅ COMPLETE — commit `fa097bf` (2026-03-09). Client 🔲 PENDING (Issue #42).
 
 **Problem:** Linux executable scripts lose execute bit when synced through Windows. Read-only config files become writable. Linux-to-Linux transfers through the server should preserve full POSIX permissions — Linux must not be a second-class citizen.
 
@@ -1811,6 +1838,8 @@ The goal is to resolve the vast majority of conflicts automatically, so users on
 ### 4.3 — Symbolic Link Policy
 
 **Approved Proposal:** 5.3
+
+**Status:** 🔲 Not started.
 
 **Problem:** FileSystemWatcher follows symlinks on Linux, causing loops or syncing unintended directories. Naively following symlinks would duplicate content on the server and risk infinite recursion with circular links.
 
@@ -1892,6 +1921,8 @@ When `"sync-as-link"` is enabled:
 ### 4.4 — inotify Watch Limit + inode Awareness (Linux/macOS)
 
 **Approved Proposal:** 5.4
+
+**Status:** 🔲 Not started.
 
 **Problem:** Linux inotify has a per-user watch limit (default 8192). Large sync folders can exceed this, causing silent failures. Affects both the client (watching sync folder) and the server (watching storage directories). Additionally, running out of inodes on ext4/XFS prevents new file creation even when disk space remains — a silent killer for storage-heavy servers.
 
@@ -2019,6 +2050,8 @@ Running out of inodes means no new files can be created even with plenty of disk
 
 ### 4.5 — Path Length + Filename Limit Handling
 
+**Status:** 🔲 Not started.
+
 **Problem:** Windows has a historical 260-character total path limit (`MAX_PATH`). Linux allows 4,096-character paths and 255-character filenames. macOS allows 255-character filenames with ~1,024-character paths. Files created on Linux with deep nesting or long names will fail to sync to Windows clients.
 
 **Files to modify:**
@@ -2114,6 +2147,8 @@ Running out of inodes means no new files can be created even with plenty of disk
 
 **Approved Proposal:** 4.4
 
+**Status:** 🔲 Not started.
+
 **Problem:** Settings UI has upload/download limit fields but they're not implemented.
 
 **Files to modify:**
@@ -2156,6 +2191,8 @@ Running out of inodes means no new files can be created even with plenty of disk
 ### 5.2 — Selective Sync Folder Browser
 
 **Approved Proposal:** 4.5
+
+**Status:** 🔲 Not started.
 
 **Problem:** Users must know folder names to configure selective sync. No browsable view.
 
