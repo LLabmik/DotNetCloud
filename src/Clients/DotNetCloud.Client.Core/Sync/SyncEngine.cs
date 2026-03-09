@@ -35,6 +35,7 @@ public sealed class SyncEngine : ISyncEngine
     internal TimeSpan Tier2RetryDelay { get; set; } = TimeSpan.FromSeconds(2);
 
     private FileSystemWatcher? _watcher;
+    private bool _pollingFallback;
     private CancellationTokenSource? _cts;
     private Task? _periodicScanTask;
     private SyncContext? _activeContext;
@@ -89,18 +90,31 @@ public sealed class SyncEngine : ISyncEngine
 
         _syncIgnore.Initialize(context.LocalFolderPath);
 
-        _watcher = new FileSystemWatcher(context.LocalFolderPath)
-        {
-            IncludeSubdirectories = true,
-            NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName
-                           | NotifyFilters.LastWrite | NotifyFilters.Size,
-        };
+        // Issue #44: check inotify watch limit on Linux before creating the watcher.
+        if (OperatingSystem.IsLinux())
+            CheckInotifyLimit();
 
-        _watcher.Created += OnFileSystemChanged;
-        _watcher.Changed += OnFileSystemChanged;
-        _watcher.Deleted += OnFileSystemChanged;
-        _watcher.Renamed += OnFileSystemRenamed;
-        _watcher.EnableRaisingEvents = true;
+        try
+        {
+            _watcher = new FileSystemWatcher(context.LocalFolderPath)
+            {
+                IncludeSubdirectories = true,
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName
+                               | NotifyFilters.LastWrite | NotifyFilters.Size,
+            };
+
+            _watcher.Created += OnFileSystemChanged;
+            _watcher.Changed += OnFileSystemChanged;
+            _watcher.Deleted += OnFileSystemChanged;
+            _watcher.Renamed += OnFileSystemRenamed;
+            _watcher.EnableRaisingEvents = true;
+        }
+        catch (IOException ex) when (OperatingSystem.IsLinux())
+        {
+            _logger.LogWarning(ex,
+                "Could not create FileSystemWatcher — inotify limit likely exhausted. Falling back to polling every 30 seconds.");
+            _pollingFallback = true;
+        }
 
         _periodicScanTask = RunPeriodicScanAsync(context, _cts.Token);
 
@@ -293,6 +307,11 @@ public sealed class SyncEngine : ISyncEngine
                     await HandleRemoteUpdateAsync(context, localPath, change, cancellationToken);
                     appliedChanges++;
                 }
+                else if (change.NodeType == "SymbolicLink" && change.LinkTarget is not null)
+                {
+                    await HandleRemoteSymlinkAsync(context, localPath, change, cancellationToken);
+                    appliedChanges++;
+                }
             }
 
             // Persist cursor after each page for crash resilience — if interrupted mid-sync
@@ -328,6 +347,16 @@ public sealed class SyncEngine : ISyncEngine
                 _logger.LogDebug("Deleted local file {Path} (remote deletion).", localPath);
             }
         }
+    }
+
+    private async Task HandleRemoteSymlinkAsync(SyncContext context, string localPath, Api.SyncChangeResponse change, CancellationToken cancellationToken)
+    {
+        var localRecord = await _stateDb.GetFileRecordAsync(context.StateDatabasePath, localPath, cancellationToken);
+        if (localRecord?.LinkTarget == change.LinkTarget)
+            return; // Already up to date
+
+        await _stateDb.QueueOperationAsync(context.StateDatabasePath,
+            new PendingDownload { LocalPath = localPath, NodeId = change.NodeId, LinkTarget = change.LinkTarget }, cancellationToken);
     }
 
     private async Task HandleRemoteUpdateAsync(SyncContext context, string localPath, Api.SyncChangeResponse change, CancellationToken cancellationToken)
@@ -430,6 +459,35 @@ public sealed class SyncEngine : ISyncEngine
                     context.StateDatabasePath, op.Id, op.RetryCount,
                     DateTime.UtcNow.AddMinutes(2), lockEx.Message, cancellationToken);
             }
+            catch (PathTooLongException ptlEx)
+            {
+                // Issue #45: path exceeds OS limit — mark as PathTooLong and skip permanently.
+                var opPath = op switch
+                {
+                    PendingUpload u => u.LocalPath,
+                    PendingDownload d => d.LocalPath,
+                    _ => null,
+                };
+                _logger.LogWarning(ptlEx,
+                    "sync.path_too_long {LocalPath} — skipping permanently. Operation {OpId} moved to failed queue.",
+                    opPath, op.Id);
+
+                if (opPath is not null)
+                {
+                    if (OperatingSystem.IsWindows())
+                        _logger.LogWarning(
+                            "Windows long-path support is not enabled. Set HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem\\LongPathsEnabled=1 (requires admin, then reboot).");
+
+                    var ptlRecord = await _stateDb.GetFileRecordAsync(context.StateDatabasePath, opPath, cancellationToken);
+                    if (ptlRecord is not null)
+                    {
+                        ptlRecord.SyncStateTag = "PathTooLong";
+                        await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, ptlRecord, cancellationToken);
+                    }
+                }
+
+                await _stateDb.MoveToFailedAsync(context.StateDatabasePath, op, ptlEx.Message, cancellationToken);
+            }
             catch (Exception ex)
             {
                 var newRetryCount = op.RetryCount + 1;
@@ -469,6 +527,38 @@ public sealed class SyncEngine : ISyncEngine
     {
         if (op is PendingUpload upload)
         {
+            // Issue #43: detect local symlinks — upload as SymbolicLink metadata, no content transfer.
+            var fileInfo = new FileInfo(upload.LocalPath);
+            if (fileInfo.LinkTarget is not null || (OperatingSystem.IsWindows() && fileInfo.Attributes.HasFlag(FileAttributes.ReparsePoint)))
+            {
+                var symlinkTarget = fileInfo.LinkTarget;
+                _logger.LogInformation("Uploading symbolic link {LocalPath} → {Target}.", upload.LocalPath, symlinkTarget);
+                var symlinkFileName = Path.GetFileName(upload.LocalPath);
+                var parentDir = Path.GetDirectoryName(upload.LocalPath);
+                Guid? parentId = parentDir is not null
+                    ? (await _stateDb.GetFileRecordAsync(context.StateDatabasePath, parentDir, cancellationToken))?.NodeId
+                    : null;
+                // Zero-size upload with nodeType hint in filename workaround — the server accepts
+                // InitiateUpload with totalSize=0 and no chunks, then reads LinkTarget from the DTO.
+                // We pass linkTarget via a custom header by initiating a zero-chunk session.
+                var session = await _api.InitiateUploadAsync(
+                    symlinkFileName, parentId, totalSize: 0, mimeType: null,
+                    chunkHashes: [], chunkSizes: [], posixMode: null,
+                    posixOwnerHint: null, linkTarget: symlinkTarget,
+                    cancellationToken: cancellationToken);
+                var completed = await _api.CompleteUploadAsync(session.SessionId, cancellationToken);
+                await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, new LocalFileRecord
+                {
+                    LocalPath = upload.LocalPath,
+                    NodeId = completed.Node.Id,
+                    ContentHash = null,
+                    LastSyncedAt = DateTime.UtcNow,
+                    LocalModifiedAt = fileInfo.LastWriteTimeUtc,
+                    LinkTarget = symlinkTarget,
+                }, cancellationToken);
+                return;
+            }
+
             // Issue #40: idempotency check — skip upload if server already has this version.
             if (upload.NodeId.HasValue)
             {
@@ -503,6 +593,28 @@ public sealed class SyncEngine : ISyncEngine
                 }
             }
             var fileName = Path.GetFileName(upload.LocalPath);
+
+            // Issue #45: UTF-8 byte-length check on Linux (255-byte per-component limit).
+            if (OperatingSystem.IsLinux())
+            {
+                var byteLen = System.Text.Encoding.UTF8.GetByteCount(fileName);
+                if (byteLen > 255)
+                {
+                    _logger.LogWarning(
+                        "upload.filename_too_long_utf8 {FileName} bytes={Bytes} — skipping.",
+                        fileName, byteLen);
+                    await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, new LocalFileRecord
+                    {
+                        LocalPath = upload.LocalPath,
+                        NodeId = upload.NodeId ?? Guid.Empty,
+                        SyncStateTag = "PathTooLong",
+                        LastSyncedAt = DateTime.UtcNow,
+                        LocalModifiedAt = File.Exists(upload.LocalPath) ? File.GetLastWriteTimeUtc(upload.LocalPath) : DateTime.UtcNow,
+                    }, cancellationToken);
+                    return;
+                }
+            }
+
             var uploadProgress = new Progress<TransferProgress>(p =>
                 FileTransferProgress?.Invoke(this, new FileTransferProgressEventArgs
                 {
@@ -554,6 +666,48 @@ public sealed class SyncEngine : ISyncEngine
                 return;
             }
 
+            // Issue #43: symlink materialisation — no content to download.
+            if (download.LinkTarget is not null)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(download.LocalPath)!);
+
+                // Windows symlink creation requires Developer Mode or admin; skip gracefully if unavailable.
+                if (OperatingSystem.IsWindows())
+                {
+                    try
+                    {
+                        if (File.Exists(download.LocalPath) || Directory.Exists(download.LocalPath))
+                            File.Delete(download.LocalPath);
+                        File.CreateSymbolicLink(download.LocalPath, download.LinkTarget);
+                    }
+                    catch (UnauthorizedAccessException ex)
+                    {
+                        _logger.LogWarning(ex,
+                            "Cannot create symlink {LocalPath} → {Target} on Windows without Developer Mode or admin rights. Skipping.",
+                            download.LocalPath, download.LinkTarget);
+                        return;
+                    }
+                }
+                else
+                {
+                    if (File.Exists(download.LocalPath))
+                        File.Delete(download.LocalPath);
+                    File.CreateSymbolicLink(download.LocalPath, download.LinkTarget);
+                }
+
+                await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, new LocalFileRecord
+                {
+                    LocalPath = download.LocalPath,
+                    NodeId = download.NodeId,
+                    ContentHash = null,
+                    LastSyncedAt = DateTime.UtcNow,
+                    LocalModifiedAt = new FileInfo(download.LocalPath).LastWriteTimeUtc,
+                    LinkTarget = download.LinkTarget,
+                }, cancellationToken);
+                _logger.LogDebug("Created symlink {LocalPath} → {Target}.", download.LocalPath, download.LinkTarget);
+                return;
+            }
+
             var fileName = Path.GetFileName(download.LocalPath);
             var downloadProgress = new Progress<TransferProgress>(p =>
                 FileTransferProgress?.Invoke(this, new FileTransferProgressEventArgs
@@ -564,9 +718,21 @@ public sealed class SyncEngine : ISyncEngine
                 }));
 
             using var stream = await _transfer.DownloadAsync(download.NodeId, downloadProgress, cancellationToken);
-            Directory.CreateDirectory(Path.GetDirectoryName(download.LocalPath)!);
-            await using var output = File.Create(download.LocalPath);
-            await stream.CopyToAsync(output, cancellationToken);
+            var writePath = download.LocalPath;
+            Directory.CreateDirectory(Path.GetDirectoryName(writePath)!);
+            try
+            {
+                await using var output = File.Create(writePath);
+                await stream.CopyToAsync(output, cancellationToken);
+            }
+            catch (PathTooLongException) when (OperatingSystem.IsWindows())
+            {
+                // Issue #45: retry with \\?\ extended-path prefix on Windows.
+                stream.Position = 0;
+                writePath = ToWindowsLongPath(writePath);
+                await using var output = File.Create(writePath);
+                await stream.CopyToAsync(output, cancellationToken);
+            }
 
             FileTransferComplete?.Invoke(this, new FileTransferCompleteEventArgs
             {
@@ -584,20 +750,20 @@ public sealed class SyncEngine : ISyncEngine
                     // Strip setuid (bit 11) and setgid (bit 10) for security.
                     const int SetuidSetgidMask = 0b_110_000_000_000; // 0o6000
                     var safeMode = (UnixFileMode)(download.PosixMode.Value & ~SetuidSetgidMask);
-                    try { File.SetUnixFileMode(download.LocalPath, safeMode); }
-                    catch (Exception ex) { _logger.LogDebug(ex, "Could not set UnixFileMode {Mode} on {Path}.", safeMode, download.LocalPath); }
+                    try { File.SetUnixFileMode(writePath, safeMode); }
+                    catch (Exception ex) { _logger.LogDebug(ex, "Could not set UnixFileMode {Mode} on {Path}.", safeMode, writePath); }
                 }
                 else
                 {
                     // Windows-originated file: apply sensible Linux default 0o644.
                     var defaultMode = UnixFileMode.UserRead | UnixFileMode.UserWrite
                         | UnixFileMode.GroupRead | UnixFileMode.OtherRead;
-                    try { File.SetUnixFileMode(download.LocalPath, defaultMode); }
-                    catch (Exception ex) { _logger.LogDebug(ex, "Could not apply default UnixFileMode on {Path}.", download.LocalPath); }
+                    try { File.SetUnixFileMode(writePath, defaultMode); }
+                    catch (Exception ex) { _logger.LogDebug(ex, "Could not apply default UnixFileMode on {Path}.", writePath); }
                 }
             }
 
-            var hash = await ComputeFileHashAsync(download.LocalPath, cancellationToken);
+            var hash = await ComputeFileHashAsync(writePath, cancellationToken);
             await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, new LocalFileRecord
             {
                 LocalPath = download.LocalPath,
@@ -745,6 +911,37 @@ public sealed class SyncEngine : ISyncEngine
 
     // ── FileSystemWatcher handlers ──────────────────────────────────────────
 
+    // Issue #44: inotify limit check (Linux only).
+    private void CheckInotifyLimit()
+    {
+        const int MinWatches = 65536;
+        try
+        {
+            var raw = File.ReadAllText("/proc/sys/fs/inotify/max_user_watches").Trim();
+            if (int.TryParse(raw, out int limit) && limit < MinWatches)
+            {
+                _logger.LogWarning(
+                    "inotify.watch_limit_low Limit={Limit} Recommended={Recommended}",
+                    limit, MinWatches);
+                _logger.LogWarning(
+                    "Fix: echo 'fs.inotify.max_user_watches={Recommended}' | sudo tee /etc/sysctl.d/50-dotnetcloud.conf && sudo sysctl --system",
+                    MinWatches);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not read inotify watch limit.");
+        }
+    }
+
+    // Issue #45: long-path support on Windows.
+    private static string ToWindowsLongPath(string path)
+    {
+        if (!OperatingSystem.IsWindows() || path.StartsWith(@"\\?\", StringComparison.Ordinal))
+            return path;
+        return @"\\?\" + Path.GetFullPath(path);
+    }
+
     private void OnFileSystemChanged(object sender, FileSystemEventArgs e)
     {
         if (_activeContext is null || _paused) return;
@@ -781,11 +978,16 @@ public sealed class SyncEngine : ISyncEngine
 
     private async Task RunPeriodicScanAsync(SyncContext context, CancellationToken cancellationToken)
     {
+        // When inotify is unavailable, fall back to a 30-second polling interval.
+        var interval = _pollingFallback ? TimeSpan.FromSeconds(30) : context.FullScanInterval;
+
         while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
-                await Task.Delay(context.FullScanInterval, cancellationToken);
+                await Task.Delay(interval, cancellationToken);
+                // Refresh interval in case it changes (e.g., config hot-reload or watcher recovery)
+                interval = _pollingFallback ? TimeSpan.FromSeconds(30) : context.FullScanInterval;
                 _logger.LogDebug("Periodic full scan triggered for context {ContextId}.", context.Id);
                 await SyncAsync(context, cancellationToken);
             }

@@ -42,7 +42,7 @@ public class ChunkedTransferClientTests
         apiMock.Setup(a => a.InitiateUploadAsync(
                 It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
                 It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
-                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new UploadSessionResponse { SessionId = sessionId });
 
         apiMock.Setup(a => a.CompleteUploadAsync(sessionId, It.IsAny<CancellationToken>()))
@@ -73,9 +73,9 @@ public class ChunkedTransferClientTests
         apiMock.Setup(a => a.InitiateUploadAsync(
                 It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
                 It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
-                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .Callback<string, Guid?, long, string?, IReadOnlyList<string>, IReadOnlyList<int>?, int?, string?, CancellationToken>(
-                (_, _, _, _, hashes, _, _, _, _) => chunkHash = hashes[0])
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Callback<string, Guid?, long, string?, IReadOnlyList<string>, IReadOnlyList<int>?, int?, string?, string?, CancellationToken>(
+                (_, _, _, _, hashes, _, _, _, _, _) => chunkHash = hashes[0])
             .ReturnsAsync(() => new UploadSessionResponse
             {
                 SessionId = sessionId,
@@ -110,7 +110,7 @@ public class ChunkedTransferClientTests
         apiMock.Setup(a => a.InitiateUploadAsync(
                 It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
                 It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
-                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new UploadSessionResponse { SessionId = sessionId });
 
         // First upload call throws a network error; second succeeds
@@ -149,7 +149,7 @@ public class ChunkedTransferClientTests
         apiMock.Setup(a => a.InitiateUploadAsync(
                 It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
                 It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
-                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new UploadSessionResponse { SessionId = sessionId });
 
         // Always throw network error
@@ -178,7 +178,7 @@ public class ChunkedTransferClientTests
         apiMock.Setup(a => a.InitiateUploadAsync(
                 It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
                 It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
-                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new UploadSessionResponse { SessionId = sessionId });
 
         // 4xx client error — should NOT be retried
@@ -329,9 +329,9 @@ public class ChunkedTransferClientTests
         apiMock.Setup(a => a.InitiateUploadAsync(
                 It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
                 It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
-                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .Callback<string, Guid?, long, string?, IReadOnlyList<string>, IReadOnlyList<int>?, int?, string?, CancellationToken>(
-                (_, _, _, _, hashes, sizes, _, _, _) => { capturedHashes = hashes; capturedSizes = sizes; })
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Callback<string, Guid?, long, string?, IReadOnlyList<string>, IReadOnlyList<int>?, int?, string?, string?, CancellationToken>(
+                (_, _, _, _, hashes, sizes, _, _, _, _) => { capturedHashes = hashes; capturedSizes = sizes; })
             .ReturnsAsync(new UploadSessionResponse { SessionId = sessionId });
 
         apiMock.Setup(a => a.UploadChunkAsync(sessionId, It.IsAny<int>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
@@ -373,9 +373,9 @@ public class ChunkedTransferClientTests
         apiMock.Setup(a => a.InitiateUploadAsync(
                 It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
                 It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
-                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .Callback<string, Guid?, long, string?, IReadOnlyList<string>, IReadOnlyList<int>?, int?, string?, CancellationToken>(
-                (_, _, _, _, hashes, _, _, _, _) => captureTarget.AddRange(hashes))
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Callback<string, Guid?, long, string?, IReadOnlyList<string>, IReadOnlyList<int>?, int?, string?, string?, CancellationToken>(
+                (_, _, _, _, hashes, _, _, _, _, _) => captureTarget.AddRange(hashes))
             .ReturnsAsync(new UploadSessionResponse { SessionId = Guid.NewGuid() });
 
         apiMock.Setup(a => a.UploadChunkAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
@@ -414,9 +414,9 @@ public class ChunkedTransferClientTests
         apiMock.Setup(a => a.InitiateUploadAsync(
                 It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
                 It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
-                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .Callback<string, Guid?, long, string?, IReadOnlyList<string>, IReadOnlyList<int>?, int?, string?, CancellationToken>(
-                (_, _, _, _, hashes, _, _, _, _) => capturedHashes = hashes)
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Callback<string, Guid?, long, string?, IReadOnlyList<string>, IReadOnlyList<int>?, int?, string?, string?, CancellationToken>(
+                (_, _, _, _, hashes, _, _, _, _, _) => capturedHashes = hashes)
             .ReturnsAsync(new UploadSessionResponse { SessionId = sessionId }); // no present chunks → all must upload
 
         apiMock.Setup(a => a.UploadChunkAsync(sessionId, It.IsAny<int>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
@@ -509,7 +509,7 @@ public class ChunkedTransferClientTests
         apiMock.Setup(a => a.InitiateUploadAsync(
                 It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
                 It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
-                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new UploadSessionResponse { SessionId = sessionId });
         apiMock.Setup(a => a.CompleteUploadAsync(sessionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new CompleteUploadResponse
@@ -585,7 +585,7 @@ public class ChunkedTransferClientTests
             apiMock.Verify(a => a.InitiateUploadAsync(
                 It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
                 It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
-                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
             // Single chunk already uploaded — UploadChunkAsync must NOT be called
             apiMock.Verify(a => a.UploadChunkAsync(
                 It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<string>(),
@@ -624,7 +624,7 @@ public class ChunkedTransferClientTests
         apiMock.Setup(a => a.InitiateUploadAsync(
                 It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
                 It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
-                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new UploadSessionResponse { SessionId = newSessionId });
         apiMock.Setup(a => a.CompleteUploadAsync(newSessionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new CompleteUploadResponse
@@ -648,7 +648,7 @@ public class ChunkedTransferClientTests
         apiMock.Verify(a => a.InitiateUploadAsync(
             It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
             It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
-            It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Once);
         apiMock.Verify(a => a.CompleteUploadAsync(newSessionId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -677,7 +677,7 @@ public class ChunkedTransferClientTests
         apiMock.Setup(a => a.InitiateUploadAsync(
                 It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
                 It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
-                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new UploadSessionResponse { SessionId = newSessionId });
         apiMock.Setup(a => a.CompleteUploadAsync(newSessionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new CompleteUploadResponse
@@ -701,7 +701,7 @@ public class ChunkedTransferClientTests
         apiMock.Verify(a => a.InitiateUploadAsync(
             It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
             It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
-            It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Once);
         apiMock.Verify(a => a.CompleteUploadAsync(newSessionId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -785,10 +785,10 @@ public class ChunkedTransferClientTests
             .Setup(a => a.InitiateUploadAsync(
                 It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<long>(),
                 It.IsAny<string?>(), It.IsAny<IReadOnlyList<string>>(),
-                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(),
+                It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()))
-            .Callback<string, Guid?, long, string?, IReadOnlyList<string>, IReadOnlyList<int>?, int?, string?, CancellationToken>(
-                (_, _, _, _, _, _, pm, oh, _) => { capturedPosixMode = pm; capturedOwnerHint = oh; })
+            .Callback<string, Guid?, long, string?, IReadOnlyList<string>, IReadOnlyList<int>?, int?, string?, string?, CancellationToken>(
+                (_, _, _, _, _, _, pm, oh, _, _) => { capturedPosixMode = pm; capturedOwnerHint = oh; })
             .ReturnsAsync(new UploadSessionResponse { SessionId = sessionId });
         apiMock
             .Setup(a => a.UploadChunkAsync(sessionId, It.IsAny<int>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
@@ -805,6 +805,9 @@ public class ChunkedTransferClientTests
         Assert.AreEqual("bob:devs", capturedOwnerHint);
     }
 }
+
+
+
 
 
 

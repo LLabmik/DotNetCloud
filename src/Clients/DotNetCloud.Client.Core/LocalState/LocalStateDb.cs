@@ -126,6 +126,7 @@ public sealed class LocalStateDb : ILocalStateDb
             existing.LocalModifiedAt = record.LocalModifiedAt;
             existing.SyncStateTag = record.SyncStateTag;
             existing.PosixMode = record.PosixMode;
+            existing.LinkTarget = record.LinkTarget;
         }
         await ctx.SaveChangesAsync(cancellationToken);
     }
@@ -482,6 +483,15 @@ public sealed class LocalStateDb : ILocalStateDb
         var fileRecordColumns = await GetColumnNamesAsync(conn, "FileRecords", cancellationToken);
         if (!fileRecordColumns.Contains("PosixMode"))
             await ExecuteNonQueryAsync(conn, "ALTER TABLE FileRecords ADD COLUMN PosixMode INTEGER NULL", cancellationToken);
+
+        // Add LinkTarget column to FileRecords if it predates symbolic link support
+        if (!fileRecordColumns.Contains("LinkTarget"))
+            await ExecuteNonQueryAsync(conn, "ALTER TABLE FileRecords ADD COLUMN LinkTarget TEXT NULL", cancellationToken);
+
+        // Add LinkTarget column to PendingOperations if it predates symbolic link support
+        var pendingCols3 = await GetColumnNamesAsync(conn, "PendingOperations", cancellationToken);
+        if (!pendingCols3.Contains("LinkTarget"))
+            await ExecuteNonQueryAsync(conn, "ALTER TABLE PendingOperations ADD COLUMN LinkTarget TEXT NULL", cancellationToken);
     }
 
     private static async Task<HashSet<string>> GetColumnNamesAsync(SqliteConnection conn, string tableName, CancellationToken cancellationToken)
@@ -530,6 +540,7 @@ public sealed class LocalStateDb : ILocalStateDb
             NextRetryAt = d.NextRetryAt,
             LastError = d.LastError,
             PosixMode = d.PosixMode,
+            LinkTarget = d.LinkTarget,
         },
         _ => throw new ArgumentException($"Unknown operation type: {op.GetType().Name}"),
     };
@@ -556,6 +567,7 @@ public sealed class LocalStateDb : ILocalStateDb
             NextRetryAt = row.NextRetryAt,
             LastError = row.LastError,
             PosixMode = row.PosixMode,
+            LinkTarget = row.LinkTarget,
         },
         _ => throw new ArgumentException($"Unknown operation type: {row.OperationType}"),
     };

@@ -49,6 +49,9 @@ public sealed class PendingDownload : PendingOperationRecord
     /// <summary>POSIX mode from server. Applied after download on Linux.</summary>
     public int? PosixMode { get; set; }
 
+    /// <summary>Symlink target path from server. When non-null, the sync engine creates a local symlink instead of downloading content.</summary>
+    public string? LinkTarget { get; set; }
+
     /// <summary>Initializes a new <see cref="PendingDownload"/>.</summary>
     public PendingDownload() { OperationType = "Download"; }
 }

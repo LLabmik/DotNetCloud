@@ -28,4 +28,7 @@ public sealed class LocalFileRecord
 
     /// <summary>POSIX file mode last synced to/from server. Null on Windows or if not yet synced.</summary>
     public int? PosixMode { get; set; }
+
+    /// <summary>Symlink target path stored at last sync. Non-null only for symbolic link nodes.</summary>
+    public string? LinkTarget { get; set; }
 }

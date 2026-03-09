@@ -51,6 +51,9 @@ public sealed record FileNodeResponse
 
     /// <summary>POSIX owner hint in "user:group" format. Null for Windows-originated files.</summary>
     public string? PosixOwnerHint { get; init; }
+
+    /// <summary>Relative symlink target path. Non-null only when <see cref="NodeType"/> is <c>"SymbolicLink"</c>.</summary>
+    public string? LinkTarget { get; init; }
 }
 
 /// <summary>
@@ -144,6 +147,9 @@ public sealed record SyncChangeResponse
 
     /// <summary>POSIX owner/group hint. Null for Windows-originated files.</summary>
     public string? PosixOwnerHint { get; init; }
+
+    /// <summary>Relative symlink target path. Non-null only when <see cref="NodeType"/> is <c>"SymbolicLink"</c>.</summary>
+    public string? LinkTarget { get; init; }
 }
 
 /// <summary>
@@ -192,6 +198,9 @@ public sealed record SyncTreeNodeResponse
 
     /// <summary>POSIX owner/group hint. Null for Windows-originated files.</summary>
     public string? PosixOwnerHint { get; init; }
+
+    /// <summary>Relative symlink target path. Non-null only when <see cref="NodeType"/> is <c>"SymbolicLink"</c>.</summary>
+    public string? LinkTarget { get; init; }
 }
 
 /// <summary>

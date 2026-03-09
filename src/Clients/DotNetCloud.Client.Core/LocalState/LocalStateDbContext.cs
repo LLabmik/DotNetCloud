@@ -137,6 +137,9 @@ public sealed class PendingOperationDbRow
 
     /// <summary>POSIX mode for downloads (applied to file after download on Linux).</summary>
     public int? PosixMode { get; set; }
+
+    /// <summary>Symlink target path for download operations where the server node is a symbolic link.</summary>
+    public string? LinkTarget { get; set; }
 }
 
 /// <summary>

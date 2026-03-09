@@ -129,7 +129,7 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                     metadata.Select(m => m.Hash).ToList(),
                     metadata.Select(m => m.Size).ToList(),
                     posixMode, posixOwnerHint,
-                    cancellationToken);
+                    cancellationToken: cancellationToken);
                 sessionId = session.SessionId;
                 presentChunks = new HashSet<string>(session.PresentChunks, StringComparer.OrdinalIgnoreCase);
 

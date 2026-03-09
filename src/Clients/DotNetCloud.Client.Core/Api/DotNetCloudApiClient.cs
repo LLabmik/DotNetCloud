@@ -145,11 +145,31 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
     public async Task<UploadSessionResponse> InitiateUploadAsync(
         string fileName, Guid? parentId, long totalSize, string? mimeType,
         IReadOnlyList<string> chunkHashes, IReadOnlyList<int>? chunkSizes = null,
-        int? posixMode = null, string? posixOwnerHint = null,
+        int? posixMode = null, string? posixOwnerHint = null, string? linkTarget = null,
         CancellationToken cancellationToken = default)
     {
-        var body = new { fileName, parentId, totalSize, mimeType, chunkHashes, chunkSizes, posixMode, posixOwnerHint };
-        return await PostJsonAsync<UploadSessionResponse>("api/v1/files/upload/initiate", body, cancellationToken)
+        var body = new { fileName, parentId, totalSize, mimeType, chunkHashes, chunkSizes, posixMode, posixOwnerHint, linkTarget };
+        using var response = await SendWithRetryAsync(
+            () =>
+            {
+                var req = CreateAuthenticatedRequest(HttpMethod.Post, "api/v1/files/upload/initiate");
+                req.Content = JsonContent.Create(body, options: JsonOptions);
+                return req;
+            },
+            cancellationToken);
+
+        if (response.Headers.TryGetValues("X-Path-Warning", out var vals)
+            && vals.Contains("path-length-exceeds-windows-limit"))
+        {
+            _logger.LogWarning("upload.path_length_warning FileName={FileName} Length={Length}",
+                fileName, fileName.Length);
+        }
+
+        if (response.StatusCode == HttpStatusCode.Conflict)
+            await ThrowIfNameConflictAsync(response, cancellationToken);
+
+        response.EnsureSuccessStatusCode();
+        return await ReadEnvelopeDataAsync<UploadSessionResponse>(response, cancellationToken)
                ?? throw new InvalidOperationException("Server returned null for upload initiation.");
     }
 
