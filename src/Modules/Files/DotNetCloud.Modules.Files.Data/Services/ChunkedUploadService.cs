@@ -82,6 +82,8 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
             ChunkSizesManifest = dto.ChunkSizes is { Count: > 0 }
                 ? JsonSerializer.Serialize(dto.ChunkSizes)
                 : null,
+            PosixMode = dto.PosixMode,
+            PosixOwnerHint = dto.PosixOwnerHint,
             UserId = caller.UserId,
             Status = UploadSessionStatus.InProgress
         };
@@ -182,6 +184,9 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
             fileNode.StoragePath = storagePath;
             fileNode.CurrentVersion++;
             fileNode.UpdatedAt = DateTime.UtcNow;
+            // Preserve existing POSIX metadata when Windows client re-uploads (sends null)
+            fileNode.PosixMode = session.PosixMode ?? fileNode.PosixMode;
+            fileNode.PosixOwnerHint = session.PosixOwnerHint ?? fileNode.PosixOwnerHint;
         }
         else
         {
@@ -225,7 +230,9 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
                 OwnerId = caller.UserId,
                 ContentHash = contentHash,
                 StoragePath = storagePath,
-                Depth = parentDepth + 1
+                Depth = parentDepth + 1,
+                PosixMode = session.PosixMode,
+                PosixOwnerHint = session.PosixOwnerHint
             };
             fileNode.MaterializedPath = string.IsNullOrEmpty(parentPath)
                 ? $"/{fileNode.Id}"
@@ -244,7 +251,8 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
             ContentHash = contentHash,
             StoragePath = storagePath,
             MimeType = session.MimeType,
-            CreatedByUserId = caller.UserId
+            CreatedByUserId = caller.UserId,
+            PosixMode = fileNode.PosixMode
         };
         _db.FileVersions.Add(version);
 
@@ -315,7 +323,9 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
             IsFavorite = fileNode.IsFavorite,
             ContentHash = fileNode.ContentHash,
             CreatedAt = fileNode.CreatedAt,
-            UpdatedAt = fileNode.UpdatedAt
+            UpdatedAt = fileNode.UpdatedAt,
+            PosixMode = fileNode.PosixMode,
+            PosixOwnerHint = fileNode.PosixOwnerHint
         };
     }
 

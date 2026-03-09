@@ -83,6 +83,20 @@ public sealed class FileNode
     /// </summary>
     public long? SyncSequence { get; set; }
 
+    /// <summary>
+    /// POSIX file mode bitmask (e.g. <c>0o644</c> = 420, <c>0o755</c> = 493).
+    /// Null for folders and for nodes uploaded from Windows clients.
+    /// Stored to preserve Linux file permissions across sync clients.
+    /// </summary>
+    public int? PosixMode { get; set; }
+
+    /// <summary>
+    /// Hint for the original POSIX owner in <c>"user:group"</c> format.
+    /// Informational only — not enforced on download; UIDs differ across machines.
+    /// Null for nodes uploaded from Windows clients.
+    /// </summary>
+    public string? PosixOwnerHint { get; set; }
+
     /// <summary>File versions (only for files).</summary>
     public ICollection<FileVersion> Versions { get; set; } = [];
 

@@ -416,4 +416,167 @@ public class ChunkedUploadServiceTests
         await Assert.ThrowsExactlyAsync<Core.Errors.NameConflictException>(
             () => service.CompleteUploadAsync(session.Id, UserCaller(userId)));
     }
+
+    [TestMethod]
+    public async Task InitiateUploadAsync_WithPosixMode_StoresPosixModeOnSession()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 10_000_000, UsedBytes = 0 });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        await service.InitiateUploadAsync(new InitiateUploadDto
+        {
+            FileName = "script.sh",
+            TotalSize = 512,
+            ChunkHashes = ["hashA"],
+            PosixMode = 493,
+            PosixOwnerHint = "alice:developers"
+        }, UserCaller(userId));
+
+        var session = await db.UploadSessions.FirstAsync();
+        Assert.AreEqual(493, session.PosixMode);
+        Assert.AreEqual("alice:developers", session.PosixOwnerHint);
+    }
+
+    [TestMethod]
+    public async Task CompleteUploadAsync_NewFile_WithPosixMode_StoresPosixModeOnNodeAndVersion()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var chunkHash = "posixhash001";
+
+        db.FileChunks.Add(new FileChunk { ChunkHash = chunkHash, StoragePath = $"chunks/po/si/{chunkHash}", Size = 256 });
+
+        var session = new ChunkedUploadSession
+        {
+            FileName = "deploy.sh",
+            TotalSize = 256,
+            MimeType = "text/x-shellscript",
+            TotalChunks = 1,
+            ReceivedChunks = 1,
+            ChunkManifest = JsonSerializer.Serialize(new[] { chunkHash }),
+            UserId = userId,
+            Status = UploadSessionStatus.InProgress,
+            PosixMode = 493,
+            PosixOwnerHint = "deploy:ops"
+        };
+        db.UploadSessions.Add(session);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.CompleteUploadAsync(session.Id, UserCaller(userId));
+
+        Assert.AreEqual(493, result.PosixMode);
+        Assert.AreEqual("deploy:ops", result.PosixOwnerHint);
+
+        var node = await db.FileNodes.FindAsync(result.Id);
+        Assert.IsNotNull(node);
+        Assert.AreEqual(493, node.PosixMode);
+        Assert.AreEqual("deploy:ops", node.PosixOwnerHint);
+
+        var version = await db.FileVersions.FirstAsync(v => v.FileNodeId == result.Id);
+        Assert.AreEqual(493, version.PosixMode);
+    }
+
+    [TestMethod]
+    public async Task CompleteUploadAsync_ReUpload_NullPosixModePreservesExistingPosixMode()
+    {
+        // Windows client re-uploads a file originally uploaded by Linux — PosixMode must survive.
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var chunkHash = "posixhash002";
+
+        var existingNode = new FileNode
+        {
+            Name = "config.json",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            Size = 100,
+            ContentHash = "oldhash",
+            StoragePath = "files/ol/dh/oldhash",
+            Depth = 0,
+            PosixMode = 416,
+            PosixOwnerHint = "bob:staff"
+        };
+        existingNode.MaterializedPath = $"/{existingNode.Id}";
+        db.FileNodes.Add(existingNode);
+        db.FileChunks.Add(new FileChunk { ChunkHash = chunkHash, StoragePath = $"chunks/po/si/{chunkHash}", Size = 200 });
+
+        // Session has null PosixMode — simulates a Windows client upload
+        var session = new ChunkedUploadSession
+        {
+            FileName = "config.json",
+            TotalSize = 200,
+            MimeType = "application/json",
+            TotalChunks = 1,
+            ReceivedChunks = 1,
+            ChunkManifest = JsonSerializer.Serialize(new[] { chunkHash }),
+            UserId = userId,
+            TargetFileNodeId = existingNode.Id,
+            Status = UploadSessionStatus.InProgress,
+            PosixMode = null,
+            PosixOwnerHint = null
+        };
+        db.UploadSessions.Add(session);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.CompleteUploadAsync(session.Id, UserCaller(userId));
+
+        Assert.AreEqual(416, result.PosixMode, "PosixMode must be preserved when Windows client sends null.");
+        Assert.AreEqual("bob:staff", result.PosixOwnerHint, "PosixOwnerHint must be preserved when Windows client sends null.");
+    }
+
+    [TestMethod]
+    public async Task CompleteUploadAsync_ReUpload_NewPosixModeUpdatesExistingPosixMode()
+    {
+        // Linux client re-uploads with changed permissions — server must update the stored PosixMode.
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var chunkHash = "posixhash003";
+
+        var existingNode = new FileNode
+        {
+            Name = "run.sh",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            Size = 512,
+            ContentHash = "oldhash2",
+            StoragePath = "files/ol/dh/oldhash2",
+            Depth = 0,
+            PosixMode = 420,
+            PosixOwnerHint = "alice:staff"
+        };
+        existingNode.MaterializedPath = $"/{existingNode.Id}";
+        db.FileNodes.Add(existingNode);
+        db.FileChunks.Add(new FileChunk { ChunkHash = chunkHash, StoragePath = $"chunks/po/si/{chunkHash}", Size = 600 });
+
+        var session = new ChunkedUploadSession
+        {
+            FileName = "run.sh",
+            TotalSize = 600,
+            MimeType = "text/x-shellscript",
+            TotalChunks = 1,
+            ReceivedChunks = 1,
+            ChunkManifest = JsonSerializer.Serialize(new[] { chunkHash }),
+            UserId = userId,
+            TargetFileNodeId = existingNode.Id,
+            Status = UploadSessionStatus.InProgress,
+            PosixMode = 493,   // Linux client changed permissions to executable
+            PosixOwnerHint = "alice:staff"
+        };
+        db.UploadSessions.Add(session);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.CompleteUploadAsync(session.Id, UserCaller(userId));
+
+        Assert.AreEqual(493, result.PosixMode, "PosixMode must be updated when Linux client sends a new value.");
+        Assert.AreEqual("alice:staff", result.PosixOwnerHint);
+
+        var version = await db.FileVersions.FirstAsync(v => v.FileNodeId == result.Id);
+        Assert.AreEqual(493, version.PosixMode, "FileVersion must capture the updated PosixMode.");
+    }
 }

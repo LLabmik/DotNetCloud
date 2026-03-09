@@ -595,6 +595,8 @@ internal sealed class FileService : IFileService
         CreatedAt = node.CreatedAt,
         UpdatedAt = node.UpdatedAt,
         ChildCount = childCount ?? 0,
-        Tags = node.Tags?.Select(t => new FileTagDto { Id = t.Id, Name = t.Name, Color = t.Color, CreatedAt = t.CreatedAt }).ToList() ?? []
+        Tags = node.Tags?.Select(t => new FileTagDto { Id = t.Id, Name = t.Name, Color = t.Color, CreatedAt = t.CreatedAt }).ToList() ?? [],
+        PosixMode = node.PosixMode,
+        PosixOwnerHint = node.PosixOwnerHint
     };
 }

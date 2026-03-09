@@ -219,6 +219,10 @@ message InitiateUploadRequest {
   // Optional: CDC chunk sizes in bytes. Omit for legacy fixed-size chunking.
   // When present, count must equal chunk_hashes count.
   repeated int32 chunk_sizes = 7;
+  // Optional: POSIX file mode bitmask (e.g. 0o644 = 420). Linux clients only.
+  optional int32 posix_mode = 8;
+  // Optional: POSIX owner hint in "user:group" format. Linux clients only.
+  string posix_owner_hint = 9;
 }
 
 message InitiateUploadResponse {
@@ -365,6 +369,10 @@ message FileNodeMessage {
   string created_at = 11;
   string updated_at = 12;
   int32 child_count = 13;
+  // POSIX file mode bitmask (0 means not set / Windows-uploaded). Linux files only.
+  optional int32 posix_mode = 14;
+  // POSIX owner hint in "user:group" format. Empty string means not set.
+  string posix_owner_hint = 15;
 }
 
 message FileVersionMessage {

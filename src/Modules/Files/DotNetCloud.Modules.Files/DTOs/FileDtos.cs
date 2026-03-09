@@ -46,6 +46,16 @@ public sealed record FileNodeDto
 
     /// <summary>Tags applied to this node (includes name and color).</summary>
     public IReadOnlyList<FileTagDto> Tags { get; init; } = [];
+
+    /// <summary>
+    /// POSIX file mode bitmask (e.g., 0o644 = 420). Null for folders or Windows-uploaded files.
+    /// </summary>
+    public int? PosixMode { get; init; }
+
+    /// <summary>
+    /// POSIX owner hint in <c>"user:group"</c> format. Null for Windows-uploaded files.
+    /// </summary>
+    public string? PosixOwnerHint { get; init; }
 }
 
 /// <summary>
@@ -104,6 +114,18 @@ public sealed record InitiateUploadDto
     /// <see langword="null"/> or empty indicates legacy fixed-size chunking.
     /// </summary>
     public IReadOnlyList<int>? ChunkSizes { get; init; }
+
+    /// <summary>
+    /// POSIX file mode bitmask sent by the uploading client (Linux clients only).
+    /// <see langword="null"/> when the uploader is Windows/macOS or does not supply permissions.
+    /// </summary>
+    public int? PosixMode { get; init; }
+
+    /// <summary>
+    /// POSIX owner hint in <c>"user:group"</c> format (Linux clients only).
+    /// Stored as metadata; not enforced on download because UIDs differ across machines.
+    /// </summary>
+    public string? PosixOwnerHint { get; init; }
 }
 
 /// <summary>

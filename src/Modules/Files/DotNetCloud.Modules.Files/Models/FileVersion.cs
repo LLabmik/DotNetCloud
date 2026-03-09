@@ -47,4 +47,10 @@ public sealed class FileVersion
     /// <see cref="FileScanStatus.NotScanned"/> are equivalent; scanning is not yet enforced.
     /// </summary>
     public FileScanStatus? ScanStatus { get; set; }
+
+    /// <summary>
+    /// POSIX file mode bitmask at the time this version was created.
+    /// Null for versions uploaded from Windows clients.
+    /// </summary>
+    public int? PosixMode { get; set; }
 }

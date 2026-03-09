@@ -83,5 +83,8 @@ public sealed class FileNodeConfiguration : IEntityTypeConfiguration<FileNode>
 
         builder.HasIndex(n => new { n.OwnerId, n.SyncSequence })
             .HasDatabaseName("ix_file_nodes_owner_sync_sequence");
+
+        builder.Property(n => n.PosixOwnerHint)
+            .HasMaxLength(200);
     }
 }

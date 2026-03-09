@@ -44,6 +44,18 @@ public sealed class ChunkedUploadSession
     /// </summary>
     public string? ChunkSizesManifest { get; set; }
 
+    /// <summary>
+    /// POSIX file mode bitmask sent by the client (Linux clients only).
+    /// Null when the uploading client is Windows/macOS or does not supply permissions.
+    /// </summary>
+    public int? PosixMode { get; set; }
+
+    /// <summary>
+    /// POSIX owner hint in <c>"user:group"</c> format sent by the client.
+    /// Null when the uploading client is Windows/macOS or does not supply ownership.
+    /// </summary>
+    public string? PosixOwnerHint { get; set; }
+
     /// <summary>User who initiated the upload.</summary>
     public Guid UserId { get; set; }
 

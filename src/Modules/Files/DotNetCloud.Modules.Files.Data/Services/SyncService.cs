@@ -50,7 +50,9 @@ internal sealed class SyncService : ISyncService
                 Size = n.Size,
                 UpdatedAt = n.UpdatedAt,
                 IsDeleted = false,
-                SyncSequence = n.SyncSequence
+                SyncSequence = n.SyncSequence,
+                PosixMode = n.PosixMode,
+                PosixOwnerHint = n.PosixOwnerHint
             })
             .ToListAsync(cancellationToken);
 
@@ -75,7 +77,9 @@ internal sealed class SyncService : ISyncService
                 UpdatedAt = n.UpdatedAt,
                 IsDeleted = true,
                 DeletedAt = n.DeletedAt,
-                SyncSequence = n.SyncSequence
+                SyncSequence = n.SyncSequence,
+                PosixMode = n.PosixMode,
+                PosixOwnerHint = n.PosixOwnerHint
             })
             .ToListAsync(cancellationToken);
 
@@ -147,7 +151,9 @@ internal sealed class SyncService : ISyncService
                 Size = n.Size,
                 UpdatedAt = n.UpdatedAt,
                 IsDeleted = false,
-                SyncSequence = n.SyncSequence
+                SyncSequence = n.SyncSequence,
+                PosixMode = n.PosixMode,
+                PosixOwnerHint = n.PosixOwnerHint
             })
             .ToListAsync(cancellationToken);
 
@@ -165,7 +171,9 @@ internal sealed class SyncService : ISyncService
                 UpdatedAt = n.UpdatedAt,
                 IsDeleted = true,
                 DeletedAt = n.DeletedAt,
-                SyncSequence = n.SyncSequence
+                SyncSequence = n.SyncSequence,
+                PosixMode = n.PosixMode,
+                PosixOwnerHint = n.PosixOwnerHint
             })
             .ToListAsync(cancellationToken);
 
@@ -371,7 +379,9 @@ internal sealed class SyncService : ISyncService
             ContentHash = node.ContentHash,
             Size = node.Size,
             UpdatedAt = node.UpdatedAt,
-            Children = children
+            Children = children,
+            PosixMode = node.PosixMode,
+            PosixOwnerHint = node.PosixOwnerHint
         };
     }
 }

@@ -1016,3 +1016,266 @@ dotnet test tests\DotNetCloud.Client.Core.Tests\
 - Build: 0 errors
 - Test count (was the count after #40, should increase by ≥ 2)
 - Confirm: `409 NAME_CONFLICT` does NOT trigger retry; operation marked failed with message
+
+---
+
+### Issue #42: Batch 4 Task 4.2 — File Permission Metadata Sync (Client side)
+
+**Server-side status:** ✅ COMPLETE — commit on `main` includes:
+- `PosixMode int?` + `PosixOwnerHint string?` on `FileNode`, `ChunkedUploadSession`
+- `PosixMode int?` on `FileVersion`
+- All server DTOs (`FileNodeDto`, `SyncChangeDto`, `SyncTreeNodeDto`) include both fields
+- gRPC `FileNodeMessage` has `optional int32 posix_mode` and `string posix_owner_hint`
+- `ChunkedUploadService`: preserves existing `PosixMode` when Windows client sends `null` (`session.PosixMode ?? fileNode.PosixMode`)
+- EF migration `AddPosixPermissions` applied automatically on server start
+
+**Client-side status:** ☐ PENDING — this issue
+
+**What to implement:**
+
+---
+
+#### Step 1 — Add `PosixMode`/`PosixOwnerHint` to client API response models
+
+**File:** `src/Clients/DotNetCloud.Client.Core/Api/ApiModels.cs`
+
+Add to `FileNodeResponse`:
+```csharp
+/// <summary>POSIX permission bitmask (e.g. 493 = 0o755). Null for Windows-originated files.</summary>
+public int? PosixMode { get; init; }
+
+/// <summary>POSIX owner hint in "user:group" format. Null for Windows-originated files.</summary>
+public string? PosixOwnerHint { get; init; }
+```
+
+Add to `SyncChangeResponse`:
+```csharp
+/// <summary>POSIX permission bitmask. Null for Windows-originated files.</summary>
+public int? PosixMode { get; init; }
+
+/// <summary>POSIX owner/group hint. Null for Windows-originated files.</summary>
+public string? PosixOwnerHint { get; init; }
+```
+
+Add to `SyncTreeNodeResponse`:
+```csharp
+/// <summary>POSIX permission bitmask. Null for Windows-originated files.</summary>
+public int? PosixMode { get; init; }
+
+/// <summary>POSIX owner/group hint. Null for Windows-originated files.</summary>
+public string? PosixOwnerHint { get; init; }
+```
+
+---
+
+#### Step 2 — Add `PosixMode` to `LocalFileRecord` for change detection
+
+**File:** `src/Clients/DotNetCloud.Client.Core/LocalState/Entities/LocalFileRecord.cs`
+
+Add:
+```csharp
+/// <summary>POSIX file mode last synced to/from server. Null on Windows or if not yet synced.</summary>
+public int? PosixMode { get; set; }
+```
+
+**File:** `src/Clients/DotNetCloud.Client.Core/LocalState/LocalStateDb.cs`
+
+In `RunSchemaEvolutionAsync`, add a column migration for `FileRecords`:
+```csharp
+var fileRecordColumns = await GetColumnNamesAsync(conn, "FileRecords", cancellationToken);
+if (!fileRecordColumns.Contains("PosixMode"))
+    await ExecuteNonQueryAsync(conn, "ALTER TABLE FileRecords ADD COLUMN PosixMode INTEGER NULL", cancellationToken);
+```
+
+---
+
+#### Step 3 — Thread `PosixMode`/`PosixOwnerHint` through the upload API
+
+**File:** `src/Clients/DotNetCloud.Client.Core/Api/IDotNetCloudApiClient.cs`
+
+Add `posixMode` and `posixOwnerHint` parameters to `InitiateUploadAsync`:
+```csharp
+Task<UploadSessionResponse> InitiateUploadAsync(
+    string fileName, Guid? parentId, long totalSize, string? mimeType,
+    IReadOnlyList<string> chunkHashes, IReadOnlyList<int>? chunkSizes = null,
+    int? posixMode = null, string? posixOwnerHint = null,
+    CancellationToken cancellationToken = default);
+```
+
+**File:** `src/Clients/DotNetCloud.Client.Core/Api/DotNetCloudApiClient.cs`
+
+Update the implementation to include them in the request body:
+```csharp
+public async Task<UploadSessionResponse> InitiateUploadAsync(
+    string fileName, Guid? parentId, long totalSize, string? mimeType,
+    IReadOnlyList<string> chunkHashes, IReadOnlyList<int>? chunkSizes = null,
+    int? posixMode = null, string? posixOwnerHint = null,
+    CancellationToken cancellationToken = default)
+{
+    var body = new { fileName, parentId, totalSize, mimeType, chunkHashes, chunkSizes, posixMode, posixOwnerHint };
+    return await PostJsonAsync<UploadSessionResponse>("api/v1/files/upload/initiate", body, cancellationToken)
+           ?? throw new InvalidOperationException("Server returned null for upload initiation.");
+}
+```
+
+---
+
+#### Step 4 — Thread `PosixMode`/`PosixOwnerHint` through `IChunkedTransferClient`
+
+**File:** `src/Clients/DotNetCloud.Client.Core/Transfer/IChunkedTransferClient.cs`
+
+Add parameters to `UploadAsync`:
+```csharp
+Task<Guid> UploadAsync(
+    Guid? existingNodeId,
+    string localPath,
+    Stream fileStream,
+    IProgress<TransferProgress>? progress,
+    CancellationToken cancellationToken = default,
+    string? stateDatabasePath = null,
+    int? posixMode = null,
+    string? posixOwnerHint = null);
+```
+
+**File:** `src/Clients/DotNetCloud.Client.Core/Transfer/ChunkedTransferClient.cs`
+
+Match the interface signature, then pass `posixMode` and `posixOwnerHint` to `InitiateUploadAsync`:
+```csharp
+var session = await _api.InitiateUploadAsync(
+    fileName, null, fileSize, mimeType,
+    metadata.Select(m => m.Hash).ToList(),
+    metadata.Select(m => m.Size).ToList(),
+    posixMode, posixOwnerHint,
+    cancellationToken);
+```
+
+---
+
+#### Step 5 — Read and apply POSIX permissions in `SyncEngine`
+
+**File:** `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs`
+
+**On upload (Linux only):** Read file mode before calling `_transfer.UploadAsync`. Gate on `OperatingSystem.IsLinux()`:
+```csharp
+int? posixMode = null;
+string? posixOwnerHint = null;
+if (OperatingSystem.IsLinux())
+{
+    try
+    {
+        posixMode = (int)File.GetUnixFileMode(upload.LocalPath);
+        // posixOwnerHint: leave null for now (requires interop to read owner/group names)
+    }
+    catch (Exception ex)
+    {
+        _logger.LogDebug(ex, "Could not read UnixFileMode for {Path}; uploading without PosixMode.", upload.LocalPath);
+    }
+}
+
+var nodeId = await _transfer.UploadAsync(
+    upload.NodeId, upload.LocalPath, fileStream, uploadProgress, cancellationToken,
+    context.StateDatabasePath, posixMode, posixOwnerHint);
+```
+
+After the upload completes, store `posixMode` in the `LocalFileRecord`:
+```csharp
+await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, new LocalFileRecord
+{
+    LocalPath = upload.LocalPath,
+    NodeId = nodeId,
+    ContentHash = hash,
+    LastSyncedAt = DateTime.UtcNow,
+    LocalModifiedAt = File.GetLastWriteTimeUtc(upload.LocalPath),
+    PosixMode = posixMode,
+}, cancellationToken);
+```
+
+**On download (Linux only):** After writing the downloaded file to disk, apply the mode. Find the `else if (op is PendingDownload download)` block. After `await stream.CopyToAsync(output, cancellationToken);`, add:
+```csharp
+if (OperatingSystem.IsLinux())
+{
+    var mode = download.PosixMode;
+    if (mode.HasValue)
+    {
+        // Strip setuid (bit 11) and setgid (bit 10) for security — they should not
+        // propagate to another machine automatically.
+        const int SetuidSetgidMask = 0b_110_000_000_000; // 0o6000 = 2048+1024
+        var safeMode = (UnixFileMode)(mode.Value & ~SetuidSetgidMask);
+        try { File.SetUnixFileMode(download.LocalPath, safeMode); }
+        catch (Exception ex) { _logger.LogDebug(ex, "Could not set UnixFileMode {Mode} on {Path}.", safeMode, download.LocalPath); }
+    }
+    else
+    {
+        // Windows-originated: apply sensible Linux defaults
+        var defaultMode = UnixFileMode.UserRead | UnixFileMode.UserWrite
+            | UnixFileMode.GroupRead | UnixFileMode.OtherRead; // 0o644 = 420
+        try { File.SetUnixFileMode(download.LocalPath, defaultMode); }
+        catch (Exception ex) { _logger.LogDebug(ex, "Could not apply default UnixFileMode on {Path}.", download.LocalPath); }
+    }
+}
+```
+
+After applying the file mode, record it in `LocalFileRecord`:
+```csharp
+await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, new LocalFileRecord
+{
+    LocalPath = download.LocalPath,
+    NodeId = download.NodeId,
+    ContentHash = hash,
+    LastSyncedAt = DateTime.UtcNow,
+    LocalModifiedAt = File.GetLastWriteTimeUtc(download.LocalPath),
+    PosixMode = download.PosixMode,
+}, cancellationToken);
+```
+
+**Permission change detection:** `FileSystemWatcher` does not fire on Linux for permission-only changes. The periodic scan calls `SyncAsync`, which detects changes via `IsLocallyModified` (mtime). Permissions changes don't change mtime, so they are NOT auto-detected yet. Leave this as a known limitation documented in code — a future task can add explicit mode comparison to the scan loop if needed.
+
+---
+
+#### Step 6 — Carry `PosixMode` onto `PendingDownload`
+
+Find the `PendingDownload` record type (likely in `src/Clients/DotNetCloud.Client.Core/Sync/SyncContext.cs`). Add:
+```csharp
+/// <summary>POSIX mode from server. Applied after download on Linux.</summary>
+public int? PosixMode { get; init; }
+```
+
+When building `PendingDownload` from a `SyncChangeResponse`, set `PosixMode = change.PosixMode`.
+
+---
+
+#### Build and test
+
+```powershell
+dotnet build src\Clients\DotNetCloud.Client.Core\DotNetCloud.Client.Core.csproj
+dotnet build src\Clients\DotNetCloud.Client.SyncService\DotNetCloud.Client.SyncService.csproj
+dotnet test tests\DotNetCloud.Client.Core.Tests\
+dotnet test tests\DotNetCloud.Client.SyncService.Tests\
+```
+
+**New tests to add:**
+
+1. `InitiateUploadAsync_IncludesPosixModeInRequestBody` — mock `HttpMessageHandler`; verify that `posixMode` and `posixOwnerHint` appear in the serialised JSON body.
+
+2. `UploadAsync_PassesPosixModeToInitiateUpload` — mock `IDotNetCloudApiClient`; call `ChunkedTransferClient.UploadAsync(..., posixMode: 493, posixOwnerHint: "alice:staff")`; verify `_api.InitiateUploadAsync` was called with those values.
+
+3. `SyncAsync_Download_AppliesPosixModeOnLinux` — gate with `if (!OperatingSystem.IsLinux()) return;`; mock API returning `SyncChangeResponse` with `PosixMode = 420`; after sync, verify `File.GetUnixFileMode(localPath)` equals `(UnixFileMode)420`.
+
+4. `SyncAsync_Download_NullPosixMode_AppliesDefault644OnLinux` — gate as above; `PosixMode = null`; verify `UnixFileMode.UserRead | UserWrite | GroupRead | OtherRead` (= 420) applied.
+
+**Important:** `UnixFileMode` enum and `File.GetUnixFileMode()` / `File.SetUnixFileMode()` are .NET 7+ APIs — no polyfill needed (project targets .NET 10). Tests that call these must be gated on `OperatingSystem.IsLinux()` so the Windows build still passes.
+
+---
+
+**⚠️ PROCESS NOTE FOR CLIENT AGENT:**
+1. Pull latest (`git pull`) before starting — server commit with permission fields is on `main`.
+2. Build and test on `Windows11-TestDNC`. Windows upload path sends `null` (correct). Tests exercising `File.SetUnixFileMode` must be gated on `OperatingSystem.IsLinux()` — they will be skipped on Windows.
+3. After committing, update this document with commit hash, build result, test count, and mark ✅ COMPLETE.
+4. Use **targeted edits only** — do not replace the entire handoff file.
+5. Push to `main` so the server agent can pull and move to the next task.
+
+**Request back from client agent:**
+- Commit hash
+- Build: 0 errors, 0 warnings
+- Test count (was 119 after #41, should increase by ≥ 2)
+- Confirm: Linux upload reads and sends `PosixMode`; Windows upload sends `null`; download applies mode on Linux; `null` mode gets `0o644` (420) default applied

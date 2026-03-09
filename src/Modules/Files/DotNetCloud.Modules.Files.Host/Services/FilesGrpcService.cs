@@ -557,6 +557,8 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
             ChunkSizesManifest = request.ChunkSizes.Count > 0
                 ? System.Text.Json.JsonSerializer.Serialize(request.ChunkSizes.ToList())
                 : null,
+            PosixMode = request.HasPosixMode ? request.PosixMode : null,
+            PosixOwnerHint = string.IsNullOrEmpty(request.PosixOwnerHint) ? null : request.PosixOwnerHint,
             UserId = userId
         };
 
@@ -1204,7 +1206,7 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
 
     private static FileNodeMessage ToMessage(FileNode node)
     {
-        return new FileNodeMessage
+        var message = new FileNodeMessage
         {
             Id = node.Id.ToString(),
             Name = node.Name,
@@ -1217,8 +1219,12 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
             IsFavorite = node.IsFavorite,
             ContentHash = node.ContentHash ?? string.Empty,
             CreatedAt = node.CreatedAt.ToString("O"),
-            UpdatedAt = node.UpdatedAt.ToString("O")
+            UpdatedAt = node.UpdatedAt.ToString("O"),
+            PosixOwnerHint = node.PosixOwnerHint ?? string.Empty
         };
+        if (node.PosixMode.HasValue)
+            message.PosixMode = node.PosixMode.Value;
+        return message;
     }
 
     private static FileVersionMessage ToVersionMessage(FileVersion version)

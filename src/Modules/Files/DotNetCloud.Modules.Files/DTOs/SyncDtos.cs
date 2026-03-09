@@ -34,6 +34,12 @@ public sealed record SyncChangeDto
 
     /// <summary>Sync sequence number for cursor-based sync (null for legacy rows).</summary>
     public long? SyncSequence { get; init; }
+
+    /// <summary>POSIX file mode bitmask. Null for folders or Windows-uploaded files.</summary>
+    public int? PosixMode { get; init; }
+
+    /// <summary>POSIX owner hint in <c>"user:group"</c> format. Null for Windows-uploaded files.</summary>
+    public string? PosixOwnerHint { get; init; }
 }
 
 /// <summary>
@@ -76,6 +82,12 @@ public sealed record SyncTreeNodeDto
 
     /// <summary>Children (for folders).</summary>
     public IReadOnlyList<SyncTreeNodeDto> Children { get; init; } = [];
+
+    /// <summary>POSIX file mode bitmask. Null for folders or Windows-uploaded files.</summary>
+    public int? PosixMode { get; init; }
+
+    /// <summary>POSIX owner hint in <c>"user:group"</c> format. Null for Windows-uploaded files.</summary>
+    public string? PosixOwnerHint { get; init; }
 }
 
 /// <summary>
