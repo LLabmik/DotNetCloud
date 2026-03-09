@@ -579,7 +579,7 @@ dotnet test tests\DotNetCloud.Client.Core.Tests\
 ### Issue #33: Batch 3 Task 3.1 — .syncignore with UI Support (Client only)
 
 **Server-side status:** Not applicable (client-only task).
-**Client-side status:** ☐ Pending.
+**Client-side status:** ✅ COMPLETE — commit `a9c6812` (2026-03-08).
 
 **⚠️ PROCESS NOTE FOR CLIENT AGENT:**
 1. Pull latest (`git pull`) before starting.
@@ -626,9 +626,25 @@ dotnet test tests\DotNetCloud.Client.Core.Tests\
 - `IsIgnored_UserPattern_OverridesDefault` — negation `!important.tmp` un-ignores a file matched by built-in
 - `IsIgnored_GitignoreGlob_MatchesCorrectly` — verify `**/*.log`, `build/`, `node_modules/` patterns
 
-**Request back from client agent:**
-- Commit hash
+**What was implemented — commit `a9c6812` (2026-03-08):**
+
+- `src/Clients/DotNetCloud.Client.Core/SyncIgnore/ISyncIgnoreParser.cs` — interface with `Initialize(root)`, `IsIgnored(relPath)`, `BuiltInPatterns`, `UserPatterns`, `SetUserPatterns`, `SaveAsync`.
+- `src/Clients/DotNetCloud.Client.Core/SyncIgnore/SyncIgnoreParser.cs` — regex-based implementation (avoids `InMemoryDirectoryInfo` path-separator pitfalls on Windows). Built-in defaults compiled in. `.syncignore` loaded from sync root in `Initialize`. Negation (`!pattern`) supported.
+- `src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj` — `Microsoft.Extensions.FileSystemGlobbing 10.0.0` added (for future use; matching uses custom `GlobToRegex`).
+- `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` — `ISyncIgnoreParser` injected; `Initialize` called in `StartAsync`; ignore check added in `ApplyRemoteChangesAsync` and `ExecutePendingOperationAsync` (PendingDownload); FSW handlers pre-filter ignored paths before triggering a sync pass.
+- `src/Clients/DotNetCloud.Client.Core/ClientCoreServiceExtensions.cs` — `ISyncIgnoreParser` registered as transient.
+- `src/Clients/DotNetCloud.Client.SyncService/ContextManager/SyncContextManager.cs` — `new SyncIgnoreParser()` passed to `SyncEngine` constructor.
+- `src/Clients/DotNetCloud.Client.SyncTray/App.axaml.cs` — `ISyncIgnoreParser` registered as transient in SyncTray DI.
+- `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/SettingsViewModel.cs` — `ISyncIgnoreParser` injected; `BuiltInIgnorePatterns`, `UserIgnorePatterns` (observable), `NewIgnorePattern`, `IgnoreTestPath`, `IgnoreTestResult` properties; `AddIgnorePatternCommand`, `RemoveIgnorePatternCommand`, `EditSyncIgnoreFileCommand` commands; `EnsureSyncIgnoreInitialized()` called on Settings window open.
+- `src/Clients/DotNetCloud.Client.SyncTray/Views/SettingsWindow.axaml` — new "Ignored Files" TabItem: user rules list with add/remove, system defaults (read-only, italic), "Edit .syncignore" button, and "Test a path" preview input.
+- `src/Clients/DotNetCloud.Client.SyncTray/Views/SettingsWindow.axaml.cs` — `Opened` event calls `EnsureSyncIgnoreInitialized()`.
+- `tests/DotNetCloud.Client.Core.Tests/SyncIgnore/SyncIgnoreParserTests.cs` — 10 new tests covering built-in defaults, VCS dirs, package manager dirs, user pattern globs, negation, `.syncignore` file loading, `SaveAsync`, gitignore glob correctness, backslash path normalisation.
+
+**Validation results from Windows11-TestDNC:**
+- Commit: `a9c6812`
 - Build: 0 errors
-- Test count (was 70, should increase by ≥ 3 new tests)
-- Confirm `SyncIgnoreParser` is wired into `SyncEngine` for all three check points
-- Confirm "Ignored Files" panel is present in SyncTray Settings
+- Tests: 80 passed, 0 failed (was 70, +10 new SyncIgnore tests)
+- `SyncIgnoreParser` wired into `SyncEngine` at all three check points: ✓
+- "Ignored Files" panel present in SyncTray Settings: ✓
+
+**Task 3.1: PASS (client complete)**
