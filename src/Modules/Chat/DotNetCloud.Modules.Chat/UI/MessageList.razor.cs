@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Components;
+using System.Text.Encodings.Web;
+using System.Text.RegularExpressions;
 
 namespace DotNetCloud.Modules.Chat.UI;
 
@@ -8,6 +10,11 @@ namespace DotNetCloud.Modules.Chat.UI;
 /// </summary>
 public partial class MessageList : ComponentBase
 {
+    private static readonly Regex InlineCodeRegex = new("`([^`]+)`", RegexOptions.Compiled);
+    private static readonly Regex BoldRegex = new("\\*\\*([^*]+)\\*\\*", RegexOptions.Compiled);
+    private static readonly Regex ItalicRegex = new("\\*([^*]+)\\*", RegexOptions.Compiled);
+    private static readonly Regex LinkRegex = new("\\[([^\\]]+)\\]\\((https?://[^)]+)\\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     private ElementReference _messageListRef;
 
     /// <summary>The list of messages to display.</summary>
@@ -33,6 +40,12 @@ public partial class MessageList : ComponentBase
     /// <summary>Callback when a reaction is toggled.</summary>
     [Parameter]
     public EventCallback<(Guid MessageId, string Emoji)> OnReactionToggle { get; set; }
+
+    /// <summary>
+    /// Message ID where the unread/new messages divider should appear.
+    /// </summary>
+    [Parameter]
+    public Guid? NewMessagesStartMessageId { get; set; }
 
     /// <summary>Reference to the message list element for scrolling.</summary>
     protected ElementReference MessageListRef
@@ -121,5 +134,31 @@ public partial class MessageList : ComponentBase
             2 => $"{TypingUsers[0].DisplayName} and {TypingUsers[1].DisplayName} are typing...",
             _ => "Several people are typing..."
         };
+    }
+
+    /// <summary>
+    /// Converts basic markdown markup to safe inline HTML.
+    /// </summary>
+    protected static MarkupString RenderMarkdown(string? content)
+    {
+        var encoded = HtmlEncoder.Default.Encode(content ?? string.Empty);
+
+        var html = LinkRegex.Replace(encoded, "<a href=\"$2\" target=\"_blank\" rel=\"noopener noreferrer\">$1</a>");
+        html = InlineCodeRegex.Replace(html, "<code>$1</code>");
+        html = BoldRegex.Replace(html, "<strong>$1</strong>");
+        html = ItalicRegex.Replace(html, "<em>$1</em>");
+        html = html.Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\n", "<br />", StringComparison.Ordinal);
+
+        return new MarkupString(html);
+    }
+
+    /// <summary>
+    /// Returns true when a message attachment should render an inline preview.
+    /// </summary>
+    protected static bool IsInlinePreviewAttachment(AttachmentViewModel attachment)
+    {
+        return attachment.MimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
+            || attachment.MimeType.Contains("pdf", StringComparison.OrdinalIgnoreCase)
+            || attachment.MimeType.StartsWith("text/", StringComparison.OrdinalIgnoreCase);
     }
 }

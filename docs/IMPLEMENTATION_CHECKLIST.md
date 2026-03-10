@@ -3145,12 +3145,12 @@ This phase implements real-time chat, announcements, push notifications, and the
 #### Message List Component
 - ✓ Create `MessageList.razor`:
   - ✓ Display messages with sender avatar, name, and timestamp
-  - [ ] Support Markdown rendering in messages
-  - [ ] Show inline file previews (images, documents)
+  - ✓ Support Markdown rendering in messages
+  - ✓ Show inline file previews (images, documents)
   - ✓ Display reply threads (indented/linked)
   - ✓ Show message reactions with emoji counts
   - ✓ Support infinite scroll (load older messages)
-  - [ ] Show "new messages" divider line
+  - ✓ Show "new messages" divider line
   - ✓ Display system messages (user joined, left, etc.)
   - ✓ Show edited indicator on edited messages
 

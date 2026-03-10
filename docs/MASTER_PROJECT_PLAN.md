@@ -63,7 +63,7 @@
 | Phase 2.5 | 4 | 4 | 0 | 0 |
 | Phase 2.6 | 4 | 4 | 0 | 0 |
 | Phase 2.7 | 4 | 4 | 0 | 0 |
-| Phase 2.8 | 11 | 6 | 0 | 5 |
+| Phase 2.8 | 11 | 7 | 0 | 4 |
 | Phase 2.9 | 3 | 0 | 0 | 3 |
 | Phase 2.10 | 8 | 0 | 0 | 8 |
 | Phase 2.11 | 3 | 3 | 0 | 0 |
@@ -3391,7 +3391,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Dependencies:** phase-2.5, Phase 0.11 (Blazor shell), Phase 0.12 (shared UI components)
 **Blocking Issues:** None
-**Notes:** Phase 2.8 advanced with Channel Header action controls. `ChannelHeader` now exposes action buttons for edit/archive/leave/pin-unpin and adds corresponding callbacks (`OnEditChannel`, `OnArchiveChannel`, `OnLeaveChannel`, `OnPinChanged`) while retaining existing member/search controls. Added `IsPinned` state to `ChannelViewModel` and scoped styling for action layout via `ChannelHeader.razor.css`. Verification: `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj` passed (226/226), and full `dotnet build` succeeded. Remaining phase-2.8 work: drag reorder, markdown rendering, previews/divider, rich mention composer, and announcement/badge components.
+**Notes:** Phase 2.8 progressed with richer Message List rendering behavior. `MessageList` now supports basic markdown rendering (safe encoded + inline emphasis/code/link parsing), inline attachment previews for image/document types, and an explicit "new messages" divider via `NewMessagesStartMessageId`. Added scoped styling (`MessageList.razor.css`) for divider and preview presentation. Verification: `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj` passed (226/226), and full `dotnet build` succeeded. Remaining phase-2.8 work: drag reorder, rich mention composer/paste image, member actions/profile popup, channel settings member management/metadata, DM user search/group DM, and announcement/badge realtime completion.
 
 ---
 

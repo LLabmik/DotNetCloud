@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-10 (Phase 2.8 channel header actions update posted)
+Last updated: 2026-03-10 (Phase 2.8 message list rendering update posted)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -805,6 +805,47 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 **Intentionally deferred items:**
 - Channel drag-to-reorder.
 - Remaining phase-2.8 UI behavior and component items in checklist.
+
+### Phase 2.8 Update #3 - MessageList Rendering Enhancements (Server, mint22)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`mint22`)  
+**Status:** completed ✅ (incremental phase-2.8 scope)
+
+**Commit hash:** `TBD`
+
+**Files added/updated:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageList.razor`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageList.razor.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageList.razor.css` (new)
+- `docs/IMPLEMENTATION_CHECKLIST.md`
+- `docs/MASTER_PROJECT_PLAN.md`
+- `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
+
+**Implemented in this update:**
+1. Added basic markdown rendering support for message content (safe encoding + links/bold/italic/inline code).
+2. Added inline preview handling for attachments (image previews + document preview placeholders).
+3. Added a "new messages" divider line using `NewMessagesStartMessageId`.
+4. Added scoped MessageList styles for divider and inline preview presentation.
+
+**Tests added/updated:**
+- No new unit tests (UI-only rendering enhancement).
+
+**Verification commands and results:**
+- `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
+    - Result: total 226, succeeded 226, failed 0, skipped 0
+- `dotnet build`
+    - Result: succeeded (full solution)
+
+**Raw failing assertion/error text seen during iteration (fixed):**
+- None.
+
+**Raw log snippets around authorization/event issues:**
+- N/A (UI-only change).
+
+**Intentionally deferred items:**
+- Advanced markdown features (tables/code blocks) and full rich-text composer UX.
+- Remaining phase-2.8 UI items from checklist.
 
 ### Sprint A Kickoff - Phase 1.19.2 (Files API Integration Depth)
 

@@ -30,6 +30,13 @@
 
         @foreach (var message in Messages)
         {
+            if (NewMessagesStartMessageId.HasValue && message.Id == NewMessagesStartMessageId.Value)
+            {
+                <div class="new-messages-divider">
+                    <span>New messages</span>
+                </div>
+            }
+
             <div class="message-item @(message.Type == "System" ? "system-message" : "")">
                 @if (message.Type == "System")
                 {
@@ -65,7 +72,7 @@
                             </div>
                         }
 
-                        <div class="message-content">@message.Content</div>
+                        <div class="message-content">@RenderMarkdown(message.Content)</div>
 
                         @if (message.Attachments.Count > 0)
                         {
@@ -77,6 +84,24 @@
                                         <span class="attachment-name">@attachment.FileName</span>
                                         <span class="attachment-size">@FormatSize(attachment.FileSize)</span>
                                     </div>
+
+                                    @if (IsInlinePreviewAttachment(attachment))
+                                    {
+                                        <div class="attachment-preview">
+                                            @if (attachment.MimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                <img src="@(attachment.ThumbnailUrl ?? string.Empty)" alt="@attachment.FileName" class="image-preview" />
+                                            }
+                                            else if (attachment.MimeType.Contains("pdf", StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                <div class="document-preview">PDF preview available</div>
+                                            }
+                                            else
+                                            {
+                                                <div class="document-preview">Inline text preview available</div>
+                                            }
+                                        </div>
+                                    }
                                 }
                             </div>
                         }

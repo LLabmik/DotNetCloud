@@ -1,0 +1,33 @@
+.new-messages-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.75rem 0;
+    color: #b91c1c;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.new-messages-divider::before,
+.new-messages-divider::after {
+    content: "";
+    flex: 1;
+    border-top: 1px solid #fca5a5;
+}
+
+.attachment-preview {
+    margin: 0.25rem 0 0.5rem 1.4rem;
+}
+
+.image-preview {
+    max-width: 16rem;
+    max-height: 10rem;
+    border-radius: 0.35rem;
+    border: 1px solid #d1d5db;
+    object-fit: cover;
+}
+
+.document-preview {
+    font-size: 0.8rem;
+    color: #4b5563;
+}
