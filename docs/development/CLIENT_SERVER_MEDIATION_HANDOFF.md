@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-10 (Sprint C update #1: recursive folder drag-and-drop upload completed)
+Last updated: 2026-03-10 (Sprint C updates #1-#3 completed: recursive upload, video/PDF thumbnails, touch gestures)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -45,9 +45,8 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 **All sync improvement batches (1–5) are now complete.** The sync improvement plan is closed.
 See [SYNC_IMPROVEMENT_PLAN.md](SYNC_IMPROVEMENT_PLAN.md) for full history.
 
-**Next work (server):** Phase 1.19.2 — broader Files API integration tests in
-`DotNetCloud.Integration.Tests` (File CRUD, chunked upload E2E, version/share/trash flows,
-WOPI endpoints, sync endpoints). See `docs/MASTER_PROJECT_PLAN.md` step `phase-1.19.2`.
+**Next work (server):** Sprint A/B/C closeout work in this handoff is complete.
+Continue from the next prioritized step in `docs/MASTER_PROJECT_PLAN.md`.
 
 ## Environment
 
@@ -135,12 +134,6 @@ Checks required:
 - affected client paths reviewed
 - raw endpoint/URL + payload shape examples checked
 - any mismatch found between integration behavior and client assumptions
-
-### Sprint A Historical Updates (Archived)
-
-Completed historical updates for Sprint A (`#1` through `#4`) were moved to
-`docs/development/CLIENT_SERVER_MEDIATION_ARCHIVE.md` under
-"Sprint A Archive (Phase 1.19.2)" to keep this handoff focused on active coordination.
 
 ### Sprint A Historical Updates (Archived)
 
