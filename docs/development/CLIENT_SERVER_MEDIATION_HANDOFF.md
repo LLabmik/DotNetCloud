@@ -81,7 +81,7 @@ WOPI endpoints, sync endpoints). See `docs/MASTER_PROJECT_PLAN.md` step `phase-1
 Reference tracker: `docs/development/REMAINING_PHASE0_PHASE1_3SPRINT_PLAN.md`
 
 - ✓ Sprint A kickoff sent
-- ☐ Sprint A complete (`phase-1.19.2`)
+- ✓ Sprint A complete (`phase-1.19.2`)
 - ☐ Sprint B complete (`phase-1.15` deferred hardening)
 - ☐ Sprint C complete (`phase-1.12` deferred UX/media)
 
@@ -97,7 +97,7 @@ Reference tracker: `docs/development/REMAINING_PHASE0_PHASE1_3SPRINT_PLAN.md`
 - ✓ Scope confirmed: CRUD/tree/search/favorites, chunked upload E2E, version/share/trash flows, WOPI+sync smoke
 - ✓ Mediator workflow confirmed: relay via this handoff doc
 - ✓ Server kickoff message sent
-- ☐ Client validation message sent
+- ✓ Client validation message sent
 
 ### Send to Server Agent
 Execute Sprint A for `phase-1.19.2` in `tests/DotNetCloud.Integration.Tests/`.
@@ -252,8 +252,38 @@ Completed historical updates for Sprint A (`#1` through `#4`) were moved to
 - `SQL Server run attempted/documented`: complete ✅ (executed and passing)
 - `Evidence returned (commit/tests/logs)`: complete ✅
 
-**Remaining Sprint A gap:**
-- Client-side Sprint A compatibility validation/sign-off.
+### Sprint A Update #9 - Client Compatibility Validation Sign-Off (Server, Windows workspace)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`Windows workspace`)  
+**Status:** completed ✅
+
+**Command executed:**
+- `dotnet test tests\DotNetCloud.Client.Core.Tests\DotNetCloud.Client.Core.Tests.csproj --filter "FullyQualifiedName~DotNetCloudApiClientTests"`
+    - Result: total 20, succeeded 20, failed 0, skipped 0
+
+- `dotnet test tests\DotNetCloud.Client.Core.Tests\DotNetCloud.Client.Core.Tests.csproj --filter "FullyQualifiedName~SyncEngineTests"`
+    - Result: total 28, succeeded 28, failed 0, skipped 0
+
+**Affected client paths reviewed:**
+- `src/Clients/DotNetCloud.Client.Core/Api/DotNetCloudApiClient.cs`
+- `tests/DotNetCloud.Client.Core.Tests/Api/DotNetCloudApiClientTests.cs`
+- `tests/DotNetCloud.Client.Core.Tests/Sync/SyncEngineTests.cs`
+
+**Raw endpoint/URL + payload shape examples checked:**
+- `GET /api/v1/files/{nodeId}` and `GET /api/v1/files/root/children` via `GetNodeAsync`/`ListChildrenAsync`.
+- `GET /api/v1/files/sync/tree` and `GET /api/v1/files/sync/changes?since=...` via `GetFolderTreeAsync`/`GetChangesSinceAsync`.
+- Envelope handling path in `ReadEnvelopeDataAsync<T>` accepts wrapped payloads (`{"success":true,"data":...}`) and direct payloads.
+- Auth handling path uses `Authorization: Bearer <token>` when `AccessToken` is set.
+
+**Mismatch assessment:**
+- No response-envelope contract mismatches found.
+- No auth-flow regression found for Files/sync endpoint assumptions.
+- No direct WOPI client API consumption path exists in current client core (`src/Clients/DotNetCloud.Client.Core/**`), so no new WOPI-specific client regression was identified.
+
+**Checklist impact:**
+- `Client validation message sent`: complete ✅
+- Sprint A (`phase-1.19.2`) mediation checklist: complete ✅
 
 ---
 
