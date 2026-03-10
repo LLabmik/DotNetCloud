@@ -112,7 +112,8 @@ public sealed class IpcServer : IIpcServer, IAsyncDisposable
                 await pipe.WaitForConnectionAsync(cancellationToken);
                 _logger.LogDebug("Named pipe client connected.");
 
-                AcceptClient(pipe);
+                var callerIdentity = ResolveNamedPipeIdentity(pipe);
+                AcceptClient(pipe, callerIdentity);
             }
             catch (OperationCanceledException)
             {
@@ -196,7 +197,8 @@ public sealed class IpcServer : IIpcServer, IAsyncDisposable
                 _logger.LogDebug("Unix socket client connected.");
 
                 var stream = new NetworkStream(clientSocket, ownsSocket: true);
-                AcceptClient(stream);
+                var callerIdentity = IpcCallerIdentity.Unavailable;
+                AcceptClient(stream, callerIdentity);
             }
             catch (OperationCanceledException)
             {
@@ -218,9 +220,22 @@ public sealed class IpcServer : IIpcServer, IAsyncDisposable
 
     // ── Client task management ────────────────────────────────────────────
 
-    private void AcceptClient(Stream stream)
+    private static IpcCallerIdentity ResolveNamedPipeIdentity(NamedPipeServerStream pipe)
     {
-        var handler = new IpcClientHandler(stream, _contextManager, _logger);
+        try
+        {
+            var userName = pipe.GetImpersonationUserName();
+            return IpcCallerIdentity.FromWindowsPipeUserName(userName);
+        }
+        catch
+        {
+            return IpcCallerIdentity.Unavailable;
+        }
+    }
+
+    private void AcceptClient(Stream stream, IpcCallerIdentity callerIdentity)
+    {
+        var handler = new IpcClientHandler(stream, _contextManager, _logger, callerIdentity);
         var token = _cts?.Token ?? CancellationToken.None;
         var task = handler.HandleAsync(token);
 

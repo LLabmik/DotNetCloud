@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Collections.Concurrent;
 using DotNetCloud.Client.SyncService.ContextManager;
 using Microsoft.Extensions.Logging;
 
@@ -15,10 +16,13 @@ public sealed class IpcClientHandler : IAsyncDisposable
     private static readonly JsonSerializerOptions JsonOptions =
         new(JsonSerializerDefaults.Web) { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull };
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
+    private static readonly TimeSpan SyncNowDebounceWindow = TimeSpan.FromSeconds(5);
+    private static readonly ConcurrentDictionary<Guid, DateTimeOffset> LastSyncNowAt = new();
 
     private readonly Stream _stream;
     private readonly ISyncContextManager _contextManager;
     private readonly ILogger _logger;
+    private readonly IpcCallerIdentity _callerIdentity;
     private readonly StreamWriter _writer;
     private readonly StreamReader _reader;
 
@@ -33,13 +37,19 @@ public sealed class IpcClientHandler : IAsyncDisposable
     private EventHandler<SyncConflictAutoResolvedEventArgs>? _conflictAutoResolvedHandler;
     private EventHandler<ContextTransferProgressEventArgs>? _transferProgressHandler;
     private EventHandler<ContextTransferCompleteEventArgs>? _transferCompleteHandler;
+    private readonly HashSet<Guid> _ownedContextIds = [];
 
     /// <summary>Initializes a new <see cref="IpcClientHandler"/>.</summary>
-    public IpcClientHandler(Stream stream, ISyncContextManager contextManager, ILogger logger)
+    public IpcClientHandler(
+        Stream stream,
+        ISyncContextManager contextManager,
+        ILogger logger,
+        IpcCallerIdentity? callerIdentity = null)
     {
         _stream = stream;
         _contextManager = contextManager;
         _logger = logger;
+        _callerIdentity = callerIdentity ?? IpcCallerIdentity.Unavailable;
         _writer = new StreamWriter(stream, Utf8NoBom, leaveOpen: true) { AutoFlush = true };
         _reader = new StreamReader(stream, Utf8NoBom, leaveOpen: true);
     }
@@ -188,10 +198,17 @@ public sealed class IpcClientHandler : IAsyncDisposable
 
     private async Task HandleListContextsAsync(CancellationToken cancellationToken)
     {
+        if (!await EnsureCallerIdentityAsync(IpcCommands.ListContexts, null, cancellationToken))
+            return;
+
         var contexts = await _contextManager.GetContextsAsync();
+        var allowedContexts = contexts
+            .Where(c => _callerIdentity.MatchesOwner(c.OsUserName))
+            .ToList();
+
         var infos = new List<ContextInfo>(contexts.Count);
 
-        foreach (var ctx in contexts)
+        foreach (var ctx in allowedContexts)
         {
             var status = await _contextManager.GetStatusAsync(ctx.Id, cancellationToken);
             infos.Add(new ContextInfo
@@ -235,7 +252,11 @@ public sealed class IpcClientHandler : IAsyncDisposable
             AccessToken = data.AccessToken,
             RefreshToken = data.RefreshToken,
             ExpiresAt = data.ExpiresAt,
+            OsUserName = _callerIdentity.AccountName ?? _callerIdentity.NormalizedIdentity ?? string.Empty,
         };
+
+        if (!await EnsureCallerIdentityAsync(command.Command, null, cancellationToken))
+            return;
 
         var registration = await _contextManager.AddContextAsync(request, cancellationToken);
         await SendResponseAsync(command.Command,
@@ -245,33 +266,30 @@ public sealed class IpcClientHandler : IAsyncDisposable
 
     private async Task HandleRemoveAccountAsync(IpcCommand command, CancellationToken cancellationToken)
     {
-        if (command.ContextId is null)
+        var registration = await GetOwnedContextOrRejectAsync(command.Command, command.ContextId, cancellationToken);
+        if (registration is null)
         {
-            await SendErrorAsync(command.Command, "Missing 'contextId'.", cancellationToken);
             return;
         }
 
-        await _contextManager.RemoveContextAsync(command.ContextId.Value, cancellationToken);
+        await _contextManager.RemoveContextAsync(registration.Id, cancellationToken);
         await SendResponseAsync(command.Command, new { removed = true }, cancellationToken);
     }
 
     private async Task HandleGetStatusAsync(IpcCommand command, CancellationToken cancellationToken)
     {
-        if (command.ContextId is null)
-        {
-            await SendErrorAsync(command.Command, "Missing 'contextId'.", cancellationToken);
+        var registration = await GetOwnedContextOrRejectAsync(command.Command, command.ContextId, cancellationToken);
+        if (registration is null)
             return;
-        }
 
-        var status = await _contextManager.GetStatusAsync(command.ContextId.Value, cancellationToken);
+        var status = await _contextManager.GetStatusAsync(registration.Id, cancellationToken);
         if (status is null)
         {
-            await SendErrorAsync(command.Command,
-                $"Context '{command.ContextId}' not found.", cancellationToken);
+            await SendErrorAsync(command.Command, "Context not found or inaccessible.", cancellationToken);
             return;
         }
 
-        await SendResponseAsync(command.Command, command.ContextId.Value, new
+        await SendResponseAsync(command.Command, registration.Id, new
         {
             state = status.State.ToString(),
             pendingUploads = status.PendingUploads,
@@ -284,40 +302,44 @@ public sealed class IpcClientHandler : IAsyncDisposable
 
     private async Task HandlePauseAsync(IpcCommand command, CancellationToken cancellationToken)
     {
-        if (command.ContextId is null)
-        {
-            await SendErrorAsync(command.Command, "Missing 'contextId'.", cancellationToken);
+        var registration = await GetOwnedContextOrRejectAsync(command.Command, command.ContextId, cancellationToken);
+        if (registration is null)
             return;
-        }
 
-        await _contextManager.PauseAsync(command.ContextId.Value, cancellationToken);
+        await _contextManager.PauseAsync(registration.Id, cancellationToken);
         await SendResponseAsync(command.Command, new { paused = true }, cancellationToken);
     }
 
     private async Task HandleResumeAsync(IpcCommand command, CancellationToken cancellationToken)
     {
-        if (command.ContextId is null)
-        {
-            await SendErrorAsync(command.Command, "Missing 'contextId'.", cancellationToken);
+        var registration = await GetOwnedContextOrRejectAsync(command.Command, command.ContextId, cancellationToken);
+        if (registration is null)
             return;
-        }
 
-        await _contextManager.ResumeAsync(command.ContextId.Value, cancellationToken);
+        await _contextManager.ResumeAsync(registration.Id, cancellationToken);
         await SendResponseAsync(command.Command, new { resumed = true }, cancellationToken);
     }
 
     private async Task HandleSyncNowAsync(IpcCommand command, CancellationToken cancellationToken)
     {
-        if (command.ContextId is null)
+        var registration = await GetOwnedContextOrRejectAsync(command.Command, command.ContextId, cancellationToken);
+        if (registration is null)
+            return;
+
+        var now = DateTimeOffset.UtcNow;
+        if (LastSyncNowAt.TryGetValue(registration.Id, out var lastSyncNowAt)
+            && now - lastSyncNowAt < SyncNowDebounceWindow)
         {
-            await SendErrorAsync(command.Command, "Missing 'contextId'.", cancellationToken);
+            await SendResponseAsync(command.Command, new { started = false, reason = "rate-limited" }, cancellationToken);
             return;
         }
+
+        LastSyncNowAt[registration.Id] = now;
 
         // Fire and forget — client receives confirmation immediately;
         // progress is delivered via events if the client is subscribed.
         _ = Task.Run(
-            () => _contextManager.SyncNowAsync(command.ContextId.Value, cancellationToken),
+            () => _contextManager.SyncNowAsync(registration.Id, cancellationToken),
             cancellationToken);
 
         await SendResponseAsync(command.Command, new { started = true }, cancellationToken);
@@ -325,11 +347,9 @@ public sealed class IpcClientHandler : IAsyncDisposable
 
     private async Task HandleListConflictsAsync(IpcCommand command, CancellationToken cancellationToken)
     {
-        if (command.ContextId is null)
-        {
-            await SendErrorAsync(command.Command, "Missing 'contextId'.", cancellationToken);
+        var registration = await GetOwnedContextOrRejectAsync(command.Command, command.ContextId, cancellationToken);
+        if (registration is null)
             return;
-        }
 
         var includeHistory = false;
         if (command.Data is not null)
@@ -339,7 +359,7 @@ public sealed class IpcClientHandler : IAsyncDisposable
         }
 
         var records = await _contextManager.ListConflictsAsync(
-            command.ContextId.Value, includeHistory, cancellationToken);
+            registration.Id, includeHistory, cancellationToken);
 
         var payload = records.Select(r => new ConflictRecordPayload
         {
@@ -356,16 +376,14 @@ public sealed class IpcClientHandler : IAsyncDisposable
             AutoResolved = r.AutoResolved,
         }).ToList();
 
-        await SendResponseAsync(command.Command, command.ContextId.Value, payload, cancellationToken);
+        await SendResponseAsync(command.Command, registration.Id, payload, cancellationToken);
     }
 
     private async Task HandleResolveConflictAsync(IpcCommand command, CancellationToken cancellationToken)
     {
-        if (command.ContextId is null)
-        {
-            await SendErrorAsync(command.Command, "Missing 'contextId'.", cancellationToken);
+        var registration = await GetOwnedContextOrRejectAsync(command.Command, command.ContextId, cancellationToken);
+        if (registration is null)
             return;
-        }
 
         if (command.Data is null)
         {
@@ -381,13 +399,16 @@ public sealed class IpcClientHandler : IAsyncDisposable
         }
 
         await _contextManager.ResolveConflictAsync(
-            command.ContextId.Value, data.ConflictId, data.Resolution, cancellationToken);
+            registration.Id, data.ConflictId, data.Resolution, cancellationToken);
 
         await SendResponseAsync(command.Command, new { resolved = true }, cancellationToken);
     }
 
     private async Task HandleUpdateBandwidthAsync(IpcCommand command, CancellationToken cancellationToken)
     {
+        if (!await EnsureCallerIdentityAsync(command.Command, null, cancellationToken))
+            return;
+
         if (command.Data is null)
         {
             await SendErrorAsync(command.Command, "Missing 'data' payload.", cancellationToken);
@@ -409,6 +430,9 @@ public sealed class IpcClientHandler : IAsyncDisposable
 
     private async Task HandleUpdateConflictSettingsAsync(IpcCommand command, CancellationToken cancellationToken)
     {
+        if (!await EnsureCallerIdentityAsync(command.Command, null, cancellationToken))
+            return;
+
         if (command.Data is null)
         {
             await SendErrorAsync(command.Command, "Missing 'data' payload.", cancellationToken);
@@ -436,16 +460,14 @@ public sealed class IpcClientHandler : IAsyncDisposable
 
     private async Task HandleGetFolderTreeAsync(IpcCommand command, CancellationToken cancellationToken)
     {
-        if (command.ContextId is null)
-        {
-            await SendErrorAsync(command.Command, "Missing 'contextId'.", cancellationToken);
+        var registration = await GetOwnedContextOrRejectAsync(command.Command, command.ContextId, cancellationToken);
+        if (registration is null)
             return;
-        }
 
-        var tree = await _contextManager.GetFolderTreeAsync(command.ContextId.Value, cancellationToken);
+        var tree = await _contextManager.GetFolderTreeAsync(registration.Id, cancellationToken);
         if (tree is null)
         {
-            await SendErrorAsync(command.Command, "Context not found.", cancellationToken);
+            await SendErrorAsync(command.Command, "Context not found or inaccessible.", cancellationToken);
             return;
         }
 
@@ -456,11 +478,14 @@ public sealed class IpcClientHandler : IAsyncDisposable
 
     private void Subscribe()
     {
+        if (!_callerIdentity.IsAvailable)
+            return;
+
         if (_subscribed) return;
         _subscribed = true;
 
         _progressHandler = (_, args) =>
-            _ = PushEventAsync(IpcEvents.SyncProgress, args.ContextId, new
+            _ = PushEventIfOwnedAsync(IpcEvents.SyncProgress, args.ContextId, new
             {
                 state = args.Status.State.ToString(),
                 pendingUploads = args.Status.PendingUploads,
@@ -468,27 +493,27 @@ public sealed class IpcClientHandler : IAsyncDisposable
             });
 
         _completeHandler = (_, args) =>
-            _ = PushEventAsync(IpcEvents.SyncComplete, args.ContextId, new
+            _ = PushEventIfOwnedAsync(IpcEvents.SyncComplete, args.ContextId, new
             {
                 lastSyncedAt = args.Status.LastSyncedAt,
                 conflicts = args.Status.Conflicts,
             });
 
         _errorHandler = (_, args) =>
-            _ = PushEventAsync(IpcEvents.Error, args.ContextId, new
+            _ = PushEventIfOwnedAsync(IpcEvents.Error, args.ContextId, new
             {
                 error = args.ErrorMessage,
             });
 
         _conflictHandler = (_, args) =>
-            _ = PushEventAsync(IpcEvents.ConflictDetected, args.ContextId, new
+            _ = PushEventIfOwnedAsync(IpcEvents.ConflictDetected, args.ContextId, new
             {
                 originalPath = args.OriginalPath,
                 conflictCopyPath = args.ConflictCopyPath,
             });
 
         _conflictAutoResolvedHandler = (_, args) =>
-            _ = PushEventAsync(IpcEvents.ConflictAutoResolved, args.ContextId, new ConflictAutoResolvedPayload
+            _ = PushEventIfOwnedAsync(IpcEvents.ConflictAutoResolved, args.ContextId, new ConflictAutoResolvedPayload
             {
                 LocalPath = args.LocalPath,
                 Strategy = args.Strategy,
@@ -496,7 +521,7 @@ public sealed class IpcClientHandler : IAsyncDisposable
             });
 
         _transferProgressHandler = (_, args) =>
-            _ = PushEventAsync(IpcEvents.TransferProgress, args.ContextId, new TransferProgressPayload
+            _ = PushEventIfOwnedAsync(IpcEvents.TransferProgress, args.ContextId, new TransferProgressPayload
             {
                 FileName = args.FileName,
                 Direction = args.Direction,
@@ -508,7 +533,7 @@ public sealed class IpcClientHandler : IAsyncDisposable
             });
 
         _transferCompleteHandler = (_, args) =>
-            _ = PushEventAsync(IpcEvents.TransferComplete, args.ContextId, new TransferCompletePayload
+            _ = PushEventIfOwnedAsync(IpcEvents.TransferComplete, args.ContextId, new TransferCompletePayload
             {
                 FileName = args.FileName,
                 Direction = args.Direction,
@@ -522,6 +547,8 @@ public sealed class IpcClientHandler : IAsyncDisposable
         _contextManager.ConflictAutoResolved += _conflictAutoResolvedHandler;
         _contextManager.TransferProgress += _transferProgressHandler;
         _contextManager.TransferComplete += _transferCompleteHandler;
+
+        _ = RefreshOwnedContextIdsAsync(CancellationToken.None);
     }
 
     private void Unsubscribe()
@@ -538,10 +565,20 @@ public sealed class IpcClientHandler : IAsyncDisposable
         if (_transferCompleteHandler is not null) _contextManager.TransferComplete -= _transferCompleteHandler;
     }
 
-    private async Task PushEventAsync(string eventName, Guid contextId, object data)
+    private async Task PushEventIfOwnedAsync(string eventName, Guid contextId, object data)
     {
         try
         {
+            if (!_callerIdentity.IsAvailable)
+                return;
+
+            if (!_ownedContextIds.Contains(contextId))
+            {
+                await RefreshOwnedContextIdsAsync(CancellationToken.None);
+                if (!_ownedContextIds.Contains(contextId))
+                    return;
+            }
+
             await SendMessageAsync(new IpcMessage
             {
                 Type = "event",
@@ -608,5 +645,67 @@ public sealed class IpcClientHandler : IAsyncDisposable
     {
         Unsubscribe();
         return ValueTask.CompletedTask;
+    }
+
+    private async Task<bool> EnsureCallerIdentityAsync(string command, Guid? contextId, CancellationToken cancellationToken)
+    {
+        if (_callerIdentity.IsAvailable)
+            return true;
+
+        _logger.LogWarning(
+            "IPC command denied due to unavailable caller identity: Command={Command}, ContextId={ContextId}, Caller={Caller}.",
+            command,
+            contextId,
+            _callerIdentity.RawIdentity ?? "<unavailable>");
+
+        await SendErrorAsync(command, "Caller identity unavailable.", cancellationToken);
+        return false;
+    }
+
+    private async Task<SyncContextRegistration?> GetOwnedContextOrRejectAsync(
+        string command,
+        Guid? contextId,
+        CancellationToken cancellationToken)
+    {
+        if (contextId is null)
+        {
+            await SendErrorAsync(command, "Missing 'contextId'.", cancellationToken);
+            return null;
+        }
+
+        if (!await EnsureCallerIdentityAsync(command, contextId, cancellationToken))
+            return null;
+
+        var contexts = await _contextManager.GetContextsAsync();
+        var registration = contexts.FirstOrDefault(c => c.Id == contextId.Value);
+
+        if (registration is null || !_callerIdentity.MatchesOwner(registration.OsUserName))
+        {
+            _logger.LogWarning(
+                "IPC command denied due to context ownership mismatch: Command={Command}, ContextId={ContextId}, Caller={Caller}, Owner={Owner}.",
+                command,
+                contextId,
+                _callerIdentity.NormalizedIdentity ?? "<unknown>",
+                registration?.OsUserName ?? "<missing>");
+
+            await SendErrorAsync(command, "Context not found or inaccessible.", cancellationToken);
+            return null;
+        }
+
+        return registration;
+    }
+
+    private async Task RefreshOwnedContextIdsAsync(CancellationToken cancellationToken)
+    {
+        if (!_callerIdentity.IsAvailable)
+            return;
+
+        var contexts = await _contextManager.GetContextsAsync();
+        _ownedContextIds.Clear();
+        foreach (var context in contexts)
+        {
+            if (_callerIdentity.MatchesOwner(context.OsUserName))
+                _ownedContextIds.Add(context.Id);
+        }
     }
 }

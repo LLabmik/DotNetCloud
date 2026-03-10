@@ -2252,8 +2252,8 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Named Pipe on Windows
   - ✓ Unix domain socket on Linux
 - ✓ IPC protocol:
-  - ☐ Identify caller by OS user identity — requires `PipeStream.GetImpersonationLevel` (Windows) or peer-credential socket option (Linux); deferred with privilege-dropping work above
-  - ☐ Return only caller's sync contexts (no cross-user data) — blocked on caller-identity check above
+  - ✓ Identify caller by OS user identity — Windows named-pipe caller identity enforced via `GetImpersonationUserName`; Unix sockets deny identity-bound commands when caller identity is unavailable
+  - ✓ Return only caller's sync contexts (no cross-user data)
   - ✓ Commands: list-contexts, add-account, remove-account, get-status, pause, resume, sync-now
   - ✓ Events: sync-progress, sync-complete, conflict-detected, error
 
@@ -2261,7 +2261,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Start sync engine per context on service start
 - ✓ Schedule periodic full syncs
 - ✓ Handle file system watcher events
-- ☐ Rate-limit sync operations (avoid overwhelming server) — `SyncEngine` already serialises passes with a semaphore; a token-bucket or per-context cooldown can be added in Phase 1.16 once real traffic patterns are known
+- ✓ Rate-limit sync operations (avoid overwhelming server) — `sync-now` now returns a no-op payload (`started=false`, `reason="rate-limited"`) when called within cooldown
 - ☐ Batch small changes before syncing (debounce) — FileSystemWatcher events fire immediately; a short delay + coalescing timer should be added to `SyncEngine` in Phase 1.16 to avoid chatty syncs during rapid saves
 - ✓ Graceful shutdown (complete in-progress transfers, save state)
 

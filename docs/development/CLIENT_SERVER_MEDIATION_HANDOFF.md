@@ -299,7 +299,7 @@ Completed historical updates for Sprint A (`#1` through `#4`) were moved to
 - ✓ Scope confirmed: Linux privilege dropping, Windows impersonation, IPC identity verification, trigger debounce, disk-full surfacing.
 - ✓ Expected identity semantics posted in handoff (this update).
 - ✓ Expected failure semantics posted in handoff (this update).
-- ☐ Client implementation kickoff message sent.
+- ✓ Client implementation kickoff message sent.
 
 ### Sprint B - Expected Caller Identity (IPC/SyncService)
 
@@ -341,6 +341,51 @@ Required work focus:
 - raw IPC command/response examples for denial paths
 - raw log lines around identity mismatch and privilege-transition failures (timestamped)
 - platform matrix evidence (Linux + Windows behaviors)
+
+### Sprint B Update #1 - IPC Identity Boundary + Sync Trigger Debounce (Server, Windows workspace)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`Windows workspace`)  
+**Status:** in-progress ☐
+
+**Files added/updated:**
+- `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcCallerIdentity.cs` (new)
+- `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcServer.cs`
+- `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcClientHandler.cs`
+- `tests/DotNetCloud.Client.SyncService.Tests/IpcClientHandlerTests.cs`
+
+**Implemented in this update:**
+1. Transport-level caller identity model added at IPC boundary (`IpcCallerIdentity`).
+2. Windows named-pipe caller identity extraction wired via `GetImpersonationUserName` and passed into per-client handler.
+3. Context ownership enforcement added for context-scoped commands with denial message: `Context not found or inaccessible.`
+4. `list-contexts` now returns only caller-owned contexts.
+5. Push events are filtered to caller-owned contexts for subscribed clients.
+6. Identity-unavailable path now rejects identity-bound commands with: `Caller identity unavailable.`
+7. `sync-now` now supports cooldown no-op behavior (`started=false`, `reason="rate-limited"`).
+
+**Tests added/updated:**
+- `HandleAsync_ListContextsCommand_ReturnsSuccessResponse`
+- `HandleAsync_ListContextsCommand_IdentityUnavailable_ReturnsError`
+- `HandleAsync_GetStatusCommand_OtherUserContext_ReturnsInaccessible`
+- `HandleAsync_SyncNowCommand_DebounceReturnsRateLimitedOnSecondRequest`
+
+**Command executed:**
+- `dotnet test tests\DotNetCloud.Client.SyncService.Tests\DotNetCloud.Client.SyncService.Tests.csproj`
+    - Result: total 27, succeeded 27, failed 0, skipped 0
+
+**Raw IPC command/response examples validated in tests:**
+- Request: `{"command":"list-contexts"}` with unavailable identity
+    - Response: `{"type":"response","command":"list-contexts","success":false,"error":"Caller identity unavailable."}`
+- Request: `{"command":"get-status","contextId":"<foreign-context-guid>"}`
+    - Response: `{"type":"response","command":"get-status","success":false,"error":"Context not found or inaccessible."}`
+- Request 1/2: `{"command":"sync-now","contextId":"<owned-context-guid>"}` then immediate repeat
+    - Response 1: `{"type":"response","command":"sync-now","success":true,"data":{"started":true}}`
+    - Response 2: `{"type":"response","command":"sync-now","success":true,"data":{"started":false,"reason":"rate-limited"}}`
+
+**Remaining for Sprint B:**
+- Linux per-context privilege drop (`setresuid`/`setresgid`) implementation.
+- Windows per-context impersonation execution boundary (`RunImpersonated`) implementation.
+- Disk-full detection + SyncError surfacing path with tray-facing notification semantics.
 
 ---
 
