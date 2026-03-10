@@ -430,6 +430,11 @@ dotnet build src/Core/DotNetCloud.Core/DotNetCloud.Core.csproj
 
 When the user says the keyword **"remember"**, it means this information should be added to this instructions file for permanent reference across all future sessions.
 
+### Git Push Responsibility
+
+- The assistant is responsible for pushing commits to remote by default.
+- Do not delegate routine push responsibility to the moderator/user unless explicitly requested.
+
 ---
 
 ## Domain Information

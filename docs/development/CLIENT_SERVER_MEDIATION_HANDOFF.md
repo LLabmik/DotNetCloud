@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-10 (Sprint A provider matrix completed on Linux host; PostgreSQL + SQL Server passing)
+Last updated: 2026-03-10 (Sprint A completed; Sprint B kickoff prepared with IPC identity boundary semantics)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -19,6 +19,7 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
 - Moderator relay standard (default): keep relay prompts to one simple line unless extra detail is explicitly requested.
 - Preferred relay text for new work handoff: `New commit on main with handoff updates. Pull and resume from the current checklist.`
 - Moderator relay mode: mediator sends only short notifications between machines (example: "new handoff update available; pull and continue").
+- Git push responsibility (default): assistant pushes commits to remote; moderator relays notifications.
 - All complex instructions, technical details, acceptance criteria, and troubleshooting context MUST be written in this handoff document, not relayed verbally.
 
 ## Moderator Short-Ping Templates
@@ -82,6 +83,7 @@ Reference tracker: `docs/development/REMAINING_PHASE0_PHASE1_3SPRINT_PLAN.md`
 
 - ✓ Sprint A kickoff sent
 - ✓ Sprint A complete (`phase-1.19.2`)
+- ✓ Sprint B kickoff sent (`phase-1.15` deferred hardening)
 - ☐ Sprint B complete (`phase-1.15` deferred hardening)
 - ☐ Sprint C complete (`phase-1.12` deferred UX/media)
 
@@ -284,6 +286,61 @@ Completed historical updates for Sprint A (`#1` through `#4`) were moved to
 **Checklist impact:**
 - `Client validation message sent`: complete ✅
 - Sprint A (`phase-1.19.2`) mediation checklist: complete ✅
+
+### Sprint B Kickoff - Phase 1.15 Deferred Hardening (SyncService Identity Boundaries)
+
+**Sprint goal:** Close deferred hardening items in `phase-1.15` with priority on IPC caller identity enforcement and per-context privilege boundaries.
+
+**Owner split:**
+- Client: primary implementation in `DotNetCloud.Client.SyncService` and platform plumbing.
+- Server: identity/contract review and sign-off on failure semantics.
+
+**Kickoff checklist:**
+- ✓ Scope confirmed: Linux privilege dropping, Windows impersonation, IPC identity verification, trigger debounce, disk-full surfacing.
+- ✓ Expected identity semantics posted in handoff (this update).
+- ✓ Expected failure semantics posted in handoff (this update).
+- ☐ Client implementation kickoff message sent.
+
+### Sprint B - Expected Caller Identity (IPC/SyncService)
+
+These expectations define the security contract for `IpcServer`/`IpcClientHandler` once Sprint B is implemented:
+
+1. Connection identity must come from transport-level OS credentials, not from JSON payload fields.
+2. On Linux/macOS Unix socket connections, caller identity must be resolved from peer credentials (UID/GID) and mapped to a normalized OS user identity.
+3. On Windows named-pipe connections, caller identity must be resolved from the authenticated pipe client token and mapped to a normalized SID/account identity.
+4. Every `SyncContextRegistration` is owner-scoped by `OsUserName`; context-scoped commands must execute only when caller identity matches the context owner identity.
+5. `list-contexts` must be caller-filtered (return only contexts owned by the connected caller).
+6. Push events for `subscribe` must be filtered to caller-owned contexts only.
+7. If identity cannot be established reliably, no mutating command may execute.
+
+### Sprint B - Expected Failure Semantics (IPC/SyncService)
+
+Use deterministic denial behavior for identity-boundary violations:
+
+1. Identity unavailable/unverifiable: reject command with `success=false` and error text `Caller identity unavailable.`
+2. Context ownership mismatch: reject command with `success=false` and error text `Context not found or inaccessible.`
+3. Unknown context for caller: same response as mismatch (`Context not found or inaccessible.`) to avoid cross-user context enumeration.
+4. Invalid or missing required fields (`contextId`, `data`, malformed JSON): reject with `success=false` and existing bad-request style error text.
+5. Privilege transition failure (Linux `setresuid`/`setresgid`, Windows impersonation): reject command with `success=false`, emit sync error event, and log raw OS/platform error details server-side.
+6. Debounce/rate-limit rejections for `sync-now`: return `success=true` with an explicit no-op payload (`started=false`, `reason="rate-limited"`) rather than a hard failure.
+7. Identity-boundary failures must be logged with timestamp, command, normalized caller identity, target contextId, and denial reason.
+
+### Send to Client Agent
+Execute Sprint B for `phase-1.15` deferred hardening in `src/Clients/DotNetCloud.Client.SyncService/` using the identity and failure semantics above as required contract.
+
+Required work focus:
+1. Implement caller-identity extraction and context ownership enforcement at IPC boundary.
+2. Implement Linux privilege dropping path per context.
+3. Implement Windows impersonation path per context.
+4. Add sync trigger debounce/rate limiting behavior with observable no-op response semantics.
+5. Add disk-full detection and tray-facing notification path.
+
+### Request Back
+- commit hash
+- exact files and tests added/updated (paths + test names)
+- raw IPC command/response examples for denial paths
+- raw log lines around identity mismatch and privilege-transition failures (timestamped)
+- platform matrix evidence (Linux + Windows behaviors)
 
 ---
 
