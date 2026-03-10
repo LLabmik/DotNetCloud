@@ -16,6 +16,8 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
     move completed blocks to `CLIENT_SERVER_MEDIATION_ARCHIVE.md` and leave a short reference pointer.
 - Archive cadence for Sprint work: keep only current sprint kickoff + latest 1-2 update entries in this file;
     move older completed updates to archive.
+- Moderator relay standard (default): keep relay prompts to one simple line unless extra detail is explicitly requested.
+- Preferred relay text for new work handoff: `New commit on main with handoff updates. Pull and resume from the current checklist.`
 
 ## Current Status
 
