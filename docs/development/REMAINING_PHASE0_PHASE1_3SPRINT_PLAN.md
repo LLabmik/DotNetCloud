@@ -1,7 +1,7 @@
 # Remaining Phase 0/1 Work - 3 Sprint Execution Plan
 
 **Created:** 2026-03-10  
-**Status:** In progress  
+**Status:** Completed (pending final acceptance/archive cleanup)  
 **Scope:** Finish top-priority open work in `phase-1.19.2`, `phase-1.15` deferred items, and `phase-1.12` deferred items.
 
 ## Important Notes
@@ -18,10 +18,10 @@
 
 ## Global Tracking
 
-- ☐ Sprint A complete
-- ☐ Sprint B complete
+- ✓ Sprint A complete
+- ✓ Sprint B complete
 - ✓ Sprint C complete
-- ☐ All related docs updated (`MASTER_PROJECT_PLAN.md`, `IMPLEMENTATION_CHECKLIST.md`, mediation handoff)
+- ✓ All related docs updated (`MASTER_PROJECT_PLAN.md`, `IMPLEMENTATION_CHECKLIST.md`, mediation handoff)
 - ☐ Final acceptance received
 - ☐ This temporary sprint plan deleted
 
@@ -50,15 +50,15 @@
 ### Mediator Handoff Checkpoints
 
 - ✓ Server posts detailed test-gap inventory to handoff doc
-- ☐ Server posts commit hash + exact test names + raw endpoint diffs
-- ☐ Client validates no response-envelope/auth contract regressions
-- ☐ Cross-agent sign-off recorded in handoff doc
+- ✓ Server posts commit hash + exact test names + raw endpoint diffs
+- ✓ Client validates no response-envelope/auth contract regressions
+- ✓ Cross-agent sign-off recorded in handoff doc
 
 ### Exit Criteria
 
-- ☐ `phase-1.19.2` marked completed
-- ☐ Integration suite includes both security and broad functional E2E coverage
-- ☐ Documentation updated with completion notes and counts
+- ✓ `phase-1.19.2` marked completed
+- ✓ Integration suite includes both security and broad functional E2E coverage
+- ✓ Documentation updated with completion notes and counts
 
 ---
 
@@ -76,24 +76,24 @@
 
 ### Deliverables
 
-- ☐ Linux privilege dropping per context (`setresuid`/`setresgid` path)
-- ☐ Windows impersonation per context (`WindowsIdentity.RunImpersonated` path)
-- ☐ IPC caller identity verification wired to context identity model
-- ☐ Sync trigger debounce/rate limiting behavior
-- ☐ Disk-full detection and tray-surfaced notification path
+- ✓ Linux privilege dropping per context (`setresuid`/`setresgid` path)
+- ✓ Windows impersonation per context (`WindowsIdentity.RunImpersonated` path)
+- ✓ IPC caller identity verification wired to context identity model
+- ✓ Sync trigger debounce/rate limiting behavior
+- ✓ Disk-full detection and tray-surfaced notification path
 
 ### Mediator Handoff Checkpoints
 
-- ☐ Server posts expected caller identity and failure semantics
-- ☐ Client posts per-OS implementation proposal and assumptions
-- ☐ Server reviews and signs off on identity/security behavior
-- ☐ Client posts final evidence: commit hash, logs, and test results (Windows + Linux)
+- ✓ Server posts expected caller identity and failure semantics
+- ✓ Client posts per-OS implementation proposal and assumptions
+- ✓ Server reviews and signs off on identity/security behavior
+- ✓ Client posts final evidence: commit hash, logs, and test results (Windows + Linux)
 
 ### Exit Criteria
 
-- ☐ All deferred bullets under `phase-1.15` resolved
-- ☐ Regression tests added for identity mismatch, privilege boundary, disk-full, debounce
-- ☐ Documentation and handoff updated
+- ✓ All deferred bullets under `phase-1.15` resolved
+- ✓ Regression tests added for identity mismatch, privilege boundary, disk-full, debounce
+- ✓ Documentation and handoff updated
 
 ---
 
@@ -118,16 +118,16 @@
 
 ### Mediator Handoff Checkpoints
 
-- ☐ Server locks thumbnail endpoint contract first
-- ☐ Client integrates browser + preview flows against contract
-- ☐ Server validates caching/auth behavior for thumbnail endpoint
-- ☐ Client posts UX validation evidence and fallback behavior notes
+- ✓ Server locks thumbnail endpoint contract first
+- ✓ Client integrates browser + preview flows against contract
+- ✓ Server validates caching/auth behavior for thumbnail endpoint
+- ✓ Client posts UX validation evidence and fallback behavior notes
 
 ### Exit Criteria
 
 - ✓ All deferred bullets under `phase-1.12` resolved
-- ☐ Tests added for recursive drop parsing and thumbnail endpoint behavior
-- ☐ Docs and handoff updated with completion evidence
+- ✓ Tests added for recursive drop parsing and thumbnail endpoint behavior
+- ✓ Docs and handoff updated with completion evidence
 
 ---
 
@@ -144,21 +144,21 @@ Use this template at sprint kickoff and closeout.
 
 ### Closeout
 
-- ☐ Build passes
-- ☐ Relevant tests pass
-- ☐ Handoff evidence added (commit hash, raw endpoint/URL, raw errors/query params, raw logs)
-- ☐ `MASTER_PROJECT_PLAN.md` updated
-- ☐ `IMPLEMENTATION_CHECKLIST.md` updated
+- ✓ Build passes
+- ✓ Relevant tests pass
+- ✓ Handoff evidence added (commit hash, raw endpoint/URL, raw errors/query params, raw logs)
+- ✓ `MASTER_PROJECT_PLAN.md` updated
+- ✓ `IMPLEMENTATION_CHECKLIST.md` updated
 
 ## Risks and Dependencies
 
-- ☐ SQL Server integration environment availability (for matrix runs)
-- ☐ FFmpeg/PDF renderer dependency decisions for thumbnail generation
-- ☐ Platform-specific privilege APIs require careful test isolation
+- ✓ SQL Server integration environment availability (for matrix runs) documented
+- ✓ FFmpeg/PDF renderer dependency decisions for thumbnail generation resolved
+- ✓ Platform-specific privilege APIs implemented with test coverage
 
 ## Final Completion Gate
 
-- ☐ Sprint A, B, and C all complete
-- ☐ All related Phase 0/1 remaining items closed or explicitly re-scoped
+- ✓ Sprint A, B, and C all complete
+- ✓ All related Phase 0/1 remaining items closed or explicitly re-scoped
 - ☐ User accepts the work
 - ☐ Delete `docs/development/REMAINING_PHASE0_PHASE1_3SPRINT_PLAN.md`
