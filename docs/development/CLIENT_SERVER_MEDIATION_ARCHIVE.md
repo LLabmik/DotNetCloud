@@ -215,3 +215,103 @@ Required coverage:
 
 **Next action to close Sprint A matrix requirement:**
 - Re-run `DockerDatabaseIntegrationTests` on a host with Docker available (or with reachable local SQL Server for SQL lane) and attach raw pass/fail logs.
+
+## Sprint A Archive Continuation (Phase 1.19.2 - updates #5-#9, archived 2026-03-10)
+
+### Sprint A Update #5 - Local Verification After Main Pull (Server)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`Windows workspace`)  
+**Status at time of update:** in-progress ☐
+
+**Command executed:**
+- `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~FilesRestIsolationIntegrationTests"` (11/11)
+- `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~Files"` (14/14)
+- `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~MultiDatabaseMatrixTests"` (21/21)
+- `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~DockerDatabaseIntegrationTests"` (12 skipped)
+
+### Sprint A Update #6 - Remaining Endpoint-Depth Coverage Added (Server)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`Windows workspace`)  
+**Status at time of update:** in-progress ☐
+
+**Tests added/updated (`FilesRestIsolationIntegrationTests.cs`):**
+- `WopiFileEndpoints_CheckGetPut_WorkWithGeneratedToken`
+- `VersionRestore_RestoresPreviousContent`
+- `TrashRestore_WorkflowRestoresNodeVisibility`
+- `PublicShare_WithPassword_RequiresPasswordAndResolvesWithCorrectPassword`
+- `BulkOperations_MoveCopyDeleteAndPermanentDelete_ReturnExpectedCounts`
+
+**Results:**
+- Files rest filter: 16/16 passed
+- Files filter: 19/19 passed
+
+**Iteration note:**
+- WOPI token path handled disabled provider guard (`DB_INVALID_OPERATION`) correctly.
+
+### Sprint A Update #7 - Provider Matrix Retry (Server, Linux host)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`Linux workspace`)  
+**Status at time of update:** in-progress ☐
+
+**Command executed:**
+- `docker --version && docker ps --format '{{.Names}}' && dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~DockerDatabaseIntegrationTests"`
+
+**Result:**
+- Docker runtime missing on host (`docker` command not found), provider matrix still blocked in this attempt.
+
+### Sprint A Update #8 - Provider Matrix Completed (Server, Linux host)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`Linux workspace`)  
+**Status at time of update:** completed ✅
+
+**Key points:**
+- Docker confirmed available (`Docker version 28.2.2`).
+- `DatabaseContainerFixture` hardened with thread-safe Docker detection and `/usr/bin/docker` fallback.
+- `DockerDatabaseIntegrationTests`: 12/12 passed.
+- PostgreSQL lane: 6/6 passed.
+- SQL Server lane: 6/6 passed.
+
+### Sprint A Update #9 - Client Compatibility Validation Sign-Off (Server, Windows workspace)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`Windows workspace`)  
+**Status at time of update:** completed ✅
+
+**Command executed:**
+- `dotnet test tests\DotNetCloud.Client.Core.Tests\DotNetCloud.Client.Core.Tests.csproj --filter "FullyQualifiedName~DotNetCloudApiClientTests"` (20/20)
+- `dotnet test tests\DotNetCloud.Client.Core.Tests\DotNetCloud.Client.Core.Tests.csproj --filter "FullyQualifiedName~SyncEngineTests"` (28/28)
+
+**Assessment:**
+- No response-envelope contract regressions.
+- No auth-flow regressions for Files/sync endpoint assumptions.
+
+## Resolved Issues Archive (Batch 5, archived 2026-03-10)
+
+### Issue #46: Batch 5 Task 5.1 - Bandwidth Throttling
+
+**Side:** Client-only  
+**Status:** completed ✅
+
+**Archived implementation summary:**
+- Added `UploadLimitKbps` / `DownloadLimitKbps` on `SyncContext`.
+- Implemented `ThrottledStream` token-bucket throttling.
+- Implemented `ThrottledHttpHandler` for upload/download stream throttling.
+- Wired context-specific throttling pipeline in `SyncContextManager` when limits are non-zero.
+- Persisted limits via `sync-settings.json` bandwidth section.
+- Added unit tests for unlimited pass-through and throttling behavior.
+
+### Issue #47: Batch 5 Task 5.2 - Selective Sync Folder Browser
+
+**Side:** Client-only  
+**Status:** completed ✅
+
+**Archived implementation summary:**
+- Added `FolderBrowserItemViewModel` with three-state checkbox propagation.
+- Added `FolderBrowserViewModel` for tree load + selective sync rule persistence.
+- Added Avalonia folder browser view/dialog integration.
+- Integrated folder selection into add-account flow and settings account actions.
+- Added tests for tree build, exclusion persistence, parent/child propagation, and indeterminate state.
