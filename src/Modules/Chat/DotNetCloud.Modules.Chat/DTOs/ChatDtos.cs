@@ -300,6 +300,36 @@ public sealed record UnreadCountDto
     public int MentionCount { get; init; }
 }
 
+/// <summary>
+/// Request DTO for registering a device for push notifications.
+/// </summary>
+public sealed record RegisterDeviceDto
+{
+    /// <summary>Push provider device token.</summary>
+    public required string DeviceToken { get; init; }
+
+    /// <summary>Provider value: FCM or UnifiedPush.</summary>
+    public required string Provider { get; init; }
+
+    /// <summary>UnifiedPush endpoint URL, when provider is UnifiedPush.</summary>
+    public string? Endpoint { get; init; }
+}
+
+/// <summary>
+/// DTO for caller-level notification preferences for push delivery.
+/// </summary>
+public sealed record NotificationPreferencesDto
+{
+    /// <summary>Whether push notifications are globally enabled.</summary>
+    public bool PushEnabled { get; init; } = true;
+
+    /// <summary>Whether do-not-disturb mode is enabled.</summary>
+    public bool DoNotDisturb { get; init; }
+
+    /// <summary>Channel IDs muted for push notifications.</summary>
+    public IReadOnlyList<Guid> MutedChannelIds { get; init; } = [];
+}
+
 // ── Announcement DTOs ───────────────────────────────────────────────
 
 /// <summary>

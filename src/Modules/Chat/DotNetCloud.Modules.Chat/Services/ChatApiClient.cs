@@ -276,6 +276,41 @@ public sealed class ChatApiClient
         return envelope?.Data ?? [];
     }
 
+    // ── Push Notifications ──────────────────────────────────────────
+
+    /// <summary>Registers a device for push notifications.</summary>
+    public async Task<bool> RegisterDeviceAsync(Guid userId, RegisterDeviceDto dto, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsJsonAsync($"api/v1/notifications/devices/register?userId={userId}", dto, ct);
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>Unregisters a device from push notifications.</summary>
+    public async Task<bool> UnregisterDeviceAsync(Guid userId, string deviceToken, CancellationToken ct = default)
+    {
+        var response = await _http.DeleteAsync(
+            $"api/v1/notifications/devices/{Uri.EscapeDataString(deviceToken)}?userId={userId}", ct);
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>Gets the current user's notification preferences.</summary>
+    public async Task<NotificationPreferencesDto?> GetNotificationPreferencesAsync(Guid userId, CancellationToken ct = default)
+    {
+        var envelope = await _http.GetFromJsonAsync<ChatEnvelope<NotificationPreferencesDto>>(
+            $"api/v1/notifications/preferences?userId={userId}", ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>Updates the current user's notification preferences.</summary>
+    public async Task<bool> UpdateNotificationPreferencesAsync(
+        Guid userId,
+        NotificationPreferencesDto dto,
+        CancellationToken ct = default)
+    {
+        var response = await _http.PutAsJsonAsync($"api/v1/notifications/preferences?userId={userId}", dto, ct);
+        return response.IsSuccessStatusCode;
+    }
+
     // ── Response envelope types ─────────────────────────────────────
 
     /// <summary>Standard chat API response envelope.</summary>

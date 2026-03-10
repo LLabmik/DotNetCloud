@@ -69,7 +69,7 @@
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/DTOs/ChatDtos.cs`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/ChatApiClient.cs`
 
-**Status:** ☐
+**Status:** ✓
 
 ---
 

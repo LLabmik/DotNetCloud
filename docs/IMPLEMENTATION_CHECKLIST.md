@@ -3116,6 +3116,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ `DELETE /api/v1/notifications/devices/{deviceToken}` — Unregister device
 - ✓ `GET /api/v1/notifications/preferences` — Get notification preferences
 - ✓ `PUT /api/v1/notifications/preferences` — Update notification preferences
+- ✓ Add `ChatApiClient` push client bindings (`RegisterDeviceAsync`, `UnregisterDeviceAsync`, `GetNotificationPreferencesAsync`, `UpdateNotificationPreferencesAsync`) and shared DTOs
 
 ---
 

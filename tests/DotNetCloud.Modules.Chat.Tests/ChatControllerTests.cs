@@ -328,7 +328,7 @@ public class ChatControllerTests
         var mutedChannel = Guid.NewGuid();
 
         var result = _controller.UpdateNotificationPreferencesAsync(
-            new NotificationPreferencesDto
+            new DotNetCloud.Modules.Chat.Host.Controllers.NotificationPreferencesDto
             {
                 PushEnabled = true,
                 DoNotDisturb = true,
