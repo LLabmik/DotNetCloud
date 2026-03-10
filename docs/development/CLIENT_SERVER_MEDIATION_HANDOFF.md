@@ -627,7 +627,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 **Owner:** Server (`mint22`)  
 **Status:** completed ✅ (incremental phase-2.7 scope)
 
-**Commit hash:** `TBD`
+**Commit hash:** `0703bf4`
 
 **Files added/updated:**
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/IFcmTransport.cs` (new)
