@@ -47,7 +47,7 @@
 | Phase 1.9 | 14 | 14 | 0 | 0 |
 | Phase 1.10 | 24 | 24 | 0 | 0 |
 | Phase 1.11 | 8 | 8 | 0 | 0 |
-| Phase 1.12 | 17 | 13 | 0 | 4 |
+| Phase 1.12 | 17 | 14 | 0 | 3 |
 | Phase 1.13 | 4 | 4 | 0 | 0 |
 | Phase 1.14 | 32 | 32 | 0 | 0 |
 | Phase 1.15 | 25 | 23 | 0 | 2 |
@@ -2789,7 +2789,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Notes:** All 8 component groups complete. Build: zero errors, zero warnings. No new tests required (UI-only components, no business logic). Components use the established pattern: `#pragma warning disable CS0649` for fields populated by future API integration, EventCallback parameters for host-page wiring, and `protected` property accessors following the existing FileBrowser/TrashBin pattern. File interactions now follow a one-click-only model (double-click handlers removed from Files UI).
 
 ### Step: phase-1.12 - File Upload & Preview UI
-**Status:** in-progress 🔄 (13/17 tasks; 4 deferred)
+**Status:** in-progress 🔄 (14/17 tasks; 3 deferred)
 **Duration:** ~1 session
 **Description:** Enhanced upload experience with drag-and-drop on the browser, floating upload progress panel with speed/ETA/pause/cancel, ImageSharp-based thumbnail generation and caching, and full-screen file preview supporting all media types with keyboard navigation.
 
@@ -2834,7 +2834,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
   - ✓ Grid view shows `<img src="@node.ThumbnailUrl">` when thumbnail URL is set
   - ✓ Passes `SortedNodes` as `AllNodes` to `FilePreview` for in-folder navigation
   - ✓ `OnShare` + `OnDownload` callbacks wired from `FilePreview`
-  - ☐ Folder drag-and-drop (recursive upload) — deferred: requires JS DataTransfer API interop
+  - ✓ Folder drag-and-drop (recursive upload) via JS DataTransfer directory traversal + recursive folder creation API calls
 - ✓ `ViewModels.cs` extended: `ThumbnailUrl` on `FileNodeViewModel`; `SpeedBytesPerSecond`, `EtaSeconds`, `IsPaused`, `IsCancelled` on `UploadFileItem`; `Paused` added to `UploadStatus`
 
 **File Locations:**
@@ -2850,11 +2850,13 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - `src/Modules/Files/DotNetCloud.Modules.Files/UI/FileBrowser.razor.cs` (enhanced — drag counter, preview share/download)
 - `src/Modules/Files/DotNetCloud.Modules.Files/UI/ViewModels.cs` (extended — ThumbnailUrl, upload speed/ETA/pause/cancel fields)
 - `src/Modules/Files/DotNetCloud.Modules.Files/DotNetCloud.Modules.Files.csproj` (SixLabors.ImageSharp 3.1.12 added)
+- `src/UI/DotNetCloud.UI.Web/wwwroot/js/files-drop-bridge.js` (enhanced — recursive directory traversal from DataTransfer items)
+- `src/UI/DotNetCloud.UI.Web/wwwroot/js/file-upload.js` (enhanced — relative path handling + recursive folder auto-creation during upload)
 - `tests/DotNetCloud.Modules.Files.Tests/UI/FileUploadComponentTests.cs` (new — multi-file upload regression coverage)
 
 **Dependencies:** phase-1.11 (UI components), phase-1.3 (IChunkedUploadService interface)
 **Blocking Issues:** None
-**Notes:** Build: zero errors, zero warnings (full solution). Drag-and-drop regression fixed so dropping a file in the browser no longer triggers browser file-open navigation and now pre-populates the upload queue in the dialog. Follow-up hardening removed a browser-container `@ondrop` callback that could clear the drag overlay before `InputFile` consumed the dropped payload, which caused the upload dialog to open with an empty queue. Additional hardening replaced browser-level `InputFile` drop capture with a delayed container drop handler (`Task.Delay(75)` before `ShowUploadDialog`) to prevent drop-event click-through from opening the native file picker unexpectedly. Final fix introduces explicit JS interop (`files-drop-bridge.js`) that maps browser `DataTransfer.files` onto a hidden `InputFile` in `FileBrowser`, then routes into `HandleBrowserFileDrop` + `InitialFiles` so dropped files reliably populate the upload queue without opening a native file chooser. Additional upload-lifecycle hardening keeps `FileUploadComponent`'s `InputFile` mounted while uploads are running (hidden/disabled instead of unrendered), preventing Blazor browser-file handle invalidation (`_blazorFilesById` null) during multi-file uploads. Regression coverage now includes `FileUploadComponentTests` validating that file selections are ignored while upload is active and still accepted when idle (`dotnet test ... --filter "FullyQualifiedName~FileUploadComponentTests"`: 2/2 passed). Thumbnail endpoint wiring is now complete in Files host (`GET /api/v1/files/{nodeId}/thumbnail`), with integration coverage in `FilesThumbnailIntegrationTests` (2/2 passing). 4 items remain deferred: folder drag-and-drop (JS DataTransfer), video thumbnail, PDF thumbnail, and touch gestures.
+**Notes:** Build succeeds for changed runtime projects (`DotNetCloud.Modules.Files`, `DotNetCloud.UI.Web`). Drag-and-drop now supports recursive folder uploads: the browser drop bridge traverses `DataTransferItem` directory entries (`webkitGetAsEntry`), captures per-file relative paths, and passes them into the upload pipeline. `file-upload.js` now resolves/creates nested folders through `/api/v1/files` and `/api/v1/files/folders` before each file upload so dropped folder structures are preserved server-side. Existing upload behavior (single-file and multi-file drop/select) remains unchanged. Validation: `FilesThumbnailIntegrationTests` 2/2 passing; full solution test build currently has an unrelated upstream constructor mismatch in `tests/DotNetCloud.Modules.Files.Tests/Host/FilesControllerChunkDownloadTests.cs` after recent `FilesController` constructor expansion. 3 items remain deferred: video thumbnail, PDF thumbnail, and touch gestures.
 
 ---
 

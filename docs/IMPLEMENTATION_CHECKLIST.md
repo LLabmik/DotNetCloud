@@ -2080,7 +2080,7 @@ This phase implements the core Files module, which is the primary public-facing 
 #### Drag-and-Drop Upload
 - ✓ Implement drag-and-drop zone on file browser (counter-based to avoid flicker)
 - ✓ Visual indicator when dragging files over drop zone (`browser-drop-overlay`)
-- ☐ Support folder drag-and-drop (recursive upload) — deferred: requires JS DataTransfer API interop
+- ✓ Support folder drag-and-drop (recursive upload) via JS DataTransfer directory traversal bridge
 - ✓ Show upload progress overlay on file browser (UploadProgressPanel inside upload dialog)
 
 #### Upload Progress Tracking

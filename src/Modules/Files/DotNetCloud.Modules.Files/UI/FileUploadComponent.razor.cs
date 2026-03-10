@@ -61,7 +61,8 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
                         {
                             Name = fi.Name,
                             Size = fi.Size,
-                            ContentType = fi.Type
+                            ContentType = fi.Type,
+                            RelativePath = fi.RelativePath
                         });
                     }
 
@@ -116,7 +117,8 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
                     {
                         Name = fi.Name,
                         Size = fi.Size,
-                        ContentType = fi.Type
+                        ContentType = fi.Type,
+                        RelativePath = fi.RelativePath
                     });
                 }
             }
@@ -305,5 +307,6 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
         public string Name { get; set; } = string.Empty;
         public long Size { get; set; }
         public string Type { get; set; } = string.Empty;
+        public string? RelativePath { get; set; }
     }
 }

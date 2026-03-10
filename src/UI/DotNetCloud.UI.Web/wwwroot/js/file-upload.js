@@ -19,8 +19,14 @@ window.dotnetcloudUpload = (function () {
 
     const CHUNK_SIZE = 4 * 1024 * 1024; // 4 MB — matches server's ContentHasher.DefaultChunkSize
 
-    /** @type {File[]} */
+    /** @type {{ file: File, relativePath: string|null }[]} */
     let _pendingFiles = [];
+
+    /** @type {Map<string, Map<string, string>>} */
+    const _folderChildrenCache = new Map();
+
+    /** @type {Map<string, string>} */
+    const _folderPathCache = new Map();
 
     /**
      * Register files selected by the user.
@@ -35,8 +41,16 @@ window.dotnetcloudUpload = (function () {
         _pendingFiles = [];
         const result = [];
         for (const f of input.files) {
-            _pendingFiles.push(f);
-            result.push({ name: f.name, size: f.size, type: f.type || "application/octet-stream" });
+            const relativePath = (f.webkitRelativePath && f.webkitRelativePath.length > 0)
+                ? normalizeRelativePath(f.webkitRelativePath)
+                : null;
+            _pendingFiles.push({ file: f, relativePath: relativePath });
+            result.push({
+                name: f.name,
+                size: f.size,
+                type: f.type || "application/octet-stream",
+                relativePath: relativePath
+            });
         }
         // Reset input so re-selecting same files fires change again
         input.value = "";
@@ -60,8 +74,9 @@ window.dotnetcloudUpload = (function () {
      * @param {any} dotNetRef - DotNetObjectReference for progress callbacks
      */
     async function uploadFile(fileIndex, userId, parentId, dotNetRef) {
-        const file = _pendingFiles[fileIndex];
-        if (!file) {
+        const pending = _pendingFiles[fileIndex];
+        const file = pending ? pending.file : null;
+        if (!file || !pending) {
             await dotNetRef.invokeMethodAsync("OnJsUploadError", fileIndex, "File reference not found.");
             return;
         }
@@ -76,9 +91,15 @@ window.dotnetcloudUpload = (function () {
             // 2. Initiate upload session
             await dotNetRef.invokeMethodAsync("OnJsUploadProgress", fileIndex, 5, "Starting upload...");
             const apiBase = "/api/v1/files";
+            const targetParentId = await resolveTargetParentId(
+                pending.relativePath,
+                parentId,
+                userId,
+                apiBase);
+
             const initBody = {
                 fileName: file.name,
-                parentId: parentId,
+                parentId: targetParentId,
                 totalSize: file.size,
                 mimeType: file.type || "application/octet-stream",
                 chunkHashes: chunkHashes
@@ -189,6 +210,8 @@ window.dotnetcloudUpload = (function () {
      */
     function clearFiles() {
         _pendingFiles = [];
+        _folderChildrenCache.clear();
+        _folderPathCache.clear();
     }
 
     /**
@@ -203,14 +226,24 @@ window.dotnetcloudUpload = (function () {
     /**
      * Add files from an external source (e.g. drag-and-drop DataTransfer).
      * Appends to the pending files array without clearing existing ones.
-     * @param {FileList|File[]} files
+     * @param {FileList|File[]|{file: File, relativePath?: string|null}[]} files
      * @returns {{ name: string, size: number, type: string }[]}
      */
     function addExternalFiles(files) {
         const result = [];
         for (const f of files) {
-            _pendingFiles.push(f);
-            result.push({ name: f.name, size: f.size, type: f.type || "application/octet-stream" });
+            const isWrapped = !!(f && typeof f === "object" && "file" in f);
+            const file = isWrapped ? f.file : f;
+            const explicitPath = isWrapped ? f.relativePath : null;
+            const relativePath = normalizeRelativePath(explicitPath || file.webkitRelativePath || null);
+
+            _pendingFiles.push({ file: file, relativePath: relativePath });
+            result.push({
+                name: file.name,
+                size: file.size,
+                type: file.type || "application/octet-stream",
+                relativePath: relativePath
+            });
         }
         return result;
     }
@@ -220,11 +253,148 @@ window.dotnetcloudUpload = (function () {
      * @returns {{ name: string, size: number, type: string }[]}
      */
     function getPendingFileInfos() {
-        return _pendingFiles.map(f => ({
-            name: f.name,
-            size: f.size,
-            type: f.type || "application/octet-stream"
+        return _pendingFiles.map(entry => ({
+            name: entry.file.name,
+            size: entry.file.size,
+            type: entry.file.type || "application/octet-stream",
+            relativePath: entry.relativePath
         }));
+    }
+
+    function normalizeRelativePath(path) {
+        if (!path || typeof path !== "string") {
+            return null;
+        }
+
+        const normalized = path.replace(/\\+/g, "/").replace(/^\/+/, "").trim();
+        return normalized.length > 0 ? normalized : null;
+    }
+
+    function extractDirectoryPath(relativePath) {
+        const normalized = normalizeRelativePath(relativePath);
+        if (!normalized) {
+            return "";
+        }
+
+        const parts = normalized.split("/").filter(Boolean);
+        if (parts.length <= 1) {
+            return "";
+        }
+
+        parts.pop();
+        return parts.join("/");
+    }
+
+    function readEnvelopeData(payload) {
+        let current = payload;
+        while (current && typeof current === "object" && current.data !== undefined) {
+            current = current.data;
+        }
+
+        return current;
+    }
+
+    function parentCacheKey(parentId) {
+        return parentId || "__root__";
+    }
+
+    async function getFolderChildrenMap(parentId, userId, apiBase) {
+        const key = parentCacheKey(parentId);
+        const existing = _folderChildrenCache.get(key);
+        if (existing) {
+            return existing;
+        }
+
+        const query = parentId
+            ? `?parentId=${encodeURIComponent(parentId)}&userId=${encodeURIComponent(userId)}`
+            : `?userId=${encodeURIComponent(userId)}`;
+        const response = await fetch(`${apiBase}${query}`, {
+            method: "GET",
+            credentials: "same-origin"
+        });
+
+        if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`List folder failed (${response.status}): ${errText}`);
+        }
+
+        const body = await response.json();
+        const list = readEnvelopeData(body) || [];
+        const map = new Map();
+        for (const node of list) {
+            if (!node || node.nodeType !== "Folder") {
+                continue;
+            }
+
+            map.set((node.name || "").toLowerCase(), node.id);
+        }
+
+        _folderChildrenCache.set(key, map);
+        return map;
+    }
+
+    async function ensureFolder(parentId, folderName, userId, apiBase) {
+        const children = await getFolderChildrenMap(parentId, userId, apiBase);
+        const key = folderName.toLowerCase();
+
+        if (children.has(key)) {
+            return children.get(key);
+        }
+
+        const createResponse = await fetch(`${apiBase}/folders?userId=${encodeURIComponent(userId)}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({
+                name: folderName,
+                parentId: parentId || null
+            })
+        });
+
+        if (!createResponse.ok) {
+            // Another upload may have created it concurrently; refresh and retry lookup.
+            _folderChildrenCache.delete(parentCacheKey(parentId));
+            const refreshed = await getFolderChildrenMap(parentId, userId, apiBase);
+            if (refreshed.has(key)) {
+                return refreshed.get(key);
+            }
+
+            const errText = await createResponse.text();
+            throw new Error(`Create folder failed (${createResponse.status}): ${errText}`);
+        }
+
+        const createBody = await createResponse.json();
+        const created = readEnvelopeData(createBody);
+        const createdId = created && created.id;
+        if (!createdId) {
+            throw new Error("Create folder response missing id.");
+        }
+
+        children.set(key, createdId);
+        return createdId;
+    }
+
+    async function resolveTargetParentId(relativePath, rootParentId, userId, apiBase) {
+        const directoryPath = extractDirectoryPath(relativePath);
+        if (!directoryPath) {
+            return rootParentId || null;
+        }
+
+        const normalized = directoryPath.toLowerCase();
+        const rootKey = rootParentId || "__root__";
+        const cacheKey = `${rootKey}|${normalized}`;
+        if (_folderPathCache.has(cacheKey)) {
+            return _folderPathCache.get(cacheKey);
+        }
+
+        let currentParentId = rootParentId || null;
+        const segments = directoryPath.split("/").filter(Boolean);
+        for (const segment of segments) {
+            currentParentId = await ensureFolder(currentParentId, segment, userId, apiBase);
+        }
+
+        _folderPathCache.set(cacheKey, currentParentId);
+        return currentParentId;
     }
 
     return {

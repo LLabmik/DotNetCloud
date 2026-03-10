@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-10 (Sprint B update #4: Linux privilege dropping via Unix peer credentials + setresuid/setresgid completed)
+Last updated: 2026-03-10 (Sprint C update #1: recursive folder drag-and-drop upload completed)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -267,6 +267,42 @@ Completed Sprint B updates `#1` and `#2` are archived in
 
 **Remaining for Sprint B:**
 - None. Sprint B hardening scope is complete.
+
+### Sprint C Update #1 - Folder Drag-and-Drop Recursive Upload (Server, Linux workspace)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`Linux workspace`)  
+**Status:** completed ✅
+
+**Files added/updated:**
+- `src/UI/DotNetCloud.UI.Web/wwwroot/js/files-drop-bridge.js`
+- `src/UI/DotNetCloud.UI.Web/wwwroot/js/file-upload.js`
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/FileUploadComponent.razor.cs`
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/ViewModels.cs`
+- `docs/IMPLEMENTATION_CHECKLIST.md`
+- `docs/MASTER_PROJECT_PLAN.md`
+- `docs/development/REMAINING_PHASE0_PHASE1_3SPRINT_PLAN.md`
+
+**Implemented in this update:**
+1. Browser drop bridge now traverses dropped directories recursively via `DataTransferItem.webkitGetAsEntry()` and collects file entries with relative paths.
+2. Upload pipeline now preserves relative folder structure by resolving/creating nested folders through Files API (`GET /api/v1/files`, `POST /api/v1/files/folders`) before file upload.
+3. Upload metadata now carries `RelativePath` from JS to Blazor queue model for dropped folder entries.
+4. Existing single-file and multi-file drop/select upload flow remains intact.
+
+**Tests/validation executed:**
+- `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~FilesThumbnailIntegrationTests"`
+    - Result: total 2, succeeded 2, failed 0, skipped 0
+- `dotnet build src/Modules/Files/DotNetCloud.Modules.Files/DotNetCloud.Modules.Files.csproj`
+    - Result: succeeded
+- `dotnet build src/UI/DotNetCloud.UI.Web/DotNetCloud.UI.Web.csproj`
+    - Result: succeeded
+- `dotnet build`
+    - Result: failed due to pre-existing upstream test constructor mismatch in `tests/DotNetCloud.Modules.Files.Tests/Host/FilesControllerChunkDownloadTests.cs` (missing new `fileSystemOptions` ctor argument)
+
+**Remaining for Sprint C:**
+- Video thumbnail generation integration (FFmpeg)
+- PDF thumbnail generation integration (PDF renderer)
+- Touch gestures for preview (JS touch interop)
 
 ---
 

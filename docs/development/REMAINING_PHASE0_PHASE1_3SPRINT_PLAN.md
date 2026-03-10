@@ -110,7 +110,7 @@
 
 ### Deliverables (in order)
 
-- ☐ Folder drag-and-drop recursive upload
+- ✓ Folder drag-and-drop recursive upload
 - ✓ Thumbnail API controller wiring for existing `IThumbnailService`
 - ☐ Video thumbnail generation integration
 - ☐ PDF thumbnail generation integration

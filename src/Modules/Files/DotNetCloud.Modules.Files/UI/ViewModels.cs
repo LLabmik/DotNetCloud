@@ -91,6 +91,12 @@ public sealed class UploadFileItem
     /// <summary>MIME content type.</summary>
     public string ContentType { get; init; } = string.Empty;
 
+    /// <summary>
+    /// Relative path from a dropped folder root (for recursive folder uploads).
+    /// Null when the file was selected directly.
+    /// </summary>
+    public string? RelativePath { get; init; }
+
     /// <summary>Upload status.</summary>
     public UploadStatus Status { get; set; } = UploadStatus.Pending;
 
