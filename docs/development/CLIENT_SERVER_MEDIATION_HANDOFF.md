@@ -412,7 +412,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 **Owner:** Server (`mint22`)  
 **Status:** completed ✅ (finishes remaining phase-2.5 scope)
 
-**Commit hash:** `(pending commit)`
+**Commit hash:** `56fbe8c`
 
 **Files added/updated:**
 - `src/Core/DotNetCloud.Core.Server/RealTime/PresenceService.cs`
