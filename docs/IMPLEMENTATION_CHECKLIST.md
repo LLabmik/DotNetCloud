@@ -3109,7 +3109,7 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ Support multiple devices per user
   - ✓ Respect user notification preferences (per-channel mute, DND)
   - ✓ Implement notification deduplication (don't notify if user is online)
-- ☐ Create notification queue for reliability (background processing)
+- ✓ Create notification queue for reliability (background processing)
 
 #### Push Notification Endpoints
 - ✓ `POST /api/v1/notifications/devices/register` — Register device for push

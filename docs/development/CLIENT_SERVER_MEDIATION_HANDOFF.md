@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-10 (Phase 2.7 provider hardening update posted)
+Last updated: 2026-03-10 (Phase 2.7 queue/reliability update posted)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -673,6 +673,54 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 - FCM configuration model / credential management UI.
 - UnifiedPush configuration model.
 - Notification queue/reliability background processing.
+
+### Phase 2.7 Update #4 - Queue/Reliability Background Processing (Server, mint22)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`mint22`)  
+**Status:** completed ✅ (final phase-2.7 scope)
+
+**Commit hash:** `TBD`
+
+**Files added/updated:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/INotificationDeliveryQueue.cs` (new)
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/IQueuedNotificationDispatcher.cs` (new)
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/NotificationDeliveryBackgroundService.cs` (new)
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/NotificationRouter.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/ChatServiceRegistration.cs`
+- `tests/DotNetCloud.Modules.Chat.Tests/NotificationRouterTests.cs`
+- `docs/IMPLEMENTATION_CHECKLIST.md`
+- `docs/MASTER_PROJECT_PLAN.md`
+- `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
+
+**Implemented in this update:**
+1. Added a queue abstraction for deferred retries (`INotificationDeliveryQueue`) with in-memory channel-backed implementation.
+2. Added queued-dispatch abstraction (`IQueuedNotificationDispatcher`) to separate direct sends from background retries.
+3. Added `NotificationDeliveryBackgroundService` to process queued notifications with bounded retry/backoff behavior.
+4. Updated `NotificationRouter` to enqueue failed delivery attempts and support queue-driven retry dispatch.
+5. Wired queue + dispatcher + background worker in DI (`ChatServiceRegistration`).
+
+**Tests added/updated:**
+- `tests/DotNetCloud.Modules.Chat.Tests/NotificationRouterTests.cs`
+    - `SendAsync_WhenAllProvidersFail_ThenNotificationIsQueued`
+    - `DispatchQueuedAsync_WhenProviderRecovers_ThenReturnsTrue`
+    - Existing tests updated for queue dependency and suppression expectations.
+
+**Verification commands and results:**
+- `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
+    - Result: total 226, succeeded 226, failed 0, skipped 0
+- `dotnet build`
+    - Result: succeeded (full solution)
+
+**Raw failing assertion/error text seen during iteration (fixed):**
+- None.
+
+**Raw log snippets around authorization/event issues:**
+- No runtime log capture for unit tests (test doubles + behavior assertions).
+
+**Intentionally deferred items:**
+- FCM configuration model / credential management UI.
+- UnifiedPush configuration model.
 
 ### Sprint A Kickoff - Phase 1.19.2 (Files API Integration Depth)
 

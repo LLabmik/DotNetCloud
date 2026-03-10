@@ -24,6 +24,7 @@ public static class ChatServiceRegistration
         services.AddScoped<IAnnouncementService, AnnouncementService>();
         services.AddScoped<IMentionNotificationService, MentionNotificationService>();
         services.AddSingleton<INotificationPreferenceStore, InMemoryNotificationPreferenceStore>();
+        services.AddSingleton<INotificationDeliveryQueue, InMemoryNotificationDeliveryQueue>();
         services.AddSingleton<IFcmTransport, FcmLoggingTransport>();
         services.AddSingleton<IUnifiedPushTransport, UnifiedPushLoggingTransport>();
 
@@ -33,7 +34,9 @@ public static class ChatServiceRegistration
         services.AddSingleton<IPushProviderEndpoint>(sp => sp.GetRequiredService<FcmPushProvider>());
         services.AddSingleton<IPushProviderEndpoint>(sp => sp.GetRequiredService<UnifiedPushProvider>());
         services.AddSingleton<NotificationRouter>();
+        services.AddSingleton<IQueuedNotificationDispatcher>(sp => sp.GetRequiredService<NotificationRouter>());
         services.AddSingleton<IPushNotificationService>(sp => sp.GetRequiredService<NotificationRouter>());
+        services.AddHostedService<NotificationDeliveryBackgroundService>();
 
         return services;
     }

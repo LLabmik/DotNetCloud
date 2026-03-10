@@ -10,21 +10,25 @@ namespace DotNetCloud.Modules.Chat.Services;
 /// preferences, and deduplicates when the user is online.
 /// </summary>
 internal sealed class NotificationRouter : IPushNotificationService
+    , IQueuedNotificationDispatcher
 {
     private readonly IReadOnlyDictionary<PushProvider, IPushProviderEndpoint> _providers;
     private readonly INotificationPreferenceStore _preferenceStore;
     private readonly IPresenceTracker? _presenceTracker;
+    private readonly INotificationDeliveryQueue _deliveryQueue;
     private readonly ConcurrentDictionary<Guid, List<DeviceRegistration>> _deviceMap = new();
     private readonly ILogger<NotificationRouter> _logger;
 
     public NotificationRouter(
         IEnumerable<IPushProviderEndpoint> providers,
         INotificationPreferenceStore preferenceStore,
+        INotificationDeliveryQueue deliveryQueue,
         ILogger<NotificationRouter> logger,
         IPresenceTracker? presenceTracker = null)
     {
         _providers = providers.ToDictionary(p => p.Provider, p => p);
         _preferenceStore = preferenceStore;
+        _deliveryQueue = deliveryQueue;
         _logger = logger;
         _presenceTracker = presenceTracker;
     }
@@ -32,15 +36,36 @@ internal sealed class NotificationRouter : IPushNotificationService
     /// <inheritdoc />
     public async Task SendAsync(Guid userId, PushNotification notification, CancellationToken cancellationToken = default)
     {
+        var delivered = await TrySendInternalAsync(userId, notification, cancellationToken);
+        if (!delivered)
+        {
+            await _deliveryQueue.EnqueueAsync(new QueuedPushNotification
+            {
+                UserId = userId,
+                Notification = notification,
+                Attempt = 1,
+                NextAttemptUtc = DateTime.UtcNow.AddSeconds(2)
+            }, cancellationToken);
+        }
+    }
+
+    /// <inheritdoc />
+    public Task<bool> DispatchQueuedAsync(Guid userId, PushNotification notification, CancellationToken cancellationToken = default)
+    {
+        return TrySendInternalAsync(userId, notification, cancellationToken);
+    }
+
+    private async Task<bool> TrySendInternalAsync(Guid userId, PushNotification notification, CancellationToken cancellationToken)
+    {
         if (!await CanSendPushAsync(userId, notification, cancellationToken))
         {
-            return;
+            return true;
         }
 
         if (!_deviceMap.TryGetValue(userId, out var devices) || devices.Count == 0)
         {
             _logger.LogDebug("No devices registered for user {UserId}; skipping push", userId);
-            return;
+            return true;
         }
 
         List<DeviceRegistration> snapshot;
@@ -49,6 +74,8 @@ internal sealed class NotificationRouter : IPushNotificationService
             snapshot = [.. devices];
         }
 
+        var successCount = 0;
+        var failureCount = 0;
         foreach (var device in snapshot)
         {
             if (!_providers.TryGetValue(device.Provider, out var provider))
@@ -57,8 +84,19 @@ internal sealed class NotificationRouter : IPushNotificationService
                 continue;
             }
 
-            await provider.SendAsync(userId, notification, cancellationToken);
+            try
+            {
+                await provider.SendAsync(userId, notification, cancellationToken);
+                successCount++;
+            }
+            catch (Exception ex)
+            {
+                failureCount++;
+                _logger.LogWarning(ex, "Push delivery failed for user {UserId} provider {Provider}", userId, device.Provider);
+            }
         }
+
+        return successCount > 0 || failureCount == 0;
     }
 
     /// <inheritdoc />

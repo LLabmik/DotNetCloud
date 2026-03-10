@@ -62,7 +62,7 @@
 | Phase 2.4 | 5 | 5 | 0 | 0 |
 | Phase 2.5 | 4 | 4 | 0 | 0 |
 | Phase 2.6 | 4 | 4 | 0 | 0 |
-| Phase 2.7 | 4 | 3 | 0 | 1 |
+| Phase 2.7 | 4 | 4 | 0 | 0 |
 | Phase 2.8 | 11 | 4 | 0 | 7 |
 | Phase 2.9 | 3 | 0 | 0 | 3 |
 | Phase 2.10 | 8 | 0 | 0 | 8 |
@@ -3355,7 +3355,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Step: phase-2.7 - Push Notifications Infrastructure
-**Status:** in-progress 🔄
+**Status:** completed ✅
 **Duration:** ~1-2 weeks
 **Description:** Implement push notification service with FCM and UnifiedPush providers, notification routing, and device management.
 
@@ -3363,11 +3363,11 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Create IPushNotificationService interface and models (PushNotification, DeviceRegistration, PushProvider enum)
 - ✓ Implement FcmPushProvider (Firebase Admin SDK, HTTP v1 API, batch sending)
 - ✓ Implement UnifiedPushProvider (HTTP POST to distributor endpoint)
-- ☐ Create NotificationRouter (provider selection, user preferences, deduplication, queuing)
+- ✓ Create NotificationRouter (provider selection, user preferences, deduplication, queuing)
 
 **Dependencies:** phase-2.3
 **Blocking Issues:** None
-**Notes:** Phase 2.7 now includes provider hardening for delivery failure handling. Added transport abstractions (`IFcmTransport`, `IUnifiedPushTransport`) with default logging transports, wired them in DI, and updated providers for robust behavior: `FcmPushProvider` now cleans up invalid tokens based on transport result; `UnifiedPushProvider` now performs bounded retries for transient failures and exits early on non-retryable failures. Added provider-level unit coverage in `FcmPushProviderTests` and `UnifiedPushProviderTests` for invalid-token cleanup and retry semantics. Verification: `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj` passed (224/224), and full `dotnet build` succeeded. Next: finish phase-2.7 with queue/reliability background processing and provider configuration models.
+**Notes:** Phase 2.7 is now complete. Added queue/reliability background processing with `INotificationDeliveryQueue` and `NotificationDeliveryBackgroundService`, plus router fallback enqueue-on-failure and queued dispatch via `IQueuedNotificationDispatcher`. `NotificationRouter` now attempts direct delivery, queues failed all-provider sends, and background worker retries with bounded exponential backoff. Added/updated unit coverage in `NotificationRouterTests` for enqueue-on-failure and queued-dispatch success paths. Verification: `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj` passed (226/226), and full `dotnet build` succeeded. Next: proceed to phase-2.8 remaining chat web UI work.
 
 ---
 
