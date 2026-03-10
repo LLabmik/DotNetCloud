@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-10 (Sprint A archive policy + trimmed active section)
+Last updated: 2026-03-10 (Sprint A provider-matrix retry documented; Docker missing on Linux host)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -202,6 +202,26 @@ Completed historical updates for Sprint A (`#1` through `#4`) were moved to
 **Intentionally deferred coverage (remaining):**
 - Real Docker-backed provider matrix confirmation for `DockerDatabaseIntegrationTests` (PostgreSQL required; SQL Server lane if available).
 - Client-side Sprint A compatibility validation/sign-off.
+
+### Sprint A Update #7 - Provider Matrix Retry (Server, Linux host)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`Linux workspace`)  
+**Status:** in-progress ☐
+
+**Command executed:**
+- `docker --version && docker ps --format '{{.Names}}' && dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~DockerDatabaseIntegrationTests"`
+
+**Result:**
+- `docker` not available on this host (`Command 'docker' not found`), so Docker-backed provider tests could not start.
+
+**Checklist impact:**
+- `PostgreSQL run completed`: still pending (runtime dependency unavailable).
+- `SQL Server run attempted/documented`: attempted/documented on this host as blocked by missing container runtime.
+- `Evidence returned (commit/tests/logs)`: updated with raw command and host-level failure output.
+
+**Next action to close Sprint A server lane:**
+- Run `DockerDatabaseIntegrationTests` on a host with Docker/Podman configured and include raw pass/fail logs for PostgreSQL (required) and SQL Server lane if available.
 
 ---
 
