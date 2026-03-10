@@ -297,7 +297,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 **Owner:** Server (`mint22`)  
 **Status:** completed ✅ (incremental phase-2.5 scope)
 
-**Commit hash:** `(pending commit)`
+**Commit hash:** `f9e5453`
 
 **Files added/updated:**
 - `src/Core/DotNetCloud.Core.Server/RealTime/UserConnectionTracker.cs`
