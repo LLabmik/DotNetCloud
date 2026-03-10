@@ -28,7 +28,8 @@ internal sealed class ReactionService : IReactionService
     /// <inheritdoc />
     public async Task AddReactionAsync(Guid messageId, string emoji, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(emoji))
+        var normalizedEmoji = emoji?.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedEmoji))
             throw new ArgumentException("Emoji is required.", nameof(emoji));
 
         var message = await _db.Messages
@@ -36,8 +37,10 @@ internal sealed class ReactionService : IReactionService
             .FirstOrDefaultAsync(m => m.Id == messageId, cancellationToken)
             ?? throw new InvalidOperationException($"Message {messageId} not found.");
 
+        await EnsureCallerCanAccessChannelAsync(message.ChannelId, caller, cancellationToken);
+
         var exists = await _db.MessageReactions
-            .AnyAsync(r => r.MessageId == messageId && r.UserId == caller.UserId && r.Emoji == emoji, cancellationToken);
+            .AnyAsync(r => r.MessageId == messageId && r.UserId == caller.UserId && r.Emoji == normalizedEmoji, cancellationToken);
 
         if (exists)
             return;
@@ -46,7 +49,7 @@ internal sealed class ReactionService : IReactionService
         {
             MessageId = messageId,
             UserId = caller.UserId,
-            Emoji = emoji
+            Emoji = normalizedEmoji
         });
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -58,38 +61,56 @@ internal sealed class ReactionService : IReactionService
             MessageId = messageId,
             ChannelId = message.ChannelId,
             UserId = caller.UserId,
-            Emoji = emoji
+            Emoji = normalizedEmoji
         }, caller, cancellationToken);
+
+        _logger.LogInformation(
+            "Reaction added. MessageId={MessageId} ChannelId={ChannelId} UserId={UserId} Emoji={Emoji}",
+            messageId,
+            message.ChannelId,
+            caller.UserId,
+            normalizedEmoji);
     }
 
     /// <inheritdoc />
     public async Task RemoveReactionAsync(Guid messageId, string emoji, CallerContext caller, CancellationToken cancellationToken = default)
     {
+        var normalizedEmoji = emoji?.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedEmoji))
+            throw new ArgumentException("Emoji is required.", nameof(emoji));
+
+        var message = await _db.Messages
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m => m.Id == messageId, cancellationToken)
+            ?? throw new InvalidOperationException($"Message {messageId} not found.");
+
+        await EnsureCallerCanAccessChannelAsync(message.ChannelId, caller, cancellationToken);
+
         var reaction = await _db.MessageReactions
-            .FirstOrDefaultAsync(r => r.MessageId == messageId && r.UserId == caller.UserId && r.Emoji == emoji, cancellationToken);
+            .FirstOrDefaultAsync(r => r.MessageId == messageId && r.UserId == caller.UserId && r.Emoji == normalizedEmoji, cancellationToken);
 
         if (reaction is null)
             return;
 
-        var message = await _db.Messages
-            .AsNoTracking()
-            .FirstOrDefaultAsync(m => m.Id == messageId, cancellationToken);
-
         _db.MessageReactions.Remove(reaction);
         await _db.SaveChangesAsync(cancellationToken);
 
-        if (message is not null)
+        await _eventBus.PublishAsync(new ReactionRemovedEvent
         {
-            await _eventBus.PublishAsync(new ReactionRemovedEvent
-            {
-                EventId = Guid.NewGuid(),
-                CreatedAt = DateTime.UtcNow,
-                MessageId = messageId,
-                ChannelId = message.ChannelId,
-                UserId = caller.UserId,
-                Emoji = emoji
-            }, caller, cancellationToken);
-        }
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            MessageId = messageId,
+            ChannelId = message.ChannelId,
+            UserId = caller.UserId,
+            Emoji = normalizedEmoji
+        }, caller, cancellationToken);
+
+        _logger.LogInformation(
+            "Reaction removed. MessageId={MessageId} ChannelId={ChannelId} UserId={UserId} Emoji={Emoji}",
+            messageId,
+            message.ChannelId,
+            caller.UserId,
+            normalizedEmoji);
     }
 
     /// <inheritdoc />
@@ -108,5 +129,24 @@ internal sealed class ReactionService : IReactionService
                 Count = g.Count(),
                 UserIds = g.Select(r => r.UserId).ToList()
             }).ToList();
+    }
+
+    private async Task EnsureCallerCanAccessChannelAsync(Guid channelId, CallerContext caller, CancellationToken cancellationToken)
+    {
+        if (caller.Type == CallerType.System)
+            return;
+
+        var isMember = await _db.ChannelMembers
+            .AsNoTracking()
+            .AnyAsync(m => m.ChannelId == channelId && m.UserId == caller.UserId, cancellationToken);
+
+        if (!isMember)
+        {
+            _logger.LogWarning(
+                "Denied reaction action. ChannelId={ChannelId} MessageActorUserId={CallerUserId}",
+                channelId,
+                caller.UserId);
+            throw new UnauthorizedAccessException($"User {caller.UserId} is not a member of channel {channelId}.");
+        }
     }
 }

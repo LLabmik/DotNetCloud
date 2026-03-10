@@ -18,6 +18,13 @@ internal sealed class TypingIndicatorService : ITypingIndicatorService
     /// <inheritdoc />
     public Task NotifyTypingAsync(Guid channelId, CallerContext caller, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (channelId == Guid.Empty)
+            throw new ArgumentException("Channel id is required.", nameof(channelId));
+
+        ArgumentNullException.ThrowIfNull(caller);
+
         var channelDict = _channelTyping.GetOrAdd(channelId, _ => new ConcurrentDictionary<Guid, TypingEntry>());
         channelDict[caller.UserId] = new TypingEntry(DateTime.UtcNow);
         return Task.CompletedTask;
@@ -26,6 +33,11 @@ internal sealed class TypingIndicatorService : ITypingIndicatorService
     /// <inheritdoc />
     public Task<IReadOnlyList<TypingIndicatorDto>> GetTypingUsersAsync(Guid channelId, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (channelId == Guid.Empty)
+            throw new ArgumentException("Channel id is required.", nameof(channelId));
+
         if (!_channelTyping.TryGetValue(channelId, out var channelDict))
         {
             return Task.FromResult<IReadOnlyList<TypingIndicatorDto>>([]);
@@ -48,6 +60,11 @@ internal sealed class TypingIndicatorService : ITypingIndicatorService
             {
                 channelDict.TryRemove(kvp.Key, out _);
             }
+        }
+
+        if (channelDict.IsEmpty)
+        {
+            _channelTyping.TryRemove(channelId, out _);
         }
 
         return Task.FromResult<IReadOnlyList<TypingIndicatorDto>>(result);

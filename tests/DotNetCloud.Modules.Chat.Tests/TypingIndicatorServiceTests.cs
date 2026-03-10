@@ -67,6 +67,24 @@ public class TypingIndicatorServiceTests
     }
 
     [TestMethod]
+    public async Task WhenNotifyTypingWithEmptyChannelThenThrowsArgumentException()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            _service.NotifyTypingAsync(Guid.Empty, _caller));
+    }
+
+    [TestMethod]
+    public async Task WhenTypingEntryExpiresThenUserIsRemoved()
+    {
+        await _service.NotifyTypingAsync(_channelId, _caller);
+        await Task.Delay(TimeSpan.FromSeconds(6));
+
+        var users = await _service.GetTypingUsersAsync(_channelId);
+
+        Assert.AreEqual(0, users.Count);
+    }
+
+    [TestMethod]
     public void WhenCleanupExpiredThenNoError()
     {
         _service.CleanupExpired();

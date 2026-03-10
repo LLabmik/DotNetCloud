@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-10 (Sprint C updates #1-#3 completed: recursive upload, video/PDF thumbnails, touch gestures)
+Last updated: 2026-03-10 (Phase 2.3 temporary execution plan created and linked)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -48,6 +48,14 @@ See [SYNC_IMPROVEMENT_PLAN.md](SYNC_IMPROVEMENT_PLAN.md) for full history.
 **Next work (server):** Sprint A/B/C closeout work in this handoff is complete.
 Continue from the next prioritized step in `docs/MASTER_PROJECT_PLAN.md`.
 
+**Acceptance update (2026-03-10):** User accepted Sprint A/B/C completion. Temporary execution plan
+`docs/development/REMAINING_PHASE0_PHASE1_3SPRINT_PLAN.md` has been removed per closeout note.
+Next prioritized implementation target remains `phase-2.3` (Chat Business Logic & Services).
+
+**Phase 2.3 execution note (2026-03-10):** Active temporary plan is now
+`docs/development/PHASE_2_3_EXECUTION_PLAN.md` and remains the working checklist until user acceptance.
+On acceptance, delete that temporary plan file and remove its handoff reference.
+
 ## Environment
 
 | | Machine | Detail |
@@ -77,15 +85,77 @@ Continue from the next prioritized step in `docs/MASTER_PROJECT_PLAN.md`.
 
 ## Active Handoff
 
-### Sprint Track (Phase 0/1 Closeout)
+### Sprint Track (Phase 2.3 Closeout)
 
-Reference tracker: `docs/development/REMAINING_PHASE0_PHASE1_3SPRINT_PLAN.md`
+Reference tracker: `docs/development/PHASE_2_3_EXECUTION_PLAN.md`
 
 - ✓ Sprint A kickoff sent
 - ✓ Sprint A complete (`phase-1.19.2`)
 - ✓ Sprint B kickoff sent (`phase-1.15` deferred hardening)
 - ✓ Sprint B complete (`phase-1.15` deferred hardening)
 - ✓ Sprint C complete (`phase-1.12` deferred UX/media)
+
+### Phase 2.3 Update #1 - Service Hardening + Verification (Server, Linux workspace)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`Linux workspace`)  
+**Status:** completed ✅
+
+**Commit hash:** pending local commit in this workspace (to be filled immediately after commit)
+
+**Files added/updated:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/ChannelMemberService.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/ReactionService.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/PinService.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/TypingIndicatorService.cs`
+- `tests/DotNetCloud.Modules.Chat.Tests/ChannelMemberServiceTests.cs` (new)
+- `tests/DotNetCloud.Modules.Chat.Tests/ReactionServiceTests.cs`
+- `tests/DotNetCloud.Modules.Chat.Tests/PinServiceTests.cs`
+- `tests/DotNetCloud.Modules.Chat.Tests/TypingIndicatorServiceTests.cs`
+- `docs/development/PHASE_2_3_EXECUTION_PLAN.md`
+- `docs/IMPLEMENTATION_CHECKLIST.md`
+- `docs/MASTER_PROJECT_PLAN.md`
+
+**Tests added/updated:**
+- `tests/DotNetCloud.Modules.Chat.Tests/ChannelMemberServiceTests.cs`
+    - `WhenOwnerAddsMemberThenMembershipIsCreated`
+    - `WhenNonAdminAddsMemberThenUnauthorizedAccessExceptionIsThrown`
+    - `WhenOutsiderListsMembersThenUnauthorizedAccessExceptionIsThrown`
+    - `WhenOwnerDemotesLastOwnerThenInvalidOperationExceptionIsThrown`
+    - `WhenCallerMarksReadWithInvalidMessageThenInvalidOperationExceptionIsThrown`
+    - `WhenGetUnreadCountsThenMentionsIncludeAllAndChannelTypes`
+    - `WhenRemovingLastOwnerThenInvalidOperationExceptionIsThrown`
+- `tests/DotNetCloud.Modules.Chat.Tests/ReactionServiceTests.cs`
+    - `WhenAddReactionWithWhitespaceEmojiThenEmojiIsTrimmed`
+    - `WhenAddReactionAsNonMemberThenThrowsUnauthorizedAccessException`
+    - `WhenRemoveReactionAsNonMemberThenThrowsUnauthorizedAccessException`
+    - `WhenAddReactionThenReactionAddedEventContainsExpectedPayload`
+    - `WhenRemoveReactionThenReactionRemovedEventContainsExpectedPayload`
+- `tests/DotNetCloud.Modules.Chat.Tests/PinServiceTests.cs`
+    - `WhenPinMessageAsNonMemberThenThrowsUnauthorizedAccessException`
+    - `WhenPinMessageFromDifferentChannelThenThrowsInvalidOperationException`
+    - `WhenGetPinnedMessagesThenLatestPinIsReturnedFirst`
+- `tests/DotNetCloud.Modules.Chat.Tests/TypingIndicatorServiceTests.cs`
+    - `WhenNotifyTypingWithEmptyChannelThenThrowsArgumentException`
+    - `WhenTypingEntryExpiresThenUserIsRemoved`
+
+**Verification commands and results:**
+- `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
+    - Final result: total 197, succeeded 197, failed 0, skipped 0
+- `dotnet build`
+    - Final result: succeeded (full solution)
+
+**Raw failing assertion/error text seen during iteration (fixed):**
+- `WhenMultipleUsersReactThenCountIsCorrect`: `System.UnauthorizedAccessException: User <guid> is not a member of channel <guid>.`
+    - Fix applied: test now adds the second caller as a channel member before reacting.
+
+**Raw log snippets around authorization/event issues:**
+- No runtime log-line capture in test harness (services are constructed with `NullLogger<T>` in unit tests).
+- Added server-side warning/info logging statements in services for denied reaction/pin/member-management actions and reaction add/remove events.
+
+**Intentionally deferred items:**
+- Client-side compatibility validation pass (DTO/view-model/API-consumer assumptions) is deferred to the client workspace handoff.
+- No Phase 2.4/2.5 work started in this update.
 
 ### Sprint A Kickoff - Phase 1.19.2 (Files API Integration Depth)
 

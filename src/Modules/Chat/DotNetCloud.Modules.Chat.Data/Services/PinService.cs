@@ -24,6 +24,16 @@ internal sealed class PinService : IPinService
     /// <inheritdoc />
     public async Task PinMessageAsync(Guid channelId, Guid messageId, CallerContext caller, CancellationToken cancellationToken = default)
     {
+        await EnsureChannelExistsAsync(channelId, cancellationToken);
+        await EnsureCallerCanAccessChannelAsync(channelId, caller, cancellationToken);
+
+        var messageExistsInChannel = await _db.Messages
+            .AsNoTracking()
+            .AnyAsync(m => m.Id == messageId && m.ChannelId == channelId, cancellationToken);
+
+        if (!messageExistsInChannel)
+            throw new InvalidOperationException($"Message {messageId} not found in channel {channelId}.");
+
         var exists = await _db.PinnedMessages
             .AnyAsync(p => p.ChannelId == channelId && p.MessageId == messageId, cancellationToken);
 
@@ -45,6 +55,9 @@ internal sealed class PinService : IPinService
     /// <inheritdoc />
     public async Task UnpinMessageAsync(Guid channelId, Guid messageId, CallerContext caller, CancellationToken cancellationToken = default)
     {
+        await EnsureChannelExistsAsync(channelId, cancellationToken);
+        await EnsureCallerCanAccessChannelAsync(channelId, caller, cancellationToken);
+
         var pin = await _db.PinnedMessages
             .FirstOrDefaultAsync(p => p.ChannelId == channelId && p.MessageId == messageId, cancellationToken);
 
@@ -60,21 +73,40 @@ internal sealed class PinService : IPinService
     /// <inheritdoc />
     public async Task<IReadOnlyList<MessageDto>> GetPinnedMessagesAsync(Guid channelId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        var pinnedMessageIds = await _db.PinnedMessages
+        await EnsureChannelExistsAsync(channelId, cancellationToken);
+        await EnsureCallerCanAccessChannelAsync(channelId, caller, cancellationToken);
+
+        var pinnedEntries = await _db.PinnedMessages
             .AsNoTracking()
             .Where(p => p.ChannelId == channelId)
             .OrderByDescending(p => p.PinnedAt)
-            .Select(p => p.MessageId)
             .ToListAsync(cancellationToken);
+
+        var pinnedMessageIds = pinnedEntries.Select(p => p.MessageId).ToList();
+
+        if (pinnedMessageIds.Count == 0)
+            return [];
 
         var messages = await _db.Messages
             .AsNoTracking()
             .Where(m => pinnedMessageIds.Contains(m.Id))
             .Include(m => m.Attachments)
             .Include(m => m.Reactions)
+            .Include(m => m.Mentions)
             .ToListAsync(cancellationToken);
 
-        return messages.Select(m => new MessageDto
+        var messageMap = messages.ToDictionary(m => m.Id);
+
+        return pinnedEntries
+            .Select(p => messageMap.TryGetValue(p.MessageId, out var message) ? ToMessageDto(message) : null)
+            .Where(m => m is not null)
+            .Select(m => m!)
+            .ToList();
+    }
+
+    private static MessageDto ToMessageDto(Message m)
+    {
+        return new MessageDto
         {
             Id = m.Id,
             ChannelId = m.ChannelId,
@@ -101,7 +133,43 @@ internal sealed class PinService : IPinService
                     Emoji = g.Key,
                     Count = g.Count(),
                     UserIds = g.Select(r => r.UserId).ToList()
-                }).ToList()
-        }).ToList();
+                }).ToList(),
+            Mentions = m.Mentions.Select(mm => new MessageMentionDto
+            {
+                Type = mm.Type.ToString(),
+                MentionedUserId = mm.MentionedUserId,
+                StartIndex = mm.StartIndex,
+                Length = mm.Length
+            }).ToList()
+        };
+    }
+
+    private async Task EnsureChannelExistsAsync(Guid channelId, CancellationToken cancellationToken)
+    {
+        var exists = await _db.Channels
+            .AsNoTracking()
+            .AnyAsync(c => c.Id == channelId, cancellationToken);
+
+        if (!exists)
+            throw new InvalidOperationException($"Channel {channelId} not found.");
+    }
+
+    private async Task EnsureCallerCanAccessChannelAsync(Guid channelId, CallerContext caller, CancellationToken cancellationToken)
+    {
+        if (caller.Type == CallerType.System)
+            return;
+
+        var isMember = await _db.ChannelMembers
+            .AsNoTracking()
+            .AnyAsync(m => m.ChannelId == channelId && m.UserId == caller.UserId, cancellationToken);
+
+        if (!isMember)
+        {
+            _logger.LogWarning(
+                "Denied pin action. ChannelId={ChannelId} CallerUserId={CallerUserId}",
+                channelId,
+                caller.UserId);
+            throw new UnauthorizedAccessException($"User {caller.UserId} is not a member of channel {channelId}.");
+        }
     }
 }

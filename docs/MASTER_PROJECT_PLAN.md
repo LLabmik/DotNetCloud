@@ -58,7 +58,7 @@
 | Phase 1.20 | 20 | 20 | 0 | 0 |
 | Phase 2.1 | 6 | 6 | 0 | 0 |
 | Phase 2.2 | 4 | 4 | 0 | 0 |
-| Phase 2.3 | 7 | 2 | 0 | 5 |
+| Phase 2.3 | 7 | 3 | 0 | 4 |
 | Phase 2.4 | 5 | 0 | 0 | 5 |
 | Phase 2.5 | 4 | 0 | 0 | 4 |
 | Phase 2.6 | 4 | 0 | 0 | 4 |
@@ -3283,22 +3283,22 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Step: phase-2.3 - Chat Business Logic & Services
-**Status:** in-progress 🔄
+**Status:** completed ✅
 **Duration:** ~2 weeks
 **Description:** Implement core chat services: ChannelService, MessageService, ReactionService, PinService, TypingIndicatorService, and ChatModule lifecycle.
 
 **Deliverables:**
 - ✓ Implement IChannelService and ChannelService (CRUD, DM creation, authorization, channel name uniqueness validation)
-- ☐ Implement IChannelMemberService and ChannelMemberService (add/remove, roles, unread counts)
+- ✓ Implement IChannelMemberService and ChannelMemberService (add/remove, roles, unread counts)
 - ✓ Implement IMessageService and MessageService (send, edit, delete, search, mention parsing, mention notification dispatching)
-- ☐ Implement IReactionService and ReactionService
-- ☐ Implement IPinService and PinService
-- ☐ Implement ITypingIndicatorService (in-memory, time-expiring)
+- ✓ Implement IReactionService and ReactionService
+- ✓ Implement IPinService and PinService
+- ✓ Implement ITypingIndicatorService (in-memory, time-expiring)
 - ✓ Create ChatModule implementing IModule (lifecycle management) — initialize/start/stop/dispose with event bus integration
 
 **Dependencies:** phase-2.2
 **Blocking Issues:** None
-**Notes:** ChannelService complete with CRUD, authorization, DM resolution, and channel name uniqueness validation within organization. Uniqueness enforced via `ValidateChannelNameUniqueAsync` (DB query + `ValidationException`), applied on create and update. DM channels are excluded from uniqueness checks. ChatController catches `ValidationException` and returns 409 Conflict. ChatGrpcService.CreateChannel refactored to delegate to IChannelService (was bypassing it with direct DB access). Proto updated with `organization_id` field. MessageService complete with send/edit/delete/search/pagination, @username/@channel/@all mention parsing via IUserDirectory, and IMentionNotificationService for dispatching notifications (real-time + push). IUserDirectory enhanced with FindUserIdByUsernameAsync and GetDisplayNamesAsync. UserDirectoryService implementation added. Mention data now surfaced to clients: MessageMentionDto added, MessageDto.Mentions populated from DB, all query methods include Mentions navigation. MentionViewModel and IsMentioningCurrentUser added to MessageViewModel for Blazor UI. 153 total chat tests pass. Remaining: ChannelMemberService, ReactionService, PinService, TypingIndicatorService.
+**Notes:** Phase 2.3 completed with full hardening of `ChannelMemberService`, `ReactionService`, `PinService`, and `TypingIndicatorService`. Authorization boundaries are now enforced for member-management, reaction, and pin operations; deterministic validation paths were added for channel/message mismatch and last-owner protection; unread mention calculations now include `@all` and `@channel`; reaction payloads were normalized and validated for event consistency; pinned-message retrieval now preserves `PinnedAt` ordering and projects mentions consistently. Added/expanded tests in `ChannelMemberServiceTests`, `ReactionServiceTests`, `PinServiceTests`, and `TypingIndicatorServiceTests`. Verification: `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj` passed (197/197), and full `dotnet build` succeeded. Next: proceed to `phase-2.4` then `phase-2.5`.
 
 ---
 

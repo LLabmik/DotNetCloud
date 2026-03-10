@@ -32,6 +32,13 @@ public class PinServiceTests
 
         var channel = new Channel { Name = "test", CreatedByUserId = _caller.UserId };
         _db.Channels.Add(channel);
+        _db.ChannelMembers.Add(new ChannelMember
+        {
+            ChannelId = channel.Id,
+            UserId = _caller.UserId,
+            Role = ChannelMemberRole.Member
+        });
+
         var message = new Message { ChannelId = channel.Id, SenderUserId = _caller.UserId, Content = "pin me" };
         _db.Messages.Add(message);
         await _db.SaveChangesAsync();
@@ -83,6 +90,57 @@ public class PinServiceTests
     {
         await _service.UnpinMessageAsync(_channelId, _messageId, _caller);
         // Should not throw
+    }
+
+    [TestMethod]
+    public async Task WhenPinMessageAsNonMemberThenThrowsUnauthorizedAccessException()
+    {
+        var nonMember = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => _service.PinMessageAsync(_channelId, _messageId, nonMember));
+    }
+
+    [TestMethod]
+    public async Task WhenPinMessageFromDifferentChannelThenThrowsInvalidOperationException()
+    {
+        var otherChannel = new Channel { Name = "other", CreatedByUserId = _caller.UserId };
+        _db.Channels.Add(otherChannel);
+        _db.ChannelMembers.Add(new ChannelMember
+        {
+            ChannelId = otherChannel.Id,
+            UserId = _caller.UserId,
+            Role = ChannelMemberRole.Member
+        });
+
+        await _db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _service.PinMessageAsync(otherChannel.Id, _messageId, _caller));
+    }
+
+    [TestMethod]
+    public async Task WhenGetPinnedMessagesThenLatestPinIsReturnedFirst()
+    {
+        var secondMessage = new Message
+        {
+            ChannelId = _channelId,
+            SenderUserId = _caller.UserId,
+            Content = "newest pin"
+        };
+
+        _db.Messages.Add(secondMessage);
+        await _db.SaveChangesAsync();
+
+        await _service.PinMessageAsync(_channelId, _messageId, _caller);
+        await Task.Delay(10);
+        await _service.PinMessageAsync(_channelId, secondMessage.Id, _caller);
+
+        var pins = await _service.GetPinnedMessagesAsync(_channelId, _caller);
+
+        Assert.AreEqual(2, pins.Count);
+        Assert.AreEqual(secondMessage.Id, pins[0].Id);
+        Assert.AreEqual(_messageId, pins[1].Id);
     }
 
     [TestMethod]

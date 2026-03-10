@@ -2852,6 +2852,10 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ `Task MarkAsReadAsync(Guid channelId, Guid messageId, CallerContext caller)`
   - ✓ `Task<IReadOnlyList<UnreadCountDto>> GetUnreadCountsAsync(CallerContext caller)`
 - ✓ Implement `ChannelMemberService`
+- ✓ Enforce owner/admin authorization for membership management actions
+- ✓ Prevent removal or demotion of the last channel owner
+- ✓ Validate mark-as-read message belongs to target channel
+- ✓ Include `@channel` and `@all` in mention unread-count calculations
 
 #### Message Service
 - ✓ Create `IMessageService` interface:
@@ -2872,6 +2876,9 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ `Task RemoveReactionAsync(Guid messageId, string emoji, CallerContext caller)`
   - ✓ `Task<IReadOnlyList<MessageReactionDto>> GetReactionsAsync(Guid messageId)`
 - ✓ Implement `ReactionService`
+- ✓ Enforce channel membership for add/remove reaction operations
+- ✓ Normalize emoji input before persistence and event publication
+- ✓ Verify reaction event payload consistency (`ReactionAddedEvent`, `ReactionRemovedEvent`)
 
 #### Pin Service
 - ✓ Create `IPinService` interface:
@@ -2879,12 +2886,17 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ `Task UnpinMessageAsync(Guid channelId, Guid messageId, CallerContext caller)`
   - ✓ `Task<IReadOnlyList<MessageDto>> GetPinnedMessagesAsync(Guid channelId, CallerContext caller)`
 - ✓ Implement `PinService`
+- ✓ Enforce channel membership and channel existence for pin/unpin/list operations
+- ✓ Validate pinned message belongs to the target channel
+- ✓ Preserve deterministic pinned-message ordering by `PinnedAt` descending
 
 #### Typing Indicator Service
 - ✓ Create `ITypingIndicatorService` interface:
   - ✓ `Task NotifyTypingAsync(Guid channelId, CallerContext caller)`
   - ✓ `Task<IReadOnlyList<TypingIndicatorDto>> GetTypingUsersAsync(Guid channelId)`
 - ✓ Implement `TypingIndicatorService` (in-memory, time-expiring)
+- ✓ Validate channel id input and cancellation-token flow
+- ✓ Prune expired and empty channel typing state during reads/cleanup
 
 #### Chat Module Lifecycle
 - ✓ Create `ChatModule` implementing `IModule`:
