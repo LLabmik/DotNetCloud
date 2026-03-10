@@ -26,6 +26,11 @@ public sealed class ChannelViewModel
     /// <summary>Whether the channel is currently active/selected.</summary>
     public bool IsActive { get; set; }
 
+    /// <summary>
+    /// Presence state for direct-message/group peers (Online, Away, Offline).
+    /// </summary>
+    public string PresenceStatus { get; set; } = "Offline";
+
     /// <summary>Last activity timestamp.</summary>
     public DateTime? LastActivityAt { get; init; }
 

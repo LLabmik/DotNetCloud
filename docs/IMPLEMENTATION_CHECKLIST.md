@@ -3132,7 +3132,7 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ Highlight active channel
   - ✓ Show channel search/filter
   - ✓ Display channel creation button
-  - [ ] Show user presence indicators
+  - ✓ Show user presence indicators
   - [ ] Support drag-to-reorder pinned channels
 
 #### Channel Header Component

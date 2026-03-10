@@ -63,6 +63,7 @@
                     <div class="channel-item @(channel.IsActive ? "active" : "")"
                          @onclick="() => SelectChannel(channel)">
                         <span class="channel-icon">💬</span>
+                        <span class="presence-dot @GetPresenceClass(channel)" title="@channel.PresenceStatus"></span>
                         <span class="channel-name">@channel.Name</span>
                         @if (channel.UnreadCount > 0)
                         {

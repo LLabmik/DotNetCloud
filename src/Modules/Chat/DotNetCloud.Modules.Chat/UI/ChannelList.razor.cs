@@ -161,9 +161,25 @@ public partial class ChannelList : ComponentBase
             Topic = dto.Topic,
             LastActivityAt = dto.LastActivityAt,
             MemberCount = dto.MemberCount,
+            PresenceStatus = dto.Type is "DirectMessage" or "Group" ? "Offline" : string.Empty,
             UnreadCount = 0,
             MentionCount = 0,
             IsActive = false
+        };
+    }
+
+    private static string GetPresenceClass(ChannelViewModel channel)
+    {
+        if (channel.Type is not ("DirectMessage" or "Group"))
+        {
+            return "presence-offline";
+        }
+
+        return channel.PresenceStatus.ToLowerInvariant() switch
+        {
+            "online" => "presence-online",
+            "away" => "presence-away",
+            _ => "presence-offline"
         };
     }
 }

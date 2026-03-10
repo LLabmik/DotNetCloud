@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-10 (Phase 2.7 queue/reliability update posted)
+Last updated: 2026-03-10 (Phase 2.8 channel presence indicator update posted)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -721,6 +721,48 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 **Intentionally deferred items:**
 - FCM configuration model / credential management UI.
 - UnifiedPush configuration model.
+
+### Phase 2.8 Update #1 - Channel List Presence Indicators (Server, mint22)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`mint22`)  
+**Status:** completed ✅ (incremental phase-2.8 scope)
+
+**Commit hash:** `TBD`
+
+**Files added/updated:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ViewModels.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelList.razor`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelList.razor.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelList.razor.css` (new)
+- `docs/IMPLEMENTATION_CHECKLIST.md`
+- `docs/MASTER_PROJECT_PLAN.md`
+- `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
+
+**Implemented in this update:**
+1. Added `PresenceStatus` support to `ChannelViewModel` for DM/group presence rendering.
+2. Updated `ChannelList.razor` to render presence dots for direct/group channels.
+3. Added presence-class mapping in `ChannelList.razor.cs` with `Online`/`Away`/`Offline` UI states.
+4. Added scoped styling in `ChannelList.razor.css` for presence indicator appearance.
+
+**Tests added/updated:**
+- No new unit tests (UI-only markup/styling enhancement).
+
+**Verification commands and results:**
+- `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
+    - Result: total 226, succeeded 226, failed 0, skipped 0
+- `dotnet build`
+    - Result: succeeded (full solution)
+
+**Raw failing assertion/error text seen during iteration (fixed):**
+- None.
+
+**Raw log snippets around authorization/event issues:**
+- N/A (UI-only change).
+
+**Intentionally deferred items:**
+- Channel drag-to-reorder.
+- Additional phase-2.8 chat UI components and behaviors pending in checklist.
 
 ### Sprint A Kickoff - Phase 1.19.2 (Files API Integration Depth)
 
