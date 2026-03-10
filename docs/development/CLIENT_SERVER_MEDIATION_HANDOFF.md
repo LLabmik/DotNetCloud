@@ -516,7 +516,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 **Owner:** Server (`mint22`)  
 **Status:** completed ✅ (incremental phase-2.7 scope)
 
-**Commit hash:** `(pending commit)`
+**Commit hash:** `092dfd9`
 
 **Files added/updated:**
 - `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Controllers/ChatController.cs`
