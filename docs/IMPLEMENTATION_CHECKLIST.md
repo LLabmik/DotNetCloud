@@ -2096,7 +2096,7 @@ This phase implements the core Files module, which is the primary public-facing 
 #### Thumbnail Generation
 - ✓ Generate thumbnails for image files on upload (`ThumbnailService` using ImageSharp 3.1.12)
 - ✓ Generate thumbnails for video files (first frame) via FFmpeg extraction pipeline (`IVideoFrameExtractor` + `FfmpegVideoFrameExtractor`)
-- ☐ Generate thumbnails for PDF files (first page) — deferred: requires PDF rendering library
+- ✓ Generate thumbnails for PDF files (first page) via PDF renderer bridge (`IPdfPageRenderer` + `PdftoppmPdfPageRenderer`)
 - ✓ Cache thumbnails on server (disk cache under `{storageRoot}/.thumbnails/{prefix}/{id}_{size}.jpg`)
 - ✓ Serve thumbnails via API endpoint (`GET /api/v1/files/{nodeId}/thumbnail?size=small|medium|large`) with authenticated node access checks
 - ✓ Display thumbnails in grid view (FileBrowser renders `<img>` when `ThumbnailUrl` is set)
@@ -2104,7 +2104,7 @@ This phase implements the core Files module, which is the primary public-facing 
 #### Advanced Preview
 - ✓ Create full-screen preview mode (`FilePreview.razor` modal overlay)
 - ✓ Support keyboard navigation (← → for prev/next file, Escape to close)
-- ☐ Support touch gestures (swipe, pinch-zoom) — deferred: requires JS touch event interop
+- ✓ Support touch gestures (swipe navigation, pinch-zoom for image previews) via JS interop bridge
 - ✓ Display file metadata in preview (MIME type, size, modified date, position in folder)
 - ✓ Download button from preview (raises OnDownload event callback)
 - ✓ Share button from preview (raises OnShare event; FileBrowser opens ShareDialog)

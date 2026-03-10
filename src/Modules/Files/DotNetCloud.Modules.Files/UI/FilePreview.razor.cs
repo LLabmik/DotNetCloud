@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.JSInterop;
 
 namespace DotNetCloud.Modules.Files.UI;
 
@@ -8,8 +9,10 @@ namespace DotNetCloud.Modules.Files.UI;
 /// Supports images, video, audio, PDF, text, code, and markdown previews.
 /// Keyboard shortcuts: Escape = close, ← = previous file, → = next file.
 /// </summary>
-public partial class FilePreview : ComponentBase
+public partial class FilePreview : ComponentBase, IAsyncDisposable
 {
+    [Inject] private IJSRuntime Js { get; set; } = default!;
+
     /// <summary>The file node to preview (starting node; may change on navigation).</summary>
     [Parameter] public FileNodeViewModel? Node { get; set; }
 
@@ -39,6 +42,9 @@ public partial class FilePreview : ComponentBase
     [Parameter] public EventCallback<FileNodeViewModel> OnShare { get; set; }
 
     private ElementReference _overlayRef;
+    private DotNetObjectReference<FilePreview>? _gestureDotNetRef;
+    private int _gestureHandlerId;
+    private double _imageZoom = 1;
 
     // Tracks the currently displayed node when the user navigates away from the original Node.
     private FileNodeViewModel? _currentNode;
@@ -47,13 +53,22 @@ public partial class FilePreview : ComponentBase
     protected FileNodeViewModel? DisplayNode => _currentNode ?? Node;
 
     /// <inheritdoc />
-    protected override void OnParametersSet() => _currentNode = null;
+    protected override void OnParametersSet()
+    {
+        _currentNode = null;
+        _imageZoom = 1;
+    }
 
     /// <inheritdoc />
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
+        {
             await _overlayRef.FocusAsync();
+
+            _gestureDotNetRef = DotNetObjectReference.Create(this);
+            _gestureHandlerId = await Js.InvokeAsync<int>("dotnetcloudFilePreviewGestures.init", _overlayRef, _gestureDotNetRef);
+        }
     }
 
     // ── MIME type checks ────────────────────────────────────────────────────────
@@ -125,6 +140,7 @@ public partial class FilePreview : ComponentBase
         if (idx > 0)
         {
             _currentNode = NavigableFiles[idx - 1];
+            _imageZoom = 1;
             StateHasChanged();
         }
     }
@@ -136,8 +152,39 @@ public partial class FilePreview : ComponentBase
         if (idx >= 0 && idx < NavigableFiles.Count - 1)
         {
             _currentNode = NavigableFiles[idx + 1];
+            _imageZoom = 1;
             StateHasChanged();
         }
+    }
+
+    /// <summary>Handles a swipe-left gesture to navigate forward.</summary>
+    [JSInvokable]
+    public Task OnSwipeLeft()
+    {
+        GoNext();
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Handles a swipe-right gesture to navigate backward.</summary>
+    [JSInvokable]
+    public Task OnSwipeRight()
+    {
+        GoPrev();
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Handles pinch gesture scale deltas for image zoom.</summary>
+    [JSInvokable]
+    public Task OnPinchScale(double scaleDelta)
+    {
+        if (!IsImage)
+        {
+            return Task.CompletedTask;
+        }
+
+        _imageZoom = Math.Clamp(_imageZoom * scaleDelta, 1.0, 4.0);
+        StateHasChanged();
+        return Task.CompletedTask;
     }
 
     // ── Keyboard ────────────────────────────────────────────────────────────────
@@ -245,5 +292,26 @@ public partial class FilePreview : ComponentBase
         if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
         if (bytes < 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0):F1} MB";
         return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
+    }
+
+    /// <summary>Inline style for image previews, enabling pinch zoom transform.</summary>
+    protected string GetImageStyle() => $"transform: scale({_imageZoom:F2}); transform-origin: center center;";
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        if (_gestureHandlerId != 0)
+        {
+            try
+            {
+                await Js.InvokeVoidAsync("dotnetcloudFilePreviewGestures.dispose", _gestureHandlerId);
+            }
+            catch (JSDisconnectedException)
+            {
+                // Blazor circuit already disconnected during teardown.
+            }
+        }
+
+        _gestureDotNetRef?.Dispose();
     }
 }

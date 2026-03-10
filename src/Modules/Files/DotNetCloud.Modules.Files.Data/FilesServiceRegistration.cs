@@ -56,6 +56,7 @@ public static class FilesServiceRegistration
         services.AddScoped<ISyncService, SyncService>();
         services.AddScoped<IStorageMetricsService, StorageMetricsService>();
         services.AddSingleton<IVideoFrameExtractor, FfmpegVideoFrameExtractor>();
+        services.AddSingleton<IPdfPageRenderer, PdftoppmPdfPageRenderer>();
         services.AddSingleton<IThumbnailService, ThumbnailService>();
 
         // WOPI / Collabora services (Scoped for DB access)

@@ -20,7 +20,7 @@
 
 - ☐ Sprint A complete
 - ☐ Sprint B complete
-- ☐ Sprint C complete
+- ✓ Sprint C complete
 - ☐ All related docs updated (`MASTER_PROJECT_PLAN.md`, `IMPLEMENTATION_CHECKLIST.md`, mediation handoff)
 - ☐ Final acceptance received
 - ☐ This temporary sprint plan deleted
@@ -113,8 +113,8 @@
 - ✓ Folder drag-and-drop recursive upload
 - ✓ Thumbnail API controller wiring for existing `IThumbnailService`
 - ✓ Video thumbnail generation integration
-- ☐ PDF thumbnail generation integration
-- ☐ Touch gestures for preview (swipe/pinch)
+- ✓ PDF thumbnail generation integration
+- ✓ Touch gestures for preview (swipe/pinch)
 
 ### Mediator Handoff Checkpoints
 
@@ -125,7 +125,7 @@
 
 ### Exit Criteria
 
-- ☐ All deferred bullets under `phase-1.12` resolved
+- ✓ All deferred bullets under `phase-1.12` resolved
 - ☐ Tests added for recursive drop parsing and thumbnail endpoint behavior
 - ☐ Docs and handoff updated with completion evidence
 

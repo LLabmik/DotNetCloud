@@ -18,8 +18,8 @@ public enum ThumbnailSize
 /// <summary>
 /// Generates, caches, and retrieves file thumbnails for supported media types.
 /// Supports raster image formats (JPEG, PNG, GIF, WebP, BMP, TIFF) and
-/// video first-frame extraction for common video MIME types.
-/// PDF thumbnail generation is planned for a future phase.
+/// video first-frame extraction for common video MIME types, plus
+/// PDF first-page rendering.
 /// </summary>
 public interface IThumbnailService
 {

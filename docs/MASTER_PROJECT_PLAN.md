@@ -47,7 +47,7 @@
 | Phase 1.9 | 14 | 14 | 0 | 0 |
 | Phase 1.10 | 24 | 24 | 0 | 0 |
 | Phase 1.11 | 8 | 8 | 0 | 0 |
-| Phase 1.12 | 17 | 15 | 0 | 2 |
+| Phase 1.12 | 17 | 17 | 0 | 0 |
 | Phase 1.13 | 4 | 4 | 0 | 0 |
 | Phase 1.14 | 32 | 32 | 0 | 0 |
 | Phase 1.15 | 25 | 23 | 0 | 2 |
@@ -2789,7 +2789,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Notes:** All 8 component groups complete. Build: zero errors, zero warnings. No new tests required (UI-only components, no business logic). Components use the established pattern: `#pragma warning disable CS0649` for fields populated by future API integration, EventCallback parameters for host-page wiring, and `protected` property accessors following the existing FileBrowser/TrashBin pattern. File interactions now follow a one-click-only model (double-click handlers removed from Files UI).
 
 ### Step: phase-1.12 - File Upload & Preview UI
-**Status:** in-progress 🔄 (15/17 tasks; 2 deferred)
+**Status:** completed ✅ (17/17 tasks)
 **Duration:** ~1 session
 **Description:** Enhanced upload experience with drag-and-drop on the browser, floating upload progress panel with speed/ETA/pause/cancel, ImageSharp-based thumbnail generation and caching, and full-screen file preview supporting all media types with keyboard navigation.
 
@@ -2797,9 +2797,9 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `IThumbnailService.cs` + `ThumbnailService.cs` — thumbnail generation/caching/cleanup service
   - ✓ ImageSharp 3.1.12 for raster image resizing (JPEG, PNG, GIF, WebP, BMP, TIFF)
   - ✓ FFmpeg-backed first-frame extraction for video thumbnails (`IVideoFrameExtractor`, `FfmpegVideoFrameExtractor`)
+  - ✓ PDF first-page rendering via `IPdfPageRenderer` + `PdftoppmPdfPageRenderer`
   - ✓ All three sizes (128 / 256 / 512 px) cached to `{storageRoot}/.thumbnails/{prefix}/{id}_{size}.jpg`
   - ✓ `GenerateThumbnailAsync` (called on upload complete), `GetThumbnailAsync`, `DeleteThumbnailsAsync`
-  - ☐ PDF thumbnail (first page) — deferred: requires PDF rendering library
   - ✓ Thumbnail API endpoint wired: `GET /api/v1/files/{nodeId}/thumbnail?size=small|medium|large`
 - ✓ `UploadProgressPanel.razor` + `UploadProgressPanel.razor.cs` — floating upload progress panel
   - ✓ Per-file progress bar, speed (B/KB/MB per second), ETA (s/m/h remaining)
@@ -2820,7 +2820,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
   - ✓ Share button (raises OnShare → FileBrowser opens ShareDialog)
   - ✓ Download button (raises OnDownload event)
   - ✓ Auto-focus overlay on render for keyboard capture
-  - ☐ Touch gestures (swipe/pinch-zoom) — deferred: requires JS Touch event interop
+  - ✓ Touch gestures (swipe left/right navigation; pinch zoom for image previews) via JS interop
 - ✓ `FileUploadComponent.razor` + `.razor.cs` — enhanced upload dialog
   - ✓ Uses `UploadProgressPanel` while uploading (replaces inline file list)
   - ✓ Per-file speed/ETA tracked via `Stopwatch` + chunk bytes
@@ -2840,6 +2840,8 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **File Locations:**
 - `src/Modules/Files/DotNetCloud.Modules.Files/Services/IThumbnailService.cs` (new)
 - `src/Modules/Files/DotNetCloud.Modules.Files/Services/ThumbnailService.cs` (new)
+- `src/Modules/Files/DotNetCloud.Modules.Files/Services/IPdfPageRenderer.cs` (new)
+- `src/Modules/Files/DotNetCloud.Modules.Files/Services/PdftoppmPdfPageRenderer.cs` (new)
 - `src/Modules/Files/DotNetCloud.Modules.Files/UI/UploadProgressPanel.razor` (new)
 - `src/Modules/Files/DotNetCloud.Modules.Files/UI/UploadProgressPanel.razor.cs` (new)
 - `src/Modules/Files/DotNetCloud.Modules.Files/UI/FilePreview.razor` (rewritten — full implementation)
@@ -2852,11 +2854,14 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - `src/Modules/Files/DotNetCloud.Modules.Files/DotNetCloud.Modules.Files.csproj` (SixLabors.ImageSharp 3.1.12 added)
 - `src/UI/DotNetCloud.UI.Web/wwwroot/js/files-drop-bridge.js` (enhanced — recursive directory traversal from DataTransfer items)
 - `src/UI/DotNetCloud.UI.Web/wwwroot/js/file-upload.js` (enhanced — relative path handling + recursive folder auto-creation during upload)
+- `src/UI/DotNetCloud.UI.Web/wwwroot/js/file-preview-gestures.js` (new — swipe/pinch gesture bridge)
+- `src/UI/DotNetCloud.UI.Web/Components/App.razor` (updated script includes)
 - `tests/DotNetCloud.Modules.Files.Tests/UI/FileUploadComponentTests.cs` (new — multi-file upload regression coverage)
+- `tests/DotNetCloud.Modules.Files.Tests/Services/ThumbnailServiceTests.cs` (expanded — video + PDF thumbnail tests)
 
 **Dependencies:** phase-1.11 (UI components), phase-1.3 (IChunkedUploadService interface)
 **Blocking Issues:** None
-**Notes:** Build succeeds for changed runtime projects (`DotNetCloud.Modules.Files`, `DotNetCloud.UI.Web`). Drag-and-drop now supports recursive folder uploads: the browser drop bridge traverses `DataTransferItem` directory entries (`webkitGetAsEntry`), captures per-file relative paths, and passes them into the upload pipeline. `file-upload.js` now resolves/creates nested folders through `/api/v1/files` and `/api/v1/files/folders` before each file upload so dropped folder structures are preserved server-side. Existing upload behavior (single-file and multi-file drop/select) remains unchanged. Video thumbnail generation is now integrated through an FFmpeg extraction pipeline with first-frame capture and size caching, and covered by new unit tests (`ThumbnailServiceTests`) plus existing API integration tests (`FilesThumbnailIntegrationTests`) passing 2/2. 2 items remain deferred: PDF thumbnail generation and preview touch gestures.
+**Notes:** Build succeeds for changed runtime projects (`DotNetCloud.Modules.Files`, `DotNetCloud.UI.Web`). Drag-and-drop supports recursive folder uploads by traversing `DataTransferItem` directory entries (`webkitGetAsEntry`), capturing per-file relative paths, and resolving/creating nested folders through `/api/v1/files` and `/api/v1/files/folders` before upload. Thumbnail generation now covers image, video first frame (FFmpeg), and PDF first page (pdftoppm bridge), all cached through the existing thumbnail store path. Preview UX now includes mobile touch gestures via JS interop: swipe left/right for file navigation and pinch zoom for image previews. Validation: `ThumbnailServiceTests` 4/4 passing and `FilesThumbnailIntegrationTests` 2/2 passing.
 
 ---
 

@@ -6,7 +6,8 @@ using SixLabors.ImageSharp.Processing;
 namespace DotNetCloud.Modules.Files.Services;
 
 /// <summary>
-/// Generates JPEG thumbnails from raster image files using ImageSharp and caches them on disk.
+/// Generates JPEG thumbnails from raster images, video first frames, and PDF first pages,
+/// then caches them on disk.
 /// Thumbnails are stored in a two-level directory structure under the storage root to avoid
 /// large flat directories (e.g. <c>.thumbnails/ab/abcdef01..._{size}.jpg</c>).
 /// </summary>
@@ -35,6 +36,7 @@ public sealed class ThumbnailService : IThumbnailService
 
     private readonly string _cacheRoot;
     private readonly IVideoFrameExtractor _videoFrameExtractor;
+    private readonly IPdfPageRenderer _pdfPageRenderer;
     private readonly ILogger<ThumbnailService> _logger;
 
     /// <summary>
@@ -43,9 +45,11 @@ public sealed class ThumbnailService : IThumbnailService
     public ThumbnailService(
         IConfiguration configuration,
         IVideoFrameExtractor videoFrameExtractor,
+        IPdfPageRenderer pdfPageRenderer,
         ILogger<ThumbnailService> logger)
     {
         _videoFrameExtractor = videoFrameExtractor;
+        _pdfPageRenderer = pdfPageRenderer;
         _logger = logger;
         var storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
         _cacheRoot = Path.Combine(storageRoot, ".thumbnails");
@@ -88,6 +92,12 @@ public sealed class ThumbnailService : IThumbnailService
         if (_supportedVideoMimeTypes.Contains(mimeType))
         {
             await GenerateFromVideoAsync(fileNodeId, storagePath, cancellationToken);
+            return;
+        }
+
+        if (string.Equals(mimeType, "application/pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            await GenerateFromPdfAsync(fileNodeId, storagePath, cancellationToken);
         }
     }
 
@@ -136,6 +146,42 @@ public sealed class ThumbnailService : IThumbnailService
             catch (Exception ex)
             {
                 _logger.LogDebug(ex, "Could not clean up temporary video frame: {Path}", tempFramePath);
+            }
+        }
+    }
+
+    private async Task GenerateFromPdfAsync(Guid fileNodeId, string storagePath, CancellationToken cancellationToken)
+    {
+        var tempPageImagePath = Path.Combine(Path.GetTempPath(), $"dnc-thumb-pdf-{Guid.NewGuid():N}.jpg");
+
+        try
+        {
+            var rendered = await _pdfPageRenderer.TryRenderFirstPageAsync(storagePath, tempPageImagePath, cancellationToken);
+            if (!rendered || !File.Exists(tempPageImagePath))
+            {
+                _logger.LogWarning("Failed to render PDF first page for thumbnail generation: {Path}", storagePath);
+                return;
+            }
+
+            using var image = await Image.LoadAsync(tempPageImagePath, cancellationToken);
+            await GenerateResizedThumbnailsAsync(fileNodeId, image, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to generate PDF thumbnail for file {FileId}", fileNodeId);
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(tempPageImagePath))
+                {
+                    File.Delete(tempPageImagePath);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Could not clean up temporary PDF render image: {Path}", tempPageImagePath);
             }
         }
     }

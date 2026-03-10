@@ -86,7 +86,7 @@ Reference tracker: `docs/development/REMAINING_PHASE0_PHASE1_3SPRINT_PLAN.md`
 - ✓ Sprint A complete (`phase-1.19.2`)
 - ✓ Sprint B kickoff sent (`phase-1.15` deferred hardening)
 - ✓ Sprint B complete (`phase-1.15` deferred hardening)
-- ☐ Sprint C complete (`phase-1.12` deferred UX/media)
+- ✓ Sprint C complete (`phase-1.12` deferred UX/media)
 
 ### Sprint A Kickoff - Phase 1.19.2 (Files API Integration Depth)
 
@@ -337,6 +337,43 @@ Completed Sprint B updates `#1` and `#2` are archived in
 **Remaining for Sprint C:**
 - PDF thumbnail generation integration (PDF renderer)
 - Touch gestures for preview (JS touch interop)
+
+### Sprint C Update #3 - PDF Thumbnail + Touch Gesture Completion (Server, Windows workspace)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`Windows workspace`)  
+**Status:** completed ✅
+
+**Files added/updated:**
+- `src/Modules/Files/DotNetCloud.Modules.Files/Services/IPdfPageRenderer.cs`
+- `src/Modules/Files/DotNetCloud.Modules.Files/Services/PdftoppmPdfPageRenderer.cs`
+- `src/Modules/Files/DotNetCloud.Modules.Files/Services/ThumbnailService.cs`
+- `src/Modules/Files/DotNetCloud.Modules.Files/Services/IThumbnailService.cs`
+- `src/Modules/Files/DotNetCloud.Modules.Files.Data/FilesServiceRegistration.cs`
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/FilePreview.razor`
+- `src/Modules/Files/DotNetCloud.Modules.Files/UI/FilePreview.razor.cs`
+- `src/UI/DotNetCloud.UI.Web/wwwroot/js/file-preview-gestures.js`
+- `src/UI/DotNetCloud.UI.Web/Components/App.razor`
+- `tests/DotNetCloud.Modules.Files.Tests/Services/ThumbnailServiceTests.cs`
+- `docs/IMPLEMENTATION_CHECKLIST.md`
+- `docs/MASTER_PROJECT_PLAN.md`
+- `docs/development/REMAINING_PHASE0_PHASE1_3SPRINT_PLAN.md`
+
+**Implemented in this update:**
+1. Added PDF first-page thumbnail rendering pipeline via `IPdfPageRenderer` + `PdftoppmPdfPageRenderer` (configurable command path: `Files:Thumbnails:PdfToPpmPath`, default `pdftoppm`).
+2. Extended `ThumbnailService` to generate cached thumbnails for `application/pdf` using the same 128/256/512 cache strategy as image/video.
+3. Added touch gesture support to `FilePreview`: swipe left/right to navigate and pinch zoom for image previews.
+4. Added browser touch bridge script (`file-preview-gestures.js`) and wired it through `App.razor` and `FilePreview` JS interop lifecycle.
+5. Expanded thumbnail unit tests to cover PDF success/failure paths in addition to existing video coverage.
+
+**Tests/validation executed:**
+- `dotnet test tests\DotNetCloud.Modules.Files.Tests\DotNetCloud.Modules.Files.Tests.csproj --filter "FullyQualifiedName~ThumbnailServiceTests"`
+    - Result: total 4, succeeded 4, failed 0, skipped 0
+- `dotnet test tests\DotNetCloud.Integration.Tests\DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~FilesThumbnailIntegrationTests"`
+    - Result: total 2, succeeded 2, failed 0, skipped 0
+
+**Remaining for Sprint C:**
+- None. Sprint C deferred UX/media scope is complete.
 
 ---
 
