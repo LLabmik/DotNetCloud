@@ -112,7 +112,7 @@
 
 - ✓ Folder drag-and-drop recursive upload
 - ✓ Thumbnail API controller wiring for existing `IThumbnailService`
-- ☐ Video thumbnail generation integration
+- ✓ Video thumbnail generation integration
 - ☐ PDF thumbnail generation integration
 - ☐ Touch gestures for preview (swipe/pinch)
 

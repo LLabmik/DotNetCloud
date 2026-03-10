@@ -12,7 +12,7 @@ namespace DotNetCloud.Modules.Files.Services;
 /// </summary>
 public sealed class ThumbnailService : IThumbnailService
 {
-    private static readonly HashSet<string> _supportedMimeTypes = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> _supportedImageMimeTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "image/jpeg",
         "image/jpg",
@@ -23,14 +23,29 @@ public sealed class ThumbnailService : IThumbnailService
         "image/tiff"
     };
 
+    private static readonly HashSet<string> _supportedVideoMimeTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "video/mp4",
+        "video/mpeg",
+        "video/quicktime",
+        "video/x-msvideo",
+        "video/x-matroska",
+        "video/webm"
+    };
+
     private readonly string _cacheRoot;
+    private readonly IVideoFrameExtractor _videoFrameExtractor;
     private readonly ILogger<ThumbnailService> _logger;
 
     /// <summary>
     /// Initialises the thumbnail service, resolving the cache root from configuration.
     /// </summary>
-    public ThumbnailService(IConfiguration configuration, ILogger<ThumbnailService> logger)
+    public ThumbnailService(
+        IConfiguration configuration,
+        IVideoFrameExtractor videoFrameExtractor,
+        ILogger<ThumbnailService> logger)
     {
+        _videoFrameExtractor = videoFrameExtractor;
         _logger = logger;
         var storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
         _cacheRoot = Path.Combine(storageRoot, ".thumbnails");
@@ -58,41 +73,92 @@ public sealed class ThumbnailService : IThumbnailService
         string mimeType,
         CancellationToken cancellationToken = default)
     {
-        if (!_supportedMimeTypes.Contains(mimeType))
-            return;
-
         if (!File.Exists(storagePath))
         {
             _logger.LogWarning("Cannot generate thumbnail — source file not found: {Path}", storagePath);
             return;
         }
 
+        if (_supportedImageMimeTypes.Contains(mimeType))
+        {
+            await GenerateFromImageAsync(fileNodeId, storagePath, cancellationToken);
+            return;
+        }
+
+        if (_supportedVideoMimeTypes.Contains(mimeType))
+        {
+            await GenerateFromVideoAsync(fileNodeId, storagePath, cancellationToken);
+        }
+    }
+
+    private async Task GenerateFromImageAsync(Guid fileNodeId, string storagePath, CancellationToken cancellationToken)
+    {
         try
         {
             using var image = await Image.LoadAsync(storagePath, cancellationToken);
-
-            foreach (ThumbnailSize size in Enum.GetValues<ThumbnailSize>())
-            {
-                var outputPath = BuildCachePath(fileNodeId, size);
-                if (File.Exists(outputPath))
-                    continue;
-
-                Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
-
-                var dim = (int)size;
-                using var thumb = image.Clone(ctx => ctx.Resize(new ResizeOptions
-                {
-                    Size = new Size(dim, dim),
-                    Mode = ResizeMode.Max
-                }));
-
-                await thumb.SaveAsJpegAsync(outputPath, cancellationToken);
-                _logger.LogDebug("Generated {Size}px thumbnail for file {FileId}", dim, fileNodeId);
-            }
+            await GenerateResizedThumbnailsAsync(fileNodeId, image, cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to generate thumbnail for file {FileId}", fileNodeId);
+        }
+    }
+
+    private async Task GenerateFromVideoAsync(Guid fileNodeId, string storagePath, CancellationToken cancellationToken)
+    {
+        var tempFramePath = Path.Combine(Path.GetTempPath(), $"dnc-thumb-{Guid.NewGuid():N}.jpg");
+
+        try
+        {
+            var extracted = await _videoFrameExtractor.TryExtractFrameAsync(storagePath, tempFramePath, cancellationToken);
+            if (!extracted || !File.Exists(tempFramePath))
+            {
+                _logger.LogWarning("Failed to extract video frame for thumbnail generation: {Path}", storagePath);
+                return;
+            }
+
+            using var image = await Image.LoadAsync(tempFramePath, cancellationToken);
+            await GenerateResizedThumbnailsAsync(fileNodeId, image, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to generate video thumbnail for file {FileId}", fileNodeId);
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(tempFramePath))
+                {
+                    File.Delete(tempFramePath);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Could not clean up temporary video frame: {Path}", tempFramePath);
+            }
+        }
+    }
+
+    private async Task GenerateResizedThumbnailsAsync(Guid fileNodeId, Image image, CancellationToken cancellationToken)
+    {
+        foreach (ThumbnailSize size in Enum.GetValues<ThumbnailSize>())
+        {
+            var outputPath = BuildCachePath(fileNodeId, size);
+            if (File.Exists(outputPath))
+                continue;
+
+            Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+
+            var dim = (int)size;
+            using var thumb = image.Clone(ctx => ctx.Resize(new ResizeOptions
+            {
+                Size = new Size(dim, dim),
+                Mode = ResizeMode.Max
+            }));
+
+            await thumb.SaveAsJpegAsync(outputPath, cancellationToken);
+            _logger.LogDebug("Generated {Size}px thumbnail for file {FileId}", dim, fileNodeId);
         }
     }
 

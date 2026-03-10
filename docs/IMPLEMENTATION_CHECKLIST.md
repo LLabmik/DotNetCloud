@@ -2095,7 +2095,7 @@ This phase implements the core Files module, which is the primary public-facing 
 
 #### Thumbnail Generation
 - ✓ Generate thumbnails for image files on upload (`ThumbnailService` using ImageSharp 3.1.12)
-- ☐ Generate thumbnails for video files (first frame) — deferred: requires FFmpeg interop
+- ✓ Generate thumbnails for video files (first frame) via FFmpeg extraction pipeline (`IVideoFrameExtractor` + `FfmpegVideoFrameExtractor`)
 - ☐ Generate thumbnails for PDF files (first page) — deferred: requires PDF rendering library
 - ✓ Cache thumbnails on server (disk cache under `{storageRoot}/.thumbnails/{prefix}/{id}_{size}.jpg`)
 - ✓ Serve thumbnails via API endpoint (`GET /api/v1/files/{nodeId}/thumbnail?size=small|medium|large`) with authenticated node access checks

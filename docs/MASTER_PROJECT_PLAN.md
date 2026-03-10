@@ -47,7 +47,7 @@
 | Phase 1.9 | 14 | 14 | 0 | 0 |
 | Phase 1.10 | 24 | 24 | 0 | 0 |
 | Phase 1.11 | 8 | 8 | 0 | 0 |
-| Phase 1.12 | 17 | 14 | 0 | 3 |
+| Phase 1.12 | 17 | 15 | 0 | 2 |
 | Phase 1.13 | 4 | 4 | 0 | 0 |
 | Phase 1.14 | 32 | 32 | 0 | 0 |
 | Phase 1.15 | 25 | 23 | 0 | 2 |
@@ -2789,16 +2789,16 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Notes:** All 8 component groups complete. Build: zero errors, zero warnings. No new tests required (UI-only components, no business logic). Components use the established pattern: `#pragma warning disable CS0649` for fields populated by future API integration, EventCallback parameters for host-page wiring, and `protected` property accessors following the existing FileBrowser/TrashBin pattern. File interactions now follow a one-click-only model (double-click handlers removed from Files UI).
 
 ### Step: phase-1.12 - File Upload & Preview UI
-**Status:** in-progress 🔄 (14/17 tasks; 3 deferred)
+**Status:** in-progress 🔄 (15/17 tasks; 2 deferred)
 **Duration:** ~1 session
 **Description:** Enhanced upload experience with drag-and-drop on the browser, floating upload progress panel with speed/ETA/pause/cancel, ImageSharp-based thumbnail generation and caching, and full-screen file preview supporting all media types with keyboard navigation.
 
 **Deliverables:**
 - ✓ `IThumbnailService.cs` + `ThumbnailService.cs` — thumbnail generation/caching/cleanup service
   - ✓ ImageSharp 3.1.12 for raster image resizing (JPEG, PNG, GIF, WebP, BMP, TIFF)
+  - ✓ FFmpeg-backed first-frame extraction for video thumbnails (`IVideoFrameExtractor`, `FfmpegVideoFrameExtractor`)
   - ✓ All three sizes (128 / 256 / 512 px) cached to `{storageRoot}/.thumbnails/{prefix}/{id}_{size}.jpg`
   - ✓ `GenerateThumbnailAsync` (called on upload complete), `GetThumbnailAsync`, `DeleteThumbnailsAsync`
-  - ☐ Video thumbnail (first frame) — deferred: requires FFmpeg interop
   - ☐ PDF thumbnail (first page) — deferred: requires PDF rendering library
   - ✓ Thumbnail API endpoint wired: `GET /api/v1/files/{nodeId}/thumbnail?size=small|medium|large`
 - ✓ `UploadProgressPanel.razor` + `UploadProgressPanel.razor.cs` — floating upload progress panel
@@ -2856,7 +2856,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Dependencies:** phase-1.11 (UI components), phase-1.3 (IChunkedUploadService interface)
 **Blocking Issues:** None
-**Notes:** Build succeeds for changed runtime projects (`DotNetCloud.Modules.Files`, `DotNetCloud.UI.Web`). Drag-and-drop now supports recursive folder uploads: the browser drop bridge traverses `DataTransferItem` directory entries (`webkitGetAsEntry`), captures per-file relative paths, and passes them into the upload pipeline. `file-upload.js` now resolves/creates nested folders through `/api/v1/files` and `/api/v1/files/folders` before each file upload so dropped folder structures are preserved server-side. Existing upload behavior (single-file and multi-file drop/select) remains unchanged. Validation: `FilesThumbnailIntegrationTests` 2/2 passing; full solution test build currently has an unrelated upstream constructor mismatch in `tests/DotNetCloud.Modules.Files.Tests/Host/FilesControllerChunkDownloadTests.cs` after recent `FilesController` constructor expansion. 3 items remain deferred: video thumbnail, PDF thumbnail, and touch gestures.
+**Notes:** Build succeeds for changed runtime projects (`DotNetCloud.Modules.Files`, `DotNetCloud.UI.Web`). Drag-and-drop now supports recursive folder uploads: the browser drop bridge traverses `DataTransferItem` directory entries (`webkitGetAsEntry`), captures per-file relative paths, and passes them into the upload pipeline. `file-upload.js` now resolves/creates nested folders through `/api/v1/files` and `/api/v1/files/folders` before each file upload so dropped folder structures are preserved server-side. Existing upload behavior (single-file and multi-file drop/select) remains unchanged. Video thumbnail generation is now integrated through an FFmpeg extraction pipeline with first-frame capture and size caching, and covered by new unit tests (`ThumbnailServiceTests`) plus existing API integration tests (`FilesThumbnailIntegrationTests`) passing 2/2. 2 items remain deferred: PDF thumbnail generation and preview touch gestures.
 
 ---
 

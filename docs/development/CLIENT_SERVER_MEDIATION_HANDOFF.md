@@ -304,6 +304,40 @@ Completed Sprint B updates `#1` and `#2` are archived in
 - PDF thumbnail generation integration (PDF renderer)
 - Touch gestures for preview (JS touch interop)
 
+### Sprint C Update #2 - Video Thumbnail Generation (Server, Windows workspace)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`Windows workspace`)  
+**Status:** completed ✅
+
+**Files added/updated:**
+- `src/Modules/Files/DotNetCloud.Modules.Files/Services/IVideoFrameExtractor.cs`
+- `src/Modules/Files/DotNetCloud.Modules.Files/Services/FfmpegVideoFrameExtractor.cs`
+- `src/Modules/Files/DotNetCloud.Modules.Files/Services/ThumbnailService.cs`
+- `src/Modules/Files/DotNetCloud.Modules.Files/Services/IThumbnailService.cs`
+- `src/Modules/Files/DotNetCloud.Modules.Files.Data/FilesServiceRegistration.cs`
+- `tests/DotNetCloud.Modules.Files.Tests/Services/ThumbnailServiceTests.cs`
+- `tests/DotNetCloud.Modules.Files.Tests/Host/FilesControllerChunkDownloadTests.cs`
+- `docs/IMPLEMENTATION_CHECKLIST.md`
+- `docs/MASTER_PROJECT_PLAN.md`
+
+**Implemented in this update:**
+1. Added a video frame extraction abstraction (`IVideoFrameExtractor`) and FFmpeg implementation (`FfmpegVideoFrameExtractor`) with configurable executable path (`Files:Thumbnails:FfmpegPath`, default `ffmpeg`).
+2. Extended `ThumbnailService` to process common video MIME types by extracting first-frame JPEGs and generating cached 128/256/512 thumbnails.
+3. Kept image thumbnail generation flow unchanged while adding video path and temporary extraction file cleanup safeguards.
+4. Wired extractor through DI (`FilesServiceRegistration`) so runtime upload completion can generate video thumbnails through the existing service pipeline.
+5. Added focused unit tests for successful and failed video extraction paths; fixed upstream test constructor mismatch after `FilesController` signature expansion.
+
+**Tests/validation executed:**
+- `dotnet test tests\DotNetCloud.Modules.Files.Tests\DotNetCloud.Modules.Files.Tests.csproj --filter "FullyQualifiedName~ThumbnailServiceTests"`
+    - Result: total 2, succeeded 2, failed 0, skipped 0
+- `dotnet test tests\DotNetCloud.Integration.Tests\DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~FilesThumbnailIntegrationTests"`
+    - Result: total 2, succeeded 2, failed 0, skipped 0
+
+**Remaining for Sprint C:**
+- PDF thumbnail generation integration (PDF renderer)
+- Touch gestures for preview (JS touch interop)
+
 ---
 
 **Sync Remediation — Issues #48–#61**

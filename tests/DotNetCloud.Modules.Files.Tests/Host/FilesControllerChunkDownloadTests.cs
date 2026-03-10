@@ -32,6 +32,7 @@ public class FilesControllerChunkDownloadTests
             downloadMock.Object,
             Mock.Of<IVersionService>(),
             Mock.Of<IShareService>(),
+            Mock.Of<IThumbnailService>(),
             NullLogger<FilesController>.Instance,
             Microsoft.Extensions.Options.Options.Create(new DotNetCloud.Modules.Files.Options.FileSystemOptions()));
 

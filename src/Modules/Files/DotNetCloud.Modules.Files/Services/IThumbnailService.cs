@@ -17,8 +17,9 @@ public enum ThumbnailSize
 
 /// <summary>
 /// Generates, caches, and retrieves file thumbnails for supported media types.
-/// Currently supports raster image formats (JPEG, PNG, GIF, WebP, BMP, TIFF).
-/// Video and PDF thumbnail generation is planned for a future phase.
+/// Supports raster image formats (JPEG, PNG, GIF, WebP, BMP, TIFF) and
+/// video first-frame extraction for common video MIME types.
+/// PDF thumbnail generation is planned for a future phase.
 /// </summary>
 public interface IThumbnailService
 {
@@ -40,7 +41,7 @@ public interface IThumbnailService
 
     /// <summary>
     /// Generates and caches all thumbnail sizes for a newly uploaded file.
-    /// Only image MIME types are processed; other types are silently skipped.
+    /// Supported image and video MIME types are processed; other types are silently skipped.
     /// Should be called after a chunked upload session completes.
     /// </summary>
     /// <param name="fileNodeId">The newly created file node ID.</param>
