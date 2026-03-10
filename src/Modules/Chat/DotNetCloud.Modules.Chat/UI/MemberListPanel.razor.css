@@ -1,0 +1,36 @@
+.member-name-button {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+}
+
+.member-actions {
+    margin-left: auto;
+    display: inline-flex;
+    gap: 0.25rem;
+}
+
+.member-profile-popup {
+    margin-top: 0.8rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.4rem;
+    padding: 0.6rem;
+    background: #f9fafb;
+}
+
+.profile-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.4rem;
+}
+
+.profile-row {
+    font-size: 0.85rem;
+    color: #374151;
+    margin-bottom: 0.2rem;
+}

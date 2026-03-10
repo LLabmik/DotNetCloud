@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-10 (Phase 2.8 message list rendering update posted)
+Last updated: 2026-03-10 (Phase 2.8 member/settings update posted)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -846,6 +846,50 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 **Intentionally deferred items:**
 - Advanced markdown features (tables/code blocks) and full rich-text composer UX.
 - Remaining phase-2.8 UI items from checklist.
+
+### Phase 2.8 Update #4 - Member Actions + Channel Settings Management (Server, mint22)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`mint22`)  
+**Status:** completed ✅ (incremental phase-2.8 scope)
+
+**Commit hash:** `TBD`
+
+**Files added/updated:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ViewModels.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MemberListPanel.razor`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MemberListPanel.razor.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MemberListPanel.razor.css` (new)
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelSettingsDialog.razor`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelSettingsDialog.razor.cs`
+- `docs/IMPLEMENTATION_CHECKLIST.md`
+- `docs/MASTER_PROJECT_PLAN.md`
+- `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
+
+**Implemented in this update:**
+1. Added member action controls in `MemberListPanel` for promote/demote/remove (callback-driven).
+2. Added profile popup in `MemberListPanel` for click-to-view member details.
+3. Expanded `ChannelSettingsDialog` with member management controls (add/remove/change role callbacks).
+4. Added channel metadata section in settings dialog (created date + creator display).
+5. Added supporting member metadata fields (`Username`, `Bio`) and scoped styles for member panel UI.
+
+**Tests added/updated:**
+- No new unit tests (UI-only enhancement and callback surface expansion).
+
+**Verification commands and results:**
+- `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
+    - Result: total 226, succeeded 226, failed 0, skipped 0
+- `dotnet build`
+    - Result: succeeded (full solution)
+
+**Raw failing assertion/error text seen during iteration (fixed):**
+- None.
+
+**Raw log snippets around authorization/event issues:**
+- N/A (UI-only change).
+
+**Intentionally deferred items:**
+- Remaining phase-2.8 items (DM user search/group DM, badge realtime update, announcement filter/preview, drag reorder, rich mention/paste image).
 
 ### Sprint A Kickoff - Phase 1.19.2 (Files API Integration Depth)
 

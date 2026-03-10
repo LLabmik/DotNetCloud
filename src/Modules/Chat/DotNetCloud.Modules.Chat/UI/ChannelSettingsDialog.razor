@@ -39,6 +39,38 @@
                     </select>
                 </div>
 
+                <div class="settings-section">
+                    <label>Members</label>
+                    <div class="member-management-list">
+                        @foreach (var member in Members)
+                        {
+                            <div class="member-row">
+                                <span>@member.DisplayName</span>
+                                <select value="@member.Role" @onchange="(e) => ChangeMemberRole(member.UserId, e.Value?.ToString())">
+                                    <option value="Owner">Owner</option>
+                                    <option value="Admin">Admin</option>
+                                    <option value="Member">Member</option>
+                                </select>
+                                @if (member.Role != "Owner")
+                                {
+                                    <button class="btn btn-sm btn-danger" @onclick="() => RemoveMember(member.UserId)">Remove</button>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    <div class="add-member-row">
+                        <input type="text" @bind="NewMemberIdInput" placeholder="User ID to add" />
+                        <button class="btn btn-sm" @onclick="AddMember">Add Member</button>
+                    </div>
+                </div>
+
+                <div class="settings-section channel-metadata">
+                    <label>Channel Metadata</label>
+                    <div>Created: @CreatedAt.ToString("yyyy-MM-dd HH:mm") UTC</div>
+                    <div>Creator: @CreatedByDisplayName</div>
+                </div>
+
                 <div class="settings-actions">
                     <button class="btn btn-primary" @onclick="SaveChanges">Save</button>
                     <button class="btn btn-warning" @onclick="ArchiveChannel">Archive</button>

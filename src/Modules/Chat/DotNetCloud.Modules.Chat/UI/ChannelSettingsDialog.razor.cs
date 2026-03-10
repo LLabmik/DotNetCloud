@@ -12,6 +12,7 @@ public partial class ChannelSettingsDialog : ComponentBase
     private string? _editTopic;
     private string? _editDescription;
     private string _notificationPref = "All";
+    private string _newMemberIdInput = string.Empty;
 
     /// <summary>Whether the dialog is visible.</summary>
     [Parameter]
@@ -41,6 +42,30 @@ public partial class ChannelSettingsDialog : ComponentBase
     [Parameter]
     public EventCallback OnClose { get; set; }
 
+    /// <summary>Channel members shown in settings management.</summary>
+    [Parameter]
+    public List<MemberViewModel> Members { get; set; } = [];
+
+    /// <summary>Callback to add a member by user id.</summary>
+    [Parameter]
+    public EventCallback<Guid> OnAddMember { get; set; }
+
+    /// <summary>Callback to remove a member by user id.</summary>
+    [Parameter]
+    public EventCallback<Guid> OnRemoveMember { get; set; }
+
+    /// <summary>Callback to change a member role.</summary>
+    [Parameter]
+    public EventCallback<(Guid UserId, string Role)> OnChangeMemberRole { get; set; }
+
+    /// <summary>Channel creation timestamp.</summary>
+    [Parameter]
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>Display name of channel creator.</summary>
+    [Parameter]
+    public string CreatedByDisplayName { get; set; } = "Unknown";
+
     /// <summary>Editable channel name.</summary>
     protected string EditName { get => _editName; set => _editName = value; }
 
@@ -52,6 +77,9 @@ public partial class ChannelSettingsDialog : ComponentBase
 
     /// <summary>Notification preference selection.</summary>
     protected string NotificationPref { get => _notificationPref; set => _notificationPref = value; }
+
+    /// <summary>Input value for adding a new member by ID.</summary>
+    protected string NewMemberIdInput { get => _newMemberIdInput; set => _newMemberIdInput = value; }
 
     /// <inheritdoc />
     protected override void OnParametersSet()
@@ -89,5 +117,34 @@ public partial class ChannelSettingsDialog : ComponentBase
     protected async Task Close()
     {
         await OnClose.InvokeAsync();
+    }
+
+    /// <summary>Adds a member from typed user id.</summary>
+    protected async Task AddMember()
+    {
+        if (!Guid.TryParse(_newMemberIdInput, out var userId))
+        {
+            return;
+        }
+
+        await OnAddMember.InvokeAsync(userId);
+        _newMemberIdInput = string.Empty;
+    }
+
+    /// <summary>Removes member from channel.</summary>
+    protected async Task RemoveMember(Guid userId)
+    {
+        await OnRemoveMember.InvokeAsync(userId);
+    }
+
+    /// <summary>Changes member role in channel.</summary>
+    protected async Task ChangeMemberRole(Guid userId, string? role)
+    {
+        if (string.IsNullOrWhiteSpace(role))
+        {
+            return;
+        }
+
+        await OnChangeMemberRole.InvokeAsync((userId, role));
     }
 }

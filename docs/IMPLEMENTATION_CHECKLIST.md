@@ -3175,16 +3175,16 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Create `MemberListPanel.razor`:
   - ✓ Display channel members grouped by role (Owner, Admin, Member)
   - ✓ Show online/offline/away status per member
-  - ☐ Support member actions (promote, demote, remove)
-  - ☐ Display member profile popup on click
+  - ✓ Support member actions (promote, demote, remove)
+  - ✓ Display member profile popup on click
 
 #### Channel Settings Dialog
 - ✓ Create `ChannelSettingsDialog.razor`:
   - ✓ Edit channel name, description, topic
-  - ☐ Manage members (add/remove/change role)
+  - ✓ Manage members (add/remove/change role)
   - ✓ Configure notification preferences
   - ✓ Delete/archive channel option
-  - ☐ Show channel creation date and creator
+  - ✓ Show channel creation date and creator
 
 #### Direct Message View
 - ✓ Create `DirectMessageView.razor`:

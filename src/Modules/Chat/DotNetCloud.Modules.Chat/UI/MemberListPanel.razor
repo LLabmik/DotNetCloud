@@ -36,10 +36,28 @@
                         {
                             <span class="avatar-placeholder">@GetInitials(member.DisplayName)</span>
                         }
-                        <span class="member-name">@member.DisplayName</span>
+                        <button class="member-name-button" @onclick="() => ShowProfile(member)">@member.DisplayName</button>
                         @if (member.Role is "Owner" or "Admin")
                         {
                             <span class="role-badge">@member.Role</span>
+                        }
+
+                        @if (CanManageMembers)
+                        {
+                            <div class="member-actions">
+                                @if (member.Role == "Member")
+                                {
+                                    <button class="btn btn-sm" @onclick="() => Promote(member)">Promote</button>
+                                }
+                                else if (member.Role == "Admin")
+                                {
+                                    <button class="btn btn-sm" @onclick="() => Demote(member)">Demote</button>
+                                }
+                                @if (member.Role != "Owner")
+                                {
+                                    <button class="btn btn-sm btn-danger" @onclick="() => Remove(member)">Remove</button>
+                                }
+                            </div>
                         }
                     </div>
                 }
@@ -55,10 +73,45 @@
                     <div class="member-item offline">
                         <span class="status-dot offline"></span>
                         <span class="avatar-placeholder">@GetInitials(member.DisplayName)</span>
-                        <span class="member-name">@member.DisplayName</span>
+                        <button class="member-name-button" @onclick="() => ShowProfile(member)">@member.DisplayName</button>
+
+                        @if (CanManageMembers && member.Role != "Owner")
+                        {
+                            <div class="member-actions">
+                                @if (member.Role == "Member")
+                                {
+                                    <button class="btn btn-sm" @onclick="() => Promote(member)">Promote</button>
+                                }
+                                else if (member.Role == "Admin")
+                                {
+                                    <button class="btn btn-sm" @onclick="() => Demote(member)">Demote</button>
+                                }
+                                <button class="btn btn-sm btn-danger" @onclick="() => Remove(member)">Remove</button>
+                            </div>
+                        }
                     </div>
                 }
             </div>
         }
+    }
+
+    @if (SelectedMember is not null)
+    {
+        <div class="member-profile-popup">
+            <div class="profile-header">
+                <strong>@SelectedMember.DisplayName</strong>
+                <button class="btn btn-sm" @onclick="HideProfile">Close</button>
+            </div>
+            <div class="profile-row">Role: @SelectedMember.Role</div>
+            <div class="profile-row">Status: @SelectedMember.Status</div>
+            @if (!string.IsNullOrWhiteSpace(SelectedMember.Username))
+            {
+                <div class="profile-row">Handle: @($"@{SelectedMember.Username}")</div>
+            }
+            @if (!string.IsNullOrWhiteSpace(SelectedMember.Bio))
+            {
+                <div class="profile-row">@SelectedMember.Bio</div>
+            }
+        </div>
     }
 </div>

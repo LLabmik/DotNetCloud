@@ -161,6 +161,12 @@ public sealed class MemberViewModel
 
     /// <summary>Presence status.</summary>
     public string Status { get; init; } = "Offline";
+
+    /// <summary>Optional user handle.</summary>
+    public string? Username { get; init; }
+
+    /// <summary>Optional user bio text for profile popup.</summary>
+    public string? Bio { get; init; }
 }
 
 /// <summary>

@@ -63,7 +63,7 @@
 | Phase 2.5 | 4 | 4 | 0 | 0 |
 | Phase 2.6 | 4 | 4 | 0 | 0 |
 | Phase 2.7 | 4 | 4 | 0 | 0 |
-| Phase 2.8 | 11 | 7 | 0 | 4 |
+| Phase 2.8 | 11 | 8 | 0 | 3 |
 | Phase 2.9 | 3 | 0 | 0 | 3 |
 | Phase 2.10 | 8 | 0 | 0 | 8 |
 | Phase 2.11 | 3 | 3 | 0 | 0 |
@@ -3391,7 +3391,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Dependencies:** phase-2.5, Phase 0.11 (Blazor shell), Phase 0.12 (shared UI components)
 **Blocking Issues:** None
-**Notes:** Phase 2.8 progressed with richer Message List rendering behavior. `MessageList` now supports basic markdown rendering (safe encoded + inline emphasis/code/link parsing), inline attachment previews for image/document types, and an explicit "new messages" divider via `NewMessagesStartMessageId`. Added scoped styling (`MessageList.razor.css`) for divider and preview presentation. Verification: `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj` passed (226/226), and full `dotnet build` succeeded. Remaining phase-2.8 work: drag reorder, rich mention composer/paste image, member actions/profile popup, channel settings member management/metadata, DM user search/group DM, and announcement/badge realtime completion.
+**Notes:** Phase 2.8 progressed with deeper member/channel management UI behavior. `MemberListPanel` now supports member actions (promote/demote/remove) and click-to-open profile popup details; `ChannelSettingsDialog` now includes member management (add/remove/change role callbacks) plus channel metadata display (creation time and creator). Added scoped styles for member panel actions/profile details and expanded component callback surfaces for integration. Verification: `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj` passed (226/226), and full `dotnet build` succeeded. Remaining phase-2.8 work: drag reorder, rich mention composer/paste image, DM user search/group DM, and announcement/badge realtime completion.
 
 ---
 
