@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-09 (All sync improvement batches complete)
+Last updated: 2026-03-10 (Sprint A kickoff added for Phase 1.19.2)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -61,6 +61,110 @@ WOPI endpoints, sync endpoints). See `docs/MASTER_PROJECT_PLAN.md` step `phase-1
 ```
 
 ## Active Handoff
+
+### Sprint Track (Phase 0/1 Closeout)
+
+Reference tracker: `docs/development/REMAINING_PHASE0_PHASE1_3SPRINT_PLAN.md`
+
+- ☐ Sprint A kickoff sent
+- ☐ Sprint A complete (`phase-1.19.2`)
+- ☐ Sprint B complete (`phase-1.15` deferred hardening)
+- ☐ Sprint C complete (`phase-1.12` deferred UX/media)
+
+### Sprint A Kickoff - Phase 1.19.2 (Files API Integration Depth)
+
+**Sprint goal:** Complete `phase-1.19.2` by expanding Files API integration tests beyond isolation paths.
+
+**Owner split:**
+- Server: primary implementation and test expansion in `tests/DotNetCloud.Integration.Tests/`
+- Client: contract compatibility validation against response envelope/auth expectations
+
+**Kickoff checklist:**
+- ✓ Scope confirmed: CRUD/tree/search/favorites, chunked upload E2E, version/share/trash flows, WOPI+sync smoke
+- ✓ Mediator workflow confirmed: relay via this handoff doc
+- ☐ Server kickoff message sent
+- ☐ Client validation message sent
+
+### Send to Server Agent
+Execute Sprint A for `phase-1.19.2` in `tests/DotNetCloud.Integration.Tests/`.
+
+Required coverage:
+1. REST CRUD/tree/search/favorites end-to-end tests.
+2. Chunked upload E2E tests (initiate, upload, complete, dedup behavior, quota rejection path).
+3. Version/share/trash end-to-end tests.
+4. WOPI and sync endpoint smoke tests (auth enforcement + payload shape).
+5. Document provider matrix execution: PostgreSQL required; SQL Server if environment is available.
+
+Update this handoff doc with test inventory, remaining gaps, and completion status.
+
+### Request Back
+- commit hash
+- exact tests added/updated (file paths + test names)
+- raw endpoint/URL used for any failing test
+- raw error/query params
+- raw log lines around failures (timestamped)
+- list of any intentionally deferred coverage
+
+### Send to Client Agent
+Validate Sprint A output for client compatibility risk.
+
+Checks required:
+1. No response-envelope contract regressions for `DotNetCloudApiClient` paths.
+2. No auth-flow regressions for Files/sync/WOPI endpoint consumption assumptions.
+3. Note any required client-side follow-up tests or fixes.
+
+### Request Back
+- commit hash (if any client-side changes)
+- affected client paths reviewed
+- raw endpoint/URL + payload shape examples checked
+- any mismatch found between integration behavior and client assumptions
+
+### Sprint A Update #1 - Server Kickoff (`phase-1.19.2`)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`mint22`)  
+**Status:** in-progress ☐
+
+### Send to Server Agent
+Execute Sprint A for `phase-1.19.2` in `tests/DotNetCloud.Integration.Tests/`.
+
+Required coverage:
+1. REST CRUD/tree/search/favorites end-to-end tests.
+2. Chunked upload E2E tests (initiate, upload, complete, dedup behavior, quota rejection path).
+3. Version/share/trash end-to-end tests.
+4. WOPI and sync endpoint smoke tests (auth enforcement + payload shape).
+5. Provider matrix execution notes: PostgreSQL required; SQL Server if available.
+
+### Request Back
+- commit hash: `<SERVER_COMMIT_HASH>`
+- exact tests added/updated (file paths + test names):
+    - `<tests/DotNetCloud.Integration.Tests/...>`
+    - `<TestClass.TestName>`
+- raw endpoint/URL used for any failing test:
+    - `<METHOD /api/v1/...>`
+- raw error/query params:
+    - `<error payload / query string>`
+- raw log lines around failure (timestamped):
+    - `<2026-03-10T..Z ...>`
+- intentionally deferred coverage (if any):
+    - `<deferred item + reason>`
+
+### Server Progress Checklist
+- ☐ Test-gap inventory posted
+- ☐ New REST integration tests added
+- ☐ New chunked upload E2E tests added
+- ☐ New version/share/trash E2E tests added
+- ☐ WOPI + sync smoke tests added
+- ☐ PostgreSQL run completed
+- ☐ SQL Server run attempted/documented
+- ☐ Evidence returned (commit/tests/logs)
+
+### Build/Test Commands (run from repo root on `mint22`)
+- `dotnet build tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj`
+- `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj`
+- `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~Files"`
+
+---
 
 **Sync Remediation — Issues #48–#61**
 
