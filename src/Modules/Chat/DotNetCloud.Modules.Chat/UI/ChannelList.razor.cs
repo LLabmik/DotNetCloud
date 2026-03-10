@@ -4,6 +4,7 @@ using DotNetCloud.Modules.Chat.DTOs;
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Web;
 
 namespace DotNetCloud.Modules.Chat.UI;
 
@@ -22,6 +23,8 @@ public partial class ChannelList : ComponentBase
     private List<Guid> _pinnedOrder = [];
     private Guid? _draggingPinnedChannelId;
     private Guid? _dragOverPinnedChannelId;
+    private bool _isLoadingInternal;
+    private string? _errorMessageInternal;
 
     protected override async Task OnInitializedAsync()
     {
@@ -46,6 +49,14 @@ public partial class ChannelList : ComponentBase
     /// <summary>Event callback when pinned channel order changes.</summary>
     [Parameter]
     public EventCallback<IReadOnlyList<Guid>> OnChannelReordered { get; set; }
+
+    /// <summary>Whether channels are currently loading.</summary>
+    [Parameter]
+    public bool IsLoading { get; set; }
+
+    /// <summary>Error message to display when channel operations fail.</summary>
+    [Parameter]
+    public string? ErrorMessage { get; set; }
 
     /// <summary>Gets or sets the search query filter.</summary>
     protected string SearchQuery
@@ -80,6 +91,14 @@ public partial class ChannelList : ComponentBase
     /// <summary>Pinned channels in user-defined order.</summary>
     protected List<ChannelViewModel> PinnedChannels =>
         OrderPinnedChannels(FilteredChannels.Where(c => c.IsPinned).ToList());
+
+    /// <summary>Effective loading state combining external and internal loading flags.</summary>
+    protected bool EffectiveIsLoading => IsLoading || _isLoadingInternal;
+
+    /// <summary>Effective error message, preferring explicitly passed parameter values.</summary>
+    protected string? EffectiveErrorMessage => string.IsNullOrWhiteSpace(ErrorMessage)
+        ? _errorMessageInternal
+        : ErrorMessage;
 
     protected override void OnParametersSet()
     {
@@ -126,30 +145,61 @@ public partial class ChannelList : ComponentBase
             return;
         }
 
-        var caller = await GetCallerContextAsync();
-        var created = await ChannelService.CreateChannelAsync(new CreateChannelDto
+        try
         {
-            Name = _newChannelName.Trim(),
-            Type = _newChannelType
-        }, caller);
+            _errorMessageInternal = null;
+            var caller = await GetCallerContextAsync();
+            var created = await ChannelService.CreateChannelAsync(new CreateChannelDto
+            {
+                Name = _newChannelName.Trim(),
+                Type = _newChannelType
+            }, caller);
 
-        Channels.Add(ToViewModel(created));
-        Channels = Channels
-            .OrderByDescending(c => c.LastActivityAt ?? DateTime.MinValue)
-            .ThenBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        SyncPinnedOrderWithChannels();
+            Channels.Add(ToViewModel(created));
+            Channels = Channels
+                .OrderByDescending(c => c.LastActivityAt ?? DateTime.MinValue)
+                .ThenBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            SyncPinnedOrderWithChannels();
 
-        _isShowCreateChannel = false;
-        _newChannelName = string.Empty;
+            _isShowCreateChannel = false;
+            _newChannelName = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            _errorMessageInternal = ex.Message;
+        }
     }
 
     private async Task LoadChannelsAsync()
     {
-        var caller = await GetCallerContextAsync();
-        var channels = await ChannelService.ListChannelsAsync(caller);
-        Channels = channels.Select(ToViewModel).ToList();
-        SyncPinnedOrderWithChannels();
+        try
+        {
+            _errorMessageInternal = null;
+            _isLoadingInternal = true;
+
+            var caller = await GetCallerContextAsync();
+            var channels = await ChannelService.ListChannelsAsync(caller);
+            Channels = channels.Select(ToViewModel).ToList();
+            SyncPinnedOrderWithChannels();
+        }
+        catch (Exception ex)
+        {
+            _errorMessageInternal = ex.Message;
+        }
+        finally
+        {
+            _isLoadingInternal = false;
+        }
+    }
+
+    /// <summary>Supports keyboard selection for channel items.</summary>
+    protected async Task HandleChannelKeyDown(KeyboardEventArgs e, ChannelViewModel channel)
+    {
+        if (e.Key is "Enter" or " ")
+        {
+            await SelectChannel(channel);
+        }
     }
 
     /// <summary>Starts dragging a pinned channel.</summary>

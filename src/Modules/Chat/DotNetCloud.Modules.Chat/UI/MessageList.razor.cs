@@ -25,6 +25,10 @@ public partial class MessageList : ComponentBase
     [Parameter]
     public bool IsLoading { get; set; }
 
+    /// <summary>Error message shown when message loading fails.</summary>
+    [Parameter]
+    public string? ErrorMessage { get; set; }
+
     /// <summary>Whether there are more messages to load.</summary>
     [Parameter]
     public bool HasMoreMessages { get; set; }

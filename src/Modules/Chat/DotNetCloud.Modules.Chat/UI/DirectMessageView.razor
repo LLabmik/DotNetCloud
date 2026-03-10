@@ -16,7 +16,8 @@
                        class="dm-user-search-input"
                        placeholder="Search users by name or username..."
                        @bind="DmUserSearchQuery"
-                       @bind:event="oninput" />
+                      @bind:event="oninput"
+                      aria-label="Search users for a direct message" />
 
                 @if (!string.IsNullOrWhiteSpace(DmSearchError))
                 {
@@ -31,6 +32,7 @@
                             <button type="button"
                                     class="dm-user-search-result"
                                     disabled="@IsCreatingDm"
+                                    title="Start direct message with @user.DisplayName"
                                     @onclick="() => SelectDmUserAsync(user)">
                                 <span class="dm-user-result-name">@user.DisplayName</span>
                                 @if (!string.IsNullOrWhiteSpace(user.Username))
@@ -59,7 +61,8 @@
                            class="dm-user-search-input"
                            placeholder="Add people by name or username..."
                            @bind="AddPeopleSearchQuery"
-                           @bind:event="oninput" />
+                              @bind:event="oninput"
+                              aria-label="Search people to add to the direct message" />
 
                     @if (!string.IsNullOrWhiteSpace(AddPeopleError))
                     {
@@ -74,6 +77,7 @@
                                 <button type="button"
                                         class="dm-user-search-result"
                                         disabled="@IsAddingMember"
+                                    title="Add @user.DisplayName to this conversation"
                                         @onclick="() => AddGroupMemberAsync(user)">
                                     <span class="dm-user-result-name">@user.DisplayName</span>
                                     @if (!string.IsNullOrWhiteSpace(user.Username))
@@ -120,6 +124,7 @@
     <div class="dm-messages">
         <MessageList Messages="Messages"
                      IsLoading="IsLoading"
+                     ErrorMessage="MessageError"
                      HasMoreMessages="HasMoreMessages"
                      TypingUsers="TypingUsers"
                      OnLoadMore="OnLoadMore"

@@ -36,3 +36,34 @@
     box-shadow: inset 0 -2px 0 #0ea5e9;
     background-color: rgba(14, 165, 233, 0.08);
 }
+
+.loading-state,
+.error-state,
+.empty-state {
+    padding: 0.75rem;
+}
+
+.channel-skeleton-list {
+    margin-top: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.channel-skeleton-row {
+    height: 1.75rem;
+    border-radius: 0.35rem;
+    background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+    background-size: 220% 100%;
+    animation: channel-skeleton-shimmer 1.1s ease-in-out infinite;
+}
+
+@keyframes channel-skeleton-shimmer {
+    0% {
+        background-position: 200% 0;
+    }
+
+    100% {
+        background-position: -200% 0;
+    }
+}

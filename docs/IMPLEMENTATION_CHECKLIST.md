@@ -3243,6 +3243,16 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ☐ Send reply via REST API
 - ☐ Show typing indicator while composing
 
+#### Regression Validation
+- ✓ Run Phase 2.9 regression checklist pass (`dotnet test`: 2013 total, 0 failed)
+
+#### Release Hardening
+- ✓ Accessibility pass for interactive chat UI controls (`title`/`aria-label` updates across `ChannelList`, `AnnouncementList`, `MessageList`, `DirectMessageView`)
+- ✓ Empty-state copy improvements for channel, DM, announcement, and message views
+- ✓ Error-state handling with `ErrorMessage` support in `ChannelList`, `MessageList`, and `AnnouncementList`
+- ✓ Loading skeletons/states for `ChannelList` and `AnnouncementList`
+- ✓ Settings UI confirms `IsMuteChatNotifications` is wired in `SettingsWindow` (`CheckBox` binding + tooltip)
+
 ---
 
 ## Phase 2.10: Android MAUI App

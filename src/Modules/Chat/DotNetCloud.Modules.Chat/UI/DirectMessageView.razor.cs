@@ -39,6 +39,10 @@ public partial class DirectMessageView : ComponentBase
     [Parameter]
     public bool HasMoreMessages { get; set; }
 
+    /// <summary>Error message shown when message retrieval fails.</summary>
+    [Parameter]
+    public string? MessageError { get; set; }
+
     /// <summary>Users currently typing.</summary>
     [Parameter]
     public List<TypingUserViewModel> TypingUsers { get; set; } = [];

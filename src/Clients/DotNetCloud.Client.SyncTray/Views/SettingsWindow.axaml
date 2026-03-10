@@ -91,6 +91,7 @@
                     <CheckBox Content="Start DotNetCloud Sync on login"
                               IsChecked="{Binding StartOnLogin}" />
                     <CheckBox Content="Mute chat notifications"
+                              ToolTip.Tip="Suppress desktop chat popups from chat messages and mentions"
                               IsChecked="{Binding IsMuteChatNotifications}" />
                     <Separator />
                     <TextBlock Text="Bandwidth limits" FontWeight="SemiBold" />

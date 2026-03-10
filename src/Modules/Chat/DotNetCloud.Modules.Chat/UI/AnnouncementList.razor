@@ -10,13 +10,13 @@
         <h2>Announcements</h2>
         @if (CanCreate)
         {
-            <button class="btn btn-primary btn-sm" @onclick="() => OnCreate.InvokeAsync()">New</button>
+            <button class="btn btn-primary btn-sm" @onclick="() => OnCreate.InvokeAsync()" title="Create announcement" aria-label="Create a new announcement">New</button>
         }
     </div>
 
     <div class="announcement-filters">
         <label for="priority-filter">Priority:</label>
-        <select id="priority-filter" class="form-select form-select-sm" @bind="_selectedPriority">
+        <select id="priority-filter" class="form-select form-select-sm" @bind="_selectedPriority" aria-label="Filter by announcement priority">
             <option value="All">All</option>
             <option value="Normal">Normal</option>
             <option value="Important">Important</option>
@@ -25,22 +25,50 @@
         <label for="from-date">From:</label>
         <input id="from-date" type="date" class="form-control form-control-sm"
                value="@(_fromDate?.ToString("yyyy-MM-dd"))"
-               @onchange="SetFromDate" />
+             @onchange="SetFromDate"
+             aria-label="Filter announcements from date" />
         <label for="to-date">To:</label>
         <input id="to-date" type="date" class="form-control form-control-sm"
                value="@(_toDate?.ToString("yyyy-MM-dd"))"
-               @onchange="SetToDate" />
-        <button class="btn btn-outline-secondary btn-sm" @onclick="ClearFilters">Clear</button>
+             @onchange="SetToDate"
+             aria-label="Filter announcements to date" />
+         <button class="btn btn-outline-secondary btn-sm" @onclick="ClearFilters" title="Clear announcement filters">Clear</button>
     </div>
 
     @{
         var filtered = FilteredAnnouncements.ToList();
     }
 
-    @if (filtered.Count == 0)
+    @if (IsLoading)
+    {
+        <div class="loading-state" role="status" aria-live="polite">
+            <p>Loading announcements...</p>
+            <div class="announcement-skeleton-list" aria-hidden="true">
+                <div class="announcement-skeleton-card"></div>
+                <div class="announcement-skeleton-card"></div>
+            </div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(ErrorMessage))
+    {
+        <div class="error-state" role="alert">
+            <p>Unable to load announcements right now.</p>
+            <p class="text-muted">@ErrorMessage</p>
+        </div>
+    }
+    else if (filtered.Count == 0)
     {
         <div class="empty-state">
-            <p>No announcements yet</p>
+            @if (_selectedPriority == "All" && _fromDate is null && _toDate is null)
+            {
+                <p>No announcements yet.</p>
+                <p class="text-muted">Shared updates from admins will appear here.</p>
+            }
+            else
+            {
+                <p>No announcements match the current filters.</p>
+                <p class="text-muted">Try broadening your date range or priority.</p>
+            }
         </div>
     }
     else
@@ -65,7 +93,7 @@
                     {
                         <span class="ack-count">@announcement.AcknowledgementCount acknowledged</span>
                     }
-                    <button class="btn btn-sm" @onclick="() => SelectAnnouncement(announcement.Id)">View</button>
+                    <button class="btn btn-sm" @onclick="() => SelectAnnouncement(announcement.Id)" title="View announcement details">View</button>
                 </div>
             </div>
         }

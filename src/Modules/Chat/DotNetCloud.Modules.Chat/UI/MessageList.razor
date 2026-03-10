@@ -8,15 +8,22 @@
 <div class="chat-message-list" @ref="MessageListRef">
     @if (IsLoading)
     {
-        <div class="loading-state">
+        <div class="loading-state" role="status" aria-live="polite">
             <p>Loading messages...</p>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(ErrorMessage))
+    {
+        <div class="error-state" role="alert">
+            <p>Unable to load messages right now.</p>
+            <p class="text-muted">@ErrorMessage</p>
         </div>
     }
     else if (Messages.Count == 0)
     {
         <div class="empty-state">
-            <p>No messages yet</p>
-            <p class="text-muted">Be the first to send a message!</p>
+            <p>No messages yet.</p>
+            <p class="text-muted">Start the conversation by sending the first message.</p>
         </div>
     }
     else
@@ -24,7 +31,7 @@
         @if (HasMoreMessages)
         {
             <div class="load-more">
-                <button class="btn btn-sm" @onclick="LoadMoreMessages">Load older messages</button>
+                <button class="btn btn-sm" @onclick="LoadMoreMessages" title="Load older messages">Load older messages</button>
             </div>
         }
 
@@ -112,6 +119,8 @@
                                 @foreach (var reaction in message.Reactions)
                                 {
                                     <button class="reaction-badge @(reaction.HasReacted ? "reacted" : "")"
+                                            title="Toggle reaction @reaction.Emoji"
+                                            aria-label="Toggle reaction @reaction.Emoji"
                                             @onclick="() => ToggleReaction(message.Id, reaction.Emoji)">
                                         @reaction.Emoji @reaction.Count
                                     </button>

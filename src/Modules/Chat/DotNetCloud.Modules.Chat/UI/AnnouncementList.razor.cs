@@ -15,6 +15,14 @@ public partial class AnnouncementList : ComponentBase
     [Parameter]
     public List<AnnouncementViewModel> Announcements { get; set; } = [];
 
+    /// <summary>Whether announcements are currently loading.</summary>
+    [Parameter]
+    public bool IsLoading { get; set; }
+
+    /// <summary>Error message shown when loading announcements fails.</summary>
+    [Parameter]
+    public string? ErrorMessage { get; set; }
+
     /// <summary>Whether the user can create new announcements.</summary>
     [Parameter]
     public bool CanCreate { get; set; }

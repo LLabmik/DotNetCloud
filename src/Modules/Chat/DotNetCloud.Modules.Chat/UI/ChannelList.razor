@@ -8,30 +8,57 @@
 <div class="chat-channel-list">
     <div class="channel-list-header">
         <h2>Chat</h2>
-        <button class="btn btn-sm btn-primary" @onclick="ShowCreateChannel" title="Create channel">+</button>
+        <button class="btn btn-sm btn-primary" @onclick="ShowCreateChannel" title="Create channel" aria-label="Create a new channel">+</button>
     </div>
 
     <div class="channel-search">
-        <input type="text" placeholder="Search channels..." @bind="SearchQuery" @bind:event="oninput" />
+        <input type="text" placeholder="Search channels..." @bind="SearchQuery" @bind:event="oninput" aria-label="Search channels" />
     </div>
 
     @if (IsShowCreateChannel)
     {
         <div class="create-channel-dialog">
-            <input type="text" @bind="NewChannelName" placeholder="Channel name" />
-            <select @bind="NewChannelType">
+            <input type="text" @bind="NewChannelName" placeholder="Channel name" aria-label="New channel name" />
+            <select @bind="NewChannelType" aria-label="New channel type">
                 <option value="Public">Public</option>
                 <option value="Private">Private</option>
             </select>
-            <button class="btn btn-primary btn-sm" @onclick="CreateChannel">Create</button>
-            <button class="btn btn-sm" @onclick="HideCreateChannel">Cancel</button>
+            <button class="btn btn-primary btn-sm" @onclick="CreateChannel" title="Create this channel">Create</button>
+            <button class="btn btn-sm" @onclick="HideCreateChannel" title="Cancel channel creation">Cancel</button>
         </div>
     }
 
-    @if (FilteredChannels.Count == 0)
+    @if (EffectiveIsLoading)
+    {
+        <div class="loading-state" role="status" aria-live="polite">
+            <p>Loading channels...</p>
+            <div class="channel-skeleton-list" aria-hidden="true">
+                <div class="channel-skeleton-row"></div>
+                <div class="channel-skeleton-row"></div>
+                <div class="channel-skeleton-row"></div>
+            </div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(EffectiveErrorMessage))
+    {
+        <div class="error-state" role="alert">
+            <p>Unable to load channels right now.</p>
+            <p class="text-muted">@EffectiveErrorMessage</p>
+        </div>
+    }
+    else if (FilteredChannels.Count == 0)
     {
         <div class="empty-state">
-            <p>No channels yet</p>
+            @if (string.IsNullOrWhiteSpace(SearchQuery))
+            {
+                <p>No channels yet.</p>
+                <p class="text-muted">Create a channel to start the conversation.</p>
+            }
+            else
+            {
+                <p>No channels match "@SearchQuery".</p>
+                <p class="text-muted">Try a different search term.</p>
+            }
         </div>
     }
     else
@@ -44,12 +71,16 @@
                 {
                     <div class="channel-item channel-item-pinned @(channel.IsActive ? "active" : "") @GetPinnedDragClass(channel.Id)"
                          draggable="true"
+                         role="button"
+                         tabindex="0"
+                         aria-label="Open pinned channel @channel.Name"
                          @ondragstart="() => HandlePinnedDragStart(channel.Id)"
                          @ondragover:preventDefault="true"
                          @ondragover="() => HandlePinnedDragOver(channel.Id)"
                          @ondragend="HandlePinnedDragEnd"
                          @ondrop:preventDefault="true"
                          @ondrop="() => HandlePinnedDropAsync(channel.Id)"
+                         @onkeydown="(e) => HandleChannelKeyDown(e, channel)"
                          @onclick="() => SelectChannel(channel)">
                         <span class="channel-icon">📌</span>
                         <span class="channel-name">@channel.Name</span>
@@ -69,6 +100,10 @@
             @foreach (var channel in FilteredChannels.Where(c => c.Type is "Public" or "Private" && !c.IsPinned))
             {
                 <div class="channel-item @(channel.IsActive ? "active" : "")"
+                     role="button"
+                     tabindex="0"
+                     aria-label="Open channel @channel.Name"
+                     @onkeydown="(e) => HandleChannelKeyDown(e, channel)"
                      @onclick="() => SelectChannel(channel)">
                     <span class="channel-icon">@(channel.Type == "Private" ? "🔒" : "#")</span>
                     <span class="channel-name">@channel.Name</span>
@@ -89,6 +124,10 @@
                 @foreach (var channel in FilteredChannels.Where(c => c.Type is "DirectMessage" or "Group" && !c.IsPinned))
                 {
                     <div class="channel-item @(channel.IsActive ? "active" : "")"
+                         role="button"
+                         tabindex="0"
+                         aria-label="Open direct message @channel.Name"
+                         @onkeydown="(e) => HandleChannelKeyDown(e, channel)"
                          @onclick="() => SelectChannel(channel)">
                         <span class="channel-icon">💬</span>
                         <span class="presence-dot @GetPresenceClass(channel)" title="@channel.PresenceStatus"></span>
