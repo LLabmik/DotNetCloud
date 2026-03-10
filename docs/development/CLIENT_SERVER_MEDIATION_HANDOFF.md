@@ -101,7 +101,7 @@ Reference tracker: `docs/development/PHASE_2_3_EXECUTION_PLAN.md`
 **Owner:** Server (`Linux workspace`)  
 **Status:** completed ✅
 
-**Commit hash:** pending local commit in this workspace (to be filled immediately after commit)
+**Commit hash:** `260199c`
 
 **Files added/updated:**
 - `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/ChannelMemberService.cs`
