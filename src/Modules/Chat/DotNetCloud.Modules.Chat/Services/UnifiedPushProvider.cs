@@ -7,7 +7,7 @@ namespace DotNetCloud.Modules.Chat.Services;
 /// UnifiedPush notification provider. Sends notifications via HTTP POST to distributor endpoints.
 /// UnifiedPush is an open protocol for push notifications without Google dependency.
 /// </summary>
-internal sealed class UnifiedPushProvider : IPushNotificationService
+internal sealed class UnifiedPushProvider : IPushProviderEndpoint
 {
     private readonly ConcurrentDictionary<Guid, List<DeviceRegistration>> _registrations = new();
     private readonly ILogger<UnifiedPushProvider> _logger;
@@ -16,6 +16,9 @@ internal sealed class UnifiedPushProvider : IPushNotificationService
     {
         _logger = logger;
     }
+
+    /// <inheritdoc />
+    public PushProvider Provider => PushProvider.UnifiedPush;
 
     /// <inheritdoc />
     public Task SendAsync(Guid userId, PushNotification notification, CancellationToken cancellationToken = default)

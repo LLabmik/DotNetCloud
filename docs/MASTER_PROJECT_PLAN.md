@@ -62,7 +62,7 @@
 | Phase 2.4 | 5 | 5 | 0 | 0 |
 | Phase 2.5 | 4 | 4 | 0 | 0 |
 | Phase 2.6 | 4 | 4 | 0 | 0 |
-| Phase 2.7 | 4 | 1 | 0 | 3 |
+| Phase 2.7 | 4 | 2 | 0 | 2 |
 | Phase 2.8 | 11 | 4 | 0 | 7 |
 | Phase 2.9 | 3 | 0 | 0 | 3 |
 | Phase 2.10 | 8 | 0 | 0 | 8 |
@@ -3360,14 +3360,14 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Description:** Implement push notification service with FCM and UnifiedPush providers, notification routing, and device management.
 
 **Tasks:**
-- ☐ Create IPushNotificationService interface and models (PushNotification, DeviceRegistration, PushProvider enum)
-- ☐ Implement FcmPushProvider (Firebase Admin SDK, HTTP v1 API, batch sending)
-- ☐ Implement UnifiedPushProvider (HTTP POST to distributor endpoint)
+- ✓ Create IPushNotificationService interface and models (PushNotification, DeviceRegistration, PushProvider enum)
+- ✓ Implement FcmPushProvider (Firebase Admin SDK, HTTP v1 API, batch sending)
+- ✓ Implement UnifiedPushProvider (HTTP POST to distributor endpoint)
 - ☐ Create NotificationRouter (provider selection, user preferences, deduplication, queuing)
 
 **Dependencies:** phase-2.3
 **Blocking Issues:** None
-**Notes:** Phase 2.7 started with server endpoint wiring for push-device lifecycle and preferences. `ChatController` now exposes `/api/v1/notifications/devices/register`, `/api/v1/notifications/devices/{deviceToken}`, `/api/v1/notifications/preferences` (GET/PUT), delegating device register/unregister to `IPushNotificationService` and storing caller-level preferences for push delivery behavior. Added controller tests in `ChatControllerTests` for valid/invalid registration, unregister flow, and preferences update handling. Verification: `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj` passed (216/216). Next: continue phase-2.7 provider hardening (FCM credentials + token cleanup, UnifiedPush retry/error handling, router preference/dedup logic).
+**Notes:** Phase 2.7 has progressed through endpoint wiring and router policy hardening. Added shared `INotificationPreferenceStore` + `InMemoryNotificationPreferenceStore`, wired host preference endpoints to the shared store, and updated `NotificationRouter` to enforce push-enabled/DND/muted-channel preferences and suppress push when users are currently online (`IPresenceTracker` dedup). Introduced provider endpoint abstraction for routing and added router unit coverage in `NotificationRouterTests` for disabled push, online suppression, muted-channel suppression, and multi-provider routing. Verification: `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj` passed (221/221), and full `dotnet build` succeeded. Next: complete remaining phase-2.7 hardening (FCM token cleanup/config model, UnifiedPush retry/error handling, queue/reliability background processing).
 
 ---
 

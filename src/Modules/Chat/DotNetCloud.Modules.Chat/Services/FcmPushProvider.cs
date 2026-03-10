@@ -7,7 +7,7 @@ namespace DotNetCloud.Modules.Chat.Services;
 /// FCM push notification provider. Sends notifications via Firebase Cloud Messaging HTTP v1 API.
 /// Requires Firebase Admin SDK credentials configured in app settings.
 /// </summary>
-internal sealed class FcmPushProvider : IPushNotificationService
+internal sealed class FcmPushProvider : IPushProviderEndpoint
 {
     private readonly ConcurrentDictionary<Guid, List<DeviceRegistration>> _registrations = new();
     private readonly ILogger<FcmPushProvider> _logger;
@@ -16,6 +16,9 @@ internal sealed class FcmPushProvider : IPushNotificationService
     {
         _logger = logger;
     }
+
+    /// <inheritdoc />
+    public PushProvider Provider => PushProvider.FCM;
 
     /// <inheritdoc />
     public Task SendAsync(Guid userId, PushNotification notification, CancellationToken cancellationToken = default)

@@ -4,7 +4,6 @@ using DotNetCloud.Modules.Chat.DTOs;
 using DotNetCloud.Modules.Chat.Models;
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.AspNetCore.Mvc;
-using System.Collections.Concurrent;
 
 using ValidationException = DotNetCloud.Core.Errors.ValidationException;
 
@@ -27,8 +26,8 @@ public class ChatController : ControllerBase
     private readonly IAnnouncementService _announcementService;
     private readonly IRealtimeBroadcaster _realtimeBroadcaster;
     private readonly IPushNotificationService _pushNotificationService;
+    private readonly INotificationPreferenceStore _notificationPreferenceStore;
     private readonly ILogger<ChatController> _logger;
-    private static readonly ConcurrentDictionary<Guid, NotificationPreferencesDto> NotificationPreferences = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ChatController"/> class.
@@ -43,6 +42,7 @@ public class ChatController : ControllerBase
         IAnnouncementService announcementService,
         IRealtimeBroadcaster realtimeBroadcaster,
         IPushNotificationService pushNotificationService,
+        INotificationPreferenceStore notificationPreferenceStore,
         ILogger<ChatController> logger)
     {
         _channelService = channelService;
@@ -54,6 +54,7 @@ public class ChatController : ControllerBase
         _announcementService = announcementService;
         _realtimeBroadcaster = realtimeBroadcaster;
         _pushNotificationService = pushNotificationService;
+        _notificationPreferenceStore = notificationPreferenceStore;
         _logger = logger;
     }
 
@@ -741,22 +742,28 @@ public class ChatController : ControllerBase
     [HttpGet("~/api/v1/notifications/preferences")]
     public IActionResult GetNotificationPreferencesAsync([FromQuery] Guid userId)
     {
-        var preferences = NotificationPreferences.GetOrAdd(userId, _ => new NotificationPreferencesDto
+        var preferences = _notificationPreferenceStore.Get(userId);
+        var dto = new NotificationPreferencesDto
         {
-            PushEnabled = true,
-            DoNotDisturb = false,
-            MutedChannelIds = []
-        });
+            PushEnabled = preferences.PushEnabled,
+            DoNotDisturb = preferences.DoNotDisturb,
+            MutedChannelIds = [.. preferences.MutedChannelIds]
+        };
 
-        return Ok(Envelope(preferences));
+        return Ok(Envelope(dto));
     }
 
     /// <summary>Updates caller-level push notification preferences.</summary>
     [HttpPut("~/api/v1/notifications/preferences")]
     public IActionResult UpdateNotificationPreferencesAsync([FromBody] NotificationPreferencesDto dto, [FromQuery] Guid userId)
     {
-        var normalized = dto with { MutedChannelIds = dto.MutedChannelIds.Distinct().ToList() };
-        NotificationPreferences[userId] = normalized;
+        _notificationPreferenceStore.Update(userId, new UserNotificationPreferences
+        {
+            PushEnabled = dto.PushEnabled,
+            DoNotDisturb = dto.DoNotDisturb,
+            MutedChannelIds = dto.MutedChannelIds.Distinct().ToHashSet()
+        });
+
         return Ok(Envelope(new { updated = true }));
     }
 }

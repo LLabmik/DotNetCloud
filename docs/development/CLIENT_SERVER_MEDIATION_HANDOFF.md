@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-10 (Phase 2.7 push endpoint wiring update posted)
+Last updated: 2026-03-10 (Phase 2.7 router preference/dedup update posted)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -556,6 +556,70 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 - FCM credential/config hardening and invalid-token cleanup.
 - UnifiedPush retry/error handling.
 - NotificationRouter dedup/preference enforcement and queueing.
+
+### Phase 2.7 Update #2 - Router Preference + Online Dedup (Server, mint22)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`mint22`)  
+**Status:** completed ✅ (incremental phase-2.7 scope)
+
+**Commit hash:** `TBD`
+
+**Files added/updated:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/INotificationPreferenceStore.cs` (new)
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/InMemoryNotificationPreferenceStore.cs` (new)
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/IPushProviderEndpoint.cs` (new)
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/NotificationRouter.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/FcmPushProvider.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/UnifiedPushProvider.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/ChatServiceRegistration.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Controllers/ChatController.cs`
+- `tests/DotNetCloud.Modules.Chat.Tests/ChatControllerTests.cs`
+- `tests/DotNetCloud.Modules.Chat.Tests/NotificationRouterTests.cs` (new)
+- `docs/IMPLEMENTATION_CHECKLIST.md`
+- `docs/MASTER_PROJECT_PLAN.md`
+- `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
+
+**Implemented in this update:**
+1. Added shared notification preference storage abstraction (`INotificationPreferenceStore`) with in-memory implementation for server-side routing and API consistency.
+2. Wired `ChatController` notification preference GET/PUT endpoints to the shared store (removed per-controller static preference map).
+3. Hardened `NotificationRouter` to enforce caller preferences before delivery:
+     - suppress when push is globally disabled,
+     - suppress when DND is enabled,
+     - suppress chat-message/chat-mention notifications for muted channels.
+4. Implemented online dedup in `NotificationRouter` using `IPresenceTracker` (skip push when user is currently online).
+5. Added provider abstraction (`IPushProviderEndpoint`) for deterministic provider selection and improved router testability.
+6. Added focused unit coverage for routing policy behavior and preference endpoint storage flow.
+
+**Tests added/updated:**
+- `tests/DotNetCloud.Modules.Chat.Tests/NotificationRouterTests.cs`
+    - `SendAsync_WhenPushDisabled_ThenNotificationIsSuppressed`
+    - `SendAsync_WhenUserIsOnline_ThenNotificationIsSuppressed`
+    - `SendAsync_WhenChannelMuted_ThenNotificationIsSuppressed`
+    - `SendAsync_WhenEligible_ThenRoutesToRegisteredProviders`
+- `tests/DotNetCloud.Modules.Chat.Tests/ChatControllerTests.cs`
+    - `UpdateNotificationPreferencesAsync_WhenCalled_ThenReturnsOkAndStoresPreferences`
+    - `GetNotificationPreferencesAsync_WhenCalled_ThenReturnsStoreValues`
+
+**Verification commands and results:**
+- `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
+    - Result: total 221, succeeded 221, failed 0, skipped 0
+- `dotnet build`
+    - Result: succeeded (full solution)
+
+**Raw failing assertion/error text seen during iteration (fixed):**
+- `GetNotificationPreferencesAsync_WhenCalled_ThenReturnsStoreValues`: `System.Collections.Generic.KeyNotFoundException: The given key was not present in the dictionary.`
+    - Fix: aligned assertions with serialized property casing.
+- `NotificationRouterTests` (all four tests): `Cannot set up IPushProviderEndpoint.get_Provider because it is not accessible to the proxy generator used by Moq`.
+    - Fix: replaced Moq provider proxies with concrete internal test-double provider implementation.
+
+**Raw log snippets around authorization/event issues:**
+- No runtime log capture for these unit tests (mocked collaborators + behavior assertions).
+
+**Intentionally deferred items:**
+- FCM credentials/config model and invalid-token cleanup.
+- UnifiedPush retry/error handling.
+- Notification queue/reliability background processing.
 
 ### Sprint A Kickoff - Phase 1.19.2 (Files API Integration Depth)
 

@@ -26,6 +26,7 @@ public class ChatControllerTests
     private Mock<IAnnouncementService> _announcementService = null!;
     private Mock<IRealtimeBroadcaster> _realtimeBroadcaster = null!;
     private Mock<IPushNotificationService> _pushNotificationService = null!;
+    private Mock<INotificationPreferenceStore> _notificationPreferenceStore = null!;
     private ChatController _controller = null!;
 
     [TestInitialize]
@@ -40,6 +41,16 @@ public class ChatControllerTests
         _announcementService = new Mock<IAnnouncementService>();
         _realtimeBroadcaster = new Mock<IRealtimeBroadcaster>();
         _pushNotificationService = new Mock<IPushNotificationService>();
+        _notificationPreferenceStore = new Mock<INotificationPreferenceStore>();
+
+        _notificationPreferenceStore
+            .Setup(s => s.Get(It.IsAny<Guid>()))
+            .Returns(new UserNotificationPreferences
+            {
+                PushEnabled = true,
+                DoNotDisturb = false,
+                MutedChannelIds = new HashSet<Guid>()
+            });
 
         _controller = new ChatController(
             _channelService.Object,
@@ -51,6 +62,7 @@ public class ChatControllerTests
             _announcementService.Object,
             _realtimeBroadcaster.Object,
             _pushNotificationService.Object,
+            _notificationPreferenceStore.Object,
             NullLogger<ChatController>.Instance);
     }
 
@@ -310,17 +322,56 @@ public class ChatControllerTests
     }
 
     [TestMethod]
-    public void UpdateNotificationPreferencesAsync_WhenCalled_ThenReturnsOk()
+    public void UpdateNotificationPreferencesAsync_WhenCalled_ThenReturnsOkAndStoresPreferences()
     {
+        var userId = Guid.NewGuid();
+        var mutedChannel = Guid.NewGuid();
+
         var result = _controller.UpdateNotificationPreferencesAsync(
             new NotificationPreferencesDto
             {
                 PushEnabled = true,
                 DoNotDisturb = true,
-                MutedChannelIds = [Guid.NewGuid(), Guid.NewGuid()]
+                MutedChannelIds = [mutedChannel, mutedChannel]
             },
-            Guid.NewGuid());
+            userId);
 
         Assert.IsInstanceOfType<OkObjectResult>(result);
+        _notificationPreferenceStore.Verify(
+            s => s.Update(
+                userId,
+                It.Is<UserNotificationPreferences>(p =>
+                    p.PushEnabled
+                    && p.DoNotDisturb
+                    && p.MutedChannelIds.Count == 1
+                    && p.MutedChannelIds.Contains(mutedChannel))),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public void GetNotificationPreferencesAsync_WhenCalled_ThenReturnsStoreValues()
+    {
+        var userId = Guid.NewGuid();
+        var mutedChannel = Guid.NewGuid();
+
+        _notificationPreferenceStore
+            .Setup(s => s.Get(userId))
+            .Returns(new UserNotificationPreferences
+            {
+                PushEnabled = false,
+                DoNotDisturb = true,
+                MutedChannelIds = new HashSet<Guid> { mutedChannel }
+            });
+
+        var result = _controller.GetNotificationPreferencesAsync(userId);
+
+        var ok = result as OkObjectResult;
+        Assert.IsNotNull(ok);
+
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
+        var data = doc.RootElement.GetProperty("data");
+        Assert.IsFalse(data.GetProperty("PushEnabled").GetBoolean());
+        Assert.IsTrue(data.GetProperty("DoNotDisturb").GetBoolean());
+        Assert.AreEqual(1, data.GetProperty("MutedChannelIds").GetArrayLength());
     }
 }

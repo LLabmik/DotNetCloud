@@ -3107,8 +3107,8 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Create `NotificationRouter`:
   - ✓ Route notifications based on user's registered device provider
   - ✓ Support multiple devices per user
-  - ☐ Respect user notification preferences (per-channel mute, DND)
-  - ☐ Implement notification deduplication (don't notify if user is online)
+  - ✓ Respect user notification preferences (per-channel mute, DND)
+  - ✓ Implement notification deduplication (don't notify if user is online)
 - ☐ Create notification queue for reliability (background processing)
 
 #### Push Notification Endpoints

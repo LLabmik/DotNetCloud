@@ -23,10 +23,13 @@ public static class ChatServiceRegistration
         services.AddSingleton<IChatRealtimeService, ChatRealtimeService>();
         services.AddScoped<IAnnouncementService, AnnouncementService>();
         services.AddScoped<IMentionNotificationService, MentionNotificationService>();
+        services.AddSingleton<INotificationPreferenceStore, InMemoryNotificationPreferenceStore>();
 
         // Push notification providers and router
         services.AddSingleton<FcmPushProvider>();
         services.AddSingleton<UnifiedPushProvider>();
+        services.AddSingleton<IPushProviderEndpoint>(sp => sp.GetRequiredService<FcmPushProvider>());
+        services.AddSingleton<IPushProviderEndpoint>(sp => sp.GetRequiredService<UnifiedPushProvider>());
         services.AddSingleton<NotificationRouter>();
         services.AddSingleton<IPushNotificationService>(sp => sp.GetRequiredService<NotificationRouter>());
 
