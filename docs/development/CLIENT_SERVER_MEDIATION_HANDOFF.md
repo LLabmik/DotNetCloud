@@ -209,7 +209,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 **Owner:** Server (`Linux workspace`)  
 **Status:** completed ✅ (incremental phase-2.4 scope)
 
-**Commit hash:** pending local commit in this workspace (to be filled after commit)
+**Commit hash:** `7ccc3d1`
 
 **Files added/updated:**
 - `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Controllers/ChatController.cs`
