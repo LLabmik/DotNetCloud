@@ -680,7 +680,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 **Owner:** Server (`mint22`)  
 **Status:** completed ✅ (final phase-2.7 scope)
 
-**Commit hash:** `TBD`
+**Commit hash:** `42aa009`
 
 **Files added/updated:**
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/INotificationDeliveryQueue.cs` (new)
