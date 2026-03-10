@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-10 (Phase 2.3 accepted; temporary execution plan removed)
+Last updated: 2026-03-10 (Phase 2.4 REST error-mapping hardening update posted)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -202,6 +202,53 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 **Intentionally deferred items:**
 - No client runtime implementation changes in this update (validation-only pass).
 - No Phase 2.4/2.5 implementation work started.
+
+### Phase 2.4 Update #1 - REST Exception Mapping Hardening (Server, Linux workspace)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`Linux workspace`)  
+**Status:** completed ✅ (incremental phase-2.4 scope)
+
+**Commit hash:** pending local commit in this workspace (to be filled after commit)
+
+**Files added/updated:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Controllers/ChatController.cs`
+- `tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
+- `tests/DotNetCloud.Modules.Chat.Tests/ChatControllerTests.cs` (new)
+- `docs/IMPLEMENTATION_CHECKLIST.md`
+- `docs/MASTER_PROJECT_PLAN.md`
+- `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
+
+**Implemented in this update:**
+1. Added deterministic REST exception mapping for member endpoints (`AddMember`, `RemoveMember`, `GetMembers`, `UpdateMemberRole`, `UpdateNotificationPreference`, `MarkAsRead`) to return expected 403/404 instead of unhandled 500 paths.
+2. Added deterministic mapping for reaction endpoints (`AddReaction`, `RemoveReaction`) including 400 for validation (`ArgumentException`) and 403/404 for auth/not-found conditions.
+3. Added deterministic mapping for pin endpoints (`PinMessage`, `UnpinMessage`, `GetPinnedMessages`) to return 403/404 on service denials/not-found.
+4. Added deterministic mapping for typing endpoints (`NotifyTyping`, `GetTypingUsers`) to return 400 on validation failures.
+5. Added controller-level unit tests to validate status-code mapping behavior with mocked services.
+
+**Tests added/updated:**
+- `tests/DotNetCloud.Modules.Chat.Tests/ChatControllerTests.cs`
+    - `AddReactionAsync_WhenUnauthorized_ThenReturnsForbidResult`
+    - `PinMessageAsync_WhenUnauthorized_ThenReturnsForbidResult`
+    - `RemoveMemberAsync_WhenUnauthorized_ThenReturnsForbidResult`
+    - `NotifyTypingAsync_WhenInvalidArgument_ThenReturnsBadRequest`
+    - `GetPinnedMessagesAsync_WhenInvalidOperation_ThenReturnsNotFound`
+
+**Verification commands and results:**
+- `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
+    - Result: total 202, succeeded 202, failed 0, skipped 0
+- `dotnet build`
+    - Result: succeeded (full solution)
+
+**Raw failing assertion/error text:**
+- None in this update.
+
+**Raw log snippets around authorization/event issues:**
+- No runtime log-line capture in controller unit tests (mocked services + status code assertions).
+
+**Intentionally deferred items:**
+- Full phase-2.4 completion criteria (controller decomposition decision and endpoint-level integration/API verification) remain open.
+- No phase-2.5 implementation started in this update.
 
 ### Sprint A Kickoff - Phase 1.19.2 (Files API Integration Depth)
 

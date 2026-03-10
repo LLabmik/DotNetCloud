@@ -169,24 +169,57 @@ public class ChatController : ControllerBase
     [HttpPost("channels/{channelId:guid}/members")]
     public async Task<IActionResult> AddMemberAsync(Guid channelId, [FromBody] AddChannelMemberDto dto, [FromQuery] Guid userId)
     {
-        await _memberService.AddMemberAsync(channelId, dto.UserId, ToCaller(userId));
-        return Ok(Envelope(new { added = true }));
+        try
+        {
+            await _memberService.AddMemberAsync(channelId, dto.UserId, ToCaller(userId));
+            return Ok(Envelope(new { added = true }));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ErrorEnvelope("CHAT_CHANNEL_OR_MEMBER_NOT_FOUND", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
     }
 
     /// <summary>Removes a member from a channel.</summary>
     [HttpDelete("channels/{channelId:guid}/members/{targetUserId:guid}")]
     public async Task<IActionResult> RemoveMemberAsync(Guid channelId, Guid targetUserId, [FromQuery] Guid userId)
     {
-        await _memberService.RemoveMemberAsync(channelId, targetUserId, ToCaller(userId));
-        return Ok(Envelope(new { removed = true }));
+        try
+        {
+            await _memberService.RemoveMemberAsync(channelId, targetUserId, ToCaller(userId));
+            return Ok(Envelope(new { removed = true }));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ErrorEnvelope("CHAT_CHANNEL_OR_MEMBER_NOT_FOUND", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
     }
 
     /// <summary>Lists members of a channel.</summary>
     [HttpGet("channels/{channelId:guid}/members")]
     public async Task<IActionResult> GetMembersAsync(Guid channelId, [FromQuery] Guid userId)
     {
-        var members = await _memberService.ListMembersAsync(channelId, ToCaller(userId));
-        return Ok(Envelope(members));
+        try
+        {
+            var members = await _memberService.ListMembersAsync(channelId, ToCaller(userId));
+            return Ok(Envelope(members));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ErrorEnvelope("CHAT_CHANNEL_NOT_FOUND", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
     }
 
     /// <summary>Updates a member's role in a channel.</summary>
@@ -205,6 +238,10 @@ public class ChatController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return NotFound(ErrorEnvelope("CHAT_MEMBER_NOT_FOUND", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
         }
     }
 
@@ -225,6 +262,10 @@ public class ChatController : ControllerBase
         {
             return NotFound(ErrorEnvelope("CHAT_MEMBER_NOT_FOUND", ex.Message));
         }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
     }
 
     /// <summary>Marks a channel as read up to a message.</summary>
@@ -239,6 +280,10 @@ public class ChatController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return NotFound(ErrorEnvelope("CHAT_MEMBER_NOT_FOUND", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
         }
     }
 
@@ -385,14 +430,37 @@ public class ChatController : ControllerBase
         {
             return NotFound(ErrorEnvelope("CHAT_MESSAGE_NOT_FOUND", "Message not found."));
         }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ErrorEnvelope("VALIDATION_ERROR", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
     }
 
     /// <summary>Removes a reaction from a message.</summary>
     [HttpDelete("messages/{messageId:guid}/reactions/{emoji}")]
     public async Task<IActionResult> RemoveReactionAsync(Guid messageId, string emoji, [FromQuery] Guid userId)
     {
-        await _reactionService.RemoveReactionAsync(messageId, emoji, ToCaller(userId));
-        return Ok(Envelope(new { removed = true }));
+        try
+        {
+            await _reactionService.RemoveReactionAsync(messageId, emoji, ToCaller(userId));
+            return Ok(Envelope(new { removed = true }));
+        }
+        catch (InvalidOperationException)
+        {
+            return NotFound(ErrorEnvelope("CHAT_MESSAGE_NOT_FOUND", "Message not found."));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ErrorEnvelope("VALIDATION_ERROR", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
     }
 
     /// <summary>Gets all reactions for a message.</summary>
@@ -409,24 +477,57 @@ public class ChatController : ControllerBase
     [HttpPost("channels/{channelId:guid}/pins/{messageId:guid}")]
     public async Task<IActionResult> PinMessageAsync(Guid channelId, Guid messageId, [FromQuery] Guid userId)
     {
-        await _pinService.PinMessageAsync(channelId, messageId, ToCaller(userId));
-        return Ok(Envelope(new { pinned = true }));
+        try
+        {
+            await _pinService.PinMessageAsync(channelId, messageId, ToCaller(userId));
+            return Ok(Envelope(new { pinned = true }));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ErrorEnvelope("CHAT_PIN_TARGET_NOT_FOUND", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
     }
 
     /// <summary>Unpins a message from a channel.</summary>
     [HttpDelete("channels/{channelId:guid}/pins/{messageId:guid}")]
     public async Task<IActionResult> UnpinMessageAsync(Guid channelId, Guid messageId, [FromQuery] Guid userId)
     {
-        await _pinService.UnpinMessageAsync(channelId, messageId, ToCaller(userId));
-        return Ok(Envelope(new { unpinned = true }));
+        try
+        {
+            await _pinService.UnpinMessageAsync(channelId, messageId, ToCaller(userId));
+            return Ok(Envelope(new { unpinned = true }));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ErrorEnvelope("CHAT_PIN_TARGET_NOT_FOUND", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
     }
 
     /// <summary>Gets pinned messages in a channel.</summary>
     [HttpGet("channels/{channelId:guid}/pins")]
     public async Task<IActionResult> GetPinnedMessagesAsync(Guid channelId, [FromQuery] Guid userId)
     {
-        var pins = await _pinService.GetPinnedMessagesAsync(channelId, ToCaller(userId));
-        return Ok(Envelope(pins));
+        try
+        {
+            var pins = await _pinService.GetPinnedMessagesAsync(channelId, ToCaller(userId));
+            return Ok(Envelope(pins));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ErrorEnvelope("CHAT_CHANNEL_NOT_FOUND", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
     }
 
     // ── Typing Indicator Endpoints ──────────────────────────────────
@@ -435,16 +536,30 @@ public class ChatController : ControllerBase
     [HttpPost("channels/{channelId:guid}/typing")]
     public async Task<IActionResult> NotifyTypingAsync(Guid channelId, [FromQuery] Guid userId)
     {
-        await _typingService.NotifyTypingAsync(channelId, ToCaller(userId));
-        return Ok(Envelope(new { typing = true }));
+        try
+        {
+            await _typingService.NotifyTypingAsync(channelId, ToCaller(userId));
+            return Ok(Envelope(new { typing = true }));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ErrorEnvelope("VALIDATION_ERROR", ex.Message));
+        }
     }
 
     /// <summary>Gets users currently typing in a channel.</summary>
     [HttpGet("channels/{channelId:guid}/typing")]
     public async Task<IActionResult> GetTypingUsersAsync(Guid channelId)
     {
-        var users = await _typingService.GetTypingUsersAsync(channelId);
-        return Ok(Envelope(users));
+        try
+        {
+            var users = await _typingService.GetTypingUsersAsync(channelId);
+            return Ok(Envelope(users));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ErrorEnvelope("VALIDATION_ERROR", ex.Message));
+        }
     }
 
     // ── File Sharing Endpoints ──────────────────────────────────────

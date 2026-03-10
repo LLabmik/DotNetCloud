@@ -2943,11 +2943,16 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ `POST /api/v1/chat/messages/{messageId}/reactions` — Add reaction
 - ✓ `DELETE /api/v1/chat/messages/{messageId}/reactions/{emoji}` — Remove reaction
 - ✓ `GET /api/v1/chat/messages/{messageId}/reactions` — Get reactions
+- ✓ Map reaction endpoint service denials/not-found/validation to deterministic REST responses (403/404/400)
 
 #### Pin Endpoints
 - ✓ `POST /api/v1/chat/channels/{channelId}/pins/{messageId}` — Pin message
 - ✓ `DELETE /api/v1/chat/channels/{channelId}/pins/{messageId}` — Unpin message
 - ✓ `GET /api/v1/chat/channels/{channelId}/pins` — Get pinned messages
+- ✓ Map pin endpoint service denials/not-found to deterministic REST responses (403/404)
+
+#### Typing Endpoints
+- ✓ Map typing endpoint validation failures to deterministic REST responses (400)
 
 #### File Sharing Endpoints
 - ✓ `POST /api/v1/chat/channels/{channelId}/messages/{messageId}/attachments` — Attach file to message

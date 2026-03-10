@@ -59,7 +59,7 @@
 | Phase 2.1 | 6 | 6 | 0 | 0 |
 | Phase 2.2 | 4 | 4 | 0 | 0 |
 | Phase 2.3 | 7 | 3 | 0 | 4 |
-| Phase 2.4 | 5 | 0 | 0 | 5 |
+| Phase 2.4 | 5 | 0 | 1 | 4 |
 | Phase 2.5 | 4 | 0 | 0 | 4 |
 | Phase 2.6 | 4 | 0 | 0 | 4 |
 | Phase 2.7 | 4 | 0 | 0 | 4 |
@@ -3303,7 +3303,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Step: phase-2.4 - Chat REST API Endpoints
-**Status:** pending
+**Status:** in-progress 🔄
 **Duration:** ~1 week
 **Description:** Create REST controllers for channels, messages, reactions, pins, and file sharing.
 
@@ -3316,7 +3316,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Dependencies:** phase-2.3
 **Blocking Issues:** None
-**Notes:** All endpoints under /api/v1/chat/ namespace. Follow response envelope pattern.
+**Notes:** Endpoints are implemented under `/api/v1/chat/` and currently hosted in `ChatController`. Latest hardening pass added deterministic exception mapping for member/reaction/pin/typing endpoints to avoid unhandled 500s from service-level `UnauthorizedAccessException`, `InvalidOperationException`, and `ArgumentException` paths. Added `ChatControllerTests` coverage for these mappings. Remaining work: finalize controller decomposition strategy for phase criteria (split controllers vs. retained consolidated controller), then complete integration/API-level endpoint verification and update task checklist accordingly.
 
 ---
 
