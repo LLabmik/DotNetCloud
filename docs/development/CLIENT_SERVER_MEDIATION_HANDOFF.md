@@ -150,11 +150,11 @@ Required coverage:
     - `<deferred item + reason>`
 
 ### Server Progress Checklist
-- ☐ Test-gap inventory posted
-- ☐ New REST integration tests added
+- ✓ Test-gap inventory posted
+- ✓ New REST integration tests added
 - ☐ New chunked upload E2E tests added
 - ☐ New version/share/trash E2E tests added
-- ☐ WOPI + sync smoke tests added
+- ✓ WOPI + sync smoke tests added
 - ☐ PostgreSQL run completed
 - ☐ SQL Server run attempted/documented
 - ☐ Evidence returned (commit/tests/logs)
@@ -163,6 +163,37 @@ Required coverage:
 - `dotnet build tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj`
 - `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj`
 - `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~Files"`
+
+### Sprint A Update #2 - Initial Inventory + First Expansion (Server)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`mint22`)  
+**Status:** in-progress ☐
+
+**Coverage inventory before changes (integration project):**
+- Existing Files coverage concentrated in isolation tests (`FilesRestIsolationIntegrationTests`, `FilesGrpcIsolationIntegrationTests`).
+- Non-files coverage present for auth/health and DB matrix scaffolding.
+- Gaps confirmed: broader CRUD workflow assertions, sync/WOPI smoke in REST class, and deeper end-to-end chunk/version/share/trash matrix scenarios.
+
+**Completed in this update:**
+- Added first Sprint A REST workflow expansion in `tests/DotNetCloud.Integration.Tests/Api/FilesRestIsolationIntegrationTests.cs`:
+    - `FileListSearchFavoritesAndRecent_WorkForOwner`
+    - `SyncEndpoints_TreeChangesAndReconcile_ReturnSuccess`
+    - `WopiDiscoveryEndpoints_ReturnExpectedShape`
+- Hardened payload handling in integration assertions for raw + envelope responses:
+    - `tests/DotNetCloud.Integration.Tests/Infrastructure/ApiAssert.cs`
+- Added `DataOrRoot` handling in Files REST integration tests for mixed response shapes.
+
+**Test evidence (local run on mint22):**
+- Command:
+    - `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~FilesRestIsolationIntegrationTests"`
+- Result:
+    - total: 7, failed: 0, succeeded: 7, skipped: 0
+
+**Still pending in Sprint A:**
+- Chunked upload E2E depth (resume/dedup/quota permutations beyond isolation path)
+- Version/share/trash end-to-end depth expansion
+- PostgreSQL and SQL Server matrix execution notes for new tests
 
 ---
 

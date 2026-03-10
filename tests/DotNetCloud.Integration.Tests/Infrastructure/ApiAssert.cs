@@ -29,7 +29,7 @@ internal static class ApiAssert
 
         var root = doc.RootElement;
 
-        if (root.TryGetProperty("success", out var successProp))
+        if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("success", out var successProp))
         {
             Assert.IsTrue(successProp.GetBoolean(), "Envelope 'success' should be true");
         }
@@ -53,12 +53,12 @@ internal static class ApiAssert
 
         var root = doc.RootElement;
 
-        if (root.TryGetProperty("success", out var successProp))
+        if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("success", out var successProp))
         {
             Assert.IsFalse(successProp.GetBoolean(), "Envelope 'success' should be false for errors");
         }
 
-        if (expectedCode is not null && root.TryGetProperty("error", out var errorObj))
+        if (expectedCode is not null && root.ValueKind == JsonValueKind.Object && root.TryGetProperty("error", out var errorObj))
         {
             if (errorObj.TryGetProperty("code", out var codeProp))
             {

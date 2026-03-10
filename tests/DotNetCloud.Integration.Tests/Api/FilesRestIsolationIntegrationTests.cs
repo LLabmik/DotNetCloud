@@ -14,6 +14,14 @@ public class FilesRestIsolationIntegrationTests
 {
     private static FilesHostWebApplicationFactory _factory = null!;
 
+    private static System.Text.Json.JsonElement DataOrRoot(System.Text.Json.JsonElement root)
+    {
+        return root.ValueKind == System.Text.Json.JsonValueKind.Object &&
+               root.TryGetProperty("data", out var data)
+            ? data
+            : root;
+    }
+
     [ClassInitialize]
     public static void ClassInit(TestContext _)
     {
@@ -38,7 +46,7 @@ public class FilesRestIsolationIntegrationTests
             new CreateFolderDto { Name = "private-folder" });
 
         var createRoot = await ApiAssert.SuccessAsync(createResponse, HttpStatusCode.Created);
-        var nodeId = createRoot.GetProperty("data").GetProperty("id").GetString();
+        var nodeId = DataOrRoot(createRoot).GetProperty("id").GetString();
         Assert.IsFalse(string.IsNullOrWhiteSpace(nodeId));
 
         using var otherClient = _factory.CreateAuthenticatedApiClient(otherUserId);
@@ -73,7 +81,7 @@ public class FilesRestIsolationIntegrationTests
             });
 
         var initiateRoot = await ApiAssert.SuccessAsync(initiateResponse, HttpStatusCode.Created);
-        var sessionId = initiateRoot.GetProperty("data").GetProperty("sessionId").GetString();
+        var sessionId = DataOrRoot(initiateRoot).GetProperty("sessionId").GetString();
         Assert.IsFalse(string.IsNullOrWhiteSpace(sessionId));
 
         using var otherClient = _factory.CreateAuthenticatedApiClient(otherUserId);
@@ -95,7 +103,7 @@ public class FilesRestIsolationIntegrationTests
             content: null);
 
         var completeRoot = await ApiAssert.SuccessAsync(completeResponse, HttpStatusCode.OK);
-        var nodeName = completeRoot.GetProperty("data").GetProperty("name").GetString();
+        var nodeName = DataOrRoot(completeRoot).GetProperty("name").GetString();
         Assert.AreEqual("isolation.bin", nodeName);
     }
 
@@ -111,7 +119,7 @@ public class FilesRestIsolationIntegrationTests
             new CreateFolderDto { Name = "share-me" });
 
         var createRoot = await ApiAssert.SuccessAsync(createResponse, HttpStatusCode.Created);
-        var nodeId = createRoot.GetProperty("data").GetProperty("id").GetString();
+        var nodeId = DataOrRoot(createRoot).GetProperty("id").GetString();
         Assert.IsFalse(string.IsNullOrWhiteSpace(nodeId));
 
         var shareResponse = await ownerClient.PostAsJsonAsync(
@@ -164,5 +172,105 @@ public class FilesRestIsolationIntegrationTests
             });
 
         await ApiAssert.ErrorAsync(initiateResponse, HttpStatusCode.Conflict);
+    }
+
+    [TestMethod]
+    public async Task FileListSearchFavoritesAndRecent_WorkForOwner()
+    {
+        var userId = Guid.NewGuid();
+        using var client = _factory.CreateAuthenticatedApiClient(userId);
+
+        var createAlpha = await client.PostAsJsonAsync(
+            "/api/v1/files/folders",
+            new CreateFolderDto { Name = "alpha-docs" });
+        var alphaRoot = await ApiAssert.SuccessAsync(createAlpha, HttpStatusCode.Created);
+        var alphaNodeId = DataOrRoot(alphaRoot).GetProperty("id").GetString();
+        Assert.IsFalse(string.IsNullOrWhiteSpace(alphaNodeId));
+
+        var createBeta = await client.PostAsJsonAsync(
+            "/api/v1/files/folders",
+            new CreateFolderDto { Name = "beta-assets" });
+        await ApiAssert.SuccessAsync(createBeta, HttpStatusCode.Created);
+
+        var listRootResponse = await client.GetAsync("/api/v1/files");
+        var listRoot = await ApiAssert.SuccessAsync(listRootResponse, HttpStatusCode.OK);
+        var listData = DataOrRoot(listRoot);
+        Assert.IsTrue(listData.ValueKind == System.Text.Json.JsonValueKind.Array);
+        Assert.IsTrue(listData.GetArrayLength() >= 2);
+
+        var searchResponse = await client.GetAsync("/api/v1/files/search?query=alpha&page=1&pageSize=10");
+        var searchRoot = await ApiAssert.SuccessAsync(searchResponse, HttpStatusCode.OK);
+        var searchItems = DataOrRoot(searchRoot).GetProperty("items");
+        Assert.IsTrue(searchItems.ValueKind == System.Text.Json.JsonValueKind.Array);
+        Assert.IsTrue(searchItems.GetArrayLength() >= 1);
+
+        var toggleFavoriteResponse = await client.PostAsync($"/api/v1/files/{alphaNodeId}/favorite", content: null);
+        await ApiAssert.SuccessAsync(toggleFavoriteResponse, HttpStatusCode.OK);
+
+        var favoritesResponse = await client.GetAsync("/api/v1/files/favorites");
+        var favoritesRoot = await ApiAssert.SuccessAsync(favoritesResponse, HttpStatusCode.OK);
+        var favoritesData = DataOrRoot(favoritesRoot);
+        Assert.IsTrue(favoritesData.ValueKind == System.Text.Json.JsonValueKind.Array);
+        Assert.IsTrue(favoritesData.EnumerateArray().Any(n =>
+            n.TryGetProperty("id", out var idProp) &&
+            string.Equals(idProp.GetString(), alphaNodeId, StringComparison.OrdinalIgnoreCase)));
+
+        var recentResponse = await client.GetAsync("/api/v1/files/recent?count=10");
+        var recentRoot = await ApiAssert.SuccessAsync(recentResponse, HttpStatusCode.OK);
+        var recentData = DataOrRoot(recentRoot);
+        Assert.IsTrue(recentData.ValueKind == System.Text.Json.JsonValueKind.Array);
+    }
+
+    [TestMethod]
+    public async Task SyncEndpoints_TreeChangesAndReconcile_ReturnSuccess()
+    {
+        var userId = Guid.NewGuid();
+        using var client = _factory.CreateAuthenticatedApiClient(userId);
+
+        var createFolderResponse = await client.PostAsJsonAsync(
+            "/api/v1/files/folders",
+            new CreateFolderDto { Name = "sync-root" });
+        await ApiAssert.SuccessAsync(createFolderResponse, HttpStatusCode.Created);
+
+        var treeResponse = await client.GetAsync("/api/v1/files/sync/tree");
+        var treeRoot = await ApiAssert.SuccessAsync(treeResponse, HttpStatusCode.OK);
+        var treeData = DataOrRoot(treeRoot);
+        Assert.IsTrue(treeData.ValueKind is System.Text.Json.JsonValueKind.Array or System.Text.Json.JsonValueKind.Object);
+
+        var since = Uri.EscapeDataString(DateTime.UtcNow.AddHours(-1).ToString("o"));
+        var changesResponse = await client.GetAsync($"/api/v1/files/sync/changes?since={since}");
+        var changesRoot = await ApiAssert.SuccessAsync(changesResponse, HttpStatusCode.OK);
+        var changesData = DataOrRoot(changesRoot);
+        Assert.IsTrue(changesData.ValueKind is System.Text.Json.JsonValueKind.Array or System.Text.Json.JsonValueKind.Object);
+
+        var reconcileResponse = await client.PostAsJsonAsync(
+            "/api/v1/files/sync/reconcile",
+            new SyncReconcileRequestDto
+            {
+                ClientNodes = []
+            });
+        var reconcileRoot = await ApiAssert.SuccessAsync(reconcileResponse, HttpStatusCode.OK);
+        var actions = DataOrRoot(reconcileRoot).GetProperty("actions");
+        Assert.IsTrue(actions.ValueKind == System.Text.Json.JsonValueKind.Array);
+    }
+
+    [TestMethod]
+    public async Task WopiDiscoveryEndpoints_ReturnExpectedShape()
+    {
+        var userId = Guid.NewGuid();
+        using var client = _factory.CreateAuthenticatedApiClient(userId);
+
+        var discoveryResponse = await client.GetAsync("/api/v1/wopi/discovery");
+        var discoveryRoot = await ApiAssert.SuccessAsync(discoveryResponse, HttpStatusCode.OK);
+        var discoveryData = DataOrRoot(discoveryRoot);
+        Assert.IsTrue(discoveryData.TryGetProperty("available", out _));
+        Assert.IsTrue(discoveryData.TryGetProperty("supportedExtensions", out var supportedExtensions));
+        Assert.IsTrue(supportedExtensions.ValueKind == System.Text.Json.JsonValueKind.Array);
+
+        var supportsResponse = await client.GetAsync("/api/v1/wopi/discovery/supports/docx");
+        var supportsRoot = await ApiAssert.SuccessAsync(supportsResponse, HttpStatusCode.OK);
+        var supportsData = DataOrRoot(supportsRoot);
+        Assert.AreEqual("docx", supportsData.GetProperty("extension").GetString());
+        Assert.IsTrue(supportsData.TryGetProperty("supported", out _));
     }
 }
