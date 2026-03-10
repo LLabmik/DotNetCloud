@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-10 (Phase 2.8 member/settings update posted)
+Last updated: 2026-03-10 (Phase 2.7 push configuration model update posted)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -890,6 +890,80 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Intentionally deferred items:**
 - Remaining phase-2.8 items (DM user search/group DM, badge realtime update, announcement filter/preview, drag reorder, rich mention/paste image).
+
+### Phase 2.7 Update #5 - Push Configuration Models (Server, mint22)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`mint22`)  
+**Status:** completed ✅ (server-only hardening scope)
+
+**Commit hash:** `TBD`
+
+**Files added/updated:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/PushProviderOptions.cs` (new)
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/FcmPushProvider.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/UnifiedPushProvider.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/ChatServiceRegistration.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Program.cs`
+- `src/Core/DotNetCloud.Core.Server/Program.cs`
+- `tests/DotNetCloud.Modules.Chat.Tests/FcmPushProviderTests.cs`
+- `tests/DotNetCloud.Modules.Chat.Tests/UnifiedPushProviderTests.cs`
+- `docs/IMPLEMENTATION_CHECKLIST.md`
+- `docs/MASTER_PROJECT_PLAN.md`
+- `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
+
+**Implemented in this update:**
+1. Added provider configuration models: `FcmPushOptions` and `UnifiedPushOptions`.
+2. Bound options from configuration (`Chat:Push:Fcm`, `Chat:Push:UnifiedPush`) in chat service registration.
+3. Updated server bootstrap call sites to pass configuration into `AddChatServices(builder.Configuration)`.
+4. Updated `FcmPushProvider` to respect provider enable/disable option state.
+5. Updated `UnifiedPushProvider` to use configurable enable state, max attempts, and retry delay.
+
+**Tests added/updated:**
+- `tests/DotNetCloud.Modules.Chat.Tests/FcmPushProviderTests.cs`
+    - `SendAsync_WhenProviderDisabled_ThenTransportIsNotCalled`
+- `tests/DotNetCloud.Modules.Chat.Tests/UnifiedPushProviderTests.cs`
+    - `SendAsync_WhenMaxAttemptsConfiguredToTwo_ThenOnlyTwoAttemptsAreMade`
+    - Existing tests updated for options injection.
+
+**Verification commands and results:**
+- `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
+    - Result: total 228, succeeded 228, failed 0, skipped 0
+- `dotnet build`
+    - Result: succeeded (full solution)
+
+**Raw failing assertion/error text seen during iteration (fixed):**
+- None.
+
+**Raw log snippets around authorization/event issues:**
+- N/A (provider options + behavior update).
+
+**Intentionally deferred items:**
+- FCM admin credential management UI.
+- UnifiedPush admin configuration UI.
+
+### Client Machine Handoff - Phase 2.8 UI Continuation
+
+**Target machine:** `Windows11-TestDNC` (client workspace)  
+**Owner:** Client agent  
+**Status:** ready for handoff ✅
+
+**Scope to continue on client machine only:**
+1. Channel list drag-to-reorder pinned channels.
+2. Message composer rich text + mention autocomplete + paste image upload.
+3. Remaining message list polish if needed after client validation.
+4. Chat notification badge real-time update behavior.
+5. Announcement component UX refinements (filter/preview/editor flow).
+
+**Server constraints for client implementation:**
+- Server push infrastructure phase is complete (Phase 2.7, including queue/retry/options models).
+- Do not change server push provider contracts unless a client blocker is confirmed.
+
+**Request back from client machine:**
+- commit hash(es)
+- exact UI files changed
+- screenshots or short behavior notes for each completed UI checklist item
+- any server API gaps/blockers discovered
 
 ### Sprint A Kickoff - Phase 1.19.2 (Files API Integration Depth)
 

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace DotNetCloud.Modules.Chat.Services;
 
@@ -9,15 +10,18 @@ namespace DotNetCloud.Modules.Chat.Services;
 /// </summary>
 internal sealed class UnifiedPushProvider : IPushProviderEndpoint
 {
-    private const int MaxSendAttempts = 3;
-
     private readonly ConcurrentDictionary<Guid, List<DeviceRegistration>> _registrations = new();
     private readonly IUnifiedPushTransport _transport;
+    private readonly UnifiedPushOptions _options;
     private readonly ILogger<UnifiedPushProvider> _logger;
 
-    public UnifiedPushProvider(IUnifiedPushTransport transport, ILogger<UnifiedPushProvider> logger)
+    public UnifiedPushProvider(
+        IUnifiedPushTransport transport,
+        IOptions<UnifiedPushOptions> options,
+        ILogger<UnifiedPushProvider> logger)
     {
         _transport = transport;
+        _options = options.Value;
         _logger = logger;
     }
 
@@ -27,11 +31,20 @@ internal sealed class UnifiedPushProvider : IPushProviderEndpoint
     /// <inheritdoc />
     public async Task SendAsync(Guid userId, PushNotification notification, CancellationToken cancellationToken = default)
     {
+        if (!_options.Enabled)
+        {
+            _logger.LogDebug("UnifiedPush provider disabled; skipping push delivery");
+            return;
+        }
+
         if (!_registrations.TryGetValue(userId, out var devices))
         {
             _logger.LogDebug("No UnifiedPush devices registered for user {UserId}", userId);
             return;
         }
+
+        var maxSendAttempts = Math.Max(1, _options.MaxSendAttempts);
+        var retryDelay = TimeSpan.FromMilliseconds(Math.Max(0, _options.RetryDelayMilliseconds));
 
         var upDevices = devices.Where(d => d.Provider == PushProvider.UnifiedPush).ToList();
         foreach (var device in upDevices)
@@ -43,7 +56,7 @@ internal sealed class UnifiedPushProvider : IPushProviderEndpoint
             }
 
             var delivered = false;
-            for (var attempt = 1; attempt <= MaxSendAttempts; attempt++)
+            for (var attempt = 1; attempt <= maxSendAttempts; attempt++)
             {
                 var result = await _transport.SendAsync(device.Endpoint, notification, cancellationToken);
                 if (result.IsSuccess)
@@ -65,10 +78,15 @@ internal sealed class UnifiedPushProvider : IPushProviderEndpoint
                 _logger.LogWarning(
                     "UnifiedPush transient failure attempt {Attempt}/{MaxAttempts} for user {UserId} endpoint {Endpoint}: {Error}",
                     attempt,
-                    MaxSendAttempts,
+                    maxSendAttempts,
                     userId,
                     device.Endpoint,
                     result.Error ?? "transient_error");
+
+                if (attempt < maxSendAttempts && retryDelay > TimeSpan.Zero)
+                {
+                    await Task.Delay(retryDelay, cancellationToken);
+                }
             }
 
             if (!delivered)

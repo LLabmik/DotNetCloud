@@ -192,7 +192,7 @@ public class Program
         builder.Services.AddDbContext<ChatDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString));
         builder.Services.AddFilesServices(builder.Configuration);
-        builder.Services.AddChatServices();
+        builder.Services.AddChatServices(builder.Configuration);
         builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
 
         var filesStoragePath = builder.Configuration.GetValue<string>("Files:StoragePath");

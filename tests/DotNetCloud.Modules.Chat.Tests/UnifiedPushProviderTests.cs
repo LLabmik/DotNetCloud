@@ -1,5 +1,6 @@
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace DotNetCloud.Modules.Chat.Tests;
 
@@ -17,7 +18,10 @@ public class UnifiedPushProviderTests
             UnifiedPushSendResult.Success
         ]);
 
-        var provider = new UnifiedPushProvider(transport, NullLogger<UnifiedPushProvider>.Instance);
+        var provider = new UnifiedPushProvider(
+            transport,
+            Options.Create(new UnifiedPushOptions { Enabled = true, MaxSendAttempts = 3, RetryDelayMilliseconds = 0 }),
+            NullLogger<UnifiedPushProvider>.Instance);
         await provider.RegisterDeviceAsync(userId, new DeviceRegistration
         {
             Token = "token-1",
@@ -40,7 +44,10 @@ public class UnifiedPushProviderTests
             UnifiedPushSendResult.Success
         ]);
 
-        var provider = new UnifiedPushProvider(transport, NullLogger<UnifiedPushProvider>.Instance);
+        var provider = new UnifiedPushProvider(
+            transport,
+            Options.Create(new UnifiedPushOptions { Enabled = true, MaxSendAttempts = 3, RetryDelayMilliseconds = 0 }),
+            NullLogger<UnifiedPushProvider>.Instance);
         await provider.RegisterDeviceAsync(userId, new DeviceRegistration
         {
             Token = "token-1",
@@ -51,6 +58,33 @@ public class UnifiedPushProviderTests
         await provider.SendAsync(userId, new PushNotification { Title = "t", Body = "b" });
 
         Assert.AreEqual(1, transport.CallCount);
+    }
+
+    [TestMethod]
+    public async Task SendAsync_WhenMaxAttemptsConfiguredToTwo_ThenOnlyTwoAttemptsAreMade()
+    {
+        var userId = Guid.NewGuid();
+        var endpoint = "https://up.example/device";
+        var transport = new SequenceUnifiedPushTransport([
+            new UnifiedPushSendResult { IsSuccess = false, IsTransientFailure = true, Error = "timeout_1" },
+            new UnifiedPushSendResult { IsSuccess = false, IsTransientFailure = true, Error = "timeout_2" },
+            UnifiedPushSendResult.Success
+        ]);
+
+        var provider = new UnifiedPushProvider(
+            transport,
+            Options.Create(new UnifiedPushOptions { Enabled = true, MaxSendAttempts = 2, RetryDelayMilliseconds = 0 }),
+            NullLogger<UnifiedPushProvider>.Instance);
+        await provider.RegisterDeviceAsync(userId, new DeviceRegistration
+        {
+            Token = "token-1",
+            Provider = PushProvider.UnifiedPush,
+            Endpoint = endpoint
+        });
+
+        await provider.SendAsync(userId, new PushNotification { Title = "t", Body = "b" });
+
+        Assert.AreEqual(2, transport.CallCount);
     }
 
     private sealed class SequenceUnifiedPushTransport : IUnifiedPushTransport

@@ -1,5 +1,6 @@
 using DotNetCloud.Modules.Chat.Data.Services;
 using DotNetCloud.Modules.Chat.Services;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DotNetCloud.Modules.Chat.Data;
@@ -12,8 +13,11 @@ public static class ChatServiceRegistration
     /// <summary>
     /// Registers all chat service implementations in the DI container.
     /// </summary>
-    public static IServiceCollection AddChatServices(this IServiceCollection services)
+    public static IServiceCollection AddChatServices(this IServiceCollection services, IConfiguration configuration)
     {
+        services.Configure<FcmPushOptions>(configuration.GetSection(FcmPushOptions.SectionName));
+        services.Configure<UnifiedPushOptions>(configuration.GetSection(UnifiedPushOptions.SectionName));
+
         services.AddScoped<IChannelService, ChannelService>();
         services.AddScoped<IChannelMemberService, ChannelMemberService>();
         services.AddScoped<IMessageService, MessageService>();

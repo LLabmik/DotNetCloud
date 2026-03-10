@@ -1,5 +1,6 @@
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace DotNetCloud.Modules.Chat.Tests;
 
@@ -15,7 +16,10 @@ public class FcmPushProviderTests
         var transport = new TestFcmTransport(token =>
             token == badToken ? FcmSendResult.InvalidToken : FcmSendResult.Success);
 
-        var provider = new FcmPushProvider(transport, NullLogger<FcmPushProvider>.Instance);
+        var provider = new FcmPushProvider(
+            transport,
+            Options.Create(new FcmPushOptions { Enabled = true }),
+            NullLogger<FcmPushProvider>.Instance);
 
         await provider.RegisterDeviceAsync(userId, new DeviceRegistration { Token = badToken, Provider = PushProvider.FCM });
         await provider.RegisterDeviceAsync(userId, new DeviceRegistration { Token = goodToken, Provider = PushProvider.FCM });
@@ -27,6 +31,22 @@ public class FcmPushProviderTests
         Assert.AreEqual(3, transport.Calls.Count);
         Assert.AreEqual(1, transport.Calls.Count(c => c == badToken));
         Assert.AreEqual(2, transport.Calls.Count(c => c == goodToken));
+    }
+
+    [TestMethod]
+    public async Task SendAsync_WhenProviderDisabled_ThenTransportIsNotCalled()
+    {
+        var userId = Guid.NewGuid();
+        var transport = new TestFcmTransport(_ => FcmSendResult.Success);
+        var provider = new FcmPushProvider(
+            transport,
+            Options.Create(new FcmPushOptions { Enabled = false }),
+            NullLogger<FcmPushProvider>.Instance);
+
+        await provider.RegisterDeviceAsync(userId, new DeviceRegistration { Token = "token", Provider = PushProvider.FCM });
+        await provider.SendAsync(userId, new PushNotification { Title = "t", Body = "b" });
+
+        Assert.AreEqual(0, transport.Calls.Count);
     }
 
     private sealed class TestFcmTransport : IFcmTransport

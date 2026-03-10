@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace DotNetCloud.Modules.Chat.Services;
 
@@ -11,11 +12,16 @@ internal sealed class FcmPushProvider : IPushProviderEndpoint
 {
     private readonly ConcurrentDictionary<Guid, List<DeviceRegistration>> _registrations = new();
     private readonly IFcmTransport _transport;
+    private readonly FcmPushOptions _options;
     private readonly ILogger<FcmPushProvider> _logger;
 
-    public FcmPushProvider(IFcmTransport transport, ILogger<FcmPushProvider> logger)
+    public FcmPushProvider(
+        IFcmTransport transport,
+        IOptions<FcmPushOptions> options,
+        ILogger<FcmPushProvider> logger)
     {
         _transport = transport;
+        _options = options.Value;
         _logger = logger;
     }
 
@@ -25,6 +31,12 @@ internal sealed class FcmPushProvider : IPushProviderEndpoint
     /// <inheritdoc />
     public async Task SendAsync(Guid userId, PushNotification notification, CancellationToken cancellationToken = default)
     {
+        if (!_options.Enabled)
+        {
+            _logger.LogDebug("FCM provider disabled; skipping push delivery");
+            return;
+        }
+
         if (!_registrations.TryGetValue(userId, out var devices))
         {
             _logger.LogDebug("No FCM devices registered for user {UserId}", userId);

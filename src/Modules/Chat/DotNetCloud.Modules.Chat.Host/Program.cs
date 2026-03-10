@@ -20,7 +20,7 @@ builder.Services.AddDbContext<ChatDbContext>(options =>
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
 
 // Register all chat business-logic services (Channel, Message, Reaction, Pin, Typing)
-builder.Services.AddChatServices();
+builder.Services.AddChatServices(builder.Configuration);
 
 // gRPC
 builder.Services.AddGrpc();

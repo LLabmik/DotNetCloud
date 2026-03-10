@@ -3093,7 +3093,7 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ Implement message sending via FCM HTTP v1 API
   - ✓ Handle token refresh and invalid token cleanup
   - ☐ Implement batch sending for efficiency
-- ☐ Create FCM configuration model
+- ✓ Create FCM configuration model
 - ☐ Add admin UI for FCM credential management
 
 #### UnifiedPush Provider
@@ -3101,7 +3101,7 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ Implement HTTP POST to UnifiedPush distributor endpoint
   - ✓ Handle endpoint URL registration
   - ✓ Implement error handling and retries
-- ☐ Create UnifiedPush configuration model
+- ✓ Create UnifiedPush configuration model
 
 #### Notification Routing
 - ✓ Create `NotificationRouter`:
