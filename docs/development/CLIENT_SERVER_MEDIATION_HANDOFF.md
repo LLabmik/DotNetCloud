@@ -279,7 +279,35 @@ Required work focus:
 
 **Remaining for Sprint B:**
 - Linux per-context privilege drop (`setresuid`/`setresgid`) implementation.
-- Windows per-context impersonation execution boundary (`RunImpersonated`) implementation.
+
+### Sprint B Update #3 - Windows Impersonation Execution Boundary (Server, Windows workspace)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`Windows workspace`)  
+**Status:** in-progress ☐
+
+**Files added/updated:**
+- `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcCallerIdentity.cs`
+- `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcServer.cs`
+- `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcClientHandler.cs`
+
+**Implemented in this update:**
+1. `IpcServer` now captures Windows named-pipe caller identity plus a duplicated caller access token at connection time.
+2. `IpcCallerIdentity` now carries the duplicated Windows access token alongside normalized caller identity values.
+3. `IpcClientHandler` now executes context-scoped operations under `WindowsIdentity.RunImpersonated` when a caller token is available.
+4. Handler completion now disposes duplicated caller token handles to avoid leaking Windows token resources.
+5. Failure semantics for impersonation transition errors now return deterministic IPC command errors: `Privilege transition failed.` with server-side error logs.
+
+**Tests added/updated:**
+- No new test files required.
+- Existing SyncService suite run as regression validation.
+
+**Command executed:**
+- `dotnet test tests\DotNetCloud.Client.SyncService.Tests\DotNetCloud.Client.SyncService.Tests.csproj`
+    - Result: total 27, succeeded 27, failed 0, skipped 0
+
+**Remaining for Sprint B:**
+- Linux per-context privilege drop (`setresuid`/`setresgid`) implementation.
 
 ---
 

@@ -2245,7 +2245,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Run as system-level service (single process, multiple contexts)
 - ✓ Data isolation: each context has own sync folder, state DB, auth token
 - ☐ Linux: drop privileges per context (UID/GID of target OS user) — requires `setresuid`/`setresgid` P/Invoke; deferred until the service is packaged for Linux deployment
-- ☐ Windows: impersonate OS user for file system operations — requires `WindowsIdentity.RunImpersonated`; deferred until SyncTray passes a user token via IPC
+- ✓ Windows: impersonate OS user for file system operations — IPC now captures and duplicates the named-pipe caller token, then executes context-scoped operations via `WindowsIdentity.RunImpersonated`
 
 #### IPC Server
 - ✓ Implement IPC server for SyncTray communication:

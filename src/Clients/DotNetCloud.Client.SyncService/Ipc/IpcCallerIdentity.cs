@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 
 namespace DotNetCloud.Client.SyncService.Ipc;
 
@@ -13,15 +14,21 @@ public sealed class IpcCallerIdentity
             : StringComparer.Ordinal;
 
     /// <summary>Represents an unavailable or unverifiable caller identity.</summary>
-    public static IpcCallerIdentity Unavailable { get; } = new(false, null, null, null);
+    public static IpcCallerIdentity Unavailable { get; } = new(false, null, null, null, null);
 
     /// <summary>Initializes a new <see cref="IpcCallerIdentity"/> instance.</summary>
-    public IpcCallerIdentity(bool isAvailable, string? rawIdentity, string? normalizedIdentity, string? accountName)
+    public IpcCallerIdentity(
+        bool isAvailable,
+        string? rawIdentity,
+        string? normalizedIdentity,
+        string? accountName,
+        SafeAccessTokenHandle? windowsAccessToken)
     {
         IsAvailable = isAvailable;
         RawIdentity = rawIdentity;
         NormalizedIdentity = normalizedIdentity;
         AccountName = accountName;
+        WindowsAccessToken = windowsAccessToken;
     }
 
     /// <summary>True when caller identity could be resolved from transport credentials.</summary>
@@ -37,16 +44,24 @@ public sealed class IpcCallerIdentity
     public string? AccountName { get; }
 
     /// <summary>
+    /// Duplicated Windows access token for caller impersonation.
+    /// Null on non-Windows platforms or when token capture is unavailable.
+    /// </summary>
+    public SafeAccessTokenHandle? WindowsAccessToken { get; }
+
+    /// <summary>
     /// Creates a caller identity from a Windows named-pipe impersonation username.
     /// </summary>
-    public static IpcCallerIdentity FromWindowsPipeUserName(string? userName)
+    public static IpcCallerIdentity FromWindowsPipeUserName(
+        string? userName,
+        SafeAccessTokenHandle? windowsAccessToken = null)
     {
         if (string.IsNullOrWhiteSpace(userName))
             return Unavailable;
 
         var normalized = userName.Trim();
         var account = ExtractAccountName(normalized);
-        return new IpcCallerIdentity(true, normalized, normalized, account);
+        return new IpcCallerIdentity(true, normalized, normalized, account, windowsAccessToken);
     }
 
     /// <summary>
@@ -58,7 +73,7 @@ public sealed class IpcCallerIdentity
             return Unavailable;
 
         var normalized = userName.Trim();
-        return new IpcCallerIdentity(true, normalized, normalized, normalized);
+        return new IpcCallerIdentity(true, normalized, normalized, normalized, null);
     }
 
     /// <summary>Returns true if this caller is allowed to access contexts owned by <paramref name="ownerUserName"/>.</summary>

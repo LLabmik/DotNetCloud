@@ -1,10 +1,12 @@
 using System.IO.Pipes;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using DotNetCloud.Client.SyncService.ContextManager;
 using Microsoft.Extensions.Logging;
+using Microsoft.Win32.SafeHandles;
 
 namespace DotNetCloud.Client.SyncService.Ipc;
 
@@ -222,15 +224,62 @@ public sealed class IpcServer : IIpcServer, IAsyncDisposable
 
     private static IpcCallerIdentity ResolveNamedPipeIdentity(NamedPipeServerStream pipe)
     {
+        string? userName = null;
+        SafeAccessTokenHandle? accessToken = null;
+
         try
         {
-            var userName = pipe.GetImpersonationUserName();
-            return IpcCallerIdentity.FromWindowsPipeUserName(userName);
+            userName = pipe.GetImpersonationUserName();
         }
         catch
         {
             return IpcCallerIdentity.Unavailable;
         }
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            accessToken = TryCaptureClientAccessToken(pipe);
+
+        return IpcCallerIdentity.FromWindowsPipeUserName(userName, accessToken);
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static SafeAccessTokenHandle? TryCaptureClientAccessToken(NamedPipeServerStream pipe)
+    {
+        try
+        {
+            SafeAccessTokenHandle? duplicated = null;
+
+            pipe.RunAsClient(() =>
+            {
+                using var currentIdentity =
+                    WindowsIdentity.GetCurrent(TokenAccessLevels.Query | TokenAccessLevels.Duplicate);
+                duplicated = DuplicateAccessToken(currentIdentity.AccessToken);
+            });
+
+            return duplicated;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static SafeAccessTokenHandle? DuplicateAccessToken(SafeAccessTokenHandle sourceToken)
+    {
+        var duplicatedHandle = IntPtr.Zero;
+        var duplicated = DuplicateTokenEx(
+            sourceToken.DangerousGetHandle(),
+            TOKEN_QUERY | TOKEN_IMPERSONATE | TOKEN_DUPLICATE,
+            IntPtr.Zero,
+            SecurityImpersonation,
+            TokenImpersonation,
+            ref duplicatedHandle);
+
+        if (!duplicated || duplicatedHandle == IntPtr.Zero)
+            return null;
+
+        return new SafeAccessTokenHandle(duplicatedHandle);
     }
 
     private void AcceptClient(Stream stream, IpcCallerIdentity callerIdentity)
@@ -247,6 +296,23 @@ public sealed class IpcServer : IIpcServer, IAsyncDisposable
         _ = task.ContinueWith(_ =>
         {
             lock (_clientLock) { _clientTasks.Remove(task); }
+
+            callerIdentity.WindowsAccessToken?.Dispose();
         }, CancellationToken.None);
     }
+
+    private const uint TOKEN_QUERY = 0x0008;
+    private const uint TOKEN_DUPLICATE = 0x0002;
+    private const uint TOKEN_IMPERSONATE = 0x0004;
+    private const int SecurityImpersonation = 2;
+    private const int TokenImpersonation = 2;
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool DuplicateTokenEx(
+        IntPtr hExistingToken,
+        uint dwDesiredAccess,
+        IntPtr lpTokenAttributes,
+        int impersonationLevel,
+        int tokenType,
+        ref IntPtr phNewToken);
 }

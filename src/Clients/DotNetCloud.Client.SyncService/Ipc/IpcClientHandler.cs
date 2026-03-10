@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Collections.Concurrent;
 using DotNetCloud.Client.SyncService.ContextManager;
 using Microsoft.Extensions.Logging;
+using System.Security.Principal;
 
 namespace DotNetCloud.Client.SyncService.Ipc;
 
@@ -258,7 +259,17 @@ public sealed class IpcClientHandler : IAsyncDisposable
         if (!await EnsureCallerIdentityAsync(command.Command, null, cancellationToken))
             return;
 
-        var registration = await _contextManager.AddContextAsync(request, cancellationToken);
+        var addContextResult = await ExecuteWithCallerIdentityAsync(
+            command.Command,
+            null,
+            () => _contextManager.AddContextAsync(request, cancellationToken),
+            cancellationToken);
+
+        if (!addContextResult.Success)
+            return;
+
+        var registration = addContextResult.Result;
+
         await SendResponseAsync(command.Command,
             new { contextId = registration.Id, displayName = registration.DisplayName },
             cancellationToken);
@@ -272,7 +283,15 @@ public sealed class IpcClientHandler : IAsyncDisposable
             return;
         }
 
-        await _contextManager.RemoveContextAsync(registration.Id, cancellationToken);
+        var removed = await ExecuteWithCallerIdentityAsync(
+            command.Command,
+            registration.Id,
+            () => _contextManager.RemoveContextAsync(registration.Id, cancellationToken),
+            cancellationToken);
+
+        if (!removed)
+            return;
+
         await SendResponseAsync(command.Command, new { removed = true }, cancellationToken);
     }
 
@@ -282,7 +301,17 @@ public sealed class IpcClientHandler : IAsyncDisposable
         if (registration is null)
             return;
 
-        var status = await _contextManager.GetStatusAsync(registration.Id, cancellationToken);
+        var statusResult = await ExecuteWithCallerIdentityAsync(
+            command.Command,
+            registration.Id,
+            () => _contextManager.GetStatusAsync(registration.Id, cancellationToken),
+            cancellationToken);
+
+        if (!statusResult.Success)
+            return;
+
+        var status = statusResult.Result;
+
         if (status is null)
         {
             await SendErrorAsync(command.Command, "Context not found or inaccessible.", cancellationToken);
@@ -306,7 +335,15 @@ public sealed class IpcClientHandler : IAsyncDisposable
         if (registration is null)
             return;
 
-        await _contextManager.PauseAsync(registration.Id, cancellationToken);
+        var paused = await ExecuteWithCallerIdentityAsync(
+            command.Command,
+            registration.Id,
+            () => _contextManager.PauseAsync(registration.Id, cancellationToken),
+            cancellationToken);
+
+        if (!paused)
+            return;
+
         await SendResponseAsync(command.Command, new { paused = true }, cancellationToken);
     }
 
@@ -316,7 +353,15 @@ public sealed class IpcClientHandler : IAsyncDisposable
         if (registration is null)
             return;
 
-        await _contextManager.ResumeAsync(registration.Id, cancellationToken);
+        var resumed = await ExecuteWithCallerIdentityAsync(
+            command.Command,
+            registration.Id,
+            () => _contextManager.ResumeAsync(registration.Id, cancellationToken),
+            cancellationToken);
+
+        if (!resumed)
+            return;
+
         await SendResponseAsync(command.Command, new { resumed = true }, cancellationToken);
     }
 
@@ -338,9 +383,14 @@ public sealed class IpcClientHandler : IAsyncDisposable
 
         // Fire and forget — client receives confirmation immediately;
         // progress is delivered via events if the client is subscribed.
-        _ = Task.Run(
-            () => _contextManager.SyncNowAsync(registration.Id, cancellationToken),
-            cancellationToken);
+        _ = Task.Run(async () =>
+        {
+            await ExecuteWithCallerIdentityAsync(
+                command.Command,
+                registration.Id,
+                () => _contextManager.SyncNowAsync(registration.Id, cancellationToken),
+                cancellationToken);
+        }, cancellationToken);
 
         await SendResponseAsync(command.Command, new { started = true }, cancellationToken);
     }
@@ -358,8 +408,16 @@ public sealed class IpcClientHandler : IAsyncDisposable
             includeHistory = data?.IncludeHistory ?? false;
         }
 
-        var records = await _contextManager.ListConflictsAsync(
-            registration.Id, includeHistory, cancellationToken);
+        var recordsResult = await ExecuteWithCallerIdentityAsync(
+            command.Command,
+            registration.Id,
+            () => _contextManager.ListConflictsAsync(registration.Id, includeHistory, cancellationToken),
+            cancellationToken);
+
+        if (!recordsResult.Success)
+            return;
+
+        var records = recordsResult.Result;
 
         var payload = records.Select(r => new ConflictRecordPayload
         {
@@ -398,8 +456,15 @@ public sealed class IpcClientHandler : IAsyncDisposable
             return;
         }
 
-        await _contextManager.ResolveConflictAsync(
-            registration.Id, data.ConflictId, data.Resolution, cancellationToken);
+        var resolved = await ExecuteWithCallerIdentityAsync(
+            command.Command,
+            registration.Id,
+            () => _contextManager.ResolveConflictAsync(
+                registration.Id, data.ConflictId, data.Resolution, cancellationToken),
+            cancellationToken);
+
+        if (!resolved)
+            return;
 
         await SendResponseAsync(command.Command, new { resolved = true }, cancellationToken);
     }
@@ -464,7 +529,17 @@ public sealed class IpcClientHandler : IAsyncDisposable
         if (registration is null)
             return;
 
-        var tree = await _contextManager.GetFolderTreeAsync(registration.Id, cancellationToken);
+        var treeResult = await ExecuteWithCallerIdentityAsync(
+            command.Command,
+            registration.Id,
+            () => _contextManager.GetFolderTreeAsync(registration.Id, cancellationToken),
+            cancellationToken);
+
+        if (!treeResult.Success)
+            return;
+
+        var tree = treeResult.Result;
+
         if (tree is null)
         {
             await SendErrorAsync(command.Command, "Context not found or inaccessible.", cancellationToken);
@@ -706,6 +781,82 @@ public sealed class IpcClientHandler : IAsyncDisposable
         {
             if (_callerIdentity.MatchesOwner(context.OsUserName))
                 _ownedContextIds.Add(context.Id);
+        }
+    }
+
+    private async Task<(bool Success, T Result)> ExecuteWithCallerIdentityAsync<T>(
+        string command,
+        Guid? contextId,
+        Func<Task<T>> operation,
+        CancellationToken cancellationToken)
+    {
+        if (!OperatingSystem.IsWindows())
+            return (true, await operation());
+
+        var accessToken = _callerIdentity.WindowsAccessToken;
+        if (accessToken is null || accessToken.IsInvalid || accessToken.IsClosed)
+            return (true, await operation());
+
+        try
+        {
+            var result = WindowsIdentity.RunImpersonated(
+                accessToken,
+                () => operation().GetAwaiter().GetResult());
+
+            return (true, result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "IPC command failed during Windows impersonation: Command={Command}, ContextId={ContextId}, Caller={Caller}.",
+                command,
+                contextId,
+                _callerIdentity.NormalizedIdentity ?? "<unknown>");
+
+            await SendErrorAsync(command, "Privilege transition failed.", cancellationToken);
+            return (false, default!);
+        }
+    }
+
+    private async Task<bool> ExecuteWithCallerIdentityAsync(
+        string command,
+        Guid? contextId,
+        Func<Task> operation,
+        CancellationToken cancellationToken)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            await operation();
+            return true;
+        }
+
+        var accessToken = _callerIdentity.WindowsAccessToken;
+        if (accessToken is null || accessToken.IsInvalid || accessToken.IsClosed)
+        {
+            await operation();
+            return true;
+        }
+
+        try
+        {
+            WindowsIdentity.RunImpersonated(
+                accessToken,
+                () => operation().GetAwaiter().GetResult());
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "IPC command failed during Windows impersonation: Command={Command}, ContextId={ContextId}, Caller={Caller}.",
+                command,
+                contextId,
+                _callerIdentity.NormalizedIdentity ?? "<unknown>");
+
+            await SendErrorAsync(command, "Privilege transition failed.", cancellationToken);
+            return false;
         }
     }
 }

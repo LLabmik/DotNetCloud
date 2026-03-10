@@ -50,7 +50,7 @@
 | Phase 1.12 | 17 | 12 | 0 | 5 |
 | Phase 1.13 | 4 | 4 | 0 | 0 |
 | Phase 1.14 | 32 | 32 | 0 | 0 |
-| Phase 1.15 | 25 | 22 | 0 | 3 |
+| Phase 1.15 | 25 | 23 | 0 | 2 |
 | Phase 1.16 | 20 | 20 | 0 | 0 |
 | Phase 1.17 | 25 | 25 | 0 | 0 |
 | Phase 1.18 | 6 | 6 | 0 | 0 |
@@ -3037,14 +3037,15 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcCallerIdentity.cs` (transport-resolved caller identity model)
 - ✓ `tests/DotNetCloud.Client.SyncService.Tests/` (3 test files, 27 tests)
 - ☐ Linux privilege dropping (UID/GID per context) — needs `setresuid`/`setresgid` P/Invoke; deferred until Linux packaging
-- ☐ Windows user impersonation — needs `WindowsIdentity.RunImpersonated` + token from SyncTray; deferred with privilege work
+- ✓ Windows user impersonation — named-pipe caller token is captured/duplicated and context-scoped operations execute via `WindowsIdentity.RunImpersonated`
 - ✓ Caller identity verification in IPC — named-pipe callers are identified via transport impersonation identity; unavailable identities are denied
 - ✓ Rate-limit / debounce sync triggers — `sync-now` now returns `started=false, reason=rate-limited` during cooldown
+- ☐ FileSystemWatcher burst coalescing debounce — pending short-delay batching for rapid-save event storms
 - ✓ Disk full detection — `SyncEngine` now detects disk-full IO failures (`0x80070070` + OS-specific ENOSPC text), pauses further sync attempts, and surfaces `SyncState.Error`/`LastError` through existing SyncTray error notifications
 
 **Dependencies:** Phase 1.14 (Client.Core — Shared Sync Engine)
 **Blocking Issues:** None
-**Notes:** Phase 1.15 hardening advanced to 23/25 checklist items implemented. IPC commands now enforce caller identity, restrict context-scoped operations to owner-matching contexts, and filter push events to caller-owned contexts. `sync-now` now applies a cooldown and returns deterministic no-op semantics (`started=false`, `reason=rate-limited`) when throttled. Windows named-pipe identity is resolved from transport impersonation (`GetImpersonationUserName`); Unix socket callers are denied identity-bound commands when caller identity is unavailable. Disk-full failures are now explicitly detected and surfaced as sync errors while pausing further sync attempts until manual resume. Remaining deferred items: Linux privilege dropping and Windows impersonation execution boundary. SyncService tests now pass (27/27) and Client.Core disk-full regression test passes.
+**Notes:** Phase 1.15 hardening advanced to 23/25 checklist items implemented. IPC commands enforce caller identity, restrict context-scoped operations to owner-matching contexts, and filter push events to caller-owned contexts. `sync-now` applies deterministic cooldown no-op semantics (`started=false`, `reason=rate-limited`) when throttled. Windows named-pipe caller identity now captures/duplicates the transport token and runs context-scoped work under `WindowsIdentity.RunImpersonated`; Unix socket callers are denied identity-bound commands when caller identity is unavailable. Disk-full failures are explicitly detected and surfaced as sync errors while pausing further sync attempts until manual resume. Remaining deferred/pending items: Linux privilege dropping and FileSystemWatcher burst-coalescing debounce. SyncService tests pass (27/27).
 
 ---
 
