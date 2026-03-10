@@ -2994,8 +2994,8 @@ This phase implements real-time chat, announcements, push notifications, and the
 #### Connection Group Management
 - ✓ Add users to SignalR groups per channel membership
 - ✓ Remove users from groups when leaving channels
-- ☐ Update groups on channel creation/deletion
-- ☐ Handle reconnection (re-join all channel groups)
+- ✓ Update groups on channel creation/deletion
+- ✓ Handle reconnection (re-join all channel groups)
 
 #### Presence Integration
 - ✓ Extend existing presence tracking for chat-specific status:

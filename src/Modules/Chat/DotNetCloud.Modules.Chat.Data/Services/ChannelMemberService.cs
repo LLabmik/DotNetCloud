@@ -18,12 +18,18 @@ internal sealed class ChannelMemberService : IChannelMemberService
 
     private readonly ChatDbContext _db;
     private readonly IEventBus _eventBus;
+    private readonly IChatRealtimeService? _realtimeService;
     private readonly ILogger<ChannelMemberService> _logger;
 
-    public ChannelMemberService(ChatDbContext db, IEventBus eventBus, ILogger<ChannelMemberService> logger)
+    public ChannelMemberService(
+        ChatDbContext db,
+        IEventBus eventBus,
+        ILogger<ChannelMemberService> logger,
+        IChatRealtimeService? realtimeService = null)
     {
         _db = db;
         _eventBus = eventBus;
+        _realtimeService = realtimeService;
         _logger = logger;
     }
 
@@ -47,6 +53,11 @@ internal sealed class ChannelMemberService : IChannelMemberService
         });
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        if (_realtimeService is not null)
+        {
+            await _realtimeService.AddUserToChannelGroupAsync(userId, channelId, cancellationToken);
+        }
 
         await _eventBus.PublishAsync(new UserJoinedChannelEvent
         {
@@ -89,6 +100,11 @@ internal sealed class ChannelMemberService : IChannelMemberService
 
         _db.ChannelMembers.Remove(membership);
         await _db.SaveChangesAsync(cancellationToken);
+
+        if (_realtimeService is not null)
+        {
+            await _realtimeService.RemoveUserFromChannelGroupAsync(userId, channelId, cancellationToken);
+        }
 
         await _eventBus.PublishAsync(new UserLeftChannelEvent
         {

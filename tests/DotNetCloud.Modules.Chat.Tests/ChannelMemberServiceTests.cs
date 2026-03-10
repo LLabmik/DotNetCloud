@@ -3,6 +3,7 @@ using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Chat.Data;
 using DotNetCloud.Modules.Chat.Data.Services;
 using DotNetCloud.Modules.Chat.Models;
+using DotNetCloud.Modules.Chat.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -18,6 +19,7 @@ public class ChannelMemberServiceTests
     private ChatDbContext _db = null!;
     private ChannelMemberService _service = null!;
     private Mock<IEventBus> _eventBusMock = null!;
+    private Mock<IChatRealtimeService> _realtimeMock = null!;
 
     private CallerContext _ownerCaller = null!;
     private CallerContext _adminCaller = null!;
@@ -35,7 +37,8 @@ public class ChannelMemberServiceTests
 
         _db = new ChatDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
-        _service = new ChannelMemberService(_db, _eventBusMock.Object, NullLogger<ChannelMemberService>.Instance);
+        _realtimeMock = new Mock<IChatRealtimeService>();
+        _service = new ChannelMemberService(_db, _eventBusMock.Object, NullLogger<ChannelMemberService>.Instance, _realtimeMock.Object);
 
         _ownerCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
         _adminCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
@@ -78,6 +81,9 @@ public class ChannelMemberServiceTests
 
         Assert.IsNotNull(membership);
         Assert.AreEqual(ChannelMemberRole.Member, membership.Role);
+        _realtimeMock.Verify(
+            r => r.AddUserToChannelGroupAsync(newUserId, _channelId, It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [TestMethod]
@@ -161,5 +167,15 @@ public class ChannelMemberServiceTests
     {
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => _service.RemoveMemberAsync(_channelId, _ownerCaller.UserId, _ownerCaller));
+    }
+
+    [TestMethod]
+    public async Task WhenAdminRemovesMemberThenRealtimeGroupMembershipIsRemoved()
+    {
+        await _service.RemoveMemberAsync(_channelId, _memberCaller.UserId, _adminCaller);
+
+        _realtimeMock.Verify(
+            r => r.RemoveUserFromChannelGroupAsync(_memberCaller.UserId, _channelId, It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 }

@@ -60,7 +60,7 @@
 | Phase 2.2 | 4 | 4 | 0 | 0 |
 | Phase 2.3 | 7 | 3 | 0 | 4 |
 | Phase 2.4 | 5 | 5 | 0 | 0 |
-| Phase 2.5 | 4 | 0 | 0 | 4 |
+| Phase 2.5 | 4 | 1 | 0 | 3 |
 | Phase 2.6 | 4 | 0 | 0 | 4 |
 | Phase 2.7 | 4 | 0 | 0 | 4 |
 | Phase 2.8 | 11 | 4 | 0 | 7 |
@@ -3321,19 +3321,19 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Step: phase-2.5 - SignalR Real-Time Chat Integration
-**Status:** pending
+**Status:** in-progress 🔄
 **Duration:** ~1 week
 **Description:** Integrate chat with CoreHub for real-time message delivery, typing indicators, presence, and reactions.
 
 **Tasks:**
 - ☐ Register chat SignalR methods (SendMessage, EditMessage, DeleteMessage, StartTyping, StopTyping, MarkRead, AddReaction, RemoveReaction)
 - ☐ Implement server-to-client broadcasts (NewMessage, MessageEdited, MessageDeleted, TypingIndicator, ReactionUpdated, etc.)
-- ☐ Implement SignalR group management per channel membership
+- ✓ Implement SignalR group management per channel membership
 - ☐ Extend presence tracking (Online, Away, DND, custom status)
 
 **Dependencies:** phase-2.3, Phase 0.8 (SignalR infrastructure)
 **Blocking Issues:** None
-**Notes:** SignalR hub lives in core process. Chat module communicates via IRealtimeBroadcaster capability.
+**Notes:** Phase 2.5 started with reconnect-safe SignalR group management hardening. `UserConnectionTracker` now persists per-user group memberships across disconnects, `RealtimeBroadcasterService` now records/clears those memberships during add/remove group operations, and `CoreHub.OnConnectedAsync` now re-joins tracked groups for each new connection. Chat data services now invoke realtime group management on channel lifecycle/member changes: `ChannelService` adds members to groups on create/DM create and removes all members on delete; `ChannelMemberService` adds/removes group membership on member join/leave. Added/expanded tests in `CoreHubTests`, `UserConnectionTrackerTests`, `RealtimeBroadcasterServiceTests`, `ChannelServiceTests`, and `ChannelMemberServiceTests`. Verification: `dotnet test tests/DotNetCloud.Core.Server.Tests/DotNetCloud.Core.Server.Tests.csproj` passed (320/322 with 2 skipped), `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj` passed (208/208), and full `dotnet build` succeeded. Next: implement chat hub method endpoints and complete remaining phase-2.5 presence extensions.
 
 ---
 

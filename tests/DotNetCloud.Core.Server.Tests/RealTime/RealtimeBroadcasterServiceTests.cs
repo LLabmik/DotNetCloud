@@ -157,9 +157,12 @@ public class RealtimeBroadcasterServiceTests
     [TestMethod]
     public async Task WhenAddToGroupWithNoConnectionsThenDoesNothing()
     {
-        await _broadcaster.AddToGroupAsync(Guid.NewGuid(), "my-group");
+        var userId = Guid.NewGuid();
+
+        await _broadcaster.AddToGroupAsync(userId, "my-group");
 
         Assert.AreEqual(0, _hubContext.StubGroups.Operations.Count);
+        CollectionAssert.Contains(_tracker.GetGroups(userId).ToList(), "my-group");
     }
 
     [TestMethod]
@@ -191,5 +194,16 @@ public class RealtimeBroadcasterServiceTests
     {
         await Assert.ThrowsExactlyAsync<ArgumentException>(
             () => _broadcaster.RemoveFromGroupAsync(Guid.NewGuid(), null!));
+    }
+
+    [TestMethod]
+    public async Task WhenRemoveFromGroupThenTrackedMembershipIsRemoved()
+    {
+        var userId = Guid.NewGuid();
+
+        await _broadcaster.AddToGroupAsync(userId, "my-group");
+        await _broadcaster.RemoveFromGroupAsync(userId, "my-group");
+
+        Assert.AreEqual(0, _tracker.GetGroups(userId).Count);
     }
 }

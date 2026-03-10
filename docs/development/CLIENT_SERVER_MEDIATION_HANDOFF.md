@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-10 (Phase 2.4 REST error-mapping hardening update posted)
+Last updated: 2026-03-10 (Phase 2.5 SignalR group lifecycle + reconnect hardening update posted)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -290,6 +290,77 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Intentionally deferred items:**
 - No phase-2.5 implementation started in this update.
+
+### Phase 2.5 Update #1 - SignalR Group Lifecycle + Reconnect Hardening (Server, mint22)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`mint22`)  
+**Status:** completed ✅ (incremental phase-2.5 scope)
+
+**Commit hash:** `(pending commit)`
+
+**Files added/updated:**
+- `src/Core/DotNetCloud.Core.Server/RealTime/UserConnectionTracker.cs`
+- `src/Core/DotNetCloud.Core.Server/RealTime/RealtimeBroadcasterService.cs`
+- `src/Core/DotNetCloud.Core.Server/RealTime/CoreHub.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/ChannelService.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/ChannelMemberService.cs`
+- `tests/DotNetCloud.Core.Server.Tests/RealTime/CoreHubTests.cs` (new)
+- `tests/DotNetCloud.Core.Server.Tests/RealTime/UserConnectionTrackerTests.cs`
+- `tests/DotNetCloud.Core.Server.Tests/RealTime/RealtimeBroadcasterServiceTests.cs`
+- `tests/DotNetCloud.Modules.Chat.Tests/ChannelServiceTests.cs`
+- `tests/DotNetCloud.Modules.Chat.Tests/ChannelMemberServiceTests.cs`
+- `docs/IMPLEMENTATION_CHECKLIST.md`
+- `docs/MASTER_PROJECT_PLAN.md`
+- `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
+
+**Implemented in this update:**
+1. Added persistent per-user SignalR group membership tracking to `UserConnectionTracker` (`AddGroupMembership`, `RemoveGroupMembership`, `GetGroups`) so channel group intent survives disconnects.
+2. Updated `RealtimeBroadcasterService` to persist/clear tracked memberships on `AddToGroupAsync` and `RemoveFromGroupAsync`.
+3. Updated `CoreHub.OnConnectedAsync` to re-join all tracked groups for the connecting user/connection.
+4. Wired chat data-layer lifecycle to realtime groups:
+     - `ChannelService`: add all initial members to channel group on create/DM create; remove all members from group on delete.
+     - `ChannelMemberService`: add/remove member group membership on join/leave.
+5. Added focused coverage across core realtime + chat service tests.
+
+**Tests added/updated:**
+- `tests/DotNetCloud.Core.Server.Tests/RealTime/CoreHubTests.cs`
+    - `WhenUserHasTrackedGroupsThenOnConnectedAddsConnectionToEachGroup`
+- `tests/DotNetCloud.Core.Server.Tests/RealTime/UserConnectionTrackerTests.cs`
+    - `WhenGroupMembershipAddedThenGetGroupsReturnsGroup`
+    - `WhenGroupMembershipRemovedThenGetGroupsReturnsEmpty`
+    - `WhenUserGoesOfflineThenGroupMembershipIsRetained`
+    - `WhenGroupNameIsNullThenAddGroupMembershipThrows`
+    - `WhenGroupNameIsNullThenRemoveGroupMembershipThrows`
+- `tests/DotNetCloud.Core.Server.Tests/RealTime/RealtimeBroadcasterServiceTests.cs`
+    - `WhenAddToGroupWithNoConnectionsThenDoesNothing` (extended to assert membership tracking)
+    - `WhenRemoveFromGroupThenTrackedMembershipIsRemoved`
+- `tests/DotNetCloud.Modules.Chat.Tests/ChannelServiceTests.cs`
+    - `WhenDeleteChannelThenRealtimeGroupMembershipIsRemovedForAllMembers`
+    - `WhenCreateChannelWithMembersThenMembersAreAdded` (extended to assert realtime group add calls)
+- `tests/DotNetCloud.Modules.Chat.Tests/ChannelMemberServiceTests.cs`
+    - `WhenAdminRemovesMemberThenRealtimeGroupMembershipIsRemoved`
+    - `WhenOwnerAddsMemberThenMembershipIsCreated` (extended to assert realtime group add call)
+
+**Verification commands and results:**
+- `dotnet test tests/DotNetCloud.Core.Server.Tests/DotNetCloud.Core.Server.Tests.csproj`
+    - Result: total 322, succeeded 320, failed 0, skipped 2
+- `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
+    - Result: total 208, succeeded 208, failed 0, skipped 0
+- `dotnet build`
+    - Result: succeeded (full solution)
+
+**Raw failing assertion/error text seen during iteration (fixed):**
+- `CoreHubTests.cs`: `error CS0546: 'TestHubCallerContext.Items.set': cannot override because 'HubCallerContext.Items' does not have an overridable set accessor`
+- `CoreHubTests.cs`: `error CS0534: 'TestHubCallerContext' does not implement inherited abstract member 'HubCallerContext.Features.get'`
+    - Fix applied: test stub now exposes read-only `Items` backing store and implements `Features` with `FeatureCollection`.
+
+**Raw log snippets around authorization/event issues:**
+- No runtime service logs captured in unit tests (tests use `NullLogger<T>` or mocks); verification performed via behavior assertions.
+
+**Intentionally deferred items:**
+- Chat-specific client-to-server hub methods (`SendMessage`, `EditMessage`, `DeleteMessage`, `StartTyping`, `StopTyping`, `MarkRead`, `AddReaction`, `RemoveReaction`) remain pending.
+- Presence custom status message and `PresenceChangedEvent` cross-module event integration remain pending.
 
 ### Sprint A Kickoff - Phase 1.19.2 (Files API Integration Depth)
 

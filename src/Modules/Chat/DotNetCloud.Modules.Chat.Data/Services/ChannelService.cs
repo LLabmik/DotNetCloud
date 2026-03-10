@@ -18,12 +18,18 @@ internal sealed class ChannelService : IChannelService
 {
     private readonly ChatDbContext _db;
     private readonly IEventBus _eventBus;
+    private readonly IChatRealtimeService? _realtimeService;
     private readonly ILogger<ChannelService> _logger;
 
-    public ChannelService(ChatDbContext db, IEventBus eventBus, ILogger<ChannelService> logger)
+    public ChannelService(
+        ChatDbContext db,
+        IEventBus eventBus,
+        ILogger<ChannelService> logger,
+        IChatRealtimeService? realtimeService = null)
     {
         _db = db;
         _eventBus = eventBus;
+        _realtimeService = realtimeService;
         _logger = logger;
     }
 
@@ -77,6 +83,15 @@ internal sealed class ChannelService : IChannelService
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        if (_realtimeService is not null)
+        {
+            var memberIds = dto.MemberIds.Append(caller.UserId).Distinct();
+            foreach (var memberId in memberIds)
+            {
+                await _realtimeService.AddUserToChannelGroupAsync(memberId, channel.Id, cancellationToken);
+            }
+        }
 
         await _eventBus.PublishAsync(new ChannelCreatedEvent
         {
@@ -167,12 +182,27 @@ internal sealed class ChannelService : IChannelService
         var channel = await _db.Channels.FindAsync([channelId], cancellationToken)
             ?? throw new InvalidOperationException($"Channel {channelId} not found.");
 
+        var memberIds = await _db.ChannelMembers
+            .AsNoTracking()
+            .Where(m => m.ChannelId == channelId)
+            .Select(m => m.UserId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
         await EnsureCallerIsAdminOrOwnerAsync(channelId, caller, cancellationToken);
 
         channel.IsDeleted = true;
         channel.DeletedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        if (_realtimeService is not null)
+        {
+            foreach (var memberId in memberIds)
+            {
+                await _realtimeService.RemoveUserFromChannelGroupAsync(memberId, channelId, cancellationToken);
+            }
+        }
 
         await _eventBus.PublishAsync(new ChannelDeletedEvent
         {
@@ -239,6 +269,12 @@ internal sealed class ChannelService : IChannelService
         _db.ChannelMembers.Add(new ChannelMember { ChannelId = channel.Id, UserId = otherUserId, Role = ChannelMemberRole.Member });
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        if (_realtimeService is not null)
+        {
+            await _realtimeService.AddUserToChannelGroupAsync(caller.UserId, channel.Id, cancellationToken);
+            await _realtimeService.AddUserToChannelGroupAsync(otherUserId, channel.Id, cancellationToken);
+        }
 
         _logger.LogInformation("DM channel {ChannelId} created between {User1} and {User2}", channel.Id, caller.UserId, otherUserId);
 

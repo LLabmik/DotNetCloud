@@ -81,6 +81,8 @@ internal sealed class RealtimeBroadcasterService : IRealtimeBroadcaster
         if (string.IsNullOrWhiteSpace(group))
             throw new ArgumentException("Group name cannot be null or empty.", nameof(group));
 
+        _connectionTracker.AddGroupMembership(userId, group);
+
         var connections = _connectionTracker.GetConnections(userId);
 
         foreach (var connectionId in connections)
@@ -96,6 +98,8 @@ internal sealed class RealtimeBroadcasterService : IRealtimeBroadcaster
     {
         if (string.IsNullOrWhiteSpace(group))
             throw new ArgumentException("Group name cannot be null or empty.", nameof(group));
+
+        _connectionTracker.RemoveGroupMembership(userId, group);
 
         var connections = _connectionTracker.GetConnections(userId);
 

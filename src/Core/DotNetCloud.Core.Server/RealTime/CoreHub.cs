@@ -41,6 +41,12 @@ internal sealed class CoreHub : Hub
             "User {UserId} connected with connection {ConnectionId} (first: {IsFirst})",
             userId, connectionId, isFirstConnection);
 
+        var trackedGroups = _connectionTracker.GetGroups(userId);
+        foreach (var group in trackedGroups)
+        {
+            await Groups.AddToGroupAsync(connectionId, group);
+        }
+
         if (isFirstConnection)
         {
             await _presenceService.UserConnectedAsync(userId, connectionId);

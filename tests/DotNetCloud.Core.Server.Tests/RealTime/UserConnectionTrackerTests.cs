@@ -198,6 +198,43 @@ public class UserConnectionTrackerTests
     }
 
     [TestMethod]
+    public void WhenGroupMembershipAddedThenGetGroupsReturnsGroup()
+    {
+        var userId = Guid.NewGuid();
+
+        _tracker.AddGroupMembership(userId, "chat:channel-1");
+
+        var groups = _tracker.GetGroups(userId);
+        Assert.AreEqual(1, groups.Count);
+        CollectionAssert.Contains(groups.ToList(), "chat:channel-1");
+    }
+
+    [TestMethod]
+    public void WhenGroupMembershipRemovedThenGetGroupsReturnsEmpty()
+    {
+        var userId = Guid.NewGuid();
+        _tracker.AddGroupMembership(userId, "chat:channel-1");
+
+        _tracker.RemoveGroupMembership(userId, "chat:channel-1");
+
+        Assert.AreEqual(0, _tracker.GetGroups(userId).Count);
+    }
+
+    [TestMethod]
+    public void WhenUserGoesOfflineThenGroupMembershipIsRetained()
+    {
+        var userId = Guid.NewGuid();
+        _tracker.AddConnection(userId, "conn-1");
+        _tracker.AddGroupMembership(userId, "chat:channel-1");
+
+        _tracker.RemoveConnection("conn-1");
+
+        var groups = _tracker.GetGroups(userId);
+        Assert.AreEqual(1, groups.Count);
+        CollectionAssert.Contains(groups.ToList(), "chat:channel-1");
+    }
+
+    [TestMethod]
     public void WhenConnectionIdIsNullThenAddConnectionThrows()
     {
         Assert.ThrowsExactly<ArgumentNullException>(() =>
@@ -216,5 +253,19 @@ public class UserConnectionTrackerTests
     {
         Assert.ThrowsExactly<ArgumentNullException>(() =>
             _tracker.GetUserId(null!));
+    }
+
+    [TestMethod]
+    public void WhenGroupNameIsNullThenAddGroupMembershipThrows()
+    {
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
+            _tracker.AddGroupMembership(Guid.NewGuid(), null!));
+    }
+
+    [TestMethod]
+    public void WhenGroupNameIsNullThenRemoveGroupMembershipThrows()
+    {
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
+            _tracker.RemoveGroupMembership(Guid.NewGuid(), null!));
     }
 }

@@ -5,6 +5,7 @@ using DotNetCloud.Modules.Chat.Data;
 using DotNetCloud.Modules.Chat.Data.Services;
 using DotNetCloud.Modules.Chat.DTOs;
 using DotNetCloud.Modules.Chat.Models;
+using DotNetCloud.Modules.Chat.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -21,6 +22,7 @@ public class ChannelServiceTests
     private ChatDbContext _db = null!;
     private ChannelService _service = null!;
     private Mock<IEventBus> _eventBusMock = null!;
+    private Mock<IChatRealtimeService> _realtimeMock = null!;
     private CallerContext _caller = null!;
 
     [TestInitialize]
@@ -31,7 +33,8 @@ public class ChannelServiceTests
             .Options;
         _db = new ChatDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
-        _service = new ChannelService(_db, _eventBusMock.Object, NullLogger<ChannelService>.Instance);
+        _realtimeMock = new Mock<IChatRealtimeService>();
+        _service = new ChannelService(_db, _eventBusMock.Object, NullLogger<ChannelService>.Instance, _realtimeMock.Object);
         _caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
     }
 
@@ -191,6 +194,36 @@ public class ChannelServiceTests
         var result = await _service.CreateChannelAsync(dto, _caller);
 
         Assert.AreEqual(2, result.MemberCount);
+
+        _realtimeMock.Verify(
+            r => r.AddUserToChannelGroupAsync(_caller.UserId, result.Id, It.IsAny<CancellationToken>()),
+            Times.Once);
+        _realtimeMock.Verify(
+            r => r.AddUserToChannelGroupAsync(memberId, result.Id, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public async Task WhenDeleteChannelThenRealtimeGroupMembershipIsRemovedForAllMembers()
+    {
+        var memberId = Guid.NewGuid();
+        var dto = new CreateChannelDto
+        {
+            Name = "group-delete",
+            Type = "Private",
+            MemberIds = [memberId]
+        };
+
+        var created = await _service.CreateChannelAsync(dto, _caller);
+
+        await _service.DeleteChannelAsync(created.Id, _caller);
+
+        _realtimeMock.Verify(
+            r => r.RemoveUserFromChannelGroupAsync(_caller.UserId, created.Id, It.IsAny<CancellationToken>()),
+            Times.Once);
+        _realtimeMock.Verify(
+            r => r.RemoveUserFromChannelGroupAsync(memberId, created.Id, It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [TestMethod]

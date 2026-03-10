@@ -10,6 +10,7 @@ internal sealed class UserConnectionTracker
 {
     private readonly ConcurrentDictionary<Guid, HashSet<string>> _userConnections = new();
     private readonly ConcurrentDictionary<string, Guid> _connectionToUser = new();
+    private readonly ConcurrentDictionary<Guid, HashSet<string>> _userGroups = new();
     private readonly object _lock = new();
 
     /// <summary>
@@ -137,5 +138,69 @@ internal sealed class UserConnectionTracker
     public int GetOnlineUserCount()
     {
         return _userConnections.Count;
+    }
+
+    /// <summary>
+    /// Adds a persistent group membership for the specified user.
+    /// Membership is retained while offline and re-applied on reconnect.
+    /// </summary>
+    /// <param name="userId">The user ID.</param>
+    /// <param name="groupName">The SignalR group name.</param>
+    public void AddGroupMembership(Guid userId, string groupName)
+    {
+        ArgumentNullException.ThrowIfNull(groupName);
+
+        lock (_lock)
+        {
+            if (_userGroups.TryGetValue(userId, out var groups))
+            {
+                groups.Add(groupName);
+                return;
+            }
+
+            _userGroups[userId] = [groupName];
+        }
+    }
+
+    /// <summary>
+    /// Removes a persistent group membership for the specified user.
+    /// </summary>
+    /// <param name="userId">The user ID.</param>
+    /// <param name="groupName">The SignalR group name.</param>
+    public void RemoveGroupMembership(Guid userId, string groupName)
+    {
+        ArgumentNullException.ThrowIfNull(groupName);
+
+        lock (_lock)
+        {
+            if (!_userGroups.TryGetValue(userId, out var groups))
+            {
+                return;
+            }
+
+            groups.Remove(groupName);
+            if (groups.Count == 0)
+            {
+                _userGroups.TryRemove(userId, out _);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets the persistent group memberships for a user.
+    /// </summary>
+    /// <param name="userId">The user ID.</param>
+    /// <returns>The user group names, or an empty list when none are tracked.</returns>
+    public IReadOnlyList<string> GetGroups(Guid userId)
+    {
+        lock (_lock)
+        {
+            if (_userGroups.TryGetValue(userId, out var groups))
+            {
+                return [.. groups];
+            }
+
+            return [];
+        }
     }
 }
