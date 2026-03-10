@@ -728,7 +728,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 **Owner:** Server (`mint22`)  
 **Status:** completed ✅ (incremental phase-2.8 scope)
 
-**Commit hash:** `TBD`
+**Commit hash:** `0f7ca2b`
 
 **Files added/updated:**
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ViewModels.cs`
