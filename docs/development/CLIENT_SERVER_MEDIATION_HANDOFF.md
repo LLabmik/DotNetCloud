@@ -897,7 +897,7 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 **Owner:** Server (`mint22`)  
 **Status:** completed ✅ (server-only hardening scope)
 
-**Commit hash:** `TBD`
+**Commit hash:** `1d5730b`
 
 **Files added/updated:**
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/PushProviderOptions.cs` (new)
