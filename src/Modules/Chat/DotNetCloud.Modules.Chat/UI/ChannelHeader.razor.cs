@@ -19,6 +19,22 @@ public partial class ChannelHeader : ComponentBase
     [Parameter]
     public EventCallback OnSearch { get; set; }
 
+    /// <summary>Callback to open edit-channel flow.</summary>
+    [Parameter]
+    public EventCallback<ChannelViewModel> OnEditChannel { get; set; }
+
+    /// <summary>Callback to archive the current channel.</summary>
+    [Parameter]
+    public EventCallback<ChannelViewModel> OnArchiveChannel { get; set; }
+
+    /// <summary>Callback to leave the current channel.</summary>
+    [Parameter]
+    public EventCallback<ChannelViewModel> OnLeaveChannel { get; set; }
+
+    /// <summary>Callback when channel pin state changes.</summary>
+    [Parameter]
+    public EventCallback<(Guid ChannelId, bool IsPinned)> OnPinChanged { get; set; }
+
     /// <summary>Toggles the member list panel.</summary>
     protected async Task ToggleMemberList()
     {
@@ -29,5 +45,44 @@ public partial class ChannelHeader : ComponentBase
     protected async Task OnSearchClick()
     {
         await OnSearch.InvokeAsync();
+    }
+
+    /// <summary>Handles edit button click.</summary>
+    protected async Task OnEditClick()
+    {
+        if (Channel is not null)
+        {
+            await OnEditChannel.InvokeAsync(Channel);
+        }
+    }
+
+    /// <summary>Handles archive button click.</summary>
+    protected async Task OnArchiveClick()
+    {
+        if (Channel is not null)
+        {
+            await OnArchiveChannel.InvokeAsync(Channel);
+        }
+    }
+
+    /// <summary>Handles leave button click.</summary>
+    protected async Task OnLeaveClick()
+    {
+        if (Channel is not null)
+        {
+            await OnLeaveChannel.InvokeAsync(Channel);
+        }
+    }
+
+    /// <summary>Toggles pin state and raises callback.</summary>
+    protected async Task OnTogglePinClick()
+    {
+        if (Channel is null)
+        {
+            return;
+        }
+
+        Channel.IsPinned = !Channel.IsPinned;
+        await OnPinChanged.InvokeAsync((Channel.Id, Channel.IsPinned));
     }
 }

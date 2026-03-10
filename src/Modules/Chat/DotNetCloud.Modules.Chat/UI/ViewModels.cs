@@ -31,6 +31,11 @@ public sealed class ChannelViewModel
     /// </summary>
     public string PresenceStatus { get; set; } = "Offline";
 
+    /// <summary>
+    /// Whether the channel is pinned in the sidebar.
+    /// </summary>
+    public bool IsPinned { get; set; }
+
     /// <summary>Last activity timestamp.</summary>
     public DateTime? LastActivityAt { get; init; }
 

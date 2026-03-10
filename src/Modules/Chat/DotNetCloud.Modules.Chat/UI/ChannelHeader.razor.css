@@ -1,0 +1,6 @@
+.chat-channel-header .channel-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}

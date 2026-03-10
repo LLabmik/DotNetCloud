@@ -19,6 +19,18 @@
 
         <div class="channel-actions">
             <span class="member-count" title="Members">👥 @Channel.MemberCount</span>
+            <button class="btn btn-sm" @onclick="OnTogglePinClick" title="@(Channel.IsPinned ? "Unpin channel" : "Pin channel")">
+                @(Channel.IsPinned ? "Unpin" : "Pin")
+            </button>
+            <button class="btn btn-sm" @onclick="OnEditClick" title="Edit channel">
+                Edit
+            </button>
+            <button class="btn btn-sm" @onclick="OnArchiveClick" title="Archive channel">
+                Archive
+            </button>
+            <button class="btn btn-sm btn-danger" @onclick="OnLeaveClick" title="Leave channel">
+                Leave
+            </button>
             <button class="btn btn-sm" @onclick="ToggleMemberList" title="Toggle member list">
                 Members
             </button>

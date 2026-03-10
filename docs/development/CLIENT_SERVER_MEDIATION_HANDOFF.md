@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-10 (Phase 2.8 channel presence indicator update posted)
+Last updated: 2026-03-10 (Phase 2.8 channel header actions update posted)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -763,6 +763,48 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 **Intentionally deferred items:**
 - Channel drag-to-reorder.
 - Additional phase-2.8 chat UI components and behaviors pending in checklist.
+
+### Phase 2.8 Update #2 - Channel Header Action Controls (Server, mint22)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`mint22`)  
+**Status:** completed ✅ (incremental phase-2.8 scope)
+
+**Commit hash:** `TBD`
+
+**Files added/updated:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ViewModels.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelHeader.razor`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelHeader.razor.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelHeader.razor.css` (new)
+- `docs/IMPLEMENTATION_CHECKLIST.md`
+- `docs/MASTER_PROJECT_PLAN.md`
+- `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
+
+**Implemented in this update:**
+1. Added channel action controls in `ChannelHeader.razor`: edit, archive, leave, and pin/unpin.
+2. Added callback surface in `ChannelHeader.razor.cs` for action events (`OnEditChannel`, `OnArchiveChannel`, `OnLeaveChannel`, `OnPinChanged`).
+3. Added `IsPinned` state to `ChannelViewModel` for UI-level pin toggling.
+4. Added scoped styling in `ChannelHeader.razor.css` for action button layout.
+
+**Tests added/updated:**
+- No new unit tests (UI-only action-surface enhancement).
+
+**Verification commands and results:**
+- `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
+    - Result: total 226, succeeded 226, failed 0, skipped 0
+- `dotnet build`
+    - Result: succeeded (full solution)
+
+**Raw failing assertion/error text seen during iteration (fixed):**
+- None.
+
+**Raw log snippets around authorization/event issues:**
+- N/A (UI-only change).
+
+**Intentionally deferred items:**
+- Channel drag-to-reorder.
+- Remaining phase-2.8 UI behavior and component items in checklist.
 
 ### Sprint A Kickoff - Phase 1.19.2 (Files API Integration Depth)
 

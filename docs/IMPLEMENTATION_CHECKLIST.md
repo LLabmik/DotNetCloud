@@ -3138,7 +3138,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 #### Channel Header Component
 - ✓ Create `ChannelHeader.razor`:
   - ✓ Display channel name, topic, and member count
-  - [ ] Show channel actions (edit, archive, leave, pin/unpin)
+  - ✓ Show channel actions (edit, archive, leave, pin/unpin)
   - ✓ Display member list toggle button
   - ✓ Show search button for in-channel search
 
