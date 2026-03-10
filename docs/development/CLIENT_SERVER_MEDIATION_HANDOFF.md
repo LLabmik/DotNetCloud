@@ -152,8 +152,8 @@ Required coverage:
 ### Server Progress Checklist
 - ✓ Test-gap inventory posted
 - ✓ New REST integration tests added
-- ☐ New chunked upload E2E tests added
-- ☐ New version/share/trash E2E tests added
+- ✓ New chunked upload E2E tests added
+- ✓ New version/share/trash E2E tests added
 - ✓ WOPI + sync smoke tests added
 - ☐ PostgreSQL run completed
 - ☐ SQL Server run attempted/documented
@@ -194,6 +194,34 @@ Required coverage:
 - Chunked upload E2E depth (resume/dedup/quota permutations beyond isolation path)
 - Version/share/trash end-to-end depth expansion
 - PostgreSQL and SQL Server matrix execution notes for new tests
+
+### Sprint A Update #3 - Deeper Files REST E2E Coverage (Server)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`mint22`)  
+**Status:** in-progress ☐
+
+**Completed in this update:**
+- Added deeper Files REST integration tests in `tests/DotNetCloud.Integration.Tests/Api/FilesRestIsolationIntegrationTests.cs`:
+    - `UploadInitiation_ReportsExistingChunks_ForDedup`
+    - `ShareLifecycle_CreateUpdateRevoke_WorksForOwner`
+    - `VersionEndpoints_ListGetAndLabel_WorkForUploadedFile`
+    - `TrashLifecycle_ListSizeAndPurge_WorksForOwner`
+- Expanded response-shape unwrapping helper in the same file to handle nested `data` envelopes.
+
+**Test evidence (local run on mint22):**
+- Command:
+    - `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~FilesRestIsolationIntegrationTests"`
+- Result:
+    - total: 11, failed: 0, succeeded: 11, skipped: 0
+
+- Command:
+    - `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~Files"`
+- Result:
+    - total: 14, failed: 0, succeeded: 14, skipped: 0
+
+**Remaining Sprint A gaps:**
+- Provider matrix execution notes for the expanded suite (PostgreSQL required, SQL Server if available).
 
 ---
 

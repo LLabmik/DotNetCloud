@@ -16,10 +16,15 @@ public class FilesRestIsolationIntegrationTests
 
     private static System.Text.Json.JsonElement DataOrRoot(System.Text.Json.JsonElement root)
     {
-        return root.ValueKind == System.Text.Json.JsonValueKind.Object &&
-               root.TryGetProperty("data", out var data)
-            ? data
-            : root;
+        var current = root;
+
+        while (current.ValueKind == System.Text.Json.JsonValueKind.Object &&
+               current.TryGetProperty("data", out var nested))
+        {
+            current = nested;
+        }
+
+        return current;
     }
 
     [ClassInitialize]
@@ -272,5 +277,185 @@ public class FilesRestIsolationIntegrationTests
         var supportsData = DataOrRoot(supportsRoot);
         Assert.AreEqual("docx", supportsData.GetProperty("extension").GetString());
         Assert.IsTrue(supportsData.TryGetProperty("supported", out _));
+    }
+
+    [TestMethod]
+    public async Task UploadInitiation_ReportsExistingChunks_ForDedup()
+    {
+        var userId = Guid.NewGuid();
+        using var client = _factory.CreateAuthenticatedApiClient(userId);
+
+        var payload = new byte[] { 1, 2, 3, 4, 5, 6 };
+        var chunkHash = DotNetCloud.Modules.Files.Services.ContentHasher.ComputeHash(payload);
+
+        var firstInitiate = await client.PostAsJsonAsync(
+            "/api/v1/files/upload/initiate",
+            new InitiateUploadDto
+            {
+                FileName = "dedup-a.bin",
+                TotalSize = payload.Length,
+                MimeType = "application/octet-stream",
+                ChunkHashes = [chunkHash]
+            });
+        var firstInitiateRoot = await ApiAssert.SuccessAsync(firstInitiate, HttpStatusCode.Created);
+        var firstSessionId = DataOrRoot(firstInitiateRoot).GetProperty("sessionId").GetGuid();
+
+        using var firstChunkContent = new ByteArrayContent(payload);
+        var firstChunkUpload = await client.PutAsync($"/api/v1/files/upload/{firstSessionId}/chunks/{chunkHash}", firstChunkContent);
+        await ApiAssert.SuccessAsync(firstChunkUpload, HttpStatusCode.OK);
+
+        var firstComplete = await client.PostAsync($"/api/v1/files/upload/{firstSessionId}/complete", content: null);
+        await ApiAssert.SuccessAsync(firstComplete, HttpStatusCode.OK);
+
+        var secondInitiate = await client.PostAsJsonAsync(
+            "/api/v1/files/upload/initiate",
+            new InitiateUploadDto
+            {
+                FileName = "dedup-b.bin",
+                TotalSize = payload.Length,
+                MimeType = "application/octet-stream",
+                ChunkHashes = [chunkHash]
+            });
+        var secondInitiateRoot = await ApiAssert.SuccessAsync(secondInitiate, HttpStatusCode.Created);
+        var secondData = DataOrRoot(secondInitiateRoot);
+
+        var existingChunks = secondData.GetProperty("existingChunks");
+        var missingChunks = secondData.GetProperty("missingChunks");
+
+        Assert.IsTrue(existingChunks.ValueKind == System.Text.Json.JsonValueKind.Array);
+        Assert.IsTrue(existingChunks.EnumerateArray().Any(v =>
+            string.Equals(v.GetString(), chunkHash, StringComparison.OrdinalIgnoreCase)));
+        Assert.AreEqual(0, missingChunks.GetArrayLength());
+    }
+
+    [TestMethod]
+    public async Task ShareLifecycle_CreateUpdateRevoke_WorksForOwner()
+    {
+        var userId = Guid.NewGuid();
+        using var client = _factory.CreateAuthenticatedApiClient(userId);
+
+        var createFolderResponse = await client.PostAsJsonAsync(
+            "/api/v1/files/folders",
+            new CreateFolderDto { Name = "share-lifecycle" });
+        var folderRoot = await ApiAssert.SuccessAsync(createFolderResponse, HttpStatusCode.Created);
+        var nodeId = DataOrRoot(folderRoot).GetProperty("id").GetGuid();
+
+        var createShareResponse = await client.PostAsJsonAsync(
+            $"/api/v1/files/{nodeId}/shares?userId={userId}",
+            new CreateShareDto
+            {
+                ShareType = "PublicLink",
+                Permission = "Read"
+            });
+        var createShareRoot = await ApiAssert.SuccessAsync(createShareResponse, HttpStatusCode.Created);
+        var shareId = DataOrRoot(createShareRoot).GetProperty("id").GetGuid();
+
+        var updateShareResponse = await client.PutAsJsonAsync(
+            $"/api/v1/files/{nodeId}/shares/{shareId}?userId={userId}",
+            new UpdateShareDto
+            {
+                Permission = "ReadWrite",
+                Note = "updated via integration"
+            });
+        var updatedShareRoot = await ApiAssert.SuccessAsync(updateShareResponse, HttpStatusCode.OK);
+        var updatedShare = DataOrRoot(updatedShareRoot);
+        Assert.AreEqual("ReadWrite", updatedShare.GetProperty("permission").GetString());
+
+        var listSharesResponse = await client.GetAsync($"/api/v1/files/{nodeId}/shares?userId={userId}");
+        var listSharesRoot = await ApiAssert.SuccessAsync(listSharesResponse, HttpStatusCode.OK);
+        var shares = DataOrRoot(listSharesRoot);
+        Assert.IsTrue(shares.ValueKind == System.Text.Json.JsonValueKind.Array);
+        Assert.IsTrue(shares.EnumerateArray().Any(s => s.GetProperty("id").GetGuid() == shareId));
+
+        var revokeShareResponse = await client.DeleteAsync($"/api/v1/files/{nodeId}/shares/{shareId}?userId={userId}");
+        await ApiAssert.SuccessAsync(revokeShareResponse, HttpStatusCode.OK);
+
+        var listAfterRevokeResponse = await client.GetAsync($"/api/v1/files/{nodeId}/shares?userId={userId}");
+        var listAfterRevokeRoot = await ApiAssert.SuccessAsync(listAfterRevokeResponse, HttpStatusCode.OK);
+        var sharesAfterRevoke = DataOrRoot(listAfterRevokeRoot);
+        Assert.IsTrue(sharesAfterRevoke.ValueKind == System.Text.Json.JsonValueKind.Array);
+        Assert.IsFalse(sharesAfterRevoke.EnumerateArray().Any(s => s.GetProperty("id").GetGuid() == shareId));
+    }
+
+    [TestMethod]
+    public async Task VersionEndpoints_ListGetAndLabel_WorkForUploadedFile()
+    {
+        var userId = Guid.NewGuid();
+        using var client = _factory.CreateAuthenticatedApiClient(userId);
+
+        var payload = new byte[] { 21, 22, 23, 24 };
+        var chunkHash = DotNetCloud.Modules.Files.Services.ContentHasher.ComputeHash(payload);
+
+        var initiateResponse = await client.PostAsJsonAsync(
+            "/api/v1/files/upload/initiate",
+            new InitiateUploadDto
+            {
+                FileName = "versioned.txt",
+                TotalSize = payload.Length,
+                MimeType = "text/plain",
+                ChunkHashes = [chunkHash]
+            });
+        var initiateRoot = await ApiAssert.SuccessAsync(initiateResponse, HttpStatusCode.Created);
+        var sessionId = DataOrRoot(initiateRoot).GetProperty("sessionId").GetGuid();
+
+        using var chunkContent = new ByteArrayContent(payload);
+        var uploadChunkResponse = await client.PutAsync($"/api/v1/files/upload/{sessionId}/chunks/{chunkHash}", chunkContent);
+        await ApiAssert.SuccessAsync(uploadChunkResponse, HttpStatusCode.OK);
+
+        var completeResponse = await client.PostAsync($"/api/v1/files/upload/{sessionId}/complete", content: null);
+        var completeRoot = await ApiAssert.SuccessAsync(completeResponse, HttpStatusCode.OK);
+        var nodeId = DataOrRoot(completeRoot).GetProperty("id").GetGuid();
+
+        var listVersionsResponse = await client.GetAsync($"/api/v1/files/{nodeId}/versions?userId={userId}");
+        var listVersionsRoot = await ApiAssert.SuccessAsync(listVersionsResponse, HttpStatusCode.OK);
+        var versions = DataOrRoot(listVersionsRoot);
+        Assert.IsTrue(versions.ValueKind == System.Text.Json.JsonValueKind.Array);
+        Assert.IsTrue(versions.GetArrayLength() >= 1);
+
+        var getVersionResponse = await client.GetAsync($"/api/v1/files/{nodeId}/versions/1?userId={userId}");
+        var getVersionRoot = await ApiAssert.SuccessAsync(getVersionResponse, HttpStatusCode.OK);
+        var versionOne = DataOrRoot(getVersionRoot);
+        Assert.AreEqual(1, versionOne.GetProperty("versionNumber").GetInt32());
+
+        var labelResponse = await client.PutAsJsonAsync(
+            $"/api/v1/files/{nodeId}/versions/1/label?userId={userId}",
+            new LabelVersionDto { Label = "baseline" });
+        var labelRoot = await ApiAssert.SuccessAsync(labelResponse, HttpStatusCode.OK);
+        var labeledVersion = DataOrRoot(labelRoot);
+        Assert.AreEqual("baseline", labeledVersion.GetProperty("label").GetString());
+    }
+
+    [TestMethod]
+    public async Task TrashLifecycle_ListSizeAndPurge_WorksForOwner()
+    {
+        var userId = Guid.NewGuid();
+        using var client = _factory.CreateAuthenticatedApiClient(userId);
+
+        var createResponse = await client.PostAsJsonAsync(
+            "/api/v1/files/folders",
+            new CreateFolderDto { Name = "trash-target" });
+        var createRoot = await ApiAssert.SuccessAsync(createResponse, HttpStatusCode.Created);
+        var nodeId = DataOrRoot(createRoot).GetProperty("id").GetGuid();
+
+        var deleteResponse = await client.DeleteAsync($"/api/v1/files/{nodeId}");
+        await ApiAssert.SuccessAsync(deleteResponse, HttpStatusCode.OK);
+
+        var listTrashResponse = await client.GetAsync($"/api/v1/files/trash?userId={userId}");
+        var listTrashRoot = await ApiAssert.SuccessAsync(listTrashResponse, HttpStatusCode.OK);
+        var trashItems = DataOrRoot(listTrashRoot);
+        Assert.IsTrue(trashItems.ValueKind == System.Text.Json.JsonValueKind.Array);
+
+        var trashSizeResponse = await client.GetAsync($"/api/v1/files/trash/size?userId={userId}");
+        var trashSizeRoot = await ApiAssert.SuccessAsync(trashSizeResponse, HttpStatusCode.OK);
+        var trashSizeData = DataOrRoot(trashSizeRoot);
+        Assert.IsTrue(trashSizeData.TryGetProperty("sizeBytes", out _));
+
+        var purgeResponse = await client.DeleteAsync($"/api/v1/files/trash/{nodeId}?userId={userId}");
+        await ApiAssert.SuccessAsync(purgeResponse, HttpStatusCode.OK);
+
+        var restoreAfterPurgeResponse = await client.PostAsync(
+            $"/api/v1/files/trash/{nodeId}/restore?userId={userId}",
+            content: null);
+        await ApiAssert.ErrorAsync(restoreAfterPurgeResponse, HttpStatusCode.NotFound);
     }
 }
