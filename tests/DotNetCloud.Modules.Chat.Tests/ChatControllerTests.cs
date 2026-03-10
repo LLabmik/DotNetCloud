@@ -6,6 +6,7 @@ using DotNetCloud.Modules.Chat.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using System.Text.Json;
 
 namespace DotNetCloud.Modules.Chat.Tests;
 
@@ -101,5 +102,65 @@ public class ChatControllerTests
         var result = await _controller.GetPinnedMessagesAsync(Guid.NewGuid(), Guid.NewGuid());
 
         Assert.IsInstanceOfType<NotFoundObjectResult>(result);
+    }
+
+    [TestMethod]
+    public async Task AddReactionAsync_WhenSuccessful_ThenReturnsEnvelopeWithAddedFlag()
+    {
+        _reactionService
+            .Setup(s => s.AddReactionAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var result = await _controller.AddReactionAsync(Guid.NewGuid(), new AddReactionDto { Emoji = "👍" }, Guid.NewGuid());
+
+        var ok = result as OkObjectResult;
+        Assert.IsNotNull(ok);
+
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
+        Assert.IsTrue(doc.RootElement.GetProperty("success").GetBoolean());
+        Assert.IsTrue(doc.RootElement.GetProperty("data").GetProperty("added").GetBoolean());
+    }
+
+    [TestMethod]
+    public async Task RemoveReactionAsync_WhenMessageMissing_ThenReturnsNotFound()
+    {
+        _reactionService
+            .Setup(s => s.RemoveReactionAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Message not found."));
+
+        var result = await _controller.RemoveReactionAsync(Guid.NewGuid(), "👍", Guid.NewGuid());
+
+        Assert.IsInstanceOfType<NotFoundObjectResult>(result);
+    }
+
+    [TestMethod]
+    public async Task MarkAsReadAsync_WhenUnauthorized_ThenReturnsForbidResult()
+    {
+        _memberService
+            .Setup(s => s.MarkAsReadAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new UnauthorizedAccessException("forbidden"));
+
+        var result = await _controller.MarkAsReadAsync(Guid.NewGuid(), new MarkReadDto { MessageId = Guid.NewGuid() }, Guid.NewGuid());
+
+        Assert.IsInstanceOfType<ForbidResult>(result);
+    }
+
+    [TestMethod]
+    public async Task GetUnreadCountsAsync_WhenSuccessful_ThenReturnsEnvelope()
+    {
+        _memberService
+            .Setup(s => s.GetUnreadCountsAsync(It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                new UnreadCountDto { ChannelId = Guid.NewGuid(), UnreadCount = 3, MentionCount = 1 }
+            ]);
+
+        var result = await _controller.GetUnreadCountsAsync(Guid.NewGuid());
+
+        var ok = result as OkObjectResult;
+        Assert.IsNotNull(ok);
+
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
+        Assert.IsTrue(doc.RootElement.GetProperty("success").GetBoolean());
+        Assert.AreEqual(1, doc.RootElement.GetProperty("data").GetArrayLength());
     }
 }

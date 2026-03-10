@@ -250,6 +250,47 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 - Full phase-2.4 completion criteria (controller decomposition decision and endpoint-level integration/API verification) remain open.
 - No phase-2.5 implementation started in this update.
 
+### Phase 2.4 Update #2 - Endpoint Completion + API Verification (Server, Linux workspace)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`Linux workspace`)  
+**Status:** completed ✅
+
+**Commit hash:** pending local commit in this workspace (to be filled after commit)
+
+**Files added/updated:**
+- `tests/DotNetCloud.Modules.Chat.Tests/ChatControllerTests.cs`
+- `docs/IMPLEMENTATION_CHECKLIST.md`
+- `docs/MASTER_PROJECT_PLAN.md`
+- `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
+
+**Implemented in this update:**
+1. Added API verification coverage for success-envelope and denial-path status behavior in `ChatControllerTests`.
+2. Verified endpoint completion criteria for phase-2.4 using consolidated `ChatController` scope (functional equivalent to split-controller task list).
+3. Updated phase tracking artifacts to mark phase-2.4 completed and set next target to phase-2.5.
+
+**Tests added/updated:**
+- `tests/DotNetCloud.Modules.Chat.Tests/ChatControllerTests.cs`
+    - `AddReactionAsync_WhenSuccessful_ThenReturnsEnvelopeWithAddedFlag`
+    - `RemoveReactionAsync_WhenMessageMissing_ThenReturnsNotFound`
+    - `MarkAsReadAsync_WhenUnauthorized_ThenReturnsForbidResult`
+    - `GetUnreadCountsAsync_WhenSuccessful_ThenReturnsEnvelope`
+
+**Verification commands and results:**
+- `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
+    - Result: total 206, succeeded 206, failed 0, skipped 0
+- `dotnet build`
+    - Result: succeeded (full solution)
+
+**Raw failing assertion/error text:**
+- None in this update.
+
+**Raw log snippets around authorization/event issues:**
+- No runtime log-line capture in controller unit tests (mocked services + status code and envelope assertions).
+
+**Intentionally deferred items:**
+- No phase-2.5 implementation started in this update.
+
 ### Sprint A Kickoff - Phase 1.19.2 (Files API Integration Depth)
 
 **Sprint goal:** Complete `phase-1.19.2` by expanding Files API integration tests beyond isolation paths.

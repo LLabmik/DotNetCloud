@@ -2958,6 +2958,9 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ `POST /api/v1/chat/channels/{channelId}/messages/{messageId}/attachments` — Attach file to message
 - ✓ `GET /api/v1/chat/channels/{channelId}/files` — List files shared in channel
 
+#### API Verification
+- ✓ Add controller/API verification tests for response envelope and deterministic denial-path status mapping
+
 ---
 
 ## Phase 2.5: SignalR Real-Time Chat Integration
