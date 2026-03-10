@@ -2274,7 +2274,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Retry failed operations with exponential backoff
 - ✓ Handle network disconnection gracefully (queue changes, retry on reconnect)
 - ✓ Handle server errors (5xx — retry; 4xx — log and skip)
-- ☐ Handle disk full conditions (pause sync, notify user) — requires catching `IOException` with `HResult == 0x70` (ERROR_DISK_FULL) and surfacing it as a `SyncError` IPC event; deferred until SyncTray notification UI exists to display it
+- ✓ Handle disk full conditions (pause sync, notify user) — `SyncEngine` now detects disk-full IO failures (`0x80070070` + OS-specific ENOSPC text), pauses further sync attempts, and emits a `SyncState.Error`/`LastError` surfaced via existing SyncTray `sync-error` notifications
 - ✓ Log all sync activity with structured logging
 
 ---

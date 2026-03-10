@@ -178,6 +178,32 @@ public class SyncEngineTests
             It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [TestMethod]
+    public async Task SyncAsync_DiskFullError_SetsErrorAndPausesFurtherSyncAttempts()
+    {
+        _stateDbMock
+            .Setup(db => db.UpdateCheckpointAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new DiskFullIOException());
+
+        await _engine.StartAsync(_context);
+        await _engine.SyncAsync(_context);
+
+        var statusAfterError = await _engine.GetStatusAsync(_context);
+        Assert.AreEqual(SyncState.Error, statusAfterError.State);
+        Assert.IsNotNull(statusAfterError.LastError);
+        StringAssert.Contains(statusAfterError.LastError, "Disk full");
+
+        _stateDbMock.Invocations.Clear();
+        await _engine.SyncAsync(_context);
+
+        _stateDbMock.Verify(db => db.UpdateCheckpointAsync(
+            It.IsAny<string>(),
+            It.IsAny<DateTime>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+
+        await _engine.StopAsync();
+    }
+
     // ── StatusChanged event ─────────────────────────────────────────────────
 
     [TestMethod]
@@ -920,6 +946,15 @@ public class SyncEngineTests
         Assert.IsNotNull(status, "Engine should report status after start.");
 
         await _engine.StopAsync();
+    }
+
+    private sealed class DiskFullIOException : IOException
+    {
+        public DiskFullIOException()
+            : base("There is not enough space on the disk.")
+        {
+            HResult = unchecked((int)0x80070070);
+        }
     }
 }
 

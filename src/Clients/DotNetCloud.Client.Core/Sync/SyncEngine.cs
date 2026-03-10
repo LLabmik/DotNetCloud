@@ -18,6 +18,8 @@ namespace DotNetCloud.Client.Core.Sync;
 /// </summary>
 public sealed class SyncEngine : ISyncEngine
 {
+    private const int DiskFullHResult = unchecked((int)0x80070070);
+
     private readonly IDotNetCloudApiClient _api;
     private readonly ITokenStore _tokenStore;
     private readonly IChunkedTransferClient _transfer;
@@ -167,8 +169,25 @@ public sealed class SyncEngine : ISyncEngine
         catch (Exception ex)
         {
             syncTimer.Stop();
-            _logger.LogError(ex, "Sync error for context {ContextId}.", context.Id);
-            _lastError = ex.Message;
+            if (IsDiskFullException(ex))
+            {
+                _logger.LogError(ex,
+                    "Disk full while syncing context {ContextId}. Pausing sync until user intervention.",
+                    context.Id);
+
+                // Prevent repeated failing sync passes until the user resolves disk pressure.
+                _paused = true;
+                if (_watcher is not null)
+                    _watcher.EnableRaisingEvents = false;
+
+                _lastError = "Disk full: local storage is out of space. Free disk space, then resume sync.";
+            }
+            else
+            {
+                _logger.LogError(ex, "Sync error for context {ContextId}.", context.Id);
+                _lastError = ex.Message;
+            }
+
             SetState(SyncState.Error, context);
         }
         finally
@@ -176,6 +195,22 @@ public sealed class SyncEngine : ISyncEngine
             _lockedFileReader.ReleaseSnapshot();
             _syncLock.Release();
         }
+    }
+
+    private static bool IsDiskFullException(Exception ex)
+    {
+        if (ex is IOException ioEx)
+        {
+            if (ioEx.HResult == DiskFullHResult)
+                return true;
+
+            if (ioEx.Message.Contains("No space left on device", StringComparison.OrdinalIgnoreCase)
+                || ioEx.Message.Contains("There is not enough space on the disk", StringComparison.OrdinalIgnoreCase)
+                || ioEx.Message.Contains("disk full", StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return ex.InnerException is not null && IsDiskFullException(ex.InnerException);
     }
 
     /// <inheritdoc/>

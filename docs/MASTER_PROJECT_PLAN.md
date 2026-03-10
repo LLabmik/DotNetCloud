@@ -3040,11 +3040,11 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ☐ Windows user impersonation — needs `WindowsIdentity.RunImpersonated` + token from SyncTray; deferred with privilege work
 - ✓ Caller identity verification in IPC — named-pipe callers are identified via transport impersonation identity; unavailable identities are denied
 - ✓ Rate-limit / debounce sync triggers — `sync-now` now returns `started=false, reason=rate-limited` during cooldown
-- ☐ Disk full detection — needs `IOException` HResult check + SyncTray notification UI to surface it; deferred to Phase 1.16
+- ✓ Disk full detection — `SyncEngine` now detects disk-full IO failures (`0x80070070` + OS-specific ENOSPC text), pauses further sync attempts, and surfaces `SyncState.Error`/`LastError` through existing SyncTray error notifications
 
 **Dependencies:** Phase 1.14 (Client.Core — Shared Sync Engine)
 **Blocking Issues:** None
-**Notes:** Phase 1.15 hardening advanced to 22/25 checklist items implemented. IPC commands now enforce caller identity, restrict context-scoped operations to owner-matching contexts, and filter push events to caller-owned contexts. `sync-now` now applies a cooldown and returns deterministic no-op semantics (`started=false`, `reason=rate-limited`) when throttled. Windows named-pipe identity is resolved from transport impersonation (`GetImpersonationUserName`); Unix socket callers are denied identity-bound commands when caller identity is unavailable. Remaining deferred items: Linux privilege dropping, Windows impersonation execution boundary, and explicit disk-full handling path. SyncService tests now pass (27/27).
+**Notes:** Phase 1.15 hardening advanced to 23/25 checklist items implemented. IPC commands now enforce caller identity, restrict context-scoped operations to owner-matching contexts, and filter push events to caller-owned contexts. `sync-now` now applies a cooldown and returns deterministic no-op semantics (`started=false`, `reason=rate-limited`) when throttled. Windows named-pipe identity is resolved from transport impersonation (`GetImpersonationUserName`); Unix socket callers are denied identity-bound commands when caller identity is unavailable. Disk-full failures are now explicitly detected and surfaced as sync errors while pausing further sync attempts until manual resume. Remaining deferred items: Linux privilege dropping and Windows impersonation execution boundary. SyncService tests now pass (27/27) and Client.Core disk-full regression test passes.
 
 ---
 

@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-10 (Sprint A completed; Sprint B kickoff prepared with IPC identity boundary semantics)
+Last updated: 2026-03-10 (Sprint B update #2: disk-full detection + SyncError surfacing added)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -386,6 +386,38 @@ Required work focus:
 - Linux per-context privilege drop (`setresuid`/`setresgid`) implementation.
 - Windows per-context impersonation execution boundary (`RunImpersonated`) implementation.
 - Disk-full detection + SyncError surfacing path with tray-facing notification semantics.
+
+### Sprint B Update #2 - Disk-Full Detection + SyncError Surfacing (Server, Linux workspace)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`Linux workspace`)  
+**Status:** in-progress ☐
+
+**Files added/updated:**
+- `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs`
+- `tests/DotNetCloud.Client.Core.Tests/Sync/SyncEngineTests.cs`
+
+**Implemented in this update:**
+1. Added explicit disk-full detection in `SyncEngine` for both Win32 HRESULT and Linux/macOS ENOSPC-style messages.
+2. On disk-full detection, sync now pauses further attempts (`_paused=true`, watcher disabled) and emits deterministic `SyncState.Error` with user-facing `LastError` text.
+3. Existing SyncService/SyncTray error propagation path now surfaces disk-full condition without additional IPC schema changes.
+4. Added regression test covering disk-full error transition and paused follow-up behavior.
+
+**Tests added/updated:**
+- `SyncAsync_DiskFullError_SetsErrorAndPausesFurtherSyncAttempts`
+
+**Command executed:**
+- `dotnet test tests/DotNetCloud.Client.Core.Tests/DotNetCloud.Client.Core.Tests.csproj --filter "FullyQualifiedName~SyncAsync_DiskFullError_SetsErrorAndPausesFurtherSyncAttempts"`
+        - Result: total 1, succeeded 1, failed 0, skipped 0
+
+**Raw error semantics validated:**
+- When disk full is detected, `SyncStatus.LastError` contains:
+    - `Disk full: local storage is out of space. Free disk space, then resume sync.`
+- Next sync attempt while still paused exits early and does not execute new checkpoint/update work.
+
+**Remaining for Sprint B:**
+- Linux per-context privilege drop (`setresuid`/`setresgid`) implementation.
+- Windows per-context impersonation execution boundary (`RunImpersonated`) implementation.
 
 ---
 
