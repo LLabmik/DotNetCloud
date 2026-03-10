@@ -54,7 +54,7 @@
 | Phase 1.16 | 20 | 20 | 0 | 0 |
 | Phase 1.17 | 25 | 25 | 0 | 0 |
 | Phase 1.18 | 6 | 6 | 0 | 0 |
-| Phase 1.19 | 20 | 19 | 0 | 1 |
+| Phase 1.19 | 20 | 20 | 0 | 0 |
 | Phase 1.20 | 20 | 20 | 0 | 0 |
 | Phase 2.1 | 6 | 6 | 0 | 0 |
 | Phase 2.2 | 4 | 4 | 0 | 0 |
@@ -3157,7 +3157,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Notes:** 483 total Files module tests pass. Coverage includes dedicated gRPC hardening regression tests for cross-user isolation and upload abuse scenarios in addition to service-layer authorization checks.
 
 #### Step: phase-1.19.2 - Integration Tests (Files API)
-**Status:** in-progress ☐
+**Status:** completed ✅
 **Deliverables:**
 - ✓ Files gRPC isolation integration tests in `DotNetCloud.Integration.Tests` (`FilesHostWebApplicationFactory` + `FilesGrpcIsolationIntegrationTests`: cross-user node access denial, request/claim mismatch rejection, upload session-owner mismatch rejection)
 - ✓ Files REST isolation integration tests in `DotNetCloud.Integration.Tests` (`FilesRestIsolationIntegrationTests`: cross-user read/rename denial, upload session ownership enforcement, owner-scoped share/trash behavior, quota-exceeded upload rejection)
@@ -3165,9 +3165,9 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Expanded feature-flow coverage (`FilesRestIsolationIntegrationTests`: dedup upload initiation, share create/update/revoke + public-link password validation, version list/get/label/restore, trash list/size/restore/purge, bulk move/copy/delete/permanent-delete)
 - ✓ WOPI token/file endpoint smoke coverage (`FilesRestIsolationIntegrationTests`: graceful disabled-provider behavior check for token generation, plus CheckFileInfo/GetFile/PutFile path when provider is enabled)
 - ✓ Local verification evidence refreshed after latest `main` pull (`FullyQualifiedName~FilesRestIsolationIntegrationTests` = 16 passing, `~Files` = 19 passing, `~MultiDatabaseMatrixTests` = 21 passing)
-- ☐ Real-provider matrix runtime evidence in Docker-backed environment (PostgreSQL required; SQL Server lane where available)
+- ✓ Real-provider matrix runtime evidence in Docker-backed environment (PostgreSQL required; SQL Server lane where available)
 
-**Notes:** Integration harness now covers both isolation and broader REST endpoint workflows (16 REST + 3 gRPC files-focused integration tests passing in current suite). Remaining scope for completion is runtime provider confirmation in Docker-capable environment (PostgreSQL required) and Sprint A client-side compatibility sign-off in the mediation workflow.
+**Notes:** Integration harness now covers both isolation and broader REST endpoint workflows (16 REST + 3 gRPC files-focused integration tests passing in current suite). Docker-backed provider matrix execution is now validated (`DockerDatabaseIntegrationTests`: 12/12 passed, PostgreSQL + SQL Server). Sprint A client-side compatibility validation remains tracked in mediation handoff and does not block this step.
 
 #### Step: phase-1.19.3 - Client Tests (DotNetCloud.Client.Core.Tests)
 **Status:** completed ✅

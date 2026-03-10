@@ -2459,15 +2459,14 @@ This phase implements the core Files module, which is the primary public-facing 
 
 ### Integration Tests
 
-> **Status: In Progress** — `WebApplicationFactory` harness and Files Host wiring are now implemented.
+> **Status: Completed** — `WebApplicationFactory` harness and Files Host wiring are implemented.
 > `DotNetCloud.Integration.Tests` currently includes Files gRPC and REST isolation coverage plus expanded
 > REST workflow tests for listing/search/favorites/recent, sync endpoints, WOPI discovery and token/file
 > endpoint smoke, dedup upload initiation, share lifecycle + public-link password validation, version list/get/
-> label/restore, trash lifecycle list/size/restore/purge, and bulk move/copy/delete/permanent-delete.
-> Remaining gap is real provider-runtime matrix evidence (PostgreSQL required) in an environment with
-> Docker-backed database availability.
+> label/restore, trash lifecycle list/size/restore/purge, and bulk move/copy/delete/permanent-delete,
+> with Docker-backed provider matrix evidence now confirmed for PostgreSQL and SQL Server.
 
-- ☐ Add Files API integration tests to `DotNetCloud.Integration.Tests`:
+- ✓ Add Files API integration tests to `DotNetCloud.Integration.Tests`:
   - ✓ Files REST isolation integration tests (cross-user CRUD denial, upload session ownership enforcement, owner-scoped share/trash flows, quota-exceeded upload rejection)
   - ✓ Files gRPC isolation integration tests (cross-user node access denial, request user spoofing rejection, upload session-owner mismatch)
   - ✓ File CRUD via REST API (create folder, upload file, rename, move, delete)
@@ -2480,7 +2479,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Bulk operations (move, copy, delete, permanent delete)
   - ✓ WOPI endpoint integration (discovery covered; token/file endpoint behavior validated, including disabled-provider guard path)
   - ✓ Sync endpoints (reconcile, changes since, tree)
-  - ☐ Multi-database tests (PostgreSQL required runtime evidence pending; SQL Server attempted/skipped where unavailable)
+  - ✓ Multi-database tests (Docker-backed runtime evidence complete: PostgreSQL + SQL Server passing)
 
 ### Client Tests
 

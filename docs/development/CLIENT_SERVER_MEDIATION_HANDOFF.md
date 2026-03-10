@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-10 (Sprint A provider-matrix retry documented; Docker missing on Linux host)
+Last updated: 2026-03-10 (Sprint A provider matrix completed on Linux host; PostgreSQL + SQL Server passing)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -200,7 +200,6 @@ Completed historical updates for Sprint A (`#1` through `#4`) were moved to
 - WOPI token/file test now validates disabled-provider guard behavior (`DB_INVALID_OPERATION`) and only executes CheckFileInfo/GetFile/PutFile assertions when token generation is available.
 
 **Intentionally deferred coverage (remaining):**
-- Real Docker-backed provider matrix confirmation for `DockerDatabaseIntegrationTests` (PostgreSQL required; SQL Server lane if available).
 - Client-side Sprint A compatibility validation/sign-off.
 
 ### Sprint A Update #7 - Provider Matrix Retry (Server, Linux host)
@@ -222,6 +221,39 @@ Completed historical updates for Sprint A (`#1` through `#4`) were moved to
 
 **Next action to close Sprint A server lane:**
 - Run `DockerDatabaseIntegrationTests` on a host with Docker/Podman configured and include raw pass/fail logs for PostgreSQL (required) and SQL Server lane if available.
+
+### Sprint A Update #8 - Provider Matrix Completed (Server, Linux host)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`Linux workspace`)  
+**Status:** completed ✅
+
+**Environment validation:**
+- `docker --version` → `Docker version 28.2.2`
+- Docker socket access verified in shell via `newgrp docker`.
+
+**Test harness adjustment applied:**
+- File: `tests/DotNetCloud.Integration.Tests/Infrastructure/DatabaseContainerFixture.cs`
+    - Added thread-safe Docker detection guard (`SemaphoreSlim`) to prevent concurrent static detection races.
+    - Added native Docker absolute-path fallback (`/usr/bin/docker`) to avoid PATH-constrained test-host false negatives.
+
+**Command executed:**
+- `newgrp docker <<'EOF'`
+- `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~DockerDatabaseIntegrationTests" -l "console;verbosity=detailed"`
+- `EOF`
+
+**Result:**
+- `DockerDatabaseIntegrationTests`: total 12, succeeded 12, failed 0, skipped 0
+- PostgreSQL lane: passed (6/6)
+- SQL Server lane: passed (6/6)
+
+**Checklist impact:**
+- `PostgreSQL run completed`: complete ✅
+- `SQL Server run attempted/documented`: complete ✅ (executed and passing)
+- `Evidence returned (commit/tests/logs)`: complete ✅
+
+**Remaining Sprint A gap:**
+- Client-side Sprint A compatibility validation/sign-off.
 
 ---
 

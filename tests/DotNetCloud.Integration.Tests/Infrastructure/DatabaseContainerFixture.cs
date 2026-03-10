@@ -26,6 +26,8 @@ internal sealed class DatabaseContainerFixture : IAsyncDisposable
     private static bool s_detectionDone;
     private static bool s_dockerFound;
     private static bool s_useWsl;
+    private static readonly SemaphoreSlim s_detectionLock = new(1, 1);
+    private static readonly string s_nativeDockerCommand = ResolveNativeDockerCommand();
 
     /// <summary>
     /// Gets the connection string for the running container.
@@ -173,42 +175,55 @@ internal sealed class DatabaseContainerFixture : IAsyncDisposable
             return s_dockerFound;
         }
 
-        // Try native Docker first (Linux, macOS, Docker Desktop on Windows)
+        await s_detectionLock.WaitAsync(cancellationToken);
         try
         {
-            var (exitCode, _) = await RunProcessAsync("docker", "info", cancellationToken);
-            if (exitCode == 0)
+            if (s_detectionDone)
             {
-                s_useWsl = false;
-                s_dockerFound = true;
-                s_detectionDone = true;
-                return true;
+                return s_dockerFound;
             }
-        }
-        catch
-        {
-            // Native Docker not available
-        }
 
-        // Try Docker via WSL (Windows dev machines with Docker Engine in WSL 2)
-        try
-        {
-            var (exitCode, _) = await RunProcessAsync("wsl", "docker info", cancellationToken);
-            if (exitCode == 0)
+            // Try native Docker first (Linux, macOS, Docker Desktop on Windows)
+            try
             {
-                s_useWsl = true;
-                s_dockerFound = true;
-                s_detectionDone = true;
-                return true;
+                var (exitCode, _) = await RunProcessAsync(s_nativeDockerCommand, "info", cancellationToken);
+                if (exitCode == 0)
+                {
+                    s_useWsl = false;
+                    s_dockerFound = true;
+                    s_detectionDone = true;
+                    return true;
+                }
             }
-        }
-        catch
-        {
-            // WSL Docker not available either
-        }
+            catch
+            {
+                // Native Docker not available
+            }
 
-        s_detectionDone = true;
-        return false;
+            // Try Docker via WSL (Windows dev machines with Docker Engine in WSL 2)
+            try
+            {
+                var (exitCode, _) = await RunProcessAsync("wsl", "docker info", cancellationToken);
+                if (exitCode == 0)
+                {
+                    s_useWsl = true;
+                    s_dockerFound = true;
+                    s_detectionDone = true;
+                    return true;
+                }
+            }
+            catch
+            {
+                // WSL Docker not available either
+            }
+
+            s_detectionDone = true;
+            return false;
+        }
+        finally
+        {
+            s_detectionLock.Release();
+        }
     }
 
     /// <summary>
@@ -219,7 +234,13 @@ internal sealed class DatabaseContainerFixture : IAsyncDisposable
     {
         return s_useWsl
             ? RunProcessAsync("wsl", $"docker {arguments}", cancellationToken)
-            : RunProcessAsync("docker", arguments, cancellationToken);
+            : RunProcessAsync(s_nativeDockerCommand, arguments, cancellationToken);
+    }
+
+    private static string ResolveNativeDockerCommand()
+    {
+        // Some test hosts run with a constrained PATH; prefer well-known Linux binary location.
+        return File.Exists("/usr/bin/docker") ? "/usr/bin/docker" : "docker";
     }
 
     private static async Task<(int ExitCode, string Output)> RunProcessAsync(
