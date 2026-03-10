@@ -53,7 +53,7 @@
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/AnnouncementEditor.razor`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/AnnouncementEditor.razor.cs`
 
-**Status:** ☐
+**Status:** ✓
 
 ---
 

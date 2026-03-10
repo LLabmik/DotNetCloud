@@ -22,7 +22,27 @@
 
                 <div class="form-group">
                     <label>Content</label>
-                    <textarea @bind="Content" rows="6" placeholder="Write your announcement (Markdown supported)"></textarea>
+                    <div class="preview-tabs">
+                        <button class="preview-tab @(!IsPreviewMode ? "active" : "")" type="button" @onclick="TogglePreview" disabled="@(!IsPreviewMode)">Edit</button>
+                        <button class="preview-tab @(IsPreviewMode ? "active" : "")" type="button" @onclick="TogglePreview" disabled="@(IsPreviewMode)">Preview</button>
+                    </div>
+                    @if (!IsPreviewMode)
+                    {
+                        <textarea @bind="Content" rows="6" placeholder="Write your announcement (Markdown supported)"></textarea>
+                    }
+                    else
+                    {
+                        <div class="announcement-preview">
+                            @if (string.IsNullOrWhiteSpace(Content))
+                            {
+                                <span class="preview-empty">Nothing to preview.</span>
+                            }
+                            else
+                            {
+                                @RenderMarkdown(Content)
+                            }
+                        </div>
+                    }
                 </div>
 
                 <div class="form-row">
