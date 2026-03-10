@@ -4,6 +4,7 @@ using DotNetCloud.Modules.Chat.DTOs;
 using DotNetCloud.Modules.Chat.Models;
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.AspNetCore.Mvc;
+using System.Collections.Concurrent;
 
 using ValidationException = DotNetCloud.Core.Errors.ValidationException;
 
@@ -25,7 +26,9 @@ public class ChatController : ControllerBase
     private readonly ITypingIndicatorService _typingService;
     private readonly IAnnouncementService _announcementService;
     private readonly IRealtimeBroadcaster _realtimeBroadcaster;
+    private readonly IPushNotificationService _pushNotificationService;
     private readonly ILogger<ChatController> _logger;
+    private static readonly ConcurrentDictionary<Guid, NotificationPreferencesDto> NotificationPreferences = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ChatController"/> class.
@@ -39,6 +42,7 @@ public class ChatController : ControllerBase
         ITypingIndicatorService typingService,
         IAnnouncementService announcementService,
         IRealtimeBroadcaster realtimeBroadcaster,
+        IPushNotificationService pushNotificationService,
         ILogger<ChatController> logger)
     {
         _channelService = channelService;
@@ -49,6 +53,7 @@ public class ChatController : ControllerBase
         _typingService = typingService;
         _announcementService = announcementService;
         _realtimeBroadcaster = realtimeBroadcaster;
+        _pushNotificationService = pushNotificationService;
         _logger = logger;
     }
 
@@ -701,6 +706,59 @@ public class ChatController : ControllerBase
         var acknowledgements = await _announcementService.GetAcknowledgementsAsync(id, ToCaller(userId));
         return Ok(Envelope(acknowledgements));
     }
+
+    // ── Push Notification Endpoints ────────────────────────────────
+
+    /// <summary>Registers the caller device for push notifications.</summary>
+    [HttpPost("~/api/v1/notifications/devices/register")]
+    public async Task<IActionResult> RegisterPushDeviceAsync([FromBody] RegisterDeviceRequestDto dto, [FromQuery] Guid userId)
+    {
+        if (string.IsNullOrWhiteSpace(dto.DeviceToken))
+            return BadRequest(ErrorEnvelope("VALIDATION_ERROR", "Device token is required."));
+
+        if (!Enum.TryParse<PushProvider>(dto.Provider, ignoreCase: true, out var provider))
+            return BadRequest(ErrorEnvelope("VALIDATION_ERROR", "Invalid push provider."));
+
+        await _pushNotificationService.RegisterDeviceAsync(userId, new DeviceRegistration
+        {
+            Token = dto.DeviceToken,
+            Provider = provider,
+            Endpoint = dto.Endpoint
+        });
+
+        return Ok(Envelope(new { registered = true }));
+    }
+
+    /// <summary>Unregisters the caller device from push notifications.</summary>
+    [HttpDelete("~/api/v1/notifications/devices/{deviceToken}")]
+    public async Task<IActionResult> UnregisterPushDeviceAsync(string deviceToken, [FromQuery] Guid userId)
+    {
+        await _pushNotificationService.UnregisterDeviceAsync(userId, deviceToken);
+        return Ok(Envelope(new { unregistered = true }));
+    }
+
+    /// <summary>Gets caller-level push notification preferences.</summary>
+    [HttpGet("~/api/v1/notifications/preferences")]
+    public IActionResult GetNotificationPreferencesAsync([FromQuery] Guid userId)
+    {
+        var preferences = NotificationPreferences.GetOrAdd(userId, _ => new NotificationPreferencesDto
+        {
+            PushEnabled = true,
+            DoNotDisturb = false,
+            MutedChannelIds = []
+        });
+
+        return Ok(Envelope(preferences));
+    }
+
+    /// <summary>Updates caller-level push notification preferences.</summary>
+    [HttpPut("~/api/v1/notifications/preferences")]
+    public IActionResult UpdateNotificationPreferencesAsync([FromBody] NotificationPreferencesDto dto, [FromQuery] Guid userId)
+    {
+        var normalized = dto with { MutedChannelIds = dto.MutedChannelIds.Distinct().ToList() };
+        NotificationPreferences[userId] = normalized;
+        return Ok(Envelope(new { updated = true }));
+    }
 }
 
 // ── Request DTOs used only by controller endpoints ──────────────────
@@ -731,4 +789,30 @@ public sealed record AddReactionDto
 {
     /// <summary>Emoji character or code.</summary>
     public required string Emoji { get; init; }
+}
+
+/// <summary>DTO for registering a push notification device.</summary>
+public sealed record RegisterDeviceRequestDto
+{
+    /// <summary>Push provider device token.</summary>
+    public required string DeviceToken { get; init; }
+
+    /// <summary>Provider value: FCM or UnifiedPush.</summary>
+    public required string Provider { get; init; }
+
+    /// <summary>UnifiedPush endpoint URL, when provider is UnifiedPush.</summary>
+    public string? Endpoint { get; init; }
+}
+
+/// <summary>Caller-level notification preferences for push delivery.</summary>
+public sealed record NotificationPreferencesDto
+{
+    /// <summary>Whether push notifications are globally enabled.</summary>
+    public bool PushEnabled { get; init; } = true;
+
+    /// <summary>Whether do-not-disturb mode is enabled.</summary>
+    public bool DoNotDisturb { get; init; }
+
+    /// <summary>Channel IDs muted for push notifications.</summary>
+    public IReadOnlyList<Guid> MutedChannelIds { get; init; } = [];
 }

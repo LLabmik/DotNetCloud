@@ -62,7 +62,7 @@
 | Phase 2.4 | 5 | 5 | 0 | 0 |
 | Phase 2.5 | 4 | 4 | 0 | 0 |
 | Phase 2.6 | 4 | 4 | 0 | 0 |
-| Phase 2.7 | 4 | 0 | 0 | 4 |
+| Phase 2.7 | 4 | 1 | 0 | 3 |
 | Phase 2.8 | 11 | 4 | 0 | 7 |
 | Phase 2.9 | 3 | 0 | 0 | 3 |
 | Phase 2.10 | 8 | 0 | 0 | 8 |
@@ -3355,7 +3355,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Step: phase-2.7 - Push Notifications Infrastructure
-**Status:** pending
+**Status:** in-progress 🔄
 **Duration:** ~1-2 weeks
 **Description:** Implement push notification service with FCM and UnifiedPush providers, notification routing, and device management.
 
@@ -3367,7 +3367,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Dependencies:** phase-2.3
 **Blocking Issues:** None
-**Notes:** Android build flavors: googleplay (FCM) / fdroid (UnifiedPush only).
+**Notes:** Phase 2.7 started with server endpoint wiring for push-device lifecycle and preferences. `ChatController` now exposes `/api/v1/notifications/devices/register`, `/api/v1/notifications/devices/{deviceToken}`, `/api/v1/notifications/preferences` (GET/PUT), delegating device register/unregister to `IPushNotificationService` and storing caller-level preferences for push delivery behavior. Added controller tests in `ChatControllerTests` for valid/invalid registration, unregister flow, and preferences update handling. Verification: `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj` passed (216/216). Next: continue phase-2.7 provider hardening (FCM credentials + token cleanup, UnifiedPush retry/error handling, router preference/dedup logic).
 
 ---
 

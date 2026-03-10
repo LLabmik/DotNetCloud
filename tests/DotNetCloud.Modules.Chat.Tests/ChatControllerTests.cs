@@ -25,6 +25,7 @@ public class ChatControllerTests
     private Mock<ITypingIndicatorService> _typingService = null!;
     private Mock<IAnnouncementService> _announcementService = null!;
     private Mock<IRealtimeBroadcaster> _realtimeBroadcaster = null!;
+    private Mock<IPushNotificationService> _pushNotificationService = null!;
     private ChatController _controller = null!;
 
     [TestInitialize]
@@ -38,6 +39,7 @@ public class ChatControllerTests
         _typingService = new Mock<ITypingIndicatorService>();
         _announcementService = new Mock<IAnnouncementService>();
         _realtimeBroadcaster = new Mock<IRealtimeBroadcaster>();
+        _pushNotificationService = new Mock<IPushNotificationService>();
 
         _controller = new ChatController(
             _channelService.Object,
@@ -48,6 +50,7 @@ public class ChatControllerTests
             _typingService.Object,
             _announcementService.Object,
             _realtimeBroadcaster.Object,
+            _pushNotificationService.Object,
             NullLogger<ChatController>.Instance);
     }
 
@@ -260,5 +263,64 @@ public class ChatControllerTests
         using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
         Assert.IsTrue(doc.RootElement.GetProperty("success").GetBoolean());
         Assert.IsTrue(doc.RootElement.GetProperty("data").GetProperty("acknowledged").GetBoolean());
+    }
+
+    [TestMethod]
+    public async Task RegisterPushDeviceAsync_WhenValid_ThenRegistersDevice()
+    {
+        var userId = Guid.NewGuid();
+        var request = new RegisterDeviceRequestDto
+        {
+            DeviceToken = "token-123",
+            Provider = "FCM"
+        };
+
+        var result = await _controller.RegisterPushDeviceAsync(request, userId);
+
+        Assert.IsInstanceOfType<OkObjectResult>(result);
+        _pushNotificationService.Verify(
+            p => p.RegisterDeviceAsync(
+                userId,
+                It.Is<DeviceRegistration>(d => d.Token == "token-123" && d.Provider == PushProvider.FCM),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public async Task RegisterPushDeviceAsync_WhenProviderInvalid_ThenReturnsBadRequest()
+    {
+        var result = await _controller.RegisterPushDeviceAsync(
+            new RegisterDeviceRequestDto { DeviceToken = "token-123", Provider = "UnknownProvider" },
+            Guid.NewGuid());
+
+        Assert.IsInstanceOfType<BadRequestObjectResult>(result);
+    }
+
+    [TestMethod]
+    public async Task UnregisterPushDeviceAsync_WhenCalled_ThenUnregistersDevice()
+    {
+        var userId = Guid.NewGuid();
+
+        var result = await _controller.UnregisterPushDeviceAsync("token-123", userId);
+
+        Assert.IsInstanceOfType<OkObjectResult>(result);
+        _pushNotificationService.Verify(
+            p => p.UnregisterDeviceAsync(userId, "token-123", It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public void UpdateNotificationPreferencesAsync_WhenCalled_ThenReturnsOk()
+    {
+        var result = _controller.UpdateNotificationPreferencesAsync(
+            new NotificationPreferencesDto
+            {
+                PushEnabled = true,
+                DoNotDisturb = true,
+                MutedChannelIds = [Guid.NewGuid(), Guid.NewGuid()]
+            },
+            Guid.NewGuid());
+
+        Assert.IsInstanceOfType<OkObjectResult>(result);
     }
 }

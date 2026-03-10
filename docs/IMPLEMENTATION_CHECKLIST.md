@@ -3112,10 +3112,10 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ☐ Create notification queue for reliability (background processing)
 
 #### Push Notification Endpoints
-- [ ] `POST /api/v1/notifications/devices/register` — Register device for push
-- [ ] `DELETE /api/v1/notifications/devices/{deviceToken}` — Unregister device
-- [ ] `GET /api/v1/notifications/preferences` — Get notification preferences
-- [ ] `PUT /api/v1/notifications/preferences` — Update notification preferences
+- ✓ `POST /api/v1/notifications/devices/register` — Register device for push
+- ✓ `DELETE /api/v1/notifications/devices/{deviceToken}` — Unregister device
+- ✓ `GET /api/v1/notifications/preferences` — Get notification preferences
+- ✓ `PUT /api/v1/notifications/preferences` — Update notification preferences
 
 ---
 

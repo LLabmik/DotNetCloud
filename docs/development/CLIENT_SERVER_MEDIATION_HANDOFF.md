@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-10 (Phase 2.6 announcements API + realtime broadcast update posted)
+Last updated: 2026-03-10 (Phase 2.7 push endpoint wiring update posted)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -509,6 +509,53 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Intentionally deferred items:**
 - None for phase-2.6. Next target is phase-2.7.
+
+### Phase 2.7 Update #1 - Push Endpoint Wiring (Server, mint22)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`mint22`)  
+**Status:** completed ✅ (incremental phase-2.7 scope)
+
+**Commit hash:** `(pending commit)`
+
+**Files added/updated:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Controllers/ChatController.cs`
+- `tests/DotNetCloud.Modules.Chat.Tests/ChatControllerTests.cs`
+- `docs/IMPLEMENTATION_CHECKLIST.md`
+- `docs/MASTER_PROJECT_PLAN.md`
+- `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
+
+**Implemented in this update:**
+1. Added push registration endpoints in host API:
+     - `POST /api/v1/notifications/devices/register`
+     - `DELETE /api/v1/notifications/devices/{deviceToken}`
+2. Added caller preferences endpoints:
+     - `GET /api/v1/notifications/preferences`
+     - `PUT /api/v1/notifications/preferences`
+3. Wired device registration/unregistration to `IPushNotificationService` with provider validation.
+4. Added controller tests for push endpoint behavior and error-path validation.
+
+**Tests added/updated:**
+- `tests/DotNetCloud.Modules.Chat.Tests/ChatControllerTests.cs`
+    - `RegisterPushDeviceAsync_WhenValid_ThenRegistersDevice`
+    - `RegisterPushDeviceAsync_WhenProviderInvalid_ThenReturnsBadRequest`
+    - `UnregisterPushDeviceAsync_WhenCalled_ThenUnregistersDevice`
+    - `UpdateNotificationPreferencesAsync_WhenCalled_ThenReturnsOk`
+
+**Verification commands and results:**
+- `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
+    - Result: total 216, succeeded 216, failed 0, skipped 0
+
+**Raw failing assertion/error text seen during iteration (fixed):**
+- None in this update.
+
+**Raw log snippets around authorization/event issues:**
+- No runtime log capture for controller unit tests (mocked services + response assertions).
+
+**Intentionally deferred items:**
+- FCM credential/config hardening and invalid-token cleanup.
+- UnifiedPush retry/error handling.
+- NotificationRouter dedup/preference enforcement and queueing.
 
 ### Sprint A Kickoff - Phase 1.19.2 (Files API Integration Depth)
 
