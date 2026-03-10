@@ -153,11 +153,13 @@ See the [Module Development Guide](docs/module-development/) for the full walkth
 
 See [ROADMAP.md](ROADMAP.md) for the full phased implementation plan.
 
+Current implementation status is tracked in detail in `docs/MASTER_PROJECT_PLAN.md`.
+
 | Phase | Milestone | Status |
 |---|---|---|
-| **Phase 0** | Foundation — architecture proven end-to-end | 🔨 In Progress |
-| **Phase 1** | Files + Sync Client — **public launch** | ⬜ Planned |
-| **Phase 2** | Chat + Notifications + Android | ⬜ Planned |
+| **Phase 0** | Foundation — architecture proven end-to-end | 🔨 In Progress (near complete) |
+| **Phase 1** | Files + Sync Client — **public launch** | 🔨 In Progress |
+| **Phase 2** | Chat + Notifications + Android | 🔨 Early In Progress |
 | **Phase 3** | Contacts + Calendar + Notes + NextCloud Migration | ⬜ Planned |
 | **Phase 4** | Project Management (Deck) | ⬜ Planned |
 | **Phase 5** | Photos + Music | ⬜ Planned |
