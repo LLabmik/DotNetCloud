@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-10 (Phase 2.7 push configuration model update posted)
+Last updated: 2026-03-10 (Client Phase 2.9 regression + Step 7 release hardening handoff posted)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -84,6 +84,54 @@ Next prioritized implementation target is `phase-2.4` (Chat REST API Endpoints).
 ```
 
 ## Active Handoff
+
+### Client Handoff - Phase 2.9/2.10 Closeout (Windows workspace)
+
+**Date:** 2026-03-10  
+**Owner:** Client (`Windows workspace`)  
+**Status:** completed and pushed ✅
+
+**Commit hash:** `ed2a000`
+
+**Summary of completed client scope:**
+- Step 6 (Phase 2.9): regression checklist pass completed and documented.
+- Step 7 (Phase 2.10 in client plan): release hardening pass completed for chat UI surfaces.
+- Tracking docs synchronized: `docs/development/PHASE_2_5_2_10_CLIENT_PLAN.md`, `docs/IMPLEMENTATION_CHECKLIST.md`, `docs/MASTER_PROJECT_PLAN.md`.
+
+**Code areas updated (client-side):**
+- Chat UI hardening in:
+    - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelList.razor`
+    - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelList.razor.cs`
+    - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelList.razor.css`
+    - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/AnnouncementList.razor`
+    - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/AnnouncementList.razor.cs`
+    - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/AnnouncementList.razor.css` (new)
+    - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageList.razor`
+    - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageList.razor.cs`
+    - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageList.razor.css`
+    - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/DirectMessageView.razor`
+    - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/DirectMessageView.razor.cs`
+- SyncTray settings UX polish in:
+    - `src/Clients/DotNetCloud.Client.SyncTray/Views/SettingsWindow.axaml`
+
+**Validation evidence:**
+- `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj` -> 252 passed, 0 failed
+- `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj` -> 54 passed, 0 failed
+- Regression full-suite run (Step 6): `dotnet test` -> 2013 total, 0 failed, 2000 passed, 13 skipped
+
+**Server-facing impact assessment:**
+- No API contract-breaking changes introduced in this client update.
+- Changes are UI/UX hardening and client behavior only (`IsLoading`/`ErrorMessage` rendering paths, accessibility metadata, empty/error/loading states).
+- No immediate server hotfix required from this handoff.
+
+### Send to Server Agent
+New commit on main (`ed2a000`) with completed client Phase 2.9 regression pass and Step 7 release hardening. Pull latest main, review handoff section in `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`, then continue from next prioritized server-owned step in `docs/MASTER_PROJECT_PLAN.md`.
+
+### Request Back
+- commit hash
+- step/phase resumed from `docs/MASTER_PROJECT_PLAN.md`
+- tests executed (commands + pass/fail counts)
+- any API/contract mismatch discovered against updated client UI flows
 
 ### Sprint Track (Phase 2.3 Closeout)
 
