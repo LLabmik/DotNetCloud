@@ -9,11 +9,15 @@ namespace DotNetCloud.Modules.Chat.Services;
 /// </summary>
 internal sealed class UnifiedPushProvider : IPushProviderEndpoint
 {
+    private const int MaxSendAttempts = 3;
+
     private readonly ConcurrentDictionary<Guid, List<DeviceRegistration>> _registrations = new();
+    private readonly IUnifiedPushTransport _transport;
     private readonly ILogger<UnifiedPushProvider> _logger;
 
-    public UnifiedPushProvider(ILogger<UnifiedPushProvider> logger)
+    public UnifiedPushProvider(IUnifiedPushTransport transport, ILogger<UnifiedPushProvider> logger)
     {
+        _transport = transport;
         _logger = logger;
     }
 
@@ -21,12 +25,12 @@ internal sealed class UnifiedPushProvider : IPushProviderEndpoint
     public PushProvider Provider => PushProvider.UnifiedPush;
 
     /// <inheritdoc />
-    public Task SendAsync(Guid userId, PushNotification notification, CancellationToken cancellationToken = default)
+    public async Task SendAsync(Guid userId, PushNotification notification, CancellationToken cancellationToken = default)
     {
         if (!_registrations.TryGetValue(userId, out var devices))
         {
             _logger.LogDebug("No UnifiedPush devices registered for user {UserId}", userId);
-            return Task.CompletedTask;
+            return;
         }
 
         var upDevices = devices.Where(d => d.Provider == PushProvider.UnifiedPush).ToList();
@@ -38,13 +42,40 @@ internal sealed class UnifiedPushProvider : IPushProviderEndpoint
                 continue;
             }
 
-            // In production: HTTP POST to device.Endpoint with notification payload
-            _logger.LogInformation(
-                "UnifiedPush to user {UserId} endpoint {Endpoint}: {Title}",
-                userId, device.Endpoint, notification.Title);
-        }
+            var delivered = false;
+            for (var attempt = 1; attempt <= MaxSendAttempts; attempt++)
+            {
+                var result = await _transport.SendAsync(device.Endpoint, notification, cancellationToken);
+                if (result.IsSuccess)
+                {
+                    delivered = true;
+                    break;
+                }
 
-        return Task.CompletedTask;
+                if (!result.IsTransientFailure)
+                {
+                    _logger.LogWarning(
+                        "UnifiedPush non-retryable failure for user {UserId} endpoint {Endpoint}: {Error}",
+                        userId,
+                        device.Endpoint,
+                        result.Error ?? "unknown_error");
+                    break;
+                }
+
+                _logger.LogWarning(
+                    "UnifiedPush transient failure attempt {Attempt}/{MaxAttempts} for user {UserId} endpoint {Endpoint}: {Error}",
+                    attempt,
+                    MaxSendAttempts,
+                    userId,
+                    device.Endpoint,
+                    result.Error ?? "transient_error");
+            }
+
+            if (!delivered)
+            {
+                _logger.LogWarning("UnifiedPush delivery exhausted retries for user {UserId} endpoint {Endpoint}", userId, device.Endpoint);
+            }
+        }
     }
 
     /// <inheritdoc />

@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-10 (Phase 2.7 router preference/dedup update posted)
+Last updated: 2026-03-10 (Phase 2.7 provider hardening update posted)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -619,6 +619,59 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 **Intentionally deferred items:**
 - FCM credentials/config model and invalid-token cleanup.
 - UnifiedPush retry/error handling.
+- Notification queue/reliability background processing.
+
+### Phase 2.7 Update #3 - Provider Hardening (Server, mint22)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`mint22`)  
+**Status:** completed ✅ (incremental phase-2.7 scope)
+
+**Commit hash:** `TBD`
+
+**Files added/updated:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/IFcmTransport.cs` (new)
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/FcmLoggingTransport.cs` (new)
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/IUnifiedPushTransport.cs` (new)
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/UnifiedPushLoggingTransport.cs` (new)
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/FcmPushProvider.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/UnifiedPushProvider.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/ChatServiceRegistration.cs`
+- `tests/DotNetCloud.Modules.Chat.Tests/FcmPushProviderTests.cs` (new)
+- `tests/DotNetCloud.Modules.Chat.Tests/UnifiedPushProviderTests.cs` (new)
+- `docs/IMPLEMENTATION_CHECKLIST.md`
+- `docs/MASTER_PROJECT_PLAN.md`
+- `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
+
+**Implemented in this update:**
+1. Added FCM transport abstraction (`IFcmTransport`) and default logging transport (`FcmLoggingTransport`).
+2. Added UnifiedPush transport abstraction (`IUnifiedPushTransport`) and default logging transport (`UnifiedPushLoggingTransport`).
+3. Hardened `FcmPushProvider` with invalid-token cleanup: invalid tokens are removed from in-memory registrations after failed send results marked as invalid.
+4. Hardened `UnifiedPushProvider` with bounded retry handling for transient failures (max 3 attempts) and immediate stop for non-transient failures.
+5. Wired new transports in `ChatServiceRegistration` so providers remain DI-constructed and testable.
+
+**Tests added/updated:**
+- `tests/DotNetCloud.Modules.Chat.Tests/FcmPushProviderTests.cs`
+    - `SendAsync_WhenTransportMarksInvalidToken_ThenTokenIsCleanedUp`
+- `tests/DotNetCloud.Modules.Chat.Tests/UnifiedPushProviderTests.cs`
+    - `SendAsync_WhenTransientFailuresThenSuccess_ThenRetriesUntilDelivered`
+    - `SendAsync_WhenNonTransientFailure_ThenDoesNotRetry`
+
+**Verification commands and results:**
+- `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
+    - Result: total 224, succeeded 224, failed 0, skipped 0
+- `dotnet build`
+    - Result: succeeded (full solution)
+
+**Raw failing assertion/error text seen during iteration (fixed):**
+- None in this update.
+
+**Raw log snippets around authorization/event issues:**
+- No runtime log capture for these unit tests (test doubles + behavior assertions).
+
+**Intentionally deferred items:**
+- FCM configuration model / credential management UI.
+- UnifiedPush configuration model.
 - Notification queue/reliability background processing.
 
 ### Sprint A Kickoff - Phase 1.19.2 (Files API Integration Depth)

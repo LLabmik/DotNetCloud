@@ -3091,7 +3091,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Create `FcmPushProvider` implementing `IPushNotificationService`:
   - ☐ Configure Firebase Admin SDK credentials
   - ✓ Implement message sending via FCM HTTP v1 API
-  - ☐ Handle token refresh and invalid token cleanup
+  - ✓ Handle token refresh and invalid token cleanup
   - ☐ Implement batch sending for efficiency
 - ☐ Create FCM configuration model
 - ☐ Add admin UI for FCM credential management
@@ -3100,7 +3100,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Create `UnifiedPushProvider` implementing `IPushNotificationService`:
   - ✓ Implement HTTP POST to UnifiedPush distributor endpoint
   - ✓ Handle endpoint URL registration
-  - ☐ Implement error handling and retries
+  - ✓ Implement error handling and retries
 - ☐ Create UnifiedPush configuration model
 
 #### Notification Routing

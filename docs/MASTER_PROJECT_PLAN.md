@@ -62,7 +62,7 @@
 | Phase 2.4 | 5 | 5 | 0 | 0 |
 | Phase 2.5 | 4 | 4 | 0 | 0 |
 | Phase 2.6 | 4 | 4 | 0 | 0 |
-| Phase 2.7 | 4 | 2 | 0 | 2 |
+| Phase 2.7 | 4 | 3 | 0 | 1 |
 | Phase 2.8 | 11 | 4 | 0 | 7 |
 | Phase 2.9 | 3 | 0 | 0 | 3 |
 | Phase 2.10 | 8 | 0 | 0 | 8 |
@@ -3367,7 +3367,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Dependencies:** phase-2.3
 **Blocking Issues:** None
-**Notes:** Phase 2.7 has progressed through endpoint wiring and router policy hardening. Added shared `INotificationPreferenceStore` + `InMemoryNotificationPreferenceStore`, wired host preference endpoints to the shared store, and updated `NotificationRouter` to enforce push-enabled/DND/muted-channel preferences and suppress push when users are currently online (`IPresenceTracker` dedup). Introduced provider endpoint abstraction for routing and added router unit coverage in `NotificationRouterTests` for disabled push, online suppression, muted-channel suppression, and multi-provider routing. Verification: `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj` passed (221/221), and full `dotnet build` succeeded. Next: complete remaining phase-2.7 hardening (FCM token cleanup/config model, UnifiedPush retry/error handling, queue/reliability background processing).
+**Notes:** Phase 2.7 now includes provider hardening for delivery failure handling. Added transport abstractions (`IFcmTransport`, `IUnifiedPushTransport`) with default logging transports, wired them in DI, and updated providers for robust behavior: `FcmPushProvider` now cleans up invalid tokens based on transport result; `UnifiedPushProvider` now performs bounded retries for transient failures and exits early on non-retryable failures. Added provider-level unit coverage in `FcmPushProviderTests` and `UnifiedPushProviderTests` for invalid-token cleanup and retry semantics. Verification: `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj` passed (224/224), and full `dotnet build` succeeded. Next: finish phase-2.7 with queue/reliability background processing and provider configuration models.
 
 ---
 

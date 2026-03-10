@@ -24,6 +24,8 @@ public static class ChatServiceRegistration
         services.AddScoped<IAnnouncementService, AnnouncementService>();
         services.AddScoped<IMentionNotificationService, MentionNotificationService>();
         services.AddSingleton<INotificationPreferenceStore, InMemoryNotificationPreferenceStore>();
+        services.AddSingleton<IFcmTransport, FcmLoggingTransport>();
+        services.AddSingleton<IUnifiedPushTransport, UnifiedPushLoggingTransport>();
 
         // Push notification providers and router
         services.AddSingleton<FcmPushProvider>();

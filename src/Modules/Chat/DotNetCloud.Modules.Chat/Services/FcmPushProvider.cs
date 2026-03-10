@@ -10,10 +10,12 @@ namespace DotNetCloud.Modules.Chat.Services;
 internal sealed class FcmPushProvider : IPushProviderEndpoint
 {
     private readonly ConcurrentDictionary<Guid, List<DeviceRegistration>> _registrations = new();
+    private readonly IFcmTransport _transport;
     private readonly ILogger<FcmPushProvider> _logger;
 
-    public FcmPushProvider(ILogger<FcmPushProvider> logger)
+    public FcmPushProvider(IFcmTransport transport, ILogger<FcmPushProvider> logger)
     {
+        _transport = transport;
         _logger = logger;
     }
 
@@ -21,24 +23,40 @@ internal sealed class FcmPushProvider : IPushProviderEndpoint
     public PushProvider Provider => PushProvider.FCM;
 
     /// <inheritdoc />
-    public Task SendAsync(Guid userId, PushNotification notification, CancellationToken cancellationToken = default)
+    public async Task SendAsync(Guid userId, PushNotification notification, CancellationToken cancellationToken = default)
     {
         if (!_registrations.TryGetValue(userId, out var devices))
         {
             _logger.LogDebug("No FCM devices registered for user {UserId}", userId);
-            return Task.CompletedTask;
+            return;
         }
 
         var fcmDevices = devices.Where(d => d.Provider == PushProvider.FCM).ToList();
+        var invalidTokens = new List<string>();
+
         foreach (var device in fcmDevices)
         {
-            // In production: POST to https://fcm.googleapis.com/v1/projects/{project}/messages:send
-            _logger.LogInformation(
-                "FCM push to user {UserId} device {Token}: {Title}",
-                userId, device.Token[..Math.Min(8, device.Token.Length)], notification.Title);
+            var result = await _transport.SendAsync(device, notification, cancellationToken);
+            if (result.IsInvalidToken)
+            {
+                invalidTokens.Add(device.Token);
+                _logger.LogWarning("FCM invalid token cleanup scheduled for user {UserId}", userId);
+                continue;
+            }
+
+            if (!result.IsSuccess)
+            {
+                _logger.LogWarning("FCM send failed for user {UserId}: {Error}", userId, result.Error ?? "unknown_error");
+            }
         }
 
-        return Task.CompletedTask;
+        if (invalidTokens.Count > 0)
+        {
+            lock (devices)
+            {
+                devices.RemoveAll(d => invalidTokens.Contains(d.Token));
+            }
+        }
     }
 
     /// <inheritdoc />
