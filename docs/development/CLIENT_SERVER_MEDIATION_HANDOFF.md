@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-10 (Phase 2.5 presence extension + PresenceChangedEvent update posted)
+Last updated: 2026-03-10 (Phase 2.6 announcements API + realtime broadcast update posted)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -452,6 +452,63 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Intentionally deferred items:**
 - None for phase-2.5. Next target is phase-2.6.
+
+### Phase 2.6 Update #1 - Announcements Endpoints + Realtime Broadcasts (Server, mint22)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`mint22`)  
+**Status:** completed ✅
+
+**Commit hash:** `(pending commit)`
+
+**Files added/updated:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Controllers/ChatController.cs`
+- `tests/DotNetCloud.Modules.Chat.Tests/ChatControllerTests.cs`
+- `tests/DotNetCloud.Modules.Chat.Tests/ChatModuleManifestTests.cs`
+- `docs/IMPLEMENTATION_CHECKLIST.md`
+- `docs/MASTER_PROJECT_PLAN.md`
+- `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
+
+**Implemented in this update:**
+1. Added missing announcement REST API surface in `ChatController` under `/api/v1/announcements`:
+     - `POST /api/v1/announcements`
+     - `GET /api/v1/announcements`
+     - `GET /api/v1/announcements/{id}`
+     - `PUT /api/v1/announcements/{id}`
+     - `DELETE /api/v1/announcements/{id}`
+     - `POST /api/v1/announcements/{id}/acknowledge`
+     - `GET /api/v1/announcements/{id}/acknowledgements`
+2. Added realtime broadcast behavior for announcements using `IRealtimeBroadcaster`:
+     - `AnnouncementCreated` for all new announcements
+     - `UrgentAnnouncement` for urgent-priority announcements
+     - `AnnouncementBadgeUpdated` for live announcement-count badge updates
+3. Updated tests for announcement controller behavior and broadcast assertions; updated manifest test expectations after added published events.
+4. Updated phase tracking to mark phase-2.6 completed and set next target to phase-2.7.
+
+**Tests added/updated:**
+- `tests/DotNetCloud.Modules.Chat.Tests/ChatControllerTests.cs`
+    - `CreateAnnouncementAsync_WhenSuccessful_ThenBroadcastsAndReturnsCreated`
+    - `CreateAnnouncementAsync_WhenUrgent_ThenBroadcastsUrgentAnnouncement`
+    - `GetAnnouncementAsync_WhenMissing_ThenReturnsNotFound`
+    - `AcknowledgeAnnouncementAsync_WhenCalled_ThenReturnsSuccessEnvelope`
+- `tests/DotNetCloud.Modules.Chat.Tests/ChatModuleManifestTests.cs`
+    - `WhenCreatedThenPublishedEventsContainsExpectedEvents` (updated expected count and list)
+
+**Verification commands and results:**
+- `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj`
+    - Result: total 212, succeeded 212, failed 0, skipped 0
+- `dotnet build`
+    - Result: succeeded (full solution)
+
+**Raw failing assertion/error text seen during iteration (fixed):**
+- `ChatModuleManifestTests.WhenCreatedThenPublishedEventsContainsExpectedEvents`: `Assert.AreEqual failed. Expected:<5>. Actual:<6>.`
+    - Fix applied: include `PresenceChangedEvent` and update expected count.
+
+**Raw log snippets around authorization/event issues:**
+- No runtime log-line capture in controller unit tests (mocked collaborators + result/broadcast assertions).
+
+**Intentionally deferred items:**
+- None for phase-2.6. Next target is phase-2.7.
 
 ### Sprint A Kickoff - Phase 1.19.2 (Files API Integration Depth)
 

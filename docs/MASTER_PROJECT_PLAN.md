@@ -61,7 +61,7 @@
 | Phase 2.3 | 7 | 3 | 0 | 4 |
 | Phase 2.4 | 5 | 5 | 0 | 0 |
 | Phase 2.5 | 4 | 4 | 0 | 0 |
-| Phase 2.6 | 4 | 0 | 0 | 4 |
+| Phase 2.6 | 4 | 4 | 0 | 0 |
 | Phase 2.7 | 4 | 0 | 0 | 4 |
 | Phase 2.8 | 11 | 4 | 0 | 7 |
 | Phase 2.9 | 3 | 0 | 0 | 3 |
@@ -3338,19 +3338,19 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Step: phase-2.6 - Announcements Module
-**Status:** pending
+**Status:** completed ✅
 **Duration:** ~1 week
 **Description:** Create announcements module for organization-wide broadcasts with acknowledgement tracking.
 
 **Tasks:**
-- ☐ Create Announcement and AnnouncementAcknowledgement models
-- ☐ Create IAnnouncementService and implementation (CRUD, acknowledge, list acknowledgements)
-- ☐ Create REST endpoints (POST/GET/PUT/DELETE /api/v1/announcements, acknowledge, acknowledgements)
-- ☐ Create real-time broadcast via SignalR (new/urgent announcements)
+- ✓ Create Announcement and AnnouncementAcknowledgement models
+- ✓ Create IAnnouncementService and implementation (CRUD, acknowledge, list acknowledgements)
+- ✓ Create REST endpoints (POST/GET/PUT/DELETE /api/v1/announcements, acknowledge, acknowledgements)
+- ✓ Create real-time broadcast via SignalR (new/urgent announcements)
 
 **Dependencies:** phase-2.5
 **Blocking Issues:** None
-**Notes:** Admin-only creation. Urgent announcements trigger visual/audio notifications.
+**Notes:** Phase 2.6 completed. Existing announcements domain and service implementation in chat module were fully wired into host APIs with deterministic envelope/error behavior via `ChatController` routes under `/api/v1/announcements` (create/list/get/update/delete/acknowledge/acknowledgements). Real-time announcement delivery now broadcasts `AnnouncementCreated` for all announcements, `UrgentAnnouncement` for urgent priority, and `AnnouncementBadgeUpdated` for live badge count updates through `IRealtimeBroadcaster`. Added controller coverage in `ChatControllerTests` for creation + realtime broadcast behavior, urgent-broadcast behavior, missing-announcement mapping, and acknowledge envelope behavior; updated manifest tests for published presence events. Verification: `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj` passed (212/212), and full `dotnet build` succeeded. Next: proceed to `phase-2.7` (Push Notifications Infrastructure).
 
 ---
 

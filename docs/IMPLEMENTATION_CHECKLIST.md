@@ -3056,9 +3056,9 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ `GET /api/v1/announcements/{id}/acknowledgements` — List who acknowledged
 
 #### Real-Time Announcements
-- ☐ Broadcast new announcements via SignalR to all connected users
-- ☐ Broadcast urgent announcements with visual/audio notification
-- ☐ Update announcement badge counts in real time
+- ✓ Broadcast new announcements via SignalR to all connected users
+- ✓ Broadcast urgent announcements with visual/audio notification
+- ✓ Update announcement badge counts in real time
 
 ---
 

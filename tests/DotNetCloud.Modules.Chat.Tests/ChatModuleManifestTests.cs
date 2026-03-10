@@ -68,12 +68,13 @@ public class ChatModuleManifestTests
         var events = _manifest.PublishedEvents;
 
         Assert.IsNotNull(events);
-        Assert.AreEqual(5, events.Count);
+        Assert.AreEqual(6, events.Count);
         CollectionAssert.Contains(events.ToList(), nameof(MessageSentEvent));
         CollectionAssert.Contains(events.ToList(), nameof(ChannelCreatedEvent));
         CollectionAssert.Contains(events.ToList(), nameof(ChannelDeletedEvent));
         CollectionAssert.Contains(events.ToList(), nameof(UserJoinedChannelEvent));
         CollectionAssert.Contains(events.ToList(), nameof(UserLeftChannelEvent));
+        CollectionAssert.Contains(events.ToList(), nameof(PresenceChangedEvent));
     }
 
     [TestMethod]

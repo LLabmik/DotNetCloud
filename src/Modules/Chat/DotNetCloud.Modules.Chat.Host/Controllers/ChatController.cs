@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Modules.Chat.DTOs;
 using DotNetCloud.Modules.Chat.Models;
 using DotNetCloud.Modules.Chat.Services;
@@ -22,6 +23,8 @@ public class ChatController : ControllerBase
     private readonly IReactionService _reactionService;
     private readonly IPinService _pinService;
     private readonly ITypingIndicatorService _typingService;
+    private readonly IAnnouncementService _announcementService;
+    private readonly IRealtimeBroadcaster _realtimeBroadcaster;
     private readonly ILogger<ChatController> _logger;
 
     /// <summary>
@@ -34,6 +37,8 @@ public class ChatController : ControllerBase
         IReactionService reactionService,
         IPinService pinService,
         ITypingIndicatorService typingService,
+        IAnnouncementService announcementService,
+        IRealtimeBroadcaster realtimeBroadcaster,
         ILogger<ChatController> logger)
     {
         _channelService = channelService;
@@ -42,6 +47,8 @@ public class ChatController : ControllerBase
         _reactionService = reactionService;
         _pinService = pinService;
         _typingService = typingService;
+        _announcementService = announcementService;
+        _realtimeBroadcaster = realtimeBroadcaster;
         _logger = logger;
     }
 
@@ -598,6 +605,101 @@ public class ChatController : ControllerBase
             .SelectMany(m => m.Attachments)
             .ToList();
         return Ok(Envelope(attachments));
+    }
+
+    // ── Announcement Endpoints ─────────────────────────────────────
+
+    /// <summary>Creates an organization-wide announcement.</summary>
+    [HttpPost("~/api/v1/announcements")]
+    public async Task<IActionResult> CreateAnnouncementAsync([FromBody] CreateAnnouncementDto dto, [FromQuery] Guid userId)
+    {
+        try
+        {
+            var announcement = await _announcementService.CreateAsync(dto, ToCaller(userId));
+            await _realtimeBroadcaster.BroadcastAsync("announcements", "AnnouncementCreated", announcement);
+
+            if (string.Equals(announcement.Priority, "Urgent", StringComparison.OrdinalIgnoreCase))
+            {
+                await _realtimeBroadcaster.BroadcastAsync("announcements", "UrgentAnnouncement", announcement);
+            }
+
+            var announcementCount = (await _announcementService.ListAsync(ToCaller(userId))).Count;
+            await _realtimeBroadcaster.BroadcastAsync(
+                "announcements",
+                "AnnouncementBadgeUpdated",
+                new { count = announcementCount });
+
+            return CreatedAtAction(nameof(GetAnnouncementAsync), new { id = announcement.Id }, Envelope(announcement));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ErrorEnvelope("VALIDATION_ERROR", ex.Message));
+        }
+    }
+
+    /// <summary>Lists active announcements for the caller.</summary>
+    [HttpGet("~/api/v1/announcements")]
+    public async Task<IActionResult> ListAnnouncementsAsync([FromQuery] Guid userId)
+    {
+        var announcements = await _announcementService.ListAsync(ToCaller(userId));
+        return Ok(Envelope(announcements));
+    }
+
+    /// <summary>Gets a single announcement by ID.</summary>
+    [HttpGet("~/api/v1/announcements/{id:guid}")]
+    public async Task<IActionResult> GetAnnouncementAsync(Guid id, [FromQuery] Guid userId)
+    {
+        var announcement = await _announcementService.GetAsync(id, ToCaller(userId));
+        if (announcement is null)
+            return NotFound(ErrorEnvelope("ANNOUNCEMENT_NOT_FOUND", "Announcement not found."));
+
+        return Ok(Envelope(announcement));
+    }
+
+    /// <summary>Updates an announcement.</summary>
+    [HttpPut("~/api/v1/announcements/{id:guid}")]
+    public async Task<IActionResult> UpdateAnnouncementAsync(Guid id, [FromBody] UpdateAnnouncementDto dto, [FromQuery] Guid userId)
+    {
+        try
+        {
+            await _announcementService.UpdateAsync(id, dto, ToCaller(userId));
+            return Ok(Envelope(new { updated = true }));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ErrorEnvelope("ANNOUNCEMENT_NOT_FOUND", ex.Message));
+        }
+    }
+
+    /// <summary>Deletes an announcement (soft-delete).</summary>
+    [HttpDelete("~/api/v1/announcements/{id:guid}")]
+    public async Task<IActionResult> DeleteAnnouncementAsync(Guid id, [FromQuery] Guid userId)
+    {
+        try
+        {
+            await _announcementService.DeleteAsync(id, ToCaller(userId));
+            return Ok(Envelope(new { deleted = true }));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ErrorEnvelope("ANNOUNCEMENT_NOT_FOUND", ex.Message));
+        }
+    }
+
+    /// <summary>Acknowledges an announcement for the caller.</summary>
+    [HttpPost("~/api/v1/announcements/{id:guid}/acknowledge")]
+    public async Task<IActionResult> AcknowledgeAnnouncementAsync(Guid id, [FromQuery] Guid userId)
+    {
+        await _announcementService.AcknowledgeAsync(id, ToCaller(userId));
+        return Ok(Envelope(new { acknowledged = true }));
+    }
+
+    /// <summary>Gets announcement acknowledgements.</summary>
+    [HttpGet("~/api/v1/announcements/{id:guid}/acknowledgements")]
+    public async Task<IActionResult> GetAnnouncementAcknowledgementsAsync(Guid id, [FromQuery] Guid userId)
+    {
+        var acknowledgements = await _announcementService.GetAcknowledgementsAsync(id, ToCaller(userId));
+        return Ok(Envelope(acknowledgements));
     }
 }
 

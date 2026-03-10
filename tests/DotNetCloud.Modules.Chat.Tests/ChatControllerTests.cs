@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Modules.Chat.DTOs;
 using DotNetCloud.Modules.Chat.Host.Controllers;
 using DotNetCloud.Modules.Chat.Models;
@@ -22,6 +23,8 @@ public class ChatControllerTests
     private Mock<IReactionService> _reactionService = null!;
     private Mock<IPinService> _pinService = null!;
     private Mock<ITypingIndicatorService> _typingService = null!;
+    private Mock<IAnnouncementService> _announcementService = null!;
+    private Mock<IRealtimeBroadcaster> _realtimeBroadcaster = null!;
     private ChatController _controller = null!;
 
     [TestInitialize]
@@ -33,6 +36,8 @@ public class ChatControllerTests
         _reactionService = new Mock<IReactionService>();
         _pinService = new Mock<IPinService>();
         _typingService = new Mock<ITypingIndicatorService>();
+        _announcementService = new Mock<IAnnouncementService>();
+        _realtimeBroadcaster = new Mock<IRealtimeBroadcaster>();
 
         _controller = new ChatController(
             _channelService.Object,
@@ -41,6 +46,8 @@ public class ChatControllerTests
             _reactionService.Object,
             _pinService.Object,
             _typingService.Object,
+            _announcementService.Object,
+            _realtimeBroadcaster.Object,
             NullLogger<ChatController>.Instance);
     }
 
@@ -162,5 +169,96 @@ public class ChatControllerTests
         using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
         Assert.IsTrue(doc.RootElement.GetProperty("success").GetBoolean());
         Assert.AreEqual(1, doc.RootElement.GetProperty("data").GetArrayLength());
+    }
+
+    [TestMethod]
+    public async Task CreateAnnouncementAsync_WhenSuccessful_ThenBroadcastsAndReturnsCreated()
+    {
+        var announcement = new AnnouncementDto
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = Guid.NewGuid(),
+            AuthorUserId = Guid.NewGuid(),
+            Title = "maintenance",
+            Content = "Tonight",
+            Priority = "Important"
+        };
+
+        _announcementService
+            .Setup(s => s.CreateAsync(It.IsAny<CreateAnnouncementDto>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(announcement);
+        _announcementService
+            .Setup(s => s.ListAsync(It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([announcement]);
+
+        var result = await _controller.CreateAnnouncementAsync(
+            new CreateAnnouncementDto { Title = "maintenance", Content = "Tonight", OrganizationId = announcement.OrganizationId },
+            Guid.NewGuid());
+
+        Assert.IsInstanceOfType<CreatedAtActionResult>(result);
+        _realtimeBroadcaster.Verify(
+            b => b.BroadcastAsync("announcements", "AnnouncementCreated", announcement, It.IsAny<CancellationToken>()),
+            Times.Once);
+        _realtimeBroadcaster.Verify(
+            b => b.BroadcastAsync("announcements", "AnnouncementBadgeUpdated", It.IsAny<object>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public async Task CreateAnnouncementAsync_WhenUrgent_ThenBroadcastsUrgentAnnouncement()
+    {
+        var announcement = new AnnouncementDto
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = Guid.NewGuid(),
+            AuthorUserId = Guid.NewGuid(),
+            Title = "urgent maintenance",
+            Content = "Now",
+            Priority = "Urgent"
+        };
+
+        _announcementService
+            .Setup(s => s.CreateAsync(It.IsAny<CreateAnnouncementDto>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(announcement);
+        _announcementService
+            .Setup(s => s.ListAsync(It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([announcement]);
+
+        await _controller.CreateAnnouncementAsync(
+            new CreateAnnouncementDto { Title = "urgent maintenance", Content = "Now", OrganizationId = announcement.OrganizationId, Priority = "Urgent" },
+            Guid.NewGuid());
+
+        _realtimeBroadcaster.Verify(
+            b => b.BroadcastAsync("announcements", "UrgentAnnouncement", announcement, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public async Task GetAnnouncementAsync_WhenMissing_ThenReturnsNotFound()
+    {
+        _announcementService
+            .Setup(s => s.GetAsync(It.IsAny<Guid>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((AnnouncementDto?)null);
+
+        var result = await _controller.GetAnnouncementAsync(Guid.NewGuid(), Guid.NewGuid());
+
+        Assert.IsInstanceOfType<NotFoundObjectResult>(result);
+    }
+
+    [TestMethod]
+    public async Task AcknowledgeAnnouncementAsync_WhenCalled_ThenReturnsSuccessEnvelope()
+    {
+        _announcementService
+            .Setup(s => s.AcknowledgeAsync(It.IsAny<Guid>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var result = await _controller.AcknowledgeAnnouncementAsync(Guid.NewGuid(), Guid.NewGuid());
+
+        var ok = result as OkObjectResult;
+        Assert.IsNotNull(ok);
+
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(ok.Value));
+        Assert.IsTrue(doc.RootElement.GetProperty("success").GetBoolean());
+        Assert.IsTrue(doc.RootElement.GetProperty("data").GetProperty("acknowledged").GetBoolean());
     }
 }
