@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Collections.Concurrent;
+using System.Runtime.InteropServices;
 using DotNetCloud.Client.SyncService.ContextManager;
 using Microsoft.Extensions.Logging;
 using System.Security.Principal;
@@ -19,6 +20,7 @@ public sealed class IpcClientHandler : IAsyncDisposable
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
     private static readonly TimeSpan SyncNowDebounceWindow = TimeSpan.FromSeconds(5);
     private static readonly ConcurrentDictionary<Guid, DateTimeOffset> LastSyncNowAt = new();
+    private static readonly SemaphoreSlim LinuxPrivilegeTransitionLock = new(1, 1);
 
     private readonly Stream _stream;
     private readonly ISyncContextManager _contextManager;
@@ -262,6 +264,7 @@ public sealed class IpcClientHandler : IAsyncDisposable
         var addContextResult = await ExecuteWithCallerIdentityAsync(
             command.Command,
             null,
+            null,
             () => _contextManager.AddContextAsync(request, cancellationToken),
             cancellationToken);
 
@@ -286,6 +289,7 @@ public sealed class IpcClientHandler : IAsyncDisposable
         var removed = await ExecuteWithCallerIdentityAsync(
             command.Command,
             registration.Id,
+            registration.OsUserName,
             () => _contextManager.RemoveContextAsync(registration.Id, cancellationToken),
             cancellationToken);
 
@@ -304,6 +308,7 @@ public sealed class IpcClientHandler : IAsyncDisposable
         var statusResult = await ExecuteWithCallerIdentityAsync(
             command.Command,
             registration.Id,
+            registration.OsUserName,
             () => _contextManager.GetStatusAsync(registration.Id, cancellationToken),
             cancellationToken);
 
@@ -338,6 +343,7 @@ public sealed class IpcClientHandler : IAsyncDisposable
         var paused = await ExecuteWithCallerIdentityAsync(
             command.Command,
             registration.Id,
+            registration.OsUserName,
             () => _contextManager.PauseAsync(registration.Id, cancellationToken),
             cancellationToken);
 
@@ -356,6 +362,7 @@ public sealed class IpcClientHandler : IAsyncDisposable
         var resumed = await ExecuteWithCallerIdentityAsync(
             command.Command,
             registration.Id,
+            registration.OsUserName,
             () => _contextManager.ResumeAsync(registration.Id, cancellationToken),
             cancellationToken);
 
@@ -388,6 +395,7 @@ public sealed class IpcClientHandler : IAsyncDisposable
             await ExecuteWithCallerIdentityAsync(
                 command.Command,
                 registration.Id,
+                registration.OsUserName,
                 () => _contextManager.SyncNowAsync(registration.Id, cancellationToken),
                 cancellationToken);
         }, cancellationToken);
@@ -411,6 +419,7 @@ public sealed class IpcClientHandler : IAsyncDisposable
         var recordsResult = await ExecuteWithCallerIdentityAsync(
             command.Command,
             registration.Id,
+            registration.OsUserName,
             () => _contextManager.ListConflictsAsync(registration.Id, includeHistory, cancellationToken),
             cancellationToken);
 
@@ -459,6 +468,7 @@ public sealed class IpcClientHandler : IAsyncDisposable
         var resolved = await ExecuteWithCallerIdentityAsync(
             command.Command,
             registration.Id,
+            registration.OsUserName,
             () => _contextManager.ResolveConflictAsync(
                 registration.Id, data.ConflictId, data.Resolution, cancellationToken),
             cancellationToken);
@@ -532,6 +542,7 @@ public sealed class IpcClientHandler : IAsyncDisposable
         var treeResult = await ExecuteWithCallerIdentityAsync(
             command.Command,
             registration.Id,
+            registration.OsUserName,
             () => _contextManager.GetFolderTreeAsync(registration.Id, cancellationToken),
             cancellationToken);
 
@@ -787,9 +798,13 @@ public sealed class IpcClientHandler : IAsyncDisposable
     private async Task<(bool Success, T Result)> ExecuteWithCallerIdentityAsync<T>(
         string command,
         Guid? contextId,
+        string? targetOwnerUserName,
         Func<Task<T>> operation,
         CancellationToken cancellationToken)
     {
+        if (OperatingSystem.IsLinux())
+            return await ExecuteWithLinuxCallerIdentityAsync(command, contextId, targetOwnerUserName, operation, cancellationToken);
+
         if (!OperatingSystem.IsWindows())
             return (true, await operation());
 
@@ -822,9 +837,13 @@ public sealed class IpcClientHandler : IAsyncDisposable
     private async Task<bool> ExecuteWithCallerIdentityAsync(
         string command,
         Guid? contextId,
+        string? targetOwnerUserName,
         Func<Task> operation,
         CancellationToken cancellationToken)
     {
+        if (OperatingSystem.IsLinux())
+            return await ExecuteWithLinuxCallerIdentityAsync(command, contextId, targetOwnerUserName, operation, cancellationToken);
+
         if (!OperatingSystem.IsWindows())
         {
             await operation();
@@ -859,4 +878,154 @@ public sealed class IpcClientHandler : IAsyncDisposable
             return false;
         }
     }
+
+    private async Task<(bool Success, T Result)> ExecuteWithLinuxCallerIdentityAsync<T>(
+        string command,
+        Guid? contextId,
+        string? targetOwnerUserName,
+        Func<Task<T>> operation,
+        CancellationToken cancellationToken)
+    {
+        var transitioned = await TryBeginLinuxPrivilegeTransitionAsync(command, contextId, targetOwnerUserName, cancellationToken);
+        if (!transitioned.Success)
+            return (false, default!);
+
+        if (!transitioned.DidTransition)
+            return (true, await operation());
+
+        try
+        {
+            return (true, await operation());
+        }
+        finally
+        {
+            await EndLinuxPrivilegeTransitionAsync(command, contextId, transitioned, cancellationToken);
+        }
+    }
+
+    private async Task<bool> ExecuteWithLinuxCallerIdentityAsync(
+        string command,
+        Guid? contextId,
+        string? targetOwnerUserName,
+        Func<Task> operation,
+        CancellationToken cancellationToken)
+    {
+        var transitioned = await TryBeginLinuxPrivilegeTransitionAsync(command, contextId, targetOwnerUserName, cancellationToken);
+        if (!transitioned.Success)
+            return false;
+
+        if (!transitioned.DidTransition)
+        {
+            await operation();
+            return true;
+        }
+
+        try
+        {
+            await operation();
+            return true;
+        }
+        finally
+        {
+            await EndLinuxPrivilegeTransitionAsync(command, contextId, transitioned, cancellationToken);
+        }
+    }
+
+    private async Task<(bool Success, bool DidTransition, uint OriginalRuid, uint OriginalEuid, uint OriginalSuid, uint OriginalRgid, uint OriginalEgid, uint OriginalSgid)>
+        TryBeginLinuxPrivilegeTransitionAsync(
+            string command,
+            Guid? contextId,
+            string? targetOwnerUserName,
+            CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(targetOwnerUserName)
+            || !_callerIdentity.MatchesOwner(targetOwnerUserName)
+            || !_callerIdentity.UnixUid.HasValue
+            || !_callerIdentity.UnixGid.HasValue)
+        {
+            return (true, false, 0, 0, 0, 0, 0, 0);
+        }
+
+        await LinuxPrivilegeTransitionLock.WaitAsync(cancellationToken);
+
+        if (getresuid(out var originalRuid, out var originalEuid, out var originalSuid) != 0
+            || getresgid(out var originalRgid, out var originalEgid, out var originalSgid) != 0)
+        {
+            LinuxPrivilegeTransitionLock.Release();
+            return await LogLinuxPrivilegeFailureAsync(command, contextId, "Could not capture current Linux UID/GID before privilege transition.", cancellationToken);
+        }
+
+        var targetUid = _callerIdentity.UnixUid.Value;
+        var targetGid = _callerIdentity.UnixGid.Value;
+
+        if (originalEuid == targetUid && originalEgid == targetGid)
+        {
+            LinuxPrivilegeTransitionLock.Release();
+            return (true, false, originalRuid, originalEuid, originalSuid, originalRgid, originalEgid, originalSgid);
+        }
+
+        if (setresgid(targetGid, targetGid, targetGid) != 0 || setresuid(targetUid, targetUid, targetUid) != 0)
+        {
+            // Best effort restore if one of the transitions partially succeeded.
+            _ = setresuid(originalRuid, originalEuid, originalSuid);
+            _ = setresgid(originalRgid, originalEgid, originalSgid);
+            LinuxPrivilegeTransitionLock.Release();
+            return await LogLinuxPrivilegeFailureAsync(command, contextId, "Linux privilege transition failed during setresuid/setresgid.", cancellationToken);
+        }
+
+        return (true, true, originalRuid, originalEuid, originalSuid, originalRgid, originalEgid, originalSgid);
+    }
+
+    private async Task EndLinuxPrivilegeTransitionAsync(
+        string command,
+        Guid? contextId,
+        (bool Success, bool DidTransition, uint OriginalRuid, uint OriginalEuid, uint OriginalSuid, uint OriginalRgid, uint OriginalEgid, uint OriginalSgid) transition,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (setresuid(transition.OriginalRuid, transition.OriginalEuid, transition.OriginalSuid) != 0
+                || setresgid(transition.OriginalRgid, transition.OriginalEgid, transition.OriginalSgid) != 0)
+            {
+                await LogLinuxPrivilegeFailureAsync(command, contextId, "Linux privilege restore failed after operation completion.", cancellationToken);
+            }
+        }
+        finally
+        {
+            LinuxPrivilegeTransitionLock.Release();
+        }
+    }
+
+    private async Task<(bool Success, bool DidTransition, uint OriginalRuid, uint OriginalEuid, uint OriginalSuid, uint OriginalRgid, uint OriginalEgid, uint OriginalSgid)>
+        LogLinuxPrivilegeFailureAsync(
+            string command,
+            Guid? contextId,
+            string message,
+            CancellationToken cancellationToken)
+    {
+        _logger.LogError(
+            "{Message} Command={Command}, ContextId={ContextId}, Caller={Caller}, UnixUid={UnixUid}, UnixGid={UnixGid}, errno={Errno}.",
+            message,
+            command,
+            contextId,
+            _callerIdentity.NormalizedIdentity ?? "<unknown>",
+            _callerIdentity.UnixUid,
+            _callerIdentity.UnixGid,
+            Marshal.GetLastWin32Error());
+
+        await SendErrorAsync(command, "Privilege transition failed.", cancellationToken);
+        return (false, false, 0, 0, 0, 0, 0, 0);
+    }
+
+    [System.Runtime.InteropServices.DllImport("libc", SetLastError = true)]
+    private static extern int setresuid(uint ruid, uint euid, uint suid);
+
+    [System.Runtime.InteropServices.DllImport("libc", SetLastError = true)]
+    private static extern int setresgid(uint rgid, uint egid, uint sgid);
+
+    [System.Runtime.InteropServices.DllImport("libc", SetLastError = true)]
+    private static extern int getresuid(out uint ruid, out uint euid, out uint suid);
+
+    [System.Runtime.InteropServices.DllImport("libc", SetLastError = true)]
+    private static extern int getresgid(out uint rgid, out uint egid, out uint sgid);
 }

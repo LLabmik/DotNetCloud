@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Security.AccessControl;
 using System.Security.Principal;
+using System.Text;
 using DotNetCloud.Client.SyncService.ContextManager;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32.SafeHandles;
@@ -199,7 +200,7 @@ public sealed class IpcServer : IIpcServer, IAsyncDisposable
                 _logger.LogDebug("Unix socket client connected.");
 
                 var stream = new NetworkStream(clientSocket, ownsSocket: true);
-                var callerIdentity = IpcCallerIdentity.Unavailable;
+                var callerIdentity = ResolveUnixSocketIdentity(clientSocket);
                 AcceptClient(stream, callerIdentity);
             }
             catch (OperationCanceledException)
@@ -282,6 +283,46 @@ public sealed class IpcServer : IIpcServer, IAsyncDisposable
         return new SafeAccessTokenHandle(duplicatedHandle);
     }
 
+    private IpcCallerIdentity ResolveUnixSocketIdentity(Socket clientSocket)
+    {
+        if (!OperatingSystem.IsLinux())
+            return IpcCallerIdentity.Unavailable;
+
+        if (!TryGetLinuxPeerCredentials(clientSocket, out var peerCredentials))
+            return IpcCallerIdentity.Unavailable;
+
+        var userName = TryGetLinuxUserName(peerCredentials.Uid);
+        return IpcCallerIdentity.FromUnixPeerCredentials(peerCredentials.Uid, peerCredentials.Gid, userName);
+    }
+
+    private static bool TryGetLinuxPeerCredentials(Socket socket, out LinuxUCred credentials)
+    {
+        credentials = default;
+
+        var optionLength = (uint)Marshal.SizeOf<LinuxUCred>();
+        var handle = socket.SafeHandle.DangerousGetHandle();
+        var result = getsockopt(
+            handle.ToInt32(),
+            LinuxSolSocket,
+            LinuxSoPeerCred,
+            out credentials,
+            ref optionLength);
+
+        return result == 0;
+    }
+
+    private static string? TryGetLinuxUserName(uint uid)
+    {
+        const int BufferLength = 4096;
+        var buffer = new byte[BufferLength];
+        var getPwResult = getpwuid_r(uid, out var passwd, buffer, (nuint)buffer.Length, out var passwdResult);
+
+        if (getPwResult != 0 || passwdResult == IntPtr.Zero || passwd.pw_name == IntPtr.Zero)
+            return null;
+
+        return Marshal.PtrToStringAnsi(passwd.pw_name);
+    }
+
     private void AcceptClient(Stream stream, IpcCallerIdentity callerIdentity)
     {
         var handler = new IpcClientHandler(stream, _contextManager, _logger, callerIdentity);
@@ -306,6 +347,28 @@ public sealed class IpcServer : IIpcServer, IAsyncDisposable
     private const uint TOKEN_IMPERSONATE = 0x0004;
     private const int SecurityImpersonation = 2;
     private const int TokenImpersonation = 2;
+    private const int LinuxSolSocket = 1;
+    private const int LinuxSoPeerCred = 17;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LinuxUCred
+    {
+        public int Pid;
+        public uint Uid;
+        public uint Gid;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LinuxPasswd
+    {
+        public IntPtr pw_name;
+        public IntPtr pw_passwd;
+        public uint pw_uid;
+        public uint pw_gid;
+        public IntPtr pw_gecos;
+        public IntPtr pw_dir;
+        public IntPtr pw_shell;
+    }
 
     [DllImport("advapi32.dll", SetLastError = true)]
     private static extern bool DuplicateTokenEx(
@@ -315,4 +378,20 @@ public sealed class IpcServer : IIpcServer, IAsyncDisposable
         int impersonationLevel,
         int tokenType,
         ref IntPtr phNewToken);
+
+    [DllImport("libc", SetLastError = true)]
+    private static extern int getsockopt(
+        int socket,
+        int level,
+        int optionName,
+        out LinuxUCred optionValue,
+        ref uint optionLength);
+
+    [DllImport("libc", SetLastError = true)]
+    private static extern int getpwuid_r(
+        uint uid,
+        out LinuxPasswd pwd,
+        byte[] buffer,
+        nuint bufferLength,
+        out IntPtr result);
 }

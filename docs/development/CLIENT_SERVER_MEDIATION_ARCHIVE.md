@@ -315,3 +315,30 @@ Required coverage:
 - Added Avalonia folder browser view/dialog integration.
 - Integrated folder selection into add-account flow and settings account actions.
 - Added tests for tree build, exclusion persistence, parent/child propagation, and indeterminate state.
+
+## Sprint B Archive (Phase 1.15 - updates #1-#2, archived 2026-03-10)
+
+### Sprint B Update #1 - IPC Identity Boundary + Sync Trigger Debounce
+
+**Date:** 2026-03-10  
+**Owner:** Server (`Windows workspace`)  
+**Status at time of update:** in-progress ☐
+
+**Archived implementation summary:**
+- Added transport-level caller identity model (`IpcCallerIdentity`) at IPC boundary.
+- Enforced context ownership and caller-filtered `list-contexts`/push events.
+- Added deterministic identity-denial semantics (`Caller identity unavailable.`, `Context not found or inaccessible.`).
+- Added `sync-now` cooldown no-op response semantics (`started=false`, `reason="rate-limited"`).
+- SyncService tests: 27/27 passed.
+
+### Sprint B Update #2 - Disk-Full Detection + SyncError Surfacing
+
+**Date:** 2026-03-10  
+**Owner:** Server (`Linux workspace`)  
+**Status at time of update:** in-progress ☐
+
+**Archived implementation summary:**
+- Added explicit disk-full detection in `SyncEngine` (Win32 disk-full HRESULT and ENOSPC-style Linux/macOS message patterns).
+- On disk-full, sync transitions to `SyncState.Error`, pauses additional sync attempts, and surfaces deterministic user-facing `LastError`.
+- Added regression coverage in `SyncEngineTests` for disk-full pause behavior.
+- Targeted test execution: 1/1 passed.

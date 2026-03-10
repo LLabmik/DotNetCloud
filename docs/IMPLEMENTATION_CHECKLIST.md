@@ -2244,7 +2244,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Implement sync context management (one per OS-user + account pair)
 - ✓ Run as system-level service (single process, multiple contexts)
 - ✓ Data isolation: each context has own sync folder, state DB, auth token
-- ☐ Linux: drop privileges per context (UID/GID of target OS user) — requires `setresuid`/`setresgid` P/Invoke; deferred until the service is packaged for Linux deployment
+- ✓ Linux: drop privileges per context (UID/GID of target OS user) — Unix socket peer credentials are resolved in `IpcServer`, then context-scoped operations execute under Linux privilege transition via `setresuid`/`setresgid` with deterministic `Privilege transition failed.` error semantics
 - ✓ Windows: impersonate OS user for file system operations — IPC now captures and duplicates the named-pipe caller token, then executes context-scoped operations via `WindowsIdentity.RunImpersonated`
 
 #### IPC Server

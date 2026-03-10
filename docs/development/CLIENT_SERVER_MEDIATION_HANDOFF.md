@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-10 (archive pass completed: Sprint A updates #5-#9 and Batch 5 history moved to archive)
+Last updated: 2026-03-10 (Sprint B update #4: Linux privilege dropping via Unix peer credentials + setresuid/setresgid completed)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -85,7 +85,7 @@ Reference tracker: `docs/development/REMAINING_PHASE0_PHASE1_3SPRINT_PLAN.md`
 - ✓ Sprint A kickoff sent
 - ✓ Sprint A complete (`phase-1.19.2`)
 - ✓ Sprint B kickoff sent (`phase-1.15` deferred hardening)
-- ☐ Sprint B complete (`phase-1.15` deferred hardening)
+- ✓ Sprint B complete (`phase-1.15` deferred hardening)
 - ☐ Sprint C complete (`phase-1.12` deferred UX/media)
 
 ### Sprint A Kickoff - Phase 1.19.2 (Files API Integration Depth)
@@ -204,87 +204,17 @@ Required work focus:
 - raw log lines around identity mismatch and privilege-transition failures (timestamped)
 - platform matrix evidence (Linux + Windows behaviors)
 
-### Sprint B Update #1 - IPC Identity Boundary + Sync Trigger Debounce (Server, Windows workspace)
+### Sprint B Historical Updates (Archived)
 
-**Date:** 2026-03-10  
-**Owner:** Server (`Windows workspace`)  
-**Status:** in-progress ☐
-
-**Files added/updated:**
-- `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcCallerIdentity.cs` (new)
-- `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcServer.cs`
-- `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcClientHandler.cs`
-- `tests/DotNetCloud.Client.SyncService.Tests/IpcClientHandlerTests.cs`
-
-**Implemented in this update:**
-1. Transport-level caller identity model added at IPC boundary (`IpcCallerIdentity`).
-2. Windows named-pipe caller identity extraction wired via `GetImpersonationUserName` and passed into per-client handler.
-3. Context ownership enforcement added for context-scoped commands with denial message: `Context not found or inaccessible.`
-4. `list-contexts` now returns only caller-owned contexts.
-5. Push events are filtered to caller-owned contexts for subscribed clients.
-6. Identity-unavailable path now rejects identity-bound commands with: `Caller identity unavailable.`
-7. `sync-now` now supports cooldown no-op behavior (`started=false`, `reason="rate-limited"`).
-
-**Tests added/updated:**
-- `HandleAsync_ListContextsCommand_ReturnsSuccessResponse`
-- `HandleAsync_ListContextsCommand_IdentityUnavailable_ReturnsError`
-- `HandleAsync_GetStatusCommand_OtherUserContext_ReturnsInaccessible`
-- `HandleAsync_SyncNowCommand_DebounceReturnsRateLimitedOnSecondRequest`
-
-**Command executed:**
-- `dotnet test tests\DotNetCloud.Client.SyncService.Tests\DotNetCloud.Client.SyncService.Tests.csproj`
-    - Result: total 27, succeeded 27, failed 0, skipped 0
-
-**Raw IPC command/response examples validated in tests:**
-- Request: `{"command":"list-contexts"}` with unavailable identity
-    - Response: `{"type":"response","command":"list-contexts","success":false,"error":"Caller identity unavailable."}`
-- Request: `{"command":"get-status","contextId":"<foreign-context-guid>"}`
-    - Response: `{"type":"response","command":"get-status","success":false,"error":"Context not found or inaccessible."}`
-- Request 1/2: `{"command":"sync-now","contextId":"<owned-context-guid>"}` then immediate repeat
-    - Response 1: `{"type":"response","command":"sync-now","success":true,"data":{"started":true}}`
-    - Response 2: `{"type":"response","command":"sync-now","success":true,"data":{"started":false,"reason":"rate-limited"}}`
-
-**Remaining for Sprint B:**
-- Linux per-context privilege drop (`setresuid`/`setresgid`) implementation.
-- Windows per-context impersonation execution boundary (`RunImpersonated`) implementation.
-- Disk-full detection + SyncError surfacing path with tray-facing notification semantics.
-
-### Sprint B Update #2 - Disk-Full Detection + SyncError Surfacing (Server, Linux workspace)
-
-**Date:** 2026-03-10  
-**Owner:** Server (`Linux workspace`)  
-**Status:** in-progress ☐
-
-**Files added/updated:**
-- `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs`
-- `tests/DotNetCloud.Client.Core.Tests/Sync/SyncEngineTests.cs`
-
-**Implemented in this update:**
-1. Added explicit disk-full detection in `SyncEngine` for both Win32 HRESULT and Linux/macOS ENOSPC-style messages.
-2. On disk-full detection, sync now pauses further attempts (`_paused=true`, watcher disabled) and emits deterministic `SyncState.Error` with user-facing `LastError` text.
-3. Existing SyncService/SyncTray error propagation path now surfaces disk-full condition without additional IPC schema changes.
-4. Added regression test covering disk-full error transition and paused follow-up behavior.
-
-**Tests added/updated:**
-- `SyncAsync_DiskFullError_SetsErrorAndPausesFurtherSyncAttempts`
-
-**Command executed:**
-- `dotnet test tests/DotNetCloud.Client.Core.Tests/DotNetCloud.Client.Core.Tests.csproj --filter "FullyQualifiedName~SyncAsync_DiskFullError_SetsErrorAndPausesFurtherSyncAttempts"`
-        - Result: total 1, succeeded 1, failed 0, skipped 0
-
-**Raw error semantics validated:**
-- When disk full is detected, `SyncStatus.LastError` contains:
-    - `Disk full: local storage is out of space. Free disk space, then resume sync.`
-- Next sync attempt while still paused exits early and does not execute new checkpoint/update work.
-
-**Remaining for Sprint B:**
-- Linux per-context privilege drop (`setresuid`/`setresgid`) implementation.
+Completed Sprint B updates `#1` and `#2` are archived in
+`docs/development/CLIENT_SERVER_MEDIATION_ARCHIVE.md` under
+`Sprint B Archive (Phase 1.15 - updates #1-#2, archived 2026-03-10)`.
 
 ### Sprint B Update #3 - Windows Impersonation Execution Boundary (Server, Windows workspace)
 
 **Date:** 2026-03-10  
 **Owner:** Server (`Windows workspace`)  
-**Status:** in-progress ☐
+**Status:** completed ✅
 
 **Files added/updated:**
 - `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcCallerIdentity.cs`
@@ -308,6 +238,35 @@ Required work focus:
 
 **Remaining for Sprint B:**
 - Linux per-context privilege drop (`setresuid`/`setresgid`) implementation.
+
+### Sprint B Update #4 - Linux Privilege Drop Execution Boundary (Server, Linux workspace)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`Linux workspace`)  
+**Status:** completed ✅
+
+**Files added/updated:**
+- `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcCallerIdentity.cs`
+- `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcServer.cs`
+- `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcClientHandler.cs`
+- `docs/IMPLEMENTATION_CHECKLIST.md`
+- `docs/MASTER_PROJECT_PLAN.md`
+
+**Implemented in this update:**
+1. `IpcServer` now resolves Linux Unix-socket caller peer credentials (`SO_PEERCRED`) and maps UID/GID + account identity into `IpcCallerIdentity`.
+2. `IpcCallerIdentity` now carries Unix UID/GID fields used for Linux privilege transitions.
+3. `IpcClientHandler` now executes context-scoped operations under guarded Linux privilege transition using `setresgid`/`setresuid`, then restores original IDs after operation completion.
+4. Linux privilege-transition failures now return deterministic IPC command error `Privilege transition failed.` and log raw errno with caller/context metadata.
+5. Linux transition path is serialized with a transition lock to avoid overlapping process-credential mutation during context-scoped operations.
+
+**Tests/validation executed:**
+- `dotnet test tests/DotNetCloud.Client.SyncService.Tests/DotNetCloud.Client.SyncService.Tests.csproj`
+    - Result: total 27, succeeded 27, failed 0, skipped 0
+- `dotnet build`
+    - Result: succeeded (full solution)
+
+**Remaining for Sprint B:**
+- None. Sprint B hardening scope is complete.
 
 ---
 
