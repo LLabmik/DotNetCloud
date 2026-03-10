@@ -948,22 +948,54 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 **Owner:** Client agent  
 **Status:** ready for handoff ✅
 
-**Scope to continue on client machine only:**
-1. Channel list drag-to-reorder pinned channels.
-2. Message composer rich text + mention autocomplete + paste image upload.
-3. Remaining message list polish if needed after client validation.
-4. Chat notification badge real-time update behavior.
-5. Announcement component UX refinements (filter/preview/editor flow).
+**Objective:** bring client/UI implementation to parity with completed server phases without modifying server contracts.
+
+**Server-complete to client-required alignment matrix:**
+
+| Phase | Server Capability Complete | Client/UI Work Required | Acceptance Check | Primary File Targets |
+|---|---|---|---|---|
+| 2.5 | SignalR realtime hubs, message/read/presence transport paths active | Ensure realtime events are reflected in channel list, unread badges, read-state markers, and presence indicators consistently across navigation and reconnect | Send message/read/presence update and verify visible UI changes in under 1s after reconnect and normal flow | `src/UI/*Chat*`, `src/Clients/*Chat*`, view models/store wiring files |
+| 2.6 | Announcement API and server behavior stable | Finalize announcement UX: list filters, preview rendering, create/edit validation messages, and error states | Create/edit/filter/preview flows complete with correct empty/loading/error states | announcement components/pages and related view models |
+| 2.7 | Push routing + preference enforcement + online dedup + provider hardening + queue/retry + options models | Implement client push registration/settings UX and align notification preference UI with server-backed behavior; no provider contract edits | Update preference, trigger message while online/offline, verify dedup and expected notification behavior | chat settings/preferences UI, push registration client service, notification state/view models |
+| 2.8 | Core server support for chat/presence/actions already in place for current UI scope | Complete remaining UI polish: channel reorder, composer rich input, mention autocomplete, paste-image upload, header action consistency | Execute manual scenario checklist for each feature and verify no regressions in existing chat flows | channel list/header/composer/message list components and tests |
+| 2.9 | Server-side prerequisites available to begin end-user validation | Add/finish client test and validation pass for end-user scenarios; capture blockers with reproducible steps | Regression checklist pass recorded with evidence and no unresolved P0/P1 UI blockers | client test projects and UI interaction test files |
+| 2.10 | Server baseline stable for release hardening | Final client UX hardening pass, accessibility/empty-state cleanup, release readiness notes | Final parity checklist complete and documented for mediator relay | final UI polish files and release notes docs |
+
+**Execution order on client machine:**
+1. Phase 2.5 realtime UX verification and fixes.
+2. Phase 2.6 announcement UX refinements.
+3. Phase 2.7 push registration/preferences UX alignment.
+4. Phase 2.8 remaining chat UI polish.
+5. Phase 2.9 regression pass and evidence capture.
+6. Phase 2.10 release hardening checklist.
 
 **Server constraints for client implementation:**
 - Server push infrastructure phase is complete (Phase 2.7, including queue/retry/options models).
 - Do not change server push provider contracts unless a client blocker is confirmed.
+- Treat server APIs as stable for this sprint; any suspected server gap must include endpoint, payload, and raw error evidence before requesting server changes.
 
-**Request back from client machine:**
-- commit hash(es)
-- exact UI files changed
-- screenshots or short behavior notes for each completed UI checklist item
-- any server API gaps/blockers discovered
+**Send to client agent (copy/paste block):**
+Continue client-only implementation to align with completed server phases (2.5-2.10) using the alignment matrix above.
+
+Rules:
+1. Do not modify server projects on this machine.
+2. Complete work in execution order unless blocked.
+3. For any blocker, provide exact endpoint, request payload, response/error, and timestamped log lines.
+
+Required evidence in return:
+1. Commit hash(es).
+2. Exact client/UI file paths changed.
+3. Completed checklist items mapped to phase number.
+4. Short behavior verification notes per item (or screenshots if available).
+5. Any server/API blockers with raw reproduction details.
+
+**Request back from client machine (strict format):**
+- `Phase:`
+- `Commit:`
+- `Files:`
+- `Completed items:`
+- `Verification notes:`
+- `Blockers (if any):`
 
 ### Sprint A Kickoff - Phase 1.19.2 (Files API Integration Depth)
 
