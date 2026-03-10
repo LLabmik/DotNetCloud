@@ -163,7 +163,7 @@ Reference tracker: `docs/development/PHASE_2_3_EXECUTION_PLAN.md`
 **Owner:** Client (`Windows workspace`)  
 **Status:** completed ✅
 
-**Commit hash:** pending (docs-only update in this commit)
+**Commit hash:** `9bcbcbf`
 
 **Client paths reviewed:**
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/DTOs/ChatDtos.cs`
