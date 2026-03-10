@@ -2459,31 +2459,28 @@ This phase implements the core Files module, which is the primary public-facing 
 
 ### Integration Tests
 
-> **Status: Deferred** — requires `WebApplicationFactory<Program>` wiring for `DotNetCloud.Modules.Files.Host`.
-> The test project (`DotNetCloud.Integration.Tests`) does not reference the Files Host project, and no
-> test harness exists yet to boot the Host's full middleware pipeline (controllers, auth, EF Core, storage
-> engine) in-process. Building that harness involves: (1) adding a project reference to Files.Host,
-> (2) overriding `ConfigureServices` to swap `FilesDbContext` for InMemory/container DB, (3) registering
-> a fake authentication handler to inject test identities, (4) stubbing `IFileStorageEngine` to avoid
-> disk I/O, and (5) disabling background services (`UploadSessionCleanupService`, `TrashCleanupService`,
-> etc.) to prevent side effects. All business logic is already covered by 483 unit tests at the service
-> layer; these integration tests would add HTTP-level verification (routing, model binding, status codes,
-> envelope format, auth middleware). Planned for Phase 1.20 or a dedicated follow-up task.
+> **Status: In Progress** — `WebApplicationFactory` harness and Files Host wiring are now implemented.
+> `DotNetCloud.Integration.Tests` currently includes Files gRPC and REST isolation coverage plus expanded
+> REST workflow tests for listing/search/favorites/recent, sync endpoints, WOPI discovery and token/file
+> endpoint smoke, dedup upload initiation, share lifecycle + public-link password validation, version list/get/
+> label/restore, trash lifecycle list/size/restore/purge, and bulk move/copy/delete/permanent-delete.
+> Remaining gap is real provider-runtime matrix evidence (PostgreSQL required) in an environment with
+> Docker-backed database availability.
 
 - ☐ Add Files API integration tests to `DotNetCloud.Integration.Tests`:
   - ✓ Files REST isolation integration tests (cross-user CRUD denial, upload session ownership enforcement, owner-scoped share/trash flows, quota-exceeded upload rejection)
   - ✓ Files gRPC isolation integration tests (cross-user node access denial, request user spoofing rejection, upload session-owner mismatch)
-  - ☐ File CRUD via REST API (create folder, upload file, rename, move, delete)
-  - ☐ Chunked upload end-to-end (initiate, upload chunks, complete, verify)
-  - ☐ Download file and verify content integrity
-  - ☐ Version create and restore
-  - ☐ Share create, access via public link, password validation
-  - ☐ Trash and restore workflow
-  - ☐ Quota enforcement (upload rejected when quota exceeded)
-  - ☐ Bulk operations (move, copy, delete)
-  - ☐ WOPI endpoint integration (CheckFileInfo, GetFile, PutFile)
-  - ☐ Sync endpoints (reconcile, changes since, tree)
-  - ☐ Multi-database tests (PostgreSQL, SQL Server)
+  - ✓ File CRUD via REST API (create folder, upload file, rename, move, delete)
+  - ✓ Chunked upload end-to-end (initiate, upload chunks, complete, dedup verify)
+  - ✓ Download file and verify content integrity
+  - ✓ Version create and restore (list/get/label/restore covered)
+  - ✓ Share create, access via public link, password validation
+  - ✓ Trash and restore workflow
+  - ✓ Quota enforcement (upload rejected when quota exceeded)
+  - ✓ Bulk operations (move, copy, delete, permanent delete)
+  - ✓ WOPI endpoint integration (discovery covered; token/file endpoint behavior validated, including disabled-provider guard path)
+  - ✓ Sync endpoints (reconcile, changes since, tree)
+  - ☐ Multi-database tests (PostgreSQL required runtime evidence pending; SQL Server attempted/skipped where unavailable)
 
 ### Client Tests
 

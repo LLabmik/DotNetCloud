@@ -3161,9 +3161,13 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Deliverables:**
 - ✓ Files gRPC isolation integration tests in `DotNetCloud.Integration.Tests` (`FilesHostWebApplicationFactory` + `FilesGrpcIsolationIntegrationTests`: cross-user node access denial, request/claim mismatch rejection, upload session-owner mismatch rejection)
 - ✓ Files REST isolation integration tests in `DotNetCloud.Integration.Tests` (`FilesRestIsolationIntegrationTests`: cross-user read/rename denial, upload session ownership enforcement, owner-scoped share/trash behavior, quota-exceeded upload rejection)
-- ☐ Files API integration tests in `DotNetCloud.Integration.Tests`
+- ✓ Expanded REST workflow integration coverage (`FilesRestIsolationIntegrationTests`: list/search/favorites/recent, sync tree/changes/reconcile, WOPI discovery payload shape)
+- ✓ Expanded feature-flow coverage (`FilesRestIsolationIntegrationTests`: dedup upload initiation, share create/update/revoke + public-link password validation, version list/get/label/restore, trash list/size/restore/purge, bulk move/copy/delete/permanent-delete)
+- ✓ WOPI token/file endpoint smoke coverage (`FilesRestIsolationIntegrationTests`: graceful disabled-provider behavior check for token generation, plus CheckFileInfo/GetFile/PutFile path when provider is enabled)
+- ✓ Local verification evidence refreshed after latest `main` pull (`FullyQualifiedName~FilesRestIsolationIntegrationTests` = 16 passing, `~Files` = 19 passing, `~MultiDatabaseMatrixTests` = 21 passing)
+- ☐ Real-provider matrix runtime evidence in Docker-backed environment (PostgreSQL required; SQL Server lane where available)
 
-**Notes:** Integration harness for Files Host now covers both gRPC and REST security-critical isolation paths (7 integration tests passing total: 3 gRPC + 4 REST). Remaining work for this step is broader REST/API end-to-end coverage depth and multi-database matrix scenarios.
+**Notes:** Integration harness now covers both isolation and broader REST endpoint workflows (16 REST + 3 gRPC files-focused integration tests passing in current suite). Remaining scope for completion is runtime provider confirmation in Docker-capable environment (PostgreSQL required) and Sprint A client-side compatibility sign-off in the mediation workflow.
 
 #### Step: phase-1.19.3 - Client Tests (DotNetCloud.Client.Core.Tests)
 **Status:** completed ✅

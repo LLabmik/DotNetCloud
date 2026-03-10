@@ -83,3 +83,135 @@ Archived: 2026-03-09. Full git history preserved in commits `c69aeac` through `c
 
 **Server (mint22, commit `d3a6422`):** Build 0 errors, all tests pass.  
 **Client (Windows11-TestDNC, commit `1cd594a`):** Build 0 errors, 123/123 tests pass.
+
+---
+
+## Sprint A Archive (Phase 1.19.2, archived 2026-03-10)
+
+The following Sprint A updates were moved from
+`CLIENT_SERVER_MEDIATION_HANDOFF.md` to keep the active handoff document small.
+Active entries should remain in the handoff doc; older completed updates belong here.
+
+### Sprint A Update #1 - Server Kickoff (`phase-1.19.2`)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`mint22`)  
+**Status:** in-progress ☐
+
+### Send to Server Agent
+Execute Sprint A for `phase-1.19.2` in `tests/DotNetCloud.Integration.Tests/`.
+
+Required coverage:
+1. REST CRUD/tree/search/favorites end-to-end tests.
+2. Chunked upload E2E tests (initiate, upload, complete, dedup behavior, quota rejection path).
+3. Version/share/trash end-to-end tests.
+4. WOPI and sync endpoint smoke tests (auth enforcement + payload shape).
+5. Provider matrix execution notes: PostgreSQL required; SQL Server if available.
+
+### Request Back
+- commit hash: `<SERVER_COMMIT_HASH>`
+- exact tests added/updated (file paths + test names):
+	- `<tests/DotNetCloud.Integration.Tests/...>`
+	- `<TestClass.TestName>`
+- raw endpoint/URL used for any failing test:
+	- `<METHOD /api/v1/...>`
+- raw error/query params:
+	- `<error payload / query string>`
+- raw log lines around failure (timestamped):
+	- `<2026-03-10T..Z ...>`
+- intentionally deferred coverage (if any):
+	- `<deferred item + reason>`
+
+### Server Progress Checklist
+- ✓ Test-gap inventory posted
+- ✓ New REST integration tests added
+- ✓ New chunked upload E2E tests added
+- ✓ New version/share/trash E2E tests added
+- ✓ WOPI + sync smoke tests added
+- ☐ PostgreSQL run completed
+- ✓ SQL Server run attempted/documented
+- ✓ Evidence returned (commit/tests/logs)
+
+### Build/Test Commands (run from repo root on `mint22`)
+- `dotnet build tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj`
+- `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj`
+- `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~Files"`
+
+### Sprint A Update #2 - Initial Inventory + First Expansion (Server)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`mint22`)  
+**Status:** in-progress ☐
+
+**Coverage inventory before changes (integration project):**
+- Existing Files coverage concentrated in isolation tests (`FilesRestIsolationIntegrationTests`, `FilesGrpcIsolationIntegrationTests`).
+- Non-files coverage present for auth/health and DB matrix scaffolding.
+- Gaps confirmed: broader CRUD workflow assertions, sync/WOPI smoke in REST class, and deeper end-to-end chunk/version/share/trash matrix scenarios.
+
+**Completed in this update:**
+- Added first Sprint A REST workflow expansion in `tests/DotNetCloud.Integration.Tests/Api/FilesRestIsolationIntegrationTests.cs`:
+	- `FileListSearchFavoritesAndRecent_WorkForOwner`
+	- `SyncEndpoints_TreeChangesAndReconcile_ReturnSuccess`
+	- `WopiDiscoveryEndpoints_ReturnExpectedShape`
+- Hardened payload handling in integration assertions for raw + envelope responses:
+	- `tests/DotNetCloud.Integration.Tests/Infrastructure/ApiAssert.cs`
+- Added `DataOrRoot` handling in Files REST integration tests for mixed response shapes.
+
+**Test evidence (local run on mint22):**
+- Command:
+	- `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~FilesRestIsolationIntegrationTests"`
+- Result:
+	- total: 7, failed: 0, succeeded: 7, skipped: 0
+
+**Still pending in Sprint A:**
+- Chunked upload E2E depth (resume/dedup/quota permutations beyond isolation path)
+- Version/share/trash end-to-end depth expansion
+- PostgreSQL and SQL Server matrix execution notes for new tests
+
+### Sprint A Update #3 - Deeper Files REST E2E Coverage (Server)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`mint22`)  
+**Status:** in-progress ☐
+
+**Completed in this update:**
+- Added deeper Files REST integration tests in `tests/DotNetCloud.Integration.Tests/Api/FilesRestIsolationIntegrationTests.cs`:
+	- `UploadInitiation_ReportsExistingChunks_ForDedup`
+	- `ShareLifecycle_CreateUpdateRevoke_WorksForOwner`
+	- `VersionEndpoints_ListGetAndLabel_WorkForUploadedFile`
+	- `TrashLifecycle_ListSizeAndPurge_WorksForOwner`
+- Expanded response-shape unwrapping helper in the same file to handle nested `data` envelopes.
+
+**Test evidence (local run on mint22):**
+- Command:
+	- `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~FilesRestIsolationIntegrationTests"`
+- Result:
+	- total: 11, failed: 0, succeeded: 11, skipped: 0
+
+- Command:
+	- `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~Files"`
+- Result:
+	- total: 14, failed: 0, succeeded: 14, skipped: 0
+
+**Remaining Sprint A gaps:**
+- Provider matrix execution notes for the expanded suite (PostgreSQL required, SQL Server if available).
+
+### Sprint A Update #4 - Provider Matrix Execution Notes (Server)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`mint22`)  
+**Status:** in-progress ☐
+
+**Command executed:**
+- `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~MultiDatabaseMatrixTests"`
+	- Result: total 21, succeeded 21, failed 0 (in-memory naming-strategy matrix)
+
+- `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~DockerDatabaseIntegrationTests"`
+	- Result: total 12, succeeded 0, skipped 12, failed 0
+
+**Interpretation:**
+- SQL Server path was attempted and documented via `DockerDatabaseIntegrationTests`, but no runnable SQL Server source was detected in this environment (tests skipped).
+- PostgreSQL real-container execution was also unavailable in this environment (tests skipped), so PostgreSQL-required real-provider confirmation remains blocked pending container/runtime availability.
+
+**Next action to close Sprint A matrix requirement:**
+- Re-run `DockerDatabaseIntegrationTests` on a host with Docker available (or with reachable local SQL Server for SQL lane) and attach raw pass/fail logs.

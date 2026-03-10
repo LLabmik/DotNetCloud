@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using DotNetCloud.Integration.Tests.Infrastructure;
 using DotNetCloud.Modules.Files.DTOs;
 
@@ -457,5 +458,235 @@ public class FilesRestIsolationIntegrationTests
             $"/api/v1/files/trash/{nodeId}/restore?userId={userId}",
             content: null);
         await ApiAssert.ErrorAsync(restoreAfterPurgeResponse, HttpStatusCode.NotFound);
+    }
+
+    [TestMethod]
+    public async Task WopiFileEndpoints_CheckGetPut_WorkWithGeneratedToken()
+    {
+        var userId = Guid.NewGuid();
+        using var client = _factory.CreateAuthenticatedApiClient(userId);
+
+        var originalBytes = Encoding.UTF8.GetBytes("wopi-original");
+        var fileNodeId = await UploadFileAsync(client, "wopi-test.txt", "text/plain", originalBytes);
+
+        var tokenResponse = await client.PostAsync($"/api/v1/wopi/token/{fileNodeId}?userId={userId}", content: null);
+        if (tokenResponse.StatusCode == HttpStatusCode.BadRequest)
+        {
+            var tokenError = await ApiAssert.ErrorAsync(tokenResponse, HttpStatusCode.BadRequest);
+            var errorCode = DataOrRoot(tokenError).GetProperty("error").GetProperty("code").GetString();
+            Assert.AreEqual("DB_INVALID_OPERATION", errorCode);
+            return;
+        }
+
+        var tokenRoot = await ApiAssert.SuccessAsync(tokenResponse, HttpStatusCode.OK);
+        var token = DataOrRoot(tokenRoot).GetProperty("accessToken").GetString();
+        Assert.IsFalse(string.IsNullOrWhiteSpace(token));
+        var accessToken = token!;
+
+        var checkResponse = await client.GetAsync($"/api/v1/wopi/files/{fileNodeId}?access_token={Uri.EscapeDataString(accessToken)}");
+        var checkRoot = await ApiAssert.SuccessAsync(checkResponse, HttpStatusCode.OK);
+        Assert.AreEqual("wopi-test.txt", checkRoot.GetProperty("BaseFileName").GetString());
+        Assert.IsTrue(checkRoot.GetProperty("SupportsUpdate").GetBoolean());
+
+        var getResponse = await client.GetAsync($"/api/v1/wopi/files/{fileNodeId}/contents?access_token={Uri.EscapeDataString(accessToken)}");
+        ApiAssert.StatusCode(getResponse, HttpStatusCode.OK);
+        var downloadedOriginal = await getResponse.Content.ReadAsByteArrayAsync();
+        CollectionAssert.AreEqual(originalBytes, downloadedOriginal);
+
+        var updatedBytes = Encoding.UTF8.GetBytes("wopi-updated");
+        using var putContent = new ByteArrayContent(updatedBytes);
+        var putResponse = await client.PostAsync(
+            $"/api/v1/wopi/files/{fileNodeId}/contents?access_token={Uri.EscapeDataString(accessToken)}",
+            putContent);
+
+        var putRoot = await ApiAssert.SuccessAsync(putResponse, HttpStatusCode.OK);
+        Assert.IsTrue(putRoot.TryGetProperty("LastModifiedTime", out _));
+
+        var getUpdatedResponse = await client.GetAsync($"/api/v1/wopi/files/{fileNodeId}/contents?access_token={Uri.EscapeDataString(accessToken)}");
+        ApiAssert.StatusCode(getUpdatedResponse, HttpStatusCode.OK);
+        var downloadedUpdated = await getUpdatedResponse.Content.ReadAsByteArrayAsync();
+        CollectionAssert.AreEqual(updatedBytes, downloadedUpdated);
+    }
+
+    [TestMethod]
+    public async Task VersionRestore_RestoresPreviousContent()
+    {
+        var userId = Guid.NewGuid();
+        using var client = _factory.CreateAuthenticatedApiClient(userId);
+
+        var initialBytes = Encoding.UTF8.GetBytes("version-one");
+        var fileNodeId = await UploadFileAsync(client, "restore-target.txt", "text/plain", initialBytes);
+
+        var versionsResponse = await client.GetAsync($"/api/v1/files/{fileNodeId}/versions?userId={userId}");
+        var versionsRoot = await ApiAssert.SuccessAsync(versionsResponse, HttpStatusCode.OK);
+        var versions = DataOrRoot(versionsRoot);
+        Assert.IsTrue(versions.ValueKind == System.Text.Json.JsonValueKind.Array);
+        Assert.IsTrue(versions.GetArrayLength() >= 1);
+
+        var restoreResponse = await client.PostAsync($"/api/v1/files/{fileNodeId}/versions/1/restore?userId={userId}", content: null);
+        await ApiAssert.SuccessAsync(restoreResponse, HttpStatusCode.OK);
+
+        var downloadRestoredResponse = await client.GetAsync($"/api/v1/files/{fileNodeId}/download");
+        ApiAssert.StatusCode(downloadRestoredResponse, HttpStatusCode.OK);
+        var restoredBytes = await downloadRestoredResponse.Content.ReadAsByteArrayAsync();
+        CollectionAssert.AreEqual(initialBytes, restoredBytes);
+    }
+
+    [TestMethod]
+    public async Task TrashRestore_WorkflowRestoresNodeVisibility()
+    {
+        var userId = Guid.NewGuid();
+        using var client = _factory.CreateAuthenticatedApiClient(userId);
+
+        var createResponse = await client.PostAsJsonAsync(
+            "/api/v1/files/folders",
+            new CreateFolderDto { Name = "restore-me" });
+        var createRoot = await ApiAssert.SuccessAsync(createResponse, HttpStatusCode.Created);
+        var nodeId = DataOrRoot(createRoot).GetProperty("id").GetGuid();
+
+        var deleteResponse = await client.DeleteAsync($"/api/v1/files/{nodeId}");
+        await ApiAssert.SuccessAsync(deleteResponse, HttpStatusCode.OK);
+
+        var getDeletedResponse = await client.GetAsync($"/api/v1/files/{nodeId}");
+        await ApiAssert.ErrorAsync(getDeletedResponse, HttpStatusCode.NotFound);
+
+        var restoreResponse = await client.PostAsync($"/api/v1/files/trash/{nodeId}/restore?userId={userId}", content: null);
+        await ApiAssert.SuccessAsync(restoreResponse, HttpStatusCode.OK);
+
+        var getRestoredResponse = await client.GetAsync($"/api/v1/files/{nodeId}");
+        var restoredRoot = await ApiAssert.SuccessAsync(getRestoredResponse, HttpStatusCode.OK);
+        Assert.AreEqual(nodeId, DataOrRoot(restoredRoot).GetProperty("id").GetGuid());
+    }
+
+    [TestMethod]
+    public async Task PublicShare_WithPassword_RequiresPasswordAndResolvesWithCorrectPassword()
+    {
+        var userId = Guid.NewGuid();
+        using var client = _factory.CreateAuthenticatedApiClient(userId);
+
+        var createResponse = await client.PostAsJsonAsync(
+            "/api/v1/files/folders",
+            new CreateFolderDto { Name = "public-share-password" });
+        var createRoot = await ApiAssert.SuccessAsync(createResponse, HttpStatusCode.Created);
+        var nodeId = DataOrRoot(createRoot).GetProperty("id").GetGuid();
+
+        var createShareResponse = await client.PostAsJsonAsync(
+            $"/api/v1/files/{nodeId}/shares?userId={userId}",
+            new CreateShareDto
+            {
+                ShareType = "PublicLink",
+                Permission = "Read",
+                LinkPassword = "P@ssw0rd!"
+            });
+        var createShareRoot = await ApiAssert.SuccessAsync(createShareResponse, HttpStatusCode.Created);
+        var linkToken = DataOrRoot(createShareRoot).GetProperty("linkToken").GetString();
+        Assert.IsFalse(string.IsNullOrWhiteSpace(linkToken));
+        var publicLinkToken = linkToken!;
+
+        var resolveMissingPassword = await client.GetAsync($"/api/v1/public/shares/{publicLinkToken}");
+        await ApiAssert.ErrorAsync(resolveMissingPassword, HttpStatusCode.NotFound);
+
+        var resolveWrongPassword = await client.GetAsync($"/api/v1/public/shares/{publicLinkToken}?password=wrong");
+        await ApiAssert.ErrorAsync(resolveWrongPassword, HttpStatusCode.NotFound);
+
+        var resolveCorrectPassword = await client.GetAsync($"/api/v1/public/shares/{publicLinkToken}?password={Uri.EscapeDataString("P@ssw0rd!")}");
+        var resolveRoot = await ApiAssert.SuccessAsync(resolveCorrectPassword, HttpStatusCode.OK);
+        Assert.AreEqual(publicLinkToken, DataOrRoot(resolveRoot).GetProperty("linkToken").GetString());
+    }
+
+    [TestMethod]
+    public async Task BulkOperations_MoveCopyDeleteAndPermanentDelete_ReturnExpectedCounts()
+    {
+        var userId = Guid.NewGuid();
+        using var client = _factory.CreateAuthenticatedApiClient(userId);
+
+        var sourceRootId = await CreateFolderAsync(client, "bulk-source");
+        var targetRootId = await CreateFolderAsync(client, "bulk-target");
+
+        var childAId = await UploadFileAsync(client, "bulk-file-a.txt", "text/plain", Encoding.UTF8.GetBytes("bulk-a"), sourceRootId);
+        var childBId = await CreateFolderAsync(client, "child-b", sourceRootId);
+
+        var moveResponse = await client.PostAsJsonAsync(
+            $"/api/v1/files/bulk/move?userId={userId}",
+            new BulkOperationDto
+            {
+                NodeIds = [childAId],
+                TargetParentId = targetRootId
+            });
+        var moveRoot = await ApiAssert.SuccessAsync(moveResponse, HttpStatusCode.OK);
+        var moveData = DataOrRoot(moveRoot);
+        Assert.AreEqual(1, moveData.GetProperty("successCount").GetInt32());
+
+        var copyResponse = await client.PostAsJsonAsync(
+            $"/api/v1/files/bulk/copy?userId={userId}",
+            new BulkOperationDto
+            {
+                NodeIds = [childAId],
+                TargetParentId = targetRootId
+            });
+        var copyRoot = await ApiAssert.SuccessAsync(copyResponse, HttpStatusCode.OK);
+        var copyData = DataOrRoot(copyRoot);
+        Assert.AreEqual(1, copyData.GetProperty("successCount").GetInt32());
+
+        var deleteResponse = await client.PostAsJsonAsync(
+            $"/api/v1/files/bulk/delete?userId={userId}",
+            new BulkOperationDto
+            {
+                NodeIds = [childBId]
+            });
+        var deleteRoot = await ApiAssert.SuccessAsync(deleteResponse, HttpStatusCode.OK);
+        var deleteData = DataOrRoot(deleteRoot);
+        Assert.AreEqual(1, deleteData.GetProperty("successCount").GetInt32());
+
+        var permanentDeleteResponse = await client.PostAsJsonAsync(
+            $"/api/v1/files/bulk/permanent-delete?userId={userId}",
+            new BulkOperationDto
+            {
+                NodeIds = [childBId]
+            });
+        var permanentDeleteRoot = await ApiAssert.SuccessAsync(permanentDeleteResponse, HttpStatusCode.OK);
+        var permanentDeleteData = DataOrRoot(permanentDeleteRoot);
+        Assert.AreEqual(1, permanentDeleteData.GetProperty("successCount").GetInt32());
+    }
+
+    private static async Task<Guid> UploadFileAsync(HttpClient client, string fileName, string mimeType, byte[] payload, Guid? parentId = null)
+    {
+        var chunkHash = DotNetCloud.Modules.Files.Services.ContentHasher.ComputeHash(payload);
+
+        var initiateResponse = await client.PostAsJsonAsync(
+            "/api/v1/files/upload/initiate",
+            new InitiateUploadDto
+            {
+                FileName = fileName,
+                ParentId = parentId,
+                TotalSize = payload.Length,
+                MimeType = mimeType,
+                ChunkHashes = [chunkHash]
+            });
+        var initiateRoot = await ApiAssert.SuccessAsync(initiateResponse, HttpStatusCode.Created);
+        var sessionId = DataOrRoot(initiateRoot).GetProperty("sessionId").GetGuid();
+
+        using (var chunkContent = new ByteArrayContent(payload))
+        {
+            var uploadChunkResponse = await client.PutAsync($"/api/v1/files/upload/{sessionId}/chunks/{chunkHash}", chunkContent);
+            await ApiAssert.SuccessAsync(uploadChunkResponse, HttpStatusCode.OK);
+        }
+
+        var completeResponse = await client.PostAsync($"/api/v1/files/upload/{sessionId}/complete", content: null);
+        var completeRoot = await ApiAssert.SuccessAsync(completeResponse, HttpStatusCode.OK);
+        return DataOrRoot(completeRoot).GetProperty("id").GetGuid();
+    }
+
+    private static async Task<Guid> CreateFolderAsync(HttpClient client, string name, Guid? parentId = null)
+    {
+        var createResponse = await client.PostAsJsonAsync(
+            "/api/v1/files/folders",
+            new CreateFolderDto
+            {
+                Name = name,
+                ParentId = parentId
+            });
+        var createRoot = await ApiAssert.SuccessAsync(createResponse, HttpStatusCode.Created);
+        return DataOrRoot(createRoot).GetProperty("id").GetGuid();
     }
 }

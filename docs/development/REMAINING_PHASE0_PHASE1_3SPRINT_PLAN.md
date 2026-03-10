@@ -41,15 +41,15 @@
 
 ### Deliverables
 
-- ☐ CRUD/tree/search/favorites REST integration tests
-- ☐ Chunked upload E2E integration tests (initiate/upload/complete/dedup/quota failure)
-- ☐ Version/share/trash E2E integration tests
-- ☐ WOPI + sync endpoint integration smoke tests (auth + payload shape)
-- ☐ Multi-database run coverage documented (PostgreSQL + SQL Server where feasible)
+- ✓ CRUD/tree/search/favorites REST integration tests
+- ✓ Chunked upload E2E integration tests (initiate/upload/complete/dedup/quota failure)
+- ✓ Version/share/trash E2E integration tests
+- ✓ WOPI + sync endpoint integration smoke tests (auth + payload shape)
+- ✓ Multi-database run coverage documented (PostgreSQL + SQL Server where feasible)
 
 ### Mediator Handoff Checkpoints
 
-- ☐ Server posts detailed test-gap inventory to handoff doc
+- ✓ Server posts detailed test-gap inventory to handoff doc
 - ☐ Server posts commit hash + exact test names + raw endpoint diffs
 - ☐ Client validates no response-envelope/auth contract regressions
 - ☐ Cross-agent sign-off recorded in handoff doc
