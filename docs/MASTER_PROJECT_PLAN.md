@@ -64,7 +64,7 @@
 | Phase 2.6 | 4 | 4 | 0 | 0 |
 | Phase 2.7 | 4 | 4 | 0 | 0 |
 | Phase 2.8 | 11 | 11 | 0 | 0 |
-| Phase 2.9 | 3 | 0 | 0 | 3 |
+| Phase 2.9 | 3 | 0 | 1 | 2 |
 | Phase 2.10 | 8 | 0 | 0 | 8 |
 | Phase 2.11 | 3 | 3 | 0 | 0 |
 | Phase 2.12 | 2 | 1 | 1 | 0 |
@@ -3397,18 +3397,22 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Step: phase-2.9 - Desktop Client Chat Integration
-**Status:** pending
+**Status:** in-progress
 **Duration:** ~1 week
 **Description:** Add chat notifications, tray icon badges, and quick reply to the existing SyncTray desktop application.
 
 **Tasks:**
-- ☐ Add chat notification popups (Windows toast / Linux libnotify) with DND/mute support
-- ☐ Implement tray icon unread badge (different for mentions vs. regular messages)
+- ✓ Add chat notification popups with message preview and channel-aware titles (Windows + Linux)
+- ✓ Add DND/mute suppression (Settings-backed mute toggle + tray popup guard)
+- ✓ Add click-to-open chat browser action (`/apps/chat`) from activated notifications
+- ☐ Add notification grouping behavior
+- ✓ Implement tray unread aggregation path (`IChatSignalRClient`, `ChatUnreadCount`, `ChatHasMentions`, tooltip unread summary, SignalR-driven clear)
+- ☐ Implement tray icon mention-vs-message visual badge state
 - ☐ Add quick reply popup from notification (optional)
 
 **Dependencies:** phase-2.5, Phase 1 (SyncTray exists)
 **Blocking Issues:** Phase 1 must be complete (desktop client exists)
-**Notes:** Click notification opens chat in web browser.
+**Notes:** Step 5a through Step 5d complete. Added `IChatSignalRClient` contract in `DotNetCloud.Client.Core`; wired SyncTray `TrayViewModel` to subscribe to unread-count updates (aggregate totals + mention flag + tooltip summary) and to `OnNewChatMessage` for popups with channel-aware titles and message preview body. Added `NotificationType.Chat`/`NotificationType.Mention` and mapped platform behavior: Windows mention uses warning icon path, Linux mention uses critical urgency + `mail-mark-important`; regular chat uses normal urgency/icon mapping. Added DND/mute handling with `SettingsViewModel.IsMuteChatNotifications` persisted to local `sync-tray-settings.json`, propagated into `TrayViewModel.IsMuteChatNotifications`, and enforced in chat popup path. Implemented click-to-open behavior by extending `INotificationService` with activation callback + optional action URL, passing `/apps/chat` URL from tray chat events, handling Windows balloon click activation via hidden-window callback message interception, and handling Linux activation via `notify-send --action ... --wait` + `xdg-open`. Added targeted unit coverage for action URL propagation and re-validated with `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj` (54/54 passing). Next: notification grouping behavior and mention-vs-message tray icon badge state.
 
 ---
 

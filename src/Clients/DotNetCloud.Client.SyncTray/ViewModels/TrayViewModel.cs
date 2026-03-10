@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using DotNetCloud.Client.Core;
 using DotNetCloud.Client.SyncTray.Ipc;
 using DotNetCloud.Client.SyncTray.Notifications;
 using Microsoft.Extensions.Logging;
@@ -13,6 +14,7 @@ namespace DotNetCloud.Client.SyncTray.ViewModels;
 public sealed class TrayViewModel : ViewModelBase
 {
     private readonly IIpcClient _ipc;
+    private readonly IChatSignalRClient _chatSignalRClient;
     private readonly INotificationService _notifications;
     private readonly ILogger<TrayViewModel> _logger;
 
@@ -21,6 +23,9 @@ public sealed class TrayViewModel : ViewModelBase
     private bool _isSyncing;
     private bool _isPaused;
     private int _conflictCount;
+    private int _chatUnreadCount;
+    private bool _chatHasMentions;
+    private bool _isMuteChatNotifications;
 
     // Keyed by context ID for O(1) lookup on push events.
     private readonly Dictionary<Guid, AccountViewModel> _accounts = [];
@@ -29,6 +34,10 @@ public sealed class TrayViewModel : ViewModelBase
     // Active transfers: keyed by TransferKey (contextId:fileName:direction) for O(1) update.
     private readonly Dictionary<string, ActiveTransferViewModel> _transfersById = [];
     private readonly ObservableCollection<ActiveTransferViewModel> _activeTransfers = [];
+
+    // Chat unread aggregation keyed by channel ID.
+    private readonly Dictionary<string, ChatUnreadCountUpdatedEventArgs> _chatUnreadByChannel =
+        new(StringComparer.OrdinalIgnoreCase);
 
     // 24-hour recurring conflict reminder (Task 3.5c).
     private DateTime _lastConflictNotificationUtc = DateTime.MinValue;
@@ -78,6 +87,27 @@ public sealed class TrayViewModel : ViewModelBase
     /// <summary>Whether any unresolved conflict copies exist.</summary>
     public bool HasConflicts => _conflictCount > 0;
 
+    /// <summary>Total unread chat messages across channels.</summary>
+    public int ChatUnreadCount
+    {
+        get => _chatUnreadCount;
+        private set => SetProperty(ref _chatUnreadCount, value);
+    }
+
+    /// <summary>Whether any channel currently has unread mentions.</summary>
+    public bool ChatHasMentions
+    {
+        get => _chatHasMentions;
+        private set => SetProperty(ref _chatHasMentions, value);
+    }
+
+    /// <summary>Whether chat popup notifications are muted.</summary>
+    public bool IsMuteChatNotifications
+    {
+        get => _isMuteChatNotifications;
+        set => SetProperty(ref _isMuteChatNotifications, value);
+    }
+
     /// <summary>Snapshot list of connected account view-models.</summary>
     public IReadOnlyList<AccountViewModel> Accounts => _accountList;
 
@@ -87,11 +117,17 @@ public sealed class TrayViewModel : ViewModelBase
     // ── Constructor ───────────────────────────────────────────────────────
 
     /// <summary>Initializes a new <see cref="TrayViewModel"/>.</summary>
-    public TrayViewModel(IIpcClient ipc, INotificationService notifications, ILogger<TrayViewModel> logger)
+    public TrayViewModel(
+        IIpcClient ipc,
+        IChatSignalRClient chatSignalRClient,
+        INotificationService notifications,
+        ILogger<TrayViewModel> logger)
     {
         _ipc = ipc;
+        _chatSignalRClient = chatSignalRClient;
         _notifications = notifications;
         _logger = logger;
+        _notifications.OnNotificationActivated = OnNotificationActivated;
 
         _ipc.ConnectionStateChanged += OnConnectionStateChanged;
         _ipc.SyncProgressReceived += OnSyncProgress;
@@ -101,6 +137,8 @@ public sealed class TrayViewModel : ViewModelBase
         _ipc.ConflictAutoResolved += OnConflictAutoResolved;
         _ipc.TransferProgressReceived += OnTransferProgress;
         _ipc.TransferCompleteReceived += OnTransferComplete;
+        _chatSignalRClient.OnUnreadCountUpdated += OnUnreadCountUpdated;
+        _chatSignalRClient.OnNewChatMessage += OnNewChatMessage;
 
         // Start a 1-hour periodic timer to check for stale unresolved conflicts.
         _conflictReminderTimer = new Timer(
@@ -108,6 +146,18 @@ public sealed class TrayViewModel : ViewModelBase
             state: null,
             dueTime: TimeSpan.FromHours(1),
             period: TimeSpan.FromHours(1));
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _chatSignalRClient.ConnectAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Chat SignalR client connection failed or is unavailable.");
+            }
+        });
     }
 
     // ── Commands (called from TrayIconManager / menu) ─────────────────────
@@ -316,6 +366,63 @@ public sealed class TrayViewModel : ViewModelBase
             NotificationType.Info);
     }
 
+    private void OnUnreadCountUpdated(object? sender, ChatUnreadCountUpdatedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(e.ChannelId))
+            return;
+
+        if (e.UnreadCount <= 0)
+        {
+            _chatUnreadByChannel.Remove(e.ChannelId);
+        }
+        else
+        {
+            _chatUnreadByChannel[e.ChannelId] = e;
+        }
+
+        ChatUnreadCount = _chatUnreadByChannel.Values.Sum(v => Math.Max(0, v.UnreadCount));
+        ChatHasMentions = _chatUnreadByChannel.Values.Any(v => v.HasMention);
+        UpdateAggregateState();
+    }
+
+    private void OnNewChatMessage(object? sender, ChatMessageReceivedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(e.ChannelId))
+            return;
+
+        if (IsMuteChatNotifications)
+            return;
+
+        var channelName = string.IsNullOrWhiteSpace(e.ChannelDisplayName) ? "Chat" : e.ChannelDisplayName;
+        var senderName = string.IsNullOrWhiteSpace(e.SenderDisplayName) ? "Unknown sender" : e.SenderDisplayName;
+        var preview = string.IsNullOrWhiteSpace(e.MessagePreview) ? "(no preview)" : e.MessagePreview;
+        var notificationType = e.IsMention ? NotificationType.Mention : NotificationType.Chat;
+        var actionUrl = GetChatAppUrl();
+
+        _notifications.ShowNotification(
+            $"{channelName} — {senderName}",
+            preview,
+            notificationType,
+            actionUrl);
+    }
+
+    private void OnNotificationActivated(string actionUrl)
+    {
+        _logger.LogDebug("Notification activated: {Url}", actionUrl);
+    }
+
+    private string? GetChatAppUrl()
+    {
+        var serverBaseUrl = _accountList.FirstOrDefault()?.ServerBaseUrl;
+        if (string.IsNullOrWhiteSpace(serverBaseUrl))
+            return null;
+
+        if (!Uri.TryCreate(serverBaseUrl, UriKind.Absolute, out var baseUri))
+            return null;
+
+        return new Uri(baseUri, "/apps/chat").ToString();
+    }
+
     /// <summary>
     /// Periodic check: if unresolved conflicts exist and the last notification
     /// was more than 24 hours ago, re-notify the user.
@@ -411,9 +518,10 @@ public sealed class TrayViewModel : ViewModelBase
         if (!_ipc.IsConnected || _accountList.Count == 0)
         {
             OverallState = TrayState.Offline;
-            Tooltip = _ipc.IsConnected
+            var offlineTooltip = _ipc.IsConnected
                 ? "DotNetCloud Sync \u2014 no accounts configured"
                 : "DotNetCloud Sync \u2014 service not running";
+            Tooltip = AppendChatSummary(offlineTooltip);
             IsSyncing = false;
             IsPaused = false;
             return;
@@ -436,7 +544,7 @@ public sealed class TrayViewModel : ViewModelBase
         int totalUp = _accountList.Sum(a => a.PendingUploads);
         int totalDown = _accountList.Sum(a => a.PendingDownloads);
 
-        Tooltip = OverallState switch
+        var baseTooltip = OverallState switch
         {
             TrayState.Error => "DotNetCloud Sync \u2014 sync error (click for details)",
             TrayState.Conflict => $"DotNetCloud Sync \u2014 {_conflictCount} conflict(s) need attention",
@@ -444,6 +552,17 @@ public sealed class TrayViewModel : ViewModelBase
             TrayState.Paused => "DotNetCloud Sync \u2014 paused",
             _ => $"DotNetCloud Sync \u2014 up to date ({_accountList.Count} account(s))",
         };
+
+        Tooltip = AppendChatSummary(baseTooltip);
+    }
+
+    private string AppendChatSummary(string baseTooltip)
+    {
+        if (ChatUnreadCount <= 0)
+            return baseTooltip;
+
+        var mentionSuffix = ChatHasMentions ? " (mentions)" : string.Empty;
+        return $"{baseTooltip} | chat: {ChatUnreadCount} unread{mentionSuffix}";
     }
 }
 

@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
+using DotNetCloud.Client.Core;
 using DotNetCloud.Client.Core.Auth;
 using DotNetCloud.Client.Core.SelectiveSync;
 using DotNetCloud.Client.Core.SyncIgnore;
@@ -100,6 +101,9 @@ public partial class App : Application
 
         // IPC client for communication with SyncService.
         services.AddSingleton<IIpcClient, IpcClient>();
+
+        // Chat real-time client used by tray unread badge features.
+        services.AddSingleton<IChatSignalRClient, NoOpChatSignalRClient>();
 
         // Tray icon manager.
         services.AddSingleton<TrayIconManager>();

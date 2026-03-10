@@ -1,4 +1,5 @@
 using DotNetCloud.Client.SyncService.Ipc;
+using DotNetCloud.Client.Core;
 using DotNetCloud.Client.SyncTray.Ipc;
 using DotNetCloud.Client.SyncTray.Notifications;
 using DotNetCloud.Client.SyncTray.ViewModels;
@@ -15,14 +16,14 @@ public sealed class TrayViewModelTests
     [TestMethod]
     public void OverallState_DefaultsToOffline()
     {
-        var (vm, _, _) = BuildVm();
+        var (vm, _, _, _) = BuildVm();
         Assert.AreEqual(TrayState.Offline, vm.OverallState);
     }
 
     [TestMethod]
     public void Tooltip_DefaultIndicatesServiceNotRunning()
     {
-        var (vm, _, _) = BuildVm();
+        var (vm, _, _, _) = BuildVm();
         StringAssert.Contains(vm.Tooltip, "service not running");
     }
 
@@ -31,7 +32,7 @@ public sealed class TrayViewModelTests
     [TestMethod]
     public void OnDisconnect_SetsOfflineState()
     {
-        var (vm, ipcMock, _) = BuildVm();
+        var (vm, ipcMock, _, _) = BuildVm();
 
         // Simulate a disconnect.
         ipcMock.Raise(i => i.ConnectionStateChanged += null, ipcMock.Object, false);
@@ -44,7 +45,7 @@ public sealed class TrayViewModelTests
     [TestMethod]
     public async Task OnSyncProgress_ForKnownContext_UpdatesAccountState()
     {
-        var (vm, ipcMock, _) = BuildVm();
+        var (vm, ipcMock, _, _) = BuildVm();
         var contextId = Guid.NewGuid();
 
         await SeedAccountAsync(vm, ipcMock, contextId, "Idle");
@@ -66,7 +67,7 @@ public sealed class TrayViewModelTests
     [TestMethod]
     public async Task OnSyncComplete_ResetsAccountToIdle()
     {
-        var (vm, ipcMock, _) = BuildVm();
+        var (vm, ipcMock, _, _) = BuildVm();
         var contextId = Guid.NewGuid();
 
         await SeedAccountAsync(vm, ipcMock, contextId, "Syncing");
@@ -83,7 +84,7 @@ public sealed class TrayViewModelTests
     [TestMethod]
     public async Task OnSyncComplete_WithConflicts_ShowsNotification()
     {
-        var (vm, ipcMock, notifMock) = BuildVm();
+        var (vm, ipcMock, _, notifMock) = BuildVm();
         var contextId = Guid.NewGuid();
 
         await SeedAccountAsync(vm, ipcMock, contextId, "Syncing");
@@ -106,7 +107,7 @@ public sealed class TrayViewModelTests
     [TestMethod]
     public async Task OnSyncError_SetsErrorState_AndShowsNotification()
     {
-        var (vm, ipcMock, notifMock) = BuildVm();
+        var (vm, ipcMock, _, notifMock) = BuildVm();
         var contextId = Guid.NewGuid();
 
         await SeedAccountAsync(vm, ipcMock, contextId, "Syncing");
@@ -133,7 +134,7 @@ public sealed class TrayViewModelTests
     [TestMethod]
     public async Task OverallState_IsIdle_WhenAllAccountsIdle()
     {
-        var (vm, ipcMock, _) = BuildVm();
+        var (vm, ipcMock, _, _) = BuildVm();
         var id1 = Guid.NewGuid();
         var id2 = Guid.NewGuid();
 
@@ -146,7 +147,7 @@ public sealed class TrayViewModelTests
     [TestMethod]
     public async Task OverallState_IsSyncing_WhenAnyAccountSyncing()
     {
-        var (vm, ipcMock, _) = BuildVm();
+        var (vm, ipcMock, _, _) = BuildVm();
         var id1 = Guid.NewGuid();
         var id2 = Guid.NewGuid();
 
@@ -165,7 +166,7 @@ public sealed class TrayViewModelTests
     [TestMethod]
     public async Task OverallState_IsError_WhenAnyAccountInError()
     {
-        var (vm, ipcMock, _) = BuildVm();
+        var (vm, ipcMock, _, _) = BuildVm();
         var id = Guid.NewGuid();
 
         await SeedAccountAsync(vm, ipcMock, id, "Idle");
@@ -182,7 +183,7 @@ public sealed class TrayViewModelTests
     [TestMethod]
     public async Task OverallState_IsPaused_WhenAllAccountsPaused()
     {
-        var (vm, ipcMock, _) = BuildVm();
+        var (vm, ipcMock, _, _) = BuildVm();
         var id = Guid.NewGuid();
 
         await SeedAccountAsync(vm, ipcMock, id, "Idle");
@@ -198,7 +199,142 @@ public sealed class TrayViewModelTests
 
     // ── Helpers ───────────────────────────────────────────────────────────
 
-    private static (TrayViewModel vm, Mock<IIpcClient> ipcMock, Mock<INotificationService> notifMock) BuildVm()
+    [TestMethod]
+    public async Task OnUnreadCountUpdated_AggregatesAcrossChannels_AndTracksMentions()
+    {
+        var (vm, ipcMock, chatMock, _) = BuildVm();
+        var contextId = Guid.NewGuid();
+
+        await SeedAccountAsync(vm, ipcMock, contextId, "Idle");
+
+        chatMock.Raise(
+            c => c.OnUnreadCountUpdated += null,
+            chatMock.Object,
+            new ChatUnreadCountUpdatedEventArgs("channel-a", 3, false));
+        chatMock.Raise(
+            c => c.OnUnreadCountUpdated += null,
+            chatMock.Object,
+            new ChatUnreadCountUpdatedEventArgs("channel-b", 2, true));
+
+        Assert.AreEqual(5, vm.ChatUnreadCount);
+        Assert.IsTrue(vm.ChatHasMentions);
+    }
+
+    [TestMethod]
+    public async Task Tooltip_IncludesChatUnreadSummary_WhenUnreadExists()
+    {
+        var (vm, ipcMock, chatMock, _) = BuildVm();
+        var contextId = Guid.NewGuid();
+
+        await SeedAccountAsync(vm, ipcMock, contextId, "Idle");
+
+        chatMock.Raise(
+            c => c.OnUnreadCountUpdated += null,
+            chatMock.Object,
+            new ChatUnreadCountUpdatedEventArgs("channel-a", 4, true));
+
+        StringAssert.Contains(vm.Tooltip, "chat: 4 unread");
+        StringAssert.Contains(vm.Tooltip, "mentions");
+    }
+
+    [TestMethod]
+    public void OnNewChatMessage_ShowsChatNotification_WithChannelAndPreview()
+    {
+        var (_, _, chatMock, notifMock) = BuildVm();
+
+        chatMock.Raise(
+            c => c.OnNewChatMessage += null,
+            chatMock.Object,
+            new ChatMessageReceivedEventArgs(
+                "channel-a",
+                "General",
+                "Alice",
+                "Hello from chat",
+                false));
+
+        notifMock.Verify(
+            n => n.ShowNotification(
+                It.Is<string>(t => t.Contains("General") && t.Contains("Alice")),
+                It.Is<string>(b => b.Contains("Hello from chat")),
+                NotificationType.Chat),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public void OnNewChatMessage_WithMention_UsesMentionNotificationType()
+    {
+        var (_, _, chatMock, notifMock) = BuildVm();
+
+        chatMock.Raise(
+            c => c.OnNewChatMessage += null,
+            chatMock.Object,
+            new ChatMessageReceivedEventArgs(
+                "channel-b",
+                "Engineering",
+                "Bob",
+                "@you please check this",
+                true));
+
+        notifMock.Verify(
+            n => n.ShowNotification(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                NotificationType.Mention),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public void OnNewChatMessage_WhenMuted_DoesNotShowNotification()
+    {
+        var (vm, _, chatMock, notifMock) = BuildVm();
+        vm.IsMuteChatNotifications = true;
+
+        chatMock.Raise(
+            c => c.OnNewChatMessage += null,
+            chatMock.Object,
+            new ChatMessageReceivedEventArgs(
+                "channel-c",
+                "General",
+                "Carol",
+                "Muted message",
+                false));
+
+        notifMock.Verify(
+            n => n.ShowNotification(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<NotificationType>()),
+            Times.Never);
+    }
+
+    [TestMethod]
+    public async Task OnNewChatMessage_WithKnownAccount_PassesChatAppActionUrl()
+    {
+        var (vm, ipcMock, chatMock, notifMock) = BuildVm();
+        var contextId = Guid.NewGuid();
+
+        await SeedAccountAsync(vm, ipcMock, contextId, "Idle");
+
+        chatMock.Raise(
+            c => c.OnNewChatMessage += null,
+            chatMock.Object,
+            new ChatMessageReceivedEventArgs(
+                "channel-d",
+                "General",
+                "Dana",
+                "Click me",
+                false));
+
+        notifMock.Verify(
+            n => n.ShowNotification(
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                NotificationType.Chat,
+                It.Is<string?>(u => u != null && u.EndsWith("/apps/chat", StringComparison.OrdinalIgnoreCase))),
+            Times.Once);
+    }
+
+    private static (TrayViewModel vm, Mock<IIpcClient> ipcMock, Mock<IChatSignalRClient> chatMock, Mock<INotificationService> notifMock) BuildVm()
     {
         var ipcMock = new Mock<IIpcClient>();
         ipcMock.SetupGet(i => i.IsConnected).Returns(false);
@@ -208,10 +344,13 @@ public sealed class TrayViewModelTests
         ipcMock.SetupAdd(i => i.ConflictDetected += It.IsAny<EventHandler<SyncConflictEventData>>());
         ipcMock.SetupAdd(i => i.ConnectionStateChanged += It.IsAny<EventHandler<bool>>());
 
-        var notifMock = new Mock<INotificationService>();
-        var vm = new TrayViewModel(ipcMock.Object, notifMock.Object, NullLogger<TrayViewModel>.Instance);
+        var chatMock = new Mock<IChatSignalRClient>();
+        chatMock.Setup(c => c.ConnectAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
-        return (vm, ipcMock, notifMock);
+        var notifMock = new Mock<INotificationService>();
+        var vm = new TrayViewModel(ipcMock.Object, chatMock.Object, notifMock.Object, NullLogger<TrayViewModel>.Instance);
+
+        return (vm, ipcMock, chatMock, notifMock);
     }
 
     /// <summary>

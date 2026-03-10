@@ -90,6 +90,8 @@
                 <StackPanel Margin="8" Spacing="12">
                     <CheckBox Content="Start DotNetCloud Sync on login"
                               IsChecked="{Binding StartOnLogin}" />
+                    <CheckBox Content="Mute chat notifications"
+                              IsChecked="{Binding IsMuteChatNotifications}" />
                     <Separator />
                     <TextBlock Text="Bandwidth limits" FontWeight="SemiBold" />
                     <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" RowSpacing="6">

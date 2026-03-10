@@ -1,4 +1,5 @@
 using DotNetCloud.Client.Core.Auth;
+using DotNetCloud.Client.Core;
 using DotNetCloud.Client.Core.SelectiveSync;
 using DotNetCloud.Client.Core.SyncIgnore;
 using DotNetCloud.Client.SyncTray.Ipc;
@@ -132,6 +133,55 @@ public sealed class SettingsViewModelTests
         ipcMock.Verify(i => i.RemoveAccountAsync(contextId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [TestMethod]
+    public async Task IsMuteChatNotifications_PersistsAndLoadsFromLocalSettingsJson()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"dotnetcloud-sync-tray-tests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        var settingsPath = Path.Combine(tempDir, "sync-tray-settings.json");
+
+        try
+        {
+            var ipcMock = new Mock<IIpcClient>();
+            ipcMock.SetupGet(i => i.IsConnected).Returns(false);
+
+            var chatMock = new Mock<IChatSignalRClient>();
+            chatMock.Setup(c => c.ConnectAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+            var notifMock = new Mock<INotificationService>();
+            var trayVm = new TrayViewModel(ipcMock.Object, chatMock.Object, notifMock.Object, NullLogger<TrayViewModel>.Instance);
+            var oauth2Mock = new Mock<IOAuth2Service>();
+
+            var vm1 = new SettingsViewModel(
+                trayVm,
+                ipcMock.Object,
+                oauth2Mock.Object,
+                new Mock<ISyncIgnoreParser>().Object,
+                new Mock<ISelectiveSyncConfig>().Object,
+                NullLogger<SettingsViewModel>.Instance,
+                settingsPath);
+
+            vm1.IsMuteChatNotifications = true;
+            await Task.Delay(100);
+
+            var vm2 = new SettingsViewModel(
+                trayVm,
+                ipcMock.Object,
+                oauth2Mock.Object,
+                new Mock<ISyncIgnoreParser>().Object,
+                new Mock<ISelectiveSyncConfig>().Object,
+                NullLogger<SettingsViewModel>.Instance,
+                settingsPath);
+
+            Assert.IsTrue(vm2.IsMuteChatNotifications);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────
 
     private static (SettingsViewModel vm, Mock<IIpcClient> ipcMock, Mock<IOAuth2Service> oauth2Mock, Mock<INotificationService> notifMock)
@@ -145,8 +195,11 @@ public sealed class SettingsViewModelTests
         ipcMock.SetupAdd(i => i.ConflictDetected += It.IsAny<EventHandler<SyncConflictEventData>>());
         ipcMock.SetupAdd(i => i.ConnectionStateChanged += It.IsAny<EventHandler<bool>>());
 
+        var chatMock = new Mock<IChatSignalRClient>();
+        chatMock.Setup(c => c.ConnectAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
         var notifMock = new Mock<INotificationService>();
-        var trayVm = new TrayViewModel(ipcMock.Object, notifMock.Object, NullLogger<TrayViewModel>.Instance);
+        var trayVm = new TrayViewModel(ipcMock.Object, chatMock.Object, notifMock.Object, NullLogger<TrayViewModel>.Instance);
 
         var oauth2Mock = new Mock<IOAuth2Service>();
 

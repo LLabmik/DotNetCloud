@@ -7,8 +7,12 @@ namespace DotNetCloud.Client.SyncTray.Notifications;
 internal sealed class NoOpNotificationService : INotificationService
 {
     /// <inheritdoc/>
-    public void ShowNotification(string title, string body, NotificationType type = NotificationType.Info)
+    public Action<string>? OnNotificationActivated { get; set; }
+
+    /// <inheritdoc/>
+    public void ShowNotification(string title, string body, NotificationType type = NotificationType.Info, string? actionUrl = null)
     {
         // No-op: platform has no notification support.
+        _ = actionUrl;
     }
 }

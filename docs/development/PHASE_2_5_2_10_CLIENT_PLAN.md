@@ -225,7 +225,7 @@
 - `src/Clients/DotNetCloud.Client.Core/IChatSignalRClient.cs` *(new)*
 - `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/TrayViewModel.cs`
 
-**Status:** ☐
+**Status:** ✓
 
 ---
 
@@ -245,7 +245,7 @@
 - `src/Clients/DotNetCloud.Client.SyncTray/Notifications/LinuxNotificationService.cs`
 - `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/TrayViewModel.cs`
 
-**Status:** ☐
+**Status:** ✓
 
 ---
 
@@ -261,7 +261,7 @@
 - `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/SettingsViewModel.cs`
 - `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/TrayViewModel.cs`
 
-**Status:** ☐
+**Status:** ✓
 
 ---
 
@@ -279,7 +279,7 @@
 - `src/Clients/DotNetCloud.Client.SyncTray/Notifications/WindowsNotificationService.cs`
 - `src/Clients/DotNetCloud.Client.SyncTray/Notifications/LinuxNotificationService.cs`
 
-**Status:** ☐
+**Status:** ✓
 
 ---
 

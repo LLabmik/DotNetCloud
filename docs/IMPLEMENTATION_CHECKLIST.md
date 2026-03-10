@@ -3227,21 +3227,21 @@ This phase implements real-time chat, announcements, push notifications, and the
 **Add chat functionality to the existing desktop tray application**
 
 #### Desktop Chat Notifications
-- [ ] Add chat notification popups (Windows toast / Linux libnotify)
-- [ ] Display message preview in notification
-- [ ] Click notification to open chat in web browser
-- [ ] Support notification grouping per channel
-- [ ] Respect DND/mute settings
+- ✓ Add chat notification popups (Windows toast / Linux libnotify)
+- ✓ Display message preview in notification
+- ✓ Click notification to open chat in web browser
+- ☐ Support notification grouping per channel
+- ✓ Respect DND/mute settings
 
 #### Tray Icon Badge
-- [ ] Show unread message count on tray icon
-- [ ] Different badge for mentions vs. regular messages
-- [ ] Clear badge when messages are read (via SignalR sync)
+- ✓ Show unread message count on tray icon
+- ☐ Different badge for mentions vs. regular messages
+- ✓ Clear badge when messages are read (via SignalR sync)
 
 #### Quick Reply (Optional)
-- [ ] Add quick reply popup from notification
-- [ ] Send reply via REST API
-- [ ] Show typing indicator while composing
+- ☐ Add quick reply popup from notification
+- ☐ Send reply via REST API
+- ☐ Show typing indicator while composing
 
 ---
 

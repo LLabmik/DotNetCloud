@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using Microsoft.Extensions.Logging;
@@ -25,6 +26,8 @@ internal sealed class WindowsNotificationService : INotificationService, IDispos
     private const uint NiifWarning = 0x00000002;
     private const uint NiifError = 0x00000003;
     private const uint NiifNosound = 0x00000010;
+    private const int NinBalloonUserClick = WmUser + 5;
+    private const int GwlpWndProc = -4;
 
     // ── P/Invoke ──────────────────────────────────────────────────────────
 
@@ -61,6 +64,12 @@ internal sealed class WindowsNotificationService : INotificationService, IDispos
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool DestroyWindow(IntPtr hWnd);
 
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)]
+    private static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
+    [DllImport("user32.dll", EntryPoint = "CallWindowProcW")]
+    private static extern IntPtr CallWindowProc(IntPtr lpPrevWndFunc, IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
     private const string WcStatic = "STATIC";
     private const IntPtr HwndMessage = unchecked((IntPtr)(-3));
 
@@ -68,13 +77,23 @@ internal sealed class WindowsNotificationService : INotificationService, IDispos
 
     private readonly ILogger<INotificationService> _logger;
     private readonly IntPtr _hWnd;
+    private readonly WndProcDelegate _windowProc;
+    private IntPtr _previousWindowProc;
+    private readonly uint _callbackMessage = WmUser + 1;
+    private string? _pendingActionUrl;
     private bool _iconAdded;
     private bool _disposed;
+
+    /// <inheritdoc/>
+    public Action<string>? OnNotificationActivated { get; set; }
+
+    private delegate IntPtr WndProcDelegate(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
     /// <summary>Initializes the service and creates a message-only window for balloon tips.</summary>
     public WindowsNotificationService(ILogger<INotificationService> logger)
     {
         _logger = logger;
+        _windowProc = WindowProc;
 
         // Create a hidden message-only window to host the Shell notification icon.
         _hWnd = CreateWindowEx(0, WcStatic, "DotNetCloud.SyncTray.Notify",
@@ -87,18 +106,24 @@ internal sealed class WindowsNotificationService : INotificationService, IDispos
             return;
         }
 
+        _previousWindowProc = SetWindowLongPtr(_hWnd, GwlpWndProc, Marshal.GetFunctionPointerForDelegate(_windowProc));
+
         AddIcon();
     }
 
     // ── INotificationService ──────────────────────────────────────────────
 
     /// <inheritdoc/>
-    public void ShowNotification(string title, string body, NotificationType type = NotificationType.Info)
+    public void ShowNotification(string title, string body, NotificationType type = NotificationType.Info, string? actionUrl = null)
     {
         if (_disposed || !_iconAdded) return;
 
+        _pendingActionUrl = actionUrl;
+
         var infoFlags = type switch
         {
+            NotificationType.Chat => NiifInfo,
+            NotificationType.Mention => NiifWarning,
             NotificationType.Warning => NiifWarning,
             NotificationType.Error => NiifError,
             _ => NiifInfo,
@@ -124,7 +149,7 @@ internal sealed class WindowsNotificationService : INotificationService, IDispos
     {
         var data = BuildData();
         data.uFlags = NifMessage | NifTip;
-        data.uCallbackMessage = WmUser + 1;
+        data.uCallbackMessage = _callbackMessage;
         data.szTip = "DotNetCloud Sync";
 
         _iconAdded = Shell_NotifyIcon(NimAdd, ref data);
@@ -150,6 +175,39 @@ internal sealed class WindowsNotificationService : INotificationService, IDispos
         uID = 1,
     };
 
+    private IntPtr WindowProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
+    {
+        if (msg == _callbackMessage)
+        {
+            var eventCode = unchecked((int)lParam.ToInt64());
+            if (eventCode == NinBalloonUserClick && !string.IsNullOrWhiteSpace(_pendingActionUrl))
+            {
+                TryOpenUrl(_pendingActionUrl);
+                OnNotificationActivated?.Invoke(_pendingActionUrl);
+            }
+        }
+
+        return _previousWindowProc != IntPtr.Zero
+            ? CallWindowProc(_previousWindowProc, hWnd, msg, wParam, lParam)
+            : IntPtr.Zero;
+    }
+
+    private void TryOpenUrl(string url)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to open URL from activated notification.");
+        }
+    }
+
     // ── Disposal ──────────────────────────────────────────────────────────
 
     /// <inheritdoc/>
@@ -159,6 +217,9 @@ internal sealed class WindowsNotificationService : INotificationService, IDispos
         _disposed = true;
 
         RemoveIcon();
+
+        if (_hWnd != IntPtr.Zero && _previousWindowProc != IntPtr.Zero)
+            SetWindowLongPtr(_hWnd, GwlpWndProc, _previousWindowProc);
 
         if (_hWnd != IntPtr.Zero)
             DestroyWindow(_hWnd);

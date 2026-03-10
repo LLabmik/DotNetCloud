@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Text.Json;
 using System.Windows.Input;
 using DotNetCloud.Client.Core.Auth;
 using DotNetCloud.Client.Core.SelectiveSync;
@@ -23,12 +24,14 @@ public sealed class SettingsViewModel : ViewModelBase
     private readonly ISyncIgnoreParser _syncIgnore;
     private readonly ISelectiveSyncConfig _selectiveSync;
     private readonly ILogger<SettingsViewModel> _logger;
+    private readonly string _localSettingsPath;
 
     private string _addAccountServerUrl = "https://mint22:15443/";
     private string _addAccountClientId = "dotnetcloud-desktop";
     private string _addAccountError = string.Empty;
     private bool _isAddingAccount;
     private bool _startOnLogin;
+    private bool _isMuteChatNotifications;
     private decimal _uploadLimitKbps;
     private decimal _downloadLimitKbps;
     private string? _syncIgnoreRoot;
@@ -96,6 +99,20 @@ public sealed class SettingsViewModel : ViewModelBase
         {
             if (SetProperty(ref _startOnLogin, value))
                 ApplyStartOnLogin(value);
+        }
+    }
+
+    /// <summary>Whether chat popup notifications are muted in SyncTray.</summary>
+    public bool IsMuteChatNotifications
+    {
+        get => _isMuteChatNotifications;
+        set
+        {
+            if (SetProperty(ref _isMuteChatNotifications, value))
+            {
+                _trayVm.IsMuteChatNotifications = value;
+                _ = PersistLocalSettingsAsync();
+            }
         }
     }
 
@@ -287,7 +304,8 @@ public sealed class SettingsViewModel : ViewModelBase
         IOAuth2Service oauth2,
         ISyncIgnoreParser syncIgnore,
         ISelectiveSyncConfig selectiveSync,
-        ILogger<SettingsViewModel> logger)
+        ILogger<SettingsViewModel> logger,
+        string? localSettingsPath = null)
     {
         _trayVm = trayVm;
         _ipc = ipc;
@@ -295,6 +313,7 @@ public sealed class SettingsViewModel : ViewModelBase
         _syncIgnore = syncIgnore;
         _selectiveSync = selectiveSync;
         _logger = logger;
+        _localSettingsPath = localSettingsPath ?? GetDefaultLocalSettingsPath();
 
         ConnectCommand = new AsyncRelayCommand(BeginAddAccountFlowAsync);
         RemoveAccountCommand = new AsyncRelayCommand<Guid>(id => _trayVm.RemoveAccountAsync(id));
@@ -311,6 +330,9 @@ public sealed class SettingsViewModel : ViewModelBase
             if (e.PropertyName == nameof(TrayViewModel.Accounts))
                 OnPropertyChanged(nameof(Accounts));
         };
+
+        LoadLocalSettings();
+        _trayVm.IsMuteChatNotifications = _isMuteChatNotifications;
     }
 
     // ── Add account flow ──────────────────────────────────────────────────
@@ -597,6 +619,54 @@ public sealed class SettingsViewModel : ViewModelBase
         _ = enable;
     }
 
+    private static string GetDefaultLocalSettingsPath()
+    {
+        var root = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "DotNetCloud");
+        return Path.Combine(root, "sync-tray-settings.json");
+    }
+
+    private void LoadLocalSettings()
+    {
+        try
+        {
+            if (!File.Exists(_localSettingsPath))
+                return;
+
+            using var stream = File.OpenRead(_localSettingsPath);
+            var settings = JsonSerializer.Deserialize<SyncTrayLocalSettings>(stream);
+            if (settings is null)
+                return;
+
+            _isMuteChatNotifications = settings.IsMuteChatNotifications;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to load local SyncTray settings from {Path}.", _localSettingsPath);
+        }
+    }
+
+    private async Task PersistLocalSettingsAsync()
+    {
+        try
+        {
+            var settingsDir = Path.GetDirectoryName(_localSettingsPath);
+            if (!string.IsNullOrWhiteSpace(settingsDir))
+                Directory.CreateDirectory(settingsDir);
+
+            await using var stream = File.Create(_localSettingsPath);
+            await JsonSerializer.SerializeAsync(
+                stream,
+                new SyncTrayLocalSettings { IsMuteChatNotifications = _isMuteChatNotifications },
+                new JsonSerializerOptions { WriteIndented = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to persist local SyncTray settings to {Path}.", _localSettingsPath);
+        }
+    }
+
     /// <summary>
     /// Extracts the <c>sub</c> claim (user ID) from a JWT access token.
     /// Returns <see cref="Guid.Empty"/> if the token cannot be parsed.
@@ -697,6 +767,11 @@ public sealed class SettingsViewModel : ViewModelBase
             IsLoadingConflicts = false;
         }
     }
+}
+
+internal sealed class SyncTrayLocalSettings
+{
+    public bool IsMuteChatNotifications { get; init; }
 }
 
 // ── Command helpers ────────────────────────────────────────────────────────────
