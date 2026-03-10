@@ -60,7 +60,7 @@
 | Phase 2.2 | 4 | 4 | 0 | 0 |
 | Phase 2.3 | 7 | 3 | 0 | 4 |
 | Phase 2.4 | 5 | 5 | 0 | 0 |
-| Phase 2.5 | 4 | 2 | 0 | 2 |
+| Phase 2.5 | 4 | 4 | 0 | 0 |
 | Phase 2.6 | 4 | 0 | 0 | 4 |
 | Phase 2.7 | 4 | 0 | 0 | 4 |
 | Phase 2.8 | 11 | 4 | 0 | 7 |
@@ -3321,19 +3321,19 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Step: phase-2.5 - SignalR Real-Time Chat Integration
-**Status:** in-progress 🔄
+**Status:** completed ✅
 **Duration:** ~1 week
 **Description:** Integrate chat with CoreHub for real-time message delivery, typing indicators, presence, and reactions.
 
 **Tasks:**
 - ✓ Register chat SignalR methods (SendMessage, EditMessage, DeleteMessage, StartTyping, StopTyping, MarkRead, AddReaction, RemoveReaction)
-- ☐ Implement server-to-client broadcasts (NewMessage, MessageEdited, MessageDeleted, TypingIndicator, ReactionUpdated, etc.)
+- ✓ Implement server-to-client broadcasts (NewMessage, MessageEdited, MessageDeleted, TypingIndicator, ReactionUpdated, etc.)
 - ✓ Implement SignalR group management per channel membership
-- ☐ Extend presence tracking (Online, Away, DND, custom status)
+- ✓ Extend presence tracking (Online, Away, DND, custom status)
 
 **Dependencies:** phase-2.3, Phase 0.8 (SignalR infrastructure)
 **Blocking Issues:** None
-**Notes:** Phase 2.5 continued with CoreHub chat method registration and realtime wiring. `CoreHub` now exposes `SendMessageAsync`, `EditMessageAsync`, `DeleteMessageAsync`, `StartTypingAsync`, `StopTypingAsync`, `MarkReadAsync`, `AddReactionAsync`, and `RemoveReactionAsync`, delegating to chat services and pushing deterministic realtime broadcasts via `IChatRealtimeService`. Added coverage in `CoreHubTests` for send-message broadcast, mark-read unread updates, reaction update broadcast, typing broadcast, and tracked-group reconnection behavior. This builds on prior reconnect-safe group membership hardening (`UserConnectionTracker` + `RealtimeBroadcasterService` + channel/member lifecycle group updates). Verification: `dotnet test tests/DotNetCloud.Core.Server.Tests/DotNetCloud.Core.Server.Tests.csproj` passed (324/326 with 2 skipped) and full `dotnet build` succeeded. Next: complete remaining phase-2.5 presence-extension deliverables.
+**Notes:** Phase 2.5 completed. Final increment added chat presence custom status support and cross-module presence events: `PresenceService` now tracks `StatusMessage` and explicit status transitions (`Online`, `Away`, `DoNotDisturb`, `Offline`) via `SetPresenceAsync`; `CoreHub` now exposes `SetPresenceAsync` and publishes realtime presence updates through `IChatRealtimeService` plus `PresenceChangedEvent` through `IEventBus`; and `ChatModuleManifest` now declares `PresenceChangedEvent` in published events. This completes previously delivered hub method registration and reconnect-safe group lifecycle management. Added/expanded tests in `CoreHubTests` and `PresenceServiceTests`. Verification: `dotnet test tests/DotNetCloud.Core.Server.Tests/DotNetCloud.Core.Server.Tests.csproj` passed (327/329 with 2 skipped), and full `dotnet build` succeeded. Next: proceed to `phase-2.6` (Announcements Module).
 
 ---
 

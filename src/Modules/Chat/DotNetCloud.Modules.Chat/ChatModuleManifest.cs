@@ -34,7 +34,8 @@ public sealed class ChatModuleManifest : IModuleManifest
         nameof(ChannelCreatedEvent),
         nameof(ChannelDeletedEvent),
         nameof(UserJoinedChannelEvent),
-        nameof(UserLeftChannelEvent)
+        nameof(UserLeftChannelEvent),
+        nameof(PresenceChangedEvent)
     };
 
     /// <inheritdoc />

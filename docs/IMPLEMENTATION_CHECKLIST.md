@@ -3000,9 +3000,9 @@ This phase implements real-time chat, announcements, push notifications, and the
 #### Presence Integration
 - ✓ Extend existing presence tracking for chat-specific status:
   - ✓ Online, Away, Do Not Disturb, Offline
-  - ☐ Custom status message support
+  - ✓ Custom status message support
 - ✓ Broadcast presence changes to relevant channel members
-- ☐ Create `PresenceChangedEvent` for cross-module awareness
+- ✓ Create `PresenceChangedEvent` for cross-module awareness
 
 ---
 

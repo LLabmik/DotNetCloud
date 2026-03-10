@@ -1,6 +1,8 @@
 using System.Security.Claims;
+using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Server.RealTime;
 using DotNetCloud.Modules.Chat.DTOs;
+using DotNetCloud.Modules.Chat.Events;
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.SignalR;
@@ -159,6 +161,42 @@ public class CoreHubTests
     }
 
     [TestMethod]
+    public async Task WhenSetPresenceCalledThenBroadcastsPresenceAndPublishesEvent()
+    {
+        var userId = Guid.NewGuid();
+
+        var messageService = new Mock<IMessageService>();
+        var channelMemberService = new Mock<IChannelMemberService>();
+        var reactionService = new Mock<IReactionService>();
+        var typingService = new Mock<ITypingIndicatorService>();
+        var realtimeService = new Mock<IChatRealtimeService>();
+        var eventBus = new Mock<IEventBus>();
+
+        var hub = CreateHub(
+            userId,
+            messageService.Object,
+            channelMemberService.Object,
+            reactionService.Object,
+            typingService.Object,
+            realtimeService.Object,
+            eventBus.Object);
+
+        var result = await hub.SetPresenceAsync("Away", "At lunch");
+
+        Assert.AreEqual("Away", result.Status);
+        Assert.AreEqual("At lunch", result.StatusMessage);
+        realtimeService.Verify(r => r.BroadcastPresenceChangedAsync(
+            It.Is<PresenceDto>(p => p.UserId == userId && p.Status == "Away" && p.StatusMessage == "At lunch"),
+            It.IsAny<CancellationToken>()),
+            Times.Once);
+        eventBus.Verify(e => e.PublishAsync(
+            It.Is<PresenceChangedEvent>(ev => ev.UserId == userId && ev.Status == "Away" && ev.StatusMessage == "At lunch"),
+            It.IsAny<DotNetCloud.Core.Authorization.CallerContext>(),
+            It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [TestMethod]
     public async Task WhenUserHasTrackedGroupsThenOnConnectedAddsConnectionToEachGroup()
     {
         var userId = Guid.NewGuid();
@@ -203,7 +241,8 @@ public class CoreHubTests
         IChannelMemberService channelMemberService,
         IReactionService reactionService,
         ITypingIndicatorService typingService,
-        IChatRealtimeService realtimeService)
+        IChatRealtimeService realtimeService,
+        IEventBus? eventBus = null)
     {
         var tracker = new UserConnectionTracker();
         var presence = new PresenceService(tracker, NullLogger<PresenceService>.Instance);
@@ -216,7 +255,8 @@ public class CoreHubTests
             reactionService,
             typingService,
             realtimeService,
-            NullLogger<CoreHub>.Instance);
+            NullLogger<CoreHub>.Instance,
+            eventBus);
 
         hub.Context = new TestHubCallerContext(userId, "conn-chat");
         hub.Clients = new Mock<IHubCallerClients>().Object;

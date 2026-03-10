@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-10 (Phase 2.5 CoreHub chat method registration update posted)
+Last updated: 2026-03-10 (Phase 2.5 presence extension + PresenceChangedEvent update posted)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -405,6 +405,53 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Intentionally deferred items:**
 - Presence custom status message and `PresenceChangedEvent` cross-module event integration remain pending.
+
+### Phase 2.5 Update #3 - Presence Extension + PresenceChangedEvent (Server, mint22)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`mint22`)  
+**Status:** completed ✅ (finishes remaining phase-2.5 scope)
+
+**Commit hash:** `(pending commit)`
+
+**Files added/updated:**
+- `src/Core/DotNetCloud.Core.Server/RealTime/PresenceService.cs`
+- `src/Core/DotNetCloud.Core.Server/RealTime/CoreHub.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Events/PresenceChangedEvent.cs` (new)
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/ChatModuleManifest.cs`
+- `tests/DotNetCloud.Core.Server.Tests/RealTime/CoreHubTests.cs`
+- `tests/DotNetCloud.Core.Server.Tests/RealTime/PresenceServiceTests.cs`
+- `docs/IMPLEMENTATION_CHECKLIST.md`
+- `docs/MASTER_PROJECT_PLAN.md`
+- `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
+
+**Implemented in this update:**
+1. Added custom presence status-message support in `PresenceService` with tracked presence state and validated status transitions (`Online`, `Away`, `DoNotDisturb`, `Offline`).
+2. Added `CoreHub.SetPresenceAsync(status, statusMessage)` to update caller presence, broadcast `PresenceChanged` via `IChatRealtimeService`, and publish `PresenceChangedEvent` through `IEventBus` for cross-module awareness.
+3. Added new chat-domain event `PresenceChangedEvent` and declared it in `ChatModuleManifest.PublishedEvents`.
+4. Completed remaining Phase 2.5 checklist/plan presence deliverables and advanced phase status to completed.
+
+**Tests added/updated:**
+- `tests/DotNetCloud.Core.Server.Tests/RealTime/CoreHubTests.cs`
+    - `WhenSetPresenceCalledThenBroadcastsPresenceAndPublishesEvent`
+- `tests/DotNetCloud.Core.Server.Tests/RealTime/PresenceServiceTests.cs`
+    - `WhenSetPresenceThenCustomStatusMessageIsPersisted`
+    - `WhenSetPresenceWithInvalidStatusThenThrows`
+
+**Verification commands and results:**
+- `dotnet test tests/DotNetCloud.Core.Server.Tests/DotNetCloud.Core.Server.Tests.csproj`
+    - Result: total 329, succeeded 327, failed 0, skipped 2
+- `dotnet build`
+    - Result: succeeded (full solution)
+
+**Raw failing assertion/error text seen during iteration (fixed):**
+- None in this update.
+
+**Raw log snippets around authorization/event issues:**
+- No runtime service logs captured in unit tests (mocked collaborators + behavior assertions).
+
+**Intentionally deferred items:**
+- None for phase-2.5. Next target is phase-2.6.
 
 ### Sprint A Kickoff - Phase 1.19.2 (Files API Integration Depth)
 

@@ -1,7 +1,9 @@
 using System.Security.Claims;
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Server.Configuration;
 using DotNetCloud.Modules.Chat.DTOs;
+using DotNetCloud.Modules.Chat.Events;
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
@@ -25,6 +27,7 @@ internal sealed class CoreHub : Hub
     private readonly IReactionService? _reactionService;
     private readonly ITypingIndicatorService? _typingIndicatorService;
     private readonly IChatRealtimeService? _chatRealtimeService;
+    private readonly IEventBus? _eventBus;
     private readonly ILogger<CoreHub> _logger;
 
     public CoreHub(
@@ -35,7 +38,8 @@ internal sealed class CoreHub : Hub
         IReactionService? reactionService,
         ITypingIndicatorService? typingIndicatorService,
         IChatRealtimeService? chatRealtimeService,
-        ILogger<CoreHub> logger)
+        ILogger<CoreHub> logger,
+        IEventBus? eventBus = null)
     {
         _connectionTracker = connectionTracker;
         _presenceService = presenceService;
@@ -44,6 +48,7 @@ internal sealed class CoreHub : Hub
         _reactionService = reactionService;
         _typingIndicatorService = typingIndicatorService;
         _chatRealtimeService = chatRealtimeService;
+        _eventBus = eventBus;
         _logger = logger;
     }
 
@@ -317,6 +322,41 @@ internal sealed class CoreHub : Hub
             var reactions = await _reactionService.GetReactionsAsync(messageId, Context.ConnectionAborted);
 
             await _chatRealtimeService!.BroadcastReactionUpdatedAsync(message.ChannelId, messageId, reactions, Context.ConnectionAborted);
+        }
+        catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
+        {
+            throw hubException;
+        }
+    }
+
+    /// <summary>
+    /// Updates the caller's presence status and optional custom status message.
+    /// </summary>
+    public async Task<PresenceDto> SetPresenceAsync(string status, string? statusMessage = null)
+    {
+        EnsureChatServicesAvailable();
+
+        try
+        {
+            var caller = CreateUserCaller();
+            var presence = await _presenceService.SetPresenceAsync(caller.UserId, status, statusMessage);
+
+            await _chatRealtimeService!.BroadcastPresenceChangedAsync(presence, Context.ConnectionAborted);
+
+            if (_eventBus is not null)
+            {
+                await _eventBus.PublishAsync(new PresenceChangedEvent
+                {
+                    EventId = Guid.NewGuid(),
+                    CreatedAt = DateTime.UtcNow,
+                    UserId = presence.UserId,
+                    Status = presence.Status,
+                    StatusMessage = presence.StatusMessage,
+                    LastSeenAt = presence.LastSeenAt
+                }, caller, Context.ConnectionAborted);
+            }
+
+            return presence;
         }
         catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
         {

@@ -144,4 +144,25 @@ public class PresenceServiceTests
         await Assert.ThrowsExactlyAsync<ArgumentNullException>(
             () => _presenceService.GetOnlineStatusAsync(null!));
     }
+
+    [TestMethod]
+    public async Task WhenSetPresenceThenCustomStatusMessageIsPersisted()
+    {
+        var userId = Guid.NewGuid();
+
+        var presence = await _presenceService.SetPresenceAsync(userId, "Away", "At lunch");
+        var fetched = await _presenceService.GetPresenceAsync(userId);
+
+        Assert.AreEqual("Away", presence.Status);
+        Assert.AreEqual("At lunch", presence.StatusMessage);
+        Assert.AreEqual("Away", fetched.Status);
+        Assert.AreEqual("At lunch", fetched.StatusMessage);
+    }
+
+    [TestMethod]
+    public async Task WhenSetPresenceWithInvalidStatusThenThrows()
+    {
+        await Assert.ThrowsExactlyAsync<ArgumentException>(
+            () => _presenceService.SetPresenceAsync(Guid.NewGuid(), "Invisible", "testing"));
+    }
 }
