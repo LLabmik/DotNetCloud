@@ -18,6 +18,14 @@ Purpose: Shared handoff between client-side and server-side agents, mediated by 
     move older completed updates to archive.
 - Moderator relay standard (default): keep relay prompts to one simple line unless extra detail is explicitly requested.
 - Preferred relay text for new work handoff: `New commit on main with handoff updates. Pull and resume from the current checklist.`
+- Moderator relay mode: mediator sends only short notifications between machines (example: "new handoff update available; pull and continue").
+- All complex instructions, technical details, acceptance criteria, and troubleshooting context MUST be written in this handoff document, not relayed verbally.
+
+## Moderator Short-Ping Templates
+
+- `New handoff update is in docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md. Pull latest main and continue.`
+- `Please read the latest Sprint section in the handoff doc and post results back there.`
+- `New commit on main with handoff updates. Pull and resume from the current checklist.`
 
 ## Current Status
 
