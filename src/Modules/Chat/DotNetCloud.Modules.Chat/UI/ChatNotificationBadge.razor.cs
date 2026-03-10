@@ -1,18 +1,49 @@
+using DotNetCloud.Modules.Chat.Services;
 using Microsoft.AspNetCore.Components;
 
 namespace DotNetCloud.Modules.Chat.UI;
 
 /// <summary>
 /// Code-behind for the chat notification badge.
-/// Displays total unread count with special highlight for mentions.
+/// Subscribes to <see cref="ISignalRChatService.UnreadCountUpdated"/> and accumulates
+/// unread counts across all channels, updating the badge in real time.
 /// </summary>
-public partial class ChatNotificationBadge : ComponentBase
+public partial class ChatNotificationBadge : ComponentBase, IDisposable
 {
-    /// <summary>Total unread message count across all channels.</summary>
-    [Parameter]
-    public int TotalUnread { get; set; }
+    [Inject] private ISignalRChatService SignalR { get; set; } = default!;
 
-    /// <summary>Whether any channels have unread mentions.</summary>
-    [Parameter]
-    public bool HasMentions { get; set; }
+    private readonly Dictionary<Guid, int> _unreadByChannel = [];
+
+    /// <summary>Total unread message count across all channels.</summary>
+    protected int TotalUnread => _unreadByChannel.Values.Sum();
+
+    /// <summary>Whether any channels have unread messages.</summary>
+    protected bool HasMentions => TotalUnread > 0;
+
+    /// <inheritdoc />
+    protected override void OnInitialized()
+    {
+        SignalR.UnreadCountUpdated += OnUnreadCountUpdated;
+    }
+
+    private void OnUnreadCountUpdated(Guid channelId, int count)
+    {
+        ApplyUnreadCountUpdate(channelId, count);
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// Applies a server-pushed unread-count value for a single channel.
+    /// The <paramref name="count"/> replaces any previously stored value for that channel.
+    /// </summary>
+    internal void ApplyUnreadCountUpdate(Guid channelId, int count)
+    {
+        _unreadByChannel[channelId] = count;
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        SignalR.UnreadCountUpdated -= OnUnreadCountUpdated;
+    }
 }
