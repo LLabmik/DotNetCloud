@@ -91,3 +91,4 @@ public class ChatNotificationBadgeTests
         Assert.IsTrue(badge.TestHasMentions);
     }
 }
+

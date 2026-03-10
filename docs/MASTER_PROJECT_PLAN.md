@@ -3380,7 +3380,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Create ChannelList.razor (sidebar, unread counts, search/filter, create channel dialog, active highlight)
 - ✓ Create ChannelHeader.razor (name, topic, member count, member list toggle, search)
 - ✓ Create MessageList.razor (avatars, timestamps, reactions, attachments, typing indicator, infinite scroll, system messages, edited indicator)
-- ✓ Create MessageComposer.razor (emoji picker, file attach, reply-to preview, send/Enter, typing broadcast)
+- ✓ Create MessageComposer.razor (emoji picker, file attach, reply-to preview, send/Enter, typing broadcast, Markdown toolbar, @mention autocomplete)
 - ☐ Create TypingIndicator.razor (animated dots, auto-expire)
 - ☐ Create MemberListPanel.razor (grouped by role, status, actions)
 - ☐ Create ChannelSettingsDialog.razor (edit, members, notifications, archive/delete)
@@ -3391,7 +3391,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Dependencies:** phase-2.5, Phase 0.11 (Blazor shell), Phase 0.12 (shared UI components)
 **Blocking Issues:** None
-**Notes:** Phase 2.8 progressed with deeper member/channel management UI behavior. `MemberListPanel` now supports member actions (promote/demote/remove) and click-to-open profile popup details; `ChannelSettingsDialog` now includes member management (add/remove/change role callbacks) plus channel metadata display (creation time and creator). Added scoped styles for member panel actions/profile details and expanded component callback surfaces for integration. Verification: `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj` passed (226/226), and full `dotnet build` succeeded. Remaining phase-2.8 work: drag reorder, rich mention composer/paste image, DM user search/group DM, and announcement/badge realtime completion.
+**Notes:** Phase 2.8 now includes richer composer input behavior. `MessageComposer` supports Markdown toolbar actions plus `@mention` autocomplete backed by `MentionSuggestions`, filtered member matching, Escape dismissal, and mention insertion into the draft. `DirectMessageView` now passes mention candidates through to the composer and falls back to the active DM participant when no explicit list is provided. Latest verification: targeted chat UI tests in `tests/DotNetCloud.Modules.Chat.Tests/MessageComposerTests.cs` and `tests/DotNetCloud.Modules.Chat.Tests/ChatNotificationBadgeTests.cs` passed (7/7). Remaining phase-2.8 work: drag reorder, paste image support, DM user search/group DM, and announcement/badge realtime completion.
 
 ---
 

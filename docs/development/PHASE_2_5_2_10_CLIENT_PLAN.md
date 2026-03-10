@@ -123,8 +123,12 @@
 **Files:**
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageComposer.razor`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageComposer.razor.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/DirectMessageView.razor`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/DirectMessageView.razor.cs`
 
-**Status:** ☐
+**Tests:** `tests/DotNetCloud.Modules.Chat.Tests/MessageComposerTests.cs`
+
+**Status:** ✓
 
 ---
 

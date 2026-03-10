@@ -3135,7 +3135,7 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ Show channel search/filter
   - ✓ Display channel creation button
   - ✓ Show user presence indicators
-  - [ ] Support drag-to-reorder pinned channels
+  - ☐ Support drag-to-reorder pinned channels
 
 #### Channel Header Component
 - ✓ Create `ChannelHeader.razor`:
@@ -3158,14 +3158,14 @@ This phase implements real-time chat, announcements, push notifications, and the
 
 #### Message Composer Component
 - ✓ Create `MessageComposer.razor`:
-  - [ ] Rich text input with Markdown toolbar
-  - [ ] `@mention` autocomplete (users and channels)
+  - ✓ Rich text input with Markdown toolbar
+  - ✓ `@mention` autocomplete (users and channels)
   - ✓ Emoji picker
   - ✓ File attachment button (integrates with Files module upload)
   - ✓ Reply-to message preview
   - ✓ Send button and Enter key handling
   - ✓ Typing indicator broadcast on input
-  - [ ] Paste image support (auto-upload)
+  - ☐ Paste image support (auto-upload)
 
 #### Typing Indicator Component
 - ✓ Create `TypingIndicator.razor`:

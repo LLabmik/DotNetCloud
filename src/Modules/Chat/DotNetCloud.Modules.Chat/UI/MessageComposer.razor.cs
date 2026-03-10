@@ -10,8 +10,13 @@ namespace DotNetCloud.Modules.Chat.UI;
 /// </summary>
 public partial class MessageComposer : ComponentBase
 {
+    private const int MaxMentionSuggestions = 6;
+
     private string _messageText = string.Empty;
     private bool _isShowEmojiPicker;
+    private int _activeMentionStartIndex = -1;
+    private int _activeMentionQueryLength = -1;
+    private List<MemberViewModel> _visibleMentionSuggestions = [];
 
     [Inject]
     private IJSRuntime JS { get; set; } = default!;
@@ -40,6 +45,10 @@ public partial class MessageComposer : ComponentBase
     [Parameter]
     public EventCallback OnAttach { get; set; }
 
+    /// <summary>Available members for @mention suggestions.</summary>
+    [Parameter]
+    public List<MemberViewModel> MentionSuggestions { get; set; } = [];
+
     /// <summary>Common emoji characters for the quick picker.</summary>
     protected static readonly string[] CommonEmojis =
     [
@@ -54,6 +63,7 @@ public partial class MessageComposer : ComponentBase
         set
         {
             _messageText = value;
+            UpdateMentionAutocomplete();
             _ = NotifyTyping();
         }
     }
@@ -63,6 +73,18 @@ public partial class MessageComposer : ComponentBase
 
     /// <summary>Whether the emoji picker is visible.</summary>
     protected bool IsShowEmojiPicker => _isShowEmojiPicker;
+
+    /// <summary>Whether the mention dropdown is visible.</summary>
+    protected bool IsMentionDropdownVisible => _activeMentionStartIndex >= 0 && _visibleMentionSuggestions.Count > 0;
+
+    /// <summary>The currently visible mention suggestions.</summary>
+    protected IReadOnlyList<MemberViewModel> VisibleMentionSuggestions => _visibleMentionSuggestions;
+
+    /// <inheritdoc />
+    protected override void OnParametersSet()
+    {
+        UpdateMentionAutocomplete();
+    }
 
     /// <summary>Sends the current message.</summary>
     protected async Task SendMessage()
@@ -77,6 +99,7 @@ public partial class MessageComposer : ComponentBase
 
         _messageText = string.Empty;
         _isShowEmojiPicker = false;
+        ClearMentionAutocomplete();
 
         await OnSend.InvokeAsync((content, replyToId));
     }
@@ -84,6 +107,12 @@ public partial class MessageComposer : ComponentBase
     /// <summary>Handles keyboard events for Enter-to-send.</summary>
     protected async Task HandleKeyDown(KeyboardEventArgs e)
     {
+        if (e.Key == "Escape" && IsMentionDropdownVisible)
+        {
+            ClearMentionAutocomplete();
+            return;
+        }
+
         if (e.Key == "Enter" && !e.ShiftKey)
         {
             await SendMessage();
@@ -107,6 +136,7 @@ public partial class MessageComposer : ComponentBase
     {
         _messageText += emoji;
         _isShowEmojiPicker = false;
+        UpdateMentionAutocomplete();
     }
 
     /// <summary>Wraps the textarea selection with Markdown prefix/suffix via JS interop.</summary>
@@ -118,6 +148,28 @@ public partial class MessageComposer : ComponentBase
 
         // Keep the C# model in sync with what JS wrote into the DOM.
         _messageText = newValue;
+        UpdateMentionAutocomplete();
+    }
+
+    /// <summary>Inserts the selected mention into the message text.</summary>
+    protected async Task SelectMentionAsync(MemberViewModel member)
+    {
+        if (_activeMentionStartIndex < 0)
+        {
+            return;
+        }
+
+        var replacement = GetMentionLabel(member);
+        var mentionTokenLength = _activeMentionQueryLength + 1;
+        var prefix = _messageText[.._activeMentionStartIndex];
+        var suffixStart = _activeMentionStartIndex + mentionTokenLength;
+        var suffix = suffixStart < _messageText.Length ? _messageText[suffixStart..] : string.Empty;
+        var spacer = suffix.Length > 0 && char.IsWhiteSpace(suffix[0]) ? string.Empty : " ";
+
+        _messageText = string.Concat(prefix, replacement, spacer, suffix);
+        ClearMentionAutocomplete();
+
+        await NotifyTyping();
     }
 
     /// <summary>Handles the attach button click.</summary>
@@ -140,10 +192,121 @@ public partial class MessageComposer : ComponentBase
             : $"Message #{ChannelName}";
     }
 
+    /// <summary>Gets the display label for a mention suggestion.</summary>
+    protected static string GetMentionLabel(MemberViewModel member)
+    {
+        return $"@{member.DisplayName}";
+    }
+
     /// <summary>Truncates content for the reply preview.</summary>
     protected static string TruncateContent(string content)
     {
         const int maxLength = 80;
         return content.Length <= maxLength ? content : string.Concat(content.AsSpan(0, maxLength), "...");
     }
+
+    private void UpdateMentionAutocomplete()
+    {
+        var mentionContext = TryGetMentionContext(_messageText);
+        if (mentionContext is null)
+        {
+            ClearMentionAutocomplete();
+            return;
+        }
+
+        _activeMentionStartIndex = mentionContext.Value.StartIndex;
+        _activeMentionQueryLength = mentionContext.Value.Query.Length;
+        _visibleMentionSuggestions = FilterMentionSuggestions(mentionContext.Value.Query);
+    }
+
+    private void ClearMentionAutocomplete()
+    {
+        _activeMentionStartIndex = -1;
+        _activeMentionQueryLength = -1;
+        _visibleMentionSuggestions = [];
+    }
+
+    private List<MemberViewModel> FilterMentionSuggestions(string query)
+    {
+        IEnumerable<MemberViewModel> candidates = MentionSuggestions
+            .Where(member => !string.IsNullOrWhiteSpace(member.DisplayName))
+            .GroupBy(member => member.UserId)
+            .Select(group => group.First());
+
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            candidates = candidates.Where(member => MatchesMentionQuery(member, query));
+        }
+
+        return [.. candidates
+            .OrderBy(member => GetMentionMatchPriority(member, query))
+            .ThenBy(member => member.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .Take(MaxMentionSuggestions)];
+    }
+
+    private static bool MatchesMentionQuery(MemberViewModel member, string query)
+    {
+        return member.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || (!string.IsNullOrWhiteSpace(member.Username)
+                && member.Username.Contains(query, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static int GetMentionMatchPriority(MemberViewModel member, string query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return 0;
+        }
+
+        if (member.DisplayName.StartsWith(query, StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        if (!string.IsNullOrWhiteSpace(member.Username)
+            && member.Username.StartsWith(query, StringComparison.OrdinalIgnoreCase))
+        {
+            return 1;
+        }
+
+        return 2;
+    }
+
+    private static MentionContext? TryGetMentionContext(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return null;
+        }
+
+        for (var index = text.Length - 1; index >= 0; index--)
+        {
+            if (text[index] != '@')
+            {
+                continue;
+            }
+
+            if (index > 0 && !IsMentionBoundary(text[index - 1]))
+            {
+                continue;
+            }
+
+            var query = text[(index + 1)..];
+            if (query.IndexOfAny([' ', '\t', '\r', '\n']) >= 0)
+            {
+                return null;
+            }
+
+            return new MentionContext(index, query);
+        }
+
+        return null;
+    }
+
+    private static bool IsMentionBoundary(char character)
+    {
+        return !char.IsLetterOrDigit(character) && character is not '_' and not '.';
+    }
+
+    private readonly record struct MentionContext(int StartIndex, string Query);
 }

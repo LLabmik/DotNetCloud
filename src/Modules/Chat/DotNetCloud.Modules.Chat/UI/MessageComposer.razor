@@ -36,6 +36,25 @@
                       @onkeydown="HandleKeyDown"
                       placeholder="@GetPlaceholder()"
                       rows="1"></textarea>
+
+            @if (IsMentionDropdownVisible)
+            {
+                <div class="mention-suggestions list-group" role="listbox" aria-label="Mention suggestions">
+                    @foreach (var member in VisibleMentionSuggestions)
+                    {
+                        <button type="button"
+                                class="list-group-item list-group-item-action mention-suggestion"
+                                title="Mention @member.DisplayName"
+                                @onclick="() => SelectMentionAsync(member)">
+                            <span class="mention-suggestion-name">@GetMentionLabel(member)</span>
+                            @if (!string.IsNullOrWhiteSpace(member.Username))
+                            {
+                                <span class="mention-suggestion-username text-muted">@member.Username</span>
+                            }
+                        </button>
+                    }
+                </div>
+            }
         </div>
 
         <button class="btn btn-sm composer-action" @onclick="ToggleEmojiPicker" title="Emoji">

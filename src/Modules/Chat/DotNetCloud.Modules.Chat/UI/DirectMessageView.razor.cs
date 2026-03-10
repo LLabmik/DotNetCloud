@@ -28,6 +28,10 @@ public partial class DirectMessageView : ComponentBase
     [Parameter]
     public List<TypingUserViewModel> TypingUsers { get; set; } = [];
 
+    /// <summary>Available members to surface as @mention suggestions.</summary>
+    [Parameter]
+    public List<MemberViewModel> MentionSuggestions { get; set; } = [];
+
     /// <summary>Message being replied to.</summary>
     [Parameter]
     public MessageViewModel? ReplyToMessage { get; set; }
@@ -55,6 +59,13 @@ public partial class DirectMessageView : ComponentBase
     /// <summary>Callback when the attach button is clicked.</summary>
     [Parameter]
     public EventCallback OnAttach { get; set; }
+
+    /// <summary>Gets the mention suggestions to pass into the composer.</summary>
+    protected List<MemberViewModel> ComposerMentionSuggestions => MentionSuggestions.Count > 0
+        ? MentionSuggestions
+        : OtherUser is null
+            ? []
+            : [OtherUser];
 
     /// <summary>Gets initials from a display name.</summary>
     protected static string GetInitials(string name)
