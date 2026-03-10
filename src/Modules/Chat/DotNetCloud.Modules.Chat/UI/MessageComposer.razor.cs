@@ -8,15 +8,19 @@ namespace DotNetCloud.Modules.Chat.UI;
 /// Code-behind for the message composer component.
 /// Handles message input, send, reply-to, emoji, and attachments.
 /// </summary>
-public partial class MessageComposer : ComponentBase
+public partial class MessageComposer : ComponentBase, IAsyncDisposable
 {
     private const int MaxMentionSuggestions = 6;
+
+    private readonly string _textareaElementId = $"composer-textarea-{Guid.NewGuid():N}";
 
     private string _messageText = string.Empty;
     private bool _isShowEmojiPicker;
     private int _activeMentionStartIndex = -1;
     private int _activeMentionQueryLength = -1;
     private List<MemberViewModel> _visibleMentionSuggestions = [];
+    private DotNetObjectReference<MessageComposer>? _dotNetRef;
+    private bool _isPasteHandlerRegistered;
 
     [Inject]
     private IJSRuntime JS { get; set; } = default!;
@@ -44,6 +48,10 @@ public partial class MessageComposer : ComponentBase
     /// <summary>Callback when the attach button is clicked.</summary>
     [Parameter]
     public EventCallback OnAttach { get; set; }
+
+    /// <summary>Callback when an image is pasted into the composer.</summary>
+    [Parameter]
+    public EventCallback<PastedImageData> OnPasteImage { get; set; }
 
     /// <summary>Available members for @mention suggestions.</summary>
     [Parameter]
@@ -74,6 +82,9 @@ public partial class MessageComposer : ComponentBase
     /// <summary>Whether the emoji picker is visible.</summary>
     protected bool IsShowEmojiPicker => _isShowEmojiPicker;
 
+    /// <summary>The unique textarea element ID used for JS interop.</summary>
+    protected string TextareaElementId => _textareaElementId;
+
     /// <summary>Whether the mention dropdown is visible.</summary>
     protected bool IsMentionDropdownVisible => _activeMentionStartIndex >= 0 && _visibleMentionSuggestions.Count > 0;
 
@@ -84,6 +95,19 @@ public partial class MessageComposer : ComponentBase
     protected override void OnParametersSet()
     {
         UpdateMentionAutocomplete();
+    }
+
+    /// <inheritdoc />
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _isPasteHandlerRegistered)
+        {
+            return;
+        }
+
+        _dotNetRef = DotNetObjectReference.Create(this);
+        await JS.InvokeVoidAsync("composerToolbar.registerPasteImageHandler", _textareaElementId, _dotNetRef);
+        _isPasteHandlerRegistered = true;
     }
 
     /// <summary>Sends the current message.</summary>
@@ -144,7 +168,7 @@ public partial class MessageComposer : ComponentBase
     {
         var newValue = await JS.InvokeAsync<string>(
             "composerToolbar.wrapSelection",
-            "composer-textarea", prefix, suffix);
+            _textareaElementId, prefix, suffix);
 
         // Keep the C# model in sync with what JS wrote into the DOM.
         _messageText = newValue;
@@ -178,6 +202,15 @@ public partial class MessageComposer : ComponentBase
         await OnAttach.InvokeAsync();
     }
 
+    /// <summary>
+    /// JS callback invoked when an image is pasted into the composer textarea.
+    /// </summary>
+    [JSInvokable]
+    public async Task HandlePastedImageFromJs(string fileName, string contentType, string dataUrl, long sizeBytes)
+    {
+        await ProcessPastedImageAsync(fileName, contentType, dataUrl, sizeBytes);
+    }
+
     /// <summary>Notifies that the user is typing.</summary>
     private async Task NotifyTyping()
     {
@@ -203,6 +236,61 @@ public partial class MessageComposer : ComponentBase
     {
         const int maxLength = 80;
         return content.Length <= maxLength ? content : string.Concat(content.AsSpan(0, maxLength), "...");
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        if (_isPasteHandlerRegistered)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("composerToolbar.unregisterPasteImageHandler", _textareaElementId);
+            }
+            catch (JSDisconnectedException)
+            {
+                // Browser disconnected during teardown; safe to ignore.
+            }
+        }
+
+        _dotNetRef?.Dispose();
+        _dotNetRef = null;
+        _isPasteHandlerRegistered = false;
+    }
+
+    /// <summary>
+    /// Processes a pasted-image payload and forwards it to the parent callback.
+    /// </summary>
+    protected async Task ProcessPastedImageAsync(string fileName, string contentType, string dataUrl, long sizeBytes)
+    {
+        if (!TryExtractBase64Data(dataUrl, out var base64Data))
+        {
+            return;
+        }
+
+        byte[] bytes;
+        try
+        {
+            bytes = Convert.FromBase64String(base64Data);
+        }
+        catch (FormatException)
+        {
+            return;
+        }
+
+        var normalizedFileName = string.IsNullOrWhiteSpace(fileName)
+            ? $"pasted-image-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}.png"
+            : fileName;
+
+        var payload = new PastedImageData
+        {
+            FileName = normalizedFileName,
+            ContentType = string.IsNullOrWhiteSpace(contentType) ? "image/png" : contentType,
+            Data = bytes,
+            SizeBytes = sizeBytes > 0 ? sizeBytes : bytes.LongLength
+        };
+
+        await OnPasteImage.InvokeAsync(payload);
     }
 
     private void UpdateMentionAutocomplete()
@@ -306,6 +394,24 @@ public partial class MessageComposer : ComponentBase
     private static bool IsMentionBoundary(char character)
     {
         return !char.IsLetterOrDigit(character) && character is not '_' and not '.';
+    }
+
+    private static bool TryExtractBase64Data(string dataUrl, out string base64Data)
+    {
+        base64Data = string.Empty;
+        if (string.IsNullOrWhiteSpace(dataUrl))
+        {
+            return false;
+        }
+
+        var commaIndex = dataUrl.IndexOf(',');
+        if (commaIndex < 0 || commaIndex == dataUrl.Length - 1)
+        {
+            return false;
+        }
+
+        base64Data = dataUrl[(commaIndex + 1)..];
+        return true;
     }
 
     private readonly record struct MentionContext(int StartIndex, string Query);

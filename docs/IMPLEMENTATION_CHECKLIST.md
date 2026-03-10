@@ -3135,7 +3135,7 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ Show channel search/filter
   - ✓ Display channel creation button
   - ✓ Show user presence indicators
-  - ☐ Support drag-to-reorder pinned channels
+  - ✓ Support drag-to-reorder pinned channels
 
 #### Channel Header Component
 - ✓ Create `ChannelHeader.razor`:
@@ -3165,7 +3165,7 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ Reply-to message preview
   - ✓ Send button and Enter key handling
   - ✓ Typing indicator broadcast on input
-  - ☐ Paste image support (auto-upload)
+  - ✓ Paste image support (auto-upload)
 
 #### Typing Indicator Component
 - ✓ Create `TypingIndicator.razor`:
@@ -3190,10 +3190,10 @@ This phase implements real-time chat, announcements, push notifications, and the
 
 #### Direct Message View
 - ✓ Create `DirectMessageView.razor`:
-  - ☐ User search for starting new DM
+  - ✓ User search for starting new DM
   - ✓ Display DM conversations list
   - ✓ Show user online status
-  - ☐ Group DM support (2+ users)
+  - ✓ Group DM support (2+ users)
 
 #### Chat Notification Badge
 - ✓ Create `ChatNotificationBadge.razor`:

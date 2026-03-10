@@ -19,6 +19,9 @@ public partial class ChannelList : ComponentBase
     private bool _isShowCreateChannel;
     private string _newChannelName = string.Empty;
     private string _newChannelType = "Public";
+    private List<Guid> _pinnedOrder = [];
+    private Guid? _draggingPinnedChannelId;
+    private Guid? _dragOverPinnedChannelId;
 
     protected override async Task OnInitializedAsync()
     {
@@ -39,6 +42,10 @@ public partial class ChannelList : ComponentBase
     /// <summary>Event callback when a new channel should be created.</summary>
     [Parameter]
     public EventCallback<(string Name, string Type)> OnCreateChannel { get; set; }
+
+    /// <summary>Event callback when pinned channel order changes.</summary>
+    [Parameter]
+    public EventCallback<IReadOnlyList<Guid>> OnChannelReordered { get; set; }
 
     /// <summary>Gets or sets the search query filter.</summary>
     protected string SearchQuery
@@ -69,6 +76,15 @@ public partial class ChannelList : ComponentBase
         string.IsNullOrWhiteSpace(_searchQuery)
             ? Channels
             : Channels.Where(c => c.Name.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    /// <summary>Pinned channels in user-defined order.</summary>
+    protected List<ChannelViewModel> PinnedChannels =>
+        OrderPinnedChannels(FilteredChannels.Where(c => c.IsPinned).ToList());
+
+    protected override void OnParametersSet()
+    {
+        SyncPinnedOrderWithChannels();
+    }
 
     /// <summary>Selects a channel and raises the callback.</summary>
     protected async Task SelectChannel(ChannelViewModel channel)
@@ -122,6 +138,7 @@ public partial class ChannelList : ComponentBase
             .OrderByDescending(c => c.LastActivityAt ?? DateTime.MinValue)
             .ThenBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
+        SyncPinnedOrderWithChannels();
 
         _isShowCreateChannel = false;
         _newChannelName = string.Empty;
@@ -132,6 +149,130 @@ public partial class ChannelList : ComponentBase
         var caller = await GetCallerContextAsync();
         var channels = await ChannelService.ListChannelsAsync(caller);
         Channels = channels.Select(ToViewModel).ToList();
+        SyncPinnedOrderWithChannels();
+    }
+
+    /// <summary>Starts dragging a pinned channel.</summary>
+    protected void HandlePinnedDragStart(Guid channelId)
+    {
+        if (!_pinnedOrder.Contains(channelId))
+        {
+            return;
+        }
+
+        _draggingPinnedChannelId = channelId;
+        _dragOverPinnedChannelId = channelId;
+    }
+
+    /// <summary>Tracks the pinned channel currently being hovered during drag.</summary>
+    protected void HandlePinnedDragOver(Guid channelId)
+    {
+        if (_draggingPinnedChannelId is null || _draggingPinnedChannelId == channelId)
+        {
+            return;
+        }
+
+        _dragOverPinnedChannelId = channelId;
+    }
+
+    /// <summary>Finalizes the drag operation and clears temporary state.</summary>
+    protected void HandlePinnedDragEnd()
+    {
+        _draggingPinnedChannelId = null;
+        _dragOverPinnedChannelId = null;
+    }
+
+    /// <summary>Reorders pinned channels when dropped and raises callback with new order.</summary>
+    protected async Task HandlePinnedDropAsync(Guid targetChannelId)
+    {
+        if (_draggingPinnedChannelId is null)
+        {
+            return;
+        }
+
+        var draggedChannelId = _draggingPinnedChannelId.Value;
+
+        if (draggedChannelId == targetChannelId)
+        {
+            HandlePinnedDragEnd();
+            return;
+        }
+
+        SyncPinnedOrderWithChannels();
+
+        var draggedIndex = _pinnedOrder.IndexOf(draggedChannelId);
+        var targetIndex = _pinnedOrder.IndexOf(targetChannelId);
+
+        if (draggedIndex < 0 || targetIndex < 0)
+        {
+            HandlePinnedDragEnd();
+            return;
+        }
+
+        _pinnedOrder.RemoveAt(draggedIndex);
+        _pinnedOrder.Insert(targetIndex, draggedChannelId);
+
+        if (OnChannelReordered.HasDelegate)
+        {
+            await OnChannelReordered.InvokeAsync(_pinnedOrder.AsReadOnly());
+        }
+
+        HandlePinnedDragEnd();
+    }
+
+    /// <summary>Gets CSS classes used to style drag source and current drop target.</summary>
+    protected string GetPinnedDragClass(Guid channelId)
+    {
+        if (_draggingPinnedChannelId == channelId)
+        {
+            return "is-dragging";
+        }
+
+        if (_dragOverPinnedChannelId == channelId)
+        {
+            return "is-drop-target";
+        }
+
+        return string.Empty;
+    }
+
+    private List<ChannelViewModel> OrderPinnedChannels(List<ChannelViewModel> pinnedChannels)
+    {
+        if (pinnedChannels.Count == 0)
+        {
+            return pinnedChannels;
+        }
+
+        SyncPinnedOrderWithChannels();
+
+        var orderIndex = _pinnedOrder
+            .Select((id, index) => new { id, index })
+            .ToDictionary(x => x.id, x => x.index);
+
+        return pinnedChannels
+            .OrderBy(c => orderIndex.GetValueOrDefault(c.Id, int.MaxValue))
+            .ThenBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private void SyncPinnedOrderWithChannels()
+    {
+        var currentPinnedIds = Channels
+            .Where(c => c.IsPinned)
+            .Select(c => c.Id)
+            .ToList();
+
+        _pinnedOrder = _pinnedOrder
+            .Where(currentPinnedIds.Contains)
+            .ToList();
+
+        foreach (var channelId in currentPinnedIds)
+        {
+            if (!_pinnedOrder.Contains(channelId))
+            {
+                _pinnedOrder.Add(channelId);
+            }
+        }
     }
 
     private async Task<CallerContext> GetCallerContextAsync()

@@ -145,14 +145,19 @@
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageComposer.razor`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageComposer.razor.cs`
 - `src/UI/DotNetCloud.UI.Web/wwwroot/js/composer-toolbar.js` *(extend)*
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/PastedImageData.cs` *(new)*
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/DirectMessageView.razor`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/DirectMessageView.razor.cs`
 
-**Status:** ☐
+**Tests:** `tests/DotNetCloud.Modules.Chat.Tests/MessageComposerTests.cs`
+
+**Status:** ✓
 
 ---
 
 ## Step 4d — Phase 2.8: Drag-to-Reorder Pinned Channels in `ChannelList`
 
-**Gap:** Checklist item "Support drag-to-reorder pinned channels" is `[ ]` unchecked (uses `[ ]` vs `☐` in checklist — same gap).
+**Gap:** Checklist item "Support drag-to-reorder pinned channels" was ☐ unchecked.
 
 **Work:**
 - Add HTML5 `draggable` + `ondragstart`/`ondragover`/`ondrop` handlers to pinned channel items
@@ -165,7 +170,7 @@
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelList.razor.cs`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelList.razor.css`
 
-**Status:** ☐
+**Status:** ✓
 
 ---
 
@@ -182,7 +187,9 @@
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/DirectMessageView.razor`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/DirectMessageView.razor.cs`
 
-**Status:** ☐
+**Tests:** `tests/DotNetCloud.Modules.Chat.Tests/DirectMessageViewTests.cs`
+
+**Status:** ✓
 
 ---
 
@@ -200,7 +207,7 @@
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/DirectMessageView.razor`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/DirectMessageView.razor.cs`
 
-**Status:** ☐
+**Status:** ✓
 
 ---
 

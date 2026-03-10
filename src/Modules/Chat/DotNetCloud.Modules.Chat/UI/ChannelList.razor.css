@@ -18,3 +18,21 @@
 .presence-offline {
     background-color: #6b7280;
 }
+
+.channel-item-pinned {
+    cursor: grab;
+    user-select: none;
+}
+
+.channel-item-pinned:active {
+    cursor: grabbing;
+}
+
+.channel-item-pinned.is-dragging {
+    opacity: 0.55;
+}
+
+.channel-item-pinned.is-drop-target {
+    box-shadow: inset 0 -2px 0 #0ea5e9;
+    background-color: rgba(14, 165, 233, 0.08);
+}

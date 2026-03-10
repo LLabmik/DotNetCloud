@@ -7,8 +7,90 @@
 
 <div class="chat-dm-view">
     <div class="dm-header">
+        <button class="btn btn-sm" @onclick="ToggleDmSearch" title="Start a new direct message">New DM</button>
+
+        @if (IsDmSearchVisible)
+        {
+            <div class="dm-user-search">
+                <input type="text"
+                       class="dm-user-search-input"
+                       placeholder="Search users by name or username..."
+                       @bind="DmUserSearchQuery"
+                       @bind:event="oninput" />
+
+                @if (!string.IsNullOrWhiteSpace(DmSearchError))
+                {
+                    <div class="dm-user-search-error">@DmSearchError</div>
+                }
+
+                @if (FilteredDmUserSuggestions.Count > 0)
+                {
+                    <div class="dm-user-search-results">
+                        @foreach (var user in FilteredDmUserSuggestions)
+                        {
+                            <button type="button"
+                                    class="dm-user-search-result"
+                                    disabled="@IsCreatingDm"
+                                    @onclick="() => SelectDmUserAsync(user)">
+                                <span class="dm-user-result-name">@user.DisplayName</span>
+                                @if (!string.IsNullOrWhiteSpace(user.Username))
+                                {
+                                    <span class="dm-user-result-username">@("@" + user.Username)</span>
+                                }
+                            </button>
+                        }
+                    </div>
+                }
+                else if (!string.IsNullOrWhiteSpace(DmUserSearchQuery))
+                {
+                    <div class="dm-user-search-empty">No matching users found.</div>
+                }
+            </div>
+        }
+
         @if (OtherUser is not null)
         {
+            <button class="btn btn-sm" @onclick="ToggleAddPeoplePicker" title="Add people to this direct message">Add people</button>
+
+            @if (IsAddPeoplePickerVisible)
+            {
+                <div class="dm-user-search">
+                    <input type="text"
+                           class="dm-user-search-input"
+                           placeholder="Add people by name or username..."
+                           @bind="AddPeopleSearchQuery"
+                           @bind:event="oninput" />
+
+                    @if (!string.IsNullOrWhiteSpace(AddPeopleError))
+                    {
+                        <div class="dm-user-search-error">@AddPeopleError</div>
+                    }
+
+                    @if (FilteredAddPeopleSuggestions.Count > 0)
+                    {
+                        <div class="dm-user-search-results">
+                            @foreach (var user in FilteredAddPeopleSuggestions)
+                            {
+                                <button type="button"
+                                        class="dm-user-search-result"
+                                        disabled="@IsAddingMember"
+                                        @onclick="() => AddGroupMemberAsync(user)">
+                                    <span class="dm-user-result-name">@user.DisplayName</span>
+                                    @if (!string.IsNullOrWhiteSpace(user.Username))
+                                    {
+                                        <span class="dm-user-result-username">@("@" + user.Username)</span>
+                                    }
+                                </button>
+                            }
+                        </div>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(AddPeopleSearchQuery))
+                    {
+                        <div class="dm-user-search-empty">No matching users found.</div>
+                    }
+                </div>
+            }
+
             <span class="status-dot @(OtherUser.Status == "Online" ? "online" : "offline")"></span>
             @if (!string.IsNullOrEmpty(OtherUser.AvatarUrl))
             {
@@ -21,6 +103,16 @@
             <div class="dm-user-info">
                 <span class="dm-user-name">@OtherUser.DisplayName</span>
                 <span class="dm-user-status">@OtherUser.Status</span>
+                @if (IsGroupConversation)
+                {
+                    <span class="dm-user-status">Group (@EffectiveMemberCount members)</span>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="dm-user-info">
+                <span class="dm-user-name">Select a user to start a direct message</span>
             </div>
         }
     </div>
@@ -41,6 +133,7 @@
                          OnSend="OnSend"
                          OnCancelReply="OnCancelReply"
                          OnTyping="OnTyping"
-                         OnAttach="OnAttach" />
+                         OnAttach="OnAttach"
+                         OnPasteImage="OnPasteImage" />
     </div>
 </div>

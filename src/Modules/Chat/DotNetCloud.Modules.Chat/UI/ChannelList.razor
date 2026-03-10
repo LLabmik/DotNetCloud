@@ -36,9 +36,37 @@
     }
     else
     {
+        @if (PinnedChannels.Count > 0)
+        {
+            <div class="channel-group">
+                <h3>Pinned</h3>
+                @foreach (var channel in PinnedChannels)
+                {
+                    <div class="channel-item channel-item-pinned @(channel.IsActive ? "active" : "") @GetPinnedDragClass(channel.Id)"
+                         draggable="true"
+                         @ondragstart="() => HandlePinnedDragStart(channel.Id)"
+                         @ondragover:preventDefault="true"
+                         @ondragover="() => HandlePinnedDragOver(channel.Id)"
+                         @ondragend="HandlePinnedDragEnd"
+                         @ondrop:preventDefault="true"
+                         @ondrop="() => HandlePinnedDropAsync(channel.Id)"
+                         @onclick="() => SelectChannel(channel)">
+                        <span class="channel-icon">📌</span>
+                        <span class="channel-name">@channel.Name</span>
+                        @if (channel.UnreadCount > 0)
+                        {
+                            <span class="badge @(channel.MentionCount > 0 ? "badge-mention" : "badge-unread")">
+                                @channel.UnreadCount
+                            </span>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
         <div class="channel-group">
             <h3>Channels</h3>
-            @foreach (var channel in FilteredChannels.Where(c => c.Type is "Public" or "Private"))
+            @foreach (var channel in FilteredChannels.Where(c => c.Type is "Public" or "Private" && !c.IsPinned))
             {
                 <div class="channel-item @(channel.IsActive ? "active" : "")"
                      @onclick="() => SelectChannel(channel)">
@@ -58,7 +86,7 @@
         {
             <div class="channel-group">
                 <h3>Direct Messages</h3>
-                @foreach (var channel in FilteredChannels.Where(c => c.Type is "DirectMessage" or "Group"))
+                @foreach (var channel in FilteredChannels.Where(c => c.Type is "DirectMessage" or "Group" && !c.IsPinned))
                 {
                     <div class="channel-item @(channel.IsActive ? "active" : "")"
                          @onclick="() => SelectChannel(channel)">
