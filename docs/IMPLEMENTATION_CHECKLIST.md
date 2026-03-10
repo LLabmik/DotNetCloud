@@ -2970,15 +2970,15 @@ This phase implements real-time chat, announcements, push notifications, and the
 **Integrate chat module with core SignalR hub**
 
 #### Chat SignalR Methods
-- ☐ Register chat event handlers in `CoreHub`:
-  - ☐ `SendMessage(channelId, content, replyToId?)` — client sends message
-  - ☐ `EditMessage(messageId, newContent)` — client edits message
-  - ☐ `DeleteMessage(messageId)` — client deletes message
-  - ☐ `StartTyping(channelId)` — client starts typing
-  - ☐ `StopTyping(channelId)` — client stops typing
-  - ☐ `MarkRead(channelId, messageId)` — client marks channel as read
-  - ☐ `AddReaction(messageId, emoji)` — client adds reaction
-  - ☐ `RemoveReaction(messageId, emoji)` — client removes reaction
+- ✓ Register chat event handlers in `CoreHub`:
+  - ✓ `SendMessage(channelId, content, replyToId?)` — client sends message
+  - ✓ `EditMessage(messageId, newContent)` — client edits message
+  - ✓ `DeleteMessage(messageId)` — client deletes message
+  - ✓ `StartTyping(channelId)` — client starts typing
+  - ✓ `StopTyping(channelId)` — client stops typing
+  - ✓ `MarkRead(channelId, messageId)` — client marks channel as read
+  - ✓ `AddReaction(messageId, emoji)` — client adds reaction
+  - ✓ `RemoveReaction(messageId, emoji)` — client removes reaction
 
 #### Server-to-Client Broadcasts
 - ✓ `NewMessage(channelId, messageDto)` — broadcast to channel members

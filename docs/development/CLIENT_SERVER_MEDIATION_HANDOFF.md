@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-10 (Phase 2.5 SignalR group lifecycle + reconnect hardening update posted)
+Last updated: 2026-03-10 (Phase 2.5 CoreHub chat method registration update posted)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -360,6 +360,50 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 
 **Intentionally deferred items:**
 - Chat-specific client-to-server hub methods (`SendMessage`, `EditMessage`, `DeleteMessage`, `StartTyping`, `StopTyping`, `MarkRead`, `AddReaction`, `RemoveReaction`) remain pending.
+- Presence custom status message and `PresenceChangedEvent` cross-module event integration remain pending.
+
+### Phase 2.5 Update #2 - CoreHub Chat Method Registration (Server, mint22)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`mint22`)  
+**Status:** completed ✅ (incremental phase-2.5 scope)
+
+**Commit hash:** `(pending commit)`
+
+**Files added/updated:**
+- `src/Core/DotNetCloud.Core.Server/RealTime/CoreHub.cs`
+- `tests/DotNetCloud.Core.Server.Tests/RealTime/CoreHubTests.cs`
+- `docs/IMPLEMENTATION_CHECKLIST.md`
+- `docs/MASTER_PROJECT_PLAN.md`
+- `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
+
+**Implemented in this update:**
+1. Registered chat hub methods in `CoreHub`: `SendMessageAsync`, `EditMessageAsync`, `DeleteMessageAsync`, `StartTypingAsync`, `StopTypingAsync`, `MarkReadAsync`, `AddReactionAsync`, and `RemoveReactionAsync`.
+2. Wired hub methods to existing chat services (`IMessageService`, `IChannelMemberService`, `IReactionService`, `ITypingIndicatorService`) using authenticated `CallerContext` from SignalR connection identity.
+3. Wired server-to-client realtime broadcasts through `IChatRealtimeService` for new/edited/deleted messages, typing indicators, unread count updates, and reaction updates.
+4. Added deterministic SignalR error translation for expected service exceptions (`ArgumentException`, `InvalidOperationException`, `UnauthorizedAccessException`) to `HubException` messages.
+
+**Tests added/updated:**
+- `tests/DotNetCloud.Core.Server.Tests/RealTime/CoreHubTests.cs`
+    - `WhenSendMessageCalledThenBroadcastsNewMessage`
+    - `WhenMarkReadCalledThenBroadcastsUnreadCountForCaller`
+    - `WhenAddReactionCalledThenBroadcastsUpdatedReactions`
+    - `WhenStartTypingCalledThenPublishesTypingAndBroadcasts`
+    - `WhenUserHasTrackedGroupsThenOnConnectedAddsConnectionToEachGroup`
+
+**Verification commands and results:**
+- `dotnet test tests/DotNetCloud.Core.Server.Tests/DotNetCloud.Core.Server.Tests.csproj`
+    - Result: total 326, succeeded 324, failed 0, skipped 2
+- `dotnet build`
+    - Result: succeeded (full solution)
+
+**Raw failing assertion/error text seen during iteration (fixed):**
+- None in this update.
+
+**Raw log snippets around authorization/event issues:**
+- No runtime service logs captured in hub unit tests (mocked collaborators + behavior assertions).
+
+**Intentionally deferred items:**
 - Presence custom status message and `PresenceChangedEvent` cross-module event integration remain pending.
 
 ### Sprint A Kickoff - Phase 1.19.2 (Files API Integration Depth)

@@ -1,5 +1,8 @@
 using System.Security.Claims;
+using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Server.Configuration;
+using DotNetCloud.Modules.Chat.DTOs;
+using DotNetCloud.Modules.Chat.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
@@ -17,15 +20,30 @@ internal sealed class CoreHub : Hub
 {
     private readonly UserConnectionTracker _connectionTracker;
     private readonly PresenceService _presenceService;
+    private readonly IMessageService? _messageService;
+    private readonly IChannelMemberService? _channelMemberService;
+    private readonly IReactionService? _reactionService;
+    private readonly ITypingIndicatorService? _typingIndicatorService;
+    private readonly IChatRealtimeService? _chatRealtimeService;
     private readonly ILogger<CoreHub> _logger;
 
     public CoreHub(
         UserConnectionTracker connectionTracker,
         PresenceService presenceService,
+        IMessageService? messageService,
+        IChannelMemberService? channelMemberService,
+        IReactionService? reactionService,
+        ITypingIndicatorService? typingIndicatorService,
+        IChatRealtimeService? chatRealtimeService,
         ILogger<CoreHub> logger)
     {
         _connectionTracker = connectionTracker;
         _presenceService = presenceService;
+        _messageService = messageService;
+        _channelMemberService = channelMemberService;
+        _reactionService = reactionService;
+        _typingIndicatorService = typingIndicatorService;
+        _chatRealtimeService = chatRealtimeService;
         _logger = logger;
     }
 
@@ -135,6 +153,177 @@ internal sealed class CoreHub : Hub
         await _presenceService.UpdateLastSeenAsync(userId);
     }
 
+    /// <summary>
+    /// Sends a new message to a channel and broadcasts it to channel members.
+    /// </summary>
+    public async Task<MessageDto> SendMessageAsync(Guid channelId, string content, Guid? replyToId = null)
+    {
+        EnsureChatServicesAvailable();
+
+        try
+        {
+            var message = await _messageService!.SendMessageAsync(
+                channelId,
+                new SendMessageDto { Content = content, ReplyToMessageId = replyToId },
+                CreateUserCaller(),
+                Context.ConnectionAborted);
+
+            await _chatRealtimeService!.BroadcastNewMessageAsync(channelId, message, Context.ConnectionAborted);
+            return message;
+        }
+        catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
+        {
+            throw hubException;
+        }
+    }
+
+    /// <summary>
+    /// Edits an existing message and broadcasts the update to channel members.
+    /// </summary>
+    public async Task<MessageDto> EditMessageAsync(Guid messageId, string newContent)
+    {
+        EnsureChatServicesAvailable();
+
+        try
+        {
+            var message = await _messageService!.EditMessageAsync(
+                messageId,
+                new EditMessageDto { Content = newContent },
+                CreateUserCaller(),
+                Context.ConnectionAborted);
+
+            await _chatRealtimeService!.BroadcastMessageEditedAsync(message.ChannelId, message, Context.ConnectionAborted);
+            return message;
+        }
+        catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
+        {
+            throw hubException;
+        }
+    }
+
+    /// <summary>
+    /// Deletes a message and broadcasts deletion to channel members.
+    /// </summary>
+    public async Task DeleteMessageAsync(Guid messageId)
+    {
+        EnsureChatServicesAvailable();
+
+        try
+        {
+            var caller = CreateUserCaller();
+            var message = await _messageService!.GetMessageAsync(messageId, caller, Context.ConnectionAborted)
+                ?? throw new InvalidOperationException($"Message {messageId} not found.");
+
+            await _messageService.DeleteMessageAsync(messageId, caller, Context.ConnectionAborted);
+            await _chatRealtimeService!.BroadcastMessageDeletedAsync(message.ChannelId, messageId, Context.ConnectionAborted);
+        }
+        catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
+        {
+            throw hubException;
+        }
+    }
+
+    /// <summary>
+    /// Signals typing activity in a channel.
+    /// </summary>
+    public async Task StartTypingAsync(Guid channelId, string? displayName = null)
+    {
+        EnsureChatServicesAvailable();
+
+        try
+        {
+            var caller = CreateUserCaller();
+            await _typingIndicatorService!.NotifyTypingAsync(channelId, caller, Context.ConnectionAborted);
+            await _chatRealtimeService!.BroadcastTypingAsync(channelId, caller.UserId, displayName, Context.ConnectionAborted);
+        }
+        catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
+        {
+            throw hubException;
+        }
+    }
+
+    /// <summary>
+    /// Signals that typing has stopped for a channel.
+    /// </summary>
+    public async Task StopTypingAsync(Guid channelId)
+    {
+        EnsureChatServicesAvailable();
+
+        var caller = CreateUserCaller();
+        await _chatRealtimeService!.BroadcastTypingAsync(channelId, caller.UserId, displayName: null, Context.ConnectionAborted);
+    }
+
+    /// <summary>
+    /// Marks a channel as read up to a specific message and pushes unread count update to the caller.
+    /// </summary>
+    public async Task MarkReadAsync(Guid channelId, Guid messageId)
+    {
+        EnsureChatServicesAvailable();
+
+        try
+        {
+            var caller = CreateUserCaller();
+            await _channelMemberService!.MarkAsReadAsync(channelId, messageId, caller, Context.ConnectionAborted);
+
+            var unread = await _channelMemberService.GetUnreadCountsAsync(caller, Context.ConnectionAborted);
+            var count = unread.FirstOrDefault(x => x.ChannelId == channelId)?.UnreadCount ?? 0;
+
+            await _chatRealtimeService!.BroadcastUnreadCountAsync(caller.UserId, channelId, count, Context.ConnectionAborted);
+        }
+        catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
+        {
+            throw hubException;
+        }
+    }
+
+    /// <summary>
+    /// Adds a reaction to a message and broadcasts the updated reaction set.
+    /// </summary>
+    public async Task AddReactionAsync(Guid messageId, string emoji)
+    {
+        EnsureChatServicesAvailable();
+
+        try
+        {
+            var caller = CreateUserCaller();
+            await _reactionService!.AddReactionAsync(messageId, emoji, caller, Context.ConnectionAborted);
+
+            var message = await _messageService!.GetMessageAsync(messageId, caller, Context.ConnectionAborted)
+                ?? throw new InvalidOperationException($"Message {messageId} not found.");
+            var reactions = await _reactionService.GetReactionsAsync(messageId, Context.ConnectionAborted);
+
+            await _chatRealtimeService!.BroadcastReactionUpdatedAsync(message.ChannelId, messageId, reactions, Context.ConnectionAborted);
+        }
+        catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
+        {
+            throw hubException;
+        }
+    }
+
+    /// <summary>
+    /// Removes a reaction from a message and broadcasts the updated reaction set.
+    /// </summary>
+    public async Task RemoveReactionAsync(Guid messageId, string emoji)
+    {
+        EnsureChatServicesAvailable();
+
+        try
+        {
+            var caller = CreateUserCaller();
+            await _reactionService!.RemoveReactionAsync(messageId, emoji, caller, Context.ConnectionAborted);
+
+            var message = await _messageService!.GetMessageAsync(messageId, caller, Context.ConnectionAborted)
+                ?? throw new InvalidOperationException($"Message {messageId} not found.");
+            var reactions = await _reactionService.GetReactionsAsync(messageId, Context.ConnectionAborted);
+
+            await _chatRealtimeService!.BroadcastReactionUpdatedAsync(message.ChannelId, messageId, reactions, Context.ConnectionAborted);
+        }
+        catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
+        {
+            throw hubException;
+        }
+    }
+
     private Guid GetUserId()
     {
         var nameIdentifier = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -145,5 +334,32 @@ internal sealed class CoreHub : Hub
         }
 
         return userId;
+    }
+
+    private CallerContext CreateUserCaller()
+        => new(GetUserId(), ["user"], CallerType.User);
+
+    private static bool TryConvertToHubException(Exception ex, out HubException hubException)
+    {
+        if (ex is ArgumentException or InvalidOperationException or UnauthorizedAccessException)
+        {
+            hubException = new HubException(ex.Message);
+            return true;
+        }
+
+        hubException = null!;
+        return false;
+    }
+
+    private void EnsureChatServicesAvailable()
+    {
+        if (_messageService is null
+            || _channelMemberService is null
+            || _reactionService is null
+            || _typingIndicatorService is null
+            || _chatRealtimeService is null)
+        {
+            throw new HubException("Chat services are not available.");
+        }
     }
 }
