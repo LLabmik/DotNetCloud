@@ -156,7 +156,7 @@ Required coverage:
 - ✓ New version/share/trash E2E tests added
 - ✓ WOPI + sync smoke tests added
 - ☐ PostgreSQL run completed
-- ☐ SQL Server run attempted/documented
+- ✓ SQL Server run attempted/documented
 - ☐ Evidence returned (commit/tests/logs)
 
 ### Build/Test Commands (run from repo root on `mint22`)
@@ -222,6 +222,26 @@ Required coverage:
 
 **Remaining Sprint A gaps:**
 - Provider matrix execution notes for the expanded suite (PostgreSQL required, SQL Server if available).
+
+### Sprint A Update #4 - Provider Matrix Execution Notes (Server)
+
+**Date:** 2026-03-10  
+**Owner:** Server (`mint22`)  
+**Status:** in-progress ☐
+
+**Command executed:**
+- `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~MultiDatabaseMatrixTests"`
+    - Result: total 21, succeeded 21, failed 0 (in-memory naming-strategy matrix)
+
+- `dotnet test tests/DotNetCloud.Integration.Tests/DotNetCloud.Integration.Tests.csproj --filter "FullyQualifiedName~DockerDatabaseIntegrationTests"`
+    - Result: total 12, succeeded 0, skipped 12, failed 0
+
+**Interpretation:**
+- SQL Server path was attempted and documented via `DockerDatabaseIntegrationTests`, but no runnable SQL Server source was detected in this environment (tests skipped).
+- PostgreSQL real-container execution was also unavailable in this environment (tests skipped), so PostgreSQL-required real-provider confirmation remains blocked pending container/runtime availability.
+
+**Next action to close Sprint A matrix requirement:**
+- Re-run `DockerDatabaseIntegrationTests` on a host with Docker available (or with reachable local SQL Server for SQL lane) and attach raw pass/fail logs.
 
 ---
 
