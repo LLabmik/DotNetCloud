@@ -7,6 +7,13 @@
 *@
 
 <div class="chat-message-composer">
+    <div class="composer-toolbar" role="toolbar" aria-label="Formatting toolbar">
+        <button class="btn btn-sm composer-fmt" @onclick='() => ApplyFormatAsync("**", "**")' title="Bold (Ctrl+B)"><strong>B</strong></button>
+        <button class="btn btn-sm composer-fmt" @onclick='() => ApplyFormatAsync("_", "_")' title="Italic (Ctrl+I)"><em>I</em></button>
+        <button class="btn btn-sm composer-fmt" @onclick='() => ApplyFormatAsync("`", "`")' title="Inline code"><code>` `</code></button>
+        <button class="btn btn-sm composer-fmt" @onclick='() => ApplyFormatAsync("[" , "](url)")' title="Link">🔗</button>
+    </div>
+
     @if (ReplyToMessage is not null)
     {
         <div class="reply-preview">
@@ -22,7 +29,8 @@
         </button>
 
         <div class="composer-input-wrapper">
-            <textarea class="composer-input"
+            <textarea id="composer-textarea"
+                      class="composer-input"
                       @bind="MessageText"
                       @bind:event="oninput"
                       @onkeydown="HandleKeyDown"

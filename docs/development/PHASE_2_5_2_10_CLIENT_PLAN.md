@@ -106,7 +106,7 @@
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageComposer.razor.cs`
 - `src/UI/DotNetCloud.UI.Web/wwwroot/js/composer-toolbar.js` *(new)*
 
-**Status:** ☐
+**Status:** ✓
 
 ---
 

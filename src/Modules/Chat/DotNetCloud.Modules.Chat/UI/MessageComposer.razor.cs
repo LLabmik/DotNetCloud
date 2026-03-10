@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.JSInterop;
 
 namespace DotNetCloud.Modules.Chat.UI;
 
@@ -11,6 +12,9 @@ public partial class MessageComposer : ComponentBase
 {
     private string _messageText = string.Empty;
     private bool _isShowEmojiPicker;
+
+    [Inject]
+    private IJSRuntime JS { get; set; } = default!;
 
     /// <summary>The channel name for the placeholder text.</summary>
     [Parameter]
@@ -103,6 +107,17 @@ public partial class MessageComposer : ComponentBase
     {
         _messageText += emoji;
         _isShowEmojiPicker = false;
+    }
+
+    /// <summary>Wraps the textarea selection with Markdown prefix/suffix via JS interop.</summary>
+    protected async Task ApplyFormatAsync(string prefix, string suffix)
+    {
+        var newValue = await JS.InvokeAsync<string>(
+            "composerToolbar.wrapSelection",
+            "composer-textarea", prefix, suffix);
+
+        // Keep the C# model in sync with what JS wrote into the DOM.
+        _messageText = newValue;
     }
 
     /// <summary>Handles the attach button click.</summary>
