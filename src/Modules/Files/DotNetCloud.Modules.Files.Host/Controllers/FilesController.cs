@@ -20,6 +20,7 @@ public class FilesController : FilesControllerBase
     private readonly IDownloadService _downloadService;
     private readonly IVersionService _versionService;
     private readonly IShareService _shareService;
+    private readonly IThumbnailService _thumbnailService;
     private readonly ILogger<FilesController> _logger;
     private readonly FileSystemOptions _fileSystemOptions;
 
@@ -32,6 +33,7 @@ public class FilesController : FilesControllerBase
         IDownloadService downloadService,
         IVersionService versionService,
         IShareService shareService,
+        IThumbnailService thumbnailService,
         ILogger<FilesController> logger,
         IOptions<FileSystemOptions> fileSystemOptions)
     {
@@ -40,6 +42,7 @@ public class FilesController : FilesControllerBase
         _downloadService = downloadService;
         _versionService = versionService;
         _shareService = shareService;
+        _thumbnailService = thumbnailService;
         _logger = logger;
         _fileSystemOptions = fileSystemOptions.Value;
     }
@@ -265,6 +268,27 @@ public class FilesController : FilesControllerBase
         _logger.LogInformation("file.downloaded {NodeId} {FileName} {FileSize} {UserId}",
             nodeId, node.Name, node.Size, caller.UserId);
         return File(downloadStream, node.MimeType ?? "application/octet-stream", node.Name, enableRangeProcessing: false);
+    });
+
+    /// <summary>
+    /// Gets a cached thumbnail for a file node.
+    /// </summary>
+    [HttpGet("{nodeId:guid}/thumbnail")]
+    public Task<IActionResult> GetThumbnailAsync(Guid nodeId, [FromQuery] string size = "medium") => ExecuteAsync(async () =>
+    {
+        if (!Enum.TryParse<ThumbnailSize>(size, ignoreCase: true, out var thumbnailSize))
+            return BadRequest(ErrorEnvelope("validation_error", "Invalid thumbnail size. Use small, medium, or large."));
+
+        var node = await _fileService.GetNodeAsync(nodeId, GetAuthenticatedCaller());
+        if (node is null)
+            return NotFound(ErrorEnvelope("not_found", "Node not found."));
+
+        var (thumbnailData, contentType) = await _thumbnailService.GetThumbnailAsync(nodeId, thumbnailSize);
+        if (thumbnailData is null)
+            return NotFound(ErrorEnvelope("not_found", "Thumbnail not found."));
+
+        Response.Headers.CacheControl = "private, max-age=3600";
+        return File(thumbnailData, contentType ?? "image/jpeg", enableRangeProcessing: false);
     });
 
     /// <summary>

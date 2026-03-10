@@ -55,6 +55,7 @@ public static class FilesServiceRegistration
         services.AddScoped<ICommentService, CommentService>();
         services.AddScoped<ISyncService, SyncService>();
         services.AddScoped<IStorageMetricsService, StorageMetricsService>();
+        services.AddSingleton<IThumbnailService, ThumbnailService>();
 
         // WOPI / Collabora services (Scoped for DB access)
         services.AddScoped<IWopiService, WopiService>();

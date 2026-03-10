@@ -2098,7 +2098,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ☐ Generate thumbnails for video files (first frame) — deferred: requires FFmpeg interop
 - ☐ Generate thumbnails for PDF files (first page) — deferred: requires PDF rendering library
 - ✓ Cache thumbnails on server (disk cache under `{storageRoot}/.thumbnails/{prefix}/{id}_{size}.jpg`)
-- ☐ Serve thumbnails via API endpoint — deferred: controller not yet wired (`IThumbnailService` interface ready)
+- ✓ Serve thumbnails via API endpoint (`GET /api/v1/files/{nodeId}/thumbnail?size=small|medium|large`) with authenticated node access checks
 - ✓ Display thumbnails in grid view (FileBrowser renders `<img>` when `ThumbnailUrl` is set)
 
 #### Advanced Preview
