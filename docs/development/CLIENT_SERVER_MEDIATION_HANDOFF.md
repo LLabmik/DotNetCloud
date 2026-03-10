@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-10 (Phase 2.3 temporary execution plan created and linked)
+Last updated: 2026-03-10 (Phase 2.3 client validation update posted)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -156,6 +156,52 @@ Reference tracker: `docs/development/PHASE_2_3_EXECUTION_PLAN.md`
 **Intentionally deferred items:**
 - Client-side compatibility validation pass (DTO/view-model/API-consumer assumptions) is deferred to the client workspace handoff.
 - No Phase 2.4/2.5 work started in this update.
+
+### Phase 2.3 Update #2 - Client Validation Block (Windows workspace)
+
+**Date:** 2026-03-10  
+**Owner:** Client (`Windows workspace`)  
+**Status:** completed ✅
+
+**Commit hash:** pending (docs-only update in this commit)
+
+**Client paths reviewed:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/DTOs/ChatDtos.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/ChatApiClient.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ViewModels.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelList.razor.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageList.razor.cs`
+- `src/UI/DotNetCloud.UI.Android/Services/ChatApiClient.cs`
+- `src/UI/DotNetCloud.UI.Android/Services/SignalRChatService.cs`
+
+**Server paths validated against client assumptions:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/ChannelMemberService.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/ReactionService.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/PinService.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/TypingIndicatorService.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Controllers/ChatController.cs`
+
+**Payload shape examples checked:**
+- `GET api/v1/chat/unread?userId=<guid>` -> `success: true`, `data: UnreadCountDto[]` with `channelId`, `unreadCount`, `mentionCount`
+- `GET api/v1/chat/channels/<channelId>/pins?userId=<guid>` -> `success: true`, `data: MessageDto[]` (ordered by latest pin first)
+- `GET api/v1/chat/channels/<channelId>/typing` -> `success: true`, `data: TypingIndicatorDto[]` (5-second in-memory expiry)
+- `POST api/v1/chat/messages/<messageId>/reactions?userId=<guid>` -> `success: true`, `data.added: true` on success
+
+**Validation result (client contract):**
+- DTO shape/nullability for `UnreadCountDto`, `MessageDto`, `MessageReactionDto`, and `TypingIndicatorDto` remains compatible with current client/UI consumers.
+- Behavior assumptions validated:
+    - Unread and mention counts include `@all` and `@channel` mentions after last-read boundary.
+    - Pinned message retrieval preserves latest-pin-first ordering.
+    - Typing indicators expire after 5 seconds and are channel-isolated.
+- No mandatory client code changes required for Phase 2.3 acceptance.
+
+**Mismatches found / follow-up actions:**
+- Follow-up (server): align Chat REST controller exception mapping for hardened authorization paths (`reactions`, `pins`, `typing`) to deterministic API responses instead of unhandled 500s when service-level `UnauthorizedAccessException` / `InvalidOperationException` bubbles.
+- Follow-up (client, non-blocking): once Phase 2.4 endpoints are finalized, add client integration tests for unread/pin/typing endpoint envelopes and denial-path handling.
+
+**Intentionally deferred items:**
+- No client runtime implementation changes in this update (validation-only pass).
+- No Phase 2.4/2.5 implementation work started.
 
 ### Sprint A Kickoff - Phase 1.19.2 (Files API Integration Depth)
 

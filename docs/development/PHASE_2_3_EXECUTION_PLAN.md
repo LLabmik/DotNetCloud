@@ -1,7 +1,7 @@
 # Phase 2.3 Execution Plan - Chat Business Logic & Services
 
 **Created:** 2026-03-10  
-**Status:** Completed (server-side, pending final acceptance)  
+**Status:** Completed (server-side + client validation, pending final acceptance)  
 **Scope:** Complete `phase-2.3` in `docs/MASTER_PROJECT_PLAN.md` and prepare clean handoff into `phase-2.4` and `phase-2.5`.
 
 ## Temporary Plan Notice
@@ -113,6 +113,14 @@ Checks required:
 - client paths reviewed
 - payload shape examples checked
 - mismatches found and required follow-up actions
+
+### Client Validation Result (Completed 2026-03-10)
+
+- ✓ Client validation block executed in Windows workspace.
+- ✓ DTO shape and nullability assumptions verified against current client/UI consumers.
+- ✓ Behavior assumptions verified for unread/mention counts, pinned ordering, and typing indicator expiry.
+- ✓ No blocking client-side code changes required for Phase 2.3.
+- ☐ Server follow-up remains: deterministic REST exception mapping for authorization/not-found in hardened reaction/pin/typing paths.
 
 ## Definition of Done
 
