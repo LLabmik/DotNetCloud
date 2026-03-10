@@ -14,7 +14,30 @@
         }
     </div>
 
-    @if (Announcements.Count == 0)
+    <div class="announcement-filters">
+        <label for="priority-filter">Priority:</label>
+        <select id="priority-filter" class="form-select form-select-sm" @bind="_selectedPriority">
+            <option value="All">All</option>
+            <option value="Normal">Normal</option>
+            <option value="Important">Important</option>
+            <option value="Urgent">Urgent</option>
+        </select>
+        <label for="from-date">From:</label>
+        <input id="from-date" type="date" class="form-control form-control-sm"
+               value="@(_fromDate?.ToString("yyyy-MM-dd"))"
+               @onchange="SetFromDate" />
+        <label for="to-date">To:</label>
+        <input id="to-date" type="date" class="form-control form-control-sm"
+               value="@(_toDate?.ToString("yyyy-MM-dd"))"
+               @onchange="SetToDate" />
+        <button class="btn btn-outline-secondary btn-sm" @onclick="ClearFilters">Clear</button>
+    </div>
+
+    @{
+        var filtered = FilteredAnnouncements.ToList();
+    }
+
+    @if (filtered.Count == 0)
     {
         <div class="empty-state">
             <p>No announcements yet</p>
@@ -22,7 +45,7 @@
     }
     else
     {
-        @foreach (var announcement in Announcements)
+        @foreach (var announcement in filtered)
         {
             <div class="announcement-card @($"priority-{announcement.Priority.ToLowerInvariant()}")">
                 <div class="announcement-card-header">

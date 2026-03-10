@@ -3207,7 +3207,7 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ Dismiss/collapse functionality
 - ✓ Create `AnnouncementList.razor`:
   - ✓ List all announcements with pagination
-  - ☐ Filter by priority and date
+  - ✓ Filter by priority and date
   - ✓ Show acknowledgement status
 - ✓ Create `AnnouncementEditor.razor` (admin):
   - ✓ Rich text editor for announcement content

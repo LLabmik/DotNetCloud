@@ -36,7 +36,7 @@
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/AnnouncementList.razor`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/AnnouncementList.razor.cs`
 
-**Status:** ☐
+**Status:** ✓
 
 ---
 
