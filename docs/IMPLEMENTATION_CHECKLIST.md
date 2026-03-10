@@ -3117,6 +3117,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ `GET /api/v1/notifications/preferences` — Get notification preferences
 - ✓ `PUT /api/v1/notifications/preferences` — Update notification preferences
 - ✓ Add `ChatApiClient` push client bindings (`RegisterDeviceAsync`, `UnregisterDeviceAsync`, `GetNotificationPreferencesAsync`, `UpdateNotificationPreferencesAsync`) and shared DTOs
+- ✓ Add `NotificationPreferencesPanel` UI component with push toggle, DND toggle, per-channel mute list, and GET/PUT API wiring
 
 ---
 

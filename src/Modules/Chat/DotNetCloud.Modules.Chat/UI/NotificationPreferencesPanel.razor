@@ -1,0 +1,74 @@
+@namespace DotNetCloud.Modules.Chat.UI
+
+@*
+    Notification preferences panel for push settings and per-channel mute controls.
+    Code-behind: NotificationPreferencesPanel.razor.cs
+*@
+
+<div class="notification-preferences-panel">
+    <div class="panel-header">
+        <h3>Notification Preferences</h3>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="panel-loading">Loading notification preferences...</div>
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <div class="panel-error" role="alert">@_errorMessage</div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_successMessage))
+        {
+            <div class="panel-success">@_successMessage</div>
+        }
+
+        <div class="settings-section">
+            <label>
+                <input type="checkbox" @bind="_pushEnabled" />
+                Enable push notifications
+            </label>
+        </div>
+
+        <div class="settings-section">
+            <label>
+                <input type="checkbox" @bind="_doNotDisturb" />
+                Do not disturb
+            </label>
+        </div>
+
+        <div class="settings-section">
+            <label>Muted Channels</label>
+            @if (Channels.Count == 0)
+            {
+                <div class="muted-empty">No channels available.</div>
+            }
+            else
+            {
+                <div class="muted-channel-list">
+                    @foreach (var channel in Channels.OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase))
+                    {
+                        <label class="muted-channel-row">
+                            <input
+                                type="checkbox"
+                                checked="@IsChannelMuted(channel.Id)"
+                                @onchange="(e) => ToggleMutedChannel(e, channel.Id)" />
+                            <span>@channel.Name</span>
+                        </label>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="settings-actions">
+            <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_isSaving">Save</button>
+            @if (_isSaving)
+            {
+                <span class="save-status">Saving...</span>
+            }
+        </div>
+    }
+</div>

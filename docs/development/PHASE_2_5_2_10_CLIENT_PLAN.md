@@ -88,7 +88,7 @@
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/NotificationPreferencesPanel.razor` *(new)*
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/NotificationPreferencesPanel.razor.cs` *(new)*
 
-**Status:** ☐
+**Status:** ✓
 
 ---
 
