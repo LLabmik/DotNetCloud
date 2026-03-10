@@ -3,6 +3,8 @@ using DotNetCloud.Core.Data.Initialization;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server;
+using DotNetCloud.Modules.Chat.Data;
+using DotNetCloud.Modules.Files.Data;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -21,7 +23,7 @@ namespace DotNetCloud.Integration.Tests.Infrastructure;
 /// Custom <see cref="WebApplicationFactory{TEntryPoint}"/> that replaces the real database
 /// with an in-memory provider and stubs external dependencies for integration testing.
 /// </summary>
-internal sealed class DotNetCloudWebApplicationFactory : WebApplicationFactory<Program>
+internal sealed class DotNetCloudWebApplicationFactory : WebApplicationFactory<DotNetCloud.Core.Server.Program>
 {
     private readonly string _databaseName = $"IntTest_{Guid.NewGuid():N}";
 
@@ -86,6 +88,14 @@ internal sealed class DotNetCloudWebApplicationFactory : WebApplicationFactory<P
             {
                 return new InMemoryDbContextFactory(_databaseName, namingStrategy);
             });
+
+            // Replace module DbContexts to avoid external PostgreSQL dependency in tests.
+            services.RemoveAll<DbContextOptions<FilesDbContext>>();
+            services.RemoveAll<DbContextOptions<ChatDbContext>>();
+            services.AddDbContext<FilesDbContext>(options =>
+                options.UseInMemoryDatabase($"{_databaseName}_files"));
+            services.AddDbContext<ChatDbContext>(options =>
+                options.UseInMemoryDatabase($"{_databaseName}_chat"));
 
             // ---------------------------------------------------------------
             // Stub out ProcessSupervisor so no real child processes spawn

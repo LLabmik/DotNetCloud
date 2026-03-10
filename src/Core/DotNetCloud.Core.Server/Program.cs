@@ -91,11 +91,33 @@ public class Program
                 await oidcClientSeeder.SeedAsync();
 
                 // Ensure module data stores are initialized.
-                var filesDbContext = scope.ServiceProvider.GetRequiredService<FilesDbContext>();
-                await EnsureModuleTablesCreatedAsync(filesDbContext, "FileNodes", logger);
+                // In Development/Testing hosts (for example WebApplicationFactory integration tests),
+                // module DbContexts may intentionally use alternate providers and should not block startup.
+                if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
+                {
+                    try
+                    {
+                        var filesDbContext = scope.ServiceProvider.GetRequiredService<FilesDbContext>();
+                        await EnsureModuleTablesCreatedAsync(filesDbContext, "FileNodes", logger);
 
-                var chatDbContext = scope.ServiceProvider.GetRequiredService<ChatDbContext>();
-                await EnsureModuleTablesCreatedAsync(chatDbContext, "Channels", logger);
+                        var chatDbContext = scope.ServiceProvider.GetRequiredService<ChatDbContext>();
+                        await EnsureModuleTablesCreatedAsync(chatDbContext, "Channels", logger);
+                    }
+                    catch (InvalidOperationException ex)
+                    {
+                        logger.LogWarning(ex,
+                            "Skipping module table bootstrap in {Environment} environment due to provider configuration.",
+                            app.Environment.EnvironmentName);
+                    }
+                }
+                else
+                {
+                    var filesDbContext = scope.ServiceProvider.GetRequiredService<FilesDbContext>();
+                    await EnsureModuleTablesCreatedAsync(filesDbContext, "FileNodes", logger);
+
+                    var chatDbContext = scope.ServiceProvider.GetRequiredService<ChatDbContext>();
+                    await EnsureModuleTablesCreatedAsync(chatDbContext, "Channels", logger);
+                }
 
                 // Mark the application as ready for traffic now that DB is initialized
                 var startupCheck = app.Services.GetService<StartupHealthCheck>();
@@ -380,6 +402,11 @@ public class Program
             else if (provider.Contains("SqlServer", StringComparison.OrdinalIgnoreCase))
             {
                 command.CommandText = "SELECT CASE WHEN EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = @tableName) THEN 1 ELSE 0 END;";
+            }
+            else if (provider.Contains("InMemory", StringComparison.OrdinalIgnoreCase))
+            {
+                // Integration tests use EF InMemory; there are no physical tables to probe.
+                return true;
             }
             else
             {

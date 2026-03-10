@@ -213,6 +213,20 @@ public sealed class SyncEngine : ISyncEngine
         return ex.InnerException is not null && IsDiskFullException(ex.InnerException);
     }
 
+    private static bool IsFileLockedIOException(IOException ex)
+    {
+        const int SharingViolationHResult = unchecked((int)0x80070020);
+
+        if (ex.HResult == SharingViolationHResult)
+            return true;
+
+        var message = ex.Message;
+        return message.Contains("being used by another process", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("used by another process", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("resource temporarily unavailable", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("sharing violation", StringComparison.OrdinalIgnoreCase);
+    }
+
     /// <inheritdoc/>
     public async Task<SyncStatus> GetStatusAsync(SyncContext context, CancellationToken cancellationToken = default)
     {
@@ -268,7 +282,8 @@ public sealed class SyncEngine : ISyncEngine
 
         if (_periodicScanTask is not null)
         {
-            try { await _periodicScanTask; }
+            try
+            { await _periodicScanTask; }
             catch (OperationCanceledException) { }
         }
 
@@ -447,8 +462,8 @@ public sealed class SyncEngine : ISyncEngine
                     await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, localRecord, cancellationToken);
                     break;
 
-                // AutoResolvedLocalWins: local file kept, will be re-queued for upload on next scan.
-                // ConflictCopyCreated: server version will be downloaded on next sync cycle.
+                    // AutoResolvedLocalWins: local file kept, will be re-queued for upload on next scan.
+                    // ConflictCopyCreated: server version will be downloaded on next sync cycle.
             }
         }
         else if (localRecord is null || localRecord.ContentHash != change.ContentHash)
@@ -609,7 +624,8 @@ public sealed class SyncEngine : ISyncEngine
             if (upload.NodeId.HasValue)
             {
                 FileNodeResponse? serverNode = null;
-                try { serverNode = await _api.GetNodeAsync(upload.NodeId.Value, cancellationToken); }
+                try
+                { serverNode = await _api.GetNodeAsync(upload.NodeId.Value, cancellationToken); }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     _logger.LogDebug(ex, "Could not fetch node {NodeId} for idempotency check; proceeding with upload.", upload.NodeId.Value);
@@ -661,7 +677,7 @@ public sealed class SyncEngine : ISyncEngine
                 }
             }
 
-            var uploadProgress = new Progress<TransferProgress>(p =>
+            var uploadProgress = new InlineProgress<TransferProgress>(p =>
                 FileTransferProgress?.Invoke(this, new FileTransferProgressEventArgs
                 {
                     FileName = fileName,
@@ -673,7 +689,8 @@ public sealed class SyncEngine : ISyncEngine
             int? posixMode = null;
             if (OperatingSystem.IsLinux())
             {
-                try { posixMode = (int)File.GetUnixFileMode(upload.LocalPath); }
+                try
+                { posixMode = (int)File.GetUnixFileMode(upload.LocalPath); }
                 catch (Exception ex)
                 {
                     _logger.LogDebug(ex, "Could not read UnixFileMode for {Path}; uploading without PosixMode.", upload.LocalPath);
@@ -705,7 +722,8 @@ public sealed class SyncEngine : ISyncEngine
             }, cancellationToken);
         }
         else if (op is PendingDownload download)
-        {            var dlRelPath = Path.GetRelativePath(context.LocalFolderPath, download.LocalPath);
+        {
+            var dlRelPath = Path.GetRelativePath(context.LocalFolderPath, download.LocalPath);
             if (_syncIgnore.IsIgnored(dlRelPath))
             {
                 _logger.LogDebug("Skipping download of ignored file {RelPath}.", dlRelPath);
@@ -755,7 +773,7 @@ public sealed class SyncEngine : ISyncEngine
             }
 
             var fileName = Path.GetFileName(download.LocalPath);
-            var downloadProgress = new Progress<TransferProgress>(p =>
+            var downloadProgress = new InlineProgress<TransferProgress>(p =>
                 FileTransferProgress?.Invoke(this, new FileTransferProgressEventArgs
                 {
                     FileName = fileName,
@@ -796,7 +814,8 @@ public sealed class SyncEngine : ISyncEngine
                     // Strip setuid (bit 11) and setgid (bit 10) for security.
                     const int SetuidSetgidMask = 0b_110_000_000_000; // 0o6000
                     var safeMode = (UnixFileMode)(download.PosixMode.Value & ~SetuidSetgidMask);
-                    try { File.SetUnixFileMode(writePath, safeMode); }
+                    try
+                    { File.SetUnixFileMode(writePath, safeMode); }
                     catch (Exception ex) { _logger.LogDebug(ex, "Could not set UnixFileMode {Mode} on {Path}.", safeMode, writePath); }
                 }
                 else
@@ -804,7 +823,8 @@ public sealed class SyncEngine : ISyncEngine
                     // Windows-originated file: apply sensible Linux default 0o644.
                     var defaultMode = UnixFileMode.UserRead | UnixFileMode.UserWrite
                         | UnixFileMode.GroupRead | UnixFileMode.OtherRead;
-                    try { File.SetUnixFileMode(writePath, defaultMode); }
+                    try
+                    { File.SetUnixFileMode(writePath, defaultMode); }
                     catch (Exception ex) { _logger.LogDebug(ex, "Could not apply default UnixFileMode on {Path}.", writePath); }
                 }
             }
@@ -882,7 +902,8 @@ public sealed class SyncEngine : ISyncEngine
 
     private static bool IsLocallyModified(LocalFileRecord record, string localPath)
     {
-        if (!File.Exists(localPath)) return false;
+        if (!File.Exists(localPath))
+            return false;
         var localModified = File.GetLastWriteTimeUtc(localPath);
         return localModified > record.LastSyncedAt;
     }
@@ -899,7 +920,8 @@ public sealed class SyncEngine : ISyncEngine
     [SupportedOSPlatform("linux")]
     private static int? TryGetUnixFileMode(string path)
     {
-        try { return (int)File.GetUnixFileMode(path); }
+        try
+        { return (int)File.GetUnixFileMode(path); }
         catch { return null; }
     }
 
@@ -912,9 +934,6 @@ public sealed class SyncEngine : ISyncEngine
     /// <exception cref="LockedFileException">Thrown when the file is still inaccessible after all tiers.</exception>
     private async Task<Stream> OpenFileForSyncAsync(string path, CancellationToken cancellationToken)
     {
-        // HResult for Win32 ERROR_SHARING_VIOLATION (0x80070020).
-        const int SharingViolationHResult = unchecked((int)0x80070020);
-
         // Tier 1: shared-read open (FileShare.ReadWrite | FileShare.Delete).
         // Fixes the common case where apps such as modern Office hold ReadWrite+Delete share
         // but still allow concurrent readers.
@@ -923,7 +942,7 @@ public sealed class SyncEngine : ISyncEngine
             return new FileStream(path, FileMode.Open, FileAccess.Read,
                 FileShare.ReadWrite | FileShare.Delete);
         }
-        catch (IOException ex) when (ex.HResult == SharingViolationHResult)
+        catch (IOException ex) when (IsFileLockedIOException(ex))
         {
             _logger.LogDebug("Tier 1 sharing violation on {Path}; attempting Tier 2 retry.", path);
         }
@@ -937,7 +956,7 @@ public sealed class SyncEngine : ISyncEngine
                 return new FileStream(path, FileMode.Open, FileAccess.Read,
                     FileShare.ReadWrite | FileShare.Delete);
             }
-            catch (IOException ex) when (ex.HResult == SharingViolationHResult)
+            catch (IOException ex) when (IsFileLockedIOException(ex))
             {
                 _logger.LogDebug("Tier 2 attempt {Attempt}/3 still locked on {Path}.", attempt, path);
             }
@@ -974,7 +993,8 @@ public sealed class SyncEngine : ISyncEngine
 
         var fileName = Path.GetFileName(localPath);
         string[] siblings;
-        try { siblings = Directory.GetFileSystemEntries(directory); }
+        try
+        { siblings = Directory.GetFileSystemEntries(directory); }
         catch { return localPath; }
 
         foreach (var existing in siblings)
@@ -1008,6 +1028,18 @@ public sealed class SyncEngine : ISyncEngine
             n++;
         }
         return candidate;
+    }
+
+    private sealed class InlineProgress<T> : IProgress<T>
+    {
+        private readonly Action<T> _onReport;
+
+        public InlineProgress(Action<T> onReport)
+        {
+            _onReport = onReport;
+        }
+
+        public void Report(T value) => _onReport(value);
     }
 
     /// <summary>
@@ -1051,7 +1083,8 @@ public sealed class SyncEngine : ISyncEngine
 
     private void OnFileSystemChanged(object sender, FileSystemEventArgs e)
     {
-        if (_activeContext is null || _paused) return;
+        if (_activeContext is null || _paused)
+            return;
 
         // Pre-filter: skip events for known-ignored files to reduce unnecessary sync passes.
         var relativePath = Path.GetRelativePath(_activeContext.LocalFolderPath, e.FullPath);
@@ -1067,7 +1100,8 @@ public sealed class SyncEngine : ISyncEngine
 
     private void OnFileSystemRenamed(object sender, RenamedEventArgs e)
     {
-        if (_activeContext is null || _paused) return;
+        if (_activeContext is null || _paused)
+            return;
 
         // Pre-filter: skip events for known-ignored files.
         var newRelPath = Path.GetRelativePath(_activeContext.LocalFolderPath, e.FullPath);
