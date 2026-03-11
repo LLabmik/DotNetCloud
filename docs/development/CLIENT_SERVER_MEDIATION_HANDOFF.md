@@ -127,6 +127,39 @@ Server follow-up is recorded in the handoff doc. Pull latest `main` and align An
 **Commit:** Server validation result  
 **Previous:** `c855eef` (client implementation)
 
+---
+
+## Active Handoff
+
+### Send to Client Agent - E2E SignalR Testing (Phase 2.10)
+
+**Date:** 2026-03-11  
+**Owner:** Client (`Windows11-TestDNC`)  
+**Status:** Ready for implementation
+
+**Test scenario:**
+
+Server running at `https://mint22:15443/`. Chat module live with SignalR hub at `/hubs/core`.
+
+**Client task:**
+1. Implement Android SignalR connection (MockSignalRChatClient for testing)
+2. Connect to `https://mint22:15443/hubs/core` with bearer token from OAuth
+3. Subscribe to `UnreadCountUpdated` handler → log `{ channelId, count }`
+4. Subscribe to `NewMessage` handler → log `{ channelId, message }`
+5. Create test by sending chat message from desktop client → verify Android receives both events
+
+**Success criteria:**
+- Android app connects to `/hubs/core` (no SSL cert errors)
+- Receives `UnreadCountUpdated` + `NewMessage` event messages (log output or UI update)
+- Commit hash + test output + any blockers
+
+**Server ready:** Hub live, broadcast working, awaiting client connection.
+
+### Request Back
+- commit hash (SignalR implementation)
+- test output (connection established, events received)
+- any network/SSL blockers
+
 ## Relay Template
 
 ```markdown
