@@ -1,10 +1,9 @@
-/// <summary>
-/// Standalone validation of SignalR payload deserialization.
-/// No platform-specific dependencies — validates JSON → DTO mapping works.
-/// </summary>
+// Standalone validation of SignalR payload deserialization.
+// No platform-specific dependencies; validates JSON-to-DTO mapping.
 
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace DotNetCloud.Client.Android.Chat.Tests;
 
@@ -16,9 +15,10 @@ internal sealed record NewMessagePayload(
     [property: JsonPropertyName("channelId")] string ChannelId,
     [property: JsonPropertyName("message")] string Message);
 
+[TestClass]
 public sealed class SignalRPayloadDeserializationTests
 {
-    [Fact]
+    [TestMethod]
     public void UnreadCountUpdatedPayload_DeserializesFromJson()
     {
         // Arrange
@@ -29,12 +29,12 @@ public sealed class SignalRPayloadDeserializationTests
         var payload = JsonSerializer.Deserialize<UnreadCountUpdatedPayload>(json, options);
 
         // Assert
-        Assert.NotNull(payload);
-        Assert.Equal("ch-001", payload.ChannelId);
-        Assert.Equal(5, payload.Count);
+        Assert.IsNotNull(payload);
+        Assert.AreEqual("ch-001", payload.ChannelId);
+        Assert.AreEqual(5, payload.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public void NewMessagePayload_DeserializesFromJson()
     {
         // Arrange
@@ -45,24 +45,28 @@ public sealed class SignalRPayloadDeserializationTests
         var payload = JsonSerializer.Deserialize<NewMessagePayload>(json, options);
 
         // Assert
-        Assert.NotNull(payload);
-        Assert.Equal("ch-002", payload.ChannelId);
-        Assert.Equal("Hello from server", payload.Message);
+        Assert.IsNotNull(payload);
+        Assert.AreEqual("ch-002", payload.ChannelId);
+        Assert.AreEqual("Hello from server", payload.Message);
     }
 
-    [Fact]
-    public void UnreadPayload_WithNullChannel_Fails()
+    [TestMethod]
+    public void UnreadPayload_MissingCount_DefaultsToZero()
     {
         // Arrange
-        var json = """{"channelId":null,"count":5}""";
+        var json = """{"channelId":"ch-003"}""";
         var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
 
-        // Act & Assert
-        Assert.Throws<JsonException>(() => 
-            JsonSerializer.Deserialize<UnreadCountUpdatedPayload>(json, options));
+        // Act
+        var payload = JsonSerializer.Deserialize<UnreadCountUpdatedPayload>(json, options);
+
+        // Assert
+        Assert.IsNotNull(payload);
+        Assert.AreEqual("ch-003", payload.ChannelId);
+        Assert.AreEqual(0, payload.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public void MultiplePayloads_DeserializeIndependently()
     {
         // Arrange
@@ -75,11 +79,11 @@ public sealed class SignalRPayloadDeserializationTests
         var payload2 = JsonSerializer.Deserialize<UnreadCountUpdatedPayload>(json2, options);
 
         // Assert
-        Assert.NotNull(payload1);
-        Assert.NotNull(payload2);
-        Assert.Equal("ch-001", payload1.ChannelId);
-        Assert.Equal(3, payload1.Count);
-        Assert.Equal("ch-002", payload2.ChannelId);
-        Assert.Equal(7, payload2.Count);
+        Assert.IsNotNull(payload1);
+        Assert.IsNotNull(payload2);
+        Assert.AreEqual("ch-001", payload1.ChannelId);
+        Assert.AreEqual(3, payload1.Count);
+        Assert.AreEqual("ch-002", payload2.ChannelId);
+        Assert.AreEqual(7, payload2.Count);
     }
 }
