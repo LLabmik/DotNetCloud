@@ -2113,3 +2113,16 @@ Archived from `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` when enforci
 - Server build/test sanity passed for chat module.
 - Client alignment accepted for hub path + object payload handlers.
 - Marked integration-ready for E2E run.
+
+3. Phase 2.10 Live E2E — Token-Missing Deadlock and Resolution (2026-03-11)
+- Client reported DOTNETCLOUD_E2E_BEARER_TOKEN=MISSING across 3+ handoff cycles.
+- Server agent minted mobile OAuth token directly via auth-code + PKCE flow on mint22.
+- Discovered and fixed two server-side bugs:
+  a. CoreHub only accepted Identity cookie auth — bearer tokens rejected with 401.
+     Fix: `[Authorize(AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]`
+  b. GetUserId() only checked ClaimTypes.NameIdentifier — OpenIddict bearer uses `sub` claim.
+     Fix: Added `?? Context.User?.FindFirst("sub")?.Value` fallback.
+- Test rewritten to be self-contained: connect → join group → SendMessageAsync → MarkReadAsync → assert events.
+- SSL bypass added for self-signed cert (test-only).
+- Live test PASSED: 1 test, 1 passed, 0 failed.
+- Phase 2.10 Android contract alignment marked COMPLETE.

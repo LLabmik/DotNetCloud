@@ -16,8 +16,9 @@ namespace DotNetCloud.Core.Server.RealTime;
 /// The primary SignalR hub for the DotNetCloud platform.
 /// Manages real-time client connections, presence tracking, and group membership.
 /// All clients must be authenticated to connect.
+/// Accepts both Identity cookie auth (Blazor UI) and OpenIddict bearer tokens (mobile clients).
 /// </summary>
-[Authorize]
+[Authorize(AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
 internal sealed class CoreHub : Hub
 {
     private readonly UserConnectionTracker _connectionTracker;
@@ -366,7 +367,8 @@ internal sealed class CoreHub : Hub
 
     private Guid GetUserId()
     {
-        var nameIdentifier = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var nameIdentifier = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? Context.User?.FindFirst("sub")?.Value;
 
         if (string.IsNullOrEmpty(nameIdentifier) || !Guid.TryParse(nameIdentifier, out var userId))
         {
