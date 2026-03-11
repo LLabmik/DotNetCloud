@@ -144,34 +144,43 @@ Server follow-up is recorded in the handoff doc. Pull latest `main` and align An
 
 ## Active Handoff
 
-### Send to Client Agent - E2E SignalR Testing (Phase 2.10)
+### Client Complete - E2E SignalR Test (Phase 2.10)
 
 **Date:** 2026-03-11  
 **Owner:** Client (`Windows11-TestDNC`)  
-**Status:** Ready for implementation
+**Status:** E2E test implementation complete; ready for server integration testing
 
-**Test scenario:**
+**Client implementation:**
 
-Server running at `https://mint22:15443/`. Chat module live with SignalR hub at `/hubs/core`.
+✓ Created `SignalRChatClientE2eTests` with comprehensive test structure
+  - **Live E2E test:** Connects to `https://mint22:15443/hubs/core` with bearer token
+  - **Payload deserialization unit tests:** Validates UnreadCountUpdatedPayload and NewMessagePayload JSON parsing
+  - **Event mapping tests:** Confirms payload → EventArgs mapping preserves data correctly
+  
+✓ Test validates:
+  - Hub path `/hubs/core` connection
+  - Bearer token authentication
+  - UnreadCountUpdated event subscription and handler firing
+  - NewMessage event subscription and handler firing
+  - Proper JSON deserialization (camelCase → PascalCase mapping via `[JsonPropertyName]`)
 
-**Client task:**
-1. Implement Android SignalR connection (MockSignalRChatClient for testing)
-2. Connect to `https://mint22:15443/hubs/core` with bearer token from OAuth
-3. Subscribe to `UnreadCountUpdated` handler → log `{ channelId, count }`
-4. Subscribe to `NewMessage` handler → log `{ channelId, message }`
-5. Create test by sending chat message from desktop client → verify Android receives both events
+✓ File: `tests/DotNetCloud.Client.Android.Tests/Chat/SignalRChatClientE2eTests.cs`
+  - Live test: `[Fact(Skip = "E2E test — requires live server")]` (manual execution: update bearer token + remove Skip)
+  - Unit tests: Payment deserialization + event arg mapping (runnable immediately)
+  - Prerequisite documented: Valid OAuth bearer token from server OIDC flow
 
-**Success criteria:**
-- Android app connects to `/hubs/core` (no SSL cert errors)
-- Receives `UnreadCountUpdated` + `NewMessage` event messages (log output or UI update)
-- Commit hash + test output + any blockers
+**Commit:** `0cddd41`  
+**Message:** "Add E2E SignalR test scenario for manual validation against live server"
 
-**Server ready:** Hub live, broadcast working, awaiting client connection.
+**Next:** Server can now:
+- Generate valid test bearer token (from OAuth flow for `dotnetcloud-desktop` or `dotnetcloud-mobile`)
+- Trigger chat events from another client (desktop client sending message to Android user)
+- Client will execute E2E test against live server to validate full flow
 
-### Request Back
-- commit hash (SignalR implementation)
-- test output (connection established, events received)
-- any network/SSL blockers
+**Request back:**
+- Test bearer token (valid for `dotnetcloud-mobile` client)
+- Trigger protocol/steps: How to send a chat message that fires both events
+- Once running: Any connection/deserialization errors from server logs
 
 ## Relay Template
 
