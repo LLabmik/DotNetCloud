@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-10 (Client Phase 2.9 regression + Step 7 release hardening handoff posted)
+Last updated: 2026-03-10 (Phase 2.8 remaining items — badge mention tracking + AnnouncementEditor tests — completed)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -131,7 +131,7 @@ New commit on main (`ed2a000`) with completed client Phase 2.9 regression pass a
 
 **Date:** 2026-03-10
 **Owner:** Client (`Windows workspace`)
-**Status:** ready for handoff ✅
+**Status:** completed and pushed ✅
 
 **Baseline commit:** `95a4e2b`
 
@@ -220,6 +220,41 @@ Verification:
   dotnet test ... -> total N, succeeded N, failed 0
   dotnet build -> succeeded
 Blockers (if any): <none or description>
+```
+
+### Client Result — Phase 2.8 Remaining Items (Windows workspace)
+
+**Date:** 2026-03-10
+**Commit:** TBD (see push below)
+
+```
+Phase: 2.8 remaining items
+Commit: <see commit hash after push>
+Files:
+  - src/Modules/Chat/DotNetCloud.Modules.Chat/Services/SignalRChatService.cs
+  - src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChatNotificationBadge.razor.cs
+  - tests/DotNetCloud.Modules.Chat.Tests/ChatNotificationBadgeTests.cs
+  - tests/DotNetCloud.Modules.Chat.Tests/AnnouncementEditorTests.cs (new)
+  - docs/IMPLEMENTATION_CHECKLIST.md
+  - docs/MASTER_PROJECT_PLAN.md
+  - docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md
+Tests added:
+  - ChatNotificationBadgeTests.WhenMentionCountIsNonZeroThenHasMentionsIsTrue
+  - ChatNotificationBadgeTests.WhenMentionCountUpdatedThenHasMentionsIsTrue
+  - ChatNotificationBadgeTests.WhenMentionCountResetToZeroThenHasMentionsIsFalse
+  - ChatNotificationBadgeTests.WhenOnlyUnreadWithNoMentionsThenHasMentionsIsFalse
+  - ChatNotificationBadgeTests.WhenMultipleChannelMentionCountsThenTotalMentionsSumsAll
+  - AnnouncementEditorTests.WhenInitializedThenIsPreviewModeIsFalse
+  - AnnouncementEditorTests.WhenTogglePreviewCalledThenIsPreviewModeIsTrue
+  - AnnouncementEditorTests.WhenTogglePreviewCalledTwiceThenIsPreviewModeIsFalse
+  - AnnouncementEditorTests.WhenTitleAndContentEmptyThenIsSaveDisabledIsTrue
+  - AnnouncementEditorTests.WhenTitleAndContentSetThenIsSaveDisabledIsFalse
+  - AnnouncementEditorTests.WhenEditingAnnouncementSetThenFieldsArePopulated
+  - AnnouncementEditorTests.WhenNotEditingThenFieldsAreReset
+Verification:
+  dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj -> total 263, succeeded 263, failed 0
+  dotnet build -> succeeded (0 errors)
+Blockers (if any): none
 ```
 
 ### Request Back

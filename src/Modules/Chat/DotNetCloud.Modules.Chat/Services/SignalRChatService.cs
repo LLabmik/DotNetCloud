@@ -24,6 +24,16 @@ public interface ISignalRChatService
     /// value as the authoritative total for that channel and replace any cached value.
     /// </remarks>
     event Action<Guid, int>? UnreadCountUpdated;
+
+    /// <summary>
+    /// Raised when the server pushes a mention-count update for a channel.
+    /// </summary>
+    /// <remarks>
+    /// The first argument is the channel ID; the second is the reported mention count.
+    /// The value is the authoritative total mentions for that channel — callers should
+    /// replace any previously cached value.
+    /// </remarks>
+    event Action<Guid, int>? MentionCountUpdated;
 }
 
 /// <summary>
@@ -38,5 +48,7 @@ internal sealed class NullSignalRChatService : ISignalRChatService
     /// <inheritdoc />
 #pragma warning disable CS0067 // Event is never used — intentional for null-object stub
     public event Action<Guid, int>? UnreadCountUpdated;
+    /// <inheritdoc />
+    public event Action<Guid, int>? MentionCountUpdated;
 #pragma warning restore CS0067
 }

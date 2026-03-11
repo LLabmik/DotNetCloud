@@ -3198,7 +3198,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 #### Chat Notification Badge
 - ✓ Create `ChatNotificationBadge.razor`:
   - ✓ Display total unread count in navigation
-  - ☐ Update in real time via SignalR
+  - ✓ Update in real time via SignalR
   - ✓ Distinguish mentions from regular messages
 
 #### Announcement Components
@@ -3216,7 +3216,7 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ Priority selection
   - ✓ Expiry date picker
   - ✓ Require acknowledgement toggle
-  - ☐ Preview before publishing
+  - ✓ Preview before publishing
 
 ---
 
