@@ -19,6 +19,13 @@ namespace DotNetCloud.Client.SyncTray;
 /// </summary>
 public sealed class TrayIconManager : IDisposable
 {
+    internal enum TrayChatBadgeKind
+    {
+        None,
+        Unread,
+        Mention,
+    }
+
     private readonly TrayViewModel _trayVm;
     private readonly IServiceProvider _services;
     private readonly ILogger<TrayIconManager> _logger;
@@ -49,7 +56,7 @@ public sealed class TrayIconManager : IDisposable
 
         var menu = BuildMenu();
         _trayIcon.Menu = menu;
-        _trayIcon.Icon = CreateStatusIcon(TrayState.Offline);
+        _trayIcon.Icon = CreateStatusIcon(TrayState.Offline, _trayVm.ChatUnreadCount, _trayVm.ChatHasMentions);
         _trayIcon.ToolTipText = _trayVm.Tooltip;
         _trayIcon.IsVisible = true;
 
@@ -130,7 +137,11 @@ public sealed class TrayIconManager : IDisposable
         {
             if (e.PropertyName == nameof(TrayViewModel.OverallState))
             {
-                _trayIcon!.Icon = CreateStatusIcon(_trayVm.OverallState);
+                _trayIcon!.Icon = CreateStatusIcon(_trayVm.OverallState, _trayVm.ChatUnreadCount, _trayVm.ChatHasMentions);
+            }
+            else if (e.PropertyName is nameof(TrayViewModel.ChatUnreadCount) or nameof(TrayViewModel.ChatHasMentions))
+            {
+                _trayIcon!.Icon = CreateStatusIcon(_trayVm.OverallState, _trayVm.ChatUnreadCount, _trayVm.ChatHasMentions);
             }
             else if (e.PropertyName == nameof(TrayViewModel.Tooltip))
             {
@@ -241,7 +252,7 @@ public sealed class TrayIconManager : IDisposable
     /// These are placeholder icons; production icons should be replaced with
     /// proper asset files under <c>Assets/</c>.
     /// </summary>
-    private static WindowIcon CreateStatusIcon(TrayState state)
+    private static WindowIcon CreateStatusIcon(TrayState state, int chatUnreadCount, bool chatHasMentions)
     {
         // Map state → RGB colour.
         var (r, g, b) = state switch
@@ -254,10 +265,23 @@ public sealed class TrayIconManager : IDisposable
             _ => (0x70, 0x70, 0x70),                   // Grey (Offline)
         };
 
-        return new WindowIcon(CreateCircleBitmap(32, r, g, b));
+        var badgeKind = GetChatBadgeKind(chatUnreadCount, chatHasMentions);
+
+        return new WindowIcon(CreateCircleBitmap(32, r, g, b, badgeKind));
     }
 
-    private static Bitmap CreateCircleBitmap(int size, int r, int g, int b)
+    internal static TrayChatBadgeKind GetChatBadgeKind(int chatUnreadCount, bool chatHasMentions)
+    {
+        if (chatHasMentions)
+            return TrayChatBadgeKind.Mention;
+
+        if (chatUnreadCount > 0)
+            return TrayChatBadgeKind.Unread;
+
+        return TrayChatBadgeKind.None;
+    }
+
+    private static Bitmap CreateCircleBitmap(int size, int r, int g, int b, TrayChatBadgeKind badgeKind)
     {
         var bmp = new WriteableBitmap(
             new PixelSize(size, size),
@@ -300,6 +324,39 @@ public sealed class TrayIconManager : IDisposable
                     pixels[idx + 3] = a;
                 }
                 // else transparent (all zeros)
+            }
+        }
+
+        if (badgeKind is not TrayChatBadgeKind.None)
+        {
+            var (badgeR, badgeG, badgeB) = badgeKind == TrayChatBadgeKind.Mention
+                ? (0xE6, 0x39, 0x46) // High-priority red badge.
+                : (0xFF, 0xB7, 0x03); // Regular unread amber badge.
+
+            var badgeRadius = Math.Max(3, size / 6f);
+            var badgeCentreX = size - 8f;
+            var badgeCentreY = 8f;
+
+            for (int py = 0; py < size; py++)
+            {
+                for (int px = 0; px < size; px++)
+                {
+                    float dx = px - badgeCentreX;
+                    float dy = py - badgeCentreY;
+                    float dist = MathF.Sqrt(dx * dx + dy * dy);
+
+                    if (dist > badgeRadius + 1.2f)
+                        continue;
+
+                    var idx = (py * size + px) * 4;
+                    var alpha = dist <= badgeRadius ? 1f : badgeRadius + 1.2f - dist;
+                    var invAlpha = 1f - alpha;
+
+                    pixels[idx + 0] = (byte)(pixels[idx + 0] * invAlpha + badgeB * alpha);
+                    pixels[idx + 1] = (byte)(pixels[idx + 1] * invAlpha + badgeG * alpha);
+                    pixels[idx + 2] = (byte)(pixels[idx + 2] * invAlpha + badgeR * alpha);
+                    pixels[idx + 3] = 255;
+                }
             }
         }
 

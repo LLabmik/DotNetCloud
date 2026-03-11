@@ -3236,7 +3236,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 
 #### Tray Icon Badge
 - ✓ Show unread message count on tray icon
-- ☐ Different badge for mentions vs. regular messages
+- ✓ Different badge for mentions vs. regular messages
 - ✓ Clear badge when messages are read (via SignalR sync)
 
 #### Quick Reply
