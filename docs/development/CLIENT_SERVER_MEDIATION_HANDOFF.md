@@ -20,6 +20,8 @@ Archived context:
 - Put all technical findings, debugging conclusions, and next-step details in this document.
 - Assistant (current agent) commits their findings/work and updates the **Active Handoff** section with actionable next steps for the other client.
 - Assistant pushes commits to `main`.
+- Handoff readiness gate (MANDATORY): all executable tests must pass before marking a handoff as ready.
+- Environment-gated tests are allowed to be skipped, but must be explicitly identified as gated with the required environment/runtime prerequisites documented in the handoff.
 - Moderator relays a short "check for updates" message to the other machine.
 - Other agent pulls latest, reads the handoff, and takes action without asking questions.
 
