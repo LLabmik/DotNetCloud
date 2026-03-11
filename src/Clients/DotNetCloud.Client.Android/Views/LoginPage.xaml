@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="DotNetCloud.Client.Android.Views.LoginPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:DotNetCloud.Client.Android.ViewModels"
+    Title="Add Server">
+
+    <ScrollView>
+        <VerticalStackLayout
+            Padding="32,64,32,32"
+            Spacing="24">
+
+            <!-- Logo / title -->
+            <Label
+                FontSize="28"
+                FontAttributes="Bold"
+                HorizontalOptions="Center"
+                Text="DotNetCloud" />
+
+            <Label
+                FontSize="15"
+                HorizontalOptions="Center"
+                HorizontalTextAlignment="Center"
+                Opacity="0.7"
+                Text="Enter your server address to connect." />
+
+            <!-- Server URL input -->
+            <Entry
+                x:Name="ServerUrlEntry"
+                AutomationId="ServerUrlEntry"
+                IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBool}}"
+                Keyboard="Url"
+                Placeholder="https://cloud.example.com"
+                ReturnType="Go"
+                ReturnCommand="{Binding LoginCommand}"
+                Text="{Binding ServerUrl}" />
+
+            <!-- Error message -->
+            <Label
+                IsVisible="{Binding ErrorMessage, Converter={StaticResource IsNotNullOrEmpty}}"
+                Text="{Binding ErrorMessage}"
+                TextColor="{AppThemeBinding Light=Red, Dark=#FF6B6B}" />
+
+            <!-- Login button -->
+            <Button
+                Command="{Binding LoginCommand}"
+                IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBool}}"
+                Text="Connect" />
+
+            <!-- Activity indicator -->
+            <ActivityIndicator
+                IsRunning="{Binding IsBusy}"
+                IsVisible="{Binding IsBusy}"
+                HorizontalOptions="Center" />
+
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>

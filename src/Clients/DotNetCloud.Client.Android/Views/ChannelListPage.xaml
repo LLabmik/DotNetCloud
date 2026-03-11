@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="DotNetCloud.Client.Android.Views.ChannelListPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:DotNetCloud.Client.Android.ViewModels"
+    Title="Channels">
+
+    <RefreshView
+        Command="{Binding LoadChannelsCommand}"
+        IsRefreshing="{Binding IsLoading}">
+
+        <CollectionView
+            ItemsSource="{Binding Channels}"
+            SelectionMode="None">
+
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="vm:ChannelItemViewModel">
+                    <Grid
+                        ColumnDefinitions="*,Auto"
+                        Padding="16,12"
+                        RowDefinitions="Auto,Auto">
+
+                        <!-- Channel name (bold if unread) -->
+                        <Label
+                            Grid.Row="0" Grid.Column="0"
+                            FontAttributes="{Binding UnreadCount, Converter={StaticResource UnreadToBold}}"
+                            FontSize="16"
+                            Text="{Binding Name}" />
+
+                        <!-- Unread badge -->
+                        <Border
+                            Grid.Row="0" Grid.Column="1"
+                            BackgroundColor="{Binding HasMention, Converter={StaticResource MentionToBadgeColor}}"
+                            IsVisible="{Binding UnreadCount, Converter={StaticResource IsNotZero}}"
+                            Padding="6,2"
+                            StrokeShape="RoundRectangle 10">
+                            <Label
+                                FontSize="12"
+                                Text="{Binding UnreadCount}"
+                                TextColor="White" />
+                        </Border>
+
+                        <!-- Last message preview -->
+                        <Label
+                            Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                            FontSize="13"
+                            IsVisible="{Binding LastMessagePreview, Converter={StaticResource IsNotNullOrEmpty}}"
+                            LineBreakMode="TailTruncation"
+                            MaxLines="1"
+                            Opacity="0.6"
+                            Text="{Binding LastMessagePreview}" />
+
+                        <!-- Tap gesture -->
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer
+                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectChannelCommand}"
+                                CommandParameter="{Binding ChannelId}" />
+                        </Grid.GestureRecognizers>
+
+                    </Grid>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+
+            <!-- Empty state -->
+            <CollectionView.EmptyView>
+                <VerticalStackLayout
+                    HorizontalOptions="Center"
+                    Padding="32"
+                    Spacing="12"
+                    VerticalOptions="Center">
+                    <Label
+                        FontSize="16"
+                        HorizontalOptions="Center"
+                        Text="No channels yet." />
+                    <Label
+                        FontSize="13"
+                        HorizontalOptions="Center"
+                        IsVisible="{Binding ErrorMessage, Converter={StaticResource IsNotNullOrEmpty}}"
+                        Opacity="0.7"
+                        Text="{Binding ErrorMessage}" />
+                </VerticalStackLayout>
+            </CollectionView.EmptyView>
+
+        </CollectionView>
+    </RefreshView>
+
+</ContentPage>

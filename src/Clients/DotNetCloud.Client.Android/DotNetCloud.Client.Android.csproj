@@ -1,0 +1,108 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!-- ========================
+	     Platform Target (Android only)
+	     ======================== -->
+	<PropertyGroup>
+		<TargetFramework>net10.0-android</TargetFramework>
+		<OutputType>Exe</OutputType>
+		<RootNamespace>DotNetCloud.Client.Android</RootNamespace>
+		<UseMaui>true</UseMaui>
+		<SingleProject>true</SingleProject>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<MauiXamlInflator>SourceGen</MauiXamlInflator>
+	</PropertyGroup>
+
+	<!-- ========================
+	     App Identity
+	     ======================== -->
+	<PropertyGroup>
+		<ApplicationTitle>DotNetCloud</ApplicationTitle>
+		<ApplicationId>net.dotnetcloud.client</ApplicationId>
+		<ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
+		<ApplicationVersion>1</ApplicationVersion>
+	</PropertyGroup>
+
+	<!-- ========================
+	     Android SDK versions
+	     Android 8.0 (API 26) minimum — required for notification channels, foreground service.
+	     Android 14 (API 35) target.
+	     ======================== -->
+	<PropertyGroup>
+		<AndroidMinSdkVersion>26</AndroidMinSdkVersion>
+		<AndroidTargetSdkVersion>35</AndroidTargetSdkVersion>
+		<SupportedOSPlatformVersion>26.0</SupportedOSPlatformVersion>
+	</PropertyGroup>
+
+	<!-- ========================
+	     Build Flavor: googleplay | fdroid
+	     Pass via: dotnet build -p:BuildFlavor=fdroid
+	     ======================== -->
+	<PropertyGroup>
+		<BuildFlavor Condition="'$(BuildFlavor)' == ''">googleplay</BuildFlavor>
+	</PropertyGroup>
+	<PropertyGroup Condition="'$(BuildFlavor)' == 'googleplay'">
+		<DefineConstants>$(DefineConstants);GOOGLEPLAY</DefineConstants>
+		<ApplicationIdSuffix />
+	</PropertyGroup>
+	<PropertyGroup Condition="'$(BuildFlavor)' == 'fdroid'">
+		<DefineConstants>$(DefineConstants);FDROID</DefineConstants>
+		<!-- F-Droid build uses a distinct application ID suffix for co-installation -->
+		<ApplicationId>net.dotnetcloud.client.fdroid</ApplicationId>
+	</PropertyGroup>
+
+	<!-- ========================
+	     MAUI generates some XML doc / analyzer warnings that are out of scope
+	     to fix at the frameworks level. Allow warnings in this project.
+	     ======================== -->
+	<PropertyGroup>
+		<TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+		<NoWarn>$(NoWarn);CS1591</NoWarn>
+	</PropertyGroup>
+
+	<!-- ========================
+	     Resources
+	     ======================== -->
+	<ItemGroup>
+		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#1B6EC2" />
+		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#1B6EC2" BaseSize="128,128" />
+		<MauiImage Include="Resources\Images\*" />
+		<MauiFont Include="Resources\Fonts\*" />
+		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+	</ItemGroup>
+
+	<!-- ========================
+	     Core dependencies
+	     ======================== -->
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+		<PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
+		<PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
+	</ItemGroup>
+
+	<!-- ========================
+	     Google Play flavor: Firebase Cloud Messaging
+	     ======================== -->
+	<ItemGroup Condition="'$(BuildFlavor)' == 'googleplay'">
+		<PackageReference Include="Xamarin.Firebase.Messaging" Version="123.1.2.0" />
+	</ItemGroup>
+
+	<!-- ========================
+	     F-Droid flavor: UnifiedPush
+	     ======================== -->
+	<ItemGroup Condition="'$(BuildFlavor)' == 'fdroid'">
+		<PackageReference Include="UnifiedPush.NET" Version="2.0.2" />
+	</ItemGroup>
+
+	<!-- ========================
+	     Project references
+	     ======================== -->
+	<ItemGroup>
+		<ProjectReference Include="..\DotNetCloud.Client.Core\DotNetCloud.Client.Core.csproj" />
+	</ItemGroup>
+
+</Project>

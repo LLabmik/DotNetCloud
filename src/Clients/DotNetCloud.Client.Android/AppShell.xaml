@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Shell
+    x:Class="DotNetCloud.Client.Android.AppShell"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:views="clr-namespace:DotNetCloud.Client.Android.Views"
+    Shell.NavBarIsVisible="true">
+
+    <!-- Unauthenticated route — shown before login -->
+    <ShellContent
+        Route="Login"
+        ContentTemplate="{DataTemplate views:LoginPage}"
+        Shell.NavBarIsVisible="false" />
+
+    <!-- Authenticated tab bar -->
+    <TabBar Route="Main">
+
+        <ShellContent
+            Route="ChannelList"
+            Title="Channels"
+            Icon="tab_channels.png"
+            ContentTemplate="{DataTemplate views:ChannelListPage}" />
+
+        <ShellContent
+            Route="Settings"
+            Title="Settings"
+            Icon="tab_settings.png"
+            ContentTemplate="{DataTemplate views:SettingsPage}" />
+
+    </TabBar>
+
+</Shell>
+

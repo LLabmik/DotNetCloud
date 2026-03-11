@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="DotNetCloud.Client.Android.Views.MessageListPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:DotNetCloud.Client.Android.ViewModels"
+    Title="{Binding ChannelName}">
+
+    <Grid RowDefinitions="*,Auto">
+
+        <!-- Message list -->
+        <RefreshView
+            Grid.Row="0"
+            Command="{Binding LoadMessagesCommand}"
+            IsRefreshing="{Binding IsLoading}">
+
+            <CollectionView
+                x:Name="MessageList"
+                ItemsSource="{Binding Messages}"
+                ItemsUpdatingScrollMode="KeepLastItemInView"
+                SelectionMode="None">
+
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="vm:MessageItemViewModel">
+                        <VerticalStackLayout Padding="16,8" Spacing="2">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <Label
+                                    Grid.Column="0"
+                                    FontAttributes="Bold"
+                                    FontSize="13"
+                                    Text="{Binding SenderName}" />
+                                <Label
+                                    Grid.Column="1"
+                                    FontSize="11"
+                                    Opacity="0.5"
+                                    Text="{Binding SentAtDisplay}" />
+                            </Grid>
+                            <Label
+                                FontSize="15"
+                                Text="{Binding Content}" />
+                        </VerticalStackLayout>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+
+            </CollectionView>
+        </RefreshView>
+
+        <!-- Composer bar -->
+        <Grid
+            Grid.Row="1"
+            ColumnDefinitions="*,Auto"
+            Padding="8,4"
+            BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1E1E1E}">
+
+            <Editor
+                x:Name="ComposerEditor"
+                Grid.Column="0"
+                AutoSize="TextChanges"
+                MaximumHeightRequest="120"
+                Placeholder="Message…"
+                Text="{Binding ComposerText}" />
+
+            <Button
+                Grid.Column="1"
+                Command="{Binding SendCommand}"
+                FontSize="13"
+                IsEnabled="{Binding IsSending, Converter={StaticResource InvertBool}}"
+                Margin="4,0,0,0"
+                Padding="16,0"
+                Text="Send"
+                VerticalOptions="End" />
+
+        </Grid>
+
+    </Grid>
+
+</ContentPage>

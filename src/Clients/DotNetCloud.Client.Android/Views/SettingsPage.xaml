@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="DotNetCloud.Client.Android.Views.SettingsPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    Title="Settings">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="24" Spacing="20">
+
+            <!-- Account section -->
+            <Label
+                FontAttributes="Bold"
+                FontSize="13"
+                Opacity="0.6"
+                Text="ACCOUNT" />
+
+            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                <Label Grid.Row="0" Grid.Column="0"
+                    FontAttributes="Bold"
+                    FontSize="16"
+                    Text="{Binding AccountEmail}" />
+                <Label Grid.Row="1" Grid.Column="0"
+                    FontSize="13"
+                    Opacity="0.6"
+                    Text="{Binding ServerBaseUrl}" />
+            </Grid>
+
+            <BoxView HeightRequest="1" Opacity="0.2" Color="{AppThemeBinding Light=Black, Dark=White}" />
+
+            <!-- Server section -->
+            <Label
+                FontAttributes="Bold"
+                FontSize="13"
+                Opacity="0.6"
+                Text="SERVER" />
+
+            <Label
+                FontSize="15"
+                Text="{Binding ServerDisplayName}" />
+            <Label
+                FontSize="13"
+                Opacity="0.6"
+                Text="{Binding ServerBaseUrl}" />
+
+            <BoxView HeightRequest="1" Opacity="0.2" Color="{AppThemeBinding Light=Black, Dark=White}" />
+
+            <!-- Actions -->
+            <Button
+                Command="{Binding LogOutCommand}"
+                IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBool}}"
+                Text="Log Out"
+                TextColor="Red" />
+
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>
