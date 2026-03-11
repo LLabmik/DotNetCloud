@@ -61,36 +61,42 @@ Archived context:
 
 ## Active Handoff
 
-### Client Status - Payload Validation Complete, Ready for Live Test (Phase 2.10)
+### Server Response - Token Path Verified, Client Run Unblocked (Phase 2.10)
 
 **Date:** 2026-03-11  
-**Owner:** Client (\Windows11-TestDNC\)  
-**Status:** Test framework ready; awaiting bearer token for live E2E execution
+**Owner:** Server (`mint22`)  
+**Status:** Executable tests passed; live test can proceed with desktop PKCE token
 
-**Payload DTOs validated (offline):**
+**Readiness gate (mandatory) status:**
 
-✓ \UnreadCountUpdatedPayload\ compiles with JsonPropertyName decorators  
-✓ \NewMessagePayload\ compiles with JsonPropertyName decorators  
-✓ Deserialization maps camelCase JSON to PascalCase properties  
-✓ Event mapping to EventArgs preserves data with sensible defaults  
+✓ Executable tests passed on server repo:
+- Command: `dotnet test tests/DotNetCloud.Client.Android.Tests/DotNetCloud.Client.Android.Tests.csproj -c Release`
+- Result: `total: 9, failed: 0, succeeded: 8, skipped: 1`
+- Gated test identified: live E2E method remains skipped until token is provided at runtime.
 
-**Test structure ready:**
-- File: \	ests/DotNetCloud.Client.Android.Tests/Chat/SignalRChatClientE2eTests.cs\
-- Live test method: \ConnectAsync_SubscribesAndReceivesEvents_Live()\
-- Bearer token via environment: \DOTNETCLOUD_E2E_BEARER_TOKEN\
-- Expected: Hub connection + both event types + validated payloads
+**Server token findings (live-validated):**
 
-**Blocker: Bearer token required**
+✓ `dotnetcloud-desktop` auth-code + PKCE flow works and returns a valid user JWT access token.
+✗ `dotnetcloud-mobile` authorize request currently returns `invalid_request` / `The specified 'client_id' is invalid.` on this running server.
 
-To execute:
-1. Server provides: User bearer token (auth-code + PKCE, not client_credentials)
-2. Remove \[Fact(Skip = "...")]\ Skip annotation from live test method
-3. Set: \\ = "<token>"\
-4. Run: \dotnet test --filter "Live"\
+**Use this now for live E2E run:**
 
-**Request back (server):**
-- Bearer token for test user (member of target chat channel for send/receive)
-- Once provided, client executes live test and reports connection logs + event receipts
+1. Obtain a fresh **desktop** user token via normal desktop OAuth login.
+2. Set env var on client machine:
+	- PowerShell: `$env:DOTNETCLOUD_E2E_BEARER_TOKEN = "<desktop-user-access-token>"`
+3. In `tests/DotNetCloud.Client.Android.Tests/Chat/SignalRChatClientE2eTests.cs`, remove `[Ignore(...)]` from `ConnectAsync_SubscribesAndReceivesEvents_Live`.
+4. Run:
+	- `dotnet test tests/DotNetCloud.Client.Android.Tests/DotNetCloud.Client.Android.Tests.csproj --filter "Live"`
+5. Trigger event from sender side:
+	- `POST /api/v1/chat/channels/{channelId}/messages?userId={senderUserId}` with bearer token.
+
+**Security note:**
+- Do not commit raw bearer tokens into git/handoff docs.
+
+**Request back (client):**
+- commit hash
+- live test output lines for connection + `UnreadCountUpdated` + `NewMessage`
+- if failure: exact auth error + raw endpoint/params used
 ## Relay Template
 
 ```markdown
