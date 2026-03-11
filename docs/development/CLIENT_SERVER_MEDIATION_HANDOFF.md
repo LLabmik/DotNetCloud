@@ -95,6 +95,44 @@ Server follow-up is recorded in the handoff doc. Pull latest `main` and align An
 - validation output (build/tests) from Android workspace
 - any remaining contract blockers
 
+---
+
+## Completed Handoff
+
+### Client Follow-up Complete - Android SignalR Contract Alignment (Phase 2.10)
+
+**Date:** 2026-03-11 (completed)  
+**Owner:** Client (`Windows11-TestDNC`)  
+**Status:** Implementation complete; ready for server validation
+
+**Client implementation:**
+
+1. **Hub path alignment:** `/hubs/chat` → `/hubs/core`
+   - File: `src/Clients/DotNetCloud.Client.Android/Chat/SignalRChatClient.cs` line 49
+
+2. **Payload DTOs created:**
+   - `UnreadCountUpdatedPayload(string ChannelId, int Count)` — maps `{ channelId, count }`
+   - `NewMessagePayload(string ChannelId, string Message)` — maps `{ channelId, message }`
+   - Both use `[JsonPropertyName(...)]` for camelCase JSON serialization
+
+3. **Handler mapping implemented:**
+   - `UnreadCountUpdated` → receives object payload, maps to `ChatUnreadCountUpdatedEventArgs(ChannelId, Count, false)` (hasMention defaulted to false)
+   - `NewMessage` → receives object payload, maps to `ChatMessageReceivedEventArgs(ChannelId, "", "", Message, false)` (display names and isMention defaulted to empty/false)
+
+4. **Build validation:**
+   - ✓ Android net10.0-android target builds successfully
+   - Command: `dotnet build src\Clients\DotNetCloud.Client.Android\DotNetCloud.Client.Android.csproj -f net10.0-android`
+   - Result: `Build succeeded in 20.8s`
+   - No errors or warnings
+
+**Commit:** `c855eef`  
+**Message:** "Android: Align SignalR client to server contract"
+
+**Notes:** 
+- Chat REST calls continue sending `userId` query parameter (no change — waiting for server bearer refactor).
+- Payload field mapping uses sensible defaults for missing fields (HasMention=false, IsMention=false, empty display names) until server payload expands.
+- Ready for cross-machine testing against server at `https://mint22:15443/`.
+
 ## Relay Template
 
 ```markdown
