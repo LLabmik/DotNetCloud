@@ -6,7 +6,7 @@ namespace DotNetCloud.Client.Android;
 
 /// <summary>
 /// Transparent activity that receives the OAuth2 redirect URI and forwards the
-/// callback URL to the waiting <see cref="MauiOAuth2Service"/> via a static task.
+/// callback URL to the waiting <see cref="DotNetCloud.Client.Android.Auth.MauiOAuth2Service"/> via a static task.
 /// Registered in AndroidManifest.xml with <c>net.dotnetcloud.client://oauth2redirect</c>.
 /// </summary>
 [Activity(NoHistory = true, LaunchMode = global::Android.Content.PM.LaunchMode.SingleTop, Exported = true)]

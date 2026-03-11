@@ -65,7 +65,7 @@
 | Phase 2.7 | 4 | 4 | 0 | 0 |
 | Phase 2.8 | 11 | 11 | 0 | 0 |
 | Phase 2.9 | 3 | 3 | 0 | 0 |
-| Phase 2.10 | 8 | 0 | 0 | 8 |
+| Phase 2.10 | 8 | 1 | 1 | 6 |
 | Phase 2.11 | 3 | 3 | 0 | 0 |
 | Phase 2.12 | 2 | 1 | 1 | 0 |
 | Phase 2.13 | 3 | 0 | 0 | 3 |
@@ -3420,12 +3420,12 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Step: phase-2.10 - Android MAUI App
-**Status:** pending
+**Status:** in-progress 🔄
 **Duration:** ~3-4 weeks
 **Description:** Create Android MAUI app with authentication, chat UI, SignalR real-time, push notifications, offline support, and photo auto-upload.
 
 **Tasks:**
-- ☐ Create DotNetCloud.Clients.Android MAUI project (build flavors: googleplay/fdroid)
+- ✓ Create DotNetCloud.Clients.Android MAUI project (build flavors: googleplay/fdroid)
 - ☐ Implement authentication (OAuth2/OIDC, token storage, refresh)
 - ☐ Create chat UI views (channel list, message list, composer, channel details)
 - ☐ Implement SignalR client with background connection (foreground service, Doze mode)
@@ -3436,7 +3436,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Dependencies:** phase-2.5, phase-2.7
 **Blocking Issues:** None
-**Notes:** Largest step in Phase 2. Can parallelize UI work and push notification work.
+**Notes:** Bootstrap complete: created Android MAUI client project, added it to solution, configured Android target SDK/min SDK and flavor constants (`googleplay`/`fdroid`), and wired initial DI/auth/chat/push/offline scaffolding. Verified build locally with `dotnet build src/Clients/DotNetCloud.Client.Android/DotNetCloud.Client.Android.csproj -f net10.0-android` succeeding after VS2026 MAUI toolchain updates. Next focus is completing end-to-end auth token refresh, channel/message UX hardening, and production push registration flows.
 
 ---
 

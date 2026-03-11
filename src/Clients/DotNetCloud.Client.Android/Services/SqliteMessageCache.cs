@@ -51,7 +51,8 @@ internal sealed class SqliteMessageCache : ILocalMessageCache, IAsyncDisposable
             Content = m.Content,
             SentAtTicks = m.SentAt.ToUnixTimeMilliseconds()
         });
-        await db.InsertOrReplaceAllAsync(rows).ConfigureAwait(false);
+        foreach (var row in rows)
+            await db.InsertOrReplaceAsync(row).ConfigureAwait(false);
     }
 
     /// <inheritdoc />

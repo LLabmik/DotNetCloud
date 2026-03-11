@@ -1,6 +1,8 @@
 #if GOOGLEPLAY
 using System.Net.Http.Json;
 using Microsoft.Extensions.Logging;
+using GmsIOnCompleteListener = Android.Gms.Tasks.IOnCompleteListener;
+using GmsTask = Android.Gms.Tasks.Task;
 
 namespace DotNetCloud.Client.Android.Services;
 
@@ -72,9 +74,9 @@ internal sealed class FcmPushService : IPushNotificationService
     }
 
     private sealed class FcmTokenListener(TaskCompletionSource<string?> tcs)
-        : Java.Lang.Object, Google.Android.Gms.Tasks.IOnCompleteListener
+        : Java.Lang.Object, GmsIOnCompleteListener
     {
-        public void OnComplete(Google.Android.Gms.Tasks.Task task)
+        public void OnComplete(GmsTask task)
         {
             if (task.IsSuccessful)
                 tcs.TrySetResult(task.Result?.ToString());
