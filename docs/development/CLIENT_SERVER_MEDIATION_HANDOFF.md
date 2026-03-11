@@ -93,6 +93,15 @@ Archived context:
 - Result: `total: 1, failed: 0, succeeded: 0, skipped: 1`
 - Skip reason: `DOTNETCLOUD_E2E_BEARER_TOKEN` not set (expected until runtime token is provided).
 
+✓ OAuth contract re-verified on server (`mint22`) with live endpoints + DB:
+- Authorize probe (mobile contract params) returns expected login challenge:
+   - `GET /connect/authorize?...client_id=dotnetcloud-mobile&redirect_uri=net.dotnetcloud.client://oauth2redirect&scope=openid profile offline_access files:read files:write...`
+   - Result: `HTTP/2 302` -> `/auth/login` (no `invalid_client`)
+- OpenIddict application registration confirms exact mobile contract:
+   - `ClientId`: `dotnetcloud-mobile`
+   - `RedirectUris`: `["net.dotnetcloud.client://oauth2redirect"]`
+   - `Permissions`: includes `scp:openid`, `scp:profile`, `scp:offline_access`, `scp:files:read`, `scp:files:write`, plus auth-code/refresh grants and authorize/token/revocation endpoints.
+
 ✓ Full executable suite passed:
 - `dotnet test --nologo --logger "trx;LogFileName=full-suite.trx"`
 - Result: `total: 2041, failed: 0, succeeded: 2028, skipped: 13`
@@ -125,6 +134,7 @@ Archived context:
 - commit hash from runtime run machine
 - live output lines showing connection + `UnreadCountUpdated` + `NewMessage`
 - if token acquisition fails: exact callback/error text and endpoint params used
+- if auth still fails unexpectedly: include the exact `/connect/authorize` query string used by the Android app
 ## Relay Template
 
 ```markdown
