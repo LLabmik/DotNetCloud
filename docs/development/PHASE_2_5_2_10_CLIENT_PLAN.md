@@ -231,13 +231,14 @@
 
 ## Step 5b — Phase 2.9: Chat Notification Popups
 
-**Gap:** Checklist items "Add chat notification popups (Windows toast / Linux libnotify)" and "Display message preview in notification" are `[ ]` unchecked.
+**Gap:** Basic chat popups are complete, but the current Windows path is still `Shell_NotifyIcon` balloon notifications. Remaining Phase 2.9 work now pivots to a real Windows toast-notification foundation for grouping and quick reply.
 
 **Work:**
 - Add `Chat` and `Mention` values to `NotificationType` enum
 - Update `WindowsNotificationService` and `LinuxNotificationService` to use distinct icons/urgency for `Chat` vs `Mention`
 - In `TrayViewModel`, subscribe to `NewChatMessage` events; call `ShowNotification` with sender + preview text
 - Respect channel display name in notification title
+- Preserve current popup behavior as the baseline, but replace the Windows-only balloon implementation with a toast-backed service before considering Phase 2.9 complete
 
 **Files:**
 - `src/Clients/DotNetCloud.Client.SyncTray/Notifications/NotificationType.cs`
@@ -245,7 +246,7 @@
 - `src/Clients/DotNetCloud.Client.SyncTray/Notifications/LinuxNotificationService.cs`
 - `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/TrayViewModel.cs`
 
-**Status:** ✓
+**Status:** ✓ baseline complete; follow-on toast migration required
 
 ---
 
@@ -280,6 +281,42 @@
 - `src/Clients/DotNetCloud.Client.SyncTray/Notifications/LinuxNotificationService.cs`
 
 **Status:** ✓
+
+---
+
+## Step 5e — Phase 2.9: Windows Toast Migration + Grouping + Quick Reply
+
+**Gap:** The current Windows implementation uses balloon notifications, which is sufficient for click-to-open but not for first-class notification grouping or quick reply. The user wants Phase 2.9 to go beyond the approximation path.
+
+**Work:**
+- Redesign `INotificationService` around a request/activation model instead of `title/body/type/actionUrl` only
+- Replace or supersede `WindowsNotificationService` with a toast-backed implementation for unpackaged desktop/Avalonia deployment
+- Add notification grouping/replacement metadata per chat channel/conversation
+- Add a reusable Client.Core chat send abstraction for desktop quick reply
+- Implement quick reply end-to-end from notification action to send-message call
+- If inline toast reply is not reliable, implement a minimal `QuickReplyWindow` fallback opened from the toast action
+- Add typing-indicator support while composing if practical from the chosen quick-reply UX
+- Update tray icon visuals so mentions are distinct from generic unread chat state
+
+**Files:**
+- `src/Clients/DotNetCloud.Client.SyncTray/Notifications/INotificationService.cs`
+- `src/Clients/DotNetCloud.Client.SyncTray/Notifications/WindowsNotificationService.cs`
+- `src/Clients/DotNetCloud.Client.SyncTray/Notifications/LinuxNotificationService.cs`
+- `src/Clients/DotNetCloud.Client.SyncTray/Notifications/NotificationServiceFactory.cs`
+- `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/TrayViewModel.cs`
+- `src/Clients/DotNetCloud.Client.SyncTray/TrayIconManager.cs`
+- `src/Clients/DotNetCloud.Client.SyncTray/App.axaml.cs`
+- `src/Clients/DotNetCloud.Client.Core/` (new shared chat send abstraction as needed)
+- `tests/DotNetCloud.Client.SyncTray.Tests/`
+
+**Acceptance criteria:**
+- Windows notifications are toast-based, not balloon-tip based
+- Same-channel notifications group or replace deterministically
+- Quick reply can send to the targeted channel without opening the full browser chat UI
+- Quick reply failure is surfaced to the user
+- Tray icon visually distinguishes mentions from generic unread messages
+
+**Status:** ☐
 
 ---
 
@@ -328,6 +365,7 @@
 
 | Step | Phase | Description | Complexity |
 |------|-------|-------------|------------|
+| 5e | 2.9 | Windows toast migration + grouping + quick reply | High |
 | 1 | 2.5 | Realtime badge wiring | Low |
 | 2a | 2.6 | Announcement filters | Low |
 | 2b | 2.6 | Announcement preview | Low |

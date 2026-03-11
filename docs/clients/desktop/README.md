@@ -1,6 +1,6 @@
 # DotNetCloud Desktop Client
 
-> **Last Updated:** 2026-03-03
+> **Last Updated:** 2026-03-10
 
 ---
 
@@ -51,12 +51,16 @@ DotNetCloud.Client.SyncService    (background service)
 DotNetCloud.Client.SyncTray       (Avalonia tray app)
 ├── Views/                        Settings window, Add Account dialog
 ├── ViewModels/                   MVVM view models
-├── Notifications/                Windows toast / Linux libnotify
+├── Notifications/                Windows balloon tip (current) / Linux libnotify
 ├── Ipc/                          IPC client connection
 ├── TrayIconManager.cs            Tray icon + context menu
 ├── App.axaml.cs
 └── Program.cs
 ```
+
+Current status note:
+- The Windows desktop notification path currently uses `Shell_NotifyIcon` balloon notifications.
+- Phase 2.9 chat follow-up work is planned to migrate Windows notifications to toast notifications and add grouped notifications plus quick reply support.
 
 ---
 
