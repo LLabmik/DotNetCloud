@@ -21,24 +21,21 @@ internal sealed class OidcClientSeeder
     }
 
     /// <summary>
-    /// Ensures the desktop SyncTray public client is registered for PKCE auth-code flow.
+    /// Ensures first-party public clients (desktop and mobile) are registered for PKCE auth-code flow.
     /// </summary>
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
         _ = cancellationToken;
 
-        const string desktopClientId = "dotnetcloud-desktop";
-        const string redirectUri = "http://localhost:52701/oauth/callback";
-
-        var descriptor = new OpenIddictApplicationDescriptor
+        var desktopDescriptor = new OpenIddictApplicationDescriptor
         {
-            ClientId = desktopClientId,
+            ClientId = "dotnetcloud-desktop",
             DisplayName = "DotNetCloud Desktop SyncTray",
             ClientType = ClientTypes.Public,
             ConsentType = ConsentTypes.Explicit,
             RedirectUris =
             {
-                new Uri(redirectUri),
+                new Uri("http://localhost:52701/oauth/callback"),
             },
             Permissions =
             {
@@ -60,15 +57,51 @@ internal sealed class OidcClientSeeder
             },
         };
 
-        var existing = await _applicationManager.FindByClientIdAsync(desktopClientId);
+        var mobileDescriptor = new OpenIddictApplicationDescriptor
+        {
+            ClientId = "dotnetcloud-mobile",
+            DisplayName = "DotNetCloud Mobile",
+            ClientType = ClientTypes.Public,
+            ConsentType = ConsentTypes.Explicit,
+            RedirectUris =
+            {
+                new Uri("net.dotnetcloud.client://oauth2redirect"),
+            },
+            Permissions =
+            {
+                Permissions.Endpoints.Authorization,
+                Permissions.Endpoints.Token,
+                Permissions.Endpoints.Revocation,
+                Permissions.GrantTypes.AuthorizationCode,
+                Permissions.GrantTypes.RefreshToken,
+                Permissions.ResponseTypes.Code,
+                Permissions.Scopes.Profile,
+                Permissions.Prefixes.Scope + Scopes.OpenId,
+                Permissions.Prefixes.Scope + Scopes.OfflineAccess,
+                Permissions.Prefixes.Scope + "files:read",
+                Permissions.Prefixes.Scope + "files:write",
+            },
+            Requirements =
+            {
+                Requirements.Features.ProofKeyForCodeExchange,
+            },
+        };
+
+        await UpsertClientAsync(desktopDescriptor);
+        await UpsertClientAsync(mobileDescriptor);
+    }
+
+    private async Task UpsertClientAsync(OpenIddictApplicationDescriptor descriptor)
+    {
+        var existing = await _applicationManager.FindByClientIdAsync(descriptor.ClientId!);
         if (existing is null)
         {
             await _applicationManager.CreateAsync(descriptor);
-            _logger.LogInformation("Seeded OIDC desktop client '{ClientId}'.", desktopClientId);
+            _logger.LogInformation("Seeded OIDC client '{ClientId}'.", descriptor.ClientId);
             return;
         }
 
         await _applicationManager.UpdateAsync(existing, descriptor);
-        _logger.LogInformation("Updated OIDC desktop client '{ClientId}' permissions/scopes.", desktopClientId);
+        _logger.LogInformation("Updated OIDC client '{ClientId}' permissions/scopes.", descriptor.ClientId);
     }
 }
