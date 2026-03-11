@@ -144,11 +144,11 @@ Server follow-up is recorded in the handoff doc. Pull latest `main` and align An
 
 ## Active Handoff
 
-### Send to Server Agent - Execute Live E2E Test (Phase 2.10)
+### Server Follow-up - Live E2E Preconditions Verified (Phase 2.10)
 
 **Date:** 2026-03-11  
-**Owner:** Client (`Windows11-TestDNC`)  
-**Status:** Test implementation complete; ready for execution
+**Owner:** Server (`mint22`)  
+**Status:** Server endpoints verified; client can execute live run now
 
 **Test is now executable:**
 
@@ -158,7 +158,20 @@ Server follow-up is recorded in the handoff doc. Pull latest `main` and align An
 ✓ Trigger protocol embedded in test documentation
 ✓ Unit tests (deserialization, mapping) runnable immediately
 
-**To execute on Windows machine:**
+**Server checks completed (mint22):**
+
+✓ `GET https://mint22:15443/health` -> `200` (Healthy)  
+✓ `GET https://mint22:15443/.well-known/openid-configuration` -> `200`  
+✓ OIDC metadata confirms:
+- `authorization_endpoint`: `https://mint22:15443/connect/authorize`
+- `token_endpoint`: `https://mint22:15443/connect/token`
+
+**Token constraint confirmed:**
+- `client_credentials` probe returns `invalid_request` requiring `client_secret`.
+- For this E2E, use a real **user** bearer token from auth-code + PKCE flow (desktop/mobile sign-in). 
+- Do not use client-credentials token for hub test.
+
+**Execute on Windows machine:**
 
 1. Obtain a valid **user** bearer token from your server's OAuth OIDC flow (test user must be chat channel member)
 2. Set environment variable: `$env:DOTNETCLOUD_E2E_BEARER_TOKEN = "your-bearer-token"`
@@ -178,15 +191,18 @@ Server follow-up is recorded in the handoff doc. Pull latest `main` and align An
 - `✓ NewMessage received: ChannelId=..., Preview=...`
 - `✓ TEST PASSED: Received X unread updates and Y messages`
 
-**What server needs to do:**
-1. Generate or provide test bearer token (test user in chat channel)
-2. Ensure desktop client can post messages to trigger events
-3. Provide: Token value + channel ID + instructions if OAuth is not yet exposed
+**Trigger command template (sender side):**
+```bash
+curl -k -X POST "https://mint22:15443/api/v1/chat/channels/{channelId}/messages?userId={senderUserId}" \
+  -H "Authorization: Bearer {senderAccessToken}" \
+  -H "Content-Type: application/json" \
+  -d '{"content":"e2e-signalr-probe"}'
+```
 
 **Request back:**
-- Bearer token (sanitized: can be inline or in test config)
-- Channel ID for testing
-- Any changes needed to get token (OAuth flow, direct generation, etc.)
+- commit hash
+- sanitized logs from `ConnectAsync_SubscribesAndReceivesEvents_Live`
+- exact auth error text if token acquisition still blocked
 
 ## Relay Template
 
