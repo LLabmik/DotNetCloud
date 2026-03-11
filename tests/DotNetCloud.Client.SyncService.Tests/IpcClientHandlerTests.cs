@@ -411,7 +411,11 @@ public class IpcClientHandlerTests
                     DataDirectory = "C:\\Data\\A",
                 },
             ]);
+        // SyncNowAsync is invoked on a background Task.Run (fire-and-forget). Use a TCS so
+        // we can reliably await the actual call before verifying, even under parallel suite load.
+        var syncNowCalled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         managerMock.Setup(m => m.SyncNowAsync(contextId, It.IsAny<CancellationToken>()))
+            .Callback<Guid, CancellationToken>((_, _) => syncNowCalled.TrySetResult(true))
             .Returns(Task.CompletedTask);
 
         var responses = await SendCommandsAsync(
@@ -434,6 +438,9 @@ public class IpcClientHandlerTests
         Assert.IsFalse(secondDoc.RootElement.GetProperty("started").GetBoolean());
         Assert.AreEqual("rate-limited", secondDoc.RootElement.GetProperty("reason").GetString());
 
+        // Wait for the background Task.Run to invoke the mock before verifying.
+        var completed = await Task.WhenAny(syncNowCalled.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+        Assert.IsTrue(syncNowCalled.Task.IsCompleted, "SyncNowAsync was not invoked within 5 seconds.");
         managerMock.Verify(m => m.SyncNowAsync(contextId, It.IsAny<CancellationToken>()), Times.Once);
     }
 }

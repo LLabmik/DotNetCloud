@@ -65,89 +65,24 @@ Archived context:
 
 ## Active Handoff
 
-### Server Completion — Live SignalR E2E Test PASSED (Phase 2.10)
+### Phase 2.10 COMPLETE — Proceed to Next Master Plan Priority
 
 **Date:** 2026-03-11
-**Owner:** Server (`mint22`)
-**Status:** COMPLETE — Live E2E test fully passing, two server-side bugs fixed
+**Owner:** Whichever agent picks up next
+**Status:** COMPLETE ✅ — Both sides verified, ready for next phase
 
-**Summary:**
-The multi-cycle token-missing deadlock is broken. Server agent minted a mobile OAuth token directly,
-discovered and fixed two server-side bugs blocking bearer-token hub access, rewrote the E2E test to
-be fully self-contained, and achieved a passing live probe against the running server.
+**Phase 2.10 is fully closed on both client and server.** All archived details in [CLIENT_SERVER_MEDIATION_ARCHIVE.md](CLIENT_SERVER_MEDIATION_ARCHIVE.md).
 
-**Server-side bugs fixed:**
+**What was completed (summary):**
+- Server: CoreHub bearer auth fix + `sub` claim fallback + self-contained live E2E test (PASSED on `mint22`).
+- Client: Pulled and validated server fixes; fixed flaky `HandleAsync_SyncNowCommand_DebounceReturnsRateLimitedOnSecondRequest` test (was failing under parallel suite load due to fire-and-forget `Task.Run`; fixed with `TaskCompletionSource` await before `Verify`).
+- Full suite: 0 failures, ~2040 passed, 13 env-gated skips — confirmed clean across 3 consecutive runs.
+- Live Android probe regression gate: `ConnectAsync_SubscribesAndReceivesEvents_Live` skips correctly without token; will pass when `DOTNETCLOUD_E2E_BEARER_TOKEN` is set.
 
-1. **CoreHub auth scheme (CRITICAL):** Hub used bare `[Authorize]` which defaults to Identity cookie auth.
-   Mobile/API clients send bearer tokens, which were rejected with 401. Fixed to accept both:
-   - File: `src/Core/DotNetCloud.Core.Server/RealTime/CoreHub.cs`
-   - Change: `[Authorize(AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]`
-
-2. **CoreHub GetUserId claim mapping:** `GetUserId()` only checked `ClaimTypes.NameIdentifier` but OpenIddict
-   bearer tokens use the `sub` claim directly (without Identity middleware mapping). Fixed to fall back:
-   - File: `src/Core/DotNetCloud.Core.Server/RealTime/CoreHub.cs`
-   - Change: `Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? Context.User?.FindFirst("sub")?.Value`
-
-**Test-side fix:**
-
-3. **SSL certificate bypass:** SignalR client rejected self-signed cert on `mint22:15443` (RemoteCertificateNameMismatch).
-   Added `DangerousAcceptAnyServerCertificateValidator` to the hub connection (test-only, matches `curl -k`).
-   - File: `tests/DotNetCloud.Client.Android.Tests/Chat/SignalRChatClientE2eTests.cs`
-
-**Live E2E test evidence:**
-```
-dotnet test tests/DotNetCloud.Client.Android.Tests -c Release --filter "Live" --logger "console;verbosity=detailed"
-  Passed ConnectAsync_SubscribesAndReceivesEvents_Live [1 s]
-  Test Run Successful.  Total tests: 1  Passed: 1  Total time: 2.2540 Seconds
-```
-
-**Test flow (fully self-contained):**
-1. Connect to `wss://mint22:15443/hubs/core` with bearer token
-2. Join group `chat-channel-{channelId}`
-3. Invoke `SendMessageAsync(channelId, "e2e-signalr-probe", null)` → receives `NewMessage` broadcast
-4. Extract `sentMessageId` from return value
-5. Invoke `MarkReadAsync(channelId, sentMessageId)` → receives `UnreadCountUpdated` to user
-6. Assert both events received with correct `channelId`
-
-**Test infrastructure created:**
-- Channel: `019cdb96-0000-7000-a000-000000000001` (created in DB)
-- Channel member: `testdude` (ID `019cc1ac-da42-737c-b0ab-d0f2ecca8019`) as Owner
-- Token: minted via full auth-code + PKCE flow (NOT committed; acquisition steps documented below)
-
-**Token acquisition steps (for future re-runs):**
-```bash
-# 1. Generate PKCE pair
-VERIFIER=$(python3 -c "import secrets; print(secrets.token_urlsafe(64))")
-CHALLENGE=$(echo -n "$VERIFIER" | openssl dgst -sha256 -binary | openssl base64 -A | tr '+/' '-_' | tr -d '=')
-
-# 2. Login (get session cookie)
-curl -sk -c cookies.txt -X POST https://mint22:15443/auth/session/login \
-  -d "Email=testdude@llabmik.net&Password=<password>&RememberMe=false"
-
-# 3. Authorize (get code)
-CODE=$(curl -sk -b cookies.txt -o /dev/null -w '%{redirect_url}' \
-  "https://mint22:15443/connect/authorize?response_type=code&client_id=dotnetcloud-mobile&redirect_uri=net.dotnetcloud.client://oauth2redirect&scope=openid+profile+offline_access+files:read+files:write&code_challenge=$CHALLENGE&code_challenge_method=S256" \
-  | grep -oP 'code=\K[^&]+')
-
-# 4. Exchange for token
-curl -sk -X POST https://mint22:15443/connect/token \
-  -d "grant_type=authorization_code&code=$CODE&redirect_uri=net.dotnetcloud.client://oauth2redirect&client_id=dotnetcloud-mobile&code_verifier=$VERIFIER"
-```
-
-**Readiness gate:**
-- Core.Tests: 138 passed
-- Core.Server.Tests: 327 passed, 2 skipped
-- Core.Auth.Tests: 85 passed
-- Core.Data.Tests: 176 passed
-- Chat.Tests: 263 passed (was 180 in previous run — more tests appeared)
-- Android.Tests: 9 passed (including the live E2E)
-- Integration.Tests: 14 pre-existing failures (not related to these changes)
-
-**Next steps:**
-- Phase 2.10 Android contract alignment is COMPLETE.
-- Both client and server can connect via SignalR with bearer tokens.
-- The live test is now a regression gate for hub auth changes.
-- Next phase: proceed to Phase 3 or whatever the master plan dictates.
+**Next action:**
+- Check `docs/MASTER_PROJECT_PLAN.md` for next in-progress or pending phase.
+- Phase 2.12 (Chat Testing Infrastructure) is `in-progress` — verify current coverage and continue if not already complete.
+- Assign owner (client or server) based on what the next task requires.
 
 ## Relay Template
 

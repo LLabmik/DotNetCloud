@@ -2126,3 +2126,14 @@ Archived from `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` when enforci
 - SSL bypass added for self-signed cert (test-only).
 - Live test PASSED: 1 test, 1 passed, 0 failed.
 - Phase 2.10 Android contract alignment marked COMPLETE.
+
+4. Phase 2.10 Client Receipt + Flaky Test Fix (2026-03-11, Windows11-TestDNC)
+- Pulled `bdded31` on client — server CoreHub fix + self-contained E2E test landed cleanly.
+- Build: `DotNetCloud.Core.Server` compiled 0 errors after CoreHub auth-scheme change.
+- Live Android probe still skips correctly (DOTNETCLOUD_E2E_BEARER_TOKEN=MISSING; correct, token not set here).
+- Full suite readiness gate initially surfaced one intermittent failure:
+  - `HandleAsync_SyncNowCommand_DebounceReturnsRateLimitedOnSecondRequest` failed in full parallel run but passed in isolation.
+  - Root cause: `SyncNowAsync` is invoked via fire-and-forget `Task.Run`; `Verify` ran before background task got CPU time under parallel suite load.
+  - Fix: replaced `Returns(Task.CompletedTask)` with `TaskCompletionSource` + `.Callback` + `await Task.WhenAny(tcs.Task, Delay(5s))` before `Verify`.
+- Full suite after fix: 3/3 consecutive passes, 0 failures, ~2040 passed, 13 skipped (all env-gated).
+- Phase 2.10 fully closed on both sides.
