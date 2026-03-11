@@ -127,6 +127,101 @@ Next prioritized implementation target is `phase-2.4` (Chat REST API Endpoints).
 ### Send to Server Agent
 New commit on main (`ed2a000`) with completed client Phase 2.9 regression pass and Step 7 release hardening. Pull latest main, review handoff section in `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`, then continue from next prioritized server-owned step in `docs/MASTER_PROJECT_PLAN.md`.
 
+### Client Handoff — Phase 2.8 Remaining Items (Windows workspace)
+
+**Date:** 2026-03-10
+**Owner:** Client (`Windows workspace`)
+**Status:** ready for handoff ✅
+
+**Baseline commit:** `95a4e2b`
+
+**Scope of work:**
+
+Two checklist items remain open in phase-2.8. Both are UI-side only (Blazor chat module + tests).
+Do not modify server projects.
+
+---
+
+#### Item 1 — `ChatNotificationBadge`: distinguish mentions from regular unread (real-time update)
+
+**Current state:**
+- `HasMentions` in `ChatNotificationBadge.razor.cs` is `TotalUnread > 0` — it does not separately track mention count.
+- `ISignalRChatService.UnreadCountUpdated` has signature `Action<Guid, int>` (channelId, unreadCount only) — no mention count is forwarded to the badge.
+- The `.razor` already renders `has-mentions` CSS class based on `HasMentions`, but the class is applied whenever there are any unread messages, not only when there are mentions.
+
+**Required changes:**
+
+1. **`src/Modules/Chat/DotNetCloud.Modules.Chat/Services/SignalRChatService.cs`** —
+   Add a second event to `ISignalRChatService`:
+   ```csharp
+   event Action<Guid, int>? MentionCountUpdated;
+   ```
+   Follow the same pattern as `UnreadCountUpdated`. Add it to `NullSignalRChatService` with the same `#pragma disable CS0067` stub treatment.
+
+2. **`src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChatNotificationBadge.razor.cs`** —
+   - Add a `_mentionsByChannel` dictionary mirroring `_unreadByChannel`.
+   - Add `TotalMentions` computed property (`_mentionsByChannel.Values.Sum()`).
+   - Change `HasMentions` to `TotalMentions > 0` (not `TotalUnread > 0`).
+   - Subscribe to `SignalR.MentionCountUpdated` in `OnInitialized`.
+   - Unsubscribe in `Dispose`.
+   - Add `internal void ApplyMentionCountUpdate(Guid channelId, int count)` following the same replace-in-dictionary pattern as `ApplyUnreadCountUpdate`.
+
+3. **`src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChatNotificationBadge.razor`** — no change required (razor already uses `HasMentions`).
+
+4. **`tests/DotNetCloud.Modules.Chat.Tests/ChatNotificationBadgeTests.cs`** —
+   Add tests for the new `MentionCount` tracking path:
+   - `WhenMentionCountUpdatedThenHasMentionsIsTrue`
+   - `WhenMentionCountResetToZeroThenHasMentionsIsFalse`
+   - `WhenOnlyUnreadWithNoMentionsThenHasMentionsIsFalse`
+   - `WhenMultipleChannelMentionCountsThenTotalMentionsSumsAll`
+
+**Server API note:** The server's `UnreadCountUpdated` broadcast already carries `mentionCount` in the payload (`ChatRealtimeService` line 126, payload shape: `{ channelId, count }`). When the hub connection concrete implementation fires `MentionCountUpdated`, it should read the `mentionCount` field from the same `UnreadCountUpdated` hub message. The event signature change (`ISignalRChatService`) must remain compatible with the existing server payload — no server changes are needed.
+
+---
+
+#### Item 2 — `AnnouncementEditor`: preview before publishing — add unit test coverage
+
+**Current state:**
+- `AnnouncementEditor.razor` already renders a complete Edit/Preview tab pair with a Markdown-rendered preview pane (`TogglePreview`, `IsPreviewMode`, `RenderMarkdown`).
+- `AnnouncementEditor.razor.cs` already has `TogglePreview()`, `IsPreviewMode`, `IsSaveDisabled`, `RenderMarkdown()`, and full `OnParametersSet` population.
+- **No test file exists** for `AnnouncementEditor`. The checklist item is `☐ Preview before publishing` and is the only open sub-item.
+
+**Required changes:**
+
+1. **Create `tests/DotNetCloud.Modules.Chat.Tests/AnnouncementEditorTests.cs`** —
+   Test the preview toggle and Markdown render path using the same `TestableFoo : AnnouncementEditor` subclass pattern as `ChatNotificationBadgeTests`. Expose `TestIsPreviewMode`, `TestIsSaveDisabled`, `TestTitle`, `TestContent`.
+
+   Required tests:
+   - `WhenInitializedThenIsPreviewModeIsFalse`
+   - `WhenTogglePreviewCalledThenIsPreviewModeIsTrue`
+   - `WhenTogglePreviewCalledTwiceThenIsPreviewModeIsFalse`
+   - `WhenTitleAndContentEmptyThenIsSaveDisabledIsTrue`
+   - `WhenTitleAndContentSetThenIsSaveDisabledIsFalse`
+   - `WhenEditingAnnouncementSetThenFieldsArePopulated` (set `EditingAnnouncement` + `IsEditing = true`, call `OnParametersSet`, assert title/content/priority propagate)
+   - `WhenNotEditingThenFieldsAreReset` (set `IsEditing = false`, call `OnParametersSet`, assert fields reset to defaults)
+
+---
+
+**Acceptance criteria (both items):**
+- `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj` — all pass, 0 failed.
+- `dotnet build` — succeeded.
+- `HasMentions` on badge is `false` when there are unread messages but zero mentions.
+- `HasMentions` on badge is `true` only when mention count > 0.
+
+**Request back (strict format):**
+```
+Phase: 2.8 remaining items
+Commit: <hash>
+Files:
+  - <list of files changed>
+Tests added:
+  - <test class>.<test name> for each new test
+Verification:
+  dotnet test ... -> total N, succeeded N, failed 0
+  dotnet build -> succeeded
+Blockers (if any): <none or description>
+```
+
 ### Request Back
 - commit hash
 - step/phase resumed from `docs/MASTER_PROJECT_PLAN.md`
