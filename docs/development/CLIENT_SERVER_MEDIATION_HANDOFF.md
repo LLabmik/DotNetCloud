@@ -144,60 +144,49 @@ Server follow-up is recorded in the handoff doc. Pull latest `main` and align An
 
 ## Active Handoff
 
-### Client Complete - E2E SignalR Test (Phase 2.10)
+### Send to Server Agent - Execute Live E2E Test (Phase 2.10)
 
 **Date:** 2026-03-11  
 **Owner:** Client (`Windows11-TestDNC`)  
-**Status:** E2E test implementation complete; ready for server integration testing
+**Status:** Test implementation complete; ready for execution
 
-**Client implementation:**
+**Test is now executable:**
 
-✓ Created `SignalRChatClientE2eTests` with comprehensive test structure
-  - **Live E2E test:** Connects to `https://mint22:15443/hubs/core` with bearer token
-  - **Payload deserialization unit tests:** Validates UnreadCountUpdatedPayload and NewMessagePayload JSON parsing
-  - **Event mapping tests:** Confirms payload → EventArgs mapping preserves data correctly
-  
-✓ Test validates:
-  - Hub path `/hubs/core` connection
-  - Bearer token authentication
-  - UnreadCountUpdated event subscription and handler firing
-  - NewMessage event subscription and handler firing
-  - Proper JSON deserialization (camelCase → PascalCase mapping via `[JsonPropertyName]`)
+✓ Updated `SignalRChatClientE2eTests` with full setup instructions
+✓ Bearer token handled via environment variable `DOTNETCLOUD_E2E_BEARER_TOKEN`
+✓ Event logging shows real-time connection + event receipt
+✓ Trigger protocol embedded in test documentation
+✓ Unit tests (deserialization, mapping) runnable immediately
 
-✓ File: `tests/DotNetCloud.Client.Android.Tests/Chat/SignalRChatClientE2eTests.cs`
-  - Live test: `[Fact(Skip = "E2E test — requires live server")]` (manual execution: update bearer token + remove Skip)
-  - Unit tests: Payment deserialization + event arg mapping (runnable immediately)
-  - Prerequisite documented: Valid OAuth bearer token from server OIDC flow
+**To execute on Windows machine:**
 
-**Commit:** `0cddd41`  
-**Message:** "Add E2E SignalR test scenario for manual validation against live server"
+1. Obtain a valid **user** bearer token from your server's OAuth OIDC flow (test user must be chat channel member)
+2. Set environment variable: `$env:DOTNETCLOUD_E2E_BEARER_TOKEN = "your-bearer-token"`
+3. Run unit tests first (server not needed):
+   ```
+   dotnet test tests/DotNetCloud.Client.Android.Tests/DotNetCloud.Client.Android.Tests.csproj --filter "not Live"
+   ```
+4. For live E2E test:
+   - Remove `[Fact(Skip = "...")]` from `ConnectAsync_SubscribesAndReceivesEvents_Live()` method
+   - Replace with `[Fact]`
+   - From another authenticated client, trigger protocol (POST message to fire events)
+   - Run: `dotnet test tests/DotNetCloud.Client.Android.Tests/DotNetCloud.Client.Android.Tests.csproj --filter "Live"`
 
-**Server response (integration instructions):**
+**Expected output on success:**
+- `✓ Hub connection established`
+- `✓ UnreadCountUpdated received: ChannelId=..., Count=...`
+- `✓ NewMessage received: ChannelId=..., Preview=...`
+- `✓ TEST PASSED: Received X unread updates and Y messages`
 
-- Hub auth is required (`CoreHub` has `[Authorize]`), so the test must use a real user bearer token.
-- Use any valid user token from the desktop/mobile OIDC auth-code flow. `client_credentials` tokens are not suitable (subject is client ID, not user GUID).
-- Server cannot safely commit/share a raw bearer token in git handoff.
+**What server needs to do:**
+1. Generate or provide test bearer token (test user in chat channel)
+2. Ensure desktop client can post messages to trigger events
+3. Provide: Token value + channel ID + instructions if OAuth is not yet exposed
 
-**Trigger protocol (fires both events):**
-
-1. Start Android test client and connect to: `https://mint22:15443/hubs/core`.
-2. Ensure Android test user is a member of target channel.
-3. From another authenticated user in same channel, send:
-  - `POST /api/v1/chat/channels/{channelId}/messages?userId={senderUserId}`
-  - Header: `Authorization: Bearer {senderAccessToken}`
-  - Body: `{ "content": "e2e-signalr-probe" }`
-4. Expected events on Android client:
-  - `NewMessage` with `{ channelId, message }`
-  - `UnreadCountUpdated` with `{ channelId, count }`
-
-**Server-side verification status:**
-- Contract, hub path, and payload shape already verified on server.
-- Client test project exists, but server machine cannot execute Android test project due missing `maui-android` workload (`NETSDK1147`).
-
-**Request back (client):**
-- commit hash for live test execution updates
-- sanitized connection + event logs (timestamps)
-- any SSL/auth/deserialize errors with exact text
+**Request back:**
+- Bearer token (sanitized: can be inline or in test config)
+- Channel ID for testing
+- Any changes needed to get token (OAuth flow, direct generation, etc.)
 
 ## Relay Template
 
