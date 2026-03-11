@@ -1,0 +1,71 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:DotNetCloud.Client.SyncTray.ViewModels"
+        x:Class="DotNetCloud.Client.SyncTray.Views.QuickReplyWindow"
+        x:DataType="vm:QuickReplyViewModel"
+        Title="{Binding ChannelName, StringFormat='Reply to #{0}'}"
+        Width="420"
+        Height="200"
+        MinWidth="320"
+        MinHeight="160"
+        WindowStartupLocation="CenterScreen"
+        CanResize="False"
+        Icon="/Assets/icon-idle.png">
+
+    <Window.KeyBindings>
+        <KeyBinding Gesture="Escape" Command="{Binding CancelCommand}" />
+    </Window.KeyBindings>
+
+    <DockPanel Margin="12">
+
+        <!-- Channel header -->
+        <TextBlock DockPanel.Dock="Top"
+                   Text="{Binding ChannelName, StringFormat='Send a message to #{0}'}"
+                   FontWeight="SemiBold"
+                   FontSize="13"
+                   Margin="0,0,0,8" />
+
+        <!-- Error message -->
+        <TextBlock DockPanel.Dock="Top"
+                   Text="{Binding ErrorMessage}"
+                   Foreground="Red"
+                   FontSize="11"
+                   Margin="0,0,0,4"
+                   IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                   TextWrapping="Wrap" />
+
+        <!-- Button row at bottom -->
+        <StackPanel DockPanel.Dock="Bottom"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="6"
+                    Margin="0,8,0,0">
+            <Button Content="Cancel"
+                    Command="{Binding CancelCommand}"
+                    Width="72" />
+            <Button Content="Send"
+                    Command="{Binding SendCommand}"
+                    IsDefault="True"
+                    IsEnabled="{Binding CanSend}"
+                    Width="72" />
+        </StackPanel>
+
+        <!-- Sending indicator -->
+        <TextBlock DockPanel.Dock="Bottom"
+                   Text="Sending…"
+                   FontSize="11"
+                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                   HorizontalAlignment="Left"
+                   Margin="0,4,0,0"
+                   IsVisible="{Binding IsSending}" />
+
+        <!-- Message input -->
+        <TextBox Text="{Binding MessageText}"
+                 AcceptsReturn="False"
+                 Watermark="Type a message…"
+                 VerticalAlignment="Stretch"
+                 IsEnabled="{Binding !IsSending}" />
+
+    </DockPanel>
+
+</Window>

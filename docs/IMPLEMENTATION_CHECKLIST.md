@@ -3240,12 +3240,13 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Clear badge when messages are read (via SignalR sync)
 
 #### Quick Reply
-- ☐ Add quick reply popup from notification
-- ☐ Send reply via REST API
-- ☐ Show typing indicator while composing
+- ✓ Add quick reply popup from notification
+- ✓ Send reply via REST API
+- ✓ Show typing indicator while composing
 
 #### Regression Validation
 - ✓ Run Phase 2.9 regression checklist pass (`dotnet test`: 2013 total, 0 failed)
+- ✓ Run Phase 2.9 quick-reply regression pass (`dotnet test`: 71/71 SyncTray tests pass)
 
 #### Release Hardening
 - ✓ Accessibility pass for interactive chat UI controls (`title`/`aria-label` updates across `ChannelList`, `AnnouncementList`, `MessageList`, `DirectMessageView`)

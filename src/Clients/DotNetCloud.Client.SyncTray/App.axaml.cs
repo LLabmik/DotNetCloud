@@ -3,6 +3,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using DotNetCloud.Client.Core;
+using DotNetCloud.Client.Core.Api;
 using DotNetCloud.Client.Core.Auth;
 using DotNetCloud.Client.Core.SelectiveSync;
 using DotNetCloud.Client.Core.SyncIgnore;
@@ -104,6 +105,9 @@ public partial class App : Application
 
         // Chat real-time client used by tray unread badge features.
         services.AddSingleton<IChatSignalRClient, NoOpChatSignalRClient>();
+
+        // Chat API client used by the quick-reply window.
+        services.AddSingleton<IChatApiClient, NoOpChatApiClient>();
 
         // Tray icon manager.
         services.AddSingleton<TrayIconManager>();

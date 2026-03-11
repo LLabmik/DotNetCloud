@@ -64,7 +64,7 @@
 | Phase 2.6 | 4 | 4 | 0 | 0 |
 | Phase 2.7 | 4 | 4 | 0 | 0 |
 | Phase 2.8 | 11 | 11 | 0 | 0 |
-| Phase 2.9 | 3 | 0 | 1 | 2 |
+| Phase 2.9 | 3 | 3 | 0 | 0 |
 | Phase 2.10 | 8 | 0 | 0 | 8 |
 | Phase 2.11 | 3 | 3 | 0 | 0 |
 | Phase 2.12 | 2 | 1 | 1 | 0 |
@@ -3409,9 +3409,9 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Add notification grouping behavior (toast tag/group on Windows, grouped/replaced notifications on Linux)
 - ✓ Implement tray unread aggregation path (`IChatSignalRClient`, `ChatUnreadCount`, `ChatHasMentions`, tooltip unread summary, SignalR-driven clear)
 - ✓ Implement tray icon mention-vs-message visual badge state
-- ☐ Add quick reply popup from notification
-- ☐ Send quick reply via REST API/client-core chat transport
-- ☐ Show typing indicator while composing quick reply
+- ✓ Add quick reply popup from notification
+- ✓ Send quick reply via REST API/client-core chat transport
+- ✓ Show typing indicator while composing quick reply
 
 **Dependencies:** phase-2.5, Phase 1 (SyncTray exists)
 **Blocking Issues:** Phase 1 must be complete (desktop client exists)

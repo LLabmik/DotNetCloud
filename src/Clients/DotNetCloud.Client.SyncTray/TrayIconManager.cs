@@ -32,12 +32,14 @@ public sealed class TrayIconManager : IDisposable
 
     private TrayIcon? _trayIcon;
     private SettingsWindow? _settingsWindow;
+    private QuickReplyWindow? _quickReplyWindow;
 
     // Menu items that need dynamic updates.
     private NativeMenuItem? _statusItem;
     private NativeMenuItem? _conflictsItem;
     private NativeMenuItem? _syncNowItem;
     private NativeMenuItem? _pauseResumeItem;
+    private NativeMenuItem? _quickReplyItem;
 
     /// <summary>Initializes a new <see cref="TrayIconManager"/>.</summary>
     public TrayIconManager(TrayViewModel trayVm, IServiceProvider services, ILogger<TrayIconManager> logger)
@@ -68,6 +70,7 @@ public sealed class TrayIconManager : IDisposable
         };
 
         _trayVm.PropertyChanged += OnTrayViewModelChanged;
+        _trayVm.OpenQuickReplyRequested += OnOpenQuickReplyRequested;
 
         _logger.LogInformation("Tray icon initialized with {MenuCount} menu items. State: {State}",
             menu.Items.Count, _trayVm.OverallState);
@@ -111,6 +114,11 @@ public sealed class TrayIconManager : IDisposable
         var openBrowserItem = new NativeMenuItem("Open DotNetCloud in browser");
         openBrowserItem.Click += OnOpenBrowserClicked;
         menu.Items.Add(openBrowserItem);
+
+        // Quick reply to chat (enabled when there are unread messages)
+        _quickReplyItem = new NativeMenuItem("Reply to Chat…") { IsEnabled = false };
+        _quickReplyItem.Click += OnQuickReplyClicked;
+        menu.Items.Add(_quickReplyItem);
 
         menu.Items.Add(new NativeMenuItemSeparator());
 
@@ -162,7 +170,13 @@ public sealed class TrayIconManager : IDisposable
                         : $"View conflicts ({_trayVm.ConflictCount})…";
                     _conflictsItem.IsEnabled = _trayVm.HasConflicts;
                 }
-            }        });
+            }
+            else if (e.PropertyName is nameof(TrayViewModel.ChatUnreadCount) or nameof(TrayViewModel.ChatHasMentions))
+            {
+                if (_quickReplyItem is not null)
+                    _quickReplyItem.IsEnabled = _trayVm.ChatUnreadCount > 0;
+            }
+        });
     }
 
     // ── Menu event handlers ───────────────────────────────────────────────
@@ -199,6 +213,45 @@ public sealed class TrayIconManager : IDisposable
         {
             _logger.LogWarning(ex, "Failed to open browser for {Url}.", firstAccount.ServerBaseUrl);
         }
+    }
+
+    private void OnQuickReplyClicked(object? sender, EventArgs e)
+    {
+        var channelId = _trayVm.GetMostRecentChannelId();
+        if (channelId is null)
+            return;
+
+        var serverBaseUrl = _trayVm.Accounts.FirstOrDefault()?.ServerBaseUrl;
+        if (string.IsNullOrWhiteSpace(serverBaseUrl))
+            return;
+
+        // GetMostRecentChannelId picks from _chatUnreadByChannel; ask the VM for the display name.
+        var channelName = _trayVm.GetChannelDisplayName(channelId);
+        OpenQuickReplyWindow(channelId, channelName, serverBaseUrl);
+    }
+
+    private void OnOpenQuickReplyRequested(string channelId, string channelName, string serverBaseUrl)
+    {
+        Dispatcher.UIThread.Post(() => OpenQuickReplyWindow(channelId, channelName, serverBaseUrl));
+    }
+
+    private void OpenQuickReplyWindow(string channelId, string channelName, string serverBaseUrl)
+    {
+        if (_quickReplyWindow is not null)
+        {
+            _quickReplyWindow.Activate();
+            return;
+        }
+
+        var vm = Microsoft.Extensions.DependencyInjection.ActivatorUtilities.CreateInstance<QuickReplyViewModel>(
+            _services,
+            channelId,
+            channelName,
+            serverBaseUrl);
+
+        _quickReplyWindow = new QuickReplyWindow(vm);
+        _quickReplyWindow.Closed += (_, _) => _quickReplyWindow = null;
+        _quickReplyWindow.Show();
     }
 
     private void OnSettingsClicked(object? sender, EventArgs e)

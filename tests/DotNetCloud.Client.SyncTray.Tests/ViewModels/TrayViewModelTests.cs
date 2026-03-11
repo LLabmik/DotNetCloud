@@ -345,7 +345,8 @@ public sealed class TrayViewModelTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 NotificationType.Chat,
-                It.Is<string?>(u => u != null && u.EndsWith("/apps/chat", StringComparison.OrdinalIgnoreCase)),
+                It.Is<string?>(u => u != null && u.Contains("/apps/chat", StringComparison.OrdinalIgnoreCase)
+                                              && u.Contains("channelId=channel-d", StringComparison.OrdinalIgnoreCase)),
                 It.Is<string?>(g => g == "chat-channel-channel-d"),
                 It.Is<string?>(r => r == "chat-channel-channel-d")),
             Times.Once);

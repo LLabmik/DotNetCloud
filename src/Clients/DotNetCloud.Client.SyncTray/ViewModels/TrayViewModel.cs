@@ -39,6 +39,10 @@ public sealed class TrayViewModel : ViewModelBase
     private readonly Dictionary<string, ChatUnreadCountUpdatedEventArgs> _chatUnreadByChannel =
         new(StringComparer.OrdinalIgnoreCase);
 
+    // Channel display names keyed by channel ID, populated from incoming messages.
+    private readonly Dictionary<string, string> _chatChannelNames =
+        new(StringComparer.OrdinalIgnoreCase);
+
     // 24-hour recurring conflict reminder (Task 3.5c).
     private DateTime _lastConflictNotificationUtc = DateTime.MinValue;
     private Timer? _conflictReminderTimer;
@@ -113,6 +117,14 @@ public sealed class TrayViewModel : ViewModelBase
 
     /// <summary>Observable list of active and recently completed file transfers.</summary>
     public ObservableCollection<ActiveTransferViewModel> ActiveTransfers => _activeTransfers;
+
+    // ── Events ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Raised when the user requests opening the quick-reply window for a channel.
+    /// Arguments: (channelId, channelDisplayName, serverBaseUrl).
+    /// </summary>
+    internal event Action<string, string, string>? OpenQuickReplyRequested;
 
     // ── Constructor ───────────────────────────────────────────────────────
 
@@ -390,6 +402,10 @@ public sealed class TrayViewModel : ViewModelBase
         if (string.IsNullOrWhiteSpace(e.ChannelId))
             return;
 
+        // Track channel display name for use by quick-reply and notification activation.
+        if (!string.IsNullOrWhiteSpace(e.ChannelDisplayName))
+            _chatChannelNames[e.ChannelId] = e.ChannelDisplayName;
+
         if (IsMuteChatNotifications)
             return;
 
@@ -397,7 +413,7 @@ public sealed class TrayViewModel : ViewModelBase
         var senderName = string.IsNullOrWhiteSpace(e.SenderDisplayName) ? "Unknown sender" : e.SenderDisplayName;
         var preview = string.IsNullOrWhiteSpace(e.MessagePreview) ? "(no preview)" : e.MessagePreview;
         var notificationType = e.IsMention ? NotificationType.Mention : NotificationType.Chat;
-        var actionUrl = GetChatAppUrl();
+        var actionUrl = GetChatChannelUrl(e.ChannelId);
         var channelKey = $"chat-channel-{e.ChannelId}";
 
         _notifications.ShowNotification(
@@ -412,9 +428,40 @@ public sealed class TrayViewModel : ViewModelBase
     private void OnNotificationActivated(string actionUrl)
     {
         _logger.LogDebug("Notification activated: {Url}", actionUrl);
+
+        // Parse the channelId query parameter from the action URL and open quick reply.
+        if (!Uri.TryCreate(actionUrl, UriKind.Absolute, out var uri))
+            return;
+
+        var channelId = ParseChannelIdFromQuery(uri.Query);
+        if (string.IsNullOrWhiteSpace(channelId))
+            return;
+
+        var serverBaseUrl = _accountList.FirstOrDefault()?.ServerBaseUrl;
+        if (string.IsNullOrWhiteSpace(serverBaseUrl))
+            return;
+
+        _chatChannelNames.TryGetValue(channelId, out var channelName);
+        OpenQuickReplyRequested?.Invoke(channelId, channelName ?? "Chat", serverBaseUrl);
     }
 
-    private string? GetChatAppUrl()
+    private static string? ParseChannelIdFromQuery(string query)
+    {
+        // uri.Query includes the leading '?'; strip it.
+        var parts = query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var part in parts)
+        {
+            var eqIdx = part.IndexOf('=');
+            if (eqIdx < 0)
+                continue;
+            var key = part[..eqIdx];
+            if (key.Equals("channelId", StringComparison.OrdinalIgnoreCase))
+                return Uri.UnescapeDataString(part[(eqIdx + 1)..]);
+        }
+        return null;
+    }
+
+    private string? GetChatChannelUrl(string channelId)
     {
         var serverBaseUrl = _accountList.FirstOrDefault()?.ServerBaseUrl;
         if (string.IsNullOrWhiteSpace(serverBaseUrl))
@@ -423,8 +470,33 @@ public sealed class TrayViewModel : ViewModelBase
         if (!Uri.TryCreate(serverBaseUrl, UriKind.Absolute, out var baseUri))
             return null;
 
-        return new Uri(baseUri, "/apps/chat").ToString();
+        return new Uri(baseUri, $"/apps/chat?channelId={Uri.EscapeDataString(channelId)}").ToString();
     }
+
+    /// <summary>
+    /// Returns the channel ID with the highest unread count, or <c>null</c> when
+    /// there are no unread channels.  Used by the tray menu quick-reply item.
+    /// </summary>
+    internal string? GetMostRecentChannelId()
+    {
+        if (_chatUnreadByChannel.Count == 0)
+            return null;
+
+        // Prefer channels with mentions; fall back to highest unread count.
+        var best = _chatUnreadByChannel.Values
+            .OrderByDescending(v => v.HasMention ? 1 : 0)
+            .ThenByDescending(v => v.UnreadCount)
+            .FirstOrDefault();
+
+        return best?.ChannelId;
+    }
+
+    /// <summary>
+    /// Returns the display name for the given channel, or <c>"Chat"</c> when
+    /// no name has been received yet.
+    /// </summary>
+    internal string GetChannelDisplayName(string channelId)
+        => _chatChannelNames.TryGetValue(channelId, out var name) ? name : "Chat";
 
     /// <summary>
     /// Periodic check: if unresolved conflicts exist and the last notification
