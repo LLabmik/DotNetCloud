@@ -128,6 +128,12 @@ Archived context:
    - Result: `total: 1, failed: 0, succeeded: 0, skipped: 1`
    - Skip reason unchanged: `Assert.Inconclusive failed. DOTNETCLOUD_E2E_BEARER_TOKEN is not set.`
 
+**Latest resume check after pull (2026-03-10, Windows11-TestDNC):**
+- One-pass checklist step 1 executed (token presence gate):
+   - `DOTNETCLOUD_E2E_BEARER_TOKEN=MISSING`
+- Per checklist, live probe execution was not started in this pass because token is absent.
+- Blocking requirement remains unchanged: obtain fresh mobile OAuth access token, set env var, then run the Live filter test while sender triggers one chat message event.
+
 **Next action to complete live E2E:**
 1. Obtain fresh mobile user access token from Android OAuth login (`dotnetcloud-mobile`, auth-code + PKCE).
 2. Set PowerShell env var on client machine:
