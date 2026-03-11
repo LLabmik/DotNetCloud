@@ -3227,10 +3227,10 @@ This phase implements real-time chat, announcements, push notifications, and the
 **Add chat functionality to the existing desktop tray application**
 
 #### Desktop Chat Notifications
-- ✓ Add chat notification popups (current implementation: Windows balloon tip / Linux libnotify)
+- ✓ Add chat notification popups (current implementation: Windows toast / Linux libnotify)
 - ✓ Display message preview in notification
 - ✓ Click notification to open chat in web browser
-- ☐ Migrate Windows notifications to Windows toast notifications
+- ✓ Migrate Windows notifications to Windows toast notifications
 - ☐ Support notification grouping per channel
 - ✓ Respect DND/mute settings
 

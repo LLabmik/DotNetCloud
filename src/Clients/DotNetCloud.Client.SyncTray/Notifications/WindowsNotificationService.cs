@@ -1,114 +1,25 @@
 using System.Diagnostics;
-using System.Runtime.InteropServices;
+using System.Text;
 using System.Runtime.Versioning;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Client.SyncTray.Notifications;
 
 /// <summary>
-/// Windows notification service that shows a Shell balloon tooltip via
-/// <c>Shell_NotifyIcon</c> through a hidden message-only window.
+/// Windows notification service that delivers Windows toast notifications.
 /// </summary>
 [SupportedOSPlatform("windows")]
-internal sealed class WindowsNotificationService : INotificationService, IDisposable
+internal sealed class WindowsNotificationService : INotificationService
 {
-    // ── Win32 constants ───────────────────────────────────────────────────
-
-    private const int WmUser = 0x0400;
-    private const uint NimAdd = 0x00000000;
-    private const uint NimModify = 0x00000001;
-    private const uint NimDelete = 0x00000002;
-    private const uint NifMessage = 0x00000001;
-    private const uint NifIcon = 0x00000002;
-    private const uint NifTip = 0x00000004;
-    private const uint NifInfo = 0x00000010;
-    private const uint NiifInfo = 0x00000001;
-    private const uint NiifWarning = 0x00000002;
-    private const uint NiifError = 0x00000003;
-    private const uint NiifNosound = 0x00000010;
-    private const int NinBalloonUserClick = WmUser + 5;
-    private const int GwlpWndProc = -4;
-
-    // ── P/Invoke ──────────────────────────────────────────────────────────
-
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private struct NotifyIconData
-    {
-        public uint cbSize;
-        public IntPtr hWnd;
-        public uint uID;
-        public uint uFlags;
-        public uint uCallbackMessage;
-        public IntPtr hIcon;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
-        public string szTip;
-        public uint dwState;
-        public uint dwStateMask;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
-        public string szInfo;
-        public uint uTimeout;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)]
-        public string szInfoTitle;
-        public uint dwInfoFlags;
-    }
-
-    [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern bool Shell_NotifyIcon(uint dwMessage, ref NotifyIconData lpdata);
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern IntPtr CreateWindowEx(
-        uint dwExStyle, string lpClassName, string lpWindowName,
-        uint dwStyle, int x, int y, int nWidth, int nHeight,
-        IntPtr hWndParent, IntPtr hMenu, IntPtr hInstance, IntPtr lpParam);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern bool DestroyWindow(IntPtr hWnd);
-
-    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)]
-    private static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
-
-    [DllImport("user32.dll", EntryPoint = "CallWindowProcW")]
-    private static extern IntPtr CallWindowProc(IntPtr lpPrevWndFunc, IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
-
-    private const string WcStatic = "STATIC";
-    private const IntPtr HwndMessage = unchecked((IntPtr)(-3));
-
-    // ── State ─────────────────────────────────────────────────────────────
-
     private readonly ILogger<INotificationService> _logger;
-    private readonly IntPtr _hWnd;
-    private readonly WndProcDelegate _windowProc;
-    private IntPtr _previousWindowProc;
-    private readonly uint _callbackMessage = WmUser + 1;
-    private string? _pendingActionUrl;
-    private bool _iconAdded;
-    private bool _disposed;
 
     /// <inheritdoc/>
     public Action<string>? OnNotificationActivated { get; set; }
 
-    private delegate IntPtr WndProcDelegate(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
-
-    /// <summary>Initializes the service and creates a message-only window for balloon tips.</summary>
+    /// <summary>Initializes the service and registers toast activation handling.</summary>
     public WindowsNotificationService(ILogger<INotificationService> logger)
     {
         _logger = logger;
-        _windowProc = WindowProc;
-
-        // Create a hidden message-only window to host the Shell notification icon.
-        _hWnd = CreateWindowEx(0, WcStatic, "DotNetCloud.SyncTray.Notify",
-            0, 0, 0, 0, 0, HwndMessage, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
-
-        if (_hWnd == IntPtr.Zero)
-        {
-            _logger.LogWarning("Failed to create notification HWND (error {Code}). Notifications will be silent.",
-                Marshal.GetLastWin32Error());
-            return;
-        }
-
-        _previousWindowProc = SetWindowLongPtr(_hWnd, GwlpWndProc, Marshal.GetFunctionPointerForDelegate(_windowProc));
-
-        AddIcon();
     }
 
     // ── INotificationService ──────────────────────────────────────────────
@@ -116,112 +27,99 @@ internal sealed class WindowsNotificationService : INotificationService, IDispos
     /// <inheritdoc/>
     public void ShowNotification(string title, string body, NotificationType type = NotificationType.Info, string? actionUrl = null)
     {
-        if (_disposed || !_iconAdded) return;
-
-        _pendingActionUrl = actionUrl;
-
-        var infoFlags = type switch
+        try
         {
-            NotificationType.Chat => NiifInfo,
-            NotificationType.Mention => NiifWarning,
-            NotificationType.Warning => NiifWarning,
-            NotificationType.Error => NiifError,
-            _ => NiifInfo,
-        } | NiifNosound;
+            var safeTitle = string.IsNullOrWhiteSpace(title) ? "DotNetCloud" : title;
+            var safeBody = string.IsNullOrWhiteSpace(body) ? " " : body;
+            var toastXml = BuildToastXml(safeTitle, safeBody, actionUrl, type);
+            var script = BuildToastScript(toastXml);
+            var encodedScript = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
 
-        var data = BuildData();
-        data.uFlags = NifInfo;
-        data.szInfoTitle = title.Length > 63 ? title[..63] : title;
-        data.szInfo = body.Length > 255 ? body[..255] : body;
-        data.uTimeout = 5000;
-        data.dwInfoFlags = infoFlags;
-
-        if (!Shell_NotifyIcon(NimModify, ref data))
+            using var process = Process.Start(new ProcessStartInfo("powershell.exe")
+            {
+                ArgumentList =
+                {
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-EncodedCommand",
+                    encodedScript,
+                },
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            });
+        }
+        catch (Exception ex)
         {
-            _logger.LogDebug("Shell_NotifyIcon(NIM_MODIFY) for balloon tip failed (error {Code}).",
-                Marshal.GetLastWin32Error());
+            _logger.LogWarning(ex, "Failed to display Windows toast notification.");
         }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
 
-    private void AddIcon()
+    private static string BuildToastXml(string title, string body, string? actionUrl, NotificationType type)
     {
-        var data = BuildData();
-        data.uFlags = NifMessage | NifTip;
-        data.uCallbackMessage = _callbackMessage;
-        data.szTip = "DotNetCloud Sync";
+        var escapedTitle = EscapeXml(title);
+        var escapedBody = EscapeXml(body);
+        var attribution = type is NotificationType.Mention or NotificationType.Warning or NotificationType.Error
+            ? $"<text placement='attribution'>{EscapeXml(type.ToString())}</text>"
+            : string.Empty;
 
-        _iconAdded = Shell_NotifyIcon(NimAdd, ref data);
-        if (!_iconAdded)
-        {
-            _logger.LogWarning("Shell_NotifyIcon(NIM_ADD) failed (error {Code}). Balloon notifications disabled.",
-                Marshal.GetLastWin32Error());
-        }
+        var actionBlock = string.IsNullOrWhiteSpace(actionUrl)
+            ? string.Empty
+            : $"<actions><action content='Open Chat' arguments='{EscapeXml(actionUrl)}' activationType='protocol'/></actions>";
+
+        return $"""
+<toast>
+  <visual>
+    <binding template='ToastGeneric'>
+      <text>{escapedTitle}</text>
+      <text>{escapedBody}</text>
+            {attribution}
+    </binding>
+  </visual>
+  {actionBlock}
+  <audio silent='true'/>
+</toast>
+""";
     }
 
-    private void RemoveIcon()
-    {
-        if (!_iconAdded) return;
-        var data = BuildData();
-        Shell_NotifyIcon(NimDelete, ref data);
-        _iconAdded = false;
-    }
-
-    private NotifyIconData BuildData() => new()
-    {
-        cbSize = (uint)Marshal.SizeOf<NotifyIconData>(),
-        hWnd = _hWnd,
-        uID = 1,
-    };
-
-    private IntPtr WindowProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
-    {
-        if (msg == _callbackMessage)
+        private static string BuildToastScript(string toastXml)
         {
-            var eventCode = unchecked((int)lParam.ToInt64());
-            if (eventCode == NinBalloonUserClick && !string.IsNullOrWhiteSpace(_pendingActionUrl))
-            {
-                TryOpenUrl(_pendingActionUrl);
-                OnNotificationActivated?.Invoke(_pendingActionUrl);
-            }
+                var escapedXml = toastXml.Replace("@", "@@", StringComparison.Ordinal);
+
+                return $"""
+[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null
+[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] > $null
+
+$toastXml = @"
+{escapedXml}
+"@
+
+$xml = New-Object Windows.Data.Xml.Dom.XmlDocument
+$xml.LoadXml($toastXml)
+
+$toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
+$toast.ExpirationTime = [DateTimeOffset]::Now.AddSeconds(5)
+
+$notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('DotNetCloud.SyncTray')
+$notifier.Show($toast)
+""";
         }
 
-        return _previousWindowProc != IntPtr.Zero
-            ? CallWindowProc(_previousWindowProc, hWnd, msg, wParam, lParam)
-            : IntPtr.Zero;
-    }
-
-    private void TryOpenUrl(string url)
+    private static string EscapeXml(string value)
     {
-        try
+        if (string.IsNullOrEmpty(value))
         {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = url,
-                UseShellExecute = true,
-            });
+            return string.Empty;
         }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Failed to open URL from activated notification.");
-        }
-    }
 
-    // ── Disposal ──────────────────────────────────────────────────────────
-
-    /// <inheritdoc/>
-    public void Dispose()
-    {
-        if (_disposed) return;
-        _disposed = true;
-
-        RemoveIcon();
-
-        if (_hWnd != IntPtr.Zero && _previousWindowProc != IntPtr.Zero)
-            SetWindowLongPtr(_hWnd, GwlpWndProc, _previousWindowProc);
-
-        if (_hWnd != IntPtr.Zero)
-            DestroyWindow(_hWnd);
+        return value
+            .Replace("&", "&amp;", StringComparison.Ordinal)
+            .Replace("<", "&lt;", StringComparison.Ordinal)
+            .Replace(">", "&gt;", StringComparison.Ordinal)
+            .Replace("\"", "&quot;", StringComparison.Ordinal)
+            .Replace("'", "&apos;", StringComparison.Ordinal);
     }
 }

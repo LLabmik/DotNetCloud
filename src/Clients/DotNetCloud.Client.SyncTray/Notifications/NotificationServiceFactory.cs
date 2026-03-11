@@ -12,7 +12,7 @@ public static class NotificationServiceFactory
     /// <summary>
     /// Creates the platform-appropriate <see cref="INotificationService"/>.
     /// <list type="bullet">
-    ///   <item><description>Windows — Shell balloon tip via <c>Shell_NotifyIcon</c></description></item>
+    ///   <item><description>Windows — native Windows toast notifications</description></item>
     ///   <item><description>Linux   — <c>notify-send</c> subprocess</description></item>
     ///   <item><description>Other   — no-op fallback</description></item>
     /// </list>
