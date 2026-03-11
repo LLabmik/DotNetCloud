@@ -20,6 +20,7 @@ Archived context:
 - Put all technical findings, debugging conclusions, and next-step details in this document.
 - Assistant (current agent) commits their findings/work and updates the **Active Handoff** section with actionable next steps for the other client.
 - Assistant pushes commits to `main`.
+- Unexpected untracked content rule (MANDATORY): remove unexpected untracked files/directories before commit; only keep intentional tracked changes for the handoff update.
 - Handoff readiness gate (MANDATORY): all executable tests must pass before marking a handoff as ready.
 - Environment-gated tests are allowed to be skipped, but must be explicitly identified as gated with the required environment/runtime prerequisites documented in the handoff.
 - Runtime verification gate (MANDATORY): before declaring a server-side blocker fixed, verify the running service is on current binaries (not stale publish output) and document the verification command/output in handoff notes.
@@ -102,6 +103,14 @@ Archived context:
 - Optional env vars for controlled assertions:
    - `DOTNETCLOUD_E2E_BASE_URL` (default `https://mint22:15443`)
    - `DOTNETCLOUD_E2E_EXPECTED_CHANNEL_ID`
+
+**Latest local execution evidence (2026-03-10, Windows11-TestDNC):**
+- Verified token env var status:
+   - PowerShell check returned `MISSING` for `DOTNETCLOUD_E2E_BEARER_TOKEN`.
+- Re-ran live probe with detailed logs:
+   - `dotnet test tests/DotNetCloud.Client.Android.Tests/DotNetCloud.Client.Android.Tests.csproj -c Release --filter "Live" --logger "console;verbosity=detailed"`
+   - Result: `total: 1, failed: 0, succeeded: 0, skipped: 1`
+   - Skip reason (explicit): `Assert.Inconclusive failed. DOTNETCLOUD_E2E_BEARER_TOKEN is not set.`
 
 **Next action to complete live E2E:**
 1. Obtain fresh mobile user access token from Android OAuth login (`dotnetcloud-mobile`, auth-code + PKCE).
