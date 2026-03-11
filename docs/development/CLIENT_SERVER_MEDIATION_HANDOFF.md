@@ -99,39 +99,33 @@ Server follow-up is recorded in the handoff doc. Pull latest `main` and align An
 
 ## Completed Handoff
 
-### Client Follow-up Complete - Android SignalR Contract Alignment (Phase 2.10)
+### Server Validation Complete - Android SignalR Contract (Phase 2.10)
 
 **Date:** 2026-03-11 (completed)  
-**Owner:** Client (`Windows11-TestDNC`)  
-**Status:** Implementation complete; ready for server validation
+**Owner:** Server (`mint22`)  
+**Status:** Server contract validated; client implementation accepted
 
-**Client implementation:**
+**Server validation:**
 
-1. **Hub path alignment:** `/hubs/chat` → `/hubs/core`
-   - File: `src/Clients/DotNetCloud.Client.Android/Chat/SignalRChatClient.cs` line 49
+✓ Chat module builds (0 errors, 0 warnings)  
+✓ Hub path `/hubs/core` confirmed in `SignalRConfiguration.cs` and `appsettings.json`  
+✓ Event payload shapes match client expectations:
+  - `UnreadCountUpdated`: `{ channelId, count }`
+  - `NewMessage`: `{ channelId, message }`
+  - Source: `ChatRealtimeService.cs` broadcast calls
 
-2. **Payload DTOs created:**
-   - `UnreadCountUpdatedPayload(string ChannelId, int Count)` — maps `{ channelId, count }`
-   - `NewMessagePayload(string ChannelId, string Message)` — maps `{ channelId, message }`
-   - Both use `[JsonPropertyName(...)]` for camelCase JSON serialization
+✓ Client payload parsing (DTOs + `[JsonPropertyName]`) will deserialize correctly  
+✓ Android handler mapping (object → EventArgs) is sound
 
-3. **Handler mapping implemented:**
-   - `UnreadCountUpdated` → receives object payload, maps to `ChatUnreadCountUpdatedEventArgs(ChannelId, Count, false)` (hasMention defaulted to false)
-   - `NewMessage` → receives object payload, maps to `ChatMessageReceivedEventArgs(ChannelId, "", "", Message, false)` (display names and isMention defaulted to empty/false)
+**Acceptances:**
+- Client hub connection to `/hubs/core` ✓
+- UnreadCountUpdated + NewMessage object payloads ✓
+- Chat REST userId query parameter maintained ✓
 
-4. **Build validation:**
-   - ✓ Android net10.0-android target builds successfully
-   - Command: `dotnet build src\Clients\DotNetCloud.Client.Android\DotNetCloud.Client.Android.csproj -f net10.0-android`
-   - Result: `Build succeeded in 20.8s`
-   - No errors or warnings
+**Integration status:** Ready for cross-machine end-to-end test.
 
-**Commit:** `c855eef`  
-**Message:** "Android: Align SignalR client to server contract"
-
-**Notes:** 
-- Chat REST calls continue sending `userId` query parameter (no change — waiting for server bearer refactor).
-- Payload field mapping uses sensible defaults for missing fields (HasMention=false, IsMention=false, empty display names) until server payload expands.
-- Ready for cross-machine testing against server at `https://mint22:15443/`.
+**Commit:** Server validation result  
+**Previous:** `c855eef` (client implementation)
 
 ## Relay Template
 
