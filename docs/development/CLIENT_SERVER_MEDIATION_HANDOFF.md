@@ -137,6 +137,25 @@ Archived context:
 4. Trigger sender-side event:
    - `POST /api/v1/chat/channels/{channelId}/messages?userId={senderUserId}` with bearer token.
 
+**One-pass runtime checklist (Windows11-TestDNC):**
+- Verify token var is present before test:
+   - `$env:DOTNETCLOUD_E2E_BEARER_TOKEN`
+   - If blank, stop and reacquire token first.
+- Optional strict channel assertion:
+   - `$env:DOTNETCLOUD_E2E_EXPECTED_CHANNEL_ID = "<channelId>"`
+- Run live probe with detailed console:
+   - `dotnet test tests/DotNetCloud.Client.Android.Tests/DotNetCloud.Client.Android.Tests.csproj -c Release --filter "Live" --logger "console;verbosity=detailed"`
+- While test is waiting, send one message event:
+   - `POST /api/v1/chat/channels/{channelId}/messages?userId={senderUserId}`
+- Success evidence to return:
+   - test line indicating hub connection started/completed
+   - test line(s) showing `UnreadCountUpdated`
+   - test line(s) showing `NewMessage`
+- Failure evidence to return:
+   - exact test output line (auth or timeout)
+   - exact authorize URL/query used by Android login flow
+   - exact sender endpoint used for trigger
+
 **Request back (server/moderator relay):**
 - commit hash from runtime run machine
 - live output lines showing connection + `UnreadCountUpdated` + `NewMessage`
