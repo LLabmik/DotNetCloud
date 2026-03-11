@@ -1,8 +1,23 @@
 using DotNetCloud.Client.Core;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
+using System.Text.Json.Serialization;
 
 namespace DotNetCloud.Client.Android.Chat;
+
+/// <summary>
+/// Server payload for unread count updates: { channelId, count }.
+/// </summary>
+internal sealed record UnreadCountUpdatedPayload(
+    [property: JsonPropertyName("channelId")] string ChannelId,
+    [property: JsonPropertyName("count")] int Count);
+
+/// <summary>
+/// Server payload for new messages: { channelId, message }.
+/// </summary>
+internal sealed record NewMessagePayload(
+    [property: JsonPropertyName("channelId")] string ChannelId,
+    [property: JsonPropertyName("message")] string Message);
 
 /// <summary>
 /// <see cref="IChatSignalRClient"/> implementation that maintains a persistent SignalR
@@ -35,7 +50,7 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
         if (_hub is not null)
             await _hub.DisposeAsync().ConfigureAwait(false);
 
-        var hubUrl = $"{serverBaseUrl.TrimEnd('/')}/hubs/chat";
+        var hubUrl = $"{serverBaseUrl.TrimEnd('/')}/hubs/core";
 
         _hub = new HubConnectionBuilder()
             .WithUrl(hubUrl, options =>
@@ -45,11 +60,11 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
             .WithAutomaticReconnect([TimeSpan.Zero, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(15)])
             .Build();
 
-        _hub.On<string, int, bool>("UnreadCountUpdated", (channelId, count, hasMention) =>
-            OnUnreadCountUpdated?.Invoke(this, new ChatUnreadCountUpdatedEventArgs(channelId, count, hasMention)));
+        _hub.On<UnreadCountUpdatedPayload>("UnreadCountUpdated", payload =>
+            OnUnreadCountUpdated?.Invoke(this, new ChatUnreadCountUpdatedEventArgs(payload.ChannelId, payload.Count, false)));
 
-        _hub.On<string, string, string, string, bool>("NewMessage", (channelId, channelName, sender, preview, isMention) =>
-            OnNewChatMessage?.Invoke(this, new ChatMessageReceivedEventArgs(channelId, channelName, sender, preview, isMention)));
+        _hub.On<NewMessagePayload>("NewMessage", payload =>
+            OnNewChatMessage?.Invoke(this, new ChatMessageReceivedEventArgs(payload.ChannelId, string.Empty, string.Empty, payload.Message, false)));
 
         _hub.Reconnected += connectionId =>
         {
