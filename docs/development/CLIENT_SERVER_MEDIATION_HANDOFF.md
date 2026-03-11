@@ -85,6 +85,39 @@ Next prioritized implementation target is `phase-2.4` (Chat REST API Endpoints).
 
 ## Active Handoff
 
+### Client Handoff — Android Contract Alignment (Phase 2.10)
+
+**Date:** 2026-03-10  
+**Owner:** Client (`Windows workspace`)  
+**Status:** ready for server follow-up 🔄
+
+**Summary of client-side alignment completed:**
+- Android chat REST client updated to `api/v1/chat` routes.
+- Request parsing updated for server envelope shapes (`success`, `data`, paged payloads).
+- `userId` query now supplied on chat/push endpoints by extracting GUID `sub` from access token.
+- Push registration/unregister routes switched to `api/v1/notifications/devices/*` with server DTO field names.
+- Android project build verified after patch (`dotnet build ... -f net10.0-android` succeeded).
+
+**Files changed (client):**
+- `src/Clients/DotNetCloud.Client.Android/Chat/HttpChatRestClient.cs`
+- `src/Clients/DotNetCloud.Client.Android/Services/AccessTokenUserIdExtractor.cs` (new)
+- `src/Clients/DotNetCloud.Client.Android/Services/FcmPushService.cs`
+- `src/Clients/DotNetCloud.Client.Android/Services/UnifiedPushService.cs`
+
+**Server-side follow-up needed (blockers for full end-to-end):**
+1. **OIDC client registration for mobile:** Android uses `client_id=dotnetcloud-mobile` + redirect `net.dotnetcloud.client://oauth2redirect`; server seeder currently registers only desktop client (`dotnetcloud-desktop` + localhost redirect).
+2. **SignalR contract confirmation:** Android currently expects chat-focused hub patterns; server real-time default hub path is `/hubs/core` and event/method naming needs explicit compatibility confirmation for unread/new-message paths.
+3. **Caller identity contract decision:** Current chat host requires `userId` query on most endpoints. If server intends bearer-derived caller identity (no query), publish that change before Android auth hardening is finalized.
+
+### Send to Server Agent
+New client contract-alignment patch is on `main`. Please pull and continue with server follow-up for mobile OIDC client seeding, SignalR event contract confirmation, and caller identity strategy (query vs bearer-derived).
+
+### Request Back
+- commit hash
+- confirmed OIDC client IDs + redirect URIs for Android
+- confirmed SignalR hub path + event names for unread/new-message
+- final caller identity contract for chat REST endpoints (requires `userId` query or not)
+
 ### Client Handoff - Phase 2.9/2.10 Closeout (Windows workspace)
 
 **Date:** 2026-03-10  

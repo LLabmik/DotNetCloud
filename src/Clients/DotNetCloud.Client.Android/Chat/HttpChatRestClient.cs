@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DotNetCloud.Client.Android.Services;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Client.Android.Chat;
@@ -33,9 +34,10 @@ internal sealed class HttpChatRestClient : IChatRestClient
         string serverBaseUrl, string accessToken, CancellationToken ct = default)
     {
         SetAuth(accessToken);
-        var url = $"{serverBaseUrl.TrimEnd('/')}/api/chat/channels";
-        var result = await _http.GetFromJsonAsync<List<ChannelSummaryDto>>(url, JsonOpts, ct).ConfigureAwait(false);
-        return (result ?? []).Select(ToChannelSummary).ToList();
+        var userId = AccessTokenUserIdExtractor.ExtractUserId(accessToken);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels?userId={userId}";
+        var envelope = await _http.GetFromJsonAsync<Envelope<List<ChannelSummaryDto>>>(url, JsonOpts, ct).ConfigureAwait(false);
+        return (envelope?.Data ?? []).Select(ToChannelSummary).ToList();
     }
 
     /// <inheritdoc />
@@ -45,11 +47,14 @@ internal sealed class HttpChatRestClient : IChatRestClient
         CancellationToken ct = default)
     {
         SetAuth(accessToken);
-        var url = $"{serverBaseUrl.TrimEnd('/')}/api/chat/channels/{channelId}/messages?pageSize={pageSize}";
-        if (beforeId.HasValue) url += $"&beforeId={beforeId.Value}";
+        var userId = AccessTokenUserIdExtractor.ExtractUserId(accessToken);
+        if (beforeId.HasValue)
+            _logger.LogDebug("GetMessagesAsync currently ignores beforeId; server API uses page/pageSize pagination.");
 
-        var result = await _http.GetFromJsonAsync<List<ChatMessageDto>>(url, JsonOpts, ct).ConfigureAwait(false);
-        return (result ?? []).Select(ToChatMessage).ToList();
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels/{channelId}/messages?userId={userId}&page=1&pageSize={pageSize}";
+
+        var envelope = await _http.GetFromJsonAsync<PagedEnvelope<ChatMessageDto>>(url, JsonOpts, ct).ConfigureAwait(false);
+        return (envelope?.Data ?? []).Select(ToChatMessage).ToList();
     }
 
     /// <inheritdoc />
@@ -58,12 +63,15 @@ internal sealed class HttpChatRestClient : IChatRestClient
         Guid channelId, string content, CancellationToken ct = default)
     {
         SetAuth(accessToken);
-        var url = $"{serverBaseUrl.TrimEnd('/')}/api/chat/channels/{channelId}/messages";
+        var userId = AccessTokenUserIdExtractor.ExtractUserId(accessToken);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels/{channelId}/messages?userId={userId}";
         using var response = await _http.PostAsJsonAsync(url, new { Content = content }, ct).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
-        var dto = await response.Content.ReadFromJsonAsync<ChatMessageDto>(JsonOpts, ct).ConfigureAwait(false)
-                  ?? throw new InvalidOperationException("Empty response from send message.");
-        return ToChatMessage(dto);
+        var envelope = await response.Content.ReadFromJsonAsync<Envelope<ChatMessageDto>>(JsonOpts, ct).ConfigureAwait(false)
+                       ?? throw new InvalidOperationException("Empty response from send message.");
+        return envelope.Data is null
+            ? throw new InvalidOperationException("Send message response did not include data.")
+            : ToChatMessage(envelope.Data);
     }
 
     /// <inheritdoc />
@@ -72,8 +80,9 @@ internal sealed class HttpChatRestClient : IChatRestClient
         Guid channelId, Guid messageId, CancellationToken ct = default)
     {
         SetAuth(accessToken);
-        var url = $"{serverBaseUrl.TrimEnd('/')}/api/chat/channels/{channelId}/read";
-        using var response = await _http.PostAsJsonAsync(url, new { MessageId = messageId }, ct).ConfigureAwait(false);
+        var userId = AccessTokenUserIdExtractor.ExtractUserId(accessToken);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels/{channelId}/read?userId={userId}";
+        using var response = await _http.PostAsJsonAsync(url, new { messageId }, ct).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
             _logger.LogWarning("MarkRead returned {StatusCode} for channel {ChannelId}.", response.StatusCode, channelId);
     }
@@ -84,7 +93,8 @@ internal sealed class HttpChatRestClient : IChatRestClient
         Guid channelId, CancellationToken ct = default)
     {
         SetAuth(accessToken);
-        var url = $"{serverBaseUrl.TrimEnd('/')}/api/chat/channels/{channelId}/typing";
+        var userId = AccessTokenUserIdExtractor.ExtractUserId(accessToken);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels/{channelId}/typing?userId={userId}";
         using var response = await _http.PostAsync(url, null, ct).ConfigureAwait(false);
         // Typing indicator is best-effort; swallow non-success silently.
     }
@@ -100,6 +110,18 @@ internal sealed class HttpChatRestClient : IChatRestClient
 
     private static ChatMessage ToChatMessage(ChatMessageDto d) =>
         new(d.Id, d.ChannelId, d.SenderName, d.Content, d.SentAt, d.IsEdited);
+
+    private sealed class Envelope<T>
+    {
+        public bool Success { get; init; }
+        public T? Data { get; init; }
+    }
+
+    private sealed class PagedEnvelope<T>
+    {
+        public bool Success { get; init; }
+        public List<T>? Data { get; init; }
+    }
 
     private sealed class ChannelSummaryDto
     {

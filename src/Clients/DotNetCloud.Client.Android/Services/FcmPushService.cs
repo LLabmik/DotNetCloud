@@ -37,9 +37,10 @@ internal sealed class FcmPushService : IPushNotificationService
 
         _http.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+        var userId = AccessTokenUserIdExtractor.ExtractUserId(accessToken);
 
-        var endpoint = $"{serverBaseUrl.TrimEnd('/')}/api/push/register";
-        var body = new { Token = fcmToken, Provider = "fcm", Platform = "android" };
+        var endpoint = $"{serverBaseUrl.TrimEnd('/')}/api/v1/notifications/devices/register?userId={userId}";
+        var body = new { DeviceToken = fcmToken, Provider = "Fcm", Endpoint = (string?)null };
 
         using var response = await _http.PostAsJsonAsync(endpoint, body, ct).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
@@ -53,9 +54,14 @@ internal sealed class FcmPushService : IPushNotificationService
     {
         _http.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+        var userId = AccessTokenUserIdExtractor.ExtractUserId(accessToken);
 
-        var endpoint = $"{serverBaseUrl.TrimEnd('/')}/api/push/unregister";
-        using var response = await _http.PostAsync(endpoint, null, ct).ConfigureAwait(false);
+        var fcmToken = await GetFcmTokenAsync(ct).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(fcmToken))
+            return;
+
+        var endpoint = $"{serverBaseUrl.TrimEnd('/')}/api/v1/notifications/devices/{Uri.EscapeDataString(fcmToken)}?userId={userId}";
+        using var response = await _http.DeleteAsync(endpoint, ct).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
             _logger.LogWarning("Push unregister returned {StatusCode}.", response.StatusCode);
     }

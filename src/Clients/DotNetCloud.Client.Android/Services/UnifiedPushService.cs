@@ -34,9 +34,10 @@ internal sealed class UnifiedPushService : IPushNotificationService
 
         _http.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+        var userId = AccessTokenUserIdExtractor.ExtractUserId(accessToken);
 
-        var apiEndpoint = $"{serverBaseUrl.TrimEnd('/')}/api/push/register";
-        var body = new { Token = endpoint, Provider = "unified-push", Platform = "android" };
+        var apiEndpoint = $"{serverBaseUrl.TrimEnd('/')}/api/v1/notifications/devices/register?userId={userId}";
+        var body = new { DeviceToken = endpoint, Provider = "UnifiedPush", Endpoint = endpoint };
 
         using var response = await _http.PostAsJsonAsync(apiEndpoint, body, ct).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
@@ -50,9 +51,14 @@ internal sealed class UnifiedPushService : IPushNotificationService
     {
         _http.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+        var userId = AccessTokenUserIdExtractor.ExtractUserId(accessToken);
 
-        var endpoint = $"{serverBaseUrl.TrimEnd('/')}/api/push/unregister";
-        using var response = await _http.PostAsync(endpoint, null, ct).ConfigureAwait(false);
+        var endpointToken = await UnifiedPushReceiver.GetEndpointAsync(ct).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(endpointToken))
+            return;
+
+        var endpoint = $"{serverBaseUrl.TrimEnd('/')}/api/v1/notifications/devices/{Uri.EscapeDataString(endpointToken)}?userId={userId}";
+        using var response = await _http.DeleteAsync(endpoint, ct).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
             _logger.LogWarning("Push unregister returned {StatusCode}.", response.StatusCode);
     }
