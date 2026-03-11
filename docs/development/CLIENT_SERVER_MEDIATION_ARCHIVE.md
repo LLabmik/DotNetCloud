@@ -2094,3 +2094,22 @@ Update `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` — mark all four i
 Completed Batch 5 implementation details were archived to
 `docs/development/CLIENT_SERVER_MEDIATION_ARCHIVE.md` under
 `Resolved Issues Archive (Batch 5, archived 2026-03-10)`.
+
+---
+
+## Handoff Compaction Archive (2026-03-11)
+
+Archived from `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` when enforcing single-active-task policy.
+
+### Archived completed task summaries
+
+1. Server follow-up result: Android contract alignment (Phase 2.10)
+- Confirmed OIDC mobile client seeding (`dotnetcloud-mobile`) and redirects.
+- Confirmed SignalR contract target: `/hubs/core`.
+- Confirmed payload contract: `UnreadCountUpdated { channelId, count }`, `NewMessage { channelId, message }`.
+- Confirmed chat REST still uses `userId` query contract.
+
+2. Server validation complete: Android SignalR contract accepted (Phase 2.10)
+- Server build/test sanity passed for chat module.
+- Client alignment accepted for hub path + object payload handlers.
+- Marked integration-ready for E2E run.
