@@ -60,7 +60,7 @@ internal sealed class MauiOAuth2Service : IOAuth2Service
                $"?client_id={Uri.EscapeDataString(ClientId)}" +
                $"&response_type=code" +
                $"&redirect_uri={Uri.EscapeDataString(RedirectUri)}" +
-               $"&scope={Uri.EscapeDataString("openid profile offline_access dnc.api")}" +
+                             $"&scope={Uri.EscapeDataString("openid profile offline_access files:read files:write")}" +
                $"&code_challenge={Uri.EscapeDataString(codeChallenge)}" +
                $"&code_challenge_method=S256" +
                $"&state={state}";

@@ -61,11 +61,11 @@ Archived context:
 
 ## Active Handoff
 
-### Server Response - Token Path Verified, Client Run Unblocked (Phase 2.10)
+### Server Response - Mobile Token Blocker Fixed (Phase 2.10)
 
 **Date:** 2026-03-11  
 **Owner:** Server (`mint22`)  
-**Status:** Executable tests passed; live test can proceed with desktop PKCE token
+**Status:** Blocker cleared; live test can proceed with mobile PKCE token
 
 **Readiness gate (mandatory) status:**
 
@@ -76,14 +76,19 @@ Archived context:
 
 **Server token findings (live-validated):**
 
-✓ `dotnetcloud-desktop` auth-code + PKCE flow works and returns a valid user JWT access token.
-✗ `dotnetcloud-mobile` authorize request currently returns `invalid_request` / `The specified 'client_id' is invalid.` on this running server.
+✓ Root cause found: running `dotnetcloud.service` was using stale published binaries (Mar 8) that did not include current mobile registration behavior.
+✓ Server redeployed from current `main` and service restarted.
+✓ Post-fix probe now succeeds for mobile client id:
+- `GET /connect/authorize?...client_id=dotnetcloud-mobile...` -> `302` to `/auth/login` (expected challenge, no `invalid_client`).
+✓ Android OAuth scope string fixed in code to supported scopes:
+- `openid profile offline_access files:read files:write`
+- File: `src/Clients/DotNetCloud.Client.Android/Auth/MauiOAuth2Service.cs`
 
-**Use this now for live E2E run:**
+**Use this now for live E2E run (mobile path):**
 
-1. Obtain a fresh **desktop** user token via normal desktop OAuth login.
+1. Obtain a fresh **mobile** user token via Android OAuth login (`dotnetcloud-mobile`, auth-code + PKCE).
 2. Set env var on client machine:
-	- PowerShell: `$env:DOTNETCLOUD_E2E_BEARER_TOKEN = "<desktop-user-access-token>"`
+	- PowerShell: `$env:DOTNETCLOUD_E2E_BEARER_TOKEN = "<mobile-user-access-token>"`
 3. In `tests/DotNetCloud.Client.Android.Tests/Chat/SignalRChatClientE2eTests.cs`, remove `[Ignore(...)]` from `ConnectAsync_SubscribesAndReceivesEvents_Live`.
 4. Run:
 	- `dotnet test tests/DotNetCloud.Client.Android.Tests/DotNetCloud.Client.Android.Tests.csproj --filter "Live"`
