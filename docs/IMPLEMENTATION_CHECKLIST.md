@@ -3231,7 +3231,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Display message preview in notification
 - ✓ Click notification to open chat in web browser
 - ✓ Migrate Windows notifications to Windows toast notifications
-- ☐ Support notification grouping per channel
+- ✓ Support notification grouping per channel
 - ✓ Respect DND/mute settings
 
 #### Tray Icon Badge

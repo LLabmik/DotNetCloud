@@ -25,14 +25,20 @@ internal sealed class WindowsNotificationService : INotificationService
     // ── INotificationService ──────────────────────────────────────────────
 
     /// <inheritdoc/>
-    public void ShowNotification(string title, string body, NotificationType type = NotificationType.Info, string? actionUrl = null)
+    public void ShowNotification(
+        string title,
+        string body,
+        NotificationType type = NotificationType.Info,
+        string? actionUrl = null,
+        string? groupKey = null,
+        string? replaceKey = null)
     {
         try
         {
             var safeTitle = string.IsNullOrWhiteSpace(title) ? "DotNetCloud" : title;
             var safeBody = string.IsNullOrWhiteSpace(body) ? " " : body;
             var toastXml = BuildToastXml(safeTitle, safeBody, actionUrl, type);
-            var script = BuildToastScript(toastXml);
+            var script = BuildToastScript(toastXml, groupKey, replaceKey);
             var encodedScript = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
 
             using var process = Process.Start(new ProcessStartInfo("powershell.exe")
@@ -85,28 +91,49 @@ internal sealed class WindowsNotificationService : INotificationService
 """;
     }
 
-        private static string BuildToastScript(string toastXml)
-        {
-                var escapedXml = toastXml.Replace("@", "@@", StringComparison.Ordinal);
+    private static string BuildToastScript(string toastXml, string? groupKey, string? replaceKey)
+    {
+        var escapedXml = toastXml.Replace("@", "@@", StringComparison.Ordinal);
+        var safeGroupKey = EscapePowerShellSingleQuoted(groupKey);
+        var safeReplaceKey = EscapePowerShellSingleQuoted(replaceKey);
 
-                return $"""
-[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null
-[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] > $null
+        var script = new StringBuilder();
+        script.AppendLine("[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null");
+        script.AppendLine("[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] > $null");
+        script.AppendLine();
+        script.AppendLine("$toastXml = @\"");
+        script.AppendLine(escapedXml);
+        script.AppendLine("\"@");
+        script.AppendLine();
+        script.AppendLine("$xml = New-Object Windows.Data.Xml.Dom.XmlDocument");
+        script.AppendLine("$xml.LoadXml($toastXml)");
+        script.AppendLine();
+        script.AppendLine("$toast = [Windows.UI.Notifications.ToastNotification]::new($xml)");
+        script.AppendLine("$toast.ExpirationTime = [DateTimeOffset]::Now.AddSeconds(5)");
+        script.AppendLine();
+        script.AppendLine($"$groupKey = '{safeGroupKey}'");
+        script.AppendLine("if (-not [string]::IsNullOrWhiteSpace($groupKey)) {");
+        script.AppendLine("    $toast.Group = $groupKey");
+        script.AppendLine("}");
+        script.AppendLine();
+        script.AppendLine($"$replaceKey = '{safeReplaceKey}'");
+        script.AppendLine("if (-not [string]::IsNullOrWhiteSpace($replaceKey)) {");
+        script.AppendLine("    $toast.Tag = $replaceKey");
+        script.AppendLine("}");
+        script.AppendLine();
+        script.AppendLine("$notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('DotNetCloud.SyncTray')");
+        script.AppendLine("$notifier.Show($toast)");
 
-$toastXml = @"
-{escapedXml}
-"@
+        return script.ToString();
+    }
 
-$xml = New-Object Windows.Data.Xml.Dom.XmlDocument
-$xml.LoadXml($toastXml)
+    private static string EscapePowerShellSingleQuoted(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
 
-$toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
-$toast.ExpirationTime = [DateTimeOffset]::Now.AddSeconds(5)
-
-$notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('DotNetCloud.SyncTray')
-$notifier.Show($toast)
-""";
-        }
+        return value.Replace("'", "''", StringComparison.Ordinal);
+    }
 
     private static string EscapeXml(string value)
     {

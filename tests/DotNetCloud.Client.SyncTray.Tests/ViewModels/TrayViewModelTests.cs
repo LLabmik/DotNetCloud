@@ -98,7 +98,10 @@ public sealed class TrayViewModelTests
             n => n.ShowNotification(
                 It.IsAny<string>(),
                 It.Is<string>(b => b.Contains("conflict")),
-                NotificationType.Warning),
+                NotificationType.Warning,
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>()),
             Times.Once);
     }
 
@@ -125,7 +128,10 @@ public sealed class TrayViewModelTests
             n => n.ShowNotification(
                 It.IsAny<string>(),
                 It.Is<string>(b => b.Contains("Network timeout")),
-                NotificationType.Error),
+                NotificationType.Error,
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>()),
             Times.Once);
     }
 
@@ -256,7 +262,10 @@ public sealed class TrayViewModelTests
             n => n.ShowNotification(
                 It.Is<string>(t => t.Contains("General") && t.Contains("Alice")),
                 It.Is<string>(b => b.Contains("Hello from chat")),
-                NotificationType.Chat),
+                NotificationType.Chat,
+                It.IsAny<string?>(),
+                It.Is<string?>(g => g == "chat-channel-channel-a"),
+                It.Is<string?>(r => r == "chat-channel-channel-a")),
             Times.Once);
     }
 
@@ -279,7 +288,10 @@ public sealed class TrayViewModelTests
             n => n.ShowNotification(
                 It.IsAny<string>(),
                 It.IsAny<string>(),
-                NotificationType.Mention),
+                NotificationType.Mention,
+                It.IsAny<string?>(),
+                It.Is<string?>(g => g == "chat-channel-channel-b"),
+                It.Is<string?>(r => r == "chat-channel-channel-b")),
             Times.Once);
     }
 
@@ -303,7 +315,10 @@ public sealed class TrayViewModelTests
             n => n.ShowNotification(
                 It.IsAny<string>(),
                 It.IsAny<string>(),
-                It.IsAny<NotificationType>()),
+                It.IsAny<NotificationType>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>()),
             Times.Never);
     }
 
@@ -330,7 +345,9 @@ public sealed class TrayViewModelTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 NotificationType.Chat,
-                It.Is<string?>(u => u != null && u.EndsWith("/apps/chat", StringComparison.OrdinalIgnoreCase))),
+                It.Is<string?>(u => u != null && u.EndsWith("/apps/chat", StringComparison.OrdinalIgnoreCase)),
+                It.Is<string?>(g => g == "chat-channel-channel-d"),
+                It.Is<string?>(r => r == "chat-channel-channel-d")),
             Times.Once);
     }
 

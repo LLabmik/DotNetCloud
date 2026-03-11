@@ -2,7 +2,7 @@ namespace DotNetCloud.Client.SyncTray.Notifications;
 
 /// <summary>
 /// Delivers desktop notifications to the OS notification system
-/// (Windows balloon tip / Linux libnotify).
+/// (Windows toast / Linux libnotify).
 /// </summary>
 public interface INotificationService
 {
@@ -20,5 +20,13 @@ public interface INotificationService
     /// <param name="body">Notification body text.</param>
     /// <param name="type">Severity classification (controls icon / urgency).</param>
     /// <param name="actionUrl">Optional URL opened when notification is activated.</param>
-    void ShowNotification(string title, string body, NotificationType type = NotificationType.Info, string? actionUrl = null);
+    /// <param name="groupKey">Optional grouping key (for notification center grouping).</param>
+    /// <param name="replaceKey">Optional replacement key (new notification replaces previous for same key).</param>
+    void ShowNotification(
+        string title,
+        string body,
+        NotificationType type = NotificationType.Info,
+        string? actionUrl = null,
+        string? groupKey = null,
+        string? replaceKey = null);
 }

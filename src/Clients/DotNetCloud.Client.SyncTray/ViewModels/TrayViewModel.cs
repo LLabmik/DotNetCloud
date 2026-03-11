@@ -398,12 +398,15 @@ public sealed class TrayViewModel : ViewModelBase
         var preview = string.IsNullOrWhiteSpace(e.MessagePreview) ? "(no preview)" : e.MessagePreview;
         var notificationType = e.IsMention ? NotificationType.Mention : NotificationType.Chat;
         var actionUrl = GetChatAppUrl();
+        var channelKey = $"chat-channel-{e.ChannelId}";
 
         _notifications.ShowNotification(
             $"{channelName} — {senderName}",
             preview,
             notificationType,
-            actionUrl);
+            actionUrl,
+            channelKey,
+            channelKey);
     }
 
     private void OnNotificationActivated(string actionUrl)

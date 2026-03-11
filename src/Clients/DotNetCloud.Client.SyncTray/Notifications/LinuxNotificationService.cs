@@ -12,6 +12,8 @@ namespace DotNetCloud.Client.SyncTray.Notifications;
 internal sealed class LinuxNotificationService : INotificationService
 {
     private readonly ILogger<INotificationService> _logger;
+    private readonly Dictionary<string, int> _replaceIdsByKey = new(StringComparer.Ordinal);
+    private int _nextReplaceId = 1;
 
     /// <inheritdoc/>
     public Action<string>? OnNotificationActivated { get; set; }
@@ -20,7 +22,13 @@ internal sealed class LinuxNotificationService : INotificationService
     public LinuxNotificationService(ILogger<INotificationService> logger) => _logger = logger;
 
     /// <inheritdoc/>
-    public void ShowNotification(string title, string body, NotificationType type = NotificationType.Info, string? actionUrl = null)
+    public void ShowNotification(
+        string title,
+        string body,
+        NotificationType type = NotificationType.Info,
+        string? actionUrl = null,
+        string? groupKey = null,
+        string? replaceKey = null)
     {
         var urgency = type switch
         {
@@ -64,6 +72,19 @@ internal sealed class LinuxNotificationService : INotificationService
                 RedirectStandardOutput = true,
             };
 
+            if (!string.IsNullOrWhiteSpace(groupKey))
+            {
+                var safeGroup = Sanitise(groupKey);
+                psi.ArgumentList.Add($"--hint=string:x-canonical-private-synchronous:{safeGroup}");
+                psi.ArgumentList.Add($"--hint=string:x-dunst-stack-tag:{safeGroup}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(replaceKey))
+            {
+                var replaceId = GetOrCreateReplaceId(replaceKey);
+                psi.ArgumentList.Add($"--replace-id={replaceId}");
+            }
+
             if (!string.IsNullOrWhiteSpace(actionUrl))
                 psi.ArgumentList.Add("--action=open-chat=Open Chat");
 
@@ -87,6 +108,16 @@ internal sealed class LinuxNotificationService : INotificationService
         {
             _logger.LogDebug(ex, "Could not send notification via notify-send. Is libnotify-bin installed?");
         }
+    }
+
+    private int GetOrCreateReplaceId(string replaceKey)
+    {
+        if (_replaceIdsByKey.TryGetValue(replaceKey, out var existing))
+            return existing;
+
+        var next = _nextReplaceId++;
+        _replaceIdsByKey[replaceKey] = next;
+        return next;
     }
 
     private void TryOpenUrl(string url)
