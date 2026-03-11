@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-10 (Phase 2.8 remaining items — badge mention tracking + AnnouncementEditor tests — completed)
+Last updated: 2026-03-10 (Phase 2.9 plan pivot: Windows toast + quick reply prioritized)
 
 Purpose: Shared handoff between client-side and server-side agents, mediated by user.
 
@@ -262,6 +262,87 @@ Blockers (if any): none
 - step/phase resumed from `docs/MASTER_PROJECT_PLAN.md`
 - tests executed (commands + pass/fail counts)
 - any API/contract mismatch discovered against updated client UI flows
+
+### Client Handoff — Phase 2.9 Remaining Work (Windows workspace)
+
+**Date:** 2026-03-10
+**Owner:** Client (`Windows workspace`)
+**Status:** ready for handoff ✅
+
+**Baseline commit:** `67d4559`
+
+**Planning decision:**
+- Do not treat Windows notification grouping as a balloon-tip approximation task.
+- The user wants the desktop chat path to support **quick reply**, so the remaining Phase 2.9 work should use a real Windows toast-notification foundation rather than extending `Shell_NotifyIcon` balloon tips further.
+
+**Current Windows limitation to replace:**
+- `src/Clients/DotNetCloud.Client.SyncTray/Notifications/WindowsNotificationService.cs` currently uses `Shell_NotifyIcon` balloon notifications via a hidden message-only window.
+- That path is sufficient for basic popup + click-to-open, but it is the wrong primitive for real grouping and future quick reply.
+
+---
+
+#### Required implementation order
+
+1. **Windows toast-notification migration**
+     - Replace or supersede `WindowsNotificationService` with a toast-based implementation.
+     - Add the Windows registration/bootstrap pieces required for desktop toast delivery and activation.
+     - Preserve current click-to-open chat activation behavior.
+
+2. **Notification grouping semantics**
+     - Extend `INotificationService` to carry grouping metadata (channel/conversation key, replacement/group identifier as needed).
+     - Implement per-channel grouping/replacement on Windows using toast metadata.
+     - Keep Linux grouping/replacement aligned where possible using `notify-send` replacement/group behavior.
+
+3. **Quick reply foundation**
+     - Add a desktop chat send path suitable for SyncTray (prefer a reusable client-core abstraction, not Android-only reuse from `src/UI/DotNetCloud.UI.Android/Services/ChatApiClient.cs`).
+     - Wire notification activation or action flow to open a quick-reply experience for a specific channel/conversation.
+     - Support send-message execution through REST/API client plumbing.
+
+4. **Typing indicator while composing**
+     - While the quick-reply UI is open, emit typing updates if practical through the available chat transport.
+     - If typing cannot be emitted from the notification surface directly, document the precise blocker and fallback design.
+
+5. **Tray mention-vs-message visual badge state**
+     - `TrayViewModel` already computes `ChatUnreadCount` and `ChatHasMentions`.
+     - Update `TrayIconManager` icon rendering so mentions are visually distinct from generic unread messages.
+
+---
+
+#### Expected file targets
+
+- `src/Clients/DotNetCloud.Client.SyncTray/Notifications/INotificationService.cs`
+- `src/Clients/DotNetCloud.Client.SyncTray/Notifications/WindowsNotificationService.cs`
+- `src/Clients/DotNetCloud.Client.SyncTray/Notifications/LinuxNotificationService.cs`
+- `src/Clients/DotNetCloud.Client.SyncTray/Notifications/NotificationServiceFactory.cs`
+- `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/TrayViewModel.cs`
+- `src/Clients/DotNetCloud.Client.SyncTray/TrayIconManager.cs`
+- `src/Clients/DotNetCloud.Client.SyncTray/App.axaml.cs`
+- `src/Clients/DotNetCloud.Client.Core/` (new shared desktop chat send abstraction if needed)
+- `tests/DotNetCloud.Client.SyncTray.Tests/`
+
+#### Constraints
+
+- Do not modify server projects unless a concrete client blocker is proven.
+- If a new Windows package or activation model is needed for toasts, keep the change scoped to SyncTray and document packaging/runtime prerequisites.
+- Prefer a reusable client-core send abstraction for quick reply rather than adding a one-off SyncTray-only HTTP path unless that is clearly lower risk.
+
+#### Request back (strict format)
+
+```
+Phase: 2.9
+Commit: <hash>
+Files:
+    - <list of files changed>
+Design decisions:
+    - <toast library / activation / grouping approach>
+Implemented items:
+    - <completed 2.9 tasks>
+Verification:
+    dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj -> total N, succeeded N, failed 0
+    dotnet build -> succeeded
+Blockers (if any):
+    - <exact blocker, package/runtime issue, or API gap>
+```
 
 ### Sprint Track (Phase 2.3 Closeout)
 

@@ -3227,9 +3227,10 @@ This phase implements real-time chat, announcements, push notifications, and the
 **Add chat functionality to the existing desktop tray application**
 
 #### Desktop Chat Notifications
-- ✓ Add chat notification popups (Windows toast / Linux libnotify)
+- ✓ Add chat notification popups (current implementation: Windows balloon tip / Linux libnotify)
 - ✓ Display message preview in notification
 - ✓ Click notification to open chat in web browser
+- ☐ Migrate Windows notifications to Windows toast notifications
 - ☐ Support notification grouping per channel
 - ✓ Respect DND/mute settings
 
@@ -3238,7 +3239,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ☐ Different badge for mentions vs. regular messages
 - ✓ Clear badge when messages are read (via SignalR sync)
 
-#### Quick Reply (Optional)
+#### Quick Reply
 - ☐ Add quick reply popup from notification
 - ☐ Send reply via REST API
 - ☐ Show typing indicator while composing
