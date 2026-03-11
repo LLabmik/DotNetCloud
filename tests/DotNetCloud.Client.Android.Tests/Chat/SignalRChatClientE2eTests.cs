@@ -1,4 +1,5 @@
 using DotNetCloud.Client.Core;
+using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace DotNetCloud.Client.Android.Tests.Chat;
@@ -9,10 +10,10 @@ namespace DotNetCloud.Client.Android.Tests.Chat;
 /// 
 /// **EXECUTION REQUIREMENTS:**
 /// Before running live E2E test:
-/// 1. Remove `[Ignore("...")]` annotation from the live test method
-/// 2. Set environment variable: `DOTNETCLOUD_E2E_BEARER_TOKEN=your-valid-user-bearer-token`
-/// 3. Bearer token must be from user OAuth auth-code flow (not client-credentials)
-/// 4. Test user must be member of the target chat channel
+/// 1. Set environment variable: `DOTNETCLOUD_E2E_BEARER_TOKEN=your-valid-user-bearer-token`
+/// 2. Optionally set `DOTNETCLOUD_E2E_BASE_URL` (default: https://mint22:15443)
+/// 3. Optionally set `DOTNETCLOUD_E2E_EXPECTED_CHANNEL_ID` to assert channel IDs
+/// 4. Bearer token must be from user OAuth auth-code flow (not client-credentials)
 /// 
 /// **TRIGGER PROTOCOL (run BEFORE starting test):**
 /// From another authenticated client, send a test message:
@@ -36,12 +37,63 @@ public sealed class SignalRChatClientE2eTests
     /// authenticates with bearer token, and receives properly-typed events.
     /// </summary>
     [TestMethod]
-    [Ignore("E2E test - set DOTNETCLOUD_E2E_BEARER_TOKEN env var and remove Ignore to run live")]
     public async Task ConnectAsync_SubscribesAndReceivesEvents_Live()
     {
-        await Task.CompletedTask;
-        Assert.Inconclusive(
-            "Live E2E execution requires Android runtime and bearer token; run on Android-capable environment with SignalR client wiring enabled.");
+        var bearerToken = Environment.GetEnvironmentVariable("DOTNETCLOUD_E2E_BEARER_TOKEN");
+        if (string.IsNullOrWhiteSpace(bearerToken))
+        {
+            Assert.Inconclusive("DOTNETCLOUD_E2E_BEARER_TOKEN is not set.");
+            return;
+        }
+
+        var baseUrl = Environment.GetEnvironmentVariable("DOTNETCLOUD_E2E_BASE_URL");
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            baseUrl = "https://mint22:15443";
+        }
+
+        var expectedChannelId = Environment.GetEnvironmentVariable("DOTNETCLOUD_E2E_EXPECTED_CHANNEL_ID");
+        var hubUrl = $"{baseUrl.TrimEnd('/')}/hubs/core";
+
+        var unreadEventSeen = new TaskCompletionSource<ChatUnreadCountUpdatedEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var messageEventSeen = new TaskCompletionSource<ChatMessageReceivedEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var connection = new HubConnectionBuilder()
+            .WithUrl(hubUrl, options => options.AccessTokenProvider = () => Task.FromResult<string?>(bearerToken))
+            .WithAutomaticReconnect()
+            .Build();
+
+        connection.On<string, int>("UnreadCountUpdated", (channelId, count) =>
+        {
+            unreadEventSeen.TrySetResult(new ChatUnreadCountUpdatedEventArgs(channelId, count, false));
+        });
+
+        connection.On<string, string>("NewMessage", (channelId, message) =>
+        {
+            messageEventSeen.TrySetResult(new ChatMessageReceivedEventArgs(channelId, string.Empty, string.Empty, message, false));
+        });
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+        await connection.StartAsync(cts.Token);
+
+        var unreadTask = unreadEventSeen.Task.WaitAsync(cts.Token);
+        var messageTask = messageEventSeen.Task.WaitAsync(cts.Token);
+
+        await Task.WhenAll(unreadTask, messageTask);
+
+        var unread = await unreadTask;
+        var message = await messageTask;
+
+        if (!string.IsNullOrWhiteSpace(expectedChannelId))
+        {
+            Assert.AreEqual(expectedChannelId, unread.ChannelId);
+            Assert.AreEqual(expectedChannelId, message.ChannelId);
+        }
+
+        Assert.IsTrue(unread.UnreadCount >= 0, "UnreadCount must be >= 0.");
+        Assert.IsFalse(string.IsNullOrWhiteSpace(message.MessagePreview), "NewMessage payload did not include message content.");
+
+        await connection.DisposeAsync();
     }
 
     /// <summary>

@@ -64,11 +64,11 @@ Archived context:
 
 ## Active Handoff
 
-### Client Follow-up - OAuth Browser Launch Fixed, Ready for Live Token Run (Phase 2.10)
+### Client Follow-up - Live Probe Executable, Awaiting Mobile Token Run (Phase 2.10)
 
 **Date:** 2026-03-11  
 **Owner:** Client (`Windows11-TestDNC`)  
-**Status:** Executable tests passing; environment-gated live E2E pending token input
+**Status:** Executable tests passing; live probe now wired and awaiting token + sender trigger
 
 **Client implementation completed:**
 
@@ -87,27 +87,35 @@ Archived context:
 - `dotnet test tests/DotNetCloud.Client.Android.Tests/DotNetCloud.Client.Android.Tests.csproj`
 - Result: `total: 9, failed: 0, succeeded: 8, skipped: 1`
 
+✓ Live-filtered probe is discoverable and env-gated:
+- `dotnet test tests/DotNetCloud.Client.Android.Tests/DotNetCloud.Client.Android.Tests.csproj -c Release --filter "Live"`
+- Result: `total: 1, failed: 0, succeeded: 0, skipped: 1`
+- Skip reason: `DOTNETCLOUD_E2E_BEARER_TOKEN` not set (expected until runtime token is provided).
+
 ✓ Full executable suite passed:
 - `dotnet test --nologo --logger "trx;LogFileName=full-suite.trx"`
 - Result: `total: 2041, failed: 0, succeeded: 2028, skipped: 13`
 
-**Environment-gated test (expected skip):**
-- `ConnectAsync_SubscribesAndReceivesEvents_Live` remains `[Ignore]` until a real mobile user bearer token is provided at runtime.
-- Prerequisites remain documented in test and this handoff.
+**Environment-gated test (expected skip until token exists):**
+- `ConnectAsync_SubscribesAndReceivesEvents_Live` is now executable (no `[Ignore]`) and attempts real hub connection.
+- It requires `DOTNETCLOUD_E2E_BEARER_TOKEN`; without token it exits as inconclusive by design.
+- Optional env vars for controlled assertions:
+   - `DOTNETCLOUD_E2E_BASE_URL` (default `https://mint22:15443`)
+   - `DOTNETCLOUD_E2E_EXPECTED_CHANNEL_ID`
 
 **Next action to complete live E2E:**
 1. Obtain fresh mobile user access token from Android OAuth login (`dotnetcloud-mobile`, auth-code + PKCE).
 2. Set PowerShell env var on client machine:
    - `$env:DOTNETCLOUD_E2E_BEARER_TOKEN = "<mobile-user-access-token>"`
-3. Remove `[Ignore]` from `ConnectAsync_SubscribesAndReceivesEvents_Live`.
-4. Run:
-   - `dotnet test tests/DotNetCloud.Client.Android.Tests/DotNetCloud.Client.Android.Tests.csproj --filter "Live"`
-5. Trigger sender-side event:
+3. Run:
+   - `dotnet test tests/DotNetCloud.Client.Android.Tests/DotNetCloud.Client.Android.Tests.csproj -c Release --filter "Live"`
+4. Trigger sender-side event:
    - `POST /api/v1/chat/channels/{channelId}/messages?userId={senderUserId}` with bearer token.
 
 **Request back (server/moderator relay):**
-- confirm channel ID + sender user context for trigger message
-- if token acquisition still fails: exact callback/error text and endpoint params used
+- commit hash from runtime run machine
+- live output lines showing connection + `UnreadCountUpdated` + `NewMessage`
+- if token acquisition fails: exact callback/error text and endpoint params used
 ## Relay Template
 
 ```markdown
