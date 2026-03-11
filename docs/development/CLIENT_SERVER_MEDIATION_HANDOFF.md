@@ -172,15 +172,32 @@ Server follow-up is recorded in the handoff doc. Pull latest `main` and align An
 **Commit:** `0cddd41`  
 **Message:** "Add E2E SignalR test scenario for manual validation against live server"
 
-**Next:** Server can now:
-- Generate valid test bearer token (from OAuth flow for `dotnetcloud-desktop` or `dotnetcloud-mobile`)
-- Trigger chat events from another client (desktop client sending message to Android user)
-- Client will execute E2E test against live server to validate full flow
+**Server response (integration instructions):**
 
-**Request back:**
-- Test bearer token (valid for `dotnetcloud-mobile` client)
-- Trigger protocol/steps: How to send a chat message that fires both events
-- Once running: Any connection/deserialization errors from server logs
+- Hub auth is required (`CoreHub` has `[Authorize]`), so the test must use a real user bearer token.
+- Use any valid user token from the desktop/mobile OIDC auth-code flow. `client_credentials` tokens are not suitable (subject is client ID, not user GUID).
+- Server cannot safely commit/share a raw bearer token in git handoff.
+
+**Trigger protocol (fires both events):**
+
+1. Start Android test client and connect to: `https://mint22:15443/hubs/core`.
+2. Ensure Android test user is a member of target channel.
+3. From another authenticated user in same channel, send:
+  - `POST /api/v1/chat/channels/{channelId}/messages?userId={senderUserId}`
+  - Header: `Authorization: Bearer {senderAccessToken}`
+  - Body: `{ "content": "e2e-signalr-probe" }`
+4. Expected events on Android client:
+  - `NewMessage` with `{ channelId, message }`
+  - `UnreadCountUpdated` with `{ channelId, count }`
+
+**Server-side verification status:**
+- Contract, hub path, and payload shape already verified on server.
+- Client test project exists, but server machine cannot execute Android test project due missing `maui-android` workload (`NETSDK1147`).
+
+**Request back (client):**
+- commit hash for live test execution updates
+- sanitized connection + event logs (timestamps)
+- any SSL/auth/deserialize errors with exact text
 
 ## Relay Template
 
