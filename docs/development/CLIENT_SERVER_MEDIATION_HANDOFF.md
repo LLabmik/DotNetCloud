@@ -115,11 +115,18 @@ Archived context:
 
 **Latest local execution evidence (2026-03-10, Windows11-TestDNC):**
 - Verified token env var status:
-   - PowerShell check returned `MISSING` for `DOTNETCLOUD_E2E_BEARER_TOKEN`.
+   - PowerShell check returned `DOTNETCLOUD_E2E_BEARER_TOKEN=MISSING`.
 - Re-ran live probe with detailed logs:
    - `dotnet test tests/DotNetCloud.Client.Android.Tests/DotNetCloud.Client.Android.Tests.csproj -c Release --filter "Live" --logger "console;verbosity=detailed"`
    - Result: `total: 1, failed: 0, succeeded: 0, skipped: 1`
    - Skip reason (explicit): `Assert.Inconclusive failed. DOTNETCLOUD_E2E_BEARER_TOKEN is not set.`
+
+**Latest rerun after handoff pull (2026-03-10, Windows11-TestDNC):**
+- Re-validated env in current shell:
+   - `DOTNETCLOUD_E2E_BEARER_TOKEN=MISSING`
+- Re-executed the same live probe command:
+   - Result: `total: 1, failed: 0, succeeded: 0, skipped: 1`
+   - Skip reason unchanged: `Assert.Inconclusive failed. DOTNETCLOUD_E2E_BEARER_TOKEN is not set.`
 
 **Next action to complete live E2E:**
 1. Obtain fresh mobile user access token from Android OAuth login (`dotnetcloud-mobile`, auth-code + PKCE).
