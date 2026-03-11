@@ -326,6 +326,101 @@ Blockers (if any): none
 - If a new Windows package or activation model is needed for toasts, keep the change scoped to SyncTray and document packaging/runtime prerequisites.
 - Prefer a reusable client-core send abstraction for quick reply rather than adding a one-off SyncTray-only HTTP path unless that is clearly lower risk.
 
+#### Technical Design Plan (finish this design before broad implementation)
+
+**Recommended architecture decision:**
+- Keep Linux notification delivery on the current `notify-send` path and extend it only for grouping/replacement metadata.
+- Replace the Windows-only `Shell_NotifyIcon` balloon path with a **toast-backed Windows notification service**.
+- Keep all toast-specific code isolated behind `INotificationService` so SyncTray view-models remain platform-agnostic.
+- Do **not** build quick reply on top of the Android-specific chat client; promote a reusable chat send abstraction into `DotNetCloud.Client.Core`.
+
+**Recommended Windows toast approach:**
+- Use a toolkit-backed desktop toast implementation for unpackaged Win32/.NET desktop apps, wrapped entirely inside `WindowsNotificationService`.
+- The package choice should support:
+    - building toast content with text + actions + optional text input,
+    - toast activation callback handling for unpackaged desktop apps,
+    - tag/group metadata for per-channel grouping/replacement,
+    - Action Center persistence semantics.
+- Keep the exact package/version decision in the client return under `Design decisions:` because package naming may vary by current NuGet availability; do not spread toast library types across the broader app.
+
+**Notification abstraction redesign:**
+- Replace the current `ShowNotification(title, body, type, actionUrl)`-only shape with a request object, for example:
+    - `Title`
+    - `Body`
+    - `NotificationType`
+    - `ActionUrl`
+    - `ConversationKey` / `ChannelId`
+    - `GroupKey`
+    - `ReplaceKey` / `Tag`
+    - `SupportsQuickReply`
+    - `QuickReplyPlaceholder`
+- Add a notification activation callback object/event rather than only `Action<string>` so activation can distinguish:
+    - open-chat
+    - quick-reply-submit
+    - dismiss / default activation
+- Preserve compatibility for existing call sites by updating `TrayViewModel` only once the new request model exists.
+
+**Client-core chat send foundation:**
+- Preferred path: add a reusable `IChatApiClient` (or similarly named interface) under `src/Clients/DotNetCloud.Client.Core/`.
+- Minimum methods needed for quick reply:
+    - `SendMessageAsync(Guid channelId, SendMessageDto dto, ...)`
+    - `MarkAsReadAsync(Guid channelId, Guid messageId, ...)`
+    - `NotifyTypingAsync(Guid channelId, ...)` if typing will be emitted from quick reply
+- Reuse existing client-core primitives instead of inventing a second auth stack:
+    - `IDotNetCloudApiClient`
+    - `ITokenStore`
+    - existing OAuth/token storage from `ClientCoreServiceExtensions`
+- If extending `IDotNetCloudApiClient` for chat would make that interface too broad, create a dedicated chat API client in Client.Core that reuses the same `HttpClient` + token-loading pattern.
+
+**Quick reply UX plan:**
+- Target Windows first because that is where toast reply is the priority.
+- Preferred UX order:
+    1. Toast notification contains a reply affordance tied to the channel/conversation.
+    2. If inline text input submission is reliable in the chosen toast activation model, use it.
+    3. If inline input is not reliable in the current unpackaged Avalonia deployment, fallback within Phase 2.9 to opening a minimal `QuickReplyWindow` pre-addressed to the channel from the toast action.
+- The fallback is acceptable only if the blocker is clearly documented with package/runtime evidence; do not silently downgrade to a plain open-chat action.
+
+**Typing-indicator design:**
+- Emit typing only when the reply UI remains open long enough to justify it.
+- If inline toast reply does not provide a practical typing cadence, emit typing only from the fallback `QuickReplyWindow`.
+- Keep typing best-effort; send-message reliability is the higher priority acceptance criterion.
+
+**Tray icon badge design:**
+- Do not entangle tray icon rendering with notification service implementation details.
+- Add a pure mapping layer or helper in SyncTray that derives visual badge state from:
+    - `OverallState`
+    - `ChatUnreadCount`
+    - `ChatHasMentions`
+- Suggested visual policy:
+    - base icon color continues to reflect sync state,
+    - unread adds a subtle chat indicator,
+    - mentions add a stronger/high-priority indicator distinct from normal unread.
+- Unit-test the mapping logic without requiring Avalonia tray integration.
+
+**Implementation order (recommended sequence):**
+1. Redesign `INotificationService` to use a notification request/activation model.
+2. Implement Windows toast service behind that abstraction, preserving click-to-open behavior first.
+3. Add grouping/tag semantics and verify same-channel replacement/grouping behavior.
+4. Add Client.Core chat send abstraction + token wiring for SyncTray.
+5. Implement quick reply end-to-end (toast action -> send path -> success/failure handling).
+6. Add typing support if the chosen quick-reply UX supports it cleanly.
+7. Finish tray mention-vs-message visual badge state.
+8. Update tests and docs/checklists/plan items together.
+
+**Minimum acceptance criteria for phase closeout:**
+- Windows notifications are toast-based, not balloon-tip based.
+- Repeated notifications from the same channel are grouped or replaced deterministically.
+- Quick reply can send a message to the targeted channel without opening the full browser chat UI.
+- Quick reply failure surfaces a user-visible error and does not silently drop the message.
+- Tray icon visually distinguishes mentions from generic unread messages.
+- `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj` passes.
+- `dotnet build` passes.
+
+**Risk notes to document during implementation:**
+- Exact Windows toast activation/package prerequisites for unpackaged Avalonia desktop deployment.
+- Whether inline reply input is reliable enough to keep, or whether the fallback `QuickReplyWindow` is required.
+- Any Linux grouping limitations versus the Windows implementation.
+
 #### Request back (strict format)
 
 ```
