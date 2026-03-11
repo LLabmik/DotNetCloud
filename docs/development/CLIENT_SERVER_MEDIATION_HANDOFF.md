@@ -10,18 +10,31 @@ Archived context:
 
 ## Process Rules
 
-- Put all technical findings and debugging conclusions in this document, committed to `main`.
-- Mediator role is relay-only: short commit/update notifications and request forwarding.
-- Keep this file lean: only active sprint kickoff plus latest 1-2 updates.
+**Agent autonomy (CRITICAL):**
+- Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
+- Agents pull the latest `main`, read the **Active Handoff** section, and execute the work described there independently.
+- All actionable items, blockers, and technical details go directly in this document (committed to `main`).
+- No moderator involvement in technical decisions, code reviews, or work coordination.
+
+**Handoff management:**
+- Put all technical findings, debugging conclusions, and next-step details in this document.
+- Assistant (current agent) commits their findings/work and updates the **Active Handoff** section with actionable next steps for the other client.
+- Assistant pushes commits to `main`.
+- Moderator relays a short "check for updates" message to the other machine.
+- Other agent pulls latest, reads the handoff, and takes action without asking questions.
+
+**Document maintenance:**
+- Keep this file lean: only active sprint kickoff plus 1-2 latest updates in **Active Handoff**.
 - Move completed historical blocks to `CLIENT_SERVER_MEDIATION_ARCHIVE.md` during each new handoff cycle.
-- Default relay text: `New commit on main with handoff updates. Pull and resume from the current checklist.`
-- Assistant pushes commits; mediator relays short notifications.
 
-## Moderator Short-Ping Templates
+## Moderator Communication (Minimal)
 
-- `New handoff update is in docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md. Pull latest main and continue.`
-- `Please read the latest active section in the handoff doc and post results back there.`
-- `New commit on main with handoff updates. Pull and resume from the current checklist.`
+**Moderator relays ONLY ONE OF THESE messages — nothing more:**
+
+- `New handoff update. Pull main and resume from 'Active Handoff' section.`
+- `<Commit hash> — New handoff update. Pull and check docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md Active Handoff.`
+
+**No moderator task:** Moderator provides zero context, zero explanation. The handoff document has everything the receiving agent needs.
 
 ## Current Status
 
