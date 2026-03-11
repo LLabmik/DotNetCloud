@@ -225,7 +225,7 @@ Blockers (if any): <none or description>
 ### Client Result — Phase 2.8 Remaining Items (Windows workspace)
 
 **Date:** 2026-03-10
-**Commit:** TBD (see push below)
+**Commit:** `0e3bbd8`
 
 ```
 Phase: 2.8 remaining items
