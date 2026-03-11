@@ -1,7 +1,9 @@
+extern alias FilesHost;
+
 using System.Security.Claims;
 using DotNetCloud.Modules.Files.Data;
-using DotNetCloud.Modules.Files.Host;
-using DotNetCloud.Modules.Files.Host.Protos;
+using FilesHost::DotNetCloud.Modules.Files.Host;
+using FilesHost::DotNetCloud.Modules.Files.Host.Protos;
 using Grpc.Net.Client;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -15,7 +17,7 @@ namespace DotNetCloud.Integration.Tests.Infrastructure;
 /// <summary>
 /// Integration test host for the standalone Files module process.
 /// </summary>
-internal sealed class FilesHostWebApplicationFactory : WebApplicationFactory<Program>
+internal sealed class FilesHostWebApplicationFactory : WebApplicationFactory<FilesHost::Program>
 {
     private readonly string _databaseName = $"FilesHostInt_{Guid.NewGuid():N}";
 

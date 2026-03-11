@@ -76,7 +76,7 @@ public class ChatController : ControllerBase
         try
         {
             var channel = await _channelService.CreateChannelAsync(dto, ToCaller(userId));
-            return CreatedAtAction(nameof(GetChannelAsync), new { channelId = channel.Id }, Envelope(channel));
+            return CreatedAtAction("GetChannel", new { channelId = channel.Id }, Envelope(channel));
         }
         catch (ValidationException ex)
         {
@@ -635,7 +635,7 @@ public class ChatController : ControllerBase
                 "AnnouncementBadgeUpdated",
                 new { count = announcementCount });
 
-            return CreatedAtAction(nameof(GetAnnouncementAsync), new { id = announcement.Id }, Envelope(announcement));
+            return CreatedAtAction("GetAnnouncement", new { id = announcement.Id }, Envelope(announcement));
         }
         catch (ArgumentException ex)
         {

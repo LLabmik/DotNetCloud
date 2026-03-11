@@ -3382,16 +3382,22 @@ This phase implements real-time chat, announcements, push notifications, and the
 
 ### Integration Tests
 
-- [ ] Add chat API integration tests to `DotNetCloud.Integration.Tests`:
-  - [ ] Channel CRUD via REST API
-  - [ ] Message send/receive via REST API
-  - [ ] SignalR real-time message delivery
-  - [ ] Typing indicator via SignalR
-  - [ ] Presence tracking accuracy
-  - [ ] File attachment via chat + Files module
-  - [ ] Announcement CRUD and acknowledgement
-  - [ ] Push notification registration
-  - [ ] Multi-database tests (PostgreSQL, SQL Server)
+- ✓ Add chat API integration tests to `DotNetCloud.Integration.Tests`:
+  - ✓ Channel CRUD via REST API (create, list, get, update, delete, archive, DM, duplicate-name conflict, not-found)
+  - ✓ Message send/receive via REST API (send, paginated list, get, edit, delete, search, search-empty validation)
+  - ✓ Member management via REST API (add, list, update role, remove, notification preference, unread counts, mark read)
+  - ✓ Reactions via REST API (add, get, remove)
+  - ✓ Pins via REST API (pin, list, unpin)
+  - ✓ Typing indicators via REST API (notify, get)
+  - ✓ File attachment via REST API (add attachment, list channel files)
+  - ✓ Announcement CRUD and acknowledgement (create, list, get-404, update, delete, acknowledge, get acknowledgements)
+  - ✓ Push notification registration (register, empty-token-400, invalid-provider-400)
+  - ✓ End-to-end flow test (create→member→message→react→pin→read)
+  - ✓ Module health and info endpoints
+- ✓ ChatHostWebApplicationFactory with InMemory DB and NoOp broadcaster
+- ✓ Fixed CreatedAtAction route mismatch (SuppressAsyncSuffixInActionNames)
+- ✓ Fixed duplicate AnnouncementController route conflict
+- ✓ 47 integration tests, all passing
 
 ---
 

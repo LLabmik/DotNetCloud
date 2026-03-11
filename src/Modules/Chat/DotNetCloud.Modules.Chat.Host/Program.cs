@@ -55,3 +55,6 @@ app.MapGet("/", () => Results.Ok(new
 }));
 
 app.Run();
+
+/// <summary>Entry point marker for WebApplicationFactory in integration tests.</summary>
+public partial class Program;

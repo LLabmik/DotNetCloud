@@ -46,7 +46,8 @@ Archived context:
 ## Current Status
 
 - Issues #1-#45 and previous sprint/batch closeout work: complete.
-- Active cross-machine item: Android contract alignment follow-through (Phase 2.10).
+- Phase 2.10 Android contract alignment: complete (archived).
+- Phase 2.12 Chat Testing Infrastructure: complete (integration tests added).
 - This handoff was compacted on 2026-03-11 to remove completed historical sections from active view.
 
 ## Environment
@@ -65,23 +66,26 @@ Archived context:
 
 ## Active Handoff
 
-### Phase 2.10 COMPLETE — Proceed to Next Master Plan Priority
+### Phase 2.12 COMPLETE — Chat Integration Tests Added
 
 **Date:** 2026-03-11
-**Owner:** Whichever agent picks up next
-**Status:** COMPLETE ✅ — Both sides verified, ready for next phase
+**Owner:** Server agent (completed)
+**Status:** COMPLETE ✅
 
-**Phase 2.10 is fully closed on both client and server.** All archived details in [CLIENT_SERVER_MEDIATION_ARCHIVE.md](CLIENT_SERVER_MEDIATION_ARCHIVE.md).
-
-**What was completed (summary):**
-- Server: CoreHub bearer auth fix + `sub` claim fallback + self-contained live E2E test (PASSED on `mint22`).
-- Client: Pulled and validated server fixes; fixed flaky `HandleAsync_SyncNowCommand_DebounceReturnsRateLimitedOnSecondRequest` test (was failing under parallel suite load due to fire-and-forget `Task.Run`; fixed with `TaskCompletionSource` await before `Verify`).
-- Full suite: 0 failures, ~2040 passed, 13 env-gated skips — confirmed clean across 3 consecutive runs.
-- Live Android probe regression gate: `ConnectAsync_SubscribesAndReceivesEvents_Live` skips correctly without token; will pass when `DOTNETCLOUD_E2E_BEARER_TOKEN` is set.
+**What was completed:**
+- Created `ChatHostWebApplicationFactory` (in-memory DB, NoOp broadcaster) for isolated Chat.Host integration testing.
+- Created 47 REST API integration tests covering: channel CRUD (9), member management (6), message CRUD (8), reactions (3), pins (3), typing indicators (2), announcements (7), file attachments (2), push device registration (3), mark-read (1), health/info (2), full end-to-end flow (1).
+- Fixed 3 bugs uncovered by integration tests:
+  1. `CreatedAtAction` route mismatch — ASP.NET Core's `SuppressAsyncSuffixInActionNames=true` strips "Async" suffix, but `nameof(GetChannelAsync)` yields `"GetChannelAsync"` which doesn't match `"GetChannel"`.
+  2. Duplicate `AnnouncementController` conflicting with `ChatController`'s `~/api/v1/announcements` routes — removed redundant controller.
+  3. Test-discovered enum mismatches: `ChannelMemberRole` has no `Moderator` (use `Admin`), `NotificationPreference` has no `MentionsOnly` (use `Mentions`).
+- Used `extern alias` (`FilesHost`/`ChatHost`) in integration test project to resolve `Program` type ambiguity between Chat.Host and Files.Host.
+- Full suite: 2,086 passed, 0 failed, 2 skipped (env-gated).
 
 **Next action:**
 - Check `docs/MASTER_PROJECT_PLAN.md` for next in-progress or pending phase.
-- Phase 2.12 (Chat Testing Infrastructure) is `in-progress` — verify current coverage and continue if not already complete.
+- Phase 2.13 (Documentation) is next pending item.
+- Remaining in-progress phases: 2.3 (4 pending tasks), 2.8, 2.10 (ongoing Android app work).
 - Assign owner (client or server) based on what the next task requires.
 
 ## Relay Template

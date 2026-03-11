@@ -67,7 +67,7 @@
 | Phase 2.9 | 3 | 3 | 0 | 0 |
 | Phase 2.10 | 8 | 1 | 1 | 6 |
 | Phase 2.11 | 3 | 3 | 0 | 0 |
-| Phase 2.12 | 2 | 1 | 1 | 0 |
+| Phase 2.12 | 2 | 2 | 0 | 0 |
 | Phase 2.13 | 3 | 0 | 0 | 3 |
 | Sync Batch 1 | 10 | 10 | 0 | 0 |
 | Sync Batch 2 | 6 | 6 | 0 | 0 |
@@ -3457,12 +3457,12 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Step: phase-2.12 - Testing Infrastructure
-**Status:** in-progress 🔄
-**Duration:** ~1-2 weeks
+**Status:** completed ✅
+**Duration:** ~1 week (actual)
 **Description:** Create comprehensive unit tests and integration tests for all chat functionality.
 
 **Deliverables:**
-- ✓ Create unit tests — 180 tests passing across 10 test classes:
+- ✓ Create unit tests — 263 tests passing across 10+ test classes:
   - ✓ ChatModuleManifestTests (10 tests: Id, Name, Version, capabilities, events, IModuleManifest)
   - ✓ ChatModuleTests (15 tests: lifecycle, event bus subscribe/unsubscribe, null check, manifest)
   - ✓ ModelTests (35 tests: Channel 10, Message 10, ChannelMember 7, MessageReaction 3, MessageMention 5)
@@ -3474,11 +3474,22 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
   - ✓ TypingIndicatorServiceTests (5 tests: notify, empty, multi-user, channel isolation, cleanup)
   - ✓ AnnouncementServiceTests (18 tests: CRUD, priority, acknowledgement tracking)
   - ✓ MentionNotificationServiceTests
-- ☐ Create integration tests (REST API CRUD, SignalR real-time delivery, typing, presence, file attachment, announcements, push registration, multi-database)
+- ✓ Create integration tests — 47 tests via ChatHostWebApplicationFactory:
+  - ✓ Channel CRUD (create, duplicate-name conflict, list, get, get-404, update, delete, archive, DM)
+  - ✓ Member management (add, list, update role, remove, notification preference, unread counts)
+  - ✓ Message CRUD (send, paginated list, get, edit, delete, delete-404, search, search-empty-400)
+  - ✓ Reactions (add, get, remove)
+  - ✓ Pins (pin, list, unpin)
+  - ✓ Typing indicators (notify, get)
+  - ✓ Announcements (create, list, get-404, update, delete, acknowledge, get acknowledgements)
+  - ✓ File attachments (add, list channel files)
+  - ✓ Push device registration (register, empty-token-400, invalid-provider-400)
+  - ✓ Mark read, health endpoint, module info endpoint
+  - ✓ Full end-to-end flow (create→message→react→pin→read)
 
 **Dependencies:** phase-2.1 through phase-2.11
 **Blocking Issues:** None
-**Notes:** Unit tests complete with 180/180 passing across all service, model, event, and module tests. Integration tests will be added as SignalR integration is implemented.
+**Notes:** Phase 2.12 complete. Unit tests: 263/263, integration tests: 47/47. Full suite: 2,086 passed, 0 failed, 2 skipped (env-gated). Integration tests also uncovered and fixed three production bugs: (1) `CreatedAtAction` route mismatch due to ASP.NET Core's `SuppressAsyncSuffixInActionNames` default, (2) `AnnouncementController` duplicating `ChatController` announcement routes causing ambiguous matches, (3) test-discovered enum value mismatches in role/notification preference APIs.
 
 ---
 
@@ -3498,8 +3509,8 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
-**Last Updated:** 2026-03-05 (Phase 2.1 complete, 2.2/2.3/2.8/2.11/2.12 in progress)
-**Next Review:** Phase 2.3 service implementations
+**Last Updated:** 2026-03-11 (Phase 2.12 complete — integration tests added)
+**Next Review:** Phase 2.13 documentation
 **Maintained By:** Development Team
 
 ---

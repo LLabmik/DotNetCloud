@@ -1,6 +1,8 @@
+extern alias FilesHost;
+
 using System.Security.Cryptography;
 using DotNetCloud.Integration.Tests.Infrastructure;
-using DotNetCloud.Modules.Files.Host.Protos;
+using FilesHost::DotNetCloud.Modules.Files.Host.Protos;
 
 namespace DotNetCloud.Integration.Tests.Api;
 
