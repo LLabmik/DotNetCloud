@@ -22,6 +22,9 @@ Archived context:
 - Assistant pushes commits to `main`.
 - Handoff readiness gate (MANDATORY): all executable tests must pass before marking a handoff as ready.
 - Environment-gated tests are allowed to be skipped, but must be explicitly identified as gated with the required environment/runtime prerequisites documented in the handoff.
+- Runtime verification gate (MANDATORY): before declaring a server-side blocker fixed, verify the running service is on current binaries (not stale publish output) and document the verification command/output in handoff notes.
+- OAuth contract check (MANDATORY when auth is involved): verify `client_id`, `redirect_uri`, and requested scopes exactly match server-registered OpenIddict client permissions before requesting cross-machine retries.
+- Secret handling rule (MANDATORY): never commit raw bearer tokens/refresh tokens; share token acquisition steps and sanitized outputs only.
 - Moderator relays a short "check for updates" message to the other machine.
 - Other agent pulls latest, reads the handoff, and takes action without asking questions.
 
