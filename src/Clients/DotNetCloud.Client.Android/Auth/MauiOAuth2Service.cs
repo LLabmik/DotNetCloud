@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Maui.ApplicationModel;
 
 namespace DotNetCloud.Client.Android.Auth;
 
@@ -27,6 +28,7 @@ internal sealed class MauiOAuth2Service : IOAuth2Service
         var authUrl = BuildAuthUrl(serverBaseUrl, codeChallenge, state);
 
         // Open system browser and wait for app callback
+        await Browser.OpenAsync(authUrl, BrowserLaunchMode.SystemPreferred).ConfigureAwait(false);
         var callbackUrl = await OAuthCallbackActivity.WaitForCallbackAsync(ct).ConfigureAwait(false);
         var code = ExtractCode(callbackUrl, state);
 

@@ -64,47 +64,50 @@ Archived context:
 
 ## Active Handoff
 
-### Server Response - Mobile Token Blocker Fixed (Phase 2.10)
+### Client Follow-up - OAuth Browser Launch Fixed, Ready for Live Token Run (Phase 2.10)
 
 **Date:** 2026-03-11  
-**Owner:** Server (`mint22`)  
-**Status:** Blocker cleared; live test can proceed with mobile PKCE token
+**Owner:** Client (`Windows11-TestDNC`)  
+**Status:** Executable tests passing; environment-gated live E2E pending token input
+
+**Client implementation completed:**
+
+✓ Fixed OAuth mobile auth-code flow launch step in Android client:
+- File: `src/Clients/DotNetCloud.Client.Android/Auth/MauiOAuth2Service.cs`
+- Change: added system browser launch before callback wait:
+  - `await Browser.OpenAsync(authUrl, BrowserLaunchMode.SystemPreferred)`
+- Result: auth flow now actually opens the authorize URL instead of waiting indefinitely.
 
 **Readiness gate (mandatory) status:**
 
-✓ Executable tests passed on server repo:
-- Command: `dotnet test tests/DotNetCloud.Client.Android.Tests/DotNetCloud.Client.Android.Tests.csproj -c Release`
+✓ Android client build passed:
+- `dotnet build src/Clients/DotNetCloud.Client.Android/DotNetCloud.Client.Android.csproj -f net10.0-android`
+
+✓ Android client test project passed:
+- `dotnet test tests/DotNetCloud.Client.Android.Tests/DotNetCloud.Client.Android.Tests.csproj`
 - Result: `total: 9, failed: 0, succeeded: 8, skipped: 1`
-- Gated test identified: live E2E method remains skipped until token is provided at runtime.
 
-**Server token findings (live-validated):**
+✓ Full executable suite passed:
+- `dotnet test --nologo --logger "trx;LogFileName=full-suite.trx"`
+- Result: `total: 2041, failed: 0, succeeded: 2028, skipped: 13`
 
-✓ Root cause found: running `dotnetcloud.service` was using stale published binaries (Mar 8) that did not include current mobile registration behavior.
-✓ Server redeployed from current `main` and service restarted.
-✓ Post-fix probe now succeeds for mobile client id:
-- `GET /connect/authorize?...client_id=dotnetcloud-mobile...` -> `302` to `/auth/login` (expected challenge, no `invalid_client`).
-✓ Android OAuth scope string fixed in code to supported scopes:
-- `openid profile offline_access files:read files:write`
-- File: `src/Clients/DotNetCloud.Client.Android/Auth/MauiOAuth2Service.cs`
+**Environment-gated test (expected skip):**
+- `ConnectAsync_SubscribesAndReceivesEvents_Live` remains `[Ignore]` until a real mobile user bearer token is provided at runtime.
+- Prerequisites remain documented in test and this handoff.
 
-**Use this now for live E2E run (mobile path):**
-
-1. Obtain a fresh **mobile** user token via Android OAuth login (`dotnetcloud-mobile`, auth-code + PKCE).
-2. Set env var on client machine:
-	- PowerShell: `$env:DOTNETCLOUD_E2E_BEARER_TOKEN = "<mobile-user-access-token>"`
-3. In `tests/DotNetCloud.Client.Android.Tests/Chat/SignalRChatClientE2eTests.cs`, remove `[Ignore(...)]` from `ConnectAsync_SubscribesAndReceivesEvents_Live`.
+**Next action to complete live E2E:**
+1. Obtain fresh mobile user access token from Android OAuth login (`dotnetcloud-mobile`, auth-code + PKCE).
+2. Set PowerShell env var on client machine:
+   - `$env:DOTNETCLOUD_E2E_BEARER_TOKEN = "<mobile-user-access-token>"`
+3. Remove `[Ignore]` from `ConnectAsync_SubscribesAndReceivesEvents_Live`.
 4. Run:
-	- `dotnet test tests/DotNetCloud.Client.Android.Tests/DotNetCloud.Client.Android.Tests.csproj --filter "Live"`
-5. Trigger event from sender side:
-	- `POST /api/v1/chat/channels/{channelId}/messages?userId={senderUserId}` with bearer token.
+   - `dotnet test tests/DotNetCloud.Client.Android.Tests/DotNetCloud.Client.Android.Tests.csproj --filter "Live"`
+5. Trigger sender-side event:
+   - `POST /api/v1/chat/channels/{channelId}/messages?userId={senderUserId}` with bearer token.
 
-**Security note:**
-- Do not commit raw bearer tokens into git/handoff docs.
-
-**Request back (client):**
-- commit hash
-- live test output lines for connection + `UnreadCountUpdated` + `NewMessage`
-- if failure: exact auth error + raw endpoint/params used
+**Request back (server/moderator relay):**
+- confirm channel ID + sender user context for trigger message
+- if token acquisition still fails: exact callback/error text and endpoint params used
 ## Relay Template
 
 ```markdown
