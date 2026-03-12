@@ -1,0 +1,140 @@
+/* ============================================================
+   NotificationPreferencesPanel — Push/DND settings with
+   per-channel mute toggles.
+   ============================================================ */
+
+.notification-preferences-panel {
+    background: var(--color-surface, #ffffff);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: var(--radius, 8px);
+    box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,.05));
+    overflow: hidden;
+}
+
+/* --- Panel Header --- */
+
+.panel-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
+
+.panel-header h3 {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0;
+    color: var(--color-text, #1e293b);
+}
+
+/* --- Loading / Error / Success States --- */
+
+.panel-loading {
+    padding: 20px;
+    text-align: center;
+    color: var(--color-text-secondary, #64748b);
+    font-size: 14px;
+}
+
+.panel-error {
+    margin: 12px 20px;
+    padding: 10px 14px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 6px;
+    color: var(--color-danger, #ef4444);
+    font-size: 13px;
+}
+
+.panel-success {
+    margin: 12px 20px;
+    padding: 10px 14px;
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    border-radius: 6px;
+    color: var(--color-success, #10b981);
+    font-size: 13px;
+}
+
+/* --- Settings Sections --- */
+
+.notification-preferences-panel .settings-section {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
+
+.notification-preferences-panel .settings-section:last-of-type {
+    border-bottom: none;
+}
+
+.notification-preferences-panel .settings-section > label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+    font-size: 14px;
+    color: var(--color-text, #1e293b);
+    cursor: pointer;
+    user-select: none;
+}
+
+.notification-preferences-panel .settings-section > label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--color-primary, #3b82f6);
+    cursor: pointer;
+}
+
+/* --- Muted Channels --- */
+
+.muted-empty {
+    padding: 8px 0;
+    font-size: 13px;
+    color: var(--color-text-secondary, #64748b);
+}
+
+.muted-channel-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 8px;
+}
+
+.muted-channel-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--color-text, #1e293b);
+    cursor: pointer;
+    user-select: none;
+    transition: background 120ms ease;
+}
+
+.muted-channel-row:hover {
+    background: var(--color-bg, #f5f7fa);
+}
+
+.muted-channel-row input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    accent-color: var(--color-primary, #3b82f6);
+    cursor: pointer;
+}
+
+/* --- Actions Footer --- */
+
+.notification-preferences-panel .settings-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--color-border, #e2e8f0);
+}
+
+.save-status {
+    font-size: 13px;
+    color: var(--color-text-secondary, #64748b);
+}

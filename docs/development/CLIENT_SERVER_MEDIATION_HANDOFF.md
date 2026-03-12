@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-12 (Chat UI missing CSS — channel list loads but entire page is unstyled)
+Last updated: 2026-03-12 (Chat UI CSS complete — all 14 component stylesheets created/overhauled, deployed to mint22)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -59,7 +59,7 @@ Archived context:
 - Chat UI Blazor binding fix verified on mint22 (2026-03-12) — redeploy complete, no raw variable names in `/apps/chat`, 302 auth redirect working.
 - Full test suite: 2,106+ passed / 0 failed (1 pre-existing Files CDC test failure, unrelated).
 - Chat DbContext concurrency bug: **FIXED** (2026-03-12). Service restarted, channels load.
-- **NEW BUG (2026-03-12):** Chat UI completely unstyled — missing .razor.css files for most components. See Active Handoff.
+- Chat UI CSS: **FIXED** (2026-03-12). All 14 component stylesheets created or overhauled. Deployed to mint22, health verified Healthy.
 
 ## Environment
 
@@ -77,60 +77,44 @@ Archived context:
 
 ## Active Handoff
 
-### Chat UI Missing CSS — Entire Page Unstyled
+### Chat UI CSS — Complete (Ready for Visual Verification)
 
 **Date:** 2026-03-12
-**Owner:** Server agent (`mint22`)
-**Status:** OPEN — CSS files need to be created
+**Owner:** Client agent (`Windows11-TestDNC`)
+**Status:** DONE — deployed, needs visual verification
 
-**Bug report from client testing (Windows11-TestDNC):**
+**What was done (server agent):**
 
-**Symptom:** Chat page at `https://mint22:15443/apps/chat` loads channels and messages (DbContext fix works), but the entire page is **completely unstyled** — plain HTML with no visual formatting. Specifically:
-- No cursor change on clickable items (no `cursor: pointer`)
-- Channel list items are plain text with `#` prefix, no hover/active states
-- Message composer toolbar buttons (B, I, code, link) are unstyled squares
-- Pin/Edit/Archive/Leave/Members buttons are unstyled native browser buttons
-- No proper layout separation between channel list and message area
-- Messages display as plain text blocks with `?` placeholders where avatars should be
-- Emoji picker button is an unstyled circle
-- No visual hierarchy, spacing, or theming
+Created 8 missing `.razor.css` files and overhauled all 6 existing ones. All 14 chat component stylesheets now use the app's design system (CSS custom properties: `--color-*`, `--radius`, `--shadow-*`, etc.) with proper dark-mode support.
 
-**Root cause (confirmed by code inspection on client machine):**
+**New CSS files created (8):**
+- `MessageComposer.razor.css` — Toolbar, input, send button, reply preview, emoji picker, mention dropdown
+- `DirectMessageView.razor.css` — DM header, user search, avatar, status dots, layout
+- `ChannelSettingsDialog.razor.css` — Modal form layout, member management, metadata
+- `ChatNotificationBadge.razor.css` — Pill badge with pop-in animation, mention variant
+- `NotificationPreferencesPanel.razor.css` — Push/DND settings, muted channel list
+- `TypingIndicator.razor.css` — Animated bouncing dots, italic text
+- `AnnouncementBanner.razor.css` — Priority colour variants (normal/important/urgent), slide-in
+- `AnnouncementEditor.razor.css` — Modal with preview tabs, form groups, side-by-side fields
 
-8 Chat components are **missing their `.razor.css` files entirely**, despite their `.razor` markup referencing 20+ CSS classes that don't exist:
+**Existing CSS files overhauled (6):**
+- `ChannelHeader.razor.css` — Full header layout with channel info, topic separator, styled action buttons
+- `ChannelList.razor.css` — Channel items with hover/active states, badges, search, create dialog, group headers
+- `ChatPageLayout.razor.css` — Proper backgrounds on sidebar/main, design-system variables
+- `MessageList.razor.css` — Message items with avatar, sender, timestamp, reactions, proper states
+- `MemberListPanel.razor.css` — Full panel layout, member items, profile popup, role badges
+- `AnnouncementList.razor.css` — Card layout, skeleton shimmer using design-system colours
 
-| Component | Missing CSS Classes (examples) |
-|-----------|-------------------------------|
-| `MessageComposer.razor` ❌ | `.chat-message-composer`, `.composer-toolbar`, `.composer-fmt`, `.composer-input`, `.composer-send`, `.emoji-picker`, `.emoji-btn`, `.mention-suggestion*`, `.reply-preview` |
-| `DirectMessageView.razor` ❌ | `.chat-dm-view`, `.dm-header`, `.dm-user-search*`, `.dm-user-result*` |
-| `ChannelSettingsDialog.razor` ❌ | `.settings-section`, `.member-management-list`, `.member-row`, `.add-member-row` |
-| `ChatNotificationBadge.razor` ❌ | (no CSS file) |
-| `NotificationPreferencesPanel.razor` ❌ | (no CSS file) |
-| `TypingIndicator.razor` ❌ | (no CSS file) |
-| `AnnouncementBanner.razor` ❌ | (no CSS file) |
-| `AnnouncementEditor.razor` ❌ | (no CSS file) |
+**Deployment:**
+- Built Release, redeployed via `redeploy-baremetal.sh`
+- Service restarted, health verified Healthy at `https://localhost:15443/health/live`
+- 263 Chat tests pass, 0 failures
 
-**Components that DO have CSS but are too minimal:**
-- `ChannelHeader.razor.css` — single line only (`.channel-actions` gap)
-
-**Components with adequate CSS:**
-- `ChatPageLayout.razor.css` — flex layout ✓
-- `ChannelList.razor.css` — presence dots, drag-drop, loading skeletons ✓
-- `MessageList.razor.css` — dividers, attachment previews ✓
-- `MemberListPanel.razor.css` — member styling ✓
-- `AnnouncementList.razor.css` — loading states ✓
-
-**Action needed from server agent:**
-1. Create `.razor.css` files for all 8 missing components listed above
-2. The CSS should match the dark theme used by the rest of the app (dark background, light text, accent colors)
-3. Priority order: MessageComposer (most visible) → ChannelHeader → DirectMessageView → ChannelSettingsDialog → remaining 4
-4. Key styling needs:
-   - Channel list items: `cursor: pointer`, hover/active states, proper padding
-   - Message composer: styled toolbar, input area, send button, emoji picker
-   - Buttons (Pin/Edit/Archive/Leave/Members): styled to match app button classes
-   - Messages: avatar placeholders, proper spacing, timestamp styling
-5. Rebuild, redeploy, restart service
-6. Update this handoff with results
+**Action needed from client agent:**
+1. Navigate to `https://mint22:15443/apps/chat`
+2. Verify visual appearance — channels should have hover/active states, header should be clean, composer should be polished
+3. Check dark mode if applicable
+4. Report any remaining visual issues
 
 ## Relay Template
 

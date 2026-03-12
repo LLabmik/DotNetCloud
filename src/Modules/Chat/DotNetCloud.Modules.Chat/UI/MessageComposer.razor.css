@@ -1,0 +1,285 @@
+/* ============================================================
+   MessageComposer — Chat message input with toolbar, mentions,
+   reply preview, emoji picker, and file attachments.
+   ============================================================ */
+
+.chat-message-composer {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--color-border, #e2e8f0);
+    background: var(--color-surface, #ffffff);
+    padding: 8px 16px 12px;
+}
+
+/* --- Formatting Toolbar --- */
+
+.composer-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 0 6px;
+    border-bottom: 1px solid var(--color-border, #e2e8f0);
+    margin-bottom: 8px;
+}
+
+.composer-fmt {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 28px;
+    border-radius: 4px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--color-text-secondary, #64748b);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 150ms ease;
+}
+
+.composer-fmt:hover {
+    background: var(--color-bg, #f5f7fa);
+    border-color: var(--color-border, #e2e8f0);
+    color: var(--color-text, #1e293b);
+}
+
+.composer-fmt:active {
+    background: var(--color-border, #e2e8f0);
+}
+
+/* --- Reply Preview --- */
+
+.reply-preview {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    margin-bottom: 6px;
+    background: var(--color-bg, #f5f7fa);
+    border-left: 3px solid var(--color-primary, #3b82f6);
+    border-radius: 0 6px 6px 0;
+    font-size: 13px;
+    color: var(--color-text-secondary, #64748b);
+    line-height: 1.4;
+}
+
+.reply-label {
+    flex-shrink: 0;
+    font-size: 12px;
+}
+
+.reply-content {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.reply-preview .btn-close {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-secondary, #64748b);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    padding: 0;
+    transition: background 150ms ease;
+}
+
+.reply-preview .btn-close:hover {
+    background: var(--color-border, #e2e8f0);
+    color: var(--color-text, #1e293b);
+}
+
+/* --- Input Row (attach + textarea + emoji + send) --- */
+
+.composer-input-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+}
+
+.composer-action {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 6px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--color-text-secondary, #64748b);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0;
+    transition: all 150ms ease;
+}
+
+.composer-action:hover {
+    background: var(--color-bg, #f5f7fa);
+    border-color: var(--color-border, #e2e8f0);
+    color: var(--color-text, #1e293b);
+}
+
+/* --- Textarea Wrapper --- */
+
+.composer-input-wrapper {
+    flex: 1;
+    position: relative;
+    min-width: 0;
+}
+
+.composer-input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 8px;
+    background: var(--color-bg, #f5f7fa);
+    color: var(--color-text, #1e293b);
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.5;
+    resize: none;
+    outline: none;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+    max-height: 160px;
+    overflow-y: auto;
+}
+
+.composer-input::placeholder {
+    color: var(--color-muted, #94a3b8);
+}
+
+.composer-input:focus {
+    border-color: var(--color-primary, #3b82f6);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+    background: var(--color-surface, #ffffff);
+}
+
+/* --- Send Button --- */
+
+.composer-send {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: var(--color-primary, #3b82f6);
+    border: none;
+    color: #ffffff;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0;
+    transition: background 150ms ease, transform 100ms ease;
+}
+
+.composer-send:hover:not(:disabled) {
+    background: var(--color-primary-hover, #2563eb);
+}
+
+.composer-send:active:not(:disabled) {
+    transform: scale(0.95);
+}
+
+.composer-send:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* --- Mention Suggestions Dropdown --- */
+
+.mention-suggestions {
+    position: absolute;
+    bottom: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    max-height: 200px;
+    overflow-y: auto;
+    background: var(--color-surface, #ffffff);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 8px;
+    box-shadow: var(--shadow-lg, 0 10px 15px rgba(0,0,0,.1));
+    z-index: 50;
+    padding: 4px;
+}
+
+.mention-suggestion {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    font-size: 13px;
+    color: var(--color-text, #1e293b);
+    transition: background 120ms ease;
+}
+
+.mention-suggestion:hover,
+.mention-suggestion:focus {
+    background: var(--color-bg, #f5f7fa);
+    outline: none;
+}
+
+.mention-suggestion-name {
+    font-weight: 600;
+}
+
+.mention-suggestion-username {
+    color: var(--color-text-secondary, #64748b);
+    font-size: 12px;
+}
+
+/* --- Emoji Picker --- */
+
+.emoji-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    padding: 8px;
+    margin-top: 6px;
+    background: var(--color-surface, #ffffff);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 8px;
+    box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,.1));
+    max-height: 180px;
+    overflow-y: auto;
+}
+
+.emoji-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 18px;
+    transition: background 120ms ease, transform 100ms ease;
+}
+
+.emoji-btn:hover {
+    background: var(--color-bg, #f5f7fa);
+    transform: scale(1.15);
+}
+
+.emoji-btn:active {
+    transform: scale(0.95);
+}

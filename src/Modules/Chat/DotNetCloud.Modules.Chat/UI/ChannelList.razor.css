@@ -1,3 +1,183 @@
+/* ============================================================
+   ChannelList — Sidebar channel list with groups, search,
+   create dialog, badges, drag-drop pinning, and skeletons.
+   ============================================================ */
+
+/* --- Container --- */
+
+.chat-channel-list {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow-y: auto;
+}
+
+/* --- Header --- */
+
+.channel-list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px 10px;
+}
+
+.channel-list-header h2 {
+    font-size: 17px;
+    font-weight: 800;
+    margin: 0;
+    color: var(--color-text, #1e293b);
+}
+
+/* --- Search --- */
+
+.channel-search {
+    padding: 0 12px 10px;
+}
+
+.channel-search input {
+    width: 100%;
+    padding: 7px 10px;
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 6px;
+    background: var(--color-bg, #f5f7fa);
+    color: var(--color-text, #1e293b);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.channel-search input::placeholder {
+    color: var(--color-muted, #94a3b8);
+}
+
+.channel-search input:focus {
+    border-color: var(--color-primary, #3b82f6);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    background: var(--color-surface, #ffffff);
+}
+
+/* --- Create Channel Dialog --- */
+
+.create-channel-dialog {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    margin: 0 12px 8px;
+    background: var(--color-bg, #f5f7fa);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: var(--radius, 8px);
+}
+
+.create-channel-dialog input,
+.create-channel-dialog select {
+    width: 100%;
+    padding: 7px 10px;
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 6px;
+    background: var(--color-surface, #ffffff);
+    color: var(--color-text, #1e293b);
+    font-size: 13px;
+    outline: none;
+}
+
+.create-channel-dialog input:focus,
+.create-channel-dialog select:focus {
+    border-color: var(--color-primary, #3b82f6);
+}
+
+/* --- Channel Groups --- */
+
+.channel-group {
+    padding: 0 8px;
+    margin-bottom: 8px;
+}
+
+.channel-group h3 {
+    padding: 8px 8px 4px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--color-text-secondary, #64748b);
+    margin: 0;
+}
+
+/* --- Channel Items --- */
+
+.channel-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 14px;
+    color: var(--color-text, #1e293b);
+    transition: background 120ms ease;
+}
+
+.channel-item:hover {
+    background: var(--color-bg, #f5f7fa);
+}
+
+.channel-item.active {
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--color-primary, #3b82f6);
+    font-weight: 600;
+}
+
+.channel-icon {
+    flex-shrink: 0;
+    font-size: 15px;
+    opacity: 0.7;
+    width: 20px;
+    text-align: center;
+}
+
+.channel-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* --- Badges (unread / mention) --- */
+
+.badge-unread {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--color-text-secondary, #64748b);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.badge-mention {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--color-danger, #ef4444);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+/* --- Presence Dots --- */
+
 .presence-dot {
     display: inline-block;
     width: 0.55rem;
@@ -19,6 +199,8 @@
     background-color: #6b7280;
 }
 
+/* --- Pinned Channel Drag & Drop --- */
+
 .channel-item-pinned {
     cursor: grab;
     user-select: none;
@@ -33,27 +215,48 @@
 }
 
 .channel-item-pinned.is-drop-target {
-    box-shadow: inset 0 -2px 0 #0ea5e9;
-    background-color: rgba(14, 165, 233, 0.08);
+    box-shadow: inset 0 -2px 0 var(--color-primary, #3b82f6);
+    background: rgba(59, 130, 246, 0.06);
 }
+
+/* --- Loading / Error / Empty States --- */
 
 .loading-state,
 .error-state,
 .empty-state {
-    padding: 0.75rem;
+    padding: 16px;
+    font-size: 13px;
+    color: var(--color-text-secondary, #64748b);
 }
+
+.empty-state p:first-child {
+    font-weight: 500;
+    color: var(--color-text, #1e293b);
+    margin-bottom: 4px;
+}
+
+.text-muted {
+    color: var(--color-muted, #94a3b8);
+    font-size: 12px;
+}
+
+/* --- Skeleton Shimmer --- */
 
 .channel-skeleton-list {
     margin-top: 0.5rem;
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
+    gap: 6px;
+    padding: 0 12px;
 }
 
 .channel-skeleton-row {
-    height: 1.75rem;
-    border-radius: 0.35rem;
-    background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+    height: 32px;
+    border-radius: 6px;
+    background: linear-gradient(90deg,
+        var(--color-border, #e2e8f0) 25%,
+        var(--color-bg, #f5f7fa) 50%,
+        var(--color-border, #e2e8f0) 75%);
     background-size: 220% 100%;
     animation: channel-skeleton-shimmer 1.1s ease-in-out infinite;
 }

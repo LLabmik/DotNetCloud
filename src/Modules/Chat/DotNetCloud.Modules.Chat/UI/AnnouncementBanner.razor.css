@@ -1,0 +1,94 @@
+/* ============================================================
+   AnnouncementBanner — Top-of-view alert strip with priority
+   colour coding, content preview, and acknowledge/dismiss.
+   ============================================================ */
+
+.announcement-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 16px;
+    border-radius: var(--radius, 8px);
+    margin: 8px 16px;
+    font-size: 14px;
+    line-height: 1.5;
+    animation: banner-slide-in 250ms ease-out;
+}
+
+/* --- Priority Variants --- */
+
+.announcement-banner.priority-normal {
+    background: rgba(59, 130, 246, 0.08);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    color: var(--color-text, #1e293b);
+}
+
+.announcement-banner.priority-important {
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    color: var(--color-text, #1e293b);
+}
+
+.announcement-banner.priority-urgent {
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    color: var(--color-text, #1e293b);
+}
+
+/* --- Content --- */
+
+.announcement-banner-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+}
+
+.announcement-icon {
+    flex-shrink: 0;
+    font-size: 18px;
+    line-height: 1;
+    margin-top: 1px;
+}
+
+.announcement-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.announcement-text strong {
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.announcement-body {
+    font-size: 13px;
+    color: var(--color-text-secondary, #64748b);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-top: 2px;
+}
+
+/* --- Actions --- */
+
+.announcement-banner-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+@keyframes banner-slide-in {
+    0% {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

@@ -1,6 +1,99 @@
-.chat-channel-header .channel-actions {
+/* ============================================================
+   ChannelHeader — Top bar showing channel name, topic, member
+   count, and action buttons (pin, edit, archive, leave, etc.)
+   ============================================================ */
+
+.chat-channel-header {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--color-border, #e2e8f0);
+    background: var(--color-surface, #ffffff);
+    flex-shrink: 0;
+    min-height: 52px;
+}
+
+/* --- Channel Info (left side) --- */
+
+.channel-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+}
+
+.channel-icon {
+    flex-shrink: 0;
+    font-size: 18px;
+    opacity: 0.7;
+}
+
+.channel-name {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0;
+    color: var(--color-text, #1e293b);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.channel-topic {
+    font-size: 13px;
+    color: var(--color-text-secondary, #64748b);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-left: 8px;
+    border-left: 1px solid var(--color-border, #e2e8f0);
+}
+
+/* --- Actions (right side) --- */
+
+.channel-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
     flex-wrap: wrap;
+}
+
+.member-count {
+    font-size: 13px;
+    color: var(--color-text-secondary, #64748b);
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: var(--color-bg, #f5f7fa);
+    white-space: nowrap;
+}
+
+/* Make header action buttons compact and consistent */
+.channel-actions .btn {
+    font-size: 12px;
+    padding: 4px 10px;
+    border: 1px solid var(--color-border, #e2e8f0);
+    background: var(--color-surface, #ffffff);
+    color: var(--color-text-secondary, #64748b);
+    border-radius: 6px;
+    transition: all 150ms ease;
+}
+
+.channel-actions .btn:hover:not(:disabled) {
+    border-color: var(--color-primary, #3b82f6);
+    color: var(--color-primary, #3b82f6);
+    background: var(--color-bg, #f5f7fa);
+}
+
+.channel-actions .btn-danger {
+    border-color: rgba(239, 68, 68, 0.3);
+    color: var(--color-danger, #ef4444);
+    background: transparent;
+}
+
+.channel-actions .btn-danger:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.08);
+    border-color: var(--color-danger, #ef4444);
 }

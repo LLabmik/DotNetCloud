@@ -1,36 +1,152 @@
+/* ============================================================
+   MemberListPanel — Slide-in member sidebar with profile
+   popups, role badges, and action buttons.
+   ============================================================ */
+
+/* --- Container --- */
+
+.member-list-panel {
+    width: 240px;
+    border-left: 1px solid var(--color-border, #e2e8f0);
+    background: var(--color-surface, #ffffff);
+    overflow-y: auto;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.member-list-panel h3 {
+    padding: 14px 16px 8px;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--color-text-secondary, #64748b);
+    margin: 0;
+}
+
+/* --- Member Items --- */
+
+.member-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    transition: background 120ms ease;
+}
+
+.member-item:hover {
+    background: var(--color-bg, #f5f7fa);
+}
+
+.member-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.member-avatar-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--color-primary, #3b82f6);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+    text-transform: uppercase;
+}
+
+/* --- Name Button --- */
+
 .member-name-button {
     background: none;
     border: none;
     padding: 0;
     margin: 0;
-    color: inherit;
+    color: var(--color-text, #1e293b);
     cursor: pointer;
     text-align: left;
+    font-size: 13px;
+    font-weight: 500;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
+
+.member-name-button:hover {
+    color: var(--color-primary, #3b82f6);
+}
+
+/* --- Role Badge --- */
+
+.member-role {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.member-role-owner {
+    background: rgba(245, 158, 11, 0.12);
+    color: #d97706;
+}
+
+.member-role-admin {
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--color-primary, #3b82f6);
+}
+
+/* --- Actions --- */
 
 .member-actions {
     margin-left: auto;
     display: inline-flex;
-    gap: 0.25rem;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 120ms ease;
 }
 
+.member-item:hover .member-actions {
+    opacity: 1;
+}
+
+/* --- Profile Popup --- */
+
 .member-profile-popup {
-    margin-top: 0.8rem;
-    border: 1px solid #d1d5db;
-    border-radius: 0.4rem;
-    padding: 0.6rem;
-    background: #f9fafb;
+    margin: 4px 12px 8px;
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: var(--radius, 8px);
+    padding: 12px 14px;
+    background: var(--color-surface, #ffffff);
+    box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,.1));
 }
 
 .profile-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 0.4rem;
+    margin-bottom: 8px;
+}
+
+.profile-header strong {
+    font-size: 14px;
+    color: var(--color-text, #1e293b);
 }
 
 .profile-row {
-    font-size: 0.85rem;
-    color: #374151;
-    margin-bottom: 0.2rem;
+    font-size: 13px;
+    color: var(--color-text-secondary, #64748b);
+    margin-bottom: 4px;
+    line-height: 1.4;
 }
