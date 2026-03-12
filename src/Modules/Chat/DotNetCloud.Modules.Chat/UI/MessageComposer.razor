@@ -8,10 +8,10 @@
 
 <div class="chat-message-composer">
     <div class="composer-toolbar" role="toolbar" aria-label="Formatting toolbar">
-        <button class="btn btn-sm composer-fmt" @onclick='() => ApplyFormatAsync("**", "**")' title="Bold (Ctrl+B)"><strong>B</strong></button>
-        <button class="btn btn-sm composer-fmt" @onclick='() => ApplyFormatAsync("_", "_")' title="Italic (Ctrl+I)"><em>I</em></button>
-        <button class="btn btn-sm composer-fmt" @onclick='() => ApplyFormatAsync("`", "`")' title="Inline code"><code>` `</code></button>
-        <button class="btn btn-sm composer-fmt" @onclick='() => ApplyFormatAsync("[" , "](url)")' title="Link">🔗</button>
+        <button class="btn btn-sm composer-fmt fmt-bold" @onclick='() => ApplyFormatAsync("**", "**")' title="Bold" aria-label="Bold"><strong>B</strong></button>
+        <button class="btn btn-sm composer-fmt fmt-italic" @onclick='() => ApplyFormatAsync("_", "_")' title="Italic" aria-label="Italic"><em>I</em></button>
+        <button class="btn btn-sm composer-fmt fmt-code" @onclick='() => ApplyFormatAsync("`", "`")' title="Code" aria-label="Inline code">&lt;/&gt;</button>
+        <button class="btn btn-sm composer-fmt fmt-link" @onclick='() => ApplyFormatAsync("[" , "](url)")' title="Link" aria-label="Insert link">🔗</button>
     </div>
 
     @if (EditingMessage is not null)

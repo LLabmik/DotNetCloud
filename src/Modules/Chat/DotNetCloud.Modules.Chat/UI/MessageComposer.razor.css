@@ -26,15 +26,28 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 30px;
+    min-width: 32px;
     height: 28px;
+    padding: 0 6px;
     border-radius: 4px;
     background: transparent;
     border: 1px solid transparent;
     color: var(--color-text-secondary, #64748b);
     cursor: pointer;
-    font-size: 13px;
+    font-size: 14px;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
     transition: all 150ms ease;
+}
+
+.fmt-italic {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 15px;
+}
+
+.fmt-code {
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 12px;
+    letter-spacing: -0.5px;
 }
 
 .composer-fmt:hover {
