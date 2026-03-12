@@ -2192,3 +2192,36 @@ Archived from `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` when enforci
   - File sync tests: wrong route paths (`/api/v1/files/changes` → `/api/v1/files/sync/changes`), removed stale `?userId=` params, replaced non-existent `/api/v1/files/sync-state` with `/api/v1/files/sync/tree`.
   - ChatDbContext dual-provider conflict (Npgsql + InMemory): changed `AddDbContext` to singleton `DbContextOptions` registration to avoid registering a second EF provider.
 - Final suite: 2,106 passed / 0 failed / 2 skipped (env-gated).
+
+---
+
+## PosixMode Migration Blocker Fix (2026-03-12)
+
+**Date:** 2026-03-12
+**Owner:** Server agent (`mint22`)
+**Status:** COMPLETE ✅
+
+**Problem:** Web UI at `https://mint22:15443/` failed with `42703: column f.PosixMode does not exist`. All 6 Files module migrations were pending against the production `dotnetcloud` database. The design-time factory targeted `dotnetcloud_files_dev` (non-existent), so migrations had never been applied to the actual database.
+
+**Root cause:** Design-time factory hardcodes `Database=dotnetcloud_files_dev`, but production uses `Database=dotnetcloud` via `DefaultConnection`. Previous migration work only applied `InitialCreate` (core) and `AddSymlinkSupport` (manually), leaving 4 Files migrations unapplied.
+
+**Fix applied:**
+1. Inserted `20260304172504_InitialFilesSchema` into `__EFMigrationsHistory` (tables already existed from prior manual creation).
+2. Applied 4 pending migrations via `dotnet ef database update --connection "Host=localhost;Database=dotnetcloud;..."`:
+   - `20260308113429_AddFileVersionScanStatus` — added `ScanStatus` to `FileVersions`
+   - `20260308164648_AddCdcChunkMetadata` — added `ChunkSizesManifest` to `UploadSessions`, `ChunkSize`/`Offset` to `FileVersionChunks`
+   - `20260309063020_AddSyncCursorSupport` — added `SyncSequence` to `FileNodes`, created `UserSyncCounters` table
+   - `20260309083622_AddPosixPermissions` — added `PosixMode`/`PosixOwnerHint` to `FileNodes`, `FileVersions`, `UploadSessions`
+3. Rebuilt and republished server (`dotnet publish -c Release`).
+4. Restarted `dotnetcloud.service`.
+
+**Verification:**
+- All 7 migrations recorded in `__EFMigrationsHistory`.
+- `PosixMode`, `PosixOwnerHint`, `SyncSequence` confirmed on `FileNodes`.
+- `PosixMode`, `ScanStatus` confirmed on `FileVersions`.
+- `PosixMode`, `PosixOwnerHint`, `ChunkSizesManifest` confirmed on `UploadSessions`.
+- `UserSyncCounters` table created.
+- Health endpoint: 200 Healthy.
+- Files API: 401 (auth required, no column errors).
+- Server logs: no DB errors.
+- Test suite: 2,106 passed / 0 failed / 2 skipped (env-gated).

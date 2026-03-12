@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-12 (Phase 2.10 fully closed — all client items complete)
+Last updated: 2026-03-12 (PosixMode migration blocker fixed — all Files migrations applied)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -53,7 +53,8 @@ Archived context:
 - Integration test fixes (11 failures → 0): complete (2026-03-12).
 - Phase 2.10 final items (badges, APK download docs, app store listing): complete (2026-03-12).
 - **All Phase 2 work is now complete.**
-- Full test suite: 2,095 passed / 0 failed / 13 skipped (env-gated).
+- PosixMode migration blocker: fixed (2026-03-12) — all 6 Files migrations applied to production DB.
+- Full test suite: 2,106 passed / 0 failed / 2 skipped (env-gated).
 
 ## Environment
 
@@ -71,73 +72,43 @@ Archived context:
 
 ## Active Handoff
 
-### BLOCKER: Missing PosixMode Migration on Server DB
+### PosixMode Migration Blocker FIXED — Server Ready for Client Testing
 
 **Date:** 2026-03-12
 **Owner:** Server agent (`mint22`)
-**Status:** ACTION REQUIRED
+**Status:** COMPLETE ✅
 
-**Problem:**
-Client testing of the Web UI at `https://mint22:15443/` immediately fails on page load with:
+**What was completed:**
 
+1. Discovered all 6 Files module migrations were pending against the production `dotnetcloud` database (design-time factory targeted non-existent `dotnetcloud_files_dev`).
+2. Recorded `InitialFilesSchema` as applied (tables already existed from prior manual creation).
+3. Applied 4 pending migrations using `--connection` override:
+   - `AddFileVersionScanStatus` → `ScanStatus` on `FileVersions`
+   - `AddCdcChunkMetadata` → `ChunkSizesManifest` on `UploadSessions`, `ChunkSize`/`Offset` on `FileVersionChunks`
+   - `AddSyncCursorSupport` → `SyncSequence` on `FileNodes`, `UserSyncCounters` table
+   - `AddPosixPermissions` → `PosixMode`/`PosixOwnerHint` on `FileNodes`, `FileVersions`, `UploadSessions`
+4. Rebuilt, republished, and restarted `dotnetcloud.service`.
+
+**Verification:**
+- All 7 migrations recorded in `__EFMigrationsHistory`.
+- All new columns confirmed via `information_schema`.
+- Health endpoint: 200 Healthy.
+- Files API: returns 401 (auth required), no column errors.
+- Server logs: clean — no DB errors.
+- Test suite: 2,106 passed / 0 failed / 2 skipped (env-gated).
+
+**Runtime verification:**
 ```
-Something went wrong
-42703: column f.PosixMode does not exist POSITION: 271
+$ systemctl status dotnetcloud.service
+● dotnetcloud.service - DotNetCloud Core Server
+     Active: active (running) since Thu 2026-03-12 02:40:57 CDT
+   Main PID: 98178 (/home/benk/.../server-baremetal/DotNetCloud.Core.Server.dll)
 ```
 
-The PostgreSQL database on `mint22` is missing the `PosixMode` and `PosixOwnerHint` columns on the `FileNodes`, `FileVersions`, and `UploadSessions` tables. The EF Core migration exists in code (`20260309083622_AddPosixPermissions`) but was never applied to the running database.
-
-This was reported as fixed previously but the error is still occurring — possibly the service was restarted but the migration was never applied, or the service is running stale binaries.
-
-**Required fix (server agent):**
-
-1. Pull latest `main`:
-   ```bash
-   cd /path/to/dotnetcloud
-   git pull
-   ```
-
-2. Apply the pending Files module migration:
-   ```bash
-   dotnet ef database update \
-     --project src/Modules/Files/DotNetCloud.Modules.Files.Data \
-     --context FilesDbContext
-   ```
-
-3. Verify the columns exist:
-   ```sql
-   SELECT column_name FROM information_schema.columns 
-   WHERE table_name = 'FileNodes' AND column_name IN ('PosixMode', 'PosixOwnerHint');
-   ```
-   Expected: both columns returned.
-
-4. Restart the server and verify the Web UI loads without error.
-
-5. Also check for any other pending migrations while you're at it:
-   ```bash
-   dotnet ef migrations list \
-     --project src/Modules/Files/DotNetCloud.Modules.Files.Data \
-     --context FilesDbContext
-   ```
-   Verify all migrations show as "applied."
-
-**Migration details:**
-- Migration name: `20260309083622_AddPosixPermissions`
-- File: `src/Modules/Files/DotNetCloud.Modules.Files.Data/Migrations/20260309083622_AddPosixPermissions.cs`
-- Adds: `PosixMode` (int?, nullable) to `FileNodes`, `FileVersions`, `UploadSessions`
-- Adds: `PosixOwnerHint` (varchar(200), nullable) to `FileNodes`, `UploadSessions`
-
-There may also be a second migration to check: `20260309093919_AddSymlinkSupport` — verify that one is applied too.
-
-**Impact:**
-- ALL client testing is blocked (Web UI, Sync App, Android) — every file-related endpoint hits this missing column.
-- No client-side changes needed.
-
-**Request back:**
-- Confirmation that migrations were applied
-- Output of the `information_schema` column check
-- Confirmation Web UI loads without error
-- Commit hash if any changes were made
+**Next action:**
+- Client agent can now test Web UI at `https://mint22:15443/apps/files` — should load without errors.
+- Sync, Android, and desktop client testing are all unblocked.
+- All Phase 2 work is complete. Phase 3 planning can begin when ready.
 
 ## Relay Template
 
