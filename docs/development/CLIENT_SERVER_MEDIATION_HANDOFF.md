@@ -62,6 +62,7 @@ Archived context:
 - Chat UI CSS: Stylesheets created (2026-03-12) but **not loaded** — missing `<link>` tag in `App.razor`. Fixed by client agent.
 - Chat UI CSS link tag fix: corrected `.styles.css` → `.bundle.scp.css` (2026-03-12). .NET 10 RCL CSS isolation uses `.bundle.scp.css` naming, not `.styles.css`. Deployed to mint22, all 14 component stylesheets verified loading (2,045 lines CSS, 200 OK).
 - WYSIWYG Chat Composer: deployed to mint22 (2026-03-12). Contenteditable editor replaces raw textarea, JS module + CSS verified loading.
+- Chat Permission Hardening + Members Display Names: deployed to mint22 (2026-03-12). Role-based UI gating, membership checks, announcement author-only edits, display names in members panel.
 
 ## Environment
 
@@ -79,33 +80,27 @@ Archived context:
 
 ## Active Handoff
 
-### Chat Permission Hardening + Members Display Name Fix
+### Chat Permission Hardening + Members Display Name Fix — Deployed
 
 **Date:** 2026-03-12
-**Owner:** Client agent
-**Status:** READY FOR DEPLOY
+**Owner:** Server agent (`mint22`)
+**Status:** COMPLETE
 
-**Commits:**
-- `7206a5e` — Wire IUserDirectory into ChannelMemberService for display names in Members panel
-- `9ce4096` — Enforce role-based permission gating in chat UI + backend security fixes
+**Deployment verification (server agent):**
+- `git pull` — fast-forward to `590ff25` (11 files changed, permission hardening + members display names)
+- `bash tools/redeploy-baremetal.sh` — build succeeded (0 errors, 55.8s), service restarted
+- Health: **Healthy** (all checks: self, startup, collabora_online, linux-resources)
+- Chat module DLL: freshly built (06:35), service started (06:36)
+- `/apps/chat` — 302 auth redirect (correct)
+- Service: PID 15114, active (running), fresh publish binaries
 
-**Changes summary:**
+**What's deployed:**
+1. Members panel display names via `IUserDirectory.GetDisplayNamesAsync()`
+2. Role-based UI gating (Archive/Edit hidden for non-admin)
+3. Private/DM/Group channel membership checks
+4. Announcement author-only update/delete
 
-1. **Members panel display names** — `ChannelMemberDto` now includes `DisplayName`/`Username`, populated via `IUserDirectory.GetDisplayNamesAsync()`. Members panel shows real names instead of truncated GUIDs.
-
-2. **UI role gating** — Archive and Edit buttons in channel header are now hidden for regular Members (only visible to Admin/Owner). Member management controls (promote/demote/remove/add) in both MemberListPanel and ChannelSettingsDialog are gated by role. Channel settings fields (name/topic/description) are disabled for non-admin users.
-
-3. **GetChannelAsync membership check** — Private, DM, and Group channels now require membership to view. Public channels remain viewable by any authenticated user (supports future browse/join flow).
-
-4. **Announcement authorization** — Update and Delete operations now restricted to the announcement author only (previously any authenticated user could modify any announcement).
-
-**Build:** 0 errors. **Tests:** 263/263 chat tests pass.
-
-**Server agent action required:**
-1. `git pull` on mint22
-2. Redeploy (`bash tools/redeploy-baremetal.sh`)
-3. Verify Members panel shows display names
-4. Verify non-admin user cannot see Archive/Edit buttons in channel header
+**No issues found. Permission hardening is live on mint22.**
 
 ## Relay Template
 
