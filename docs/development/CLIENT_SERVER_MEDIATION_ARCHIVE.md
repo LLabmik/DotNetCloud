@@ -1813,6 +1813,19 @@ Required coverage:
 3. Restarted: `systemctl restart dotnetcloud.service` — active (running), PID 114823.
 4. Health: `curl -sk https://mint22:15443/health` → **Healthy**.
 5. Chat page: `https://mint22:15443/apps/chat` returns 302 (auth redirect, expected). No raw variable names in response body.
+
+---
+
+## Archived: Chat DbContext Concurrency Bug — FIXED (2026-03-12)
+
+**Date:** 2026-03-12
+**Owner:** Server agent (`mint22`)
+
+**Root cause:** Two concurrent `ListChannelsAsync()` calls on the same scoped `ChatDbContext` — `ChatPageLayout.OnInitializedAsync()` and `ChannelList.OnInitializedAsync()` both fired channel loading independently.
+
+**Fix:** Removed duplicate channel loading from `ChannelList` (parent `ChatPageLayout` is sole owner of channel state). Also optimized `ChannelService.ListChannelsAsync()` to use grouped query instead of N+1.
+
+**Verified by client testing:** Channels load without error after service restart (`833f153`).
 4. WOPI and sync endpoint smoke tests (auth enforcement + payload shape).
 5. Document provider matrix execution: PostgreSQL required; SQL Server if environment is available.
 

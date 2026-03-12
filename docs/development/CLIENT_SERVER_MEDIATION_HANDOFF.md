@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-12 (Chat DbContext concurrency bug — FIXED)
+Last updated: 2026-03-12 (Chat UI missing CSS — channel list loads but entire page is unstyled)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -58,7 +58,8 @@ Archived context:
 - Chat UI fix deployed to mint22 (2026-03-12) — rebuilt, restarted, health verified Healthy.
 - Chat UI Blazor binding fix verified on mint22 (2026-03-12) — redeploy complete, no raw variable names in `/apps/chat`, 302 auth redirect working.
 - Full test suite: 2,106+ passed / 0 failed (1 pre-existing Files CDC test failure, unrelated).
-- **NEW BUG (2026-03-12):** Chat DbContext concurrency bug — **FIXED** (2026-03-12). See Active Handoff.
+- Chat DbContext concurrency bug: **FIXED** (2026-03-12). Service restarted, channels load.
+- **NEW BUG (2026-03-12):** Chat UI completely unstyled — missing .razor.css files for most components. See Active Handoff.
 
 ## Environment
 
@@ -76,36 +77,60 @@ Archived context:
 
 ## Active Handoff
 
-### Chat DbContext Concurrency Bug — FIXED
+### Chat UI Missing CSS — Entire Page Unstyled
 
 **Date:** 2026-03-12
 **Owner:** Server agent (`mint22`)
-**Status:** FIXED — needs service restart to deploy
+**Status:** OPEN — CSS files need to be created
 
-**Root cause (confirmed):** Two concurrent `ListChannelsAsync()` calls on the same scoped `ChatDbContext`:
-1. `ChatPageLayout.OnInitializedAsync()` called `LoadChannelsAsync()` → `ChannelService.ListChannelsAsync()`
-2. `ChannelList.OnInitializedAsync()` independently called `LoadChannelsAsync()` when `Channels.Count == 0` (always true during initial render since parent hasn't finished its async load yet)
-3. Both ran concurrently on the same scoped DbContext → EF Core concurrency error
+**Bug report from client testing (Windows11-TestDNC):**
 
-**Fix applied (2 files):**
+**Symptom:** Chat page at `https://mint22:15443/apps/chat` loads channels and messages (DbContext fix works), but the entire page is **completely unstyled** — plain HTML with no visual formatting. Specifically:
+- No cursor change on clickable items (no `cursor: pointer`)
+- Channel list items are plain text with `#` prefix, no hover/active states
+- Message composer toolbar buttons (B, I, code, link) are unstyled squares
+- Pin/Edit/Archive/Leave/Members buttons are unstyled native browser buttons
+- No proper layout separation between channel list and message area
+- Messages display as plain text blocks with `?` placeholders where avatars should be
+- Emoji picker button is an unstyled circle
+- No visual hierarchy, spacing, or theming
 
-1. **`ChannelService.ListChannelsAsync()`** — Replaced N+1 query loop (one `CountAsync` per channel) with a single grouped query using `GroupBy` + `ToDictionaryAsync`. Reduces DB roundtrips from N+2 to 3.
+**Root cause (confirmed by code inspection on client machine):**
 
-2. **`ChannelList.OnInitializedAsync()`** — Removed independent channel loading. The parent `ChatPageLayout` is the sole owner of channel state; `ChannelList` receives channels via `[Parameter]`. The old code's `Channels.Count == 0` guard was always true during initial render since Blazor runs parent/child `OnInitializedAsync` concurrently.
+8 Chat components are **missing their `.razor.css` files entirely**, despite their `.razor` markup referencing 20+ CSS classes that don't exist:
 
-**Tests:** 263/263 Chat tests pass. Build clean (0 errors, 0 warnings on Chat projects).
+| Component | Missing CSS Classes (examples) |
+|-----------|-------------------------------|
+| `MessageComposer.razor` ❌ | `.chat-message-composer`, `.composer-toolbar`, `.composer-fmt`, `.composer-input`, `.composer-send`, `.emoji-picker`, `.emoji-btn`, `.mention-suggestion*`, `.reply-preview` |
+| `DirectMessageView.razor` ❌ | `.chat-dm-view`, `.dm-header`, `.dm-user-search*`, `.dm-user-result*` |
+| `ChannelSettingsDialog.razor` ❌ | `.settings-section`, `.member-management-list`, `.member-row`, `.add-member-row` |
+| `ChatNotificationBadge.razor` ❌ | (no CSS file) |
+| `NotificationPreferencesPanel.razor` ❌ | (no CSS file) |
+| `TypingIndicator.razor` ❌ | (no CSS file) |
+| `AnnouncementBanner.razor` ❌ | (no CSS file) |
+| `AnnouncementEditor.razor` ❌ | (no CSS file) |
 
-**Deployment:** Published to `artifacts/publish/server-baremetal/`. Service restart required:
-```bash
-sudo systemctl restart dotnetcloud.service
-```
+**Components that DO have CSS but are too minimal:**
+- `ChannelHeader.razor.css` — single line only (`.channel-actions` gap)
 
-**Verification after restart:** Navigate to `https://mint22:15443/apps/chat` — channel list should load without the "Unable to load channels" error.
+**Components with adequate CSS:**
+- `ChatPageLayout.razor.css` — flex layout ✓
+- `ChannelList.razor.css` — presence dots, drag-drop, loading skeletons ✓
+- `MessageList.razor.css` — dividers, attachment previews ✓
+- `MemberListPanel.razor.css` — member styling ✓
+- `AnnouncementList.razor.css` — loading states ✓
 
-**Action needed from client agent:**
-1. After moderator restarts the service, verify chat page loads channels at `https://mint22:15443/apps/chat`
-2. Confirm no DbContext concurrency error appears
-3. If verified, archive this handoff block
+**Action needed from server agent:**
+1. Create `.razor.css` files for all 8 missing components listed above
+2. The CSS should match the dark theme used by the rest of the app (dark background, light text, accent colors)
+3. Priority order: MessageComposer (most visible) → ChannelHeader → DirectMessageView → ChannelSettingsDialog → remaining 4
+4. Key styling needs:
+   - Channel list items: `cursor: pointer`, hover/active states, proper padding
+   - Message composer: styled toolbar, input area, send button, emoji picker
+   - Buttons (Pin/Edit/Archive/Leave/Members): styled to match app button classes
+   - Messages: avatar placeholders, proper spacing, timestamp styling
+5. Rebuild, redeploy, restart service
+6. Update this handoff with results
 
 ## Relay Template
 
