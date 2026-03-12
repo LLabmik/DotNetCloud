@@ -56,6 +56,9 @@ public class ChatDbContext : DbContext
     /// <summary>Acknowledgements for announcements.</summary>
     public DbSet<AnnouncementAcknowledgement> AnnouncementAcknowledgements => Set<AnnouncementAcknowledgement>();
 
+    /// <summary>Channel invitations.</summary>
+    public DbSet<ChannelInvite> ChannelInvites => Set<ChannelInvite>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -70,5 +73,6 @@ public class ChatDbContext : DbContext
         modelBuilder.ApplyConfiguration(new PinnedMessageConfiguration());
         modelBuilder.ApplyConfiguration(new AnnouncementConfiguration());
         modelBuilder.ApplyConfiguration(new AnnouncementAcknowledgementConfiguration());
+        modelBuilder.ApplyConfiguration(new ChannelInviteConfiguration());
     }
 }

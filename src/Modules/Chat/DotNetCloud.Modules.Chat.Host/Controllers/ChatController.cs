@@ -24,6 +24,7 @@ public class ChatController : ControllerBase
     private readonly IPinService _pinService;
     private readonly ITypingIndicatorService _typingService;
     private readonly IAnnouncementService _announcementService;
+    private readonly IChannelInviteService _inviteService;
     private readonly IRealtimeBroadcaster _realtimeBroadcaster;
     private readonly IPushNotificationService _pushNotificationService;
     private readonly INotificationPreferenceStore _notificationPreferenceStore;
@@ -40,6 +41,7 @@ public class ChatController : ControllerBase
         IPinService pinService,
         ITypingIndicatorService typingService,
         IAnnouncementService announcementService,
+        IChannelInviteService inviteService,
         IRealtimeBroadcaster realtimeBroadcaster,
         IPushNotificationService pushNotificationService,
         INotificationPreferenceStore notificationPreferenceStore,
@@ -52,6 +54,7 @@ public class ChatController : ControllerBase
         _pinService = pinService;
         _typingService = typingService;
         _announcementService = announcementService;
+        _inviteService = inviteService;
         _realtimeBroadcaster = realtimeBroadcaster;
         _pushNotificationService = pushNotificationService;
         _notificationPreferenceStore = notificationPreferenceStore;
@@ -709,6 +712,107 @@ public class ChatController : ControllerBase
     }
 
     // ── Push Notification Endpoints ────────────────────────────────
+
+    // ── Channel Invite Endpoints ──────────────────────────────────
+
+    /// <summary>Sends an invitation for a single user to join a private channel.</summary>
+    [HttpPost("channels/{channelId:guid}/invites")]
+    public async Task<IActionResult> CreateInviteAsync(Guid channelId, [FromBody] CreateChannelInviteDto dto, [FromQuery] Guid userId)
+    {
+        try
+        {
+            var invite = await _inviteService.CreateInviteAsync(channelId, dto, ToCaller(userId));
+            return Ok(Envelope(invite));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ErrorEnvelope("INVITE_ERROR", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>Lists pending invitations for the calling user.</summary>
+    [HttpGet("invites")]
+    public async Task<IActionResult> ListMyInvitesAsync([FromQuery] Guid userId)
+    {
+        var invites = await _inviteService.ListMyInvitesAsync(ToCaller(userId));
+        return Ok(Envelope(invites));
+    }
+
+    /// <summary>Lists pending invitations for a channel.</summary>
+    [HttpGet("channels/{channelId:guid}/invites")]
+    public async Task<IActionResult> ListChannelInvitesAsync(Guid channelId, [FromQuery] Guid userId)
+    {
+        try
+        {
+            var invites = await _inviteService.ListChannelInvitesAsync(channelId, ToCaller(userId));
+            return Ok(Envelope(invites));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>Accepts a pending channel invitation.</summary>
+    [HttpPost("invites/{inviteId:guid}/accept")]
+    public async Task<IActionResult> AcceptInviteAsync(Guid inviteId, [FromQuery] Guid userId)
+    {
+        try
+        {
+            var invite = await _inviteService.AcceptInviteAsync(inviteId, ToCaller(userId));
+            return Ok(Envelope(invite));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ErrorEnvelope("INVITE_ERROR", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>Declines a pending channel invitation.</summary>
+    [HttpPost("invites/{inviteId:guid}/decline")]
+    public async Task<IActionResult> DeclineInviteAsync(Guid inviteId, [FromQuery] Guid userId)
+    {
+        try
+        {
+            var invite = await _inviteService.DeclineInviteAsync(inviteId, ToCaller(userId));
+            return Ok(Envelope(invite));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ErrorEnvelope("INVITE_ERROR", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>Revokes a pending channel invitation.</summary>
+    [HttpDelete("invites/{inviteId:guid}")]
+    public async Task<IActionResult> RevokeInviteAsync(Guid inviteId, [FromQuery] Guid userId)
+    {
+        try
+        {
+            await _inviteService.RevokeInviteAsync(inviteId, ToCaller(userId));
+            return Ok(Envelope(new { revoked = true }));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ErrorEnvelope("INVITE_ERROR", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
 
     /// <summary>Registers the caller device for push notifications.</summary>
     [HttpPost("~/api/v1/notifications/devices/register")]

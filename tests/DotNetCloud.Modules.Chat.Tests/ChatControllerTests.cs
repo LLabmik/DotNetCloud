@@ -24,6 +24,7 @@ public class ChatControllerTests
     private Mock<IPinService> _pinService = null!;
     private Mock<ITypingIndicatorService> _typingService = null!;
     private Mock<IAnnouncementService> _announcementService = null!;
+    private Mock<IChannelInviteService> _inviteService = null!;
     private Mock<IRealtimeBroadcaster> _realtimeBroadcaster = null!;
     private Mock<IPushNotificationService> _pushNotificationService = null!;
     private Mock<INotificationPreferenceStore> _notificationPreferenceStore = null!;
@@ -39,6 +40,7 @@ public class ChatControllerTests
         _pinService = new Mock<IPinService>();
         _typingService = new Mock<ITypingIndicatorService>();
         _announcementService = new Mock<IAnnouncementService>();
+        _inviteService = new Mock<IChannelInviteService>();
         _realtimeBroadcaster = new Mock<IRealtimeBroadcaster>();
         _pushNotificationService = new Mock<IPushNotificationService>();
         _notificationPreferenceStore = new Mock<INotificationPreferenceStore>();
@@ -60,6 +62,7 @@ public class ChatControllerTests
             _pinService.Object,
             _typingService.Object,
             _announcementService.Object,
+            _inviteService.Object,
             _realtimeBroadcaster.Object,
             _pushNotificationService.Object,
             _notificationPreferenceStore.Object,

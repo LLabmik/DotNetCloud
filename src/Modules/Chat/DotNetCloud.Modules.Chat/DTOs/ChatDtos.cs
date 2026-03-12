@@ -433,3 +433,50 @@ public sealed record AnnouncementAcknowledgementDto
     /// <summary>When they acknowledged (UTC).</summary>
     public DateTime AcknowledgedAt { get; init; }
 }
+
+// ── Channel Invite DTOs ─────────────────────────────────────────────
+
+/// <summary>
+/// Response DTO representing a channel invitation.
+/// </summary>
+public sealed record ChannelInviteDto
+{
+    /// <summary>Invite ID.</summary>
+    public required Guid Id { get; init; }
+
+    /// <summary>Channel ID the invite is for.</summary>
+    public Guid ChannelId { get; init; }
+
+    /// <summary>Channel name for display.</summary>
+    public string ChannelName { get; init; } = string.Empty;
+
+    /// <summary>User who is invited.</summary>
+    public Guid InvitedUserId { get; init; }
+
+    /// <summary>User who sent the invitation.</summary>
+    public Guid InvitedByUserId { get; init; }
+
+    /// <summary>Invite status: Pending, Accepted, Declined, Revoked.</summary>
+    public required string Status { get; init; }
+
+    /// <summary>When the invite was created (UTC).</summary>
+    public DateTime CreatedAt { get; init; }
+
+    /// <summary>When the invite was responded to (UTC).</summary>
+    public DateTime? RespondedAt { get; init; }
+
+    /// <summary>Optional message from the inviter.</summary>
+    public string? Message { get; init; }
+}
+
+/// <summary>
+/// Request DTO for creating a channel invitation for a single user.
+/// </summary>
+public sealed record CreateChannelInviteDto
+{
+    /// <summary>User ID to invite.</summary>
+    public Guid UserId { get; init; }
+
+    /// <summary>Optional message to include with the invitation.</summary>
+    public string? Message { get; init; }
+}

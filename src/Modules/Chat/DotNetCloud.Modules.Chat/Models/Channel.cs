@@ -52,4 +52,7 @@ public sealed class Channel
 
     /// <summary>Pinned messages in this channel.</summary>
     public ICollection<PinnedMessage> PinnedMessages { get; set; } = [];
+
+    /// <summary>Pending invitations for this channel.</summary>
+    public ICollection<ChannelInvite> Invites { get; set; } = [];
 }

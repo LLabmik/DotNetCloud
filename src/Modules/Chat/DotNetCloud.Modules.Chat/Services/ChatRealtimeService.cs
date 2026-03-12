@@ -39,6 +39,9 @@ public interface IChatRealtimeService
     /// <summary>Broadcasts a presence change to relevant channel members.</summary>
     Task BroadcastPresenceChangedAsync(PresenceDto presence, CancellationToken cancellationToken = default);
 
+    /// <summary>Sends a channel invite notification to a specific user.</summary>
+    Task SendInviteNotificationAsync(Guid userId, ChannelInviteDto invite, CancellationToken cancellationToken = default);
+
     /// <summary>Adds a user to a channel's broadcast group.</summary>
     Task AddUserToChannelGroupAsync(Guid userId, Guid channelId, CancellationToken cancellationToken = default);
 
@@ -132,6 +135,13 @@ internal sealed class ChatRealtimeService : IChatRealtimeService
         if (_broadcaster is null) return;
         // Broadcast to all connected clients — presence is cross-channel
         await _broadcaster.BroadcastAsync("chat-presence", "PresenceChanged", presence, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task SendInviteNotificationAsync(Guid userId, ChannelInviteDto invite, CancellationToken cancellationToken)
+    {
+        if (_broadcaster is null) return;
+        await _broadcaster.SendToUserAsync(userId, "ChannelInviteReceived", invite, cancellationToken);
     }
 
     /// <inheritdoc />
