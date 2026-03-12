@@ -60,6 +60,7 @@ Archived context:
 - Full test suite: 2,106+ passed / 0 failed (1 pre-existing Files CDC test failure, unrelated).
 - Chat DbContext concurrency bug: **FIXED** (2026-03-12). Service restarted, channels load.
 - Chat UI CSS: Stylesheets created (2026-03-12) but **not loaded** — missing `<link>` tag in `App.razor`. Fixed by client agent.
+- Chat UI CSS link tag fix: corrected `.styles.css` → `.bundle.scp.css` (2026-03-12). .NET 10 RCL CSS isolation uses `.bundle.scp.css` naming, not `.styles.css`. Deployed to mint22, all 14 component stylesheets verified loading (2,045 lines CSS, 200 OK).
 
 ## Environment
 
@@ -77,40 +78,34 @@ Archived context:
 
 ## Active Handoff
 
-### Chat UI CSS — Link Tag Missing (Fixed by Client, Needs Redeploy)
+### Chat UI CSS — Deployed and Verified
 
 **Date:** 2026-03-12
 **Owner:** Server agent (`mint22`)
-**Status:** ACTION REQUIRED — rebuild and redeploy on mint22
+**Status:** COMPLETE
 
-**What happened:**
+**What was done:**
 
-The server agent created 14 beautiful `.razor.css` files with design-system integration, dark mode, hover states, cursor changes — the whole works. Great CSS work. One problem: **none of it was ever visible to users.** The browser never loaded any of it.
+1. Pulled the client agent's `<link>` tag fix
+2. Discovered the tag referenced `DotNetCloud.Modules.Chat.styles.css` (404) — .NET 10's CSS isolation for Razor Class Libraries uses `.bundle.scp.css` naming, not `.styles.css`
+3. Corrected the link to `DotNetCloud.Modules.Chat.bundle.scp.css`
+4. Rebuilt, redeployed, restarted service
+5. Verified:
+   - Health endpoint: Healthy
+   - CSS bundle served at `_content/DotNetCloud.Modules.Chat/DotNetCloud.Modules.Chat.bundle.scp.css` → HTTP 200
+   - All 14 component stylesheets present in bundle (2,045 lines)
+   - HTML `<head>` includes all 3 CSS links (app.css, UI.Shared.styles.css, Chat.bundle.scp.css)
+   - Chat page `/apps/chat` returns 302 auth redirect (expected for unauthenticated curl)
 
-The `<link>` tag referencing `DotNetCloud.Modules.Chat.styles.css` was never added to `App.razor`. This is Blazor CSS Isolation 101 — Razor Class Library scoped CSS bundles are NOT automatically included in the host application. The host must explicitly reference each library's `{AssemblyName}.styles.css` bundle via a `<link>` tag. Without it, the browser has zero knowledge that these stylesheets exist.
+**Lesson learned (.NET 10 CSS Isolation naming):**
 
-To be clear: all 14 CSS files compiled, the static web asset endpoints were registered, the build succeeded — but no user ever saw a single styled pixel because the HTML document never requested the stylesheet. The chat page rendered as raw unstyled text with no hover states, no cursor changes, no layout — exactly as if the CSS files didn't exist.
+In .NET 10, Razor Class Library CSS isolation bundles are named `{AssemblyName}.bundle.scp.css`, NOT `{AssemblyName}.styles.css`. The traditional `.styles.css` convention only applies to:
+- The host app's own scoped CSS bundle (e.g., `DotNetCloud.UI.Web.styles.css`)
+- Manually created static files that happen to use that name (e.g., `DotNetCloud.UI.Shared.styles.css`)
 
-**What the client agent fixed:**
+For any future module CSS link tags, use: `_content/{AssemblyName}/{AssemblyName}.bundle.scp.css`
 
-Added the missing link tag to `src/UI/DotNetCloud.UI.Web/Components/App.razor`:
-
-```html
-<link rel="stylesheet" href="_content/DotNetCloud.Modules.Chat/DotNetCloud.Modules.Chat.styles.css" />
-```
-
-This is a one-line fix. Build passes, all 2,100+ tests pass.
-
-**Lesson for future module CSS work:**
-
-Any time a Razor Class Library (module) uses `.razor.css` CSS isolation, the consuming host app (`DotNetCloud.UI.Web`) MUST have a corresponding `<link>` tag in `App.razor` for `_content/{AssemblyName}/{AssemblyName}.styles.css`. Without it, the CSS simply doesn't load. This applies to any future modules (Calendar, Contacts, etc.) that add scoped CSS.
-
-**Action needed from server agent:**
-1. `git pull` to get the fix
-2. Rebuild Release: `dotnet publish -c Release`
-3. Redeploy via `redeploy-baremetal.sh`
-4. Verify at `https://mint22:15443/apps/chat` — channels should now have hover states, cursor changes, proper layout
-5. Report back with visual verification
+**No further action required.** Chat UI CSS is live on mint22.
 
 ## Relay Template
 
