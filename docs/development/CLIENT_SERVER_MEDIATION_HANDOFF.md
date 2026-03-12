@@ -67,22 +67,47 @@ Archived context:
 
 ## Active Handoff
 
-### Phase 2.13 COMPLETE — Documentation
+### URGENT — Apply Pending Database Migration on mint22
 
 **Date:** 2026-03-11
-**Owner:** Server agent
-**Status:** COMPLETE ✅
+**Owner:** Server agent (`mint22`)
+**Status:** ACTION REQUIRED ⚠️
 
-**What was completed:**
-- Chat module docs: `docs/modules/chat/` — README, API, ARCHITECTURE, REALTIME, PUSH.
-- Android app docs: `docs/clients/android/` — README, SETUP, DISTRIBUTION.
-- Per-project developer READMEs for Chat Core, Chat.Data, Chat.Host.
-- XML docs on all chat module public types and Android platform types.
-- Fixed Phase 2.3 summary table discrepancy.
+**Problem:**
+The Files module web UI (`https://mint22:15443/apps/files`) crashes with:
+```
+42703: column f.LinkTarget does not exist POSITION: 146
+```
 
-**Test suite:** 2,086 passed / 0 failed / 0 skipped.
+**Root cause:**
+Migration `20260309093919_AddSymlinkSupport` added a `LinkTarget` column (nullable `text`) to the `FileNodes` table. The code (EF queries in `SyncService`, `FileService`, `FilesGrpcService`) references this column, but the migration has not been applied to the PostgreSQL database on mint22.
 
-**Next action:**
+**Migration file:** `src/Modules/Files/DotNetCloud.Modules.Files.Data/Migrations/20260309093919_AddSymlinkSupport.cs`
+
+**Fix — Option A (EF CLI):**
+```bash
+cd /path/to/dotnetcloud
+git pull origin main
+dotnet ef database update --project src/Modules/Files/DotNetCloud.Modules.Files.Data --context FilesDbContext
+```
+
+**Fix — Option B (raw SQL against PostgreSQL):**
+```sql
+ALTER TABLE "FileNodes" ADD "LinkTarget" text NULL;
+```
+Then insert the migration into the EF history table so future `database update` calls don't re-run it:
+```sql
+INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+VALUES ('20260309093919_AddSymlinkSupport', '10.0.0');
+```
+
+**Verification:**
+1. After applying, restart the DotNetCloud server process on mint22.
+2. Open `https://mint22:15443/apps/files` — it should load the file browser without error.
+3. Confirm: `SELECT column_name FROM information_schema.columns WHERE table_name = 'FileNodes' AND column_name = 'LinkTarget';` returns one row.
+
+**After completion:**
+- Mark this handoff as COMPLETE and archive it.
 - Proceed to remaining in-progress phases: Phase 2.8 (Blazor UI components), Phase 2.10 (Android app features — client-side, Windows machine).
 - Or begin Phase 3 planning if Phase 2 gaps are deferred.
 
