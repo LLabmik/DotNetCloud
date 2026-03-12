@@ -132,20 +132,22 @@ internal sealed class ChannelService : IChannelService
             .Select(m => m.ChannelId)
             .ToListAsync(cancellationToken);
 
+        var memberCounts = await _db.ChannelMembers
+            .AsNoTracking()
+            .Where(m => channelIds.Contains(m.ChannelId))
+            .GroupBy(m => m.ChannelId)
+            .Select(g => new { ChannelId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.ChannelId, x => x.Count, cancellationToken);
+
         var channels = await _db.Channels
             .AsNoTracking()
             .Where(c => channelIds.Contains(c.Id))
             .OrderByDescending(c => c.LastActivityAt ?? c.CreatedAt)
             .ToListAsync(cancellationToken);
 
-        var result = new List<ChannelDto>(channels.Count);
-        foreach (var c in channels)
-        {
-            var memberCount = await _db.ChannelMembers.CountAsync(m => m.ChannelId == c.Id, cancellationToken);
-            result.Add(ToChannelDto(c, memberCount));
-        }
-
-        return result;
+        return channels
+            .Select(c => ToChannelDto(c, memberCounts.GetValueOrDefault(c.Id, 0)))
+            .ToList();
     }
 
     /// <inheritdoc />

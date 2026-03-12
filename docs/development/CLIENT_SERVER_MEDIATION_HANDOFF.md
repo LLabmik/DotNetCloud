@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-12 (Chat DbContext concurrency bug — channel loading fails with concurrent DbContext error)
+Last updated: 2026-03-12 (Chat DbContext concurrency bug — FIXED)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -58,7 +58,7 @@ Archived context:
 - Chat UI fix deployed to mint22 (2026-03-12) — rebuilt, restarted, health verified Healthy.
 - Chat UI Blazor binding fix verified on mint22 (2026-03-12) — redeploy complete, no raw variable names in `/apps/chat`, 302 auth redirect working.
 - Full test suite: 2,106+ passed / 0 failed (1 pre-existing Files CDC test failure, unrelated).
-- **NEW BUG (2026-03-12):** Chat channel loading fails with DbContext concurrency error — see Active Handoff.
+- **NEW BUG (2026-03-12):** Chat DbContext concurrency bug — **FIXED** (2026-03-12). See Active Handoff.
 
 ## Environment
 
@@ -76,33 +76,36 @@ Archived context:
 
 ## Active Handoff
 
-### Chat DbContext Concurrency Bug — OPEN
+### Chat DbContext Concurrency Bug — FIXED
 
 **Date:** 2026-03-12
 **Owner:** Server agent (`mint22`)
-**Status:** OPEN — fix needed
+**Status:** FIXED — needs service restart to deploy
 
-**Bug report from client testing (Windows11-TestDNC):**
+**Root cause (confirmed):** Two concurrent `ListChannelsAsync()` calls on the same scoped `ChatDbContext`:
+1. `ChatPageLayout.OnInitializedAsync()` called `LoadChannelsAsync()` → `ChannelService.ListChannelsAsync()`
+2. `ChannelList.OnInitializedAsync()` independently called `LoadChannelsAsync()` when `Channels.Count == 0` (always true during initial render since parent hasn't finished its async load yet)
+3. Both ran concurrently on the same scoped DbContext → EF Core concurrency error
 
-**Symptom:** Chat page at `https://mint22:15443/apps/chat` shows "Unable to load channels right now." followed by the full EF Core concurrency error:
-> A second operation was started on this context instance before a previous operation completed. This is usually caused by different threads concurrently using the same instance of DbContext. For more information on how to avoid threading issues with DbContext, see https://go.microsoft.com/fwlink/?linkid=2097913.
+**Fix applied (2 files):**
 
-**Steps to reproduce:**
-1. Log in as `testdude@llabmik.net` at `https://mint22:15443/`
-2. Navigate to Chat (`/apps/chat`)
-3. Channel list fails to load, error displayed in the channel sidebar area
+1. **`ChannelService.ListChannelsAsync()`** — Replaced N+1 query loop (one `CountAsync` per channel) with a single grouped query using `GroupBy` + `ToDictionaryAsync`. Reduces DB roundtrips from N+2 to 3.
 
-**Root cause (likely):** Multiple async operations are sharing the same scoped `DbContext` instance concurrently — e.g., two `await` calls running in parallel on the same context without awaiting sequentially. Common patterns that cause this:
-- `Task.WhenAll()` with multiple queries on the same DbContext
-- Fire-and-forget async calls that share a context
-- Blazor component lifecycle methods (`OnInitializedAsync`) launching parallel DB queries
+2. **`ChannelList.OnInitializedAsync()`** — Removed independent channel loading. The parent `ChatPageLayout` is the sole owner of channel state; `ChannelList` receives channels via `[Parameter]`. The old code's `Channels.Count == 0` guard was always true during initial render since Blazor runs parent/child `OnInitializedAsync` concurrently.
 
-**Action needed from server agent:**
-1. Find the Chat channel-loading code path (likely in the Chat module's channel service or the Blazor `ChatPageLayout` component)
-2. Identify where concurrent DbContext operations occur
-3. Either: (a) make the operations sequential (`await` one after another), or (b) use `IDbContextFactory<T>` to create separate context instances for parallel operations
-4. Rebuild, redeploy, verify the chat page loads channels without error
-5. Update this handoff with results
+**Tests:** 263/263 Chat tests pass. Build clean (0 errors, 0 warnings on Chat projects).
+
+**Deployment:** Published to `artifacts/publish/server-baremetal/`. Service restart required:
+```bash
+sudo systemctl restart dotnetcloud.service
+```
+
+**Verification after restart:** Navigate to `https://mint22:15443/apps/chat` — channel list should load without the "Unable to load channels" error.
+
+**Action needed from client agent:**
+1. After moderator restarts the service, verify chat page loads channels at `https://mint22:15443/apps/chat`
+2. Confirm no DbContext concurrency error appears
+3. If verified, archive this handoff block
 
 ## Relay Template
 

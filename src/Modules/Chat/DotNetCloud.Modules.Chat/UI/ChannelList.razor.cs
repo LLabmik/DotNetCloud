@@ -26,12 +26,11 @@ public partial class ChannelList : ComponentBase
     private bool _isLoadingInternal;
     private string? _errorMessageInternal;
 
-    protected override async Task OnInitializedAsync()
+    protected override Task OnInitializedAsync()
     {
-        if (Channels.Count == 0)
-        {
-            await LoadChannelsAsync();
-        }
+        // Channel loading is managed by the parent ChatPageLayout component.
+        // Loading independently here causes concurrent DbContext access.
+        return Task.CompletedTask;
     }
 
     /// <summary>Event callback when a channel is selected.</summary>
