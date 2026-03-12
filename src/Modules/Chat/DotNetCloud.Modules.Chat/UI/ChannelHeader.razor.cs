@@ -39,6 +39,10 @@ public partial class ChannelHeader : ComponentBase
     [Parameter]
     public EventCallback<(Guid ChannelId, bool IsPinned)> OnPinChanged { get; set; }
 
+    /// <summary>Callback to open the invite dialog.</summary>
+    [Parameter]
+    public EventCallback OnInvite { get; set; }
+
     /// <summary>Toggles the member list panel.</summary>
     protected async Task ToggleMemberList()
     {
@@ -76,6 +80,12 @@ public partial class ChannelHeader : ComponentBase
         {
             await OnLeaveChannel.InvokeAsync(Channel);
         }
+    }
+
+    /// <summary>Handles invite button click.</summary>
+    protected async Task OnInviteClick()
+    {
+        await OnInvite.InvokeAsync();
     }
 
     private bool _showHelp;

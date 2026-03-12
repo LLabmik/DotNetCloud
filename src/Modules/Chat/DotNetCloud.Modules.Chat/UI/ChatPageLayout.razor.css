@@ -120,3 +120,65 @@
     text-overflow: ellipsis;
     margin-top: 2px;
 }
+
+/* --- Invite Dialog --- */
+
+.invite-dialog {
+    width: 400px;
+    max-width: 90vw;
+}
+
+.invite-dialog .settings-section {
+    margin-bottom: 16px;
+}
+
+.invite-dialog .settings-section label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text, #e2e8f0);
+    margin-bottom: 6px;
+}
+
+.invite-dialog .settings-section input[type="text"] {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--color-border, #2d3748);
+    border-radius: 6px;
+    font-size: 14px;
+    background: var(--color-bg, #2d3748);
+    color: var(--color-text, #e2e8f0);
+    box-sizing: border-box;
+}
+
+.invite-dialog .settings-section input[type="text"]:focus {
+    outline: none;
+    border-color: var(--color-primary, #3b82f6);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
+
+.invite-dialog .settings-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    padding-top: 8px;
+}
+
+.invite-feedback {
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    margin-bottom: 12px;
+}
+
+.invite-feedback.error {
+    background: rgba(239, 68, 68, 0.1);
+    color: #fc8181;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.invite-feedback.success {
+    background: rgba(72, 187, 120, 0.1);
+    color: #68d391;
+    border: 1px solid rgba(72, 187, 120, 0.2);
+}

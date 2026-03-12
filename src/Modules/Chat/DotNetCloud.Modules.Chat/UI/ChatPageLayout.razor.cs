@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Modules.Chat.DTOs;
 using DotNetCloud.Modules.Chat.Models;
 using DotNetCloud.Modules.Chat.Services;
@@ -24,6 +25,8 @@ public partial class ChatPageLayout : ComponentBase
     [Inject] private IChannelMemberService MemberService { get; set; } = default!;
     [Inject] private ITypingIndicatorService TypingService { get; set; } = default!;
     [Inject] private IAnnouncementService AnnouncementService { get; set; } = default!;
+    [Inject] private IChannelInviteService InviteService { get; set; } = default!;
+    [Inject] private IUserDirectory UserDirectory { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
 
     // Channel state
@@ -70,6 +73,14 @@ public partial class ChatPageLayout : ComponentBase
 
     // Typing state
     private List<TypingUserViewModel> _typingUsers = [];
+
+    // Invite state
+    private bool _showInviteDialog;
+    private string _inviteUsername = string.Empty;
+    private string _inviteMessage = string.Empty;
+    private string? _inviteErrorMessage;
+    private string? _inviteSuccessMessage;
+    private bool _isInviting;
 
     // User state
     private Guid _currentUserId;
@@ -545,6 +556,65 @@ public partial class ChatPageLayout : ComponentBase
         return Task.CompletedTask;
     }
 
+    // ── Invite Operations ───────────────────────────────────────────
+
+    /// <summary>Opens the invite dialog.</summary>
+    protected void HandleOpenInviteDialog()
+    {
+        _showInviteDialog = true;
+        _inviteUsername = string.Empty;
+        _inviteMessage = string.Empty;
+        _inviteErrorMessage = null;
+        _inviteSuccessMessage = null;
+        _isInviting = false;
+    }
+
+    /// <summary>Closes the invite dialog.</summary>
+    protected void HandleCloseInviteDialog()
+    {
+        _showInviteDialog = false;
+    }
+
+    /// <summary>Sends a channel invite to a user by username.</summary>
+    protected async Task HandleSendInvite()
+    {
+        if (_selectedChannel is null || string.IsNullOrWhiteSpace(_inviteUsername)) return;
+
+        _isInviting = true;
+        _inviteErrorMessage = null;
+        _inviteSuccessMessage = null;
+
+        try
+        {
+            var userId = await UserDirectory.FindUserIdByUsernameAsync(_inviteUsername.Trim());
+            if (userId is null)
+            {
+                _inviteErrorMessage = $"User \"{_inviteUsername}\" not found.";
+                return;
+            }
+
+            var caller = await GetCallerContextAsync();
+            var dto = new CreateChannelInviteDto
+            {
+                UserId = userId.Value,
+                Message = string.IsNullOrWhiteSpace(_inviteMessage) ? null : _inviteMessage.Trim()
+            };
+
+            await InviteService.CreateInviteAsync(_selectedChannel.Id, dto, caller);
+            _inviteSuccessMessage = $"Invite sent to {_inviteUsername}.";
+            _inviteUsername = string.Empty;
+            _inviteMessage = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            _inviteErrorMessage = ex.Message;
+        }
+        finally
+        {
+            _isInviting = false;
+        }
+    }
+
     /// <summary>Promotes a member to Admin role.</summary>
     protected async Task HandlePromoteMember(Guid userId)
     {
@@ -899,7 +969,7 @@ public partial class ChatPageLayout : ComponentBase
         };
     }
 
-    private static MemberViewModel ToMemberViewModel(ChannelMemberDto dto)
+    private MemberViewModel ToMemberViewModel(ChannelMemberDto dto)
     {
         return new MemberViewModel
         {
@@ -907,7 +977,7 @@ public partial class ChatPageLayout : ComponentBase
             DisplayName = string.IsNullOrEmpty(dto.DisplayName) ? dto.UserId.ToString()[..8] : dto.DisplayName,
             Username = dto.Username,
             Role = dto.Role,
-            Status = "Offline"
+            Status = dto.UserId == _currentUserId ? "Online" : "Offline"
         };
     }
 

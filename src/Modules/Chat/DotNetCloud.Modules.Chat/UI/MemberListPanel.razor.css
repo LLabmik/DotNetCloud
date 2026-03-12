@@ -6,22 +6,72 @@
 /* --- Container --- */
 
 .member-list-panel {
-    width: 240px;
-    border-left: 1px solid var(--color-border, #e2e8f0);
-    background: var(--color-surface, #ffffff);
+    width: 260px;
+    border-left: 1px solid var(--color-border, #2d3748);
+    background: var(--color-surface, #1a202c);
     overflow-y: auto;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
 }
 
-.member-list-panel h3 {
-    padding: 14px 16px 8px;
+/* --- Header --- */
+
+.member-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--color-border, #2d3748);
+}
+
+.member-panel-header h3 {
     font-size: 13px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.4px;
-    color: var(--color-text-secondary, #64748b);
+    color: var(--color-text-secondary, #a0aec0);
+    margin: 0;
+}
+
+.member-close-btn {
+    border: none;
+    background: transparent;
+    color: var(--color-text-secondary, #a0aec0);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.member-close-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--color-text, #e2e8f0);
+}
+
+/* --- Empty state --- */
+
+.member-empty {
+    padding: 24px 16px;
+    text-align: center;
+    color: var(--color-text-secondary, #a0aec0);
+    font-size: 13px;
+}
+
+/* --- Group (Online / Offline) --- */
+
+.member-group {
+    padding: 4px 0;
+}
+
+.member-group-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-text-secondary, #a0aec0);
+    padding: 8px 16px 4px;
     margin: 0;
 }
 
@@ -30,18 +80,39 @@
 .member-item {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 6px 12px;
+    gap: 10px;
+    padding: 6px 16px;
     transition: background 120ms ease;
 }
 
 .member-item:hover {
-    background: var(--color-bg, #f5f7fa);
+    background: rgba(255, 255, 255, 0.04);
 }
 
+.member-item.offline {
+    opacity: 0.55;
+}
+
+/* --- Status Dot --- */
+
+.member-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: #718096;
+}
+
+.member-status-dot.online {
+    background: #48bb78;
+    box-shadow: 0 0 4px rgba(72, 187, 120, 0.5);
+}
+
+/* --- Avatar --- */
+
 .member-avatar {
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     object-fit: cover;
     flex-shrink: 0;
@@ -51,12 +122,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     background: var(--color-primary, #3b82f6);
     color: #ffffff;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
     flex-shrink: 0;
     text-transform: uppercase;
@@ -69,7 +140,7 @@
     border: none;
     padding: 0;
     margin: 0;
-    color: var(--color-text, #1e293b);
+    color: var(--color-text, #e2e8f0);
     cursor: pointer;
     text-align: left;
     font-size: 13px;
@@ -82,7 +153,7 @@
 }
 
 .member-name-button:hover {
-    color: var(--color-primary, #3b82f6);
+    color: var(--color-primary, #63b3ed);
 }
 
 /* --- Role Badge --- */
@@ -98,13 +169,13 @@
 }
 
 .member-role-owner {
-    background: rgba(245, 158, 11, 0.12);
-    color: #d97706;
+    background: rgba(245, 158, 11, 0.15);
+    color: #f6ad55;
 }
 
 .member-role-admin {
-    background: rgba(59, 130, 246, 0.1);
-    color: var(--color-primary, #3b82f6);
+    background: rgba(59, 130, 246, 0.15);
+    color: #63b3ed;
 }
 
 /* --- Actions --- */
@@ -125,11 +196,11 @@
 
 .member-profile-popup {
     margin: 4px 12px 8px;
-    border: 1px solid var(--color-border, #e2e8f0);
+    border: 1px solid var(--color-border, #2d3748);
     border-radius: var(--radius, 8px);
     padding: 12px 14px;
-    background: var(--color-surface, #ffffff);
-    box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,.1));
+    background: var(--color-surface, #1a202c);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .profile-header {
@@ -141,12 +212,12 @@
 
 .profile-header strong {
     font-size: 14px;
-    color: var(--color-text, #1e293b);
+    color: var(--color-text, #e2e8f0);
 }
 
 .profile-row {
     font-size: 13px;
-    color: var(--color-text-secondary, #64748b);
+    color: var(--color-text-secondary, #a0aec0);
     margin-bottom: 4px;
     line-height: 1.4;
 }

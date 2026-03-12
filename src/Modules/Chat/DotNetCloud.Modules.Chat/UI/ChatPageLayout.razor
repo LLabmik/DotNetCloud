@@ -33,7 +33,8 @@
                        OnArchiveChannel="@HandleArchiveChannel"
                        OnLeaveChannel="@HandleLeaveChannel"
                        OnToggleMemberList="@HandleToggleMemberList"
-                       OnSearch="@HandleSearch" />
+                       OnSearch="@HandleSearch"
+                       OnInvite="@HandleOpenInviteDialog" />
 
         @if (_isSearchOpen && _selectedChannel is not null)
         {
@@ -133,4 +134,42 @@
                         IsEditing="@_isEditingAnnouncement"
                         OnSave="@HandleSaveAnnouncement"
                         OnCancel="@HandleCloseAnnouncementEditor" />
+}
+
+@if (_showInviteDialog && _selectedChannel is not null)
+{
+    <div class="dialog-overlay" @onclick="HandleCloseInviteDialog">
+        <div class="dialog invite-dialog" @onclick:stopPropagation="true">
+            <div class="dialog-header">
+                <h2>Invite to #@_selectedChannel.Name</h2>
+                <button class="btn btn-sm" @onclick="HandleCloseInviteDialog">✕</button>
+            </div>
+            <div class="dialog-body">
+                <div class="settings-section">
+                    <label>Username</label>
+                    <input type="text" @bind="_inviteUsername" placeholder="Enter username" disabled="@_isInviting" />
+                </div>
+                <div class="settings-section">
+                    <label>Message (optional)</label>
+                    <input type="text" @bind="_inviteMessage" placeholder="Add a note to your invite" disabled="@_isInviting" />
+                </div>
+
+                @if (_inviteErrorMessage is not null)
+                {
+                    <div class="invite-feedback error">@_inviteErrorMessage</div>
+                }
+                @if (_inviteSuccessMessage is not null)
+                {
+                    <div class="invite-feedback success">@_inviteSuccessMessage</div>
+                }
+
+                <div class="settings-actions">
+                    <button class="btn btn-primary" @onclick="HandleSendInvite" disabled="@(_isInviting || string.IsNullOrWhiteSpace(_inviteUsername))">
+                        @(_isInviting ? "Sending..." : "Send Invite")
+                    </button>
+                    <button class="btn" @onclick="HandleCloseInviteDialog">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
 }

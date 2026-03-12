@@ -31,6 +31,12 @@
                     ✏️ Edit
                 </button>
             }
+            @if (IsAdminOrOwner && Channel!.Type == "Private")
+            {
+                <button class="btn btn-sm" @onclick="OnInviteClick" title="Invite a user to this channel">
+                    ➕ Invite
+                </button>
+            }
             <button class="btn btn-sm" @onclick="OnSearchClick" title="Search messages in this channel">
                 🔍
             </button>

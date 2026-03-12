@@ -82,25 +82,34 @@ Archived context:
 
 ## Active Handoff
 
-### All Phase 1+2 Work Complete — No Active Tasks
+### Chat UI Fixes — Invite Button, Members Panel, Online Status
 
 **Date:** 2026-03-12
-**Status:** IDLE — No pending cross-agent work
+**Owner:** Client agent
+**Status:** READY FOR DEPLOY
 
-**Last completed:** Channel Invite System — migration + deploy by server agent, verified by client agent.
+**What was done:**
 
-**Client-side verification (2026-03-12):**
-- Pulled commit `78330b2` — build succeeds (0 errors, 0 warnings)
-- 283/283 chat tests pass
-- Migration files and corrected model snapshot integrated cleanly
+1. **Channel invite UI** — Added "➕ Invite" button to channel header (visible only on private channels for admin/owner). Opens a dialog where you enter a username, sends a channel invite via `IChannelInviteService`. Previously there was zero discoverability for the invite system.
 
-**Project status:** Phase 1 (Files + Sync Client) and Phase 2 (Sync Improvements, Chat) are feature-complete. All cross-agent integration work is done. Channel invite system is live on mint22.
+2. **Fixed member online status** — `ToMemberViewModel()` was hardcoding `Status = "Offline"` for every member. Now marks the current user as "Online" since they're actively viewing the page. (True presence tracking for other users will need SignalR connection tracking in a later phase.)
 
-**Remaining minor deferred items (no cross-agent dependency):**
-- FileSystemWatcher burst coalescing (Phase 1.15)
-- Weblate translation workflow (Phase 0.16)
-- Backup/restore settings page (Phase 0.11)
-- Share expiry notifications (Phase 1.6)
+3. **Fixed MemberListPanel CSS class mismatch** — The Razor template used class names (`chat-member-panel`, `member-panel-header`, `status-dot`, `avatar-placeholder`, `role-badge`) that didn't exist in the CSS file. Aligned all class names between template and stylesheet.
+
+4. **Overhauled MemberListPanel styling** — Rewrote CSS for dark theme consistency: proper header with close button, group labels, status dots with green glow for online, larger avatars, role badges with owner/admin colors, opacity dimming for offline members, dark-themed profile popup.
+
+**Files changed:**
+- `ChannelHeader.razor` — Added Invite button for private channels
+- `ChannelHeader.razor.cs` — Added `OnInvite` callback parameter and handler
+- `ChatPageLayout.razor` — Added `OnInvite` wiring + invite dialog markup
+- `ChatPageLayout.razor.cs` — Added `IChannelInviteService` + `IUserDirectory` injection, invite state, invite handlers
+- `ChatPageLayout.razor.css` — Added invite dialog styles + feedback messages
+- `MemberListPanel.razor` — Fixed all CSS class names to match stylesheet
+- `MemberListPanel.razor.css` — Complete restyle for dark theme with proper structure
+
+**Build:** 0 errors, 283/283 chat tests pass.
+
+**Needs:** Redeploy to mint22 to verify in browser.
 
 ## Relay Template
 
