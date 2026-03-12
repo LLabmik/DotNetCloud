@@ -79,32 +79,33 @@ Archived context:
 
 ## Active Handoff
 
-### Members Panel Fix — Display Names Instead of Raw GUIDs
+### Chat Permission Hardening + Members Display Name Fix
 
 **Date:** 2026-03-12
 **Owner:** Client agent
 **Status:** READY FOR DEPLOY
 
-**Problem:** The Members panel in `/apps/chat` was showing truncated GUIDs (e.g. `0 019cc1ac`) instead of actual user display names. The `ChannelMemberDto` had no `DisplayName` field, and `ChannelMemberService` wasn't using `IUserDirectory` to look up names.
+**Commits:**
+- `7206a5e` — Wire IUserDirectory into ChannelMemberService for display names in Members panel
+- `9ce4096` — Enforce role-based permission gating in chat UI + backend security fixes
 
-**Fix (commit `7206a5e`):**
-1. Added `DisplayName` and `Username` properties to `ChannelMemberDto`
-2. Injected `IUserDirectory?` (optional) into `ChannelMemberService` — follows same pattern as `MessageService`
-3. `ListMembersAsync` now calls `IUserDirectory.GetDisplayNamesAsync()` to enrich member DTOs with real display names
-4. Updated client-side `ToMemberViewModel` mapping to use the DTO's `DisplayName`
-5. Graceful fallback: if `IUserDirectory` is not registered, shows truncated GUID (same as before)
+**Changes summary:**
 
-**Files changed:**
-- `src/Modules/Chat/DotNetCloud.Modules.Chat/DTOs/ChatDtos.cs` — added `DisplayName`, `Username` to DTO
-- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/ChannelMemberService.cs` — inject `IUserDirectory?`, enrich in `ListMembersAsync`
-- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChatPageLayout.razor.cs` — use DTO `DisplayName` instead of GUID placeholder
+1. **Members panel display names** — `ChannelMemberDto` now includes `DisplayName`/`Username`, populated via `IUserDirectory.GetDisplayNamesAsync()`. Members panel shows real names instead of truncated GUIDs.
+
+2. **UI role gating** — Archive and Edit buttons in channel header are now hidden for regular Members (only visible to Admin/Owner). Member management controls (promote/demote/remove/add) in both MemberListPanel and ChannelSettingsDialog are gated by role. Channel settings fields (name/topic/description) are disabled for non-admin users.
+
+3. **GetChannelAsync membership check** — Private, DM, and Group channels now require membership to view. Public channels remain viewable by any authenticated user (supports future browse/join flow).
+
+4. **Announcement authorization** — Update and Delete operations now restricted to the announcement author only (previously any authenticated user could modify any announcement).
 
 **Build:** 0 errors. **Tests:** 263/263 chat tests pass.
 
 **Server agent action required:**
 1. `git pull` on mint22
 2. Redeploy (`bash tools/redeploy-baremetal.sh`)
-3. Verify `/apps/chat` Members panel shows display names (e.g. "testdude" instead of "019cc1ac")
+3. Verify Members panel shows display names
+4. Verify non-admin user cannot see Archive/Edit buttons in channel header
 
 ## Relay Template
 
