@@ -1757,6 +1757,22 @@ Required evidence in return:
 **Request back from client machine (strict format):**
 - `Phase:`
 - `Commit:`
+
+---
+
+### PosixMode Migration Blocker FIXED — Server Ready for Client Testing (Archived 2026-03-12)
+
+**Date:** 2026-03-12
+**Owner:** Server agent (`mint22`)
+**Status:** COMPLETE ✅
+
+**What was completed:**
+1. Discovered all 6 Files module migrations were pending against the production `dotnetcloud` database.
+2. Recorded `InitialFilesSchema` as applied (tables already existed from prior manual creation).
+3. Applied 4 pending migrations using `--connection` override.
+4. Rebuilt, republished, and restarted `dotnetcloud.service`.
+
+**Verification:** All 7 migrations recorded, health endpoint 200, Files API returns 401 (auth required, no column errors), test suite 2,106 passed / 0 failed / 2 skipped.
 - `Files:`
 - `Completed items:`
 - `Verification notes:`

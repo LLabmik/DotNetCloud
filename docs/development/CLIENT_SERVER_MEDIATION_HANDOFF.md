@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-12 (PosixMode migration blocker fixed — all Files migrations applied)
+Last updated: 2026-03-12 (Chat UI fix — ChatPageLayout orchestrator replaces bare ChannelList)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -54,7 +54,8 @@ Archived context:
 - Phase 2.10 final items (badges, APK download docs, app store listing): complete (2026-03-12).
 - **All Phase 2 work is now complete.**
 - PosixMode migration blocker: fixed (2026-03-12) — all 6 Files migrations applied to production DB.
-- Full test suite: 2,106 passed / 0 failed / 2 skipped (env-gated).
+- Chat UI fix: ChatPageLayout orchestrator added (2026-03-12) — channels now clickable with full message view.
+- Full test suite: 2,106+ passed / 0 failed (1 pre-existing Files CDC test failure, unrelated).
 
 ## Environment
 
@@ -72,43 +73,49 @@ Archived context:
 
 ## Active Handoff
 
-### PosixMode Migration Blocker FIXED — Server Ready for Client Testing
+### Chat UI Fix — Rebuild and Redeploy Required
 
 **Date:** 2026-03-12
 **Owner:** Server agent (`mint22`)
-**Status:** COMPLETE ✅
+**Status:** ACTION REQUIRED 🔧
+**Commit:** `2212a09`
 
-**What was completed:**
+**What changed (client-side commit):**
 
-1. Discovered all 6 Files module migrations were pending against the production `dotnetcloud` database (design-time factory targeted non-existent `dotnetcloud_files_dev`).
-2. Recorded `InitialFilesSchema` as applied (tables already existed from prior manual creation).
-3. Applied 4 pending migrations using `--connection` override:
-   - `AddFileVersionScanStatus` → `ScanStatus` on `FileVersions`
-   - `AddCdcChunkMetadata` → `ChunkSizesManifest` on `UploadSessions`, `ChunkSize`/`Offset` on `FileVersionChunks`
-   - `AddSyncCursorSupport` → `SyncSequence` on `FileNodes`, `UserSyncCounters` table
-   - `AddPosixPermissions` → `PosixMode`/`PosixOwnerHint` on `FileNodes`, `FileVersions`, `UploadSessions`
-4. Rebuilt, republished, and restarted `dotnetcloud.service`.
+The Chat module's web UI was broken — clicking a channel in the sidebar did nothing. Root cause: `ModuleUiRegistrationHostedService` registered `ChannelList` (the sidebar component) as the root component for `/apps/chat`. Since nobody handled its `OnChannelSelected` callback, clicks were swallowed.
 
-**Verification:**
-- All 7 migrations recorded in `__EFMigrationsHistory`.
-- All new columns confirmed via `information_schema`.
-- Health endpoint: 200 Healthy.
-- Files API: returns 401 (auth required), no column errors.
-- Server logs: clean — no DB errors.
-- Test suite: 2,106 passed / 0 failed / 2 skipped (env-gated).
+**Fix applied:**
+1. Created `ChatPageLayout.razor/.cs/.css` — an orchestrator component that composes `ChannelList` + `ChannelHeader` + `MessageList` + `MessageComposer` into a split-pane layout.
+2. Updated `ModuleUiRegistrationHostedService` to register `ChatPageLayout` instead of `ChannelList` as the root component.
+3. Clicking a channel now loads messages via `IMessageService.GetMessagesAsync()` and renders the full chat conversation view.
 
-**Runtime verification:**
-```
-$ systemctl status dotnetcloud.service
-● dotnetcloud.service - DotNetCloud Core Server
-     Active: active (running) since Thu 2026-03-12 02:40:57 CDT
-   Main PID: 98178 (/home/benk/.../server-baremetal/DotNetCloud.Core.Server.dll)
-```
+**Files changed:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChatPageLayout.razor` (new)
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChatPageLayout.razor.cs` (new)
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChatPageLayout.razor.css` (new)
+- `src/Core/DotNetCloud.Core.Server/Initialization/ModuleUiRegistrationHostedService.cs` (modified)
 
-**Next action:**
-- Client agent can now test Web UI at `https://mint22:15443/apps/files` — should load without errors.
-- Sync, Android, and desktop client testing are all unblocked.
-- All Phase 2 work is complete. Phase 3 planning can begin when ready.
+**Build/test verification (client machine):**
+- `dotnet build` — succeeded (0 errors)
+- `dotnet test` — 263/263 Chat tests passed, all other suites green
+- 1 pre-existing Files test failure (`ChunkAndHashCdcAsync_SmallData_ReturnsSingleChunk`) — unrelated
+
+**Server agent action required:**
+1. `git pull` on `mint22`
+2. Rebuild and republish:
+   ```bash
+   dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o /path/to/server-baremetal
+   ```
+3. Restart the service:
+   ```bash
+   sudo systemctl restart dotnetcloud.service
+   ```
+4. Verify:
+   - `curl -k https://mint22:15443/health` → 200
+   - Navigate to `https://mint22:15443/apps/chat` → channel list should render, clicking a channel should show header + messages + composer
+5. Report back: commit hash, health output, and whether the chat UI is functional.
+
+**No database changes required.** This is a code-only change.
 
 ## Relay Template
 
