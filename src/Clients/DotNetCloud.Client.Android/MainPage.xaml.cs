@@ -1,5 +1,8 @@
 ﻿namespace DotNetCloud.Client.Android;
 
+/// <summary>
+/// Default main page (MAUI template scaffold). Replaced by shell navigation at runtime.
+/// </summary>
 public partial class MainPage : ContentPage
 {
 	int count = 0;

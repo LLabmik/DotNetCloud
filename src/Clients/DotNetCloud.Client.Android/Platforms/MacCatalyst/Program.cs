@@ -3,6 +3,9 @@ using UIKit;
 
 namespace DotNetCloud.Client.Android;
 
+/// <summary>
+/// Mac Catalyst application entry point.
+/// </summary>
 public class Program
 {
 	// This is the main entry point of the application.

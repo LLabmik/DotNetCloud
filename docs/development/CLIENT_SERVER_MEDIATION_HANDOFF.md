@@ -66,27 +66,27 @@ Archived context:
 
 ## Active Handoff
 
-### Phase 2.12 COMPLETE — Chat Integration Tests Added
+### Phase 2.13 IN PROGRESS — Documentation
 
 **Date:** 2026-03-11
-**Owner:** Server agent (completed)
-**Status:** COMPLETE ✅
+**Owner:** Server agent (in progress)
+**Status:** IN PROGRESS 🔄
 
 **What was completed:**
-- Created `ChatHostWebApplicationFactory` (in-memory DB, NoOp broadcaster) for isolated Chat.Host integration testing.
-- Created 47 REST API integration tests covering: channel CRUD (9), member management (6), message CRUD (8), reactions (3), pins (3), typing indicators (2), announcements (7), file attachments (2), push device registration (3), mark-read (1), health/info (2), full end-to-end flow (1).
-- Fixed 3 bugs uncovered by integration tests:
-  1. `CreatedAtAction` route mismatch — ASP.NET Core's `SuppressAsyncSuffixInActionNames=true` strips "Async" suffix, but `nameof(GetChannelAsync)` yields `"GetChannelAsync"` which doesn't match `"GetChannel"`.
-  2. Duplicate `AnnouncementController` conflicting with `ChatController`'s `~/api/v1/announcements` routes — removed redundant controller.
-  3. Test-discovered enum mismatches: `ChannelMemberRole` has no `Moderator` (use `Admin`), `NotificationPreference` has no `MentionsOnly` (use `Mentions`).
-- Used `extern alias` (`FilesHost`/`ChatHost`) in integration test project to resolve `Program` type ambiguity between Chat.Host and Files.Host.
-- Full suite: 2,086 passed, 0 failed, 2 skipped (env-gated).
+- Chat module docs: `docs/modules/chat/` — README, API reference (all ~30 REST endpoints), ARCHITECTURE (data model, service layer, gRPC), REALTIME (SignalR hub methods and events), PUSH (FCM/UnifiedPush pipeline and configuration).
+- Android app docs: `docs/clients/android/README.md` — overview, build instructions, build flavors, OAuth flow, architecture, dependencies.
+- XML docs: all chat module public types already documented; added XML docs to Android platform boilerplate types (MainActivity, MainApplication, AppDelegate, Program).
+- Fixed Phase 2.3 summary table discrepancy (was showing 3/7 completed, actually all 7 completed).
+
+**Remaining Phase 2.13 items:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/README.md` — per-project developer README
+- `docs/clients/android/SETUP.md` — development environment setup guide
+- `docs/clients/android/DISTRIBUTION.md` — store listing and F-Droid metadata guide
+- Per-project root READMEs for Chat.Data and Chat.Host
 
 **Next action:**
-- Check `docs/MASTER_PROJECT_PLAN.md` for next in-progress or pending phase.
-- Phase 2.13 (Documentation) is next pending item.
-- Remaining in-progress phases: 2.3 (4 pending tasks), 2.8, 2.10 (ongoing Android app work).
-- Assign owner (client or server) based on what the next task requires.
+- Continue Phase 2.13 remaining docs, or proceed to other in-progress phases (2.8 remaining UI components, 2.10 Android app features).
+- Phase 2.10 Android app work is client-side (Windows machine).
 
 ## Relay Template
 
