@@ -20,7 +20,32 @@
 
 ---
 
-## 🚨 CRITICAL: Complete Work Standards
+## � Client/Server Mediation Handoff Protocol (MANDATORY)
+
+**Reference doc:** `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`
+
+### Receiving a Relay Message
+When the moderator sends a relay (commit hash, "pull main", "check for updates", etc.):
+1. `git pull` immediately.
+2. Read the **Active Handoff** section autonomously.
+3. Execute the described work **without asking questions, giving summaries, or waiting for confirmation**.
+4. The handoff doc has everything the agent needs — never ask the moderator for context, permission, or clarification.
+
+### Pre-Commit Checklist (MANDATORY)
+Before every commit:
+1. Run `git status --short`.
+2. **Delete ALL unexpected untracked files/directories** — including gitignored runtime data (e.g., `storage/`, `bin/`, temp files). Only intentional tracked changes should remain.
+3. Verify clean state, THEN commit.
+
+### Post-Push Relay (MANDATORY)
+After completing work, committing, and pushing:
+- **Always provide the ready-to-relay message** for the moderator to send to the other agent.
+- Format: `` `<commit-hash>` — New handoff update. Pull and check docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md Active Handoff. ``
+- Do NOT make the moderator figure out what to say — give them the exact text.
+
+---
+
+## �🚨 CRITICAL: Complete Work Standards
 
 ### The "No Half-Measures" Rule
 
