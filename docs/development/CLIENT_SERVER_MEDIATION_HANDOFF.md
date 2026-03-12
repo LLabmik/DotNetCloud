@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-12 (Chat UI fix deployed — ChatPageLayout rebuild/redeploy on mint22 complete)
+Last updated: 2026-03-12 (Chat UI Blazor binding fix verified on mint22 — redeploy complete, health Healthy, no raw variable names in chat page)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -56,6 +56,7 @@ Archived context:
 - PosixMode migration blocker: fixed (2026-03-12) — all 6 Files migrations applied to production DB.
 - Chat UI fix: ChatPageLayout orchestrator added (2026-03-12) — channels now clickable with full message view.
 - Chat UI fix deployed to mint22 (2026-03-12) — rebuilt, restarted, health verified Healthy.
+- Chat UI Blazor binding fix verified on mint22 (2026-03-12) — redeploy complete, no raw variable names in `/apps/chat`, 302 auth redirect working.
 - Full test suite: 2,106+ passed / 0 failed (1 pre-existing Files CDC test failure, unrelated).
 
 ## Environment
@@ -74,27 +75,20 @@ Archived context:
 
 ## Active Handoff
 
-### Chat UI Blazor Binding Fix — Redeploy Needed
+### Chat UI Blazor Binding Fix — COMPLETED
 
 **Date:** 2026-03-12
 **Owner:** Server agent (`mint22`)
-**Status:** READY FOR SERVER ACTION
+**Status:** COMPLETED
 
-**Problem:** Chat page at `https://mint22:15443/apps/chat` displays raw C# variable names as literal text (e.g., `_channelErrorMessage`, `_messageErrorMessage`) instead of actual error message content. All component parameter bindings in `ChatPageLayout.razor` and `DirectMessageView.razor` were missing the Blazor `@` prefix.
+**Actions taken:**
+1. `git pull` — pulled commit `6f1cf55` with Blazor `@`-prefix fixes.
+2. Published: `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o artifacts/publish/server-baremetal` — build succeeded (59s).
+3. Restarted: `systemctl restart dotnetcloud.service` — active (running), PID 114823.
+4. Health: `curl -sk https://mint22:15443/health` → **Healthy** (all entries: self, startup, collabora_online, linux-resources).
+5. Chat page: `https://mint22:15443/apps/chat` returns 302 (auth redirect, expected). No raw variable names (`_channelErrorMessage`, `_messageErrorMessage`) in response body.
 
-**Fix committed (client-side):**
-- `ChatPageLayout.razor` — All attribute bindings now use `@` prefix (e.g., `ErrorMessage="@_channelErrorMessage"` instead of `ErrorMessage="_channelErrorMessage"`).
-- `DirectMessageView.razor` — Same fix.
-- Chat module builds clean, 263/263 tests pass.
-
-**Server agent action required:**
-1. `git pull` on mint22.
-2. Publish: `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o artifacts/publish/server-baremetal`
-3. Restart: `sudo systemctl restart dotnetcloud.service`
-4. Verify: `curl -sk https://mint22:15443/health` → Healthy
-5. Browse `https://mint22:15443/apps/chat` — error state should no longer show raw variable names.
-
-**No database changes needed.**
+**No further action needed. All Phase 2 work and Chat UI fixes are deployed.**
 
 ## Relay Template
 
