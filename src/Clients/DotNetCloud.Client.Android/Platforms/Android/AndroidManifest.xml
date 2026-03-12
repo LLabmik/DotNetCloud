@@ -14,6 +14,26 @@
 			android:foregroundServiceType="dataSync"
 			android:exported="false" />
 
+		<!-- Firebase Cloud Messaging handler (Google Play flavor) -->
+		<service
+			android:name=".FcmMessagingService"
+			android:exported="false">
+			<intent-filter>
+				<action android:name="com.google.firebase.MESSAGING_EVENT" />
+			</intent-filter>
+		</service>
+
+		<!-- UnifiedPush receiver (F-Droid flavor) -->
+		<receiver
+			android:name=".UnifiedPushReceiver"
+			android:exported="true">
+			<intent-filter>
+				<action android:name="org.unifiedpush.android.connector.MESSAGE" />
+				<action android:name="org.unifiedpush.android.connector.NEW_ENDPOINT" />
+				<action android:name="org.unifiedpush.android.connector.UNREGISTERED" />
+			</intent-filter>
+		</receiver>
+
 		<!-- OAuth2 redirect handler: handles net.dotnetcloud.client:/oauth2redirect -->
 		<activity
 			android:name=".OAuthCallbackActivity"

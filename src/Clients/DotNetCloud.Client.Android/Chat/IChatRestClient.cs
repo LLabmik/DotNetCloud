@@ -39,6 +39,31 @@ public interface IChatRestClient
         string serverBaseUrl, string accessToken,
         Guid channelId,
         CancellationToken ct = default);
+
+    // ── Members ───────────────────────────────────────────────────────
+
+    /// <summary>Returns all members of a channel.</summary>
+    Task<IReadOnlyList<ChannelMemberSummary>> GetChannelMembersAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId,
+        CancellationToken ct = default);
+
+    /// <summary>Removes the current user from a channel.</summary>
+    Task LeaveChannelAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId,
+        CancellationToken ct = default);
+
+    // ── Attachments ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Attaches an uploaded file to a channel message.
+    /// <paramref name="fileId"/> is the ID returned by the Files module after the upload.
+    /// </summary>
+    Task<ChatMessage> SendFileMessageAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId, Guid fileId, string fileName,
+        CancellationToken ct = default);
 }
 
 /// <summary>Summary of a chat channel for channel-list display.</summary>
@@ -70,3 +95,14 @@ public sealed record ChatMessage(
     string Content,
     DateTimeOffset SentAt,
     bool IsEdited);
+
+/// <summary>Summary of a channel member for the member list.</summary>
+/// <param name="UserId">User identifier.</param>
+/// <param name="DisplayName">User display name.</param>
+/// <param name="Role">Role in the channel: Owner, Admin, or Member.</param>
+/// <param name="IsOnline">Whether the user is currently online.</param>
+public sealed record ChannelMemberSummary(
+    Guid UserId,
+    string DisplayName,
+    string Role,
+    bool IsOnline);

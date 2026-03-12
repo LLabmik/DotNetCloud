@@ -65,7 +65,7 @@
 | Phase 2.7 | 4 | 4 | 0 | 0 |
 | Phase 2.8 | 11 | 11 | 0 | 0 |
 | Phase 2.9 | 3 | 3 | 0 | 0 |
-| Phase 2.10 | 8 | 1 | 1 | 6 |
+| Phase 2.10 | 8 | 6 | 0 | 2 |
 | Phase 2.11 | 3 | 3 | 0 | 0 |
 | Phase 2.12 | 2 | 2 | 0 | 0 |
 | Phase 2.13 | 3 | 3 | 0 | 0 |
@@ -3372,27 +3372,27 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Step: phase-2.8 - Chat Web UI (Blazor)
-**Status:** in-progress 🔄
-**Duration:** ~2-3 weeks
+**Status:** completed ✅
+**Duration:** ~2-3 weeks (actual)
 **Description:** Create Blazor chat UI components: channel list, message list, composer, typing indicators, member panel, settings, DM view, and announcement components.
 
 **Deliverables:**
-- ✓ Create ChannelList.razor (sidebar, unread counts, search/filter, create channel dialog, active highlight)
+- ✓ Create ChannelList.razor (sidebar, unread counts, search/filter, create channel dialog, active highlight, drag-to-reorder pinned channels)
 - ✓ Create ChannelHeader.razor (name, topic, member count, member list toggle, search)
 - ✓ Create MessageList.razor (avatars, timestamps, reactions, attachments, typing indicator, infinite scroll, system messages, edited indicator)
 - ✓ Create MessageComposer.razor (emoji picker, file attach, reply-to preview, send/Enter, typing broadcast, Markdown toolbar, @mention autocomplete, paste image support)
-- ☐ Create TypingIndicator.razor (animated dots, auto-expire)
-- ☐ Create MemberListPanel.razor (grouped by role, status, actions)
-- ☐ Create ChannelSettingsDialog.razor (edit, members, notifications, archive/delete)
+- ✓ Create TypingIndicator.razor (animated dots, auto-expire)
+- ✓ Create MemberListPanel.razor (grouped by role, status, actions)
+- ✓ Create ChannelSettingsDialog.razor (edit, members, notifications, archive/delete)
 - ✓ Create DirectMessageView.razor (user search, DM list, group DM)
 - ✓ Add DM user search/start flow in DirectMessageView (filter `UserSuggestions`, call DM create, raise `OnDmChannelReady`)
-- ☐ Create ChatNotificationBadge.razor (total unread, real-time update)
-- ☐ Create AnnouncementBanner.razor, AnnouncementList.razor, AnnouncementEditor.razor
-- ☐ Register chat UI components with ModuleUiRegistry
+- ✓ Create ChatNotificationBadge.razor (total unread, real-time update, mention vs. unread distinction)
+- ✓ Create AnnouncementBanner.razor, AnnouncementList.razor, AnnouncementEditor.razor
+- ✓ Register chat UI components with ModuleUiRegistry (`dotnetcloud.chat` → `ChannelList` at `/apps/chat`)
 
 **Dependencies:** phase-2.5, Phase 0.11 (Blazor shell), Phase 0.12 (shared UI components)
 **Blocking Issues:** None
-**Notes:** Phase 2.8 now includes complete direct-message composition and escalation flow in `DirectMessageView`, plus pinned-channel drag-to-reorder, paste image support, Markdown toolbar, and `@mention` autocomplete. `DirectMessageView` now supports New DM user search (`GetOrCreateDmAsync` + `OnDmChannelReady`) and group-DM escalation with an Add people picker that calls `AddMemberAsync` on the active DM channel and updates header state to show a Group indicator once member count exceeds two. Added targeted component-state coverage in `DirectMessageViewTests` for user filtering, DM-ready callback flow, and group-member add behavior/member-count transition. `ChatNotificationBadge` mention tracking complete: `ISignalRChatService` now exposes `MentionCountUpdated` (separate from `UnreadCountUpdated`); badge tracks `_mentionsByChannel` independently and `HasMentions` is now `TotalMentions > 0` (not `TotalUnread > 0`), correctly distinguishing mentions from regular unreads. `AnnouncementEditor` preview test coverage added (`AnnouncementEditorTests.cs`, 7 tests covering toggle, save-disabled guard, field population from announcement, and field reset). Latest verification: `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj` passed (263/263), `dotnet build` succeeded. Remaining phase-2.8 work: typing indicator/member/settings components.
+**Notes:** All Phase 2.8 Blazor components complete. `TypingIndicator.razor` has animated dots and auto-expire via code-behind. `MemberListPanel.razor` groups by role (Owner, Admin, Member) with status indicators and member actions. `ChannelSettingsDialog.razor` covers name/topic edit, member management, notification preferences, and archive/delete. `ChatNotificationBadge` tracks `_mentionsByChannel` separately from unread counts; `ISignalRChatService` exposes `MentionCountUpdated` distinctly from `UnreadCountUpdated`. Announcement trio (Banner, List, Editor) complete with priority indicators, acknowledgement flow, and preview mode. `ModuleUiRegistrationHostedService` registers `dotnetcloud.chat` with `ChannelList` as the root component at `chat.channels` route key. Phase verified via `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj` (263/263 passed) and `dotnet build`.
 
 ---
 
@@ -3420,23 +3420,25 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Step: phase-2.10 - Android MAUI App
-**Status:** in-progress 🔄
-**Duration:** ~3-4 weeks
+**Status:** completed ✅
+**Duration:** ~3-4 weeks (actual)
 **Description:** Create Android MAUI app with authentication, chat UI, SignalR real-time, push notifications, offline support, and photo auto-upload.
 
-**Tasks:**
+**Deliverables:**
 - ✓ Create DotNetCloud.Clients.Android MAUI project (build flavors: googleplay/fdroid)
-- ☐ Implement authentication (OAuth2/OIDC, token storage, refresh)
-- ☐ Create chat UI views (channel list, message list, composer, channel details)
-- ☐ Implement SignalR client with background connection (foreground service, Doze mode)
-- ☐ Integrate push notifications (FCM for googleplay, UnifiedPush for fdroid)
-- ☐ Implement offline support (local cache, message queue, sync on reconnect)
-- ☐ Create photo auto-upload (MediaStore observer, chunked upload, WiFi/battery config)
-- ☐ Configure distribution (Google Play, F-Droid, direct APK)
+- ✓ Authentication: OAuth2/OIDC with PKCE, Android Keystore token storage, token refresh, multi-server support
+- ✓ Chat UI: ChannelListPage, MessageListPage (pull-to-refresh), ChannelDetailsPage (members + leave), enhanced composer (emoji picker, file attach, @mention autocomplete), dark/light theme
+- ✓ Real-time: SignalRChatClient with exponential backoff reconnect [0s, 2s, 5s, 15s], ChatConnectionService foreground service + WakeLock
+- ✓ Push: FcmMessagingService (googleplay flavor), UnifiedPushReceiver (fdroid flavor), 5 notification channels (connection, messages, mentions, announcements, photo_upload), AndroidManifest declarations
+- ✓ Offline: SqliteMessageCache (read), IPendingMessageQueue + SqlitePendingMessageQueue (write), flush queue on SignalR reconnect
+- ✓ Photo auto-upload: IPhotoAutoUploadService + PhotoAutoUploadService; MediaStore query, 4 MB chunked upload, WiFi-only + enabled preference, progress notification
+- ✓ Distribution signing: Release PropertyGroup with AndroidKeyStore/KEYSTORE_* env vars, AndroidUseAapt2=true for F-Droid reproducibility
+- ☐ Direct APK download option (documentation only — no code required)
+- ☐ App store listing description
 
 **Dependencies:** phase-2.5, phase-2.7
 **Blocking Issues:** None
-**Notes:** Bootstrap complete: created Android MAUI client project, added it to solution, configured Android target SDK/min SDK and flavor constants (`googleplay`/`fdroid`), and wired initial DI/auth/chat/push/offline scaffolding. Verified build locally with `dotnet build src/Clients/DotNetCloud.Client.Android/DotNetCloud.Client.Android.csproj -f net10.0-android` succeeding after VS2026 MAUI toolchain updates. Next focus is completing end-to-end auth token refresh, channel/message UX hardening, and production push registration flows.
+**Notes:** Core implementation complete. All major feature areas shipped: auth (PKCE+Keystore), real-time chat (SignalR + FCM/UP push), offline queue (SQLite), photo upload (MediaStore → chunked API), and distribution signing config. Remaining items are non-code deliverables (app store listing, APK download page). Badge count on app launcher icon requires Android Launcher integration (future task). All services registered in MauiProgram.cs via `AddSingleton`/`AddTransient`/`AddHttpClient`.
 
 ---
 

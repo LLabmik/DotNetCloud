@@ -99,6 +99,49 @@ internal sealed class HttpChatRestClient : IChatRestClient
         // Typing indicator is best-effort; swallow non-success silently.
     }
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<ChannelMemberSummary>> GetChannelMembersAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId, CancellationToken ct = default)
+    {
+        SetAuth(accessToken);
+        var userId = AccessTokenUserIdExtractor.ExtractUserId(accessToken);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels/{channelId}/members?userId={userId}";
+        var envelope = await _http.GetFromJsonAsync<Envelope<List<ChannelMemberDto>>>(url, JsonOpts, ct).ConfigureAwait(false);
+        return (envelope?.Data ?? []).Select(ToMemberSummary).ToList();
+    }
+
+    /// <inheritdoc />
+    public async Task LeaveChannelAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId, CancellationToken ct = default)
+    {
+        SetAuth(accessToken);
+        var userId = AccessTokenUserIdExtractor.ExtractUserId(accessToken);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels/{channelId}/members/{userId}";
+        using var response = await _http.DeleteAsync(url, ct).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <inheritdoc />
+    public async Task<ChatMessage> SendFileMessageAsync(
+        string serverBaseUrl, string accessToken,
+        Guid channelId, Guid fileId, string fileName,
+        CancellationToken ct = default)
+    {
+        SetAuth(accessToken);
+        var userId = AccessTokenUserIdExtractor.ExtractUserId(accessToken);
+        var url = $"{serverBaseUrl.TrimEnd('/')}/api/v1/chat/channels/{channelId}/messages?userId={userId}";
+        var body = new { Content = fileName, FileId = fileId };
+        using var response = await _http.PostAsJsonAsync(url, body, ct).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        var envelope = await response.Content.ReadFromJsonAsync<Envelope<ChatMessageDto>>(JsonOpts, ct).ConfigureAwait(false)
+                       ?? throw new InvalidOperationException("Empty response from send file message.");
+        return envelope.Data is null
+            ? throw new InvalidOperationException("Send file message response did not include data.")
+            : ToChatMessage(envelope.Data);
+    }
+
     private void SetAuth(string accessToken) =>
         _http.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
@@ -110,6 +153,9 @@ internal sealed class HttpChatRestClient : IChatRestClient
 
     private static ChatMessage ToChatMessage(ChatMessageDto d) =>
         new(d.Id, d.ChannelId, d.SenderName, d.Content, d.SentAt, d.IsEdited);
+
+    private static ChannelMemberSummary ToMemberSummary(ChannelMemberDto d) =>
+        new(d.UserId, d.DisplayName, d.Role, d.IsOnline);
 
     private sealed class Envelope<T>
     {
@@ -141,5 +187,13 @@ internal sealed class HttpChatRestClient : IChatRestClient
         public string Content { get; init; } = string.Empty;
         public DateTimeOffset SentAt { get; init; }
         public bool IsEdited { get; init; }
+    }
+
+    private sealed class ChannelMemberDto
+    {
+        public Guid UserId { get; init; }
+        public string DisplayName { get; init; } = string.Empty;
+        public string Role { get; init; } = "Member";
+        public bool IsOnline { get; init; }
     }
 }

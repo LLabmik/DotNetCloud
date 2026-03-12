@@ -3271,54 +3271,54 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Configure app icon and splash screen
 
 #### Authentication
-- [ ] Create login screen
-- [ ] Implement OAuth2/OIDC authentication flow (system browser redirect)
-- [ ] Implement token storage (Android Keystore)
-- [ ] Implement token refresh
-- [ ] Support multiple server connections
+- ✓ Create login screen
+- ✓ Implement OAuth2/OIDC authentication flow (system browser redirect)
+- ✓ Implement token storage (Android Keystore)
+- ✓ Implement token refresh
+- ✓ Support multiple server connections
 
 #### Chat UI
-- [ ] Create channel list view (tabs: Channels, DMs)
-- [ ] Create message list view with RecyclerView-style virtualization
-- [ ] Create message composer with:
-  - [ ] Text input
-  - [ ] Emoji picker
-  - [ ] File attachment (camera, gallery, file picker)
-  - [ ] `@mention` autocomplete
-- [ ] Create channel details view (members, settings)
-- [ ] Implement pull-to-refresh for message history
-- [ ] Support dark/light theme
+- ✓ Create channel list view (tabs: Channels, DMs)
+- ✓ Create message list view with RecyclerView-style virtualization
+- ✓ Create message composer with:
+  - ✓ Text input
+  - ✓ Emoji picker
+  - ✓ File attachment (camera, gallery, file picker)
+  - ✓ `@mention` autocomplete
+- ✓ Create channel details view (members, settings)
+- ✓ Implement pull-to-refresh for message history
+- ✓ Support dark/light theme
 
 #### Real-Time Connection
-- [ ] Implement SignalR client connection
-- [ ] Handle connection lifecycle (connect, reconnect, disconnect)
-- [ ] Background connection management (Android foreground service)
-- [ ] Handle Doze mode and battery optimization
+- ✓ Implement SignalR client connection
+- ✓ Handle connection lifecycle (connect, reconnect, disconnect)
+- ✓ Background connection management (Android foreground service)
+- ✓ Handle Doze mode and battery optimization
 
 #### Push Notifications
-- [ ] Integrate Firebase Cloud Messaging (FCM) for `googleplay` flavor
-- [ ] Integrate UnifiedPush for `fdroid` flavor
-- [ ] Create notification channels (Chat, Mentions, Announcements)
-- [ ] Implement notification tap handlers (open specific chat)
-- [ ] Display notification badges on app icon
+- ✓ Integrate Firebase Cloud Messaging (FCM) for `googleplay` flavor
+- ✓ Integrate UnifiedPush for `fdroid` flavor
+- ✓ Create notification channels (Chat, Mentions, Announcements)
+- ✓ Implement notification tap handlers (open specific chat)
+- ☐ Display notification badges on app icon
 
 #### Offline Support
-- [ ] Cache recent messages locally (SQLite or LiteDB)
-- [ ] Queue outgoing messages when offline
-- [ ] Sync on reconnection
-- [ ] Display cached data while loading
+- ✓ Cache recent messages locally (SQLite or LiteDB)
+- ✓ Queue outgoing messages when offline
+- ✓ Sync on reconnection
+- ✓ Display cached data while loading
 
 #### Photo Auto-Upload (File Integration)
-- [ ] Detect new photos via MediaStore content observer
-- [ ] Upload via Files module API (chunked upload)
-- [ ] Configurable: WiFi only, battery threshold
-- [ ] Progress notification during upload
+- ✓ Detect new photos via MediaStore content observer
+- ✓ Upload via Files module API (chunked upload)
+- ✓ Configurable: WiFi only, battery threshold
+- ✓ Progress notification during upload
 
 #### Android Distribution
-- [ ] Configure Google Play Store build (signed APK/AAB)
-- [ ] Configure F-Droid build (reproducible, no proprietary deps)
-- [ ] Create direct APK download option
-- [ ] Write app store listing description
+- ✓ Configure Google Play Store build (signed APK/AAB)
+- ✓ Configure F-Droid build (reproducible, no proprietary deps)
+- ☐ Create direct APK download option
+- ☐ Write app store listing description
 
 ---
 

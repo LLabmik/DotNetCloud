@@ -31,6 +31,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<ISecureTokenStore, AndroidKeyStoreTokenStore>();
         builder.Services.AddSingleton<IServerConnectionStore, PreferenceServerConnectionStore>();
         builder.Services.AddSingleton<ILocalMessageCache, SqliteMessageCache>();
+        builder.Services.AddSingleton<IPendingMessageQueue, SqlitePendingMessageQueue>();
 
         // ── Auth ──────────────────────────────────────────────────────
         builder.Services.AddSingleton<IOAuth2Service, MauiOAuth2Service>();
@@ -46,16 +47,21 @@ public static class MauiProgram
         builder.Services.AddSingleton<IPushNotificationService, UnifiedPushService>();
 #endif
 
+        // ── Photo auto-upload ─────────────────────────────────────────
+        builder.Services.AddHttpClient<IPhotoAutoUploadService, PhotoAutoUploadService>();
+
         // ── ViewModels ────────────────────────────────────────────────
         builder.Services.AddTransient<LoginViewModel>();
         builder.Services.AddTransient<ChannelListViewModel>();
         builder.Services.AddTransient<MessageListViewModel>();
+        builder.Services.AddTransient<ChannelDetailsViewModel>();
         builder.Services.AddTransient<SettingsViewModel>();
 
         // ── Pages ─────────────────────────────────────────────────────
         builder.Services.AddTransient<LoginPage>();
         builder.Services.AddTransient<ChannelListPage>();
         builder.Services.AddTransient<MessageListPage>();
+        builder.Services.AddTransient<ChannelDetailsPage>();
         builder.Services.AddTransient<SettingsPage>();
 
 #if DEBUG

@@ -6,7 +6,7 @@
     xmlns:vm="clr-namespace:DotNetCloud.Client.Android.ViewModels"
     Title="{Binding ChannelName}">
 
-    <Grid RowDefinitions="*,Auto">
+    <Grid RowDefinitions="*,Auto,Auto">
 
         <!-- Message list -->
         <RefreshView
@@ -48,29 +48,119 @@
         <!-- Composer bar -->
         <Grid
             Grid.Row="1"
-            ColumnDefinitions="*,Auto"
-            Padding="8,4"
+            ColumnDefinitions="Auto,*,Auto,Auto"
+            Padding="4,4"
             BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1E1E1E}">
 
-            <Editor
-                x:Name="ComposerEditor"
-                Grid.Column="0"
-                AutoSize="TextChanges"
-                MaximumHeightRequest="120"
-                Placeholder="Message…"
-                Text="{Binding ComposerText}" />
-
+            <!-- Attach file button -->
             <Button
-                Grid.Column="1"
+                Grid.Column="0"
+                Command="{Binding AttachFileCommand}"
+                FontSize="18"
+                BackgroundColor="Transparent"
+                Text="📎"
+                Padding="8,0"
+                VerticalOptions="End"
+                ToolTipProperties.Text="Attach file" />
+
+            <!-- Message input with @mention hint -->
+            <Grid Grid.Column="1">
+                <Editor
+                    x:Name="ComposerEditor"
+                    AutoSize="TextChanges"
+                    MaximumHeightRequest="120"
+                    Placeholder="Message… (@ to mention)"
+                    Text="{Binding ComposerText}" />
+
+                <!-- @mention autocomplete overlay -->
+                <Border
+                    BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#2A2A2A}"
+                    IsVisible="{Binding ShowMentionSuggestions}"
+                    Stroke="{AppThemeBinding Light=#CCCCCC, Dark=#444444}"
+                    StrokeShape="RoundRectangle 6"
+                    VerticalOptions="End"
+                    Margin="0,0,0,42">
+                    <CollectionView
+                        ItemsSource="{Binding MentionSuggestions}"
+                        MaximumHeightRequest="160"
+                        SelectionMode="None">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <Grid Padding="12,8">
+                                    <Label Text="{Binding .}" FontSize="14" />
+                                    <Grid.GestureRecognizers>
+                                        <TapGestureRecognizer
+                                            Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectMentionCommand}"
+                                            CommandParameter="{Binding .}" />
+                                    </Grid.GestureRecognizers>
+                                </Grid>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </Border>
+            </Grid>
+
+            <!-- Emoji picker button -->
+            <Button
+                Grid.Column="2"
+                Command="{Binding ToggleEmojiPickerCommand}"
+                FontSize="18"
+                BackgroundColor="Transparent"
+                Text="😊"
+                Padding="8,0"
+                VerticalOptions="End"
+                ToolTipProperties.Text="Emoji" />
+
+            <!-- Send button -->
+            <Button
+                Grid.Column="3"
                 Command="{Binding SendCommand}"
                 FontSize="13"
                 IsEnabled="{Binding IsSending, Converter={StaticResource InvertBool}}"
-                Margin="4,0,0,0"
+                Margin="0,0,4,0"
                 Padding="16,0"
                 Text="Send"
                 VerticalOptions="End" />
 
         </Grid>
+
+        <!-- Emoji picker panel (shown when ToggleEmojiPickerCommand is invoked) -->
+        <ScrollView
+            Grid.Row="2"
+            x:Name="EmojiPickerPanel"
+            IsVisible="{Binding IsEmojiPickerOpen}"
+            HeightRequest="200"
+            BackgroundColor="{AppThemeBinding Light=#F9F9F9, Dark=#1A1A1A}">
+            <FlexLayout
+                Wrap="Wrap"
+                JustifyContent="Start"
+                Padding="8">
+                <BindableLayout.ItemsSource>
+                    <x:Array Type="{x:Type x:String}">
+                        <x:String>😀</x:String><x:String>😂</x:String><x:String>😍</x:String>
+                        <x:String>🤔</x:String><x:String>😎</x:String><x:String>😢</x:String>
+                        <x:String>😡</x:String><x:String>🎉</x:String><x:String>👍</x:String>
+                        <x:String>👎</x:String><x:String>❤️</x:String><x:String>🔥</x:String>
+                        <x:String>✅</x:String><x:String>❌</x:String><x:String>⚡</x:String>
+                        <x:String>🚀</x:String><x:String>💯</x:String><x:String>🙏</x:String>
+                        <x:String>👀</x:String><x:String>💪</x:String><x:String>🤝</x:String>
+                        <x:String>📎</x:String><x:String>📌</x:String><x:String>🔗</x:String>
+                    </x:Array>
+                </BindableLayout.ItemsSource>
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate x:DataType="x:String">
+                        <Button
+                            Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.InsertEmojiCommand}"
+                            CommandParameter="{Binding .}"
+                            BackgroundColor="Transparent"
+                            FontSize="24"
+                            HeightRequest="44"
+                            Text="{Binding .}"
+                            WidthRequest="44" />
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+            </FlexLayout>
+        </ScrollView>
 
     </Grid>
 

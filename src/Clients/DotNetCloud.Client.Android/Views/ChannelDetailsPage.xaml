@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="DotNetCloud.Client.Android.Views.ChannelDetailsPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:DotNetCloud.Client.Android.ViewModels"
+    Title="Channel Details">
+
+    <ScrollView>
+        <VerticalStackLayout Spacing="0">
+
+            <!-- Channel info section -->
+            <VerticalStackLayout
+                Padding="16,20,16,12"
+                Spacing="4"
+                BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1E1E1E}">
+
+                <Label
+                    FontAttributes="Bold"
+                    FontSize="22"
+                    Text="{Binding ChannelName}" />
+
+                <Label
+                    FontSize="14"
+                    IsVisible="{Binding ChannelTopic, Converter={StaticResource IsNotNullOrEmpty}}"
+                    Opacity="0.7"
+                    Text="{Binding ChannelTopic}" />
+
+                <Label
+                    FontSize="13"
+                    Opacity="0.5"
+                    Text="{Binding MemberCountDisplay}" />
+
+            </VerticalStackLayout>
+
+            <BoxView HeightRequest="1" Color="{AppThemeBinding Light=#E0E0E0, Dark=#333333}" />
+
+            <!-- Actions section -->
+            <VerticalStackLayout
+                Padding="0"
+                BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1E1E1E}">
+
+                <!-- Notifications preference -->
+                <Grid
+                    ColumnDefinitions="*,Auto"
+                    Padding="16,14">
+                    <Label
+                        Grid.Column="0"
+                        FontSize="16"
+                        VerticalOptions="Center"
+                        Text="Mute notifications" />
+                    <Switch
+                        Grid.Column="1"
+                        IsToggled="{Binding IsMuted}"
+                        OnColor="#1B6EC2"
+                        VerticalOptions="Center" />
+                </Grid>
+
+                <BoxView HeightRequest="1" Margin="16,0" Color="{AppThemeBinding Light=#E0E0E0, Dark=#333333}" />
+
+                <!-- Leave channel -->
+                <Button
+                    Command="{Binding LeaveChannelCommand}"
+                    Margin="16,8"
+                    BackgroundColor="Transparent"
+                    FontSize="16"
+                    HorizontalOptions="Start"
+                    Text="Leave channel"
+                    TextColor="#CC0000" />
+
+            </VerticalStackLayout>
+
+            <BoxView HeightRequest="8" Color="{AppThemeBinding Light=#F0F0F0, Dark=#121212}" />
+
+            <!-- Members section -->
+            <VerticalStackLayout
+                BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1E1E1E}">
+
+                <Label
+                    Margin="16,14,16,8"
+                    FontAttributes="Bold"
+                    FontSize="13"
+                    Opacity="0.6"
+                    Text="{Binding MembersHeaderText}"
+                    TextTransform="Uppercase" />
+
+                <CollectionView
+                    ItemsSource="{Binding Members}"
+                    SelectionMode="None">
+
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ChannelMemberItemViewModel">
+                            <Grid
+                                ColumnDefinitions="Auto,*,Auto"
+                                Padding="16,10">
+
+                                <!-- Avatar placeholder -->
+                                <Border
+                                    Grid.Column="0"
+                                    BackgroundColor="#1B6EC2"
+                                    HeightRequest="36"
+                                    StrokeShape="RoundRectangle 18"
+                                    WidthRequest="36"
+                                    Margin="0,0,12,0">
+                                    <Label
+                                        FontAttributes="Bold"
+                                        FontSize="14"
+                                        HorizontalOptions="Center"
+                                        Text="{Binding Initials}"
+                                        TextColor="White"
+                                        VerticalOptions="Center" />
+                                </Border>
+
+                                <!-- Name and role -->
+                                <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
+                                    <Label FontSize="15" Text="{Binding DisplayName}" />
+                                    <Label
+                                        FontSize="12"
+                                        IsVisible="{Binding RoleLabel, Converter={StaticResource IsNotNullOrEmpty}}"
+                                        Opacity="0.6"
+                                        Text="{Binding RoleLabel}" />
+                                </VerticalStackLayout>
+
+                                <!-- Online status indicator -->
+                                <Ellipse
+                                    Grid.Column="2"
+                                    Fill="{Binding IsOnline, Converter={StaticResource OnlineStatusToColor}}"
+                                    HeightRequest="10"
+                                    VerticalOptions="Center"
+                                    WidthRequest="10" />
+
+                            </Grid>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+
+                    <CollectionView.EmptyView>
+                        <Label
+                            Margin="16,12"
+                            FontSize="14"
+                            Opacity="0.6"
+                            Text="No members." />
+                    </CollectionView.EmptyView>
+
+                </CollectionView>
+
+                <!-- Loading indicator -->
+                <ActivityIndicator
+                    HorizontalOptions="Center"
+                    IsRunning="{Binding IsLoading}"
+                    IsVisible="{Binding IsLoading}"
+                    Margin="0,12"
+                    Color="#1B6EC2" />
+
+            </VerticalStackLayout>
+
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>

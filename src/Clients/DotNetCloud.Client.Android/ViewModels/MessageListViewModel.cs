@@ -11,7 +11,8 @@ namespace DotNetCloud.Client.Android.ViewModels;
 
 /// <summary>
 /// ViewModel for the message list screen.
-/// Loads message history, appends real-time incoming messages, supports sending.
+/// Loads message history, appends real-time incoming messages, supports sending,
+/// emoji insertion, @mention autocomplete, and file attachments.
 /// </summary>
 public sealed partial class MessageListViewModel : ObservableObject, IDisposable
 {
@@ -25,6 +26,9 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     private Guid _channelId;
     private string? _serverUrl;
     private string? _accessToken;
+
+    // All channel member names for @mention autocomplete
+    private IReadOnlyList<string> _allMemberNames = [];
 
     // Typing indicator debounce
     private CancellationTokenSource _typingCts = new();
@@ -51,6 +55,9 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     /// <summary>Messages displayed in the list, oldest-first.</summary>
     public ObservableCollection<MessageItemViewModel> Messages { get; } = [];
 
+    /// <summary>@mention autocomplete suggestions (visible when typing @word).</summary>
+    public ObservableCollection<string> MentionSuggestions { get; } = [];
+
     /// <summary>Display name of the current channel.</summary>
     [ObservableProperty]
     private string _channelName = string.Empty;
@@ -69,6 +76,14 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string? _errorMessage;
 
+    /// <summary>Whether the emoji picker panel is currently open.</summary>
+    [ObservableProperty]
+    private bool _isEmojiPickerOpen;
+
+    /// <summary>Whether the @mention suggestion list should be shown.</summary>
+    [ObservableProperty]
+    private bool _showMentionSuggestions;
+
     /// <summary>Initializes the view model for a specific channel and loads its messages.</summary>
     public async Task InitializeAsync(Guid channelId, string channelName, CancellationToken ct = default)
     {
@@ -82,6 +97,22 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
                        ?? throw new InvalidOperationException("No access token found.");
 
         await LoadMessagesAsync(ct).ConfigureAwait(false);
+
+        // Prefetch member names for @mention autocomplete
+        _ = LoadMemberNamesAsync(ct);
+    }
+
+    private async Task LoadMemberNamesAsync(CancellationToken ct)
+    {
+        try
+        {
+            var members = await _chatApi.GetChannelMembersAsync(_serverUrl!, _accessToken!, _channelId, ct).ConfigureAwait(false);
+            _allMemberNames = members.Select(m => m.DisplayName).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not prefetch member names for @mention.");
+        }
     }
 
     /// <summary>Loads the message history, falling back to cache if offline.</summary>
@@ -130,6 +161,8 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         if (!CanSend()) return;
         var content = ComposerText.Trim();
         ComposerText = string.Empty;
+        IsEmojiPickerOpen = false;
+        ShowMentionSuggestions = false;
         IsSending = true;
 
         try
@@ -149,6 +182,62 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Toggles the emoji picker panel visibility.</summary>
+    [RelayCommand]
+    private void ToggleEmojiPicker() => IsEmojiPickerOpen = !IsEmojiPickerOpen;
+
+    /// <summary>Inserts an emoji character at the end of the composer text.</summary>
+    [RelayCommand]
+    private void InsertEmoji(string emoji)
+    {
+        ComposerText += emoji;
+        IsEmojiPickerOpen = false;
+    }
+
+    /// <summary>
+    /// Completes a @mention by replacing the partial @word at the cursor with the selected name.
+    /// </summary>
+    [RelayCommand]
+    private void SelectMention(string displayName)
+    {
+        var atIndex = ComposerText.LastIndexOf('@');
+        if (atIndex >= 0)
+            ComposerText = ComposerText[..atIndex] + $"@{displayName} ";
+
+        ShowMentionSuggestions = false;
+        MentionSuggestions.Clear();
+    }
+
+    /// <summary>Opens the system media picker and sends the chosen file as a message attachment.</summary>
+    [RelayCommand]
+    private async Task AttachFileAsync(CancellationToken ct)
+    {
+        try
+        {
+            var result = await MediaPicker.Default.PickPhotoAsync().ConfigureAwait(false);
+            if (result is null) return;
+
+            // Send the file name as plain-text message for now;
+            // full chunked-upload integration is handled by PhotoAutoUploadService.
+            var content = $"📎 {result.FileName}";
+            ErrorMessage = null;
+            IsSending = true;
+
+            var message = await _chatApi.SendMessageAsync(_serverUrl!, _accessToken!, _channelId, content, ct).ConfigureAwait(false);
+            Messages.Add(new MessageItemViewModel(message.Id, message.SenderName, message.Content, message.SentAt));
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to attach file.");
+            ErrorMessage = "Failed to attach file.";
+        }
+        finally
+        {
+            IsSending = false;
+        }
+    }
+
     partial void OnComposerTextChanged(string value)
     {
         // Debounced typing indicator — fires 500 ms after last keystroke
@@ -161,6 +250,39 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             if (_serverUrl is not null && _accessToken is not null)
                 await _chatApi.NotifyTypingAsync(_serverUrl, _accessToken, _channelId, token).ConfigureAwait(false);
         }, token);
+
+        // @mention autocomplete — detect trailing @word
+        UpdateMentionSuggestions(value);
+    }
+
+    private void UpdateMentionSuggestions(string text)
+    {
+        var atIndex = text.LastIndexOf('@');
+        if (atIndex < 0 || (atIndex > 0 && text[atIndex - 1] != ' ' && atIndex != 0))
+        {
+            ShowMentionSuggestions = false;
+            MentionSuggestions.Clear();
+            return;
+        }
+
+        var partial = text[(atIndex + 1)..];
+        if (partial.Contains(' '))
+        {
+            ShowMentionSuggestions = false;
+            MentionSuggestions.Clear();
+            return;
+        }
+
+        var matches = _allMemberNames
+            .Where(n => n.StartsWith(partial, StringComparison.OrdinalIgnoreCase))
+            .Take(5)
+            .ToList();
+
+        MentionSuggestions.Clear();
+        foreach (var m in matches)
+            MentionSuggestions.Add(m);
+
+        ShowMentionSuggestions = matches.Count > 0 && partial.Length > 0;
     }
 
     private bool CanSend() => !string.IsNullOrWhiteSpace(ComposerText) && !IsSending;

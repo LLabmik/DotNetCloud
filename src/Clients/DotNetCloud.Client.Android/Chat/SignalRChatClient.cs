@@ -1,3 +1,4 @@
+using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Client.Core;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
@@ -28,6 +29,10 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
 {
     private HubConnection? _hub;
     private readonly ILogger<SignalRChatClient> _logger;
+    private readonly IPendingMessageQueue _pendingQueue;
+    private readonly IChatRestClient _restClient;
+    private string? _serverBaseUrl;
+    private string? _accessToken;
 
     /// <inheritdoc />
     public event EventHandler<ChatUnreadCountUpdatedEventArgs>? OnUnreadCountUpdated;
@@ -36,7 +41,15 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
     public event EventHandler<ChatMessageReceivedEventArgs>? OnNewChatMessage;
 
     /// <summary>Initializes a new <see cref="SignalRChatClient"/>.</summary>
-    public SignalRChatClient(ILogger<SignalRChatClient> logger) => _logger = logger;
+    public SignalRChatClient(
+        ILogger<SignalRChatClient> logger,
+        IPendingMessageQueue pendingQueue,
+        IChatRestClient restClient)
+    {
+        _logger = logger;
+        _pendingQueue = pendingQueue;
+        _restClient = restClient;
+    }
 
     /// <summary>
     /// Configures and opens the SignalR hub connection to the given server URL.
@@ -49,6 +62,9 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
     {
         if (_hub is not null)
             await _hub.DisposeAsync().ConfigureAwait(false);
+
+        _serverBaseUrl = serverBaseUrl;
+        _accessToken = accessToken;
 
         var hubUrl = $"{serverBaseUrl.TrimEnd('/')}/hubs/core";
 
@@ -66,10 +82,10 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
         _hub.On<NewMessagePayload>("NewMessage", payload =>
             OnNewChatMessage?.Invoke(this, new ChatMessageReceivedEventArgs(payload.ChannelId, string.Empty, string.Empty, payload.Message, false)));
 
-        _hub.Reconnected += connectionId =>
+        _hub.Reconnected += async connectionId =>
         {
-            _logger.LogInformation("SignalR reconnected (connId={ConnectionId}).", connectionId);
-            return Task.CompletedTask;
+            _logger.LogInformation("SignalR reconnected (connId={ConnectionId}). Flushing pending messages.", connectionId);
+            await FlushPendingMessagesAsync().ConfigureAwait(false);
         };
         _hub.Closed += error =>
         {
@@ -85,6 +101,38 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
     Task IChatSignalRClient.ConnectAsync(CancellationToken cancellationToken) =>
         Task.FromException(new InvalidOperationException(
             "Use the overload that accepts serverBaseUrl and accessToken."));
+
+    private async Task FlushPendingMessagesAsync()
+    {
+        if (_serverBaseUrl is null || _accessToken is null)
+            return;
+
+        var pending = await _pendingQueue.GetAllAsync().ConfigureAwait(false);
+        if (pending.Count == 0)
+            return;
+
+        _logger.LogInformation("Flushing {Count} pending message(s) after reconnect.", pending.Count);
+        var flushed = new List<long>(pending.Count);
+        foreach (var msg in pending)
+        {
+            try
+            {
+                await _restClient.SendMessageAsync(
+                    _serverBaseUrl, _accessToken,
+                    msg.ChannelId, msg.Content)
+                    .ConfigureAwait(false);
+                flushed.Add(msg.RowId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to flush pending message {RowId}; will retry on next reconnect.", msg.RowId);
+                break; // stop on first failure to preserve ordering
+            }
+        }
+
+        if (flushed.Count > 0)
+            await _pendingQueue.RemoveAsync(flushed).ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
