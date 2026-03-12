@@ -79,23 +79,32 @@ Archived context:
 
 ## Active Handoff
 
-### WYSIWYG Chat Composer — Deployed Successfully
+### Members Panel Fix — Display Names Instead of Raw GUIDs
 
 **Date:** 2026-03-12
-**Owner:** Server agent (`mint22`)
-**Status:** COMPLETE
+**Owner:** Client agent
+**Status:** READY FOR DEPLOY
 
-**Deployment verification (server agent):**
-- `git pull` — fast-forward to `f4f24e3` (8 files changed, WYSIWYG editor + CSS fixes)
-- `bash tools/redeploy-baremetal.sh` — build succeeded (0 errors), service restarted
-- Health: **Healthy** (all checks pass: self, startup, collabora_online, linux-resources)
-- WYSIWYG JS: `_content/DotNetCloud.UI.Web/js/wysiwyg-editor.js` — 200 OK (23KB)
-- Chat CSS bundle: `_content/DotNetCloud.Modules.Chat/DotNetCloud.Modules.Chat.bundle.scp.css` — 200 OK (57KB)
-- `/apps/chat` — 302 auth redirect (correct for unauthenticated request)
-- Runtime verification: service PID 9968, active (running) from fresh publish output
-- Service listening: https://[::]:15443, http://[::]:15080, unix socket
+**Problem:** The Members panel in `/apps/chat` was showing truncated GUIDs (e.g. `0 019cc1ac`) instead of actual user display names. The `ChannelMemberDto` had no `DisplayName` field, and `ChannelMemberService` wasn't using `IUserDirectory` to look up names.
 
-**No issues found. WYSIWYG chat composer is live on mint22.**
+**Fix (commit `7206a5e`):**
+1. Added `DisplayName` and `Username` properties to `ChannelMemberDto`
+2. Injected `IUserDirectory?` (optional) into `ChannelMemberService` — follows same pattern as `MessageService`
+3. `ListMembersAsync` now calls `IUserDirectory.GetDisplayNamesAsync()` to enrich member DTOs with real display names
+4. Updated client-side `ToMemberViewModel` mapping to use the DTO's `DisplayName`
+5. Graceful fallback: if `IUserDirectory` is not registered, shows truncated GUID (same as before)
+
+**Files changed:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/DTOs/ChatDtos.cs` — added `DisplayName`, `Username` to DTO
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/ChannelMemberService.cs` — inject `IUserDirectory?`, enrich in `ListMembersAsync`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChatPageLayout.razor.cs` — use DTO `DisplayName` instead of GUID placeholder
+
+**Build:** 0 errors. **Tests:** 263/263 chat tests pass.
+
+**Server agent action required:**
+1. `git pull` on mint22
+2. Redeploy (`bash tools/redeploy-baremetal.sh`)
+3. Verify `/apps/chat` Members panel shows display names (e.g. "testdude" instead of "019cc1ac")
 
 ## Relay Template
 
