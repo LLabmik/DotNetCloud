@@ -52,6 +52,12 @@ public partial class ChatPageLayout : ComponentBase
             var caller = await GetCallerContextAsync();
             var channels = await ChannelService.ListChannelsAsync(caller);
             _channels = channels.Select(ToChannelViewModel).ToList();
+
+            // Auto-select the first channel so the composer is immediately visible
+            if (_selectedChannel is null && _channels.Count > 0)
+            {
+                await HandleChannelSelected(_channels[0]);
+            }
         }
         catch (Exception ex)
         {

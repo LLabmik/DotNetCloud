@@ -30,6 +30,7 @@
                      ErrorMessage="@_messageErrorMessage"
                      HasMoreMessages="@_hasMoreMessages"
                      TypingUsers="@_typingUsers"
+                     ChannelSelected="@(_selectedChannel is not null)"
                      OnLoadMore="@HandleLoadMoreMessages"
                      OnReactionToggle="@HandleReactionToggle" />
 

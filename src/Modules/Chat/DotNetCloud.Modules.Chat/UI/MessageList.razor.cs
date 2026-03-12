@@ -33,6 +33,10 @@ public partial class MessageList : ComponentBase
     [Parameter]
     public bool HasMoreMessages { get; set; }
 
+    /// <summary>Whether a channel is currently selected.</summary>
+    [Parameter]
+    public bool ChannelSelected { get; set; }
+
     /// <summary>Users currently typing in the channel.</summary>
     [Parameter]
     public List<TypingUserViewModel> TypingUsers { get; set; } = [];

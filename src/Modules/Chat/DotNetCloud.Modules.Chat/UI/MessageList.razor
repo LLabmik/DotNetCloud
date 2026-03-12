@@ -22,8 +22,16 @@
     else if (Messages.Count == 0)
     {
         <div class="empty-state">
-            <p>No messages yet.</p>
-            <p class="text-muted">Start the conversation by sending the first message.</p>
+            @if (ChannelSelected)
+            {
+                <p>No messages yet.</p>
+                <p class="text-muted">Start the conversation by sending the first message.</p>
+            }
+            else
+            {
+                <p>Select a channel</p>
+                <p class="text-muted">Choose a channel from the sidebar to start chatting.</p>
+            }
         </div>
     }
     else
