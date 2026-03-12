@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-12 (Chat UI fix — ChatPageLayout orchestrator replaces bare ChannelList)
+Last updated: 2026-03-12 (Chat UI fix deployed — ChatPageLayout rebuild/redeploy on mint22 complete)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -55,6 +55,7 @@ Archived context:
 - **All Phase 2 work is now complete.**
 - PosixMode migration blocker: fixed (2026-03-12) — all 6 Files migrations applied to production DB.
 - Chat UI fix: ChatPageLayout orchestrator added (2026-03-12) — channels now clickable with full message view.
+- Chat UI fix deployed to mint22 (2026-03-12) — rebuilt, restarted, health verified Healthy.
 - Full test suite: 2,106+ passed / 0 failed (1 pre-existing Files CDC test failure, unrelated).
 
 ## Environment
@@ -73,49 +74,26 @@ Archived context:
 
 ## Active Handoff
 
-### Chat UI Fix — Rebuild and Redeploy Required
+### Chat UI Fix — Deploy Complete
 
 **Date:** 2026-03-12
 **Owner:** Server agent (`mint22`)
-**Status:** ACTION REQUIRED 🔧
-**Commit:** `2212a09`
+**Status:** COMPLETED ✅
+**Commit:** `f24677d`
 
-**What changed (client-side commit):**
+**Work performed:**
+1. Pulled latest `main` (fast-forward to `f24677d`).
+2. Published server: `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o artifacts/publish/server-baremetal` — build succeeded (57s).
+3. Restarted service: `sudo systemctl restart dotnetcloud.service` — status: active.
 
-The Chat module's web UI was broken — clicking a channel in the sidebar did nothing. Root cause: `ModuleUiRegistrationHostedService` registered `ChannelList` (the sidebar component) as the root component for `/apps/chat`. Since nobody handled its `OnChannelSelected` callback, clicks were swallowed.
+**Verification results:**
+- Health: `curl -sk https://mint22:15443/health` → 200 Healthy (self ✓, startup ✓, collabora_online ✓, linux-resources ✓).
+- `/apps/chat`: 302→login (auth-gated, correct behavior). After redirect: 200 with full Blazor SSR page.
+- Binary: `ChatPageLayout` confirmed in published `DotNetCloud.Modules.Chat.dll` (all 4 async handlers present).
+- Registration: `DotNetCloud.Core.Server.dll` references only `ChatPageLayout`, not `ChannelList`.
+- No database changes needed.
 
-**Fix applied:**
-1. Created `ChatPageLayout.razor/.cs/.css` — an orchestrator component that composes `ChannelList` + `ChannelHeader` + `MessageList` + `MessageComposer` into a split-pane layout.
-2. Updated `ModuleUiRegistrationHostedService` to register `ChatPageLayout` instead of `ChannelList` as the root component.
-3. Clicking a channel now loads messages via `IMessageService.GetMessagesAsync()` and renders the full chat conversation view.
-
-**Files changed:**
-- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChatPageLayout.razor` (new)
-- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChatPageLayout.razor.cs` (new)
-- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChatPageLayout.razor.css` (new)
-- `src/Core/DotNetCloud.Core.Server/Initialization/ModuleUiRegistrationHostedService.cs` (modified)
-
-**Build/test verification (client machine):**
-- `dotnet build` — succeeded (0 errors)
-- `dotnet test` — 263/263 Chat tests passed, all other suites green
-- 1 pre-existing Files test failure (`ChunkAndHashCdcAsync_SmallData_ReturnsSingleChunk`) — unrelated
-
-**Server agent action required:**
-1. `git pull` on `mint22`
-2. Rebuild and republish:
-   ```bash
-   dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o /path/to/server-baremetal
-   ```
-3. Restart the service:
-   ```bash
-   sudo systemctl restart dotnetcloud.service
-   ```
-4. Verify:
-   - `curl -k https://mint22:15443/health` → 200
-   - Navigate to `https://mint22:15443/apps/chat` → channel list should render, clicking a channel should show header + messages + composer
-5. Report back: commit hash, health output, and whether the chat UI is functional.
-
-**No database changes required.** This is a code-only change.
+**No action required from client agent.** All Phase 2 work remains complete.
 
 ## Relay Template
 

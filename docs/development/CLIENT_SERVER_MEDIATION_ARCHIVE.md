@@ -2241,3 +2241,30 @@ Archived from `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` when enforci
 - Files API: 401 (auth required, no column errors).
 - Server logs: no DB errors.
 - Test suite: 2,106 passed / 0 failed / 2 skipped (env-gated).
+
+---
+
+## Chat UI Fix — ChatPageLayout Rebuild and Redeploy (2026-03-12)
+
+**Handoff from:** Client agent
+**Executed by:** Server agent (`mint22`)
+**Commit:** `f24677d`
+
+**Problem:** Chat module's web UI was broken — clicking a channel in the sidebar did nothing. `ModuleUiRegistrationHostedService` registered `ChannelList` (the sidebar component) as the root component for `/apps/chat`. Since nobody handled its `OnChannelSelected` callback, clicks were swallowed.
+
+**Fix applied (client-side):**
+1. Created `ChatPageLayout.razor/.cs/.css` — an orchestrator component composing `ChannelList` + `ChannelHeader` + `MessageList` + `MessageComposer` into a split-pane layout.
+2. Updated `ModuleUiRegistrationHostedService` to register `ChatPageLayout` instead of `ChannelList`.
+3. Clicking a channel now loads messages via `IMessageService.GetMessagesAsync()` and renders the full chat conversation view.
+
+**Server-side deploy (server agent):**
+1. `git pull` — fast-forward to `f24677d`.
+2. `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o artifacts/publish/server-baremetal` — build succeeded.
+3. `sudo systemctl restart dotnetcloud.service` — service restarted, status: active.
+
+**Verification:**
+- Health endpoint: `curl -sk https://mint22:15443/health` → 200 Healthy (all checks: self, startup, collabora_online, linux-resources).
+- `/apps/chat` route: returns 302→login (auth-gated, correct). After login redirect: 200 with Blazor server-side rendered HTML.
+- Published binary verification: `ChatPageLayout` confirmed in `DotNetCloud.Modules.Chat.dll` with all async methods (`OnInitializedAsync`, `LoadChannelsAsync`, `HandleChannelSelected`, `LoadMessagesAsync`).
+- `ModuleUiRegistrationHostedService` in `DotNetCloud.Core.Server.dll`: references only `ChatPageLayout`, not `ChannelList`.
+- No database changes required.
