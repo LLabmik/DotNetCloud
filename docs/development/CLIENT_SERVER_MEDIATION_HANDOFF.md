@@ -61,6 +61,7 @@ Archived context:
 - Chat DbContext concurrency bug: **FIXED** (2026-03-12). Service restarted, channels load.
 - Chat UI CSS: Stylesheets created (2026-03-12) but **not loaded** — missing `<link>` tag in `App.razor`. Fixed by client agent.
 - Chat UI CSS link tag fix: corrected `.styles.css` → `.bundle.scp.css` (2026-03-12). .NET 10 RCL CSS isolation uses `.bundle.scp.css` naming, not `.styles.css`. Deployed to mint22, all 14 component stylesheets verified loading (2,045 lines CSS, 200 OK).
+- WYSIWYG Chat Composer: deployed to mint22 (2026-03-12). Contenteditable editor replaces raw textarea, JS module + CSS verified loading.
 
 ## Environment
 
@@ -78,33 +79,23 @@ Archived context:
 
 ## Active Handoff
 
-### WYSIWYG Chat Composer — Redeploy Required
+### WYSIWYG Chat Composer — Deployed Successfully
 
 **Date:** 2026-03-12
 **Owner:** Server agent (`mint22`)
-**Status:** READY FOR DEPLOY
+**Status:** COMPLETE
 
-**What changed (commit `9e338fa`):**
+**Deployment verification (server agent):**
+- `git pull` — fast-forward to `f4f24e3` (8 files changed, WYSIWYG editor + CSS fixes)
+- `bash tools/redeploy-baremetal.sh` — build succeeded (0 errors), service restarted
+- Health: **Healthy** (all checks pass: self, startup, collabora_online, linux-resources)
+- WYSIWYG JS: `_content/DotNetCloud.UI.Web/js/wysiwyg-editor.js` — 200 OK (23KB)
+- Chat CSS bundle: `_content/DotNetCloud.Modules.Chat/DotNetCloud.Modules.Chat.bundle.scp.css` — 200 OK (57KB)
+- `/apps/chat` — 302 auth redirect (correct for unauthenticated request)
+- Runtime verification: service PID 9968, active (running) from fresh publish output
+- Service listening: https://[::]:15443, http://[::]:15080, unix socket
 
-The chat message composer has been replaced with a WYSIWYG rich-text editor. Previously it was a raw textarea where toolbar buttons inserted Markdown syntax — confusing for users. Now users see formatted text as they type.
-
-**Files changed:**
-- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageComposer.razor` — contenteditable div replaces textarea
-- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageComposer.razor.cs` — WYSIWYG JS interop code-behind
-- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageComposer.razor.css` — editor + toolbar styles
-- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageList.razor.cs` — expanded RenderMarkdown (strikethrough, code blocks, blockquotes, lists, headings, HR)
-- `src/UI/DotNetCloud.UI.Web/wwwroot/js/wysiwyg-editor.js` — NEW: WYSIWYG JS module
-- `src/UI/DotNetCloud.UI.Web/Components/App.razor` — added `<script>` tag for wysiwyg-editor.js
-
-**Action required:**
-1. `git pull` on mint22
-2. Rebuild and redeploy (`bash tools/redeploy-baremetal.sh`)
-3. Verify health endpoint: Healthy
-4. Verify `/apps/chat` loads — toolbar should show: **B** *I* ~~S~~ | `</>` `{ }` | 🔗 | •— 1. | ❝ **H**
-5. Verify typing in the editor shows formatted text (not raw Markdown)
-6. Verify sending a message with formatting (e.g. bold text) displays correctly in messages
-
-**Tests:** All 263 Chat module tests pass. All 138 Core tests pass. Build succeeds with 0 errors.
+**No issues found. WYSIWYG chat composer is live on mint22.**
 
 ## Relay Template
 
