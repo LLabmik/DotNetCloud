@@ -66,6 +66,7 @@ Archived context:
 - **Channel Invite System**: implemented (2026-03-12). Single-user invites for private channels.
 - Channel Invite EF migration + deploy: complete (2026-03-12). PostgreSQL migration applied, snapshot fixed, deployed to mint22.
 - Chat UI fixes (invite button, members panel, online status): deployed to mint22 (2026-03-12). All new CSS verified loading.
+- Chat message sender names fix: deployed to mint22 (2026-03-12). Display names resolved via IUserDirectory cache.
 
 ## Environment
 
@@ -83,27 +84,25 @@ Archived context:
 
 ## Active Handoff
 
-### Fix: Chat Message Sender Names Showing "?" — Deploy to mint22
+### Chat Message Sender Names Fix — Deployed and Verified
 
 **Date:** 2026-03-12
 **Owner:** Server agent
-**Status:** READY FOR DEPLOYMENT
+**Status:** COMPLETE — deployed to mint22
 
-**What changed:**
+**What was deployed:**
+- Display name resolution for chat messages via `_displayNameCache` + `ResolveDisplayNamesAsync()`
+- All message paths (initial load, load-more, send, edit, search) now resolve sender names
+- Fallback to first 8 chars of user GUID if resolution fails
 
-Chat messages displayed "?" instead of the sender's name/initials. The `ToMessageViewModel` method in `ChatPageLayout.razor.cs` was hardcoded to `SenderName = string.Empty`, which the `GetInitials()` method rendered as "?".
+**Deployment verification (2026-03-12):**
+- Chat module DLL timestamp: `2026-03-12 07:49:45` (fresh build)
+- `dotnetcloud.service` restarted successfully
+- `/health/live`: Healthy (5.5ms)
+- `/health/ready`: Healthy — startup complete, linux-resources within thresholds
+- `/apps/chat`: 302 (auth redirect — correct)
 
-**Fix (client agent, 1 file):**
-
-`src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChatPageLayout.razor.cs`:
-1. Added `_displayNameCache` dictionary to cache resolved user display names across message loads.
-2. Added `ResolveDisplayNamesAsync()` — batch-resolves unknown sender IDs via `IUserDirectory.GetDisplayNamesAsync()`, caches results.
-3. All message loading paths (initial load, load-more, send, edit, search) now call `ResolveDisplayNamesAsync()` before building view models.
-4. `ToMessageViewModel` now sets `SenderName` from cache, falling back to first 8 chars of the user GUID if resolution fails.
-
-**Tests:** 283 chat tests passed, 0 failures.
-
-**Action required:** Pull, rebuild, deploy to mint22, verify messages show sender names instead of "?".
+**No further cross-agent work needed.** Client agent can verify sender names visually in browser.
 
 ## Relay Template
 
