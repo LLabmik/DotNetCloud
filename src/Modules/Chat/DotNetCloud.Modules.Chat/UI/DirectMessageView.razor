@@ -122,23 +122,23 @@
     </div>
 
     <div class="dm-messages">
-        <MessageList Messages="Messages"
-                     IsLoading="IsLoading"
-                     ErrorMessage="MessageError"
-                     HasMoreMessages="HasMoreMessages"
-                     TypingUsers="TypingUsers"
-                     OnLoadMore="OnLoadMore"
-                     OnReactionToggle="OnReactionToggle" />
+        <MessageList Messages="@Messages"
+                     IsLoading="@IsLoading"
+                     ErrorMessage="@MessageError"
+                     HasMoreMessages="@HasMoreMessages"
+                     TypingUsers="@TypingUsers"
+                     OnLoadMore="@OnLoadMore"
+                     OnReactionToggle="@OnReactionToggle" />
     </div>
 
     <div class="dm-composer">
         <MessageComposer ChannelName="@OtherUser?.DisplayName"
-                         MentionSuggestions="ComposerMentionSuggestions"
-                         ReplyToMessage="ReplyToMessage"
-                         OnSend="OnSend"
-                         OnCancelReply="OnCancelReply"
-                         OnTyping="OnTyping"
-                         OnAttach="OnAttach"
-                         OnPasteImage="OnPasteImage" />
+                         MentionSuggestions="@ComposerMentionSuggestions"
+                         ReplyToMessage="@ReplyToMessage"
+                         OnSend="@OnSend"
+                         OnCancelReply="@OnCancelReply"
+                         OnTyping="@OnTyping"
+                         OnAttach="@OnAttach"
+                         OnPasteImage="@OnPasteImage" />
     </div>
 </div>

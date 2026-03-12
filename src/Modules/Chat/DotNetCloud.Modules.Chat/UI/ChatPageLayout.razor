@@ -8,40 +8,40 @@
 
 <div class="chat-layout">
     <div class="chat-sidebar">
-        <ChannelList Channels="_channels"
-                     IsLoading="_isLoadingChannels"
-                     ErrorMessage="_channelErrorMessage"
-                     OnChannelSelected="HandleChannelSelected"
-                     OnCreateChannel="HandleCreateChannel"
-                     OnChannelReordered="HandleChannelReordered" />
+        <ChannelList Channels="@_channels"
+                     IsLoading="@_isLoadingChannels"
+                     ErrorMessage="@_channelErrorMessage"
+                     OnChannelSelected="@HandleChannelSelected"
+                     OnCreateChannel="@HandleCreateChannel"
+                     OnChannelReordered="@HandleChannelReordered" />
     </div>
 
     <div class="chat-main">
-        <ChannelHeader Channel="_selectedChannel"
-                       OnPinChanged="HandlePinChanged"
-                       OnEditChannel="HandleEditChannel"
-                       OnArchiveChannel="HandleArchiveChannel"
-                       OnLeaveChannel="HandleLeaveChannel"
-                       OnToggleMemberList="HandleToggleMemberList"
-                       OnSearch="HandleSearch" />
+        <ChannelHeader Channel="@_selectedChannel"
+                       OnPinChanged="@HandlePinChanged"
+                       OnEditChannel="@HandleEditChannel"
+                       OnArchiveChannel="@HandleArchiveChannel"
+                       OnLeaveChannel="@HandleLeaveChannel"
+                       OnToggleMemberList="@HandleToggleMemberList"
+                       OnSearch="@HandleSearch" />
 
-        <MessageList Messages="_messages"
-                     IsLoading="_isLoadingMessages"
-                     ErrorMessage="_messageErrorMessage"
-                     HasMoreMessages="_hasMoreMessages"
-                     TypingUsers="_typingUsers"
-                     OnLoadMore="HandleLoadMoreMessages"
-                     OnReactionToggle="HandleReactionToggle" />
+        <MessageList Messages="@_messages"
+                     IsLoading="@_isLoadingMessages"
+                     ErrorMessage="@_messageErrorMessage"
+                     HasMoreMessages="@_hasMoreMessages"
+                     TypingUsers="@_typingUsers"
+                     OnLoadMore="@HandleLoadMoreMessages"
+                     OnReactionToggle="@HandleReactionToggle" />
 
         @if (_selectedChannel is not null)
         {
             <MessageComposer ChannelName="@_selectedChannel.Name"
-                             ReplyToMessage="_replyToMessage"
-                             MentionSuggestions="_memberSuggestions"
-                             OnSend="HandleSendMessage"
-                             OnCancelReply="HandleCancelReply"
-                             OnTyping="HandleTyping"
-                             OnAttach="HandleAttach" />
+                             ReplyToMessage="@_replyToMessage"
+                             MentionSuggestions="@_memberSuggestions"
+                             OnSend="@HandleSendMessage"
+                             OnCancelReply="@HandleCancelReply"
+                             OnTyping="@HandleTyping"
+                             OnAttach="@HandleAttach" />
         }
     </div>
 </div>

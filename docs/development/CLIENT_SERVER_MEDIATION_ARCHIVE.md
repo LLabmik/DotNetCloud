@@ -2268,3 +2268,20 @@ Archived from `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` when enforci
 - Published binary verification: `ChatPageLayout` confirmed in `DotNetCloud.Modules.Chat.dll` with all async methods (`OnInitializedAsync`, `LoadChannelsAsync`, `HandleChannelSelected`, `LoadMessagesAsync`).
 - `ModuleUiRegistrationHostedService` in `DotNetCloud.Core.Server.dll`: references only `ChatPageLayout`, not `ChannelList`.
 - No database changes required.
+
+---
+
+## Chat UI Blazor Binding Fix — Redeploy Needed (2026-03-12)
+
+**Handoff from:** Client agent (Windows11-TestDNC)
+**Executed by:** Server agent (`mint22`) — PENDING
+
+**Problem:** Chat page at `https://mint22:15443/apps/chat` shows raw variable names (`_channelErrorMessage`, `_messageErrorMessage`) as literal text instead of actual error messages. Channel list shows "Unable to load channels right now." followed by the literal text `_channelErrorMessage`.
+
+**Root cause:** `ChatPageLayout.razor` component attribute bindings were missing the `@` prefix. In Blazor, `ErrorMessage="_channelErrorMessage"` passes the literal string `"_channelErrorMessage"` — it needs `ErrorMessage="@_channelErrorMessage"` to pass the C# field value. All attribute bindings in the component were affected.
+
+**Fix applied (client-side):**
+1. `ChatPageLayout.razor` — Added `@` prefix to all component parameter bindings (Channels, IsLoading, ErrorMessage, HasMoreMessages, TypingUsers, Channel, ReplyToMessage, MentionSuggestions, and all EventCallback bindings).
+2. `DirectMessageView.razor` — Same fix applied (Messages, IsLoading, ErrorMessage, HasMoreMessages, TypingUsers, MentionSuggestions, ReplyToMessage, and all EventCallback bindings).
+3. Build: succeeded (0 errors).
+4. Tests: 263 Chat tests passed / 0 failed.

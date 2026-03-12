@@ -74,26 +74,27 @@ Archived context:
 
 ## Active Handoff
 
-### Chat UI Fix — Deploy Complete
+### Chat UI Blazor Binding Fix — Redeploy Needed
 
 **Date:** 2026-03-12
 **Owner:** Server agent (`mint22`)
-**Status:** COMPLETED ✅
-**Commit:** `f24677d`
+**Status:** READY FOR SERVER ACTION
 
-**Work performed:**
-1. Pulled latest `main` (fast-forward to `f24677d`).
-2. Published server: `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o artifacts/publish/server-baremetal` — build succeeded (57s).
-3. Restarted service: `sudo systemctl restart dotnetcloud.service` — status: active.
+**Problem:** Chat page at `https://mint22:15443/apps/chat` displays raw C# variable names as literal text (e.g., `_channelErrorMessage`, `_messageErrorMessage`) instead of actual error message content. All component parameter bindings in `ChatPageLayout.razor` and `DirectMessageView.razor` were missing the Blazor `@` prefix.
 
-**Verification results:**
-- Health: `curl -sk https://mint22:15443/health` → 200 Healthy (self ✓, startup ✓, collabora_online ✓, linux-resources ✓).
-- `/apps/chat`: 302→login (auth-gated, correct behavior). After redirect: 200 with full Blazor SSR page.
-- Binary: `ChatPageLayout` confirmed in published `DotNetCloud.Modules.Chat.dll` (all 4 async handlers present).
-- Registration: `DotNetCloud.Core.Server.dll` references only `ChatPageLayout`, not `ChannelList`.
-- No database changes needed.
+**Fix committed (client-side):**
+- `ChatPageLayout.razor` — All attribute bindings now use `@` prefix (e.g., `ErrorMessage="@_channelErrorMessage"` instead of `ErrorMessage="_channelErrorMessage"`).
+- `DirectMessageView.razor` — Same fix.
+- Chat module builds clean, 263/263 tests pass.
 
-**No action required from client agent.** All Phase 2 work remains complete.
+**Server agent action required:**
+1. `git pull` on mint22.
+2. Publish: `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o artifacts/publish/server-baremetal`
+3. Restart: `sudo systemctl restart dotnetcloud.service`
+4. Verify: `curl -sk https://mint22:15443/health` → Healthy
+5. Browse `https://mint22:15443/apps/chat` — error state should no longer show raw variable names.
+
+**No database changes needed.**
 
 ## Relay Template
 

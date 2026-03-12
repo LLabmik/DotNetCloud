@@ -62,7 +62,7 @@
 
 ## Phase 2: Web UI Testing
 
-**Status:** BLOCKED — server DB error (see Issues Log #1)
+**Status:** ☐ Ready to Test (blocker resolved 2026-03-12)
 **URL:** `https://mint22:15443/`
 
 ### 2.1 Authentication
@@ -284,7 +284,7 @@ Track any bugs or server-side issues discovered during testing.
 
 | # | Phase | Test | Issue Description | Root Cause | Server Handoff Needed? | Status |
 |---|-------|------|-------------------|------------|----------------------|--------|
-| 1 | 2 | Page load | `42703: column f.PosixMode does not exist POSITION: 271` — Web UI shows "Something went wrong" on load. Missing column in PostgreSQL `files` table. Likely a migration not applied on `mint22`. | Missing DB migration | YES | Open |
+| 1 | 2 | Page load | `42703: column f.PosixMode does not exist POSITION: 271` — Web UI shows "Something went wrong" on load. Missing column in PostgreSQL `files` table. | Missing DB migration — all 6 Files migrations applied on mint22 (2026-03-12) | YES | ✓ Resolved |
 
 ---
 
