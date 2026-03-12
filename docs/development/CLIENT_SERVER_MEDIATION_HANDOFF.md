@@ -82,32 +82,25 @@ Archived context:
 
 ## Active Handoff
 
-### Channel Invite System — Migration + Deploy Complete
+### All Phase 1+2 Work Complete — No Active Tasks
 
 **Date:** 2026-03-12
-**Owner:** Server agent (`mint22`)
-**Status:** COMPLETE
+**Status:** IDLE — No pending cross-agent work
 
-**What was done:**
+**Last completed:** Channel Invite System — migration + deploy by server agent, verified by client agent.
 
-1. Pulled commit `2c5dc94` (channel invite system code from client agent)
-2. Fixed corrupted model snapshot — was SQL Server types in `ChatDbContextModelSnapshot.cs` but PostgreSQL in `InitialCreate.Designer.cs`. Replaced snapshot with correct PostgreSQL version.
-3. Generated PostgreSQL EF migration `20260312120240_AddChannelInvites` — creates `ChannelInvites` table with proper `uuid`, `character varying`, `timestamp with time zone` types
-4. Removed auto-generated `ix_chat_channels_org_name_unique` index creation from migration (already exists in production)
-5. Registered chat module's `InitialCreate` in `__EFMigrationsHistory` (tables existed but migration wasn't tracked)
-6. Applied `AddChannelInvites` migration to production DB — `ChannelInvites` table created with all 8 columns + 3 indexes + FK
-7. Added `Microsoft.EntityFrameworkCore.Design` package to Chat.Host project (was missing, needed for EF tooling)
-8. Redeployed to mint22 — `bash tools/redeploy-baremetal.sh`
+**Client-side verification (2026-03-12):**
+- Pulled commit `78330b2` — build succeeds (0 errors, 0 warnings)
+- 283/283 chat tests pass
+- Migration files and corrected model snapshot integrated cleanly
 
-**Deployment verification:**
-- Health: **Healthy** (self, startup, collabora_online, linux-resources)
-- Service: PID 25034, active (running)
-- Chat module DLL: freshly built, service restarted
-- `/apps/chat` — 302 auth redirect (correct)
-- `ChannelInvites` table: 8 columns verified in production DB
-- All 283 chat tests pass
+**Project status:** Phase 1 (Files + Sync Client) and Phase 2 (Sync Improvements, Chat) are feature-complete. All cross-agent integration work is done. Channel invite system is live on mint22.
 
-**No issues found. Channel invite system is live on mint22.**
+**Remaining minor deferred items (no cross-agent dependency):**
+- FileSystemWatcher burst coalescing (Phase 1.15)
+- Weblate translation workflow (Phase 0.16)
+- Backup/restore settings page (Phase 0.11)
+- Share expiry notifications (Phase 1.6)
 
 ## Relay Template
 
