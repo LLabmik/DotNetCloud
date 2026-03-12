@@ -49,6 +49,26 @@ public partial class MessageList : ComponentBase
     [Parameter]
     public EventCallback<(Guid MessageId, string Emoji)> OnReactionToggle { get; set; }
 
+    /// <summary>Callback when the user wants to edit a message.</summary>
+    [Parameter]
+    public EventCallback<MessageViewModel> OnEditMessage { get; set; }
+
+    /// <summary>Callback when the user wants to delete a message.</summary>
+    [Parameter]
+    public EventCallback<Guid> OnDeleteMessage { get; set; }
+
+    /// <summary>Callback when the user wants to reply to a message.</summary>
+    [Parameter]
+    public EventCallback<MessageViewModel> OnReplyToMessage { get; set; }
+
+    /// <summary>The current user's ID (for showing edit/delete on own messages).</summary>
+    [Parameter]
+    public Guid CurrentUserId { get; set; }
+
+    /// <summary>Currently editing message, if any.</summary>
+    [Parameter]
+    public MessageViewModel? EditingMessage { get; set; }
+
     /// <summary>
     /// Message ID where the unread/new messages divider should appear.
     /// </summary>
@@ -72,6 +92,24 @@ public partial class MessageList : ComponentBase
     protected async Task ToggleReaction(Guid messageId, string emoji)
     {
         await OnReactionToggle.InvokeAsync((messageId, emoji));
+    }
+
+    /// <summary>Requests editing a message.</summary>
+    protected async Task RequestEdit(MessageViewModel message)
+    {
+        await OnEditMessage.InvokeAsync(message);
+    }
+
+    /// <summary>Requests deleting a message.</summary>
+    protected async Task RequestDelete(Guid messageId)
+    {
+        await OnDeleteMessage.InvokeAsync(messageId);
+    }
+
+    /// <summary>Requests replying to a message.</summary>
+    protected async Task RequestReply(MessageViewModel message)
+    {
+        await OnReplyToMessage.InvokeAsync(message);
     }
 
     /// <summary>Gets the initials from a display name for the avatar placeholder.</summary>

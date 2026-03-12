@@ -97,3 +97,94 @@
     background: rgba(239, 68, 68, 0.08);
     border-color: var(--color-danger, #ef4444);
 }
+
+/* --- Help Popover --- */
+
+.help-wrapper {
+    position: relative;
+}
+
+.btn-help {
+    font-weight: 700;
+    font-size: 13px;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 1px solid var(--color-border, #e2e8f0);
+    background: var(--color-surface, #ffffff);
+    color: var(--color-text-secondary, #64748b);
+    cursor: pointer;
+    transition: all 150ms ease;
+}
+
+.btn-help:hover {
+    border-color: var(--color-primary, #3b82f6);
+    color: var(--color-primary, #3b82f6);
+    background: var(--color-bg, #f5f7fa);
+}
+
+.help-popover {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 100;
+    width: 320px;
+    background: var(--color-surface, #ffffff);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    padding: 0;
+    overflow: hidden;
+}
+
+.help-popover-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--color-border, #e2e8f0);
+    background: var(--color-bg, #f5f7fa);
+    font-size: 13px;
+}
+
+.btn-close-sm {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--color-text-secondary, #64748b);
+    padding: 2px 4px;
+    border-radius: 4px;
+    line-height: 1;
+}
+
+.btn-close-sm:hover {
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--color-text, #1e293b);
+}
+
+.help-list {
+    padding: 10px 14px;
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.help-list dt {
+    font-weight: 600;
+    color: var(--color-text, #1e293b);
+    margin-top: 8px;
+}
+
+.help-list dt:first-child {
+    margin-top: 0;
+}
+
+.help-list dd {
+    margin: 2px 0 0 0;
+    color: var(--color-text-secondary, #64748b);
+}

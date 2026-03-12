@@ -74,6 +74,14 @@ public partial class ChannelHeader : ComponentBase
         }
     }
 
+    private bool _showHelp;
+
+    /// <summary>Toggles the help popover.</summary>
+    protected void ToggleHelp()
+    {
+        _showHelp = !_showHelp;
+    }
+
     /// <summary>Toggles pin state and raises callback.</summary>
     protected async Task OnTogglePinClick()
     {

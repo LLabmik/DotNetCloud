@@ -21,6 +21,7 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
     private List<MemberViewModel> _visibleMentionSuggestions = [];
     private DotNetObjectReference<MessageComposer>? _dotNetRef;
     private bool _isPasteHandlerRegistered;
+    private Guid _lastEditingMessageId;
 
     [Inject]
     private IJSRuntime JS { get; set; } = default!;
@@ -33,13 +34,25 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
     [Parameter]
     public MessageViewModel? ReplyToMessage { get; set; }
 
+    /// <summary>Message currently being edited (null if not editing).</summary>
+    [Parameter]
+    public MessageViewModel? EditingMessage { get; set; }
+
     /// <summary>Callback when a message is sent.</summary>
     [Parameter]
     public EventCallback<(string Content, Guid? ReplyToMessageId)> OnSend { get; set; }
 
+    /// <summary>Callback when an edited message is submitted.</summary>
+    [Parameter]
+    public EventCallback<(Guid MessageId, string Content)> OnEditSend { get; set; }
+
     /// <summary>Callback when the reply is cancelled.</summary>
     [Parameter]
     public EventCallback OnCancelReply { get; set; }
+
+    /// <summary>Callback when edit mode is cancelled.</summary>
+    [Parameter]
+    public EventCallback OnCancelEdit { get; set; }
 
     /// <summary>Callback when the user starts typing.</summary>
     [Parameter]
@@ -79,6 +92,9 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
     /// <summary>Whether the send button should be disabled.</summary>
     protected bool IsSendDisabled => string.IsNullOrWhiteSpace(_messageText);
 
+    /// <summary>Whether the composer is in edit mode.</summary>
+    protected bool IsEditMode => EditingMessage is not null;
+
     /// <summary>Whether the emoji picker is visible.</summary>
     protected bool IsShowEmojiPicker => _isShowEmojiPicker;
 
@@ -94,6 +110,17 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
     /// <inheritdoc />
     protected override void OnParametersSet()
     {
+        // When entering edit mode, populate textarea with the message content
+        if (EditingMessage is not null && _lastEditingMessageId != EditingMessage.Id)
+        {
+            _lastEditingMessageId = EditingMessage.Id;
+            _messageText = EditingMessage.Content;
+        }
+        else if (EditingMessage is null && _lastEditingMessageId != Guid.Empty)
+        {
+            _lastEditingMessageId = Guid.Empty;
+        }
+
         UpdateMentionAutocomplete();
     }
 
@@ -110,7 +137,7 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
         _isPasteHandlerRegistered = true;
     }
 
-    /// <summary>Sends the current message.</summary>
+    /// <summary>Sends the current message or submits an edit.</summary>
     protected async Task SendMessage()
     {
         if (string.IsNullOrWhiteSpace(_messageText))
@@ -119,22 +146,37 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
         }
 
         var content = _messageText.Trim();
-        var replyToId = ReplyToMessage?.Id;
-
         _messageText = string.Empty;
         _isShowEmojiPicker = false;
         ClearMentionAutocomplete();
 
-        await OnSend.InvokeAsync((content, replyToId));
+        if (IsEditMode)
+        {
+            await OnEditSend.InvokeAsync((EditingMessage!.Id, content));
+        }
+        else
+        {
+            var replyToId = ReplyToMessage?.Id;
+            await OnSend.InvokeAsync((content, replyToId));
+        }
     }
 
     /// <summary>Handles keyboard events for Enter-to-send.</summary>
     protected async Task HandleKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Escape" && IsMentionDropdownVisible)
+        if (e.Key == "Escape")
         {
-            ClearMentionAutocomplete();
-            return;
+            if (IsMentionDropdownVisible)
+            {
+                ClearMentionAutocomplete();
+                return;
+            }
+
+            if (IsEditMode)
+            {
+                await CancelEdit();
+                return;
+            }
         }
 
         if (e.Key == "Enter" && !e.ShiftKey)
@@ -147,6 +189,14 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
     protected async Task CancelReply()
     {
         await OnCancelReply.InvokeAsync();
+    }
+
+    /// <summary>Cancels edit mode.</summary>
+    protected async Task CancelEdit()
+    {
+        _messageText = string.Empty;
+        _lastEditingMessageId = Guid.Empty;
+        await OnCancelEdit.InvokeAsync();
     }
 
     /// <summary>Toggles the emoji picker visibility.</summary>

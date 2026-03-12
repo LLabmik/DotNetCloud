@@ -99,6 +99,60 @@
     color: var(--color-text, #1e293b);
 }
 
+/* --- Edit Preview --- */
+
+.edit-preview {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    margin-bottom: 6px;
+    background: rgba(245, 158, 11, 0.06);
+    border-left: 3px solid #f59e0b;
+    border-radius: 0 6px 6px 0;
+    font-size: 13px;
+    color: var(--color-text-secondary, #64748b);
+    line-height: 1.4;
+}
+
+.edit-label {
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: #d97706;
+}
+
+.edit-content {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.edit-preview .btn-close {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-secondary, #64748b);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    padding: 0;
+    transition: background 150ms ease;
+}
+
+.edit-preview .btn-close:hover {
+    background: var(--color-border, #e2e8f0);
+    color: var(--color-text, #1e293b);
+}
+
 /* --- Input Row (attach + textarea + emoji + send) --- */
 
 .composer-input-row {

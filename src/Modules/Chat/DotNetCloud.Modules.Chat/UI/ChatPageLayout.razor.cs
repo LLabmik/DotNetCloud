@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Modules.Chat.DTOs;
+using DotNetCloud.Modules.Chat.Models;
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -9,30 +10,69 @@ namespace DotNetCloud.Modules.Chat.UI;
 
 /// <summary>
 /// Code-behind for the chat page layout orchestrator.
-/// Manages channel selection, message loading, and message sending.
+/// Manages channel selection, message loading, message sending, reactions,
+/// member management, search, typing indicators, and announcements.
 /// </summary>
 public partial class ChatPageLayout : ComponentBase
 {
     private const int MessagePageSize = 50;
+    private const int SearchPageSize = 25;
 
     [Inject] private IChannelService ChannelService { get; set; } = default!;
     [Inject] private IMessageService MessageService { get; set; } = default!;
+    [Inject] private IReactionService ReactionService { get; set; } = default!;
+    [Inject] private IChannelMemberService MemberService { get; set; } = default!;
+    [Inject] private ITypingIndicatorService TypingService { get; set; } = default!;
+    [Inject] private IAnnouncementService AnnouncementService { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
 
+    // Channel state
     private List<ChannelViewModel> _channels = [];
     private ChannelViewModel? _selectedChannel;
-    private List<MessageViewModel> _messages = [];
-    private List<TypingUserViewModel> _typingUsers = [];
-    private List<MemberViewModel> _memberSuggestions = [];
-    private MessageViewModel? _replyToMessage;
-    private Guid _currentUserId;
-
     private bool _isLoadingChannels;
-    private bool _isLoadingMessages;
     private string? _channelErrorMessage;
+
+    // Message state
+    private List<MessageViewModel> _messages = [];
+    private bool _isLoadingMessages;
     private string? _messageErrorMessage;
     private bool _hasMoreMessages;
     private int _currentMessagePage = 1;
+    private MessageViewModel? _replyToMessage;
+    private MessageViewModel? _editingMessage;
+
+    // Member state
+    private List<MemberViewModel> _members = [];
+    private List<MemberViewModel> _memberSuggestions = [];
+    private bool _showMemberPanel;
+
+    // Search state
+    private bool _isSearchOpen;
+    private string _searchQuery = string.Empty;
+    private List<MessageViewModel> _searchResults = [];
+    private bool _isSearching;
+    private bool _hasMoreSearchResults;
+    private int _currentSearchPage = 1;
+
+    // Settings dialog state
+    private bool _showSettingsDialog;
+
+    // Announcement state
+    private List<AnnouncementViewModel> _announcements = [];
+    private AnnouncementViewModel? _activeAnnouncement;
+    private bool _showAnnouncementEditor;
+    private bool _isEditingAnnouncement;
+#pragma warning disable CS0414 // Assigned but read only in LoadAnnouncementsAsync guard
+    private bool _isLoadingAnnouncements;
+#pragma warning restore CS0414
+    private string? _announcementErrorMessage;
+    private readonly HashSet<Guid> _dismissedAnnouncementIds = [];
+
+    // Typing state
+    private List<TypingUserViewModel> _typingUsers = [];
+
+    // User state
+    private Guid _currentUserId;
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
@@ -40,7 +80,10 @@ public partial class ChatPageLayout : ComponentBase
         var caller = await GetCallerContextAsync();
         _currentUserId = caller.UserId;
         await LoadChannelsAsync();
+        await LoadAnnouncementsAsync();
     }
+
+    // ── Channel Operations ──────────────────────────────────────────
 
     private async Task LoadChannelsAsync()
     {
@@ -52,6 +95,9 @@ public partial class ChatPageLayout : ComponentBase
             var caller = await GetCallerContextAsync();
             var channels = await ChannelService.ListChannelsAsync(caller);
             _channels = channels.Select(ToChannelViewModel).ToList();
+
+            // Load unread counts and apply to channel view models
+            await LoadUnreadCountsAsync(caller);
 
             // Auto-select the first channel so the composer is immediately visible
             if (_selectedChannel is null && _channels.Count > 0)
@@ -69,15 +115,220 @@ public partial class ChatPageLayout : ComponentBase
         }
     }
 
+    private async Task LoadUnreadCountsAsync(CallerContext caller)
+    {
+        try
+        {
+            var counts = await MemberService.GetUnreadCountsAsync(caller);
+            foreach (var count in counts)
+            {
+                var channel = _channels.FirstOrDefault(c => c.Id == count.ChannelId);
+                if (channel is not null)
+                {
+                    channel.UnreadCount = count.UnreadCount;
+                    channel.MentionCount = count.MentionCount;
+                }
+            }
+        }
+        catch
+        {
+            // Non-critical: unread counts are a nice-to-have
+        }
+    }
+
     /// <summary>Handles channel selection from the sidebar.</summary>
     protected async Task HandleChannelSelected(ChannelViewModel channel)
     {
         _selectedChannel = channel;
         _replyToMessage = null;
+        _editingMessage = null;
         _messages = [];
         _currentMessagePage = 1;
+        _showMemberPanel = false;
+        _isSearchOpen = false;
+        _searchResults = [];
+
         await LoadMessagesAsync(channel.Id);
+        await LoadMembersAsync(channel.Id);
+        await MarkChannelAsReadAsync(channel.Id);
     }
+
+    /// <summary>Handles creating a new channel.</summary>
+    protected async Task HandleCreateChannel((string Name, string Type) args)
+    {
+        try
+        {
+            _channelErrorMessage = null;
+            var caller = await GetCallerContextAsync();
+            var created = await ChannelService.CreateChannelAsync(new CreateChannelDto
+            {
+                Name = args.Name.Trim(),
+                Type = args.Type
+            }, caller);
+
+            _channels.Add(ToChannelViewModel(created));
+            _channels = _channels
+                .OrderByDescending(c => c.LastActivityAt ?? DateTime.MinValue)
+                .ThenBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            // Auto-select the newly created channel
+            await HandleChannelSelected(_channels.First(c => c.Id == created.Id));
+        }
+        catch (Exception ex)
+        {
+            _channelErrorMessage = ex.Message;
+        }
+    }
+
+    /// <summary>Handles pin state changes from the header.</summary>
+    protected Task HandlePinChanged((Guid ChannelId, bool IsPinned) args)
+    {
+        var channel = _channels.FirstOrDefault(c => c.Id == args.ChannelId);
+        if (channel is not null)
+        {
+            channel.IsPinned = args.IsPinned;
+        }
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Handles channel reorder from drag-and-drop.</summary>
+    protected Task HandleChannelReordered(IReadOnlyList<Guid> newOrder)
+    {
+        // Pinned order is persisted client-side for now.
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Handles archive channel action.</summary>
+    protected async Task HandleArchiveChannel(ChannelViewModel channel)
+    {
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            await ChannelService.ArchiveChannelAsync(channel.Id, caller);
+            _channels.Remove(channel);
+            if (_selectedChannel?.Id == channel.Id)
+            {
+                _selectedChannel = null;
+                _messages = [];
+                _members = [];
+            }
+        }
+        catch (Exception ex)
+        {
+            _channelErrorMessage = ex.Message;
+        }
+    }
+
+    /// <summary>Handles leave channel action.</summary>
+    protected async Task HandleLeaveChannel(ChannelViewModel channel)
+    {
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            await MemberService.RemoveMemberAsync(channel.Id, _currentUserId, caller);
+            _channels.Remove(channel);
+            if (_selectedChannel?.Id == channel.Id)
+            {
+                _selectedChannel = null;
+                _messages = [];
+                _members = [];
+            }
+        }
+        catch (Exception ex)
+        {
+            _channelErrorMessage = ex.Message;
+        }
+    }
+
+    /// <summary>Opens the channel settings dialog.</summary>
+    protected async Task HandleEditChannel(ChannelViewModel channel)
+    {
+        _showSettingsDialog = true;
+        await LoadMembersAsync(channel.Id);
+    }
+
+    /// <summary>Saves channel settings from the dialog.</summary>
+    protected async Task HandleSaveChannelSettings((string Name, string? Topic, string? Description) args)
+    {
+        if (_selectedChannel is null) return;
+
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            var updated = await ChannelService.UpdateChannelAsync(_selectedChannel.Id, new UpdateChannelDto
+            {
+                Name = args.Name,
+                Topic = args.Topic,
+                Description = args.Description
+            }, caller);
+
+            _selectedChannel.Name = updated.Name;
+            _selectedChannel.Topic = updated.Topic;
+            _showSettingsDialog = false;
+
+            // Update in channels list too
+            var ch = _channels.FirstOrDefault(c => c.Id == _selectedChannel.Id);
+            if (ch is not null)
+            {
+                ch.Name = updated.Name;
+                ch.Topic = updated.Topic;
+            }
+        }
+        catch (Exception ex)
+        {
+            _channelErrorMessage = ex.Message;
+        }
+    }
+
+    /// <summary>Handles notification preference change from settings dialog.</summary>
+    protected async Task HandleNotificationPrefChanged(string pref)
+    {
+        if (_selectedChannel is null) return;
+
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            if (Enum.TryParse<NotificationPreference>(pref, true, out var preference))
+            {
+                await MemberService.UpdateNotificationPreferenceAsync(_selectedChannel.Id, preference, caller);
+            }
+        }
+        catch (Exception ex)
+        {
+            _channelErrorMessage = ex.Message;
+        }
+    }
+
+    /// <summary>Handles deleting a channel from the settings dialog.</summary>
+    protected async Task HandleDeleteChannel()
+    {
+        if (_selectedChannel is null) return;
+
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            await ChannelService.DeleteChannelAsync(_selectedChannel.Id, caller);
+            _channels.RemoveAll(c => c.Id == _selectedChannel.Id);
+            _selectedChannel = null;
+            _messages = [];
+            _members = [];
+            _showSettingsDialog = false;
+        }
+        catch (Exception ex)
+        {
+            _channelErrorMessage = ex.Message;
+        }
+    }
+
+    /// <summary>Closes the channel settings dialog.</summary>
+    protected Task HandleCloseSettingsDialog()
+    {
+        _showSettingsDialog = false;
+        return Task.CompletedTask;
+    }
+
+    // ── Message Operations ──────────────────────────────────────────
 
     private async Task LoadMessagesAsync(Guid channelId)
     {
@@ -104,10 +355,7 @@ public partial class ChatPageLayout : ComponentBase
     /// <summary>Handles loading older messages.</summary>
     protected async Task HandleLoadMoreMessages()
     {
-        if (_selectedChannel is null || !_hasMoreMessages)
-        {
-            return;
-        }
+        if (_selectedChannel is null || !_hasMoreMessages) return;
 
         try
         {
@@ -128,10 +376,7 @@ public partial class ChatPageLayout : ComponentBase
     /// <summary>Handles sending a new message.</summary>
     protected async Task HandleSendMessage((string Content, Guid? ReplyToMessageId) args)
     {
-        if (_selectedChannel is null)
-        {
-            return;
-        }
+        if (_selectedChannel is null) return;
 
         try
         {
@@ -151,53 +396,49 @@ public partial class ChatPageLayout : ComponentBase
         }
     }
 
-    /// <summary>Handles creating a new channel.</summary>
-    protected async Task HandleCreateChannel((string Name, string Type) args)
+    /// <summary>Handles editing an existing message.</summary>
+    protected async Task HandleEditMessage((Guid MessageId, string Content) args)
     {
         try
         {
-            _channelErrorMessage = null;
             var caller = await GetCallerContextAsync();
-            var created = await ChannelService.CreateChannelAsync(new CreateChannelDto
+            var edited = await MessageService.EditMessageAsync(args.MessageId, new EditMessageDto
             {
-                Name = args.Name.Trim(),
-                Type = args.Type
+                Content = args.Content
             }, caller);
 
-            _channels.Add(ToChannelViewModel(created));
-            _channels = _channels
-                .OrderByDescending(c => c.LastActivityAt ?? DateTime.MinValue)
-                .ThenBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            var idx = _messages.FindIndex(m => m.Id == args.MessageId);
+            if (idx >= 0)
+            {
+                _messages[idx] = ToMessageViewModel(edited);
+            }
+            _editingMessage = null;
         }
         catch (Exception ex)
         {
-            _channelErrorMessage = ex.Message;
+            _messageErrorMessage = ex.Message;
         }
     }
 
-    /// <summary>Handles pin state changes from the header.</summary>
-    protected Task HandlePinChanged((Guid ChannelId, bool IsPinned) args)
+    /// <summary>Handles deleting a message.</summary>
+    protected async Task HandleDeleteMessage(Guid messageId)
     {
-        var channel = _channels.FirstOrDefault(c => c.Id == args.ChannelId);
-        if (channel is not null)
+        try
         {
-            channel.IsPinned = args.IsPinned;
+            var caller = await GetCallerContextAsync();
+            await MessageService.DeleteMessageAsync(messageId, caller);
+            _messages.RemoveAll(m => m.Id == messageId);
         }
-        return Task.CompletedTask;
+        catch (Exception ex)
+        {
+            _messageErrorMessage = ex.Message;
+        }
     }
 
-    /// <summary>Handles toggling a reaction on a message.</summary>
-    protected Task HandleReactionToggle((Guid MessageId, string Emoji) args)
+    /// <summary>Handles setting a message as the reply target.</summary>
+    protected Task HandleReplyToMessage(MessageViewModel message)
     {
-        // Reaction toggling will be wired to the API when the reaction endpoint is available.
-        return Task.CompletedTask;
-    }
-
-    /// <summary>Handles channel reorder from drag-and-drop.</summary>
-    protected Task HandleChannelReordered(IReadOnlyList<Guid> newOrder)
-    {
-        // Pinned order is persisted client-side for now.
+        _replyToMessage = message;
         return Task.CompletedTask;
     }
 
@@ -208,39 +449,168 @@ public partial class ChatPageLayout : ComponentBase
         return Task.CompletedTask;
     }
 
-    /// <summary>Handles typing indicator action.</summary>
-    protected Task HandleTyping()
+    /// <summary>Starts editing a message.</summary>
+    protected Task HandleStartEditMessage(MessageViewModel message)
     {
-        // Typing indicators will be wired via SignalR when available.
+        _editingMessage = message;
         return Task.CompletedTask;
     }
 
-    /// <summary>Handles attach button click.</summary>
-    protected Task HandleAttach()
+    /// <summary>Cancels message editing.</summary>
+    protected Task HandleCancelEditMessage()
     {
-        // File attachment will be wired to the Files module when available.
+        _editingMessage = null;
         return Task.CompletedTask;
     }
 
-    /// <summary>Handles edit channel action.</summary>
-    protected Task HandleEditChannel(ChannelViewModel channel)
-    {
-        // Channel settings dialog will be wired here.
-        return Task.CompletedTask;
-    }
+    // ── Reaction Operations ─────────────────────────────────────────
 
-    /// <summary>Handles archive channel action.</summary>
-    protected async Task HandleArchiveChannel(ChannelViewModel channel)
+    /// <summary>Handles toggling a reaction on a message.</summary>
+    protected async Task HandleReactionToggle((Guid MessageId, string Emoji) args)
     {
         try
         {
             var caller = await GetCallerContextAsync();
-            await ChannelService.ArchiveChannelAsync(channel.Id, caller);
-            _channels.Remove(channel);
-            if (_selectedChannel?.Id == channel.Id)
+            var message = _messages.FirstOrDefault(m => m.Id == args.MessageId);
+            var existingReaction = message?.Reactions.FirstOrDefault(r => r.Emoji == args.Emoji);
+
+            if (existingReaction?.HasReacted == true)
             {
-                _selectedChannel = null;
-                _messages = [];
+                await ReactionService.RemoveReactionAsync(args.MessageId, args.Emoji, caller);
+            }
+            else
+            {
+                await ReactionService.AddReactionAsync(args.MessageId, args.Emoji, caller);
+            }
+
+            // Refresh reactions for this message
+            var reactions = await ReactionService.GetReactionsAsync(args.MessageId);
+            if (message is not null)
+            {
+                message.Reactions = reactions.Select(r => new ReactionViewModel
+                {
+                    Emoji = r.Emoji,
+                    Count = r.Count,
+                    HasReacted = r.UserIds.Contains(_currentUserId)
+                }).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            _messageErrorMessage = ex.Message;
+        }
+    }
+
+    // ── Member Operations ───────────────────────────────────────────
+
+    private async Task LoadMembersAsync(Guid channelId)
+    {
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            var members = await MemberService.ListMembersAsync(channelId, caller);
+            _members = members.Select(ToMemberViewModel).ToList();
+            _memberSuggestions = _members;
+        }
+        catch
+        {
+            // Non-critical: member list is a nice-to-have
+            _members = [];
+        }
+    }
+
+    /// <summary>Handles toggle member list action.</summary>
+    protected async Task HandleToggleMemberList()
+    {
+        _showMemberPanel = !_showMemberPanel;
+        if (_showMemberPanel && _selectedChannel is not null)
+        {
+            await LoadMembersAsync(_selectedChannel.Id);
+        }
+    }
+
+    /// <summary>Closes the member panel.</summary>
+    protected Task HandleCloseMemberPanel()
+    {
+        _showMemberPanel = false;
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Promotes a member to Admin role.</summary>
+    protected async Task HandlePromoteMember(Guid userId)
+    {
+        if (_selectedChannel is null) return;
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            await MemberService.UpdateMemberRoleAsync(_selectedChannel.Id, userId, ChannelMemberRole.Admin, caller);
+            await LoadMembersAsync(_selectedChannel.Id);
+        }
+        catch (Exception ex)
+        {
+            _channelErrorMessage = ex.Message;
+        }
+    }
+
+    /// <summary>Demotes a member to Member role.</summary>
+    protected async Task HandleDemoteMember(Guid userId)
+    {
+        if (_selectedChannel is null) return;
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            await MemberService.UpdateMemberRoleAsync(_selectedChannel.Id, userId, ChannelMemberRole.Member, caller);
+            await LoadMembersAsync(_selectedChannel.Id);
+        }
+        catch (Exception ex)
+        {
+            _channelErrorMessage = ex.Message;
+        }
+    }
+
+    /// <summary>Removes a member from the channel.</summary>
+    protected async Task HandleRemoveMember(Guid userId)
+    {
+        if (_selectedChannel is null) return;
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            await MemberService.RemoveMemberAsync(_selectedChannel.Id, userId, caller);
+            await LoadMembersAsync(_selectedChannel.Id);
+        }
+        catch (Exception ex)
+        {
+            _channelErrorMessage = ex.Message;
+        }
+    }
+
+    /// <summary>Adds a member to the channel from the settings dialog.</summary>
+    protected async Task HandleAddMember(Guid userId)
+    {
+        if (_selectedChannel is null) return;
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            await MemberService.AddMemberAsync(_selectedChannel.Id, userId, caller);
+            await LoadMembersAsync(_selectedChannel.Id);
+        }
+        catch (Exception ex)
+        {
+            _channelErrorMessage = ex.Message;
+        }
+    }
+
+    /// <summary>Changes a member's role from the settings dialog.</summary>
+    protected async Task HandleChangeMemberRole((Guid UserId, string Role) args)
+    {
+        if (_selectedChannel is null) return;
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            if (Enum.TryParse<ChannelMemberRole>(args.Role, true, out var role))
+            {
+                await MemberService.UpdateMemberRoleAsync(_selectedChannel.Id, args.UserId, role, caller);
+                await LoadMembersAsync(_selectedChannel.Id);
             }
         }
         catch (Exception ex)
@@ -249,26 +619,213 @@ public partial class ChatPageLayout : ComponentBase
         }
     }
 
-    /// <summary>Handles leave channel action.</summary>
-    protected Task HandleLeaveChannel(ChannelViewModel channel)
+    private async Task MarkChannelAsReadAsync(Guid channelId)
     {
-        // Leave channel will be wired to the membership API when available.
-        return Task.CompletedTask;
+        try
+        {
+            if (_messages.Count > 0)
+            {
+                var caller = await GetCallerContextAsync();
+                var lastMessage = _messages[^1];
+                await MemberService.MarkAsReadAsync(channelId, lastMessage.Id, caller);
+
+                var ch = _channels.FirstOrDefault(c => c.Id == channelId);
+                if (ch is not null)
+                {
+                    ch.UnreadCount = 0;
+                    ch.MentionCount = 0;
+                }
+            }
+        }
+        catch
+        {
+            // Non-critical
+        }
     }
 
-    /// <summary>Handles toggle member list action.</summary>
-    protected Task HandleToggleMemberList()
-    {
-        // Member list panel toggle will be added here.
-        return Task.CompletedTask;
-    }
+    // ── Search Operations ───────────────────────────────────────────
 
-    /// <summary>Handles search action.</summary>
+    /// <summary>Handles search action — toggles the search panel.</summary>
     protected Task HandleSearch()
     {
-        // Message search will be wired here.
+        _isSearchOpen = !_isSearchOpen;
+        if (!_isSearchOpen)
+        {
+            _searchResults = [];
+            _searchQuery = string.Empty;
+        }
         return Task.CompletedTask;
     }
+
+    /// <summary>Executes a message search.</summary>
+    protected async Task HandleSearchSubmit(string query)
+    {
+        if (_selectedChannel is null || string.IsNullOrWhiteSpace(query)) return;
+
+        try
+        {
+            _isSearching = true;
+            _searchQuery = query;
+            _currentSearchPage = 1;
+
+            var caller = await GetCallerContextAsync();
+            var result = await MessageService.SearchMessagesAsync(
+                _selectedChannel.Id, query, _currentSearchPage, SearchPageSize, caller);
+            _searchResults = result.Items.Select(ToMessageViewModel).ToList();
+            _hasMoreSearchResults = result.Page < result.TotalPages;
+        }
+        catch (Exception ex)
+        {
+            _messageErrorMessage = ex.Message;
+        }
+        finally
+        {
+            _isSearching = false;
+        }
+    }
+
+    /// <summary>Closes the search panel.</summary>
+    protected Task HandleCloseSearch()
+    {
+        _isSearchOpen = false;
+        _searchResults = [];
+        _searchQuery = string.Empty;
+        return Task.CompletedTask;
+    }
+
+    // ── Typing Indicators ───────────────────────────────────────────
+
+    /// <summary>Handles typing indicator action.</summary>
+    protected async Task HandleTyping()
+    {
+        if (_selectedChannel is null) return;
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            await TypingService.NotifyTypingAsync(_selectedChannel.Id, caller);
+        }
+        catch
+        {
+            // Non-critical
+        }
+    }
+
+    // ── Attachment (placeholder) ────────────────────────────────────
+
+    /// <summary>Handles attach button click — not yet wired to Files module.</summary>
+    protected Task HandleAttach()
+    {
+        // File attachment requires Files module integration (file picker + upload).
+        // This is a cross-module feature that will be wired in a future phase.
+        return Task.CompletedTask;
+    }
+
+    // ── Announcement Operations ─────────────────────────────────────
+
+    private async Task LoadAnnouncementsAsync()
+    {
+        try
+        {
+            _isLoadingAnnouncements = true;
+            var caller = await GetCallerContextAsync();
+            var announcements = await AnnouncementService.ListAsync(caller);
+            _announcements = announcements.Select(ToAnnouncementViewModel).ToList();
+            _activeAnnouncement = _announcements
+                .Where(a => !_dismissedAnnouncementIds.Contains(a.Id))
+                .Where(a => a.ExpiresAt is null || a.ExpiresAt > DateTime.UtcNow)
+                .OrderByDescending(a => a.Priority == "Urgent")
+                .ThenByDescending(a => a.Priority == "Important")
+                .ThenByDescending(a => a.PublishedAt)
+                .FirstOrDefault();
+        }
+        catch (Exception ex)
+        {
+            _announcementErrorMessage = ex.Message;
+        }
+        finally
+        {
+            _isLoadingAnnouncements = false;
+        }
+    }
+
+    /// <summary>Handles acknowledging an announcement.</summary>
+    protected async Task HandleAcknowledgeAnnouncement(Guid announcementId)
+    {
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            await AnnouncementService.AcknowledgeAsync(announcementId, caller);
+            _dismissedAnnouncementIds.Add(announcementId);
+            UpdateActiveAnnouncement();
+        }
+        catch (Exception ex)
+        {
+            _announcementErrorMessage = ex.Message;
+        }
+    }
+
+    /// <summary>Handles dismissing a banner.</summary>
+    protected Task HandleDismissAnnouncement()
+    {
+        if (_activeAnnouncement is not null)
+        {
+            _dismissedAnnouncementIds.Add(_activeAnnouncement.Id);
+        }
+        UpdateActiveAnnouncement();
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Opens the announcement editor for a new announcement.</summary>
+    protected Task HandleOpenAnnouncementEditor()
+    {
+        _showAnnouncementEditor = true;
+        _isEditingAnnouncement = false;
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Saves an announcement from the editor.</summary>
+    protected async Task HandleSaveAnnouncement(AnnouncementEditorResult result)
+    {
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            await AnnouncementService.CreateAsync(new CreateAnnouncementDto
+            {
+                Title = result.Title,
+                Content = result.Content,
+                Priority = result.Priority,
+                ExpiresAt = result.ExpiresAt,
+                RequiresAcknowledgement = result.RequiresAcknowledgement
+            }, caller);
+
+            _showAnnouncementEditor = false;
+            await LoadAnnouncementsAsync();
+        }
+        catch (Exception ex)
+        {
+            _announcementErrorMessage = ex.Message;
+        }
+    }
+
+    /// <summary>Closes the announcement editor.</summary>
+    protected Task HandleCloseAnnouncementEditor()
+    {
+        _showAnnouncementEditor = false;
+        return Task.CompletedTask;
+    }
+
+    private void UpdateActiveAnnouncement()
+    {
+        _activeAnnouncement = _announcements
+            .Where(a => !_dismissedAnnouncementIds.Contains(a.Id))
+            .Where(a => a.ExpiresAt is null || a.ExpiresAt > DateTime.UtcNow)
+            .OrderByDescending(a => a.Priority == "Urgent")
+            .ThenByDescending(a => a.Priority == "Important")
+            .ThenByDescending(a => a.PublishedAt)
+            .FirstOrDefault();
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────
 
     private async Task<CallerContext> GetCallerContextAsync()
     {
@@ -310,7 +867,7 @@ public partial class ChatPageLayout : ComponentBase
         {
             Id = dto.Id,
             SenderUserId = dto.SenderUserId,
-            SenderName = string.Empty, // Display name resolution is not yet available
+            SenderName = string.Empty, // Display name resolution requires user directory integration
             Content = dto.Content,
             Type = dto.Type,
             SentAt = dto.SentAt,
@@ -330,6 +887,34 @@ public partial class ChatPageLayout : ComponentBase
                 FileSize = a.FileSize,
                 ThumbnailUrl = a.ThumbnailUrl
             }).ToList()
+        };
+    }
+
+    private static MemberViewModel ToMemberViewModel(ChannelMemberDto dto)
+    {
+        return new MemberViewModel
+        {
+            UserId = dto.UserId,
+            DisplayName = dto.UserId.ToString()[..8], // Short ID until user directory is wired
+            Role = dto.Role,
+            Status = "Offline"
+        };
+    }
+
+    private static AnnouncementViewModel ToAnnouncementViewModel(AnnouncementDto dto)
+    {
+        return new AnnouncementViewModel
+        {
+            Id = dto.Id,
+            Title = dto.Title,
+            Content = dto.Content,
+            Priority = dto.Priority,
+            PublishedAt = dto.PublishedAt,
+            ExpiresAt = dto.ExpiresAt,
+            IsPinned = dto.IsPinned,
+            RequiresAcknowledgement = dto.RequiresAcknowledgement,
+            AcknowledgementCount = dto.AcknowledgementCount,
+            AuthorName = dto.AuthorUserId.ToString()[..8]
         };
     }
 }

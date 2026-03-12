@@ -9,13 +9,13 @@ public sealed class ChannelViewModel
     public Guid Id { get; init; }
 
     /// <summary>Display name.</summary>
-    public string Name { get; init; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
 
     /// <summary>Channel type (Public, Private, DirectMessage, Group).</summary>
     public string Type { get; init; } = "Public";
 
     /// <summary>Channel topic.</summary>
-    public string? Topic { get; init; }
+    public string? Topic { get; set; }
 
     /// <summary>Unread message count.</summary>
     public int UnreadCount { get; set; }
@@ -76,7 +76,7 @@ public sealed class MessageViewModel
     public Guid? ReplyToMessageId { get; init; }
 
     /// <summary>Reactions grouped by emoji.</summary>
-    public List<ReactionViewModel> Reactions { get; init; } = [];
+    public List<ReactionViewModel> Reactions { get; set; } = [];
 
     /// <summary>Attachments on this message.</summary>
     public List<AttachmentViewModel> Attachments { get; init; } = [];

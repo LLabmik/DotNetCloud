@@ -2,7 +2,8 @@
 
 @*
     Chat page layout orchestrator - Composes ChannelList, ChannelHeader,
-    MessageList, and MessageComposer into a full chat experience.
+    MessageList, MessageComposer, MemberListPanel, ChannelSettingsDialog,
+    and AnnouncementBanner into a full chat experience.
     Code-behind: ChatPageLayout.razor.cs
 *@
 
@@ -17,6 +18,14 @@
     </div>
 
     <div class="chat-main">
+        @if (_activeAnnouncement is not null)
+        {
+            <AnnouncementBanner Announcement="@_activeAnnouncement"
+                                IsAcknowledged="false"
+                                OnAcknowledge="@HandleAcknowledgeAnnouncement"
+                                OnDismiss="@HandleDismissAnnouncement" />
+        }
+
         <ChannelHeader Channel="@_selectedChannel"
                        OnPinChanged="@HandlePinChanged"
                        OnEditChannel="@HandleEditChannel"
@@ -25,24 +34,101 @@
                        OnToggleMemberList="@HandleToggleMemberList"
                        OnSearch="@HandleSearch" />
 
-        <MessageList Messages="@_messages"
-                     IsLoading="@_isLoadingMessages"
-                     ErrorMessage="@_messageErrorMessage"
-                     HasMoreMessages="@_hasMoreMessages"
-                     TypingUsers="@_typingUsers"
-                     ChannelSelected="@(_selectedChannel is not null)"
-                     OnLoadMore="@HandleLoadMoreMessages"
-                     OnReactionToggle="@HandleReactionToggle" />
-
-        @if (_selectedChannel is not null)
+        @if (_isSearchOpen && _selectedChannel is not null)
         {
-            <MessageComposer ChannelName="@_selectedChannel.Name"
-                             ReplyToMessage="@_replyToMessage"
-                             MentionSuggestions="@_memberSuggestions"
-                             OnSend="@HandleSendMessage"
-                             OnCancelReply="@HandleCancelReply"
-                             OnTyping="@HandleTyping"
-                             OnAttach="@HandleAttach" />
+            <div class="chat-search-panel">
+                <div class="search-input-row">
+                    <input type="text" class="search-input" placeholder="Search messages..." @bind="_searchQuery" @bind:event="oninput" />
+                    <button class="btn btn-sm btn-primary" @onclick="() => HandleSearchSubmit(_searchQuery)">Search</button>
+                    <button class="btn btn-sm" @onclick="HandleCloseSearch" title="Close search">✕</button>
+                </div>
+                @if (_isSearching)
+                {
+                    <div class="search-loading">Searching...</div>
+                }
+                else if (_searchResults.Count > 0)
+                {
+                    <div class="search-results">
+                        @foreach (var result in _searchResults)
+                        {
+                            <div class="search-result-item" @onclick="() => HandleChannelSelected(_selectedChannel)">
+                                <span class="search-result-sender">@result.SenderName</span>
+                                <span class="search-result-time">@result.SentAt.ToString("MMM d, HH:mm")</span>
+                                <div class="search-result-content">@result.Content</div>
+                            </div>
+                        }
+                    </div>
+                }
+                else if (!string.IsNullOrEmpty(_searchQuery))
+                {
+                    <div class="search-empty">No results found.</div>
+                }
+            </div>
         }
+
+        <div class="chat-content-area">
+            <div class="chat-messages-wrapper">
+                <MessageList Messages="@_messages"
+                             IsLoading="@_isLoadingMessages"
+                             ErrorMessage="@_messageErrorMessage"
+                             HasMoreMessages="@_hasMoreMessages"
+                             TypingUsers="@_typingUsers"
+                             ChannelSelected="@(_selectedChannel is not null)"
+                             CurrentUserId="@_currentUserId"
+                             EditingMessage="@_editingMessage"
+                             OnLoadMore="@HandleLoadMoreMessages"
+                             OnReactionToggle="@HandleReactionToggle"
+                             OnEditMessage="@HandleStartEditMessage"
+                             OnDeleteMessage="@HandleDeleteMessage"
+                             OnReplyToMessage="@HandleReplyToMessage" />
+
+                @if (_selectedChannel is not null)
+                {
+                    <MessageComposer ChannelName="@_selectedChannel.Name"
+                                     ReplyToMessage="@_replyToMessage"
+                                     EditingMessage="@_editingMessage"
+                                     MentionSuggestions="@_memberSuggestions"
+                                     OnSend="@HandleSendMessage"
+                                     OnEditSend="@HandleEditMessage"
+                                     OnCancelReply="@HandleCancelReply"
+                                     OnCancelEdit="@HandleCancelEditMessage"
+                                     OnTyping="@HandleTyping"
+                                     OnAttach="@HandleAttach" />
+                }
+            </div>
+
+            @if (_showMemberPanel)
+            {
+                <MemberListPanel Members="@_members"
+                                 CanManageMembers="true"
+                                 OnClose="@HandleCloseMemberPanel"
+                                 OnPromoteMember="@HandlePromoteMember"
+                                 OnDemoteMember="@HandleDemoteMember"
+                                 OnRemoveMember="@HandleRemoveMember" />
+            }
+        </div>
     </div>
 </div>
+
+@if (_showSettingsDialog && _selectedChannel is not null)
+{
+    <ChannelSettingsDialog IsVisible="@_showSettingsDialog"
+                           Channel="@_selectedChannel"
+                           Members="@_members"
+                           OnSave="@HandleSaveChannelSettings"
+                           OnNotificationPrefChanged="@HandleNotificationPrefChanged"
+                           OnArchive="@(() => HandleArchiveChannel(_selectedChannel))"
+                           OnDelete="@HandleDeleteChannel"
+                           OnClose="@HandleCloseSettingsDialog"
+                           OnAddMember="@HandleAddMember"
+                           OnRemoveMember="@HandleRemoveMember"
+                           OnChangeMemberRole="@HandleChangeMemberRole" />
+}
+
+@if (_showAnnouncementEditor)
+{
+    <AnnouncementEditor IsVisible="@_showAnnouncementEditor"
+                        IsEditing="@_isEditingAnnouncement"
+                        OnSave="@HandleSaveAnnouncement"
+                        OnCancel="@HandleCloseAnnouncementEditor" />
+}

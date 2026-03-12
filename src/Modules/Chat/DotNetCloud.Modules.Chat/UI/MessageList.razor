@@ -78,6 +78,15 @@
                             {
                                 <span class="edited-indicator">(edited)</span>
                             }
+
+                            <div class="message-actions">
+                                <button class="msg-action-btn" @onclick="() => RequestReply(message)" title="Reply">↩</button>
+                                @if (message.SenderUserId == CurrentUserId)
+                                {
+                                    <button class="msg-action-btn" @onclick="() => RequestEdit(message)" title="Edit">✏️</button>
+                                    <button class="msg-action-btn msg-action-danger" @onclick="() => RequestDelete(message.Id)" title="Delete">🗑️</button>
+                                }
+                            </div>
                         </div>
 
                         @if (message.ReplyToMessageId.HasValue)

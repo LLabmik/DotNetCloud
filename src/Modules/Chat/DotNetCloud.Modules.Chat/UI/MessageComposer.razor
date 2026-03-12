@@ -14,7 +14,15 @@
         <button class="btn btn-sm composer-fmt" @onclick='() => ApplyFormatAsync("[" , "](url)")' title="Link">🔗</button>
     </div>
 
-    @if (ReplyToMessage is not null)
+    @if (EditingMessage is not null)
+    {
+        <div class="edit-preview">
+            <span class="edit-label">✏️ Editing message</span>
+            <span class="edit-content">@TruncateContent(EditingMessage.Content)</span>
+            <button class="btn-close" @onclick="CancelEdit" title="Cancel edit">✕</button>
+        </div>
+    }
+    else if (ReplyToMessage is not null)
     {
         <div class="reply-preview">
             <span class="reply-label">Replying to <strong>@ReplyToMessage.SenderName</strong></span>
@@ -24,7 +32,7 @@
     }
 
     <div class="composer-input-row">
-        <button class="btn btn-sm composer-action" @onclick="OnAttachClick" title="Attach file">
+        <button class="btn btn-sm composer-action" @onclick="OnAttachClick" title="Attach a file">
             📎
         </button>
 
