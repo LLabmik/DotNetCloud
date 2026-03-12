@@ -5,6 +5,10 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Chat UI Fixes — Invite, Online Status, MemberListPanel (2026-03-12)
+
+Server agent deployed channel invite UI, fixed member online status (current user shows "Online"), fixed MemberListPanel CSS class mismatch, overhauled MemberListPanel dark theme styling. All verified on mint22 — health checks Healthy, CSS bundle 200 OK.
+
 ## Archived: Channel Invite System — Migration + Deploy (2026-03-12)
 
 Server agent generated PostgreSQL EF migration for ChannelInvite table, fixed corrupted SQL Server model snapshot (was PostgreSQL in Designer but SQL Server in snapshot), applied migration to production DB, redeployed to mint22. All health checks Healthy. 283 chat tests pass.

@@ -86,6 +86,7 @@ public partial class ChatPageLayout : ComponentBase
     private Guid _currentUserId;
     private string _currentUserRole = "Member";
     private bool _currentUserIsAdminOrOwner;
+    private readonly Dictionary<Guid, string> _displayNameCache = [];
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
@@ -352,6 +353,7 @@ public partial class ChatPageLayout : ComponentBase
 
             var caller = await GetCallerContextAsync();
             var result = await MessageService.GetMessagesAsync(channelId, _currentMessagePage, MessagePageSize, caller);
+            await ResolveDisplayNamesAsync(result.Items);
             _messages = result.Items.Select(ToMessageViewModel).ToList();
             _hasMoreMessages = result.Page < result.TotalPages;
         }
@@ -375,6 +377,7 @@ public partial class ChatPageLayout : ComponentBase
             _currentMessagePage++;
             var caller = await GetCallerContextAsync();
             var result = await MessageService.GetMessagesAsync(_selectedChannel.Id, _currentMessagePage, MessagePageSize, caller);
+            await ResolveDisplayNamesAsync(result.Items);
             var older = result.Items.Select(ToMessageViewModel).ToList();
             _messages.InsertRange(0, older);
             _hasMoreMessages = result.Page < result.TotalPages;
@@ -400,6 +403,7 @@ public partial class ChatPageLayout : ComponentBase
                 ReplyToMessageId = args.ReplyToMessageId
             }, caller);
 
+            await ResolveDisplayNamesAsync([sent]);
             _messages.Add(ToMessageViewModel(sent));
             _replyToMessage = null;
         }
@@ -420,6 +424,7 @@ public partial class ChatPageLayout : ComponentBase
                 Content = args.Content
             }, caller);
 
+            await ResolveDisplayNamesAsync([edited]);
             var idx = _messages.FindIndex(m => m.Id == args.MessageId);
             if (idx >= 0)
             {
@@ -750,6 +755,7 @@ public partial class ChatPageLayout : ComponentBase
             var caller = await GetCallerContextAsync();
             var result = await MessageService.SearchMessagesAsync(
                 _selectedChannel.Id, query, _currentSearchPage, SearchPageSize, caller);
+            await ResolveDisplayNamesAsync(result.Items);
             _searchResults = result.Items.Select(ToMessageViewModel).ToList();
             _hasMoreSearchResults = result.Page < result.TotalPages;
         }
@@ -940,13 +946,30 @@ public partial class ChatPageLayout : ComponentBase
         };
     }
 
+    private async Task ResolveDisplayNamesAsync(IReadOnlyList<MessageDto> messages)
+    {
+        var unknownIds = messages
+            .Select(m => m.SenderUserId)
+            .Where(id => !_displayNameCache.ContainsKey(id))
+            .Distinct()
+            .ToList();
+
+        if (unknownIds.Count == 0) return;
+
+        var names = await UserDirectory.GetDisplayNamesAsync(unknownIds);
+        foreach (var (id, name) in names)
+        {
+            _displayNameCache[id] = name;
+        }
+    }
+
     private MessageViewModel ToMessageViewModel(MessageDto dto)
     {
         return new MessageViewModel
         {
             Id = dto.Id,
             SenderUserId = dto.SenderUserId,
-            SenderName = string.Empty, // Display name resolution requires user directory integration
+            SenderName = _displayNameCache.GetValueOrDefault(dto.SenderUserId, dto.SenderUserId.ToString()[..8]),
             Content = dto.Content,
             Type = dto.Type,
             SentAt = dto.SentAt,
