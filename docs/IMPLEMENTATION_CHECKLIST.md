@@ -3410,17 +3410,17 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Create `docs/modules/chat/ARCHITECTURE.md` — data model and flow diagrams
 - ✓ Create `docs/modules/chat/REALTIME.md` — SignalR event reference
 - ✓ Create `docs/modules/chat/PUSH.md` — FCM/UnifiedPush setup guide
-- ☐ Create `src/Modules/Chat/DotNetCloud.Modules.Chat/README.md` — developer README
+- ✓ Create `src/Modules/Chat/DotNetCloud.Modules.Chat/README.md` — developer README
 
 ### Android App Documentation
 
 - ✓ Create `docs/clients/android/README.md` — app overview and build instructions
-- ☐ Create `docs/clients/android/SETUP.md` — development environment setup
-- ☐ Create `docs/clients/android/DISTRIBUTION.md` — store listing and F-Droid setup
+- ✓ Create `docs/clients/android/SETUP.md` — development environment setup
+- ✓ Create `docs/clients/android/DISTRIBUTION.md` — store listing and F-Droid setup
 
 ### Inline Documentation
 - ✓ Add XML documentation (`///`) to all public types and methods
-- ☐ Add README to each chat project root
+- ✓ Add README to each chat project root (Core, Data, Host)
 
 ---
 
