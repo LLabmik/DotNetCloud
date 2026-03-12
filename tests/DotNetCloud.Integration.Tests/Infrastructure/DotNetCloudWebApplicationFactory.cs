@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Encodings.Web;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Initialization;
 using DotNetCloud.Core.Data.Naming;
@@ -6,8 +7,11 @@ using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server;
 using DotNetCloud.Modules.Chat.Data;
 using DotNetCloud.Modules.Files.Data;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +19,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 
 using IDbContextFactory = DotNetCloud.Core.Data.Context.IDbContextFactory;
@@ -98,12 +104,19 @@ internal sealed class DotNetCloudWebApplicationFactory : WebApplicationFactory<D
             });
 
             // Replace module DbContexts to avoid external PostgreSQL dependency in tests.
+            // Use singleton options (not AddDbContext) to avoid registering a second
+            // database provider in the DI container — EF Core rejects dual providers.
             services.RemoveAll<DbContextOptions<FilesDbContext>>();
+            services.AddSingleton<DbContextOptions<FilesDbContext>>(_ =>
+                new DbContextOptionsBuilder<FilesDbContext>()
+                    .UseInMemoryDatabase($"{_databaseName}_files")
+                    .Options);
+
             services.RemoveAll<DbContextOptions<ChatDbContext>>();
-            services.AddDbContext<FilesDbContext>(options =>
-                options.UseInMemoryDatabase($"{_databaseName}_files"));
-            services.AddDbContext<ChatDbContext>(options =>
-                options.UseInMemoryDatabase($"{_databaseName}_chat"));
+            services.AddSingleton<DbContextOptions<ChatDbContext>>(_ =>
+                new DbContextOptionsBuilder<ChatDbContext>()
+                    .UseInMemoryDatabase($"{_databaseName}_chat")
+                    .Options);
 
             // ---------------------------------------------------------------
             // Stub out ProcessSupervisor so no real child processes spawn
@@ -129,6 +142,25 @@ internal sealed class DotNetCloudWebApplicationFactory : WebApplicationFactory<D
             // ---------------------------------------------------------------
             services.RemoveAll<DbInitializer>();
             services.AddScoped<DbInitializer>();
+
+            // ---------------------------------------------------------------
+            // Register a test auth scheme and forward Identity.Application
+            // to it when x-test-user-id header is present.  This allows
+            // SignalR hub [Authorize(AuthenticationSchemes = "Identity.Application,...")]
+            // to succeed in integration tests.
+            // ---------------------------------------------------------------
+            services.AddAuthentication()
+                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
+                    TestAuthHandler.SchemeName, _ => { });
+
+            services.PostConfigure<CookieAuthenticationOptions>(
+                IdentityConstants.ApplicationScheme, opts =>
+                {
+                    opts.ForwardDefaultSelector = context =>
+                        context.Request.Headers.ContainsKey("x-test-user-id")
+                            ? TestAuthHandler.SchemeName
+                            : null;
+                });
         });
     }
 
@@ -203,6 +235,7 @@ internal sealed class DotNetCloudWebApplicationFactory : WebApplicationFactory<D
 
     /// <summary>
     /// Middleware that converts x-test-user-id header to authenticated claims for testing.
+    /// Used for standard [Authorize] endpoints (non-scheme-specific).
     /// </summary>
     private sealed class TestUserStartupFilter : IStartupFilter
     {
@@ -230,6 +263,44 @@ internal sealed class DotNetCloudWebApplicationFactory : WebApplicationFactory<D
 
                 next(app);
             };
+        }
+    }
+
+    /// <summary>
+    /// Authentication handler for integration tests that reads x-test-user-id header.
+    /// Registered as a scheme and forwarded from Identity.Application so scheme-specific
+    /// [Authorize] attributes (e.g., on SignalR hubs) succeed in tests.
+    /// </summary>
+    private sealed class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
+    {
+        public const string SchemeName = "IntegrationTest";
+
+        public TestAuthHandler(
+            IOptionsMonitor<AuthenticationSchemeOptions> options,
+            ILoggerFactory logger,
+            UrlEncoder encoder)
+            : base(options, logger, encoder)
+        {
+        }
+
+        protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+        {
+            if (Request.Headers.TryGetValue("x-test-user-id", out var userHeader) &&
+                Guid.TryParse(userHeader.ToString(), out var userId))
+            {
+                var identity = new ClaimsIdentity(
+                [
+                    new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+                    new Claim("sub", userId.ToString())
+                ],
+                authenticationType: SchemeName);
+
+                var principal = new ClaimsPrincipal(identity);
+                var ticket = new AuthenticationTicket(principal, SchemeName);
+                return Task.FromResult(AuthenticateResult.Success(ticket));
+            }
+
+            return Task.FromResult(AuthenticateResult.NoResult());
         }
     }
 }

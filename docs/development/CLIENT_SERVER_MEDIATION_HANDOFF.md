@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-11 (compacted active-only handoff)
+Last updated: 2026-03-12 (migration fix + integration test fixes on mint22)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -49,7 +49,9 @@ Archived context:
 - Phase 2.10 Android contract alignment: complete (archived).
 - Phase 2.12 Chat Testing Infrastructure: complete (integration tests added).
 - Phase 2.13 Documentation: complete.
-- This handoff was compacted on 2026-03-11 to remove completed historical sections from active view.
+- Urgent migration fix (AddSymlinkSupport/LinkTarget column): complete (2026-03-12).
+- Integration test fixes (11 failures → 0): complete (2026-03-12).
+- Full test suite: 2,106 passed / 0 failed / 2 skipped (env-gated).
 
 ## Environment
 
@@ -67,49 +69,29 @@ Archived context:
 
 ## Active Handoff
 
-### URGENT — Apply Pending Database Migration on mint22
+### Migration + Integration Test Fixes COMPLETE — Ready for Next Phase
 
-**Date:** 2026-03-11
+**Date:** 2026-03-12
 **Owner:** Server agent (`mint22`)
-**Status:** ACTION REQUIRED ⚠️
+**Status:** COMPLETE ✅
 
-**Problem:**
-The Files module web UI (`https://mint22:15443/apps/files`) crashes with:
-```
-42703: column f.LinkTarget does not exist POSITION: 146
-```
+**What was completed:**
+1. Applied `20260309093919_AddSymlinkSupport` migration — added `LinkTarget` column to `FileNodes` on mint22 PostgreSQL.
+2. Rebuilt and redeployed server (Release publish → `dotnetcloud.service` restart).
+3. Verified Files UI at `https://mint22:15443/apps/files` loads without `42703` errors.
+4. Fixed 11 integration test failures from commit `49bdaa6`:
+   - SignalR auth: added `TestAuthHandler` with `ForwardDefaultSelector` for scheme-specific `[Authorize]`.
+   - SignalR method signatures: corrected arg count and enum casing.
+   - File sync routes: fixed paths and removed stale `?userId=` params.
+   - EF dual-provider conflict: changed `AddDbContext` to singleton options registration.
 
-**Root cause:**
-Migration `20260309093919_AddSymlinkSupport` added a `LinkTarget` column (nullable `text`) to the `FileNodes` table. The code (EF queries in `SyncService`, `FileService`, `FilesGrpcService`) references this column, but the migration has not been applied to the PostgreSQL database on mint22.
+**Test suite:** 2,106 passed / 0 failed / 2 skipped (env-gated).
 
-**Migration file:** `src/Modules/Files/DotNetCloud.Modules.Files.Data/Migrations/20260309093919_AddSymlinkSupport.cs`
-
-**Fix — Option A (EF CLI):**
-```bash
-cd /path/to/dotnetcloud
-git pull origin main
-dotnet ef database update --project src/Modules/Files/DotNetCloud.Modules.Files.Data --context FilesDbContext
-```
-
-**Fix — Option B (raw SQL against PostgreSQL):**
-```sql
-ALTER TABLE "FileNodes" ADD "LinkTarget" text NULL;
-```
-Then insert the migration into the EF history table so future `database update` calls don't re-run it:
-```sql
-INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
-VALUES ('20260309093919_AddSymlinkSupport', '10.0.0');
-```
-
-**Verification:**
-1. After applying, restart the DotNetCloud server process on mint22.
-2. Open `https://mint22:15443/apps/files` — it should load the file browser without error.
-3. Confirm: `SELECT column_name FROM information_schema.columns WHERE table_name = 'FileNodes' AND column_name = 'LinkTarget';` returns one row.
-
-**After completion:**
-- Mark this handoff as COMPLETE and archive it.
-- Proceed to remaining in-progress phases: Phase 2.8 (Blazor UI components), Phase 2.10 (Android app features — client-side, Windows machine).
-- Or begin Phase 3 planning if Phase 2 gaps are deferred.
+**Next action:**
+- All Phase 2 work is complete except Phase 2.10 (2 pending items — client-side, Windows machine).
+- Server-side work is caught up. Next steps:
+  - Phase 2.10 remaining items (client-side, Windows11-TestDNC agent).
+  - Or begin Phase 3 planning if Phase 2 gaps are deferred.
 
 ## Relay Template
 

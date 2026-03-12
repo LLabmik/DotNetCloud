@@ -2137,3 +2137,32 @@ Archived from `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` when enforci
   - Fix: replaced `Returns(Task.CompletedTask)` with `TaskCompletionSource` + `.Callback` + `await Task.WhenAny(tcs.Task, Delay(5s))` before `Verify`.
 - Full suite after fix: 3/3 consecutive passes, 0 failures, ~2040 passed, 13 skipped (all env-gated).
 - Phase 2.10 fully closed on both sides.
+
+## 5. Phase 2.13 Documentation + Migration Fix + Integration Test Fixes (2026-03-11 → 2026-03-12)
+
+1. Phase 2.13 Documentation Complete (2026-03-11, mint22)
+- Chat module docs: `docs/modules/chat/` — README, API, ARCHITECTURE, REALTIME, PUSH.
+- Android app docs: `docs/clients/android/` — README, SETUP, DISTRIBUTION.
+- Per-project developer READMEs for Chat Core, Chat.Data, Chat.Host.
+- XML docs on all chat module public types and Android platform types.
+- Test suite: 2,086 passed / 0 failed / 0 skipped.
+
+2. Integration Testing Sprint (2026-03-11, mint22)
+- Added SignalR hub, file sync flow, and chat-files cross-module integration tests.
+- New test factory: `DotNetCloudWebApplicationFactory` for Core.Server in-process testing.
+- 132 integration tests added across 3 new test classes.
+
+3. Urgent Migration Fix (2026-03-12, mint22)
+- `20260309093919_AddSymlinkSupport` migration not applied on mint22 PostgreSQL.
+- Files UI crashed with `42703: column f.LinkTarget does not exist`.
+- Fix: `ALTER TABLE "FileNodes" ADD "LinkTarget" text NULL;` + EF migration history insert.
+- Rebuilt and redeployed server; Files UI confirmed working.
+
+4. Integration Test Fixes (2026-03-12, mint22)
+- 11 integration test failures from `49bdaa6` commit fixed:
+  - SignalR hub tests: 401 Unauthorized — added `TestAuthHandler` scheme with `ForwardDefaultSelector` on `Identity.Application` cookie to forward to test scheme when `x-test-user-id` header present; added header to `HubConnectionBuilder` opts.
+  - SignalR `SendMessageAsync`: wrong arg count (2 instead of 3) — added `null` for `replyToId`.
+  - SignalR `SetPresenceAsync`: wrong status casing (`"online"` → `"Online"`).
+  - File sync tests: wrong route paths (`/api/v1/files/changes` → `/api/v1/files/sync/changes`), removed stale `?userId=` params, replaced non-existent `/api/v1/files/sync-state` with `/api/v1/files/sync/tree`.
+  - ChatDbContext dual-provider conflict (Npgsql + InMemory): changed `AddDbContext` to singleton `DbContextOptions` registration to avoid registering a second EF provider.
+- Final suite: 2,106 passed / 0 failed / 2 skipped (env-gated).

@@ -167,20 +167,12 @@ public sealed class FileSyncFlowIntegrationTests
     {
         using var client = _factory.CreateAuthenticatedApiClient(UserId);
 
-        // Get initial change set version
-        var changesResponse = await client.GetAsync($"/api/v1/files/changes?userId={UserId}");
-        await ApiAssert.SuccessAsync(changesResponse, HttpStatusCode.OK);
-
-        var changesRoot = System.Text.Json.JsonDocument.Parse(
-            await changesResponse.Content.ReadAsStringAsync()).RootElement;
-        var initialVersion = DataOrRoot(changesRoot).GetProperty("version").GetInt64();
-
         // Upload a file
         var payload = new byte[] { 42 };
         var hash = DotNetCloud.Modules.Files.Services.ContentHasher.ComputeHash(payload);
 
         var initiateResponse = await client.PostAsJsonAsync(
-            $"/api/v1/files/upload/initiate?userId={UserId}",
+            "/api/v1/files/upload/initiate",
             new InitiateUploadDto
             {
                 FileName = "change-track.bin",
@@ -195,35 +187,33 @@ public sealed class FileSyncFlowIntegrationTests
 
         using var content = new ByteArrayContent(payload);
         await client.PutAsync(
-            $"/api/v1/files/upload/{sessionId}/chunks/{hash}?userId={UserId}",
+            $"/api/v1/files/upload/{sessionId}/chunks/{hash}",
             content);
 
         await client.PostAsync(
-            $"/api/v1/files/upload/{sessionId}/complete?userId={UserId}",
+            $"/api/v1/files/upload/{sessionId}/complete",
             content: null);
 
-        // Get new change set version
-        var newChangesResponse = await client.GetAsync($"/api/v1/files/changes?userId={UserId}");
-        await ApiAssert.SuccessAsync(newChangesResponse, HttpStatusCode.OK);
+        // Get changes since epoch — should include the uploaded file
+        var changesResponse = await client.GetAsync(
+            $"/api/v1/files/sync/changes?since={DateTime.UtcNow.AddMinutes(-5):O}");
+        await ApiAssert.SuccessAsync(changesResponse, HttpStatusCode.OK);
 
-        var newChangesRoot = System.Text.Json.JsonDocument.Parse(
-            await newChangesResponse.Content.ReadAsStringAsync()).RootElement;
-        var newVersion = DataOrRoot(newChangesRoot).GetProperty("version").GetInt64();
+        var changesRoot = System.Text.Json.JsonDocument.Parse(
+            await changesResponse.Content.ReadAsStringAsync()).RootElement;
+        var data = DataOrRoot(changesRoot);
 
-        Assert.IsTrue(newVersion > initialVersion, "Change set version should increment after upload");
+        // The response is an array of SyncChangeDto
+        Assert.AreEqual(System.Text.Json.JsonValueKind.Array, data.ValueKind,
+            "Expected an array of sync changes");
 
-        // Verify changes list contains the new file
-        var changes = DataOrRoot(newChangesRoot).GetProperty("changes");
         var foundChange = false;
-        if (changes.ValueKind == System.Text.Json.JsonValueKind.Array)
+        foreach (var change in data.EnumerateArray())
         {
-            foreach (var change in changes.EnumerateArray())
+            if (change.GetProperty("name").GetString() == "change-track.bin")
             {
-                if (change.GetProperty("type").GetString() == "Created")
-                {
-                    foundChange = true;
-                    break;
-                }
+                foundChange = true;
+                break;
             }
         }
 
@@ -231,27 +221,19 @@ public sealed class FileSyncFlowIntegrationTests
     }
 
     [TestMethod]
-    public async Task Reconciliation_SyncState_Reflects()
+    public async Task Upload_AppearsInSyncTree()
     {
         using var client = _factory.CreateAuthenticatedApiClient(UserId);
 
-        // Get initial sync state
-        var initialStateResponse = await client.GetAsync($"/api/v1/files/sync-state?userId={UserId}");
-        await ApiAssert.SuccessAsync(initialStateResponse, HttpStatusCode.OK);
-
-        var initialState = System.Text.Json.JsonDocument.Parse(
-            await initialStateResponse.Content.ReadAsStringAsync()).RootElement;
-        var initialLastSync = DataOrRoot(initialState).GetProperty("lastSyncTime").GetDateTime();
-
-        // Upload a file to create changes
+        // Upload a file
         var payload = new byte[] { 99 };
         var hash = DotNetCloud.Modules.Files.Services.ContentHasher.ComputeHash(payload);
 
         var initiateResponse = await client.PostAsJsonAsync(
-            $"/api/v1/files/upload/initiate?userId={UserId}",
+            "/api/v1/files/upload/initiate",
             new InitiateUploadDto
             {
-                FileName = "reconcile-test.bin",
+                FileName = "tree-test.bin",
                 TotalSize = payload.Length,
                 MimeType = "application/octet-stream",
                 ChunkHashes = [hash]
@@ -263,22 +245,36 @@ public sealed class FileSyncFlowIntegrationTests
 
         using var content = new ByteArrayContent(payload);
         await client.PutAsync(
-            $"/api/v1/files/upload/{sessionId}/chunks/{hash}?userId={UserId}",
+            $"/api/v1/files/upload/{sessionId}/chunks/{hash}",
             content);
 
         await client.PostAsync(
-            $"/api/v1/files/upload/{sessionId}/complete?userId={UserId}",
+            $"/api/v1/files/upload/{sessionId}/complete",
             content: null);
 
-        // Verify sync state after reconciliation
-        var newStateResponse = await client.GetAsync($"/api/v1/files/sync-state?userId={UserId}");
-        await ApiAssert.SuccessAsync(newStateResponse, HttpStatusCode.OK);
+        // Verify the uploaded file appears in the sync tree
+        var treeResponse = await client.GetAsync("/api/v1/files/sync/tree");
+        await ApiAssert.SuccessAsync(treeResponse, HttpStatusCode.OK);
 
-        var newState = System.Text.Json.JsonDocument.Parse(
-            await newStateResponse.Content.ReadAsStringAsync()).RootElement;
-        var newLastSync = DataOrRoot(newState).GetProperty("lastSyncTime").GetDateTime();
+        var treeRoot = System.Text.Json.JsonDocument.Parse(
+            await treeResponse.Content.ReadAsStringAsync()).RootElement;
+        var treeData = DataOrRoot(treeRoot);
 
-        // Last sync time should be updated or show current sync in progress
-        Assert.IsNotNull(newLastSync);
+        // The tree endpoint returns a single SyncTreeNodeDto (virtual root) with children
+        var foundInTree = false;
+        if (treeData.TryGetProperty("children", out var children) &&
+            children.ValueKind == System.Text.Json.JsonValueKind.Array)
+        {
+            foreach (var node in children.EnumerateArray())
+            {
+                if (node.GetProperty("name").GetString() == "tree-test.bin")
+                {
+                    foundInTree = true;
+                    break;
+                }
+            }
+        }
+
+        Assert.IsTrue(foundInTree, "Uploaded file should appear in the sync tree");
     }
 }

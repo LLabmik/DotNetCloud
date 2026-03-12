@@ -45,6 +45,7 @@ public sealed class SignalRHubIntegrationTests
             .WithUrl("http://localhost/hubs/core", opts =>
             {
                 opts.HttpMessageHandlerFactory = (_) => handler;
+                opts.Headers.Add("x-test-user-id", userId.ToString());
             })
             .WithAutomaticReconnect()
             .Build();
@@ -154,7 +155,8 @@ public sealed class SignalRHubIntegrationTests
         var result = await connection.InvokeAsync<MessageDto>(
             "SendMessageAsync",
             channelId,
-            "Hello from SignalR");
+            "Hello from SignalR",
+            (Guid?)null);
 
         Assert.IsNotNull(result);
         Assert.AreEqual("Hello from SignalR", result.Content);
@@ -242,11 +244,11 @@ public sealed class SignalRHubIntegrationTests
 
         var presence = await connection.InvokeAsync<PresenceDto>(
             "SetPresenceAsync",
-            "online",
+            "Online",
             "Working on integration tests");
 
         Assert.IsNotNull(presence);
-        Assert.AreEqual("online", presence.Status);
+        Assert.AreEqual("Online", presence.Status);
         Assert.AreEqual("Working on integration tests", presence.StatusMessage);
         await connection.StopAsync();
     }
