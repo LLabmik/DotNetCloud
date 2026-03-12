@@ -1799,6 +1799,20 @@ Required coverage:
 1. REST CRUD/tree/search/favorites end-to-end tests.
 2. Chunked upload E2E tests (initiate, upload, complete, dedup behavior, quota rejection path).
 3. Version/share/trash end-to-end tests.
+
+---
+
+## Archived: Chat UI Blazor Binding Fix — COMPLETED (2026-03-12)
+
+**Date:** 2026-03-12
+**Owner:** Server agent (`mint22`)
+
+**Actions taken:**
+1. `git pull` — pulled commit `6f1cf55` with Blazor `@`-prefix fixes.
+2. Published: `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o artifacts/publish/server-baremetal` — build succeeded (59s).
+3. Restarted: `systemctl restart dotnetcloud.service` — active (running), PID 114823.
+4. Health: `curl -sk https://mint22:15443/health` → **Healthy**.
+5. Chat page: `https://mint22:15443/apps/chat` returns 302 (auth redirect, expected). No raw variable names in response body.
 4. WOPI and sync endpoint smoke tests (auth enforcement + payload shape).
 5. Document provider matrix execution: PostgreSQL required; SQL Server if environment is available.
 

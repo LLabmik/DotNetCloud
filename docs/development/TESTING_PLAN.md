@@ -285,6 +285,8 @@ Track any bugs or server-side issues discovered during testing.
 | # | Phase | Test | Issue Description | Root Cause | Server Handoff Needed? | Status |
 |---|-------|------|-------------------|------------|----------------------|--------|
 | 1 | 2 | Page load | `42703: column f.PosixMode does not exist POSITION: 271` — Web UI shows "Something went wrong" on load. Missing column in PostgreSQL `files` table. | Missing DB migration — all 6 Files migrations applied on mint22 (2026-03-12) | YES | ✓ Resolved |
+| 2 | 2 | Chat UI | Chat page shows raw variable names (`_channelErrorMessage`, `_messageErrorMessage`) as literal text. Channel list says "Unable to load channels" with `_channelErrorMessage` visible. | `ChatPageLayout.razor` and `DirectMessageView.razor` missing `@` prefix on Blazor component parameter bindings — field names passed as literal strings instead of values. | YES (redeploy) | ✓ Fixed (`6f1cf55`), redeployed |
+| 3 | 2 | Chat channels | "Unable to load channels right now." with DbContext concurrency error: "A second operation was started on this context instance before a previous operation completed. This is usually caused by different threads concurrently using the same instance of DbContext." URL: `https://mint22:15443/apps/chat`, logged in as `testdude@llabmik.net`. | Likely concurrent async calls sharing a scoped DbContext — multiple channel-load queries firing in parallel on the same context instance. | YES | ☐ Open |
 
 ---
 

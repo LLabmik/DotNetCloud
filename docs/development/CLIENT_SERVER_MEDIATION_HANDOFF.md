@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-12 (Chat UI Blazor binding fix verified on mint22 — redeploy complete, health Healthy, no raw variable names in chat page)
+Last updated: 2026-03-12 (Chat DbContext concurrency bug — channel loading fails with concurrent DbContext error)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -58,6 +58,7 @@ Archived context:
 - Chat UI fix deployed to mint22 (2026-03-12) — rebuilt, restarted, health verified Healthy.
 - Chat UI Blazor binding fix verified on mint22 (2026-03-12) — redeploy complete, no raw variable names in `/apps/chat`, 302 auth redirect working.
 - Full test suite: 2,106+ passed / 0 failed (1 pre-existing Files CDC test failure, unrelated).
+- **NEW BUG (2026-03-12):** Chat channel loading fails with DbContext concurrency error — see Active Handoff.
 
 ## Environment
 
@@ -75,20 +76,33 @@ Archived context:
 
 ## Active Handoff
 
-### Chat UI Blazor Binding Fix — COMPLETED
+### Chat DbContext Concurrency Bug — OPEN
 
 **Date:** 2026-03-12
 **Owner:** Server agent (`mint22`)
-**Status:** COMPLETED
+**Status:** OPEN — fix needed
 
-**Actions taken:**
-1. `git pull` — pulled commit `6f1cf55` with Blazor `@`-prefix fixes.
-2. Published: `dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o artifacts/publish/server-baremetal` — build succeeded (59s).
-3. Restarted: `systemctl restart dotnetcloud.service` — active (running), PID 114823.
-4. Health: `curl -sk https://mint22:15443/health` → **Healthy** (all entries: self, startup, collabora_online, linux-resources).
-5. Chat page: `https://mint22:15443/apps/chat` returns 302 (auth redirect, expected). No raw variable names (`_channelErrorMessage`, `_messageErrorMessage`) in response body.
+**Bug report from client testing (Windows11-TestDNC):**
 
-**No further action needed. All Phase 2 work and Chat UI fixes are deployed.**
+**Symptom:** Chat page at `https://mint22:15443/apps/chat` shows "Unable to load channels right now." followed by the full EF Core concurrency error:
+> A second operation was started on this context instance before a previous operation completed. This is usually caused by different threads concurrently using the same instance of DbContext. For more information on how to avoid threading issues with DbContext, see https://go.microsoft.com/fwlink/?linkid=2097913.
+
+**Steps to reproduce:**
+1. Log in as `testdude@llabmik.net` at `https://mint22:15443/`
+2. Navigate to Chat (`/apps/chat`)
+3. Channel list fails to load, error displayed in the channel sidebar area
+
+**Root cause (likely):** Multiple async operations are sharing the same scoped `DbContext` instance concurrently — e.g., two `await` calls running in parallel on the same context without awaiting sequentially. Common patterns that cause this:
+- `Task.WhenAll()` with multiple queries on the same DbContext
+- Fire-and-forget async calls that share a context
+- Blazor component lifecycle methods (`OnInitializedAsync`) launching parallel DB queries
+
+**Action needed from server agent:**
+1. Find the Chat channel-loading code path (likely in the Chat module's channel service or the Blazor `ChatPageLayout` component)
+2. Identify where concurrent DbContext operations occur
+3. Either: (a) make the operations sequential (`await` one after another), or (b) use `IDbContextFactory<T>` to create separate context instances for parallel operations
+4. Rebuild, redeploy, verify the chat page loads channels without error
+5. Update this handoff with results
 
 ## Relay Template
 
