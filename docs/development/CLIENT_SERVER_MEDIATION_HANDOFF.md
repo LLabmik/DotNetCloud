@@ -78,34 +78,33 @@ Archived context:
 
 ## Active Handoff
 
-### Chat UI CSS — Deployed and Verified
+### WYSIWYG Chat Composer — Redeploy Required
 
 **Date:** 2026-03-12
 **Owner:** Server agent (`mint22`)
-**Status:** COMPLETE
+**Status:** READY FOR DEPLOY
 
-**What was done:**
+**What changed (commit `9e338fa`):**
 
-1. Pulled the client agent's `<link>` tag fix
-2. Discovered the tag referenced `DotNetCloud.Modules.Chat.styles.css` (404) — .NET 10's CSS isolation for Razor Class Libraries uses `.bundle.scp.css` naming, not `.styles.css`
-3. Corrected the link to `DotNetCloud.Modules.Chat.bundle.scp.css`
-4. Rebuilt, redeployed, restarted service
-5. Verified:
-   - Health endpoint: Healthy
-   - CSS bundle served at `_content/DotNetCloud.Modules.Chat/DotNetCloud.Modules.Chat.bundle.scp.css` → HTTP 200
-   - All 14 component stylesheets present in bundle (2,045 lines)
-   - HTML `<head>` includes all 3 CSS links (app.css, UI.Shared.styles.css, Chat.bundle.scp.css)
-   - Chat page `/apps/chat` returns 302 auth redirect (expected for unauthenticated curl)
+The chat message composer has been replaced with a WYSIWYG rich-text editor. Previously it was a raw textarea where toolbar buttons inserted Markdown syntax — confusing for users. Now users see formatted text as they type.
 
-**Lesson learned (.NET 10 CSS Isolation naming):**
+**Files changed:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageComposer.razor` — contenteditable div replaces textarea
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageComposer.razor.cs` — WYSIWYG JS interop code-behind
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageComposer.razor.css` — editor + toolbar styles
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MessageList.razor.cs` — expanded RenderMarkdown (strikethrough, code blocks, blockquotes, lists, headings, HR)
+- `src/UI/DotNetCloud.UI.Web/wwwroot/js/wysiwyg-editor.js` — NEW: WYSIWYG JS module
+- `src/UI/DotNetCloud.UI.Web/Components/App.razor` — added `<script>` tag for wysiwyg-editor.js
 
-In .NET 10, Razor Class Library CSS isolation bundles are named `{AssemblyName}.bundle.scp.css`, NOT `{AssemblyName}.styles.css`. The traditional `.styles.css` convention only applies to:
-- The host app's own scoped CSS bundle (e.g., `DotNetCloud.UI.Web.styles.css`)
-- Manually created static files that happen to use that name (e.g., `DotNetCloud.UI.Shared.styles.css`)
+**Action required:**
+1. `git pull` on mint22
+2. Rebuild and redeploy (`bash tools/redeploy-baremetal.sh`)
+3. Verify health endpoint: Healthy
+4. Verify `/apps/chat` loads — toolbar should show: **B** *I* ~~S~~ | `</>` `{ }` | 🔗 | •— 1. | ❝ **H**
+5. Verify typing in the editor shows formatted text (not raw Markdown)
+6. Verify sending a message with formatting (e.g. bold text) displays correctly in messages
 
-For any future module CSS link tags, use: `_content/{AssemblyName}/{AssemblyName}.bundle.scp.css`
-
-**No further action required.** Chat UI CSS is live on mint22.
+**Tests:** All 263 Chat module tests pass. All 138 Core tests pass. Build succeeds with 0 errors.
 
 ## Relay Template
 
