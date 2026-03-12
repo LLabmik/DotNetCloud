@@ -895,7 +895,8 @@ public partial class ChatPageLayout : ComponentBase
         return new MemberViewModel
         {
             UserId = dto.UserId,
-            DisplayName = dto.UserId.ToString()[..8], // Short ID until user directory is wired
+            DisplayName = string.IsNullOrEmpty(dto.DisplayName) ? dto.UserId.ToString()[..8] : dto.DisplayName,
+            Username = dto.Username,
             Role = dto.Role,
             Status = "Offline"
         };

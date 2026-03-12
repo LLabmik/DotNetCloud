@@ -86,6 +86,12 @@ public sealed record ChannelMemberDto
     /// <summary>User ID.</summary>
     public Guid UserId { get; init; }
 
+    /// <summary>User's display name.</summary>
+    public string DisplayName { get; init; } = string.Empty;
+
+    /// <summary>User's username.</summary>
+    public string? Username { get; init; }
+
     /// <summary>User's role in the channel.</summary>
     public required string Role { get; init; }
 

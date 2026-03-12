@@ -6,6 +6,7 @@ using DotNetCloud.Modules.Chat.Models;
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using IUserDirectory = DotNetCloud.Core.Capabilities.IUserDirectory;
 
 namespace DotNetCloud.Modules.Chat.Data.Services;
 
@@ -19,17 +20,20 @@ internal sealed class ChannelMemberService : IChannelMemberService
     private readonly ChatDbContext _db;
     private readonly IEventBus _eventBus;
     private readonly IChatRealtimeService? _realtimeService;
+    private readonly IUserDirectory? _userDirectory;
     private readonly ILogger<ChannelMemberService> _logger;
 
     public ChannelMemberService(
         ChatDbContext db,
         IEventBus eventBus,
         ILogger<ChannelMemberService> logger,
-        IChatRealtimeService? realtimeService = null)
+        IChatRealtimeService? realtimeService = null,
+        IUserDirectory? userDirectory = null)
     {
         _db = db;
         _eventBus = eventBus;
         _realtimeService = realtimeService;
+        _userDirectory = userDirectory;
         _logger = logger;
     }
 
@@ -130,9 +134,15 @@ internal sealed class ChannelMemberService : IChannelMemberService
             .OrderBy(m => m.JoinedAt)
             .ToListAsync(cancellationToken);
 
+        var userIds = members.Select(m => m.UserId).Distinct();
+        var displayNames = _userDirectory is not null
+            ? await _userDirectory.GetDisplayNamesAsync(userIds, cancellationToken)
+            : new Dictionary<Guid, string>();
+
         return members.Select(m => new ChannelMemberDto
         {
             UserId = m.UserId,
+            DisplayName = displayNames.GetValueOrDefault(m.UserId, m.UserId.ToString()[..8]),
             Role = m.Role.ToString(),
             JoinedAt = m.JoinedAt,
             IsMuted = m.IsMuted,
