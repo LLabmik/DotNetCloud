@@ -5,6 +5,10 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Chat Permission Hardening + Members Display Names (2026-03-12)
+
+Deployed to mint22. Role-based UI gating, membership checks, announcement author-only edits, display names in members panel. All verified healthy.
+
 ## Archived: Chat UI CSS — Visual Verification (2026-03-12)
 
 Server agent created 8 new `.razor.css` files and overhauled 6 existing ones (14 total chat component stylesheets). Deployed to mint22, health verified Healthy, 263 Chat tests passing.

@@ -63,6 +63,7 @@ Archived context:
 - Chat UI CSS link tag fix: corrected `.styles.css` → `.bundle.scp.css` (2026-03-12). .NET 10 RCL CSS isolation uses `.bundle.scp.css` naming, not `.styles.css`. Deployed to mint22, all 14 component stylesheets verified loading (2,045 lines CSS, 200 OK).
 - WYSIWYG Chat Composer: deployed to mint22 (2026-03-12). Contenteditable editor replaces raw textarea, JS module + CSS verified loading.
 - Chat Permission Hardening + Members Display Names: deployed to mint22 (2026-03-12). Role-based UI gating, membership checks, announcement author-only edits, display names in members panel.
+- **Channel Invite System**: implemented (2026-03-12). Single-user invites for private channels.
 
 ## Environment
 
@@ -80,27 +81,56 @@ Archived context:
 
 ## Active Handoff
 
-### Chat Permission Hardening + Members Display Name Fix — Deployed
+### Channel Invite System — Needs EF Migration + Deploy
 
 **Date:** 2026-03-12
 **Owner:** Server agent (`mint22`)
-**Status:** COMPLETE
+**Status:** ACTION REQUIRED
 
-**Deployment verification (server agent):**
-- `git pull` — fast-forward to `590ff25` (11 files changed, permission hardening + members display names)
-- `bash tools/redeploy-baremetal.sh` — build succeeded (0 errors, 55.8s), service restarted
-- Health: **Healthy** (all checks: self, startup, collabora_online, linux-resources)
-- Chat module DLL: freshly built (06:35), service started (06:36)
-- `/apps/chat` — 302 auth redirect (correct)
-- Service: PID 15114, active (running), fresh publish binaries
+**What was committed (client agent, commit `2c5dc94`):**
 
-**What's deployed:**
-1. Members panel display names via `IUserDirectory.GetDisplayNamesAsync()`
-2. Role-based UI gating (Archive/Edit hidden for non-admin)
-3. Private/DM/Group channel membership checks
-4. Announcement author-only update/delete
+A complete channel invite system for private channels. The code is fully implemented and all 283 chat module tests pass. What's missing is the EF Core migration for the new `ChannelInvite` table.
 
-**No issues found. Permission hardening is live on mint22.**
+**New files:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Models/ChannelInvite.cs` — Entity with Id, ChannelId, InvitedUserId, InvitedByUserId, Status, CreatedAt, RespondedAt, Message
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Models/ChannelInviteStatus.cs` — Enum: Pending, Accepted, Declined, Revoked
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/IChannelInviteService.cs` — Interface
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/ChannelInviteService.cs` — Implementation
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Configuration/ChannelInviteConfiguration.cs` — EF config
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Events/ChannelInviteCreatedEvent.cs`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Events/ChannelInviteRespondedEvent.cs`
+- `tests/DotNetCloud.Modules.Chat.Tests/ChannelInviteServiceTests.cs` — 20 tests
+
+**Modified files:**
+- `Channel.cs` — Added `Invites` navigation collection
+- `ChatDbContext.cs` — Added `DbSet<ChannelInvite> ChannelInvites` + `ChannelInviteConfiguration`
+- `ChatServiceRegistration.cs` — Registered `IChannelInviteService`
+- `ChatRealtimeService.cs` — Added `SendInviteNotificationAsync` (uses `SendToUserAsync` to notify only the invitee)
+- `ChatController.cs` — Added invite endpoints (see below)
+- `ChatControllerTests.cs` — Updated constructor for new `IChannelInviteService` parameter
+
+**New API endpoints (all under `api/v1/chat`):**
+- `POST channels/{channelId}/invites` — Send invite to a single user (admin/owner only, private channels only)
+- `GET invites` — List my pending invites
+- `GET channels/{channelId}/invites` — List channel's pending invites (admin/owner only)
+- `POST invites/{inviteId}/accept` — Accept invite (invitee only, joins the channel)
+- `POST invites/{inviteId}/decline` — Decline invite (invitee only)
+- `DELETE invites/{inviteId}` — Revoke invite (inviter or admin/owner)
+
+**Server agent action items:**
+1. `git pull` to get commit `2c5dc94`
+2. Add EF migration for the Chat module's new `ChannelInvite` table:
+   ```bash
+   dotnet ef migrations add AddChannelInvites \
+     --project src/Modules/Chat/DotNetCloud.Modules.Chat.Data \
+     --startup-project src/Modules/Chat/DotNetCloud.Modules.Chat.Host \
+     --context ChatDbContext
+   ```
+3. Apply the migration to the production database
+4. Redeploy to mint22 (`bash tools/redeploy-baremetal.sh`)
+5. Verify health and confirm the invite endpoints respond
+
+**No blockers. All 283 chat tests pass. Build is clean (0 errors).**
 
 ## Relay Template
 
