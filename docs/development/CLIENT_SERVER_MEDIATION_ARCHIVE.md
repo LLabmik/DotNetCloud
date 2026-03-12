@@ -5,6 +5,14 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Chat UI CSS — Visual Verification (2026-03-12)
+
+Server agent created 8 new `.razor.css` files and overhauled 6 existing ones (14 total chat component stylesheets). Deployed to mint22, health verified Healthy, 263 Chat tests passing.
+
+**Client verification result:** FAILED — CSS not loading. Root cause: the `<link>` tag for `DotNetCloud.Modules.Chat.styles.css` was never added to `App.razor`. All 14 stylesheets compiled correctly but the browser never requested them. Fix applied by client agent (added missing link tag). See Active Handoff for details.
+
+---
+
 ## Resolved Issues (Issues #1–#22, 2026-03-07 to 2026-03-08)
 
 | # | Issue | Root Cause | Fix | Side |

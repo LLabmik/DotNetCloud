@@ -59,7 +59,7 @@ Archived context:
 - Chat UI Blazor binding fix verified on mint22 (2026-03-12) — redeploy complete, no raw variable names in `/apps/chat`, 302 auth redirect working.
 - Full test suite: 2,106+ passed / 0 failed (1 pre-existing Files CDC test failure, unrelated).
 - Chat DbContext concurrency bug: **FIXED** (2026-03-12). Service restarted, channels load.
-- Chat UI CSS: **FIXED** (2026-03-12). All 14 component stylesheets created or overhauled. Deployed to mint22, health verified Healthy.
+- Chat UI CSS: Stylesheets created (2026-03-12) but **not loaded** — missing `<link>` tag in `App.razor`. Fixed by client agent.
 
 ## Environment
 
@@ -77,44 +77,40 @@ Archived context:
 
 ## Active Handoff
 
-### Chat UI CSS — Complete (Ready for Visual Verification)
+### Chat UI CSS — Link Tag Missing (Fixed by Client, Needs Redeploy)
 
 **Date:** 2026-03-12
-**Owner:** Client agent (`Windows11-TestDNC`)
-**Status:** DONE — deployed, needs visual verification
+**Owner:** Server agent (`mint22`)
+**Status:** ACTION REQUIRED — rebuild and redeploy on mint22
 
-**What was done (server agent):**
+**What happened:**
 
-Created 8 missing `.razor.css` files and overhauled all 6 existing ones. All 14 chat component stylesheets now use the app's design system (CSS custom properties: `--color-*`, `--radius`, `--shadow-*`, etc.) with proper dark-mode support.
+The server agent created 14 beautiful `.razor.css` files with design-system integration, dark mode, hover states, cursor changes — the whole works. Great CSS work. One problem: **none of it was ever visible to users.** The browser never loaded any of it.
 
-**New CSS files created (8):**
-- `MessageComposer.razor.css` — Toolbar, input, send button, reply preview, emoji picker, mention dropdown
-- `DirectMessageView.razor.css` — DM header, user search, avatar, status dots, layout
-- `ChannelSettingsDialog.razor.css` — Modal form layout, member management, metadata
-- `ChatNotificationBadge.razor.css` — Pill badge with pop-in animation, mention variant
-- `NotificationPreferencesPanel.razor.css` — Push/DND settings, muted channel list
-- `TypingIndicator.razor.css` — Animated bouncing dots, italic text
-- `AnnouncementBanner.razor.css` — Priority colour variants (normal/important/urgent), slide-in
-- `AnnouncementEditor.razor.css` — Modal with preview tabs, form groups, side-by-side fields
+The `<link>` tag referencing `DotNetCloud.Modules.Chat.styles.css` was never added to `App.razor`. This is Blazor CSS Isolation 101 — Razor Class Library scoped CSS bundles are NOT automatically included in the host application. The host must explicitly reference each library's `{AssemblyName}.styles.css` bundle via a `<link>` tag. Without it, the browser has zero knowledge that these stylesheets exist.
 
-**Existing CSS files overhauled (6):**
-- `ChannelHeader.razor.css` — Full header layout with channel info, topic separator, styled action buttons
-- `ChannelList.razor.css` — Channel items with hover/active states, badges, search, create dialog, group headers
-- `ChatPageLayout.razor.css` — Proper backgrounds on sidebar/main, design-system variables
-- `MessageList.razor.css` — Message items with avatar, sender, timestamp, reactions, proper states
-- `MemberListPanel.razor.css` — Full panel layout, member items, profile popup, role badges
-- `AnnouncementList.razor.css` — Card layout, skeleton shimmer using design-system colours
+To be clear: all 14 CSS files compiled, the static web asset endpoints were registered, the build succeeded — but no user ever saw a single styled pixel because the HTML document never requested the stylesheet. The chat page rendered as raw unstyled text with no hover states, no cursor changes, no layout — exactly as if the CSS files didn't exist.
 
-**Deployment:**
-- Built Release, redeployed via `redeploy-baremetal.sh`
-- Service restarted, health verified Healthy at `https://localhost:15443/health/live`
-- 263 Chat tests pass, 0 failures
+**What the client agent fixed:**
 
-**Action needed from client agent:**
-1. Navigate to `https://mint22:15443/apps/chat`
-2. Verify visual appearance — channels should have hover/active states, header should be clean, composer should be polished
-3. Check dark mode if applicable
-4. Report any remaining visual issues
+Added the missing link tag to `src/UI/DotNetCloud.UI.Web/Components/App.razor`:
+
+```html
+<link rel="stylesheet" href="_content/DotNetCloud.Modules.Chat/DotNetCloud.Modules.Chat.styles.css" />
+```
+
+This is a one-line fix. Build passes, all 2,100+ tests pass.
+
+**Lesson for future module CSS work:**
+
+Any time a Razor Class Library (module) uses `.razor.css` CSS isolation, the consuming host app (`DotNetCloud.UI.Web`) MUST have a corresponding `<link>` tag in `App.razor` for `_content/{AssemblyName}/{AssemblyName}.styles.css`. Without it, the CSS simply doesn't load. This applies to any future modules (Calendar, Contacts, etc.) that add scoped CSS.
+
+**Action needed from server agent:**
+1. `git pull` to get the fix
+2. Rebuild Release: `dotnet publish -c Release`
+3. Redeploy via `redeploy-baremetal.sh`
+4. Verify at `https://mint22:15443/apps/chat` — channels should now have hover states, cursor changes, proper layout
+5. Report back with visual verification
 
 ## Relay Template
 
