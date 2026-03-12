@@ -71,31 +71,73 @@ Archived context:
 
 ## Active Handoff
 
-### Phase 2 COMPLETE — Ready for Phase 3 Planning
+### BLOCKER: Missing PosixMode Migration on Server DB
 
 **Date:** 2026-03-12
-**Owner:** Client agent (`Windows11-TestDNC`)
-**Status:** COMPLETE ✅
+**Owner:** Server agent (`mint22`)
+**Status:** ACTION REQUIRED
 
-**What was completed (client-side, this session):**
-1. **Notification badges on app icon:** Created `AppBadgeManager` static utility (`src/Clients/DotNetCloud.Client.Android/Services/AppBadgeManager.cs`) with `WithBadgeCount()` extension method that calls `SetNumber()` on `Notification.Builder`. Wired into both `FcmMessagingService` (Google Play) and `UnifiedPushReceiver` (F-Droid) notification builders. Supported launchers (Samsung One UI, Pixel, etc.) display numeric badge count.
-2. **Direct APK download option:** Expanded `docs/clients/android/DISTRIBUTION.md` with GitHub Releases download section, sideloading instructions (checksum verification, enable unknown sources), and enterprise MDM distribution guidance.
-3. **App store listing description:** Added full Google Play listing (title, short description, categorized full description with feature bullets) and F-Droid metadata cross-reference to DISTRIBUTION.md.
-4. Updated `IMPLEMENTATION_CHECKLIST.md` (3 items marked ✓) and `MASTER_PROJECT_PLAN.md` (Phase 2.10 → 8/8 complete).
+**Problem:**
+Client testing of the Web UI at `https://mint22:15443/` immediately fails on page load with:
 
-**Files changed:**
-- `src/Clients/DotNetCloud.Client.Android/Services/AppBadgeManager.cs` (new)
-- `src/Clients/DotNetCloud.Client.Android/Platforms/Android/FcmMessagingService.cs` (added `WithBadgeCount()`)
-- `src/Clients/DotNetCloud.Client.Android/Platforms/Android/UnifiedPushReceiver.cs` (added `WithBadgeCount()`)
-- `docs/clients/android/DISTRIBUTION.md` (expanded Direct APK + App Store Listing sections)
-- `docs/IMPLEMENTATION_CHECKLIST.md` (Phase 2.10 items marked complete)
-- `docs/MASTER_PROJECT_PLAN.md` (Phase 2.10 fully complete)
+```
+Something went wrong
+42703: column f.PosixMode does not exist POSITION: 271
+```
 
-**Test suite:** 2,095 passed / 0 failed / 13 skipped (env-gated). Build: 0 errors.
+The PostgreSQL database on `mint22` is missing the `PosixMode` and `PosixOwnerHint` columns on the `FileNodes`, `FileVersions`, and `UploadSessions` tables. The EF Core migration exists in code (`20260309083622_AddPosixPermissions`) but was never applied to the running database.
 
-**Next action:**
-- All Phase 2 work is complete (Phases 2.1–2.13, all deliverables shipped).
-- Next step: Begin Phase 3 planning, or address any remaining Phase 0/1 gaps if prioritized.
+This was reported as fixed previously but the error is still occurring — possibly the service was restarted but the migration was never applied, or the service is running stale binaries.
+
+**Required fix (server agent):**
+
+1. Pull latest `main`:
+   ```bash
+   cd /path/to/dotnetcloud
+   git pull
+   ```
+
+2. Apply the pending Files module migration:
+   ```bash
+   dotnet ef database update \
+     --project src/Modules/Files/DotNetCloud.Modules.Files.Data \
+     --context FilesDbContext
+   ```
+
+3. Verify the columns exist:
+   ```sql
+   SELECT column_name FROM information_schema.columns 
+   WHERE table_name = 'FileNodes' AND column_name IN ('PosixMode', 'PosixOwnerHint');
+   ```
+   Expected: both columns returned.
+
+4. Restart the server and verify the Web UI loads without error.
+
+5. Also check for any other pending migrations while you're at it:
+   ```bash
+   dotnet ef migrations list \
+     --project src/Modules/Files/DotNetCloud.Modules.Files.Data \
+     --context FilesDbContext
+   ```
+   Verify all migrations show as "applied."
+
+**Migration details:**
+- Migration name: `20260309083622_AddPosixPermissions`
+- File: `src/Modules/Files/DotNetCloud.Modules.Files.Data/Migrations/20260309083622_AddPosixPermissions.cs`
+- Adds: `PosixMode` (int?, nullable) to `FileNodes`, `FileVersions`, `UploadSessions`
+- Adds: `PosixOwnerHint` (varchar(200), nullable) to `FileNodes`, `UploadSessions`
+
+There may also be a second migration to check: `20260309093919_AddSymlinkSupport` — verify that one is applied too.
+
+**Impact:**
+- ALL client testing is blocked (Web UI, Sync App, Android) — every file-related endpoint hits this missing column.
+- No client-side changes needed.
+
+**Request back:**
+- Confirmation that migrations were applied
+- Output of the `information_schema` column check
+- Confirmation Web UI loads without error
+- Commit hash if any changes were made
 
 ## Relay Template
 
