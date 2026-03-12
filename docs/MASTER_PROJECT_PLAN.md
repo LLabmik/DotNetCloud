@@ -65,7 +65,7 @@
 | Phase 2.7 | 4 | 4 | 0 | 0 |
 | Phase 2.8 | 11 | 11 | 0 | 0 |
 | Phase 2.9 | 3 | 3 | 0 | 0 |
-| Phase 2.10 | 8 | 6 | 0 | 2 |
+| Phase 2.10 | 8 | 8 | 0 | 0 |
 | Phase 2.11 | 3 | 3 | 0 | 0 |
 | Phase 2.12 | 2 | 2 | 0 | 0 |
 | Phase 2.13 | 3 | 3 | 0 | 0 |
@@ -3434,12 +3434,13 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Offline: SqliteMessageCache (read), IPendingMessageQueue + SqlitePendingMessageQueue (write), flush queue on SignalR reconnect
 - ✓ Photo auto-upload: IPhotoAutoUploadService + PhotoAutoUploadService; MediaStore query, 4 MB chunked upload, WiFi-only + enabled preference, progress notification
 - ✓ Distribution signing: Release PropertyGroup with AndroidKeyStore/KEYSTORE_* env vars, AndroidUseAapt2=true for F-Droid reproducibility
-- ☐ Direct APK download option (documentation only — no code required)
-- ☐ App store listing description
+- ✓ Notification badges on app icon: AppBadgeManager with SetNumber() on notification builders (FCM + UnifiedPush)
+- ✓ Direct APK download option: documented in docs/clients/android/DISTRIBUTION.md (GitHub Releases, sideloading steps, enterprise MDM)
+- ✓ App store listing description: Google Play full listing + F-Droid metadata in DISTRIBUTION.md
 
 **Dependencies:** phase-2.5, phase-2.7
 **Blocking Issues:** None
-**Notes:** Core implementation complete. All major feature areas shipped: auth (PKCE+Keystore), real-time chat (SignalR + FCM/UP push), offline queue (SQLite), photo upload (MediaStore → chunked API), and distribution signing config. Remaining items are non-code deliverables (app store listing, APK download page). Badge count on app launcher icon requires Android Launcher integration (future task). All services registered in MauiProgram.cs via `AddSingleton`/`AddTransient`/`AddHttpClient`.
+**Notes:** Phase 2.10 fully complete. All deliverables shipped: auth (PKCE+Keystore), real-time chat (SignalR + FCM/UP push), offline queue (SQLite), photo upload (MediaStore → chunked API), distribution signing, notification badges (AppBadgeManager → SetNumber on notification builders), direct APK download docs, and app store listing. All services registered in MauiProgram.cs via `AddSingleton`/`AddTransient`/`AddHttpClient`.
 
 ---
 

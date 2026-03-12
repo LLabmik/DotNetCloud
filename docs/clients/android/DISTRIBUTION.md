@@ -205,26 +205,61 @@ For private/enterprise distribution, host your own F-Droid repo:
 
 ## Direct APK Distribution
 
-For organizations that sideload or use MDM (Mobile Device Management):
+For users who prefer sideloading or organizations using MDM (Mobile Device Management).
 
-1. **Build the release APK:**
+### Download from GitHub Releases
+
+Each tagged release on [GitHub](https://github.com/LLabmik/DotNetCloud/releases) includes signed APK artifacts:
+
+| File | Description |
+|---|---|
+| `DotNetCloud-v{version}-googleplay.apk` | Google Play flavor (includes FCM) |
+| `DotNetCloud-v{version}-fdroid.apk` | F-Droid flavor (UnifiedPush, no proprietary deps) |
+| `checksums-sha256.txt` | SHA-256 checksums for verification |
+
+### Installing a Direct APK
+
+1. **Download** the APK from GitHub Releases.
+2. **Verify the checksum** (recommended):
    ```powershell
-   dotnet publish src/Clients/DotNetCloud.Client.Android/DotNetCloud.Client.Android.csproj `
-     -c Release -f net10.0-android `
-     -p:AndroidPackageFormat=apk
+   # Windows
+   Get-FileHash -Algorithm SHA256 "DotNetCloud-v0.1.0-alpha-googleplay.apk" | Format-List
    ```
-
-2. **Generate SHA-256 checksum:**
-   ```powershell
-   Get-FileHash -Algorithm SHA256 "artifacts/publish/*.apk" | Format-List
+   ```bash
+   # Linux / macOS
+   sha256sum DotNetCloud-v0.1.0-alpha-googleplay.apk
    ```
+   Compare the output with the value in `checksums-sha256.txt`.
+3. **Enable sideloading** on the Android device:
+   - Go to **Settings → Apps → Special app access → Install unknown apps**.
+   - Allow the browser or file manager you used to download the APK.
+4. **Open the APK** on the device and tap **Install**.
+5. After installation, launch DotNetCloud and sign in to your server.
 
-3. **Distribute:**
-   - Host on an internal download page with the checksum.
-   - Users enable "Install from unknown sources" on their device.
-   - Provide install instructions.
+### Building a Direct APK Locally
 
-> **Security:** Always distribute with a checksum and over HTTPS. Consider signing with a well-known key for enterprise MDM scenarios.
+```powershell
+dotnet publish src\Clients\DotNetCloud.Client.Android\DotNetCloud.Client.Android.csproj `
+  -c Release -f net10.0-android `
+  -p:AndroidPackageFormat=apk
+```
+
+### Generating Checksums
+
+```powershell
+Get-FileHash -Algorithm SHA256 "artifacts\publish\*.apk" | Format-List
+```
+
+### Enterprise / MDM Distribution
+
+For organizations managing devices via MDM (Intune, Workspace ONE, etc.):
+
+- Host the signed APK on an internal server over HTTPS.
+- Provide the SHA-256 checksum alongside the APK.
+- Push the APK to managed devices via your MDM solution.
+- Auto-update by publishing new APK versions to the same endpoint.
+
+> **Security:** Always distribute over HTTPS with checksum verification. Never host unsigned APKs on public endpoints.
 
 ---
 
@@ -281,3 +316,50 @@ Before each release:
 - Tag the release commit: `git tag v0.1.0-alpha`
 - Build both flavors and verify signing
 - Generate checksums for direct APK distribution
+
+---
+
+## App Store Listing
+
+### Google Play
+
+| Field | Value |
+|---|---|
+| **Title** | DotNetCloud |
+| **Short description** | Self-hosted cloud — chat, files, and sync. Own your data. |
+| **Category** | Communication |
+| **Content rating** | Everyone |
+| **Pricing** | Free |
+
+**Full description:**
+
+```
+DotNetCloud is your self-hosted cloud platform — a privacy-focused, open-source alternative for chat, file synchronization, and collaboration that keeps you in control of your data.
+
+✦ Real-Time Chat
+Channels, direct messages, threads, emoji reactions, @mentions, and announcements — all delivered instantly via a persistent connection.
+
+✦ File Sync
+Automatic photo upload from your camera roll, with chunked uploads for large files and WiFi-only mode to save mobile data.
+
+✦ Privacy First
+Connect to your own DotNetCloud server. Your messages and files never touch third-party infrastructure. End-to-end encryption roadmap planned.
+
+✦ Multiple Servers
+Connect to more than one DotNetCloud instance and switch between them seamlessly — ideal for separating work and personal accounts.
+
+✦ Offline Support
+Read cached messages and queue outgoing messages while offline. Everything syncs automatically when you reconnect.
+
+✦ Push Notifications
+Stay up to date with instant push alerts for new messages, @mentions, and server announcements.
+
+✦ Open Source
+Licensed under AGPL-3.0. Inspect, modify, and contribute at https://github.com/LLabmik/DotNetCloud
+
+Requires a DotNetCloud server (self-hosted). See the project README for server setup instructions.
+```
+
+### F-Droid
+
+See the F-Droid metadata YAML in the **F-Droid Distribution** section above. The F-Droid listing description emphasizes the absence of proprietary dependencies and UnifiedPush support.

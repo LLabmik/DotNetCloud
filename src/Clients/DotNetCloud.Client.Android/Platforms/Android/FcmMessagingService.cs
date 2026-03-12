@@ -6,6 +6,7 @@ using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Services;
 using Firebase.Messaging;
 using Microsoft.Extensions.Logging;
+using static DotNetCloud.Client.Android.Services.AppBadgeManager;
 
 namespace DotNetCloud.Client.Android;
 
@@ -125,6 +126,7 @@ public sealed class FcmMessagingService : FirebaseMessagingService
             .SetContentIntent(pendingIntent)
             .SetAutoCancel(true)
             .SetGroup($"dnc_chat_{channelId}")
+            .WithBadgeCount(this)
             .Build();
 
         var nm = (NotificationManager?)GetSystemService(NotificationService);

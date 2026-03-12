@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.DependencyInjection;
 using DotNetCloud.Client.Android.Services;
 using Microsoft.Extensions.Logging;
 using UnifiedPush;
+using static DotNetCloud.Client.Android.Services.AppBadgeManager;
 
 namespace DotNetCloud.Client.Android;
 
@@ -160,6 +161,7 @@ public sealed class UnifiedPushReceiver : UnifiedPush.MessagingReceiver
             .SetSmallIcon(iconRes)
             .SetContentIntent(pendingIntent)
             .SetAutoCancel(true)
+            .WithBadgeCount(context)
             .Build();
 
         var nm = (NotificationManager?)context.GetSystemService(Context.NotificationService);

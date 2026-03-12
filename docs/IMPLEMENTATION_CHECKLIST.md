@@ -3300,7 +3300,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Integrate UnifiedPush for `fdroid` flavor
 - ✓ Create notification channels (Chat, Mentions, Announcements)
 - ✓ Implement notification tap handlers (open specific chat)
-- ☐ Display notification badges on app icon
+- ✓ Display notification badges on app icon
 
 #### Offline Support
 - ✓ Cache recent messages locally (SQLite or LiteDB)
@@ -3317,8 +3317,8 @@ This phase implements real-time chat, announcements, push notifications, and the
 #### Android Distribution
 - ✓ Configure Google Play Store build (signed APK/AAB)
 - ✓ Configure F-Droid build (reproducible, no proprietary deps)
-- ☐ Create direct APK download option
-- ☐ Write app store listing description
+- ✓ Create direct APK download option
+- ✓ Write app store listing description
 
 ---
 

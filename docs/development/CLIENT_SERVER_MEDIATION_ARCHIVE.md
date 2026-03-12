@@ -1711,6 +1711,32 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 **Server constraints for client implementation:**
 - Server push infrastructure phase is complete (Phase 2.7, including queue/retry/options models).
 - Do not change server push provider contracts unless a client blocker is confirmed.
+
+---
+
+## Migration Fix + Integration Test Fixes Archive (2026-03-12)
+
+**Server agent (mint22), commit `3a2c0ac`:**
+1. Applied `20260309093919_AddSymlinkSupport` migration — added `LinkTarget` column to `FileNodes` on mint22 PostgreSQL.
+2. Rebuilt and redeployed server (Release publish → `dotnetcloud.service` restart).
+3. Verified Files UI at `https://mint22:15443/apps/files` loads without `42703` errors.
+4. Fixed 11 integration test failures from commit `49bdaa6`:
+   - SignalR auth: added `TestAuthHandler` with `ForwardDefaultSelector` for scheme-specific `[Authorize]`.
+   - SignalR method signatures: corrected arg count and enum casing.
+   - File sync routes: fixed paths and removed stale `?userId=` params.
+   - EF dual-provider conflict: changed `AddDbContext` to singleton options registration.
+5. Test suite: 2,106 passed / 0 failed / 2 skipped (env-gated).
+
+---
+
+## Phase 2.10 Final Items Archive (2026-03-12)
+
+**Client agent (Windows11-TestDNC):**
+1. Notification badges on app icon: Created `AppBadgeManager` static utility with `WithBadgeCount()` extension method. Wired into both `FcmMessagingService.ShowChatNotification()` (Google Play) and `UnifiedPushReceiver.ShowNotification()` (F-Droid). Uses `SetNumber()` on `Notification.Builder` for launcher numeric badge support.
+2. Direct APK download option: Expanded `docs/clients/android/DISTRIBUTION.md` with GitHub Releases download section, sideloading instructions, checksum verification, and enterprise MDM distribution guidance.
+3. App store listing description: Added full Google Play listing (title, short description, full description with feature bullets) and F-Droid metadata reference to DISTRIBUTION.md.
+4. All Phase 2.10 items now complete (8/8). Phase 2 fully closed.
+5. Test suite: 2,095 passed / 0 failed / 13 skipped (env-gated).
 - Treat server APIs as stable for this sprint; any suspected server gap must include endpoint, payload, and raw error evidence before requesting server changes.
 
 **Send to client agent (copy/paste block):**

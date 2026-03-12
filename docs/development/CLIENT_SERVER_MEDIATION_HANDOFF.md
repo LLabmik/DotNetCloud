@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-12 (migration fix + integration test fixes on mint22)
+Last updated: 2026-03-12 (Phase 2.10 fully closed — all client items complete)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -51,7 +51,9 @@ Archived context:
 - Phase 2.13 Documentation: complete.
 - Urgent migration fix (AddSymlinkSupport/LinkTarget column): complete (2026-03-12).
 - Integration test fixes (11 failures → 0): complete (2026-03-12).
-- Full test suite: 2,106 passed / 0 failed / 2 skipped (env-gated).
+- Phase 2.10 final items (badges, APK download docs, app store listing): complete (2026-03-12).
+- **All Phase 2 work is now complete.**
+- Full test suite: 2,095 passed / 0 failed / 13 skipped (env-gated).
 
 ## Environment
 
@@ -69,29 +71,31 @@ Archived context:
 
 ## Active Handoff
 
-### Migration + Integration Test Fixes COMPLETE — Ready for Next Phase
+### Phase 2 COMPLETE — Ready for Phase 3 Planning
 
 **Date:** 2026-03-12
-**Owner:** Server agent (`mint22`)
+**Owner:** Client agent (`Windows11-TestDNC`)
 **Status:** COMPLETE ✅
 
-**What was completed:**
-1. Applied `20260309093919_AddSymlinkSupport` migration — added `LinkTarget` column to `FileNodes` on mint22 PostgreSQL.
-2. Rebuilt and redeployed server (Release publish → `dotnetcloud.service` restart).
-3. Verified Files UI at `https://mint22:15443/apps/files` loads without `42703` errors.
-4. Fixed 11 integration test failures from commit `49bdaa6`:
-   - SignalR auth: added `TestAuthHandler` with `ForwardDefaultSelector` for scheme-specific `[Authorize]`.
-   - SignalR method signatures: corrected arg count and enum casing.
-   - File sync routes: fixed paths and removed stale `?userId=` params.
-   - EF dual-provider conflict: changed `AddDbContext` to singleton options registration.
+**What was completed (client-side, this session):**
+1. **Notification badges on app icon:** Created `AppBadgeManager` static utility (`src/Clients/DotNetCloud.Client.Android/Services/AppBadgeManager.cs`) with `WithBadgeCount()` extension method that calls `SetNumber()` on `Notification.Builder`. Wired into both `FcmMessagingService` (Google Play) and `UnifiedPushReceiver` (F-Droid) notification builders. Supported launchers (Samsung One UI, Pixel, etc.) display numeric badge count.
+2. **Direct APK download option:** Expanded `docs/clients/android/DISTRIBUTION.md` with GitHub Releases download section, sideloading instructions (checksum verification, enable unknown sources), and enterprise MDM distribution guidance.
+3. **App store listing description:** Added full Google Play listing (title, short description, categorized full description with feature bullets) and F-Droid metadata cross-reference to DISTRIBUTION.md.
+4. Updated `IMPLEMENTATION_CHECKLIST.md` (3 items marked ✓) and `MASTER_PROJECT_PLAN.md` (Phase 2.10 → 8/8 complete).
 
-**Test suite:** 2,106 passed / 0 failed / 2 skipped (env-gated).
+**Files changed:**
+- `src/Clients/DotNetCloud.Client.Android/Services/AppBadgeManager.cs` (new)
+- `src/Clients/DotNetCloud.Client.Android/Platforms/Android/FcmMessagingService.cs` (added `WithBadgeCount()`)
+- `src/Clients/DotNetCloud.Client.Android/Platforms/Android/UnifiedPushReceiver.cs` (added `WithBadgeCount()`)
+- `docs/clients/android/DISTRIBUTION.md` (expanded Direct APK + App Store Listing sections)
+- `docs/IMPLEMENTATION_CHECKLIST.md` (Phase 2.10 items marked complete)
+- `docs/MASTER_PROJECT_PLAN.md` (Phase 2.10 fully complete)
+
+**Test suite:** 2,095 passed / 0 failed / 13 skipped (env-gated). Build: 0 errors.
 
 **Next action:**
-- All Phase 2 work is complete except Phase 2.10 (2 pending items — client-side, Windows machine).
-- Server-side work is caught up. Next steps:
-  - Phase 2.10 remaining items (client-side, Windows11-TestDNC agent).
-  - Or begin Phase 3 planning if Phase 2 gaps are deferred.
+- All Phase 2 work is complete (Phases 2.1–2.13, all deliverables shipped).
+- Next step: Begin Phase 3 planning, or address any remaining Phase 0/1 gaps if prioritized.
 
 ## Relay Template
 
