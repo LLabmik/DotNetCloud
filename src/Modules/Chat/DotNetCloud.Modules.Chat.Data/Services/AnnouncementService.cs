@@ -95,6 +95,9 @@ internal sealed class AnnouncementService : IAnnouncementService
         var announcement = await _db.Announcements.FindAsync([id], cancellationToken)
             ?? throw new InvalidOperationException($"Announcement {id} not found.");
 
+        if (caller.Type != CallerType.System && announcement.AuthorUserId != caller.UserId)
+            throw new UnauthorizedAccessException($"Only the author can update announcement {id}.");
+
         if (dto.Title is not null) announcement.Title = dto.Title;
         if (dto.Content is not null) announcement.Content = dto.Content;
         if (dto.Priority is not null && Enum.TryParse<AnnouncementPriority>(dto.Priority, ignoreCase: true, out var p))
@@ -110,6 +113,9 @@ internal sealed class AnnouncementService : IAnnouncementService
     {
         var announcement = await _db.Announcements.FindAsync([id], cancellationToken)
             ?? throw new InvalidOperationException($"Announcement {id} not found.");
+
+        if (caller.Type != CallerType.System && announcement.AuthorUserId != caller.UserId)
+            throw new UnauthorizedAccessException($"Only the author can delete announcement {id}.");
 
         announcement.IsDeleted = true;
         announcement.DeletedAt = DateTime.UtcNow;

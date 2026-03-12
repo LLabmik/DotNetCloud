@@ -27,6 +27,7 @@
         }
 
         <ChannelHeader Channel="@_selectedChannel"
+                       IsAdminOrOwner="@_currentUserIsAdminOrOwner"
                        OnPinChanged="@HandlePinChanged"
                        OnEditChannel="@HandleEditChannel"
                        OnArchiveChannel="@HandleArchiveChannel"
@@ -100,7 +101,7 @@
             @if (_showMemberPanel)
             {
                 <MemberListPanel Members="@_members"
-                                 CanManageMembers="true"
+                                 CanManageMembers="@_currentUserIsAdminOrOwner"
                                  OnClose="@HandleCloseMemberPanel"
                                  OnPromoteMember="@HandlePromoteMember"
                                  OnDemoteMember="@HandleDemoteMember"
@@ -115,6 +116,7 @@
     <ChannelSettingsDialog IsVisible="@_showSettingsDialog"
                            Channel="@_selectedChannel"
                            Members="@_members"
+                           CanManageChannel="@_currentUserIsAdminOrOwner"
                            OnSave="@HandleSaveChannelSettings"
                            OnNotificationPrefChanged="@HandleNotificationPrefChanged"
                            OnArchive="@(() => HandleArchiveChannel(_selectedChannel))"

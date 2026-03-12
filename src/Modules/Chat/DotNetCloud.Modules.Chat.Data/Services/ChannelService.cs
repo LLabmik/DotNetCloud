@@ -119,6 +119,16 @@ internal sealed class ChannelService : IChannelService
         if (channel is null)
             return null;
 
+        // Non-public channels require membership to view
+        if (channel.Type != ChannelType.Public && caller.Type != CallerType.System)
+        {
+            var isMember = await _db.ChannelMembers
+                .AnyAsync(m => m.ChannelId == channelId && m.UserId == caller.UserId, cancellationToken);
+
+            if (!isMember)
+                return null;
+        }
+
         var memberCount = await _db.ChannelMembers.CountAsync(m => m.ChannelId == channelId, cancellationToken);
         return ToChannelDto(channel, memberCount);
     }

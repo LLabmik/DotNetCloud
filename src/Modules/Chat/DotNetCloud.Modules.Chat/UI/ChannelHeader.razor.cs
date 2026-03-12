@@ -11,6 +11,10 @@ public partial class ChannelHeader : ComponentBase
     [Parameter]
     public ChannelViewModel? Channel { get; set; }
 
+    /// <summary>Whether the current user is an admin or owner of this channel.</summary>
+    [Parameter]
+    public bool IsAdminOrOwner { get; set; }
+
     /// <summary>Callback to toggle the member list panel.</summary>
     [Parameter]
     public EventCallback OnToggleMemberList { get; set; }

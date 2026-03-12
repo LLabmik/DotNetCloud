@@ -17,17 +17,17 @@
             <div class="dialog-body">
                 <div class="settings-section">
                     <label>Channel Name</label>
-                    <input type="text" @bind="EditName" />
+                    <input type="text" @bind="EditName" disabled="@(!CanManageChannel)" />
                 </div>
 
                 <div class="settings-section">
                     <label>Topic</label>
-                    <input type="text" @bind="EditTopic" placeholder="Set a topic" />
+                    <input type="text" @bind="EditTopic" placeholder="Set a topic" disabled="@(!CanManageChannel)" />
                 </div>
 
                 <div class="settings-section">
                     <label>Description</label>
-                    <textarea @bind="EditDescription" rows="3" placeholder="Describe this channel"></textarea>
+                    <textarea @bind="EditDescription" rows="3" placeholder="Describe this channel" disabled="@(!CanManageChannel)"></textarea>
                 </div>
 
                 <div class="settings-section">
@@ -46,23 +46,33 @@
                         {
                             <div class="member-row">
                                 <span>@member.DisplayName</span>
-                                <select value="@member.Role" @onchange="(e) => ChangeMemberRole(member.UserId, e.Value?.ToString())">
-                                    <option value="Owner">Owner</option>
-                                    <option value="Admin">Admin</option>
-                                    <option value="Member">Member</option>
-                                </select>
-                                @if (member.Role != "Owner")
+                                @if (CanManageChannel)
                                 {
-                                    <button class="btn btn-sm btn-danger" @onclick="() => RemoveMember(member.UserId)">Remove</button>
+                                    <select value="@member.Role" @onchange="(e) => ChangeMemberRole(member.UserId, e.Value?.ToString())">
+                                        <option value="Owner">Owner</option>
+                                        <option value="Admin">Admin</option>
+                                        <option value="Member">Member</option>
+                                    </select>
+                                    @if (member.Role != "Owner")
+                                    {
+                                        <button class="btn btn-sm btn-danger" @onclick="() => RemoveMember(member.UserId)">Remove</button>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="member-role-label">@member.Role</span>
                                 }
                             </div>
                         }
                     </div>
 
-                    <div class="add-member-row">
-                        <input type="text" @bind="NewMemberIdInput" placeholder="User ID to add" />
-                        <button class="btn btn-sm" @onclick="AddMember">Add Member</button>
-                    </div>
+                    @if (CanManageChannel)
+                    {
+                        <div class="add-member-row">
+                            <input type="text" @bind="NewMemberIdInput" placeholder="User ID to add" />
+                            <button class="btn btn-sm" @onclick="AddMember">Add Member</button>
+                        </div>
+                    }
                 </div>
 
                 <div class="settings-section channel-metadata">
@@ -72,9 +82,12 @@
                 </div>
 
                 <div class="settings-actions">
-                    <button class="btn btn-primary" @onclick="SaveChanges">Save</button>
-                    <button class="btn btn-warning" @onclick="ArchiveChannel">Archive</button>
-                    <button class="btn btn-danger" @onclick="DeleteChannel">Delete</button>
+                    @if (CanManageChannel)
+                    {
+                        <button class="btn btn-primary" @onclick="SaveChanges">Save</button>
+                        <button class="btn btn-warning" @onclick="ArchiveChannel">Archive</button>
+                        <button class="btn btn-danger" @onclick="DeleteChannel">Delete</button>
+                    }
                 </div>
             </div>
         </div>

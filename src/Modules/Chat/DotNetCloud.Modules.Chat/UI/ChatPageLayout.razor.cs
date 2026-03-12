@@ -73,6 +73,8 @@ public partial class ChatPageLayout : ComponentBase
 
     // User state
     private Guid _currentUserId;
+    private string _currentUserRole = "Member";
+    private bool _currentUserIsAdminOrOwner;
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
@@ -511,11 +513,18 @@ public partial class ChatPageLayout : ComponentBase
             var members = await MemberService.ListMembersAsync(channelId, caller);
             _members = members.Select(ToMemberViewModel).ToList();
             _memberSuggestions = _members;
+
+            // Derive the current user's role in this channel
+            var currentMember = members.FirstOrDefault(m => m.UserId == _currentUserId);
+            _currentUserRole = currentMember?.Role ?? "Member";
+            _currentUserIsAdminOrOwner = _currentUserRole is "Owner" or "Admin";
         }
         catch
         {
             // Non-critical: member list is a nice-to-have
             _members = [];
+            _currentUserRole = "Member";
+            _currentUserIsAdminOrOwner = false;
         }
     }
 

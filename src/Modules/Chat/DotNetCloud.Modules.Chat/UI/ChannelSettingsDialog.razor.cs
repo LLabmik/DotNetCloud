@@ -46,6 +46,10 @@ public partial class ChannelSettingsDialog : ComponentBase
     [Parameter]
     public List<MemberViewModel> Members { get; set; } = [];
 
+    /// <summary>Whether the current user can manage channel settings (Admin or Owner).</summary>
+    [Parameter]
+    public bool CanManageChannel { get; set; }
+
     /// <summary>Callback to add a member by user id.</summary>
     [Parameter]
     public EventCallback<Guid> OnAddMember { get; set; }

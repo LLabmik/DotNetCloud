@@ -22,12 +22,15 @@
             <button class="btn btn-sm" @onclick="OnTogglePinClick" title="@(Channel.IsPinned ? "Unpin this channel from the top of the sidebar" : "Pin this channel to the top of the sidebar")">
                 @(Channel.IsPinned ? "📌 Unpin" : "📌 Pin")
             </button>
-            <button class="btn btn-sm" @onclick="OnArchiveClick" title="Archive this channel — hides it from the sidebar (can be restored later)">
-                🗄️ Archive
-            </button>
-            <button class="btn btn-sm" @onclick="OnEditClick" title="Edit channel name, topic, and settings">
-                ✏️ Edit
-            </button>
+            @if (IsAdminOrOwner)
+            {
+                <button class="btn btn-sm" @onclick="OnArchiveClick" title="Archive this channel — hides it from the sidebar (can be restored later)">
+                    🗄️ Archive
+                </button>
+                <button class="btn btn-sm" @onclick="OnEditClick" title="Edit channel name, topic, and settings">
+                    ✏️ Edit
+                </button>
+            }
             <button class="btn btn-sm" @onclick="OnSearchClick" title="Search messages in this channel">
                 🔍
             </button>
