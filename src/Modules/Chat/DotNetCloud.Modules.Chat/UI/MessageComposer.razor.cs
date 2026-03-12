@@ -1,26 +1,26 @@
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 
 namespace DotNetCloud.Modules.Chat.UI;
 
 /// <summary>
-/// Code-behind for the message composer component.
-/// Handles message input, send, reply-to, emoji, and attachments.
+/// Code-behind for the WYSIWYG message composer component.
+/// Handles rich-text input, Markdown conversion, send, reply-to, emoji, and attachments.
 /// </summary>
 public partial class MessageComposer : ComponentBase, IAsyncDisposable
 {
     private const int MaxMentionSuggestions = 6;
 
-    private readonly string _textareaElementId = $"composer-textarea-{Guid.NewGuid():N}";
+    private readonly string _editorElementId = $"wysiwyg-editor-{Guid.NewGuid():N}";
 
-    private string _messageText = string.Empty;
+    private string _plainText = string.Empty;
+    private bool _isEmpty = true;
     private bool _isShowEmojiPicker;
     private int _activeMentionStartIndex = -1;
     private int _activeMentionQueryLength = -1;
     private List<MemberViewModel> _visibleMentionSuggestions = [];
     private DotNetObjectReference<MessageComposer>? _dotNetRef;
-    private bool _isPasteHandlerRegistered;
+    private bool _isInitialized;
     private Guid _lastEditingMessageId;
 
     [Inject]
@@ -77,29 +77,17 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
         "✅", "❌", "⭐", "🚀", "💡", "📎", "🙏", "👏"
     ];
 
-    /// <summary>Gets or sets the message text.</summary>
-    protected string MessageText
-    {
-        get => _messageText;
-        set
-        {
-            _messageText = value;
-            UpdateMentionAutocomplete();
-            _ = NotifyTyping();
-        }
-    }
+    /// <summary>The unique editor element ID used for JS interop.</summary>
+    protected string EditorElementId => _editorElementId;
 
     /// <summary>Whether the send button should be disabled.</summary>
-    protected bool IsSendDisabled => string.IsNullOrWhiteSpace(_messageText);
+    protected bool IsSendDisabled => _isEmpty;
 
     /// <summary>Whether the composer is in edit mode.</summary>
     protected bool IsEditMode => EditingMessage is not null;
 
     /// <summary>Whether the emoji picker is visible.</summary>
     protected bool IsShowEmojiPicker => _isShowEmojiPicker;
-
-    /// <summary>The unique textarea element ID used for JS interop.</summary>
-    protected string TextareaElementId => _textareaElementId;
 
     /// <summary>Whether the mention dropdown is visible.</summary>
     protected bool IsMentionDropdownVisible => _activeMentionStartIndex >= 0 && _visibleMentionSuggestions.Count > 0;
@@ -108,45 +96,110 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
     protected IReadOnlyList<MemberViewModel> VisibleMentionSuggestions => _visibleMentionSuggestions;
 
     /// <inheritdoc />
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
-        // When entering edit mode, populate textarea with the message content
         if (EditingMessage is not null && _lastEditingMessageId != EditingMessage.Id)
         {
             _lastEditingMessageId = EditingMessage.Id;
-            _messageText = EditingMessage.Content;
+            if (_isInitialized)
+            {
+                await JS.InvokeVoidAsync("wysiwygEditor.setContent", _editorElementId, EditingMessage.Content);
+            }
         }
         else if (EditingMessage is null && _lastEditingMessageId != Guid.Empty)
         {
             _lastEditingMessageId = Guid.Empty;
         }
-
-        UpdateMentionAutocomplete();
     }
 
     /// <inheritdoc />
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || _isPasteHandlerRegistered)
+        if (!firstRender || _isInitialized)
         {
             return;
         }
 
         _dotNetRef = DotNetObjectReference.Create(this);
-        await JS.InvokeVoidAsync("composerToolbar.registerPasteImageHandler", _textareaElementId, _dotNetRef);
-        _isPasteHandlerRegistered = true;
+        await JS.InvokeVoidAsync("wysiwygEditor.init", _editorElementId, _dotNetRef);
+        _isInitialized = true;
+
+        // If edit mode was set before initialisation completed
+        if (EditingMessage is not null && _lastEditingMessageId == EditingMessage.Id)
+        {
+            await JS.InvokeVoidAsync("wysiwygEditor.setContent", _editorElementId, EditingMessage.Content);
+        }
+    }
+
+    /// <summary>Called from JS when the editor content changes.</summary>
+    [JSInvokable]
+    public void HandleContentChanged(string plainText, bool isEmpty)
+    {
+        _plainText = plainText;
+        _isEmpty = isEmpty;
+        UpdateMentionAutocomplete();
+
+        try
+        {
+            _ = InvokeAsync(StateHasChanged);
+        }
+        catch (InvalidOperationException)
+        {
+            // Render handle not assigned (unit test environment); safe to ignore.
+        }
+
+        _ = NotifyTyping();
+    }
+
+    /// <summary>Called from JS when Enter is pressed (send).</summary>
+    [JSInvokable]
+    public async Task HandleEnterKey()
+    {
+        await SendMessage();
+    }
+
+    /// <summary>Called from JS when Escape is pressed.</summary>
+    [JSInvokable]
+    public async Task HandleEscapeKey()
+    {
+        if (IsMentionDropdownVisible)
+        {
+            ClearMentionAutocomplete();
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        if (IsEditMode)
+        {
+            await CancelEdit();
+        }
+    }
+
+    /// <summary>JS callback invoked when an image is pasted.</summary>
+    [JSInvokable]
+    public async Task HandlePastedImageFromJs(string fileName, string contentType, string dataUrl, long sizeBytes)
+    {
+        await ProcessPastedImageAsync(fileName, contentType, dataUrl, sizeBytes);
+    }
+
+    /// <summary>Applies a WYSIWYG format command via JS interop.</summary>
+    protected async Task FormatAsync(string command)
+    {
+        await JS.InvokeVoidAsync("wysiwygEditor.format", _editorElementId, command);
     }
 
     /// <summary>Sends the current message or submits an edit.</summary>
     protected async Task SendMessage()
     {
-        if (string.IsNullOrWhiteSpace(_messageText))
+        var content = await JS.InvokeAsync<string>("wysiwygEditor.getMarkdown", _editorElementId);
+        if (string.IsNullOrWhiteSpace(content))
         {
             return;
         }
 
-        var content = _messageText.Trim();
-        _messageText = string.Empty;
+        await JS.InvokeVoidAsync("wysiwygEditor.clear", _editorElementId);
+        _plainText = string.Empty;
+        _isEmpty = true;
         _isShowEmojiPicker = false;
         ClearMentionAutocomplete();
 
@@ -161,30 +214,6 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
         }
     }
 
-    /// <summary>Handles keyboard events for Enter-to-send.</summary>
-    protected async Task HandleKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Escape")
-        {
-            if (IsMentionDropdownVisible)
-            {
-                ClearMentionAutocomplete();
-                return;
-            }
-
-            if (IsEditMode)
-            {
-                await CancelEdit();
-                return;
-            }
-        }
-
-        if (e.Key == "Enter" && !e.ShiftKey)
-        {
-            await SendMessage();
-        }
-    }
-
     /// <summary>Cancels the reply-to preview.</summary>
     protected async Task CancelReply()
     {
@@ -194,7 +223,9 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
     /// <summary>Cancels edit mode.</summary>
     protected async Task CancelEdit()
     {
-        _messageText = string.Empty;
+        await JS.InvokeVoidAsync("wysiwygEditor.clear", _editorElementId);
+        _plainText = string.Empty;
+        _isEmpty = true;
         _lastEditingMessageId = Guid.Empty;
         await OnCancelEdit.InvokeAsync();
     }
@@ -205,27 +236,14 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
         _isShowEmojiPicker = !_isShowEmojiPicker;
     }
 
-    /// <summary>Inserts an emoji into the message text.</summary>
-    protected void InsertEmoji(string emoji)
+    /// <summary>Inserts an emoji at the cursor via JS interop.</summary>
+    protected async Task InsertEmoji(string emoji)
     {
-        _messageText += emoji;
+        await JS.InvokeVoidAsync("wysiwygEditor.insertText", _editorElementId, emoji);
         _isShowEmojiPicker = false;
-        UpdateMentionAutocomplete();
     }
 
-    /// <summary>Wraps the textarea selection with Markdown prefix/suffix via JS interop.</summary>
-    protected async Task ApplyFormatAsync(string prefix, string suffix)
-    {
-        var newValue = await JS.InvokeAsync<string>(
-            "composerToolbar.wrapSelection",
-            _textareaElementId, prefix, suffix);
-
-        // Keep the C# model in sync with what JS wrote into the DOM.
-        _messageText = newValue;
-        UpdateMentionAutocomplete();
-    }
-
-    /// <summary>Inserts the selected mention into the message text.</summary>
+    /// <summary>Inserts a mention via JS interop.</summary>
     protected async Task SelectMentionAsync(MemberViewModel member)
     {
         if (_activeMentionStartIndex < 0)
@@ -234,16 +252,8 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
         }
 
         var replacement = GetMentionLabel(member);
-        var mentionTokenLength = _activeMentionQueryLength + 1;
-        var prefix = _messageText[.._activeMentionStartIndex];
-        var suffixStart = _activeMentionStartIndex + mentionTokenLength;
-        var suffix = suffixStart < _messageText.Length ? _messageText[suffixStart..] : string.Empty;
-        var spacer = suffix.Length > 0 && char.IsWhiteSpace(suffix[0]) ? string.Empty : " ";
-
-        _messageText = string.Concat(prefix, replacement, spacer, suffix);
+        await JS.InvokeVoidAsync("wysiwygEditor.insertMention", _editorElementId, replacement, _activeMentionQueryLength);
         ClearMentionAutocomplete();
-
-        await NotifyTyping();
     }
 
     /// <summary>Handles the attach button click.</summary>
@@ -252,27 +262,18 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
         await OnAttach.InvokeAsync();
     }
 
-    /// <summary>
-    /// JS callback invoked when an image is pasted into the composer textarea.
-    /// </summary>
-    [JSInvokable]
-    public async Task HandlePastedImageFromJs(string fileName, string contentType, string dataUrl, long sizeBytes)
+    /// <summary>Gets placeholder text for the editor.</summary>
+    protected string GetPlaceholder()
     {
-        await ProcessPastedImageAsync(fileName, contentType, dataUrl, sizeBytes);
+        return string.IsNullOrEmpty(ChannelName)
+            ? "Type a message..."
+            : $"Message #{ChannelName}";
     }
 
     /// <summary>Notifies that the user is typing.</summary>
     private async Task NotifyTyping()
     {
         await OnTyping.InvokeAsync();
-    }
-
-    /// <summary>Gets placeholder text for the input area.</summary>
-    protected string GetPlaceholder()
-    {
-        return string.IsNullOrEmpty(ChannelName)
-            ? "Type a message..."
-            : $"Message #{ChannelName}";
     }
 
     /// <summary>Gets the display label for a mention suggestion.</summary>
@@ -291,11 +292,11 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        if (_isPasteHandlerRegistered)
+        if (_isInitialized)
         {
             try
             {
-                await JS.InvokeVoidAsync("composerToolbar.unregisterPasteImageHandler", _textareaElementId);
+                await JS.InvokeVoidAsync("wysiwygEditor.dispose", _editorElementId);
             }
             catch (JSDisconnectedException)
             {
@@ -305,7 +306,7 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
 
         _dotNetRef?.Dispose();
         _dotNetRef = null;
-        _isPasteHandlerRegistered = false;
+        _isInitialized = false;
     }
 
     /// <summary>
@@ -345,7 +346,7 @@ public partial class MessageComposer : ComponentBase, IAsyncDisposable
 
     private void UpdateMentionAutocomplete()
     {
-        var mentionContext = TryGetMentionContext(_messageText);
+        var mentionContext = TryGetMentionContext(_plainText);
         if (mentionContext is null)
         {
             ClearMentionAutocomplete();

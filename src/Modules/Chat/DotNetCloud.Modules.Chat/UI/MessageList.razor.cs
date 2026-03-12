@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components;
+using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.RegularExpressions;
 
@@ -10,10 +11,17 @@ namespace DotNetCloud.Modules.Chat.UI;
 /// </summary>
 public partial class MessageList : ComponentBase
 {
+    // Inline patterns (applied after HTML-encoding)
     private static readonly Regex InlineCodeRegex = new("`([^`]+)`", RegexOptions.Compiled);
+    private static readonly Regex BoldItalicRegex = new("\\*\\*\\*([^*]+)\\*\\*\\*", RegexOptions.Compiled);
     private static readonly Regex BoldRegex = new("\\*\\*([^*]+)\\*\\*", RegexOptions.Compiled);
-    private static readonly Regex ItalicRegex = new("\\*([^*]+)\\*", RegexOptions.Compiled);
+    private static readonly Regex ItalicAsteriskRegex = new("\\*([^*]+)\\*", RegexOptions.Compiled);
+    private static readonly Regex ItalicUnderscoreRegex = new("_([^_]+)_", RegexOptions.Compiled);
+    private static readonly Regex StrikethroughRegex = new("~~([^~]+)~~", RegexOptions.Compiled);
     private static readonly Regex LinkRegex = new("\\[([^\\]]+)\\]\\((https?://[^)]+)\\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex HeadingRegex = new("^(#{1,6})\\s+(.+)$", RegexOptions.Compiled);
+    private static readonly Regex OrderedListRegex = new("^\\d+\\.\\s+(.+)$", RegexOptions.Compiled);
+    private static readonly Regex HorizontalRuleRegex = new("^(-{3,}|\\*{3,}|_{3,})$", RegexOptions.Compiled);
 
     private ElementReference _messageListRef;
 
@@ -183,19 +191,175 @@ public partial class MessageList : ComponentBase
     }
 
     /// <summary>
-    /// Converts basic markdown markup to safe inline HTML.
+    /// Converts Markdown to safe HTML for message display.
+    /// Supports bold, italic, strikethrough, inline code, code blocks,
+    /// links, headings, blockquotes, lists, and horizontal rules.
     /// </summary>
     protected static MarkupString RenderMarkdown(string? content)
     {
-        var encoded = HtmlEncoder.Default.Encode(content ?? string.Empty);
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return new MarkupString(string.Empty);
+        }
 
-        var html = LinkRegex.Replace(encoded, "<a href=\"$2\" target=\"_blank\" rel=\"noopener noreferrer\">$1</a>");
+        var encoded = HtmlEncoder.Default.Encode(content);
+        var lines = encoded.Replace("\r\n", "\n", StringComparison.Ordinal)
+                           .Split('\n');
+        var result = new StringBuilder();
+        var inCodeBlock = false;
+        var codeBlockContent = new StringBuilder();
+        var inList = false;
+        var listTag = string.Empty;
+
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            var trimmed = line.TrimStart();
+
+            // Code fence toggle (``` after HTML-encoding is still ```)
+            if (trimmed.StartsWith("```", StringComparison.Ordinal))
+            {
+                if (inCodeBlock)
+                {
+                    result.Append("<pre><code>").Append(codeBlockContent).Append("</code></pre>");
+                    codeBlockContent.Clear();
+                    inCodeBlock = false;
+                }
+                else
+                {
+                    CloseList(result, ref inList, ref listTag);
+                    inCodeBlock = true;
+                }
+                continue;
+            }
+
+            if (inCodeBlock)
+            {
+                if (codeBlockContent.Length > 0)
+                {
+                    codeBlockContent.Append('\n');
+                }
+                codeBlockContent.Append(line);
+                continue;
+            }
+
+            // Horizontal rule
+            if (HorizontalRuleRegex.IsMatch(trimmed))
+            {
+                CloseList(result, ref inList, ref listTag);
+                result.Append("<hr />");
+                continue;
+            }
+
+            // Determine if current line is a list item
+            var isUnordered = trimmed.StartsWith("- ", StringComparison.Ordinal)
+                           || trimmed.StartsWith("* ", StringComparison.Ordinal);
+            var isOrdered = !isUnordered && OrderedListRegex.IsMatch(trimmed);
+
+            // Close list if this line is not a list item
+            if (inList && !isUnordered && !isOrdered)
+            {
+                CloseList(result, ref inList, ref listTag);
+            }
+
+            // Heading
+            var headingMatch = HeadingRegex.Match(trimmed);
+            if (headingMatch.Success)
+            {
+                CloseList(result, ref inList, ref listTag);
+                var level = headingMatch.Groups[1].Value.Length;
+                result.Append("<h").Append(level).Append('>')
+                      .Append(ApplyInlineFormatting(headingMatch.Groups[2].Value))
+                      .Append("</h").Append(level).Append('>');
+                continue;
+            }
+
+            // Blockquote (> becomes &gt; after HTML-encoding)
+            if (trimmed.StartsWith("&gt; ", StringComparison.Ordinal))
+            {
+                CloseList(result, ref inList, ref listTag);
+                var quoteContent = trimmed[5..];
+                result.Append("<blockquote>").Append(ApplyInlineFormatting(quoteContent)).Append("</blockquote>");
+                continue;
+            }
+
+            // Unordered list
+            if (isUnordered)
+            {
+                if (!inList || listTag != "ul")
+                {
+                    CloseList(result, ref inList, ref listTag);
+                    result.Append("<ul>");
+                    inList = true;
+                    listTag = "ul";
+                }
+                var itemContent = trimmed[2..];
+                result.Append("<li>").Append(ApplyInlineFormatting(itemContent)).Append("</li>");
+                continue;
+            }
+
+            // Ordered list
+            if (isOrdered)
+            {
+                if (!inList || listTag != "ol")
+                {
+                    CloseList(result, ref inList, ref listTag);
+                    result.Append("<ol>");
+                    inList = true;
+                    listTag = "ol";
+                }
+                var olMatch = OrderedListRegex.Match(trimmed);
+                result.Append("<li>").Append(ApplyInlineFormatting(olMatch.Groups[1].Value)).Append("</li>");
+                continue;
+            }
+
+            // Regular line
+            result.Append(ApplyInlineFormatting(line));
+            if (i < lines.Length - 1)
+            {
+                result.Append("<br />");
+            }
+        }
+
+        CloseList(result, ref inList, ref listTag);
+
+        if (inCodeBlock)
+        {
+            result.Append("<pre><code>").Append(codeBlockContent).Append("</code></pre>");
+        }
+
+        return new MarkupString(result.ToString());
+    }
+
+    /// <summary>Applies inline Markdown formatting to an already-HTML-encoded string.</summary>
+    private static string ApplyInlineFormatting(string html)
+    {
+        // Inline code first (protect content from later patterns)
         html = InlineCodeRegex.Replace(html, "<code>$1</code>");
+        // Links
+        html = LinkRegex.Replace(html, "<a href=\"$2\" target=\"_blank\" rel=\"noopener noreferrer\">$1</a>");
+        // Bold + italic
+        html = BoldItalicRegex.Replace(html, "<strong><em>$1</em></strong>");
+        // Bold
         html = BoldRegex.Replace(html, "<strong>$1</strong>");
-        html = ItalicRegex.Replace(html, "<em>$1</em>");
-        html = html.Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\n", "<br />", StringComparison.Ordinal);
+        // Italic
+        html = ItalicAsteriskRegex.Replace(html, "<em>$1</em>");
+        html = ItalicUnderscoreRegex.Replace(html, "<em>$1</em>");
+        // Strikethrough
+        html = StrikethroughRegex.Replace(html, "<s>$1</s>");
+        return html;
+    }
 
-        return new MarkupString(html);
+    /// <summary>Closes an open list element in the output.</summary>
+    private static void CloseList(StringBuilder sb, ref bool inList, ref string listTag)
+    {
+        if (!inList)
+        {
+            return;
+        }
+        sb.Append("</").Append(listTag).Append('>');
+        inList = false;
+        listTag = string.Empty;
     }
 
     /// <summary>

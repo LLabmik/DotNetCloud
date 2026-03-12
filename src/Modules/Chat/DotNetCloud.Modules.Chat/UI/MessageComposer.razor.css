@@ -1,6 +1,6 @@
 /* ============================================================
-   MessageComposer — Chat message input with toolbar, mentions,
-   reply preview, emoji picker, and file attachments.
+   MessageComposer — WYSIWYG rich-text editor with toolbar,
+   mentions, reply preview, emoji picker, and file attachments.
    ============================================================ */
 
 .chat-message-composer {
@@ -20,6 +20,7 @@
     padding: 4px 0 6px;
     border-bottom: 1px solid var(--color-border, #e2e8f0);
     margin-bottom: 8px;
+    flex-wrap: wrap;
 }
 
 .composer-fmt {
@@ -39,17 +40,6 @@
     transition: all 150ms ease;
 }
 
-.fmt-italic {
-    font-family: Georgia, 'Times New Roman', serif;
-    font-size: 15px;
-}
-
-.fmt-code {
-    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
-    font-size: 12px;
-    letter-spacing: -0.5px;
-}
-
 .composer-fmt:hover {
     background: var(--color-bg, #f5f7fa);
     border-color: var(--color-border, #e2e8f0);
@@ -58,6 +48,30 @@
 
 .composer-fmt:active {
     background: var(--color-border, #e2e8f0);
+}
+
+.fmt-italic {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 15px;
+}
+
+.fmt-strike s {
+    text-decoration-thickness: 2px;
+}
+
+.fmt-code,
+.fmt-codeblock {
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 12px;
+    letter-spacing: -0.5px;
+}
+
+.toolbar-sep {
+    width: 1px;
+    height: 18px;
+    background: var(--color-border, #e2e8f0);
+    margin: 0 4px;
+    flex-shrink: 0;
 }
 
 /* --- Reply Preview --- */
@@ -205,8 +219,13 @@
     min-width: 0;
 }
 
-.composer-input {
+/* --- WYSIWYG Editor (contenteditable) --- */
+
+.composer-editor {
     width: 100%;
+    min-height: 24px;
+    max-height: 200px;
+    overflow-y: auto;
     padding: 8px 12px;
     border: 1px solid var(--color-border, #e2e8f0);
     border-radius: 8px;
@@ -215,21 +234,113 @@
     font-family: inherit;
     font-size: 14px;
     line-height: 1.5;
-    resize: none;
     outline: none;
+    word-wrap: break-word;
+    white-space: pre-wrap;
     transition: border-color 150ms ease, box-shadow 150ms ease;
-    max-height: 160px;
-    overflow-y: auto;
 }
 
-.composer-input::placeholder {
+.composer-editor:empty::before {
+    content: attr(data-placeholder);
     color: var(--color-muted, #94a3b8);
+    pointer-events: none;
 }
 
-.composer-input:focus {
+.composer-editor:focus {
     border-color: var(--color-primary, #3b82f6);
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
     background: var(--color-surface, #ffffff);
+}
+
+/* Rich text formatting inside the editor */
+
+.composer-editor strong,
+.composer-editor b {
+    font-weight: 700;
+}
+
+.composer-editor em,
+.composer-editor i {
+    font-style: italic;
+}
+
+.composer-editor s,
+.composer-editor del,
+.composer-editor strike {
+    text-decoration: line-through;
+}
+
+.composer-editor code {
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--color-accent, #e11d48);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+    font-size: 0.9em;
+}
+
+.composer-editor pre {
+    background: var(--color-bg-elevated, #1e293b);
+    color: var(--color-text-inverse, #e2e8f0);
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin: 4px 0;
+    font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+    font-size: 0.85em;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    overflow-x: auto;
+}
+
+.composer-editor pre code {
+    background: transparent;
+    color: inherit;
+    padding: 0;
+    border-radius: 0;
+    font-size: inherit;
+}
+
+.composer-editor a {
+    color: var(--color-primary, #3b82f6);
+    text-decoration: underline;
+}
+
+.composer-editor blockquote {
+    border-left: 3px solid var(--color-primary, #3b82f6);
+    margin: 4px 0;
+    padding: 2px 0 2px 12px;
+    color: var(--color-text-secondary, #64748b);
+}
+
+.composer-editor h1,
+.composer-editor h2,
+.composer-editor h3,
+.composer-editor h4,
+.composer-editor h5,
+.composer-editor h6 {
+    font-weight: 700;
+    margin: 4px 0;
+    line-height: 1.3;
+}
+
+.composer-editor h1 { font-size: 1.4em; }
+.composer-editor h2 { font-size: 1.25em; }
+.composer-editor h3 { font-size: 1.1em; }
+
+.composer-editor ul,
+.composer-editor ol {
+    margin: 4px 0;
+    padding-left: 24px;
+}
+
+.composer-editor li {
+    margin: 2px 0;
+}
+
+.composer-editor hr {
+    border: none;
+    border-top: 1px solid var(--color-border, #e2e8f0);
+    margin: 8px 0;
 }
 
 /* --- Send Button --- */

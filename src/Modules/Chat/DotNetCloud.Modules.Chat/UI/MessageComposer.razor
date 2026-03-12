@@ -1,17 +1,37 @@
 @namespace DotNetCloud.Modules.Chat.UI
 
 @*
-    Message composer - Input area for composing and sending chat messages.
-    Supports reply-to, file attachments, emoji, and @mention autocomplete.
+    Message composer — WYSIWYG rich-text editor for composing chat messages.
+    Supports bold, italic, strikethrough, code, links, lists, quotes, headings,
+    reply-to, file attachments, emoji, and @mention autocomplete.
     Code-behind: MessageComposer.razor.cs
 *@
 
 <div class="chat-message-composer">
     <div class="composer-toolbar" role="toolbar" aria-label="Formatting toolbar">
-        <button class="btn btn-sm composer-fmt fmt-bold" @onclick='() => ApplyFormatAsync("**", "**")' title="Bold" aria-label="Bold"><strong>B</strong></button>
-        <button class="btn btn-sm composer-fmt fmt-italic" @onclick='() => ApplyFormatAsync("_", "_")' title="Italic" aria-label="Italic"><em>I</em></button>
-        <button class="btn btn-sm composer-fmt fmt-code" @onclick='() => ApplyFormatAsync("`", "`")' title="Code" aria-label="Inline code">&lt;/&gt;</button>
-        <button class="btn btn-sm composer-fmt fmt-link" @onclick='() => ApplyFormatAsync("[" , "](url)")' title="Link" aria-label="Insert link">🔗</button>
+        @* ── Text formatting ── *@
+        <button class="btn btn-sm composer-fmt fmt-bold" @onclick='() => FormatAsync("bold")' title="Bold (Ctrl+B)" aria-label="Bold"><strong>B</strong></button>
+        <button class="btn btn-sm composer-fmt fmt-italic" @onclick='() => FormatAsync("italic")' title="Italic (Ctrl+I)" aria-label="Italic"><em>I</em></button>
+        <button class="btn btn-sm composer-fmt fmt-strike" @onclick='() => FormatAsync("strikethrough")' title="Strikethrough" aria-label="Strikethrough"><s>S</s></button>
+        <span class="toolbar-sep" aria-hidden="true"></span>
+
+        @* ── Code ── *@
+        <button class="btn btn-sm composer-fmt fmt-code" @onclick='() => FormatAsync("inlineCode")' title="Inline code" aria-label="Inline code">&lt;/&gt;</button>
+        <button class="btn btn-sm composer-fmt fmt-codeblock" @onclick='() => FormatAsync("codeBlock")' title="Code block" aria-label="Code block">{ }</button>
+        <span class="toolbar-sep" aria-hidden="true"></span>
+
+        @* ── Link ── *@
+        <button class="btn btn-sm composer-fmt fmt-link" @onclick='() => FormatAsync("link")' title="Link (Ctrl+K)" aria-label="Insert link">🔗</button>
+        <span class="toolbar-sep" aria-hidden="true"></span>
+
+        @* ── Lists ── *@
+        <button class="btn btn-sm composer-fmt fmt-ul" @onclick='() => FormatAsync("bulletList")' title="Bullet list" aria-label="Bullet list">• —</button>
+        <button class="btn btn-sm composer-fmt fmt-ol" @onclick='() => FormatAsync("numberedList")' title="Numbered list" aria-label="Numbered list">1.</button>
+        <span class="toolbar-sep" aria-hidden="true"></span>
+
+        @* ── Block ── *@
+        <button class="btn btn-sm composer-fmt fmt-quote" @onclick='() => FormatAsync("blockquote")' title="Quote" aria-label="Blockquote">❝</button>
+        <button class="btn btn-sm composer-fmt fmt-heading" @onclick='() => FormatAsync("heading")' title="Heading" aria-label="Heading"><strong>H</strong></button>
     </div>
 
     @if (EditingMessage is not null)
@@ -37,13 +57,14 @@
         </button>
 
         <div class="composer-input-wrapper">
-            <textarea id="@TextareaElementId"
-                      class="composer-input"
-                      @bind="MessageText"
-                      @bind:event="oninput"
-                      @onkeydown="HandleKeyDown"
-                      placeholder="@GetPlaceholder()"
-                      rows="1"></textarea>
+            <div id="@EditorElementId"
+                 class="composer-editor"
+                 contenteditable="true"
+                 role="textbox"
+                 aria-multiline="true"
+                 aria-label="@GetPlaceholder()"
+                 data-placeholder="@GetPlaceholder()">
+            </div>
 
             @if (IsMentionDropdownVisible)
             {
