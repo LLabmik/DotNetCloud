@@ -28,7 +28,7 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
             Icon: "💬",
             SortOrder: 20,
             RouteKey: "chat.channels",
-            ComponentType: typeof(DotNetCloud.Modules.Chat.UI.ChannelList))
+            ComponentType: typeof(DotNetCloud.Modules.Chat.UI.ChatPageLayout))
     ];
 
     private readonly IServiceScopeFactory _scopeFactory;
