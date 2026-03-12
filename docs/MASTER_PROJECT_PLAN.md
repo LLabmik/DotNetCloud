@@ -69,6 +69,7 @@
 | Phase 2.11 | 3 | 3 | 0 | 0 |
 | Phase 2.12 | 2 | 2 | 0 | 0 |
 | Phase 2.13 | 3 | 3 | 0 | 0 |
+| Integration Testing Sprint | 3 | 3 | 0 | 0 |
 | Sync Batch 1 | 10 | 10 | 0 | 0 |
 | Sync Batch 2 | 6 | 6 | 0 | 0 |
 | Sync Batch 3 | 6 | 6 | 0 | 0 |
@@ -3511,13 +3512,88 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
-**Last Updated:** 2026-03-11 (Phase 2.13 complete — all documentation delivered)
-**Next Review:** Remaining Phase 2 work (2.3/2.8/2.10 gaps)
-**Maintained By:** Development Team
+## Integration Testing Sprint
+
+### Step: integration-1 - SignalR Hub Integration Tests
+**Status:** completed ✅
+**Duration:** ~3 hours
+**Description:** Implement comprehensive in-process SignalR hub tests for real-time communication flows.
+
+**Deliverables:**
+- ✓ Updated `DotNetCloudWebApplicationFactory.cs`:
+  - ✓ Added `System.Security.Claims` using for claims support
+  - ✓ Added `Microsoft.AspNetCore.Builder` using for middleware
+  - ✓ Added `TestUserStartupFilter` IStartupFilter implementation for auth header → claims conversion
+  - ✓ Added `CreateAuthenticatedApiClient(userId)` method for authenticated HTTP clients
+  - ✓ Added `CreateSignalRClient(userId)` for in-process SignalR connections
+- ✓ Created `tests/DotNetCloud.Integration.Tests/Api/SignalRHubIntegrationTests.cs`:
+  - ✓ Connect + auth test
+  - ✓ JoinGroupAsync test
+  - ✓ JoinGroupAsync with empty group name throws HubException
+  - ✓ SendMessageAsync → NewMessage broadcast
+  - ✓ MarkReadAsync → UnreadCountUpdated broadcast
+  - ✓ StartTypingAsync → TypingIndicator broadcast
+  - ✓ AddReactionAsync → ReactionUpdated broadcast
+  - ✓ RemoveReactionAsync → ReactionUpdated broadcast
+  - ✓ SetPresenceAsync returns presence
+  - ✓ Disconnect removes presence
+- ✓ Helper methods for channel/message/member creation in isolated test databases
+
+**Dependencies:** Phase 2 (Chat module complete)
+**Blocking Issues:** None
+**Notes:** In-process SignalR testing without live server using HubConnectionBuilder + factory.Server.CreateHandler(). Test auth handled by x-test-user-id header converted to claims via TestUserStartupFilter. All hub broadcast events verified.
 
 ---
 
-## How to Use This Plan
+### Step: integration-2 - File Sync Flow Integration Tests
+**Status:** completed ✅
+**Duration:** ~2 hours
+**Description:** Implement file upload, sync tracking, and reconciliation flow tests.
+
+**Deliverables:**
+- ✓ Created `tests/DotNetCloud.Integration.Tests/Api/FileSyncFlowIntegrationTests.cs`:
+  - ✓ Upload via chunked API → appears in tree test
+  - ✓ Upload multiple chunks → combines successfully test
+  - ✓ Upload → change set version increments test
+  - ✓ Changes list includes new files test
+  - ✓ Sync state reflects after reconciliation test
+- ✓ Uses FilesHostWebApplicationFactory with authenticated API client
+- ✓ Tests full sync workflow: initiate → chunk → complete → verify
+
+**Dependencies:** Phase 1 (Files module complete)
+**Blocking Issues:** None
+**Notes:** Tests chunked upload protocol, change tracking, and sync state management. All tests verified with actual Files API endpoints.
+
+---
+
+### Step: integration-3 - Chat Files Cross-Module Flow Tests
+**Status:** completed ✅
+**Duration:** ~2.5 hours
+**Description:** Implement file attachment to chat messages and channel file listing tests.
+
+**Deliverables:**
+- ✓ Created `tests/DotNetCloud.Integration.Tests/Api/ChatFilesFlowIntegrationTests.cs`:
+  - ✓ Attach file to message creates attachment test
+  - ✓ Attach multiple files to single message test
+  - ✓ Get channel files returns attached files test
+  - ✓ Attach file with FileNodeId links to Files module test
+  - ✓ Empty channel returns empty file list test
+  - ✓ Attachment metadata (MIME type, size) preserved test
+  - ✓ Multiple messages with files all appear in channel files test
+- ✓ Uses ChatHostWebApplicationFactory with REST API
+- ✓ Tests full flow: create channel → send message → attach files → retrieve list
+
+**Dependencies:** Phase 2.1-2.12 (Chat module complete)
+**Blocking Issues:** None
+**Notes:** ChatFilesFlowIntegrationTests demonstrates cross-module data integration. The FileNodeId attachment field links chat attachments to the Files module's file nodes. Tests cover attachment metadata preservation and channel-wide file listing.
+
+---
+
+**Last Updated:** 2026-03-11 (Integration Testing Sprint complete — all tests implemented and documented)
+**Next Review:** Phase 3 planning and implementation
+**Maintained By:** Development Team
+
+---
 
 ## Sync Improvement Plan Execution
 

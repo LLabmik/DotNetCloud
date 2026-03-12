@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Initialization;
 using DotNetCloud.Core.Data.Naming;
@@ -5,6 +6,7 @@ using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server;
 using DotNetCloud.Modules.Chat.Data;
 using DotNetCloud.Modules.Files.Data;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -44,6 +46,12 @@ internal sealed class DotNetCloudWebApplicationFactory : WebApplicationFactory<D
 
         builder.ConfigureServices(services =>
         {
+            // ---------------------------------------------------------------
+            // Add test authentication middleware that converts x-test-user-id
+            // header to claims for SignalR and HTTP endpoints
+            // ---------------------------------------------------------------
+            services.AddSingleton<IStartupFilter, TestUserStartupFilter>();
+
             // ---------------------------------------------------------------
             // Remove Swashbuckle application parts that cause
             // ReflectionTypeLoadException due to Microsoft.OpenApi version
@@ -138,6 +146,36 @@ internal sealed class DotNetCloudWebApplicationFactory : WebApplicationFactory<D
     }
 
     /// <summary>
+    /// Creates an authenticated <see cref="HttpClient"/> with test user identity.
+    /// </summary>
+    public HttpClient CreateAuthenticatedApiClient(Guid authenticatedUserId)
+    {
+        var client = CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+        });
+
+        client.DefaultRequestHeaders.Add("Accept", "application/json");
+        client.DefaultRequestHeaders.Add("x-test-user-id", authenticatedUserId.ToString());
+        return client;
+    }
+
+    /// <summary>
+    /// Creates an authenticated HTTP client for use with HubConnectionBuilder in in-process SignalR tests.
+    /// </summary>
+    public HttpClient CreateSignalRClient(Guid authenticatedUserId)
+    {
+        var handler = Server.CreateHandler();
+        var client = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost")
+        };
+
+        client.DefaultRequestHeaders.Add("x-test-user-id", authenticatedUserId.ToString());
+        return client;
+    }
+
+    /// <summary>
     /// Simple in-memory factory so services that depend on <see cref="IDbContextFactory"/> don't fail.
     /// </summary>
     private sealed class InMemoryDbContextFactory : IDbContextFactory
@@ -160,6 +198,38 @@ internal sealed class DotNetCloudWebApplicationFactory : WebApplicationFactory<D
                 .UseInMemoryDatabase(_dbName)
                 .Options;
             return new CoreDbContext(options, _naming);
+        }
+    }
+
+    /// <summary>
+    /// Middleware that converts x-test-user-id header to authenticated claims for testing.
+    /// </summary>
+    private sealed class TestUserStartupFilter : IStartupFilter
+    {
+        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next)
+        {
+            return app =>
+            {
+                app.Use(async (context, nextMiddleware) =>
+                {
+                    if (context.Request.Headers.TryGetValue("x-test-user-id", out var userHeader) &&
+                        Guid.TryParse(userHeader.ToString(), out var userId))
+                    {
+                        var identity = new ClaimsIdentity(
+                        [
+                            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+                            new Claim("sub", userId.ToString())
+                        ],
+                        authenticationType: "IntegrationTest");
+
+                        context.User = new ClaimsPrincipal(identity);
+                    }
+
+                    await nextMiddleware();
+                });
+
+                next(app);
+            };
         }
     }
 }

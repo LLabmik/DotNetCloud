@@ -3461,6 +3461,43 @@ This phase implements real-time chat, announcements, push notifications, and the
 
 ---
 
+## Integration Testing Sprint
+
+### Server & Chat Integration Tests
+- ✓ Implement `SignalRHubIntegrationTests.cs` — CoreHub in-process tests:
+  - ✓ Connect + auth
+  - ✓ `JoinGroupAsync`
+  - ✓ `SendMessageAsync` → receives `NewMessage` broadcast
+  - ✓ `MarkReadAsync` → receives `UnreadCountUpdated`
+  - ✓ `StartTypingAsync` → receives typing broadcast
+  - ✓ `AddReactionAsync` → receives reaction broadcast
+  - ✓ `RemoveReactionAsync` → broadcasts updated reactions
+  - ✓ `SetPresenceAsync` → returns presence
+  - ✓ Disconnect → removes presence
+- ✓ Update `DotNetCloudWebApplicationFactory.cs`:
+  - ✓ Add `TestUserStartupFilter` for auth header → claims conversion
+  - ✓ Add `CreateAuthenticatedApiClient(userId)` method
+  - ✓ Add `CreateSignalRClient(userId)` for in-process SignalR connections
+
+### Files Sync Flow Tests
+- ✓ Implement `FileSyncFlowIntegrationTests.cs`:
+  - ✓ Upload file via chunked API → appears in tree
+  - ✓ Upload multiple chunks → combines successfully
+  - ✓ Changes tracking → increments version after upload
+  - ✓ Reconciliation → sync state reflects changes
+
+### Chat Files Flow Tests
+- ✓ Implement `ChatFilesFlowIntegrationTests.cs`:
+  - ✓ Attach file to message → creates attachment
+  - ✓ Attach multiple files → succeeds
+  - ✓ Get channel files → returns attached files
+  - ✓ Attach file with FileNodeId → links to Files module
+  - ✓ Empty channel → returns empty file list
+  - ✓ Metadata preservation → MIME type and size preserved
+  - ✓ Multiple messages with attachments → all in channel files
+
+---
+
 ## Phase 3: Contacts, Calendar & Notes
 
 **Goal:** Personal information management + standards compliance.
