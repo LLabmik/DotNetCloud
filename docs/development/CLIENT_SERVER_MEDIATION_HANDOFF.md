@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-13 (Server download bug fixed; client 404 handling hardened; E2E runtime verification pending on Windows11-TestDNC)
+Last updated: 2026-03-13 (E2E runtime verification still pending on Windows11-TestDNC; Linux-side regression tests re-verified on latest main)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -76,6 +76,7 @@ Archived context:
 - **Server download bug fixed** (2026-03-13): `BuildStreamFromVersionAsync` in `DownloadService` now (1) serves empty stream for 0-byte files without touching storage, (2) throws `NotFoundException` (→ HTTP 404) instead of `InvalidOperationException` (→ HTTP 400) when a chunk blob is missing. 2 new tests added. Deployed to mint22 commit `f60541c` — health Healthy.
 - **Flaky CDC test fixed** (2026-03-13): `ChunkAndHashCdcAsync_SmallData_ReturnsSingleChunk` used 1KB data with minSize=512 — Phase 2 boundary detection could split it into 2 chunks. Fixed by using 256 bytes (strictly < minSize). Commit `6b89a60`.
 - **Client 404 handling hardened** (2026-03-13): `SyncEngine.ApplyLocalChangesAsync` now treats `PendingDownload` HTTP 404 as terminal and moves operation to failed queue without retry loop. Added `SyncAsync_PendingDownloadNotFound_MovesToFailedWithoutRetry` test.
+- **Handoff verification refresh** (2026-03-13): After pull to latest main, client regression suites re-run on Linux workspace and passing: `SyncEngineTests` (33/33) and `ChunkedTransferClientTests` (23/23). Runtime E2E validation remains required on `Windows11-TestDNC`.
 
 ## Environment
 
