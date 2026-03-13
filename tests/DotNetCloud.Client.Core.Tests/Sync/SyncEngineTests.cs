@@ -54,6 +54,10 @@ public class SyncEngineTests
             .ReturnsAsync(new PendingOperationCount());
         _stateDbMock.Setup(db => db.GetPendingOperationsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
+        _stateDbMock.Setup(db => db.GetAllFileRecordsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        _stateDbMock.Setup(db => db.GetPendingUploadPathsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HashSet<string>());
         _stateDbMock.Setup(db => db.UpdateCheckpointAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
@@ -946,6 +950,139 @@ public class SyncEngineTests
         Assert.IsNotNull(status, "Engine should report status after start.");
 
         await _engine.StopAsync();
+    }
+
+    // ── Local directory scan (upload path) ─────────────────────────────────
+
+    [TestMethod]
+    public async Task SyncAsync_NewLocalFile_QueuesUpload()
+    {
+        // Arrange: create a file on disk that has no state.db record.
+        var filePath = Path.Combine(_tempDir, "new-file.txt");
+        File.WriteAllText(filePath, "hello");
+
+        _stateDbMock
+            .Setup(db => db.GetAllFileRecordsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        _stateDbMock
+            .Setup(db => db.GetPendingUploadPathsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HashSet<string>());
+        _stateDbMock
+            .Setup(db => db.QueueOperationAsync(It.IsAny<string>(), It.IsAny<PendingOperationRecord>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        // Act
+        await _engine.StartAsync(_context);
+        await _engine.SyncAsync(_context);
+        await _engine.StopAsync();
+
+        // Assert: a PendingUpload was queued for the new file.
+        _stateDbMock.Verify(db => db.QueueOperationAsync(
+            _context.StateDatabasePath,
+            It.Is<PendingUpload>(u => u.LocalPath == filePath && u.NodeId == null),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task SyncAsync_ModifiedLocalFile_QueuesUpload()
+    {
+        // Arrange: file exists on disk and in state.db, but was modified after LastSyncedAt.
+        var filePath = Path.Combine(_tempDir, "modified-file.txt");
+        File.WriteAllText(filePath, "updated content");
+
+        var nodeId = Guid.NewGuid();
+        var record = new LocalFileRecord
+        {
+            LocalPath = filePath,
+            NodeId = nodeId,
+            ContentHash = "oldhash",
+            LastSyncedAt = DateTime.UtcNow.AddHours(-1), // older than file mtime
+            LocalModifiedAt = DateTime.UtcNow.AddHours(-1),
+        };
+
+        _stateDbMock
+            .Setup(db => db.GetAllFileRecordsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([record]);
+        _stateDbMock
+            .Setup(db => db.GetPendingUploadPathsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HashSet<string>());
+        _stateDbMock
+            .Setup(db => db.QueueOperationAsync(It.IsAny<string>(), It.IsAny<PendingOperationRecord>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        // Act
+        await _engine.StartAsync(_context);
+        await _engine.SyncAsync(_context);
+        await _engine.StopAsync();
+
+        // Assert: a PendingUpload was queued with the existing NodeId.
+        _stateDbMock.Verify(db => db.QueueOperationAsync(
+            _context.StateDatabasePath,
+            It.Is<PendingUpload>(u => u.LocalPath == filePath && u.NodeId == nodeId),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task SyncAsync_UnmodifiedLocalFile_DoesNotQueueUpload()
+    {
+        // Arrange: file exists on disk with mtime BEFORE LastSyncedAt → no change.
+        var filePath = Path.Combine(_tempDir, "unchanged-file.txt");
+        File.WriteAllText(filePath, "same content");
+        // Back-date the file so mtime < LastSyncedAt
+        File.SetLastWriteTimeUtc(filePath, DateTime.UtcNow.AddHours(-2));
+
+        var record = new LocalFileRecord
+        {
+            LocalPath = filePath,
+            NodeId = Guid.NewGuid(),
+            ContentHash = "samehash",
+            LastSyncedAt = DateTime.UtcNow.AddHours(-1), // newer than file mtime
+            LocalModifiedAt = DateTime.UtcNow.AddHours(-2),
+        };
+
+        _stateDbMock
+            .Setup(db => db.GetAllFileRecordsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([record]);
+        _stateDbMock
+            .Setup(db => db.GetPendingUploadPathsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HashSet<string>());
+
+        // Act
+        await _engine.StartAsync(_context);
+        await _engine.SyncAsync(_context);
+        await _engine.StopAsync();
+
+        // Assert: no upload queued.
+        _stateDbMock.Verify(db => db.QueueOperationAsync(
+            It.IsAny<string>(),
+            It.Is<PendingUpload>(u => u.LocalPath == filePath),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task SyncAsync_AlreadyQueuedFile_DoesNotDoubleQueue()
+    {
+        // Arrange: new file on disk, but already in the pending-upload set.
+        var filePath = Path.Combine(_tempDir, "already-queued.txt");
+        File.WriteAllText(filePath, "content");
+
+        _stateDbMock
+            .Setup(db => db.GetAllFileRecordsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        _stateDbMock
+            .Setup(db => db.GetPendingUploadPathsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HashSet<string>(StringComparer.OrdinalIgnoreCase) { filePath });
+
+        // Act
+        await _engine.StartAsync(_context);
+        await _engine.SyncAsync(_context);
+        await _engine.StopAsync();
+
+        // Assert: no duplicate queue entry.
+        _stateDbMock.Verify(db => db.QueueOperationAsync(
+            It.IsAny<string>(),
+            It.Is<PendingUpload>(u => u.LocalPath == filePath),
+            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     private sealed class DiskFullIOException : IOException

@@ -38,6 +38,15 @@ public interface ILocalStateDb
     /// <summary>Gets the sync record by server node ID. Returns null if not found.</summary>
     Task<LocalFileRecord?> GetFileRecordByNodeIdAsync(string dbPath, Guid nodeId, CancellationToken cancellationToken = default);
 
+    /// <summary>Returns all tracked file records for a context. Used by the local directory scan for bulk comparison.</summary>
+    Task<IReadOnlyList<LocalFileRecord>> GetAllFileRecordsAsync(string dbPath, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the set of local paths that already have a pending upload operation queued
+    /// (including deferred/retrying ones). Used to avoid double-queueing during local scans.
+    /// </summary>
+    Task<IReadOnlySet<string>> GetPendingUploadPathsAsync(string dbPath, CancellationToken cancellationToken = default);
+
     /// <summary>Inserts or updates a file sync record.</summary>
     Task UpsertFileRecordAsync(string dbPath, LocalFileRecord record, CancellationToken cancellationToken = default);
 

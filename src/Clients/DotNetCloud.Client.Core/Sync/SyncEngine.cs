@@ -168,6 +168,7 @@ public sealed class SyncEngine : ISyncEngine
             SetState(SyncState.Syncing, context);
             await RefreshAccessTokenAsync(context, cancellationToken);
             var remoteChangesApplied = await ApplyRemoteChangesAsync(context, cancellationToken);
+            var localFilesQueued = await ScanLocalDirectoryAsync(context, cancellationToken);
             var localOperationsApplied = await ApplyLocalChangesAsync(context, cancellationToken);
             await _stateDb.UpdateCheckpointAsync(context.StateDatabasePath, DateTime.UtcNow, cancellationToken);
             await _stateDb.CheckpointWalAsync(context.StateDatabasePath, cancellationToken);
@@ -175,10 +176,12 @@ public sealed class SyncEngine : ISyncEngine
             syncTimer.Stop();
 
             _logger.LogInformation(
-                "Sync pass complete for context {ContextId}: DurationMs={DurationMs}, FileCount={FileCount}.",
+                "Sync pass complete for context {ContextId}: DurationMs={DurationMs}, RemoteChanges={RemoteChanges}, LocalQueued={LocalQueued}, LocalApplied={LocalApplied}.",
                 context.Id,
                 syncTimer.ElapsedMilliseconds,
-                remoteChangesApplied + localOperationsApplied);
+                remoteChangesApplied,
+                localFilesQueued,
+                localOperationsApplied);
         }
         catch (OperationCanceledException)
         {
@@ -320,6 +323,78 @@ public sealed class SyncEngine : ISyncEngine
     }
 
     // ── Private sync logic ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Scans the local sync folder and queues <see cref="PendingUpload"/> for any new or modified files
+    /// not yet reflected on the server. Called once per sync pass, between remote-changes application
+    /// and local-operations execution.
+    /// </summary>
+    private async Task<int> ScanLocalDirectoryAsync(SyncContext context, CancellationToken cancellationToken)
+    {
+        // Build a lookup of all tracked file records for O(1) path checks.
+        var allRecords = await _stateDb.GetAllFileRecordsAsync(context.StateDatabasePath, cancellationToken);
+        var trackedByPath = allRecords.ToDictionary(r => r.LocalPath, StringComparer.OrdinalIgnoreCase);
+
+        // Build a set of paths already queued for upload to avoid duplicates.
+        var queuedPaths = await _stateDb.GetPendingUploadPathsAsync(context.StateDatabasePath, cancellationToken);
+
+        IEnumerable<string> localFiles;
+        try
+        {
+            localFiles = Directory.EnumerateFiles(context.LocalFolderPath, "*", SearchOption.AllDirectories);
+        }
+        catch (DirectoryNotFoundException)
+        {
+            _logger.LogWarning("Local sync folder {Path} not found during scan.", context.LocalFolderPath);
+            return 0;
+        }
+
+        var queued = 0;
+        foreach (var localPath in localFiles)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var relativePath = Path.GetRelativePath(context.LocalFolderPath, localPath);
+
+            if (_syncIgnore.IsIgnored(relativePath))
+                continue;
+
+            if (!_selectiveSync.IsIncluded(context.Id, localPath))
+                continue;
+
+            // Skip if an upload is already queued for this path.
+            if (queuedPaths.Contains(localPath))
+                continue;
+
+            if (trackedByPath.TryGetValue(localPath, out var record))
+            {
+                // Known file — only re-queue if modified since last sync.
+                if (!IsLocallyModified(record, localPath))
+                    continue;
+
+                _logger.LogDebug(
+                    "Local file modified since last sync, queuing upload: {RelPath}", relativePath);
+                await _stateDb.QueueOperationAsync(context.StateDatabasePath,
+                    new PendingUpload { LocalPath = localPath, NodeId = record.NodeId }, cancellationToken);
+                queued++;
+            }
+            else
+            {
+                // New untracked file — queue a fresh upload.
+                _logger.LogDebug("New local file detected, queuing upload: {RelPath}", relativePath);
+                await _stateDb.QueueOperationAsync(context.StateDatabasePath,
+                    new PendingUpload { LocalPath = localPath }, cancellationToken);
+                queued++;
+            }
+        }
+
+        if (queued > 0)
+            _logger.LogInformation(
+                "Local scan queued {Count} new/modified file(s) for upload in context {ContextId}.",
+                queued, context.Id);
+
+        return queued;
+    }
 
     private async Task<int> ApplyRemoteChangesAsync(SyncContext context, CancellationToken cancellationToken)
     {

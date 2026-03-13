@@ -71,6 +71,7 @@ Archived context:
 - **Chunk rate limit raised**: `appsettings.json` `ModuleLimits.chunks` 3000 → 10000/60s to prevent 429 bursts during initial sync.
 - **Sync E2E retry verified** (2026-03-13): Clean state.db wipe + 4 sync passes — zero 429s, zero 404s, cursor-based response shape confirmed. Download path fully working.
 - **Upload path gap identified** (2026-03-13): Sync engine has no local filesystem scan — new local files are not detected or uploaded. Implementation needed.
+- **Upload path implemented** (2026-03-13): `ScanLocalDirectoryAsync` added to `SyncEngine` — detects new/modified local files and queues `PendingUpload`. 4 new tests, all passing. Awaiting E2E verification on `Windows11-TestDNC`.
 
 ## Environment
 
@@ -92,7 +93,37 @@ Archived context:
 
 **Date:** 2026-03-13
 **Owner:** Client agent
-**Status:** DISCOVERY COMPLETE — implementation needed
+**Status:** IMPLEMENTATION COMPLETE — E2E verification needed on Windows11-TestDNC
+
+#### What was implemented (by server agent — note: client work incorrectly routed to server)
+
+`SyncEngine.ScanLocalDirectoryAsync` was added and wired into `SyncAsync` between `ApplyRemoteChangesAsync` and `ApplyLocalChangesAsync`. The scan:
+
+1. Loads all `LocalFileRecord` entries from `state.db` into an in-memory dictionary.
+2. Loads all currently-queued upload paths to avoid double-queuing.
+3. Enumerates all files in `context.LocalFolderPath` recursively.
+4. Skips files matched by `.syncignore` or selective-sync exclusions.
+5. For new (untracked) files → queues `PendingUpload` with `NodeId = null`.
+6. For known files modified since `LastSyncedAt` → queues `PendingUpload` with existing `NodeId`.
+7. Unmodified / already-queued files are skipped.
+
+Two new methods added to `ILocalStateDb` + `LocalStateDb`:
+- `GetAllFileRecordsAsync` — bulk fetch for O(1) path lookup during scan.
+- `GetPendingUploadPathsAsync` — returns set of already-queued upload paths.
+
+4 new tests added in `SyncEngineTests`: NewLocalFile, ModifiedLocalFile, UnmodifiedLocalFile, AlreadyQueuedFile. All 33 sync engine tests pass (148 total client tests pass).
+
+Commits: see git log on `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs`.
+
+#### Next step for client agent
+
+1. Pull `main` on `Windows11-TestDNC`.
+2. Build and install updated MSIX on the test machine.
+3. Drop `state.db` (clean slate), create `test2.txt` in the synctray folder, then run a sync.
+4. Confirm in SyncTray logs: `New local file detected, queuing upload: test2.txt` → `PendingUploads=1` → upload completes → file appears in the web UI Files section.
+5. Also verify modified-file path: edit an existing synced file, trigger sync, confirm re-upload.
+
+No server-side changes are needed — the upload endpoints are already working.
 
 #### E2E Retry Results (download path verified ✅)
 

@@ -132,6 +132,24 @@ public sealed class LocalStateDb : ILocalStateDb
     }
 
     /// <inheritdoc/>
+    public async Task<IReadOnlyList<LocalFileRecord>> GetAllFileRecordsAsync(string dbPath, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        return await ctx.FileRecords.ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlySet<string>> GetPendingUploadPathsAsync(string dbPath, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        var paths = await ctx.PendingOperations
+            .Where(r => r.OperationType == "Upload" && r.LocalPath != null)
+            .Select(r => r.LocalPath!)
+            .ToListAsync(cancellationToken);
+        return new HashSet<string>(paths, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <inheritdoc/>
     public async Task RemoveFileRecordAsync(string dbPath, string localPath, CancellationToken cancellationToken = default)
     {
         await using var ctx = CreateContext(dbPath);
