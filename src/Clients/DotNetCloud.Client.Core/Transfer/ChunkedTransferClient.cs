@@ -199,6 +199,13 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                             break;
                         }
                         catch (HttpRequestException ex) when (
+                            ex.StatusCode == System.Net.HttpStatusCode.Conflict)
+                        {
+                            // Server already has this chunk (content-addressable dedup) — treat as uploaded.
+                            _logger.LogDebug("Chunk {Hash} already exists on server (409 Conflict) — treating as uploaded.", chunk.Hash);
+                            break;
+                        }
+                        catch (HttpRequestException ex) when (
                             attempt < ChunkUploadMaxRetries &&
                             (ex.StatusCode is null || (int)ex.StatusCode >= 500))
                         {
@@ -251,7 +258,29 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
 
             await Task.WhenAll(new[] { producer }.Concat(consumers));
 
-            var result = await _api.CompleteUploadAsync(capturedSessionId, cancellationToken);
+            FileNodeResponse result;
+            try
+            {
+                var completeResult = await _api.CompleteUploadAsync(capturedSessionId, cancellationToken);
+                result = completeResult.Node;
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                // Server returned 409 — file with this name already exists.
+                // Treat as success: the file is already on the server.
+                _logger.LogWarning(
+                    "CompleteUpload returned 409 for {FileName} — file already exists on server. Treating as success.",
+                    fileName);
+
+                // Clean up the upload session tracking.
+                if (_stateDb is not null && stateDatabasePath is not null)
+                    await _stateDb.DeleteActiveUploadSessionAsync(stateDatabasePath, capturedSessionId, cancellationToken);
+
+                uploadTimer.Stop();
+
+                // Return empty GUID — caller should look up the existing node if needed.
+                return existingNodeId ?? Guid.Empty;
+            }
 
             // Session complete: remove the tracking record.
             if (_stateDb is not null && stateDatabasePath is not null)
@@ -262,11 +291,11 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
             _logger.LogInformation(
                 "File upload complete: FileName={FileName}, NodeId={NodeId}, FileSize={FileSize}, DurationMs={DurationMs}.",
                 fileName,
-                result.Node.Id,
+                result.Id,
                 fileSize,
                 uploadTimer.ElapsedMilliseconds);
 
-            return result.Node.Id;
+            return result.Id;
         }
         catch (Exception ex)
         {
@@ -310,7 +339,21 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                 return direct;
             }
 
-            var stream = await DownloadChunksAsync(manifest, progress, cancellationToken);
+            Stream stream;
+            try
+            {
+                stream = await DownloadChunksAsync(manifest, progress, cancellationToken);
+            }
+            catch (HttpRequestException chunkEx) when (chunkEx.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                // Chunk blob not found (404) — file was likely uploaded via web UI without chunk storage.
+                // Fall back to direct download endpoint.
+                _logger.LogWarning(
+                    "Chunk download returned 404 for NodeId={NodeId}. Falling back to direct download.",
+                    nodeId);
+                stream = await _api.DownloadAsync(nodeId, cancellationToken);
+            }
+
             downloadTimer.Stop();
 
             _logger.LogInformation(

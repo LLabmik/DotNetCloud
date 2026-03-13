@@ -167,8 +167,8 @@ public sealed class SyncEngine : ISyncEngine
 
             SetState(SyncState.Syncing, context);
             await RefreshAccessTokenAsync(context, cancellationToken);
-            var remoteChangesApplied = await ApplyRemoteChangesAsync(context, cancellationToken);
-            var localFilesQueued = await ScanLocalDirectoryAsync(context, cancellationToken);
+            var (remoteChangesApplied, serverTree) = await ApplyRemoteChangesAsync(context, cancellationToken);
+            var localFilesQueued = await ScanLocalDirectoryAsync(context, serverTree, cancellationToken);
             var localOperationsApplied = await ApplyLocalChangesAsync(context, cancellationToken);
             await _stateDb.UpdateCheckpointAsync(context.StateDatabasePath, DateTime.UtcNow, cancellationToken);
             await _stateDb.CheckpointWalAsync(context.StateDatabasePath, cancellationToken);
@@ -329,7 +329,7 @@ public sealed class SyncEngine : ISyncEngine
     /// not yet reflected on the server. Called once per sync pass, between remote-changes application
     /// and local-operations execution.
     /// </summary>
-    private async Task<int> ScanLocalDirectoryAsync(SyncContext context, CancellationToken cancellationToken)
+    private async Task<int> ScanLocalDirectoryAsync(SyncContext context, SyncTreeNodeResponse serverTree, CancellationToken cancellationToken)
     {
         // Build a lookup of all tracked file records for O(1) path checks.
         var allRecords = await _stateDb.GetAllFileRecordsAsync(context.StateDatabasePath, cancellationToken);
@@ -337,6 +337,11 @@ public sealed class SyncEngine : ISyncEngine
 
         // Build a set of paths already queued for upload to avoid duplicates.
         var queuedPaths = await _stateDb.GetPendingUploadPathsAsync(context.StateDatabasePath, cancellationToken);
+
+        // Build a lookup of server files by relative path for dedup against the remote tree.
+        // This prevents re-uploading files the server already has (e.g. after state.db reset).
+        var serverFilesByRelPath = new Dictionary<string, SyncTreeNodeResponse>(StringComparer.OrdinalIgnoreCase);
+        BuildServerFileMap(serverTree, "", serverFilesByRelPath);
 
         IEnumerable<string> localFiles;
         try
@@ -378,6 +383,35 @@ public sealed class SyncEngine : ISyncEngine
                     new PendingUpload { LocalPath = localPath, NodeId = record.NodeId }, cancellationToken);
                 queued++;
             }
+            else if (serverFilesByRelPath.TryGetValue(relativePath, out var serverNode))
+            {
+                // File exists on server but not tracked locally (e.g. after state.db reset).
+                // Compare content hashes — if identical, just record it; if different, queue update.
+                var localHash = await ComputeFileHashAsync(localPath, cancellationToken);
+                if (string.Equals(localHash, serverNode.ContentHash, StringComparison.OrdinalIgnoreCase))
+                {
+                    // Identical — record in state DB without uploading.
+                    _logger.LogDebug(
+                        "Local file matches server (hash match), recording without upload: {RelPath}", relativePath);
+                    await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, new LocalFileRecord
+                    {
+                        LocalPath = localPath,
+                        NodeId = serverNode.NodeId,
+                        ContentHash = localHash,
+                        LastSyncedAt = DateTime.UtcNow,
+                        LocalModifiedAt = File.GetLastWriteTimeUtc(localPath),
+                    }, cancellationToken);
+                }
+                else
+                {
+                    // Different content — queue an update (not a new file).
+                    _logger.LogDebug(
+                        "Local file differs from server, queuing update upload: {RelPath}", relativePath);
+                    await _stateDb.QueueOperationAsync(context.StateDatabasePath,
+                        new PendingUpload { LocalPath = localPath, NodeId = serverNode.NodeId }, cancellationToken);
+                    queued++;
+                }
+            }
             else
             {
                 // New untracked file — queue a fresh upload.
@@ -396,7 +430,7 @@ public sealed class SyncEngine : ISyncEngine
         return queued;
     }
 
-    private async Task<int> ApplyRemoteChangesAsync(SyncContext context, CancellationToken cancellationToken)
+    private async Task<(int AppliedChanges, SyncTreeNodeResponse Tree)> ApplyRemoteChangesAsync(SyncContext context, CancellationToken cancellationToken)
     {
         // Load stored cursor (null = never synced → server will return full history)
         var cursor = await _stateDb.GetSyncCursorAsync(context.StateDatabasePath, cancellationToken);
@@ -471,7 +505,69 @@ public sealed class SyncEngine : ISyncEngine
             hasMore = page.HasMore;
         }
 
-        return appliedChanges;
+        // Tree-based reconciliation: walk the full server tree and queue downloads
+        // for any files that exist on the server but are missing locally.
+        // This handles files missed by the change feed (e.g. after state.db wipe
+        // when the cursor has already advanced past their change entries).
+        var reconciled = await ReconcileServerTreeAsync(context, tree, pathMap, cancellationToken);
+        appliedChanges += reconciled;
+
+        return (appliedChanges, tree);
+    }
+
+    /// <summary>
+    /// Walks the server tree and queues downloads for files that exist on the server
+    /// but are missing locally. This ensures subdirectory files are synced even when
+    /// the change feed cursor has advanced past their entries.
+    /// </summary>
+    private async Task<int> ReconcileServerTreeAsync(
+        SyncContext context,
+        SyncTreeNodeResponse tree,
+        Dictionary<Guid, string> pathMap,
+        CancellationToken cancellationToken)
+    {
+        var serverFiles = new Dictionary<string, SyncTreeNodeResponse>(StringComparer.OrdinalIgnoreCase);
+        BuildServerFileMap(tree, "", serverFiles);
+
+        var reconciled = 0;
+        foreach (var (relativePath, serverNode) in serverFiles)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var localPath = Path.Combine(context.LocalFolderPath, relativePath);
+
+            if (!_selectiveSync.IsIncluded(context.Id, localPath))
+                continue;
+
+            if (_syncIgnore.IsIgnored(relativePath))
+                continue;
+
+            // Skip if the file already exists locally.
+            if (File.Exists(localPath))
+                continue;
+
+            // Skip if we already have a state DB record for this node (download may be pending).
+            var existingRecord = await _stateDb.GetFileRecordByNodeIdAsync(
+                context.StateDatabasePath, serverNode.NodeId, cancellationToken);
+            if (existingRecord is not null)
+                continue;
+
+            _logger.LogInformation(
+                "Server file missing locally, queuing download: {RelPath} (NodeId={NodeId}).",
+                relativePath, serverNode.NodeId);
+
+            await _stateDb.QueueOperationAsync(context.StateDatabasePath,
+                new PendingDownload { LocalPath = localPath, NodeId = serverNode.NodeId, PosixMode = serverNode.PosixMode },
+                cancellationToken);
+            reconciled++;
+        }
+
+        if (reconciled > 0)
+            _logger.LogInformation(
+                "Tree reconciliation queued {Count} missing file(s) for download in context {ContextId}.",
+                reconciled, context.Id);
+
+        return reconciled;
     }
 
     private async Task HandleRemoteDeletionAsync(SyncContext context, string localPath, Guid nodeId, CancellationToken cancellationToken)
@@ -993,6 +1089,23 @@ public sealed class SyncEngine : ISyncEngine
 
         foreach (var child in node.Children)
             BuildPathMap(child, currentPath, map);
+    }
+
+    /// <summary>
+    /// Recursively flattens a server tree into a relative-path → node lookup for files only.
+    /// Used by <see cref="ScanLocalDirectoryAsync"/> to detect files already on the server.
+    /// </summary>
+    private static void BuildServerFileMap(SyncTreeNodeResponse node, string parentPath, Dictionary<string, SyncTreeNodeResponse> map)
+    {
+        var currentPath = node.NodeId == Guid.Empty
+            ? parentPath
+            : string.IsNullOrEmpty(parentPath) ? node.Name : Path.Combine(parentPath, node.Name);
+
+        if (node.NodeId != Guid.Empty && node.NodeType == "File")
+            map.TryAdd(currentPath, node);
+
+        foreach (var child in node.Children)
+            BuildServerFileMap(child, currentPath, map);
     }
 
     private static bool IsLocallyModified(LocalFileRecord record, string localPath)

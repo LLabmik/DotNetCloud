@@ -187,7 +187,7 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
     /// <inheritdoc/>
     public async Task UploadChunkAsync(Guid sessionId, int chunkIndex, string chunkHash, Stream chunkData, CancellationToken cancellationToken = default, string? fileExtension = null)
     {
-        using var request = CreateAuthenticatedRequest(HttpMethod.Post, $"api/v1/files/upload/{sessionId}/chunks/{chunkIndex}");
+        using var request = CreateAuthenticatedRequest(HttpMethod.Put, $"api/v1/files/upload/{sessionId}/chunks/{chunkHash}");
 
         var skipCompression = fileExtension is not null && PreCompressedExtensions.Contains(fileExtension);
 
@@ -217,8 +217,9 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
     /// <inheritdoc/>
     public async Task<CompleteUploadResponse> CompleteUploadAsync(Guid sessionId, CancellationToken cancellationToken = default)
     {
-        return await PostJsonAsync<CompleteUploadResponse>($"api/v1/files/upload/{sessionId}/complete", new { }, cancellationToken)
-               ?? throw new InvalidOperationException("Server returned null for upload completion.");
+        var node = await PostJsonAsync<FileNodeResponse>($"api/v1/files/upload/{sessionId}/complete", new { }, cancellationToken)
+                  ?? throw new InvalidOperationException("Server returned null for upload completion.");
+        return new CompleteUploadResponse { Node = node };
     }
 
     // ── Download Operations ─────────────────────────────────────────────────

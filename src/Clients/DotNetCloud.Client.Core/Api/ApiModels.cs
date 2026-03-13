@@ -65,6 +65,7 @@ public sealed record UploadSessionResponse
     public required Guid SessionId { get; init; }
 
     /// <summary>Chunk hashes the server already has (for deduplication).</summary>
+    [JsonPropertyName("existingChunks")]
     public IReadOnlyList<string> PresentChunks { get; init; } = [];
 
     /// <summary>Upload expiry timestamp (UTC).</summary>
