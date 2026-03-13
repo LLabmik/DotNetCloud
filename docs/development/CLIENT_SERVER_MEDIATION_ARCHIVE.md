@@ -5,6 +5,19 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Sync 404 Runtime Verification Closeout (2026-03-13)
+
+Client agent completed final runtime verification on `Windows11-TestDNC` with SyncTray `0.23.2.0` after two client hardening follow-ups (404 terminal classification + reconciliation requeue suppression).
+
+**Final observed outcomes:**
+- `err.txt` exists locally at `C:\Users\benk\Documents\synctray\Test\err.txt` with size `0` bytes.
+- `create_admin.cs` remains missing locally (expected because server blob is missing and endpoint returns 404).
+- Latest pass log (UTC):
+    - `Sync pass starting ...` at `2026-03-13T22:55:59.7838693Z`
+    - `Sync pass complete ... DurationMs=491, RemoteChanges=0, LocalQueued=0, LocalApplied=0` at `2026-03-13T22:56:00.2752546Z`
+
+**Conclusion:** retry churn and reconciliation requeue churn are both resolved for this incident. No active cross-machine blocker remains.
+
 ## Archived: Sync E2E Retry — Client Verification (2026-03-13)
 
 Client agent verified the server-side sync fixes (cursor path + rate limit raise) end-to-end on `Windows11-TestDNC`:

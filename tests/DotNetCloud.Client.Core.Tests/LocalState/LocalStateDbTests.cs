@@ -323,6 +323,36 @@ public class LocalStateDbTests
         Assert.AreEqual(0, pending.Count);
     }
 
+    [TestMethod]
+    public async Task HasRecentTerminalDownloadFailureAsync_When404FailedDownloadExists_ReturnsTrue()
+    {
+        var nodeId = Guid.NewGuid();
+        const string localPath = "/docs/missing.txt";
+
+        await _db.QueueOperationAsync(_dbPath, new PendingDownload { LocalPath = localPath, NodeId = nodeId });
+        var op = (await _db.GetPendingOperationsAsync(_dbPath)).Single();
+        await _db.MoveToFailedAsync(_dbPath, op, "Response status code does not indicate success: 404 (Not Found).", CancellationToken.None);
+
+        var hasFailure = await _db.HasRecentTerminalDownloadFailureAsync(_dbPath, nodeId, localPath);
+
+        Assert.IsTrue(hasFailure);
+    }
+
+    [TestMethod]
+    public async Task HasRecentTerminalDownloadFailureAsync_WhenOnlyNon404FailureExists_ReturnsFalse()
+    {
+        var nodeId = Guid.NewGuid();
+        const string localPath = "/docs/transient.txt";
+
+        await _db.QueueOperationAsync(_dbPath, new PendingDownload { LocalPath = localPath, NodeId = nodeId });
+        var op = (await _db.GetPendingOperationsAsync(_dbPath)).Single();
+        await _db.MoveToFailedAsync(_dbPath, op, "Response status code does not indicate success: 500 (Internal Server Error).", CancellationToken.None);
+
+        var hasFailure = await _db.HasRecentTerminalDownloadFailureAsync(_dbPath, nodeId, localPath);
+
+        Assert.IsFalse(hasFailure);
+    }
+
     // ── Sync Cursor (Tasks 2.4 + 2.5) ──────────────────────────────────────
 
     [TestMethod]

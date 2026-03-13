@@ -79,6 +79,12 @@ public interface ILocalStateDb
     /// </summary>
     Task MoveToFailedAsync(string dbPath, PendingOperationRecord operation, string lastError, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Returns true when a download operation for the same node/path recently failed with
+    /// a terminal 404/not-found style error and should not be re-queued immediately.
+    /// </summary>
+    Task<bool> HasRecentTerminalDownloadFailureAsync(string dbPath, Guid nodeId, string localPath, CancellationToken cancellationToken = default);
+
     // ── Sync Checkpoint ─────────────────────────────────────────────────────
 
     /// <summary>Gets the last sync checkpoint timestamp. Returns null if never synced.</summary>

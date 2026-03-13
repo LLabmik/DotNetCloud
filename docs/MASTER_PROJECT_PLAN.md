@@ -3845,8 +3845,13 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Integrated merge editor into `ConflictViewModel` (MergeCommand + CanMerge property) and `SettingsWindow.axaml` (Merge button)
 - ✓ 16 unit tests for `MergeEditorViewModel` (all pass)
 - ✓ Updated SYNC_VERIFICATION_PLAN.md: 28/28 tasks now ✓ (was 20✓/10⚠/4✗)
+- ✓ Runtime hardening follow-up (2026-03-13): pending-download 404 terminal handling now covers `HttpRequestException` paths where `StatusCode` is null but message indicates 404/Not Found
+- ✓ Added regression test `SyncAsync_PendingDownloadNotFoundWithoutStatusCode_MovesToFailedWithoutRetry`
+- ✓ Runtime hardening follow-up (2026-03-13): tree reconciliation now skips re-queueing files with recent terminal 404 download failures, preventing per-pass queue churn for permanently missing server blobs
+- ✓ Added LocalStateDb coverage for terminal download failure detection
+- ✓ Final runtime verification on `Windows11-TestDNC` with SyncTray `0.23.2-alpha`: `err.txt` synced as 0-byte, `create_admin.cs` remained missing as expected, and latest pass completed with `RemoteChanges=0, LocalQueued=0, LocalApplied=0`
 
-**Notes:** Verification complete. All 28 sync improvement tasks confirmed implemented. Build: 0 errors. Tests: 1063/1065 passed (2 expected Linux-only failures). Merge editor uses DiffPlex for line-level diffs with three-way auto-merge and conflict markers for overlapping changes.
+**Notes:** Verification complete. All 28 sync improvement tasks confirmed implemented. Build: 0 errors. Tests: 1063/1065 passed (2 expected Linux-only failures). Merge editor uses DiffPlex for line-level diffs with three-way auto-merge and conflict markers for overlapping changes. Post-verification runtime probes on Windows (SyncTray 0.23.0/0.23.1) exposed 404 edge cases (retry classification, then tree-requeue churn). Both client hotfixes and tests were implemented, and final runtime verification on SyncTray 0.23.2 confirmed closeout.
 
 ---
 

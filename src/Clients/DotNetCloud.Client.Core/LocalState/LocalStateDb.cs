@@ -262,6 +262,28 @@ public sealed class LocalStateDb : ILocalStateDb
         await ctx.SaveChangesAsync(cancellationToken);
     }
 
+    /// <inheritdoc/>
+    public async Task<bool> HasRecentTerminalDownloadFailureAsync(
+        string dbPath,
+        Guid nodeId,
+        string localPath,
+        CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        var cutoff = DateTime.UtcNow.AddHours(-24);
+
+        return await ctx.FailedOperations.AnyAsync(
+            f => f.OperationType == "Download"
+                && f.NodeId == nodeId
+                && f.LocalPath == localPath
+                && f.FailedAt >= cutoff
+                && (
+                    EF.Functions.Like(f.LastError ?? string.Empty, "%404%")
+                    || EF.Functions.Like(f.LastError ?? string.Empty, "%Not Found%")
+                ),
+            cancellationToken);
+    }
+
     // ── Sync Checkpoint ─────────────────────────────────────────────────────
 
     /// <inheritdoc/>

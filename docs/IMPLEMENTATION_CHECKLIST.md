@@ -3921,3 +3921,16 @@ Before marking a phase complete:
 
 **Status:** ✅ All 2 tasks complete
 **Last Reviewed:** 2026-03-09
+
+---
+
+### Runtime Hardening Follow-Up (2026-03-13)
+
+- ✓ Handle pending-download 404 as terminal even when `HttpRequestException.StatusCode` is null (message-based 404 detection fallback)
+- ✓ Add regression test `SyncAsync_PendingDownloadNotFoundWithoutStatusCode_MovesToFailedWithoutRetry`
+- ✓ Suppress tree-reconciliation requeue for files with recent terminal 404 download failures (prevents per-pass requeue loop)
+- ✓ Add LocalStateDb tests for recent terminal download failure detection
+- ✓ Final E2E runtime verification on `Windows11-TestDNC` with SyncTray `0.23.2-alpha` (no retry/requeue churn; `err.txt` zero-byte success)
+
+**Status:** ✅ Completed
+**Last Reviewed:** 2026-03-13

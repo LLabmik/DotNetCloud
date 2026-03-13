@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-13 (E2E runtime verification still pending on Windows11-TestDNC; Linux-side regression tests re-verified on latest main)
+Last updated: 2026-03-13 (Windows11-TestDNC final runtime verification completed on SyncTray 0.23.2-alpha)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -77,6 +77,11 @@ Archived context:
 - **Flaky CDC test fixed** (2026-03-13): `ChunkAndHashCdcAsync_SmallData_ReturnsSingleChunk` used 1KB data with minSize=512 — Phase 2 boundary detection could split it into 2 chunks. Fixed by using 256 bytes (strictly < minSize). Commit `6b89a60`.
 - **Client 404 handling hardened** (2026-03-13): `SyncEngine.ApplyLocalChangesAsync` now treats `PendingDownload` HTTP 404 as terminal and moves operation to failed queue without retry loop. Added `SyncAsync_PendingDownloadNotFound_MovesToFailedWithoutRetry` test.
 - **Handoff verification refresh** (2026-03-13): After pull to latest main, client regression suites re-run on Linux workspace and passing: `SyncEngineTests` (33/33) and `ChunkedTransferClientTests` (23/23). Runtime E2E validation remains required on `Windows11-TestDNC`.
+- **Windows11 runtime probe completed** (2026-03-13, SyncTray 0.23.0): `err.txt` synced correctly as 0-byte local file, but `create_admin.cs` still entered retry churn after direct-download 404 due `HttpRequestException` path lacking `StatusCode`.
+- **Client retry-loop hotfix implemented** (2026-03-13): `SyncEngine` 404 handling now treats NotFound as terminal when either `StatusCode == 404` **or** exception message indicates 404/Not Found. Added regression test `SyncAsync_PendingDownloadNotFoundWithoutStatusCode_MovesToFailedWithoutRetry`.
+- **Windows11 runtime re-check completed** (2026-03-13, SyncTray 0.23.1): per-operation exponential retries are gone (`Download operation ... Moving to failed queue without retry`), but `create_admin.cs` is still re-queued each pass by tree reconciliation.
+- **Client tree-requeue hotfix implemented** (2026-03-13): reconciliation now skips re-queue for files with recent terminal 404 download failures; added LocalStateDb tests. Patched package built: `dotnetcloud-sync-tray-win-x64-0.23.2-alpha.msix`.
+- **Windows11 final runtime verification completed** (2026-03-13, SyncTray 0.23.2): `err.txt` exists locally with 0 bytes, `create_admin.cs` remains missing (expected), and latest sync pass completed with `RemoteChanges=0, LocalQueued=0, LocalApplied=0` (no requeue churn observed).
 
 ## Environment
 
@@ -94,68 +99,15 @@ Archived context:
 
 ## Active Handoff
 
-### E2E Runtime Verification — Client Agent
+### Standby — No Active Cross-Machine Blocker
 
 **Date:** 2026-03-13
-**Owner:** Client agent (`Windows11-TestDNC`)
-**Status:** ACTION REQUIRED (ENVIRONMENT-GATED) — Re-run E2E sync on Windows11-TestDNC and verify runtime behavior
+**Owner:** Both agents
+**Status:** READY
 
-#### Context
+E2E runtime verification for the sync 404/download path is complete on `Windows11-TestDNC` with SyncTray `0.23.2-alpha`. No further cross-machine action is required for this thread.
 
-Server agent fixed the direct download endpoint. Commits on main:
-- `f60541c` — `DownloadService.BuildStreamFromVersionAsync`: 0-byte files now return empty stream (200); missing chunk blobs now throw `NotFoundException` (404) instead of `InvalidOperationException` (400). 2 new tests.
-- `6b89a60` — Flaky CDC test fixed (not a logic change).
-
-Deployed to mint22. Health verified Healthy.
-
-#### What changed on the server
-
-`DownloadService.BuildStreamFromVersionAsync` now:
-1. **0-byte file** (`err.txt`, chunk hash `e3b0c44298fc...`, `Size=0`): skips all storage I/O, returns `Stream.Null` → `File()` returns 200 with 0 bytes.
-2. **Missing blob** (`create_admin.cs`, chunk hash `fd250474...`, blob not on disk): throws `NotFoundException` → `FilesControllerBase.ExecuteAsync` maps it to **404**, not 400.
-
-The client's existing fallback path:
-- `GET /api/v1/files/chunks/{hash}` → 404 (no blob in CAS)
-- Fallback: `GET /api/v1/files/{nodeId}/download` → was 400, **now 200 for err.txt** / **404 for create_admin.cs**
-
-#### Expected E2E results after server fix
-
-- `Test/err.txt` (0-byte): direct download → **200**, 0 bytes — should sync successfully.
-- `Test/create_admin.cs` (blob missing from CAS): direct download → **404** — client gets a clean not-found; file cannot be synced until re-uploaded via sync client.
-
-#### What is already completed in code
-
-1. Added client-side safeguard for direct-download 404 during pending downloads:
-  - `PendingDownload` + HTTP 404 now moves directly to failed queue (no exponential retry churn).
-  - Unit test added and passing: `SyncAsync_PendingDownloadNotFound_MovesToFailedWithoutRetry`.
-2. Regression checks passing:
-  - `DotNetCloud.Client.Core.Tests/Sync/SyncEngineTests.cs` (33 passed)
-  - `DotNetCloud.Client.Core.Tests/Transfer/ChunkedTransferClientTests.cs` (23 passed)
-
-#### What the client agent should do next (runtime verification)
-
-1. Pull main (`6b89a60`).
-2. Wipe `state.db` on `Windows11-TestDNC` to force a full re-sync.
-3. Run SyncTray, observe sync passes.
-4. Verify `err.txt` is created locally with 0 bytes.
-5. Document whether `create_admin.cs` 404 is handled gracefully (no crash, clear log line) or causes an unhandled error.
-6. Verify no crash occurs and that `create_admin.cs` produces a clear failed-operation/log path.
-7. Report raw log lines and endpoint outcomes in next handoff update.
-
-#### Verification commands (mint22)
-
-```bash
-# Confirm server is on current binaries
-curl -sk https://mint22:15443/health/live | python3 -m json.tool
-
-# err.txt — expect 200 + Content-Length: 0
-curl -skI -H "Authorization: Bearer <token>" \
-  "https://mint22:15443/api/v1/files/bc099775-abf5-466a-a51f-e12da11d2f40/download"
-
-# create_admin.cs — expect 404
-curl -sk -H "Authorization: Bearer <token>" \
-  "https://mint22:15443/api/v1/files/f4ca7c97-e794-4ec5-bfc2-339ddb44c0eb/download" | python3 -m json.tool
-```
+If new regressions appear, create a new Active Handoff block with reproducible steps, raw log lines, and expected vs actual behavior.
 
 ## Relay Template
 

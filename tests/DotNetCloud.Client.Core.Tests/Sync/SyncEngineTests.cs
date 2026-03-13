@@ -829,6 +829,40 @@ public class SyncEngineTests
             It.IsAny<DateTime?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [TestMethod]
+    public async Task SyncAsync_PendingDownloadNotFoundWithoutStatusCode_MovesToFailedWithoutRetry()
+    {
+        var localPath = Path.Combine(_tempDir, "missing-remote-file-no-status.txt");
+        var nodeId = Guid.NewGuid();
+        var pendingOp = new PendingDownload { Id = 8, LocalPath = localPath, NodeId = nodeId, RetryCount = 0 };
+
+        var transferMock = new Mock<IChunkedTransferClient>();
+        transferMock
+            .Setup(t => t.DownloadAsync(nodeId, It.IsAny<IProgress<TransferProgress>?>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("Response status code does not indicate success: 404 (Not Found)."));
+
+        _stateDbMock.Setup(db => db.GetPendingOperationsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([pendingOp]);
+        _stateDbMock.Setup(db => db.MoveToFailedAsync(
+                It.IsAny<string>(), It.IsAny<PendingOperationRecord>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        await using var engine = BuildEngine(transferMock.Object);
+
+        await engine.StartAsync(_context);
+        await engine.SyncAsync(_context);
+        await engine.StopAsync();
+
+        _stateDbMock.Verify(db => db.MoveToFailedAsync(
+            _context.StateDatabasePath,
+            pendingOp,
+            It.Is<string>(s => s.Contains("404")),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _stateDbMock.Verify(db => db.UpdateOperationRetryAsync(
+            It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(),
+            It.IsAny<DateTime?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     // ── POSIX metadata downloads (Issue #42) ────────────────────────────────
 
     [TestMethod]

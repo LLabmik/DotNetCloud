@@ -552,6 +552,21 @@ public sealed class SyncEngine : ISyncEngine
             if (existingRecord is not null)
                 continue;
 
+            // Avoid immediate requeue churn for files that recently failed with terminal not-found.
+            var hasRecentTerminalFailure = await _stateDb.HasRecentTerminalDownloadFailureAsync(
+                context.StateDatabasePath,
+                serverNode.NodeId,
+                localPath,
+                cancellationToken);
+            if (hasRecentTerminalFailure)
+            {
+                _logger.LogDebug(
+                    "Skipping tree reconciliation requeue for {RelPath} (NodeId={NodeId}) due to recent terminal download failure.",
+                    relativePath,
+                    serverNode.NodeId);
+                continue;
+            }
+
             _logger.LogInformation(
                 "Server file missing locally, queuing download: {RelPath} (NodeId={NodeId}).",
                 relativePath, serverNode.NodeId);
@@ -742,7 +757,7 @@ public sealed class SyncEngine : ISyncEngine
             }
             catch (HttpRequestException httpEx) when (
                 op is PendingDownload &&
-                httpEx.StatusCode == System.Net.HttpStatusCode.NotFound)
+                IsNotFoundHttp(httpEx))
             {
                 // Remote node/content is missing: retries are not useful for this download operation.
                 _logger.LogWarning(httpEx,
@@ -784,6 +799,18 @@ public sealed class SyncEngine : ISyncEngine
         4 => DateTime.UtcNow.AddHours(1),
         _ => DateTime.UtcNow.AddHours(6),
     };
+
+    private static bool IsNotFoundHttp(HttpRequestException ex)
+    {
+        if (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return true;
+        }
+
+        // Some HTTP pipelines throw 404 exceptions without populating StatusCode.
+        return ex.Message.Contains("404", StringComparison.OrdinalIgnoreCase)
+            || ex.Message.Contains("Not Found", StringComparison.OrdinalIgnoreCase);
+    }
 
     private async Task ExecutePendingOperationAsync(SyncContext context, PendingOperationRecord op, CancellationToken cancellationToken)
     {
