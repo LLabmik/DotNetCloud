@@ -102,6 +102,92 @@ public class DownloadServiceTests
     }
 
     [TestMethod]
+    public async Task DownloadCurrentAsync_ZeroByteFile_ReturnsEmptyStream()
+    {
+        // 0-byte files have a single chunk with Size=0 and the SHA-256 of empty content as the hash.
+        // The blob should never be read from storage; the service must return an empty stream.
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        const string emptyHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
+        var node = new FileNode { Name = "err.txt", NodeType = FileNodeType.File, OwnerId = userId, Size = 0 };
+        db.FileNodes.Add(node);
+
+        var chunk = new FileChunk { ChunkHash = emptyHash, StoragePath = $"chunks/e3/b0/{emptyHash}", Size = 0 };
+        db.FileChunks.Add(chunk);
+
+        var version = new FileVersion
+        {
+            FileNodeId = node.Id,
+            VersionNumber = 1,
+            Size = 0,
+            ContentHash = emptyHash,
+            StoragePath = "files/empty",
+            CreatedByUserId = userId
+        };
+        db.FileVersions.Add(version);
+        db.FileVersionChunks.Add(new FileVersionChunk
+        {
+            FileVersionId = version.Id,
+            FileChunkId = chunk.Id,
+            SequenceIndex = 0
+        });
+        await db.SaveChangesAsync();
+
+        // Storage engine is NOT configured — blob must not be requested
+        var storageMock = new Mock<IFileStorageEngine>(MockBehavior.Strict);
+        var service = CreateService(db, storageMock.Object);
+
+        await using var stream = await service.DownloadCurrentAsync(node.Id, UserCaller(userId));
+
+        Assert.IsNotNull(stream);
+        Assert.AreEqual(0, stream.Length);
+    }
+
+    [TestMethod]
+    public async Task DownloadCurrentAsync_MissingChunkBlob_ThrowsNotFoundException()
+    {
+        // Non-empty file whose chunk blob was lost from storage must return NotFoundException (→ 404),
+        // not InvalidOperationException (→ 400).
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+
+        var node = new FileNode { Name = "create_admin.cs", NodeType = FileNodeType.File, OwnerId = userId, Size = 512 };
+        db.FileNodes.Add(node);
+
+        var chunk = new FileChunk { ChunkHash = "fd250474abc", StoragePath = "chunks/fd/25/fd250474abc", Size = 512 };
+        db.FileChunks.Add(chunk);
+
+        var version = new FileVersion
+        {
+            FileNodeId = node.Id,
+            VersionNumber = 1,
+            Size = 512,
+            ContentHash = "fd250474abc",
+            StoragePath = "files/fd25/fd250474abc",
+            CreatedByUserId = userId
+        };
+        db.FileVersions.Add(version);
+        db.FileVersionChunks.Add(new FileVersionChunk
+        {
+            FileVersionId = version.Id,
+            FileChunkId = chunk.Id,
+            SequenceIndex = 0
+        });
+        await db.SaveChangesAsync();
+
+        // Storage returns null — blob is missing from disk
+        var storageMock = new Mock<IFileStorageEngine>();
+        storageMock.Setup(s => s.OpenReadStreamAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Stream?)null);
+
+        var service = CreateService(db, storageMock.Object);
+
+        await Assert.ThrowsExactlyAsync<NotFoundException>(
+            () => service.DownloadCurrentAsync(node.Id, UserCaller(userId)));
+    }
+
+    [TestMethod]
     public async Task DownloadVersionAsync_SpecificVersion_ReturnsStream()
     {
         using var db = CreateContext();

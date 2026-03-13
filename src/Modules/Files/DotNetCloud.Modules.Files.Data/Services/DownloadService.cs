@@ -162,6 +162,10 @@ internal sealed class DownloadService : IDownloadService
         if (versionChunks.Count == 0)
             return Stream.Null;
 
+        // All chunks are zero-byte (e.g. empty file): serve empty stream without touching storage.
+        if (versionChunks.All(vc => vc.FileChunk!.Size == 0))
+            return Stream.Null;
+
         var tempPath = Path.Combine(_tmpPath, $"dotnetcloud-download-{versionId:N}-{Guid.NewGuid():N}.bin");
 
         try
@@ -176,11 +180,17 @@ internal sealed class DownloadService : IDownloadService
             {
                 foreach (var vc in versionChunks)
                 {
-                    var chunkStream = await _storageEngine.OpenReadStreamAsync(vc.FileChunk!.StoragePath, cancellationToken);
+                    // Zero-byte chunk contributes nothing to the output; skip storage I/O.
+                    if (vc.FileChunk!.Size == 0)
+                        continue;
+
+                    var chunkStream = await _storageEngine.OpenReadStreamAsync(vc.FileChunk.StoragePath, cancellationToken);
                     if (chunkStream is null)
                     {
-                        throw new Core.Errors.InvalidOperationException(
-                            $"Chunk storage missing for hash '{vc.FileChunk.ChunkHash}'. File may be corrupted.");
+                        _logger.LogWarning("Chunk blob missing from storage for hash '{ChunkHash}' in version {VersionId}.",
+                            vc.FileChunk.ChunkHash, versionId);
+                        throw new NotFoundException(
+                            $"File content is unavailable: chunk '{vc.FileChunk.ChunkHash[..8]}…' blob is missing from storage.");
                     }
 
                     await using (chunkStream)
