@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-13 (Sync E2E retry verified — download path clean, upload path gap discovered)
+Last updated: 2026-03-13 (Client sync fixes complete — upload/download contract fixed, subdirectory reconciliation added, server-side download bug identified)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -72,6 +72,7 @@ Archived context:
 - **Sync E2E retry verified** (2026-03-13): Clean state.db wipe + 4 sync passes — zero 429s, zero 404s, cursor-based response shape confirmed. Download path fully working.
 - **Upload path gap identified** (2026-03-13): Sync engine has no local filesystem scan — new local files are not detected or uploaded. Implementation needed.
 - **Upload path implemented** (2026-03-13): `ScanLocalDirectoryAsync` added to `SyncEngine` — detects new/modified local files and queues `PendingUpload`. 4 new tests, all passing. Awaiting E2E verification on `Windows11-TestDNC`.
+- **Client sync fixes complete** (2026-03-13): Upload contract fixed (POST→PUT, chunkHash, existingChunks, CompleteUpload deserialization, 409 handling). Duplicate upload prevention via server tree comparison. Subdirectory download via tree reconciliation. Chunk 404→direct download fallback. 10/12 server files sync correctly. 2 files fail: server returns 400 on direct download for web-UI-uploaded files (`create_admin.cs`, `err.txt`).
 
 ## Environment
 
@@ -89,72 +90,61 @@ Archived context:
 
 ## Active Handoff
 
-### Sync Upload Path — Client Agent
+### Server-Side Download Bug — Server Agent
 
 **Date:** 2026-03-13
-**Owner:** Client agent
-**Status:** IMPLEMENTATION COMPLETE — E2E verification needed on Windows11-TestDNC
+**Owner:** Server agent
+**Status:** ACTION REQUIRED — Fix direct file download for web-UI-uploaded files
 
-#### What was implemented (by server agent — note: client work incorrectly routed to server)
+#### Context
 
-`SyncEngine.ScanLocalDirectoryAsync` was added and wired into `SyncAsync` between `ApplyRemoteChangesAsync` and `ApplyLocalChangesAsync`. The scan:
+Client agent completed all upload and download fixes. Commit `eedd619` on main. E2E testing on Windows11-TestDNC (MSIX v0.22.0-alpha) shows:
 
-1. Loads all `LocalFileRecord` entries from `state.db` into an in-memory dictionary.
-2. Loads all currently-queued upload paths to avoid double-queuing.
-3. Enumerates all files in `context.LocalFolderPath` recursively.
-4. Skips files matched by `.syncignore` or selective-sync exclusions.
-5. For new (untracked) files → queues `PendingUpload` with `NodeId = null`.
-6. For known files modified since `LastSyncedAt` → queues `PendingUpload` with existing `NodeId`.
-7. Unmodified / already-queued files are skipped.
+- **Upload path**: fully working. Upload contract mismatches fixed (POST→PUT, chunkIndex→chunkHash, existingChunks mapping, CompleteUpload deserialization). Duplicate prevention via server tree comparison working. 409 on chunk upload and CompleteUpload handled gracefully.
+- **Download path**: subdirectory file sync fixed via new `ReconcileServerTreeAsync` — walks full server tree after change feed, queues downloads for files missing locally. 5 of 7 subdirectory files downloaded successfully.
+- **2 files still failing**: `Test/create_admin.cs` and `Test/err.txt` — these were uploaded via the web UI (not the sync client).
 
-Two new methods added to `ILocalStateDb` + `LocalStateDb`:
-- `GetAllFileRecordsAsync` — bulk fetch for O(1) path lookup during scan.
-- `GetPendingUploadPathsAsync` — returns set of already-queued upload paths.
+#### The Bug
 
-4 new tests added in `SyncEngineTests`: NewLocalFile, ModifiedLocalFile, UnmodifiedLocalFile, AlreadyQueuedFile. All 33 sync engine tests pass (148 total client tests pass).
+Files uploaded through the **web UI** have chunk manifest entries in the database but **no actual chunk blobs** in the content-addressable store. When the sync client tries to download:
 
-Commits: see git log on `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs`.
+1. `GET /api/v1/files/{nodeId}/chunks` → **200 OK** with chunk hash list (e.g. `fd250474...` for create_admin.cs, `e3b0c44298fc...` for err.txt)
+2. `GET /api/v1/files/chunks/{chunkHash}` → **404 Not Found** (chunk blob doesn't exist in storage)
+3. Client falls back to `GET /api/v1/files/{nodeId}/download` → **400 Bad Request**
 
-#### Next step for client agent
+The 404 on chunk download is expected (web UI doesn't use chunked storage). The client already handles this with a fallback to direct download. But the **direct download endpoint returns 400** instead of serving the file.
 
-1. Pull `main` on `Windows11-TestDNC`.
-2. Build and install updated MSIX on the test machine.
-3. Drop `state.db` (clean slate), create `test2.txt` in the synctray folder, then run a sync.
-4. Confirm in SyncTray logs: `New local file detected, queuing upload: test2.txt` → `PendingUploads=1` → upload completes → file appears in the web UI Files section.
-5. Also verify modified-file path: edit an existing synced file, trigger sync, confirm re-upload.
+#### Specific Node IDs
 
-No server-side changes are needed — the upload endpoints are already working.
+- `Test/create_admin.cs`: NodeId=`f4ca7c97-e794-4ec5-bfc2-339ddb44c0eb`, chunk hash `fd250474eef08187c32380149ee3f203bc514c39fd5fcf07ab83513d40190c6a`
+- `Test/err.txt`: NodeId=`bc099775-abf5-466a-a51f-e12da11d2f40`, chunk hash `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` (SHA-256 of empty content — 0-byte file)
 
-#### E2E Retry Results (download path verified ✅)
+#### Server endpoint to fix
 
-Server-side fixes confirmed working on `Windows11-TestDNC` (v0.15.0-alpha MSIX):
-- `GET /api/v1/files/sync/changes?limit=500` → **200 OK**, cursor-based `{changes, nextCursor, hasMore}` format confirmed (client reuses cursor `MDE5Y2MxYWMtZGE0Mi03MzdjLWIwYWItZDBmMmVjY2E4MDE5OjA%3D` on subsequent passes).
-- **Zero 429 errors** across 4 observed sync passes (16:12–16:18 UTC).
-- **Zero 404 errors, zero Error-level log entries.**
-- Token refresh, tree fetch, changes fetch — all 200 OK, latency 5–25ms.
-- 8 files on disk from prior sync (test1.docx, test1.odt, 2 client tarballs, checkbook .ods, 2 PNGs, .selective-sync.json).
+`GET /api/v1/files/{nodeId}/download` in `FilesController.cs` (line ~245 in `DotNetCloud.Modules.Files.Host`).
 
-#### Finding: No client→server upload path
+The `_downloadService.DownloadCurrentAsync(nodeId, caller)` call is either:
+- Throwing an exception that gets caught as 400
+- Returning null/invalid stream
+- Failing because the file content was stored inline (web UI upload) rather than in the chunk store, and the download service only knows how to reassemble from chunks
 
-The sync engine (`SyncEngine.cs`) has **no local filesystem scan** that detects new/modified local files and queues them as `PendingUpload`. Current flow:
+#### What the server agent should do
 
-1. `SyncAsync()` calls `ApplyRemoteChangesAsync()` — downloads server changes via cursor-based pagination ✅
-2. `SyncAsync()` calls `ApplyLocalChangesAsync()` — but this **only processes operations already in the pending queue**.
-3. `PendingUpload` records are only created by conflict resolution (remote-delete vs local-modified), never by detecting new local files.
-4. `FileSystemWatcher` triggers `SyncAsync()` reactively (confirmed working), but the subsequent sync pass doesn't scan for new files.
-5. `RunPeriodicScanAsync()` just calls `SyncAsync()` on the timer — same gap.
+1. Pull main (`eedd619`).
+2. Reproduce: `curl -k -H "Authorization: Bearer <token>" https://mint22:15443/api/v1/files/f4ca7c97-e794-4ec5-bfc2-339ddb44c0eb/download` — expect 400.
+3. Debug why `DownloadCurrentAsync` fails for web-UI-uploaded files.
+4. Fix — ensure direct download works for ALL files regardless of upload method (web UI vs sync client).
+5. Verify both NodeIds above return 200 with correct file content.
 
-**Test:** Created `test2.txt` in synctray folder. FileSystemWatcher detected it and triggered 3 sync passes. All completed with `PendingUploads=0, FileCount=0`. File was never uploaded.
+#### Client-side changes (commit eedd619)
 
-#### Next step
+Files changed:
+- `ApiModels.cs` — `[JsonPropertyName("existingChunks")]` on `PresentChunks`
+- `DotNetCloudApiClient.cs` — PUT chunks, direct FileNodeResponse deserialization on CompleteUpload
+- `SyncEngine.cs` — `ReconcileServerTreeAsync`, `BuildServerFileMap`, server tree passed to `ScanLocalDirectoryAsync` for dedup
+- `ChunkedTransferClient.cs` — 409 catch on chunk upload, 409 catch on CompleteUpload, 404→direct download fallback
 
-Implement local filesystem scan in `SyncEngine.SyncAsync()` — between `ApplyRemoteChangesAsync` and `ApplyLocalChangesAsync`, add a scan that:
-1. Enumerates all files in `context.LocalFolderPath` recursively
-2. Compares against `state.db` file records (hash + mtime)
-3. Queues new/modified files as `PendingUpload` operations
-4. Respects `.syncignore` and selective sync filters
-
-No server-side changes needed — upload endpoints (`InitiateUploadAsync`, chunk upload, `CompleteUploadAsync`) already exist in the API client.
+All 152 client tests pass.
 
 ## Relay Template
 
