@@ -178,7 +178,9 @@ public class ContentHasherTests
     [TestMethod]
     public async Task ChunkAndHashCdcAsync_SmallData_ReturnsSingleChunk()
     {
-        var data = new byte[1024]; // 1KB — well below any minSize
+        // Data must be strictly below minSize so Phase 1 consumes everything and
+        // Phase 2 (boundary detection) is never entered — guaranteeing one chunk.
+        var data = new byte[256]; // 256 B < minSize 512 B
         Random.Shared.NextBytes(data);
         using var stream = new MemoryStream(data);
 
