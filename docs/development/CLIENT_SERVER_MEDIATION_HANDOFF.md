@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-13 (Client sync fixes complete — upload/download contract fixed, subdirectory reconciliation added, server-side download bug identified)
+Last updated: 2026-03-13 (Server download bug fixed — 0-byte files return 200, missing chunk blobs return 404; flaky CDC test fixed)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -73,6 +73,8 @@ Archived context:
 - **Upload path gap identified** (2026-03-13): Sync engine has no local filesystem scan — new local files are not detected or uploaded. Implementation needed.
 - **Upload path implemented** (2026-03-13): `ScanLocalDirectoryAsync` added to `SyncEngine` — detects new/modified local files and queues `PendingUpload`. 4 new tests, all passing. Awaiting E2E verification on `Windows11-TestDNC`.
 - **Client sync fixes complete** (2026-03-13): Upload contract fixed (POST→PUT, chunkHash, existingChunks, CompleteUpload deserialization, 409 handling). Duplicate upload prevention via server tree comparison. Subdirectory download via tree reconciliation. Chunk 404→direct download fallback. 10/12 server files sync correctly. 2 files fail: server returns 400 on direct download for web-UI-uploaded files (`create_admin.cs`, `err.txt`).
+- **Server download bug fixed** (2026-03-13): `BuildStreamFromVersionAsync` in `DownloadService` now (1) serves empty stream for 0-byte files without touching storage, (2) throws `NotFoundException` (→ HTTP 404) instead of `InvalidOperationException` (→ HTTP 400) when a chunk blob is missing. 2 new tests added. Deployed to mint22 commit `f60541c` — health Healthy.
+- **Flaky CDC test fixed** (2026-03-13): `ChunkAndHashCdcAsync_SmallData_ReturnsSingleChunk` used 1KB data with minSize=512 — Phase 2 boundary detection could split it into 2 chunks. Fixed by using 256 bytes (strictly < minSize). Commit `6b89a60`.
 
 ## Environment
 
@@ -90,61 +92,59 @@ Archived context:
 
 ## Active Handoff
 
-### Server-Side Download Bug — Server Agent
+### E2E Verification — Client Agent
 
 **Date:** 2026-03-13
-**Owner:** Server agent
-**Status:** ACTION REQUIRED — Fix direct file download for web-UI-uploaded files
+**Owner:** Client agent (`Windows11-TestDNC`)
+**Status:** ACTION REQUIRED — Re-run E2E sync and verify all 12 files download correctly
 
 #### Context
 
-Client agent completed all upload and download fixes. Commit `eedd619` on main. E2E testing on Windows11-TestDNC (MSIX v0.22.0-alpha) shows:
+Server agent fixed the direct download endpoint. Commits on main:
+- `f60541c` — `DownloadService.BuildStreamFromVersionAsync`: 0-byte files now return empty stream (200); missing chunk blobs now throw `NotFoundException` (404) instead of `InvalidOperationException` (400). 2 new tests.
+- `6b89a60` — Flaky CDC test fixed (not a logic change).
 
-- **Upload path**: fully working. Upload contract mismatches fixed (POST→PUT, chunkIndex→chunkHash, existingChunks mapping, CompleteUpload deserialization). Duplicate prevention via server tree comparison working. 409 on chunk upload and CompleteUpload handled gracefully.
-- **Download path**: subdirectory file sync fixed via new `ReconcileServerTreeAsync` — walks full server tree after change feed, queues downloads for files missing locally. 5 of 7 subdirectory files downloaded successfully.
-- **2 files still failing**: `Test/create_admin.cs` and `Test/err.txt` — these were uploaded via the web UI (not the sync client).
+Deployed to mint22. Health verified Healthy.
 
-#### The Bug
+#### What changed on the server
 
-Files uploaded through the **web UI** have chunk manifest entries in the database but **no actual chunk blobs** in the content-addressable store. When the sync client tries to download:
+`DownloadService.BuildStreamFromVersionAsync` now:
+1. **0-byte file** (`err.txt`, chunk hash `e3b0c44298fc...`, `Size=0`): skips all storage I/O, returns `Stream.Null` → `File()` returns 200 with 0 bytes.
+2. **Missing blob** (`create_admin.cs`, chunk hash `fd250474...`, blob not on disk): throws `NotFoundException` → `FilesControllerBase.ExecuteAsync` maps it to **404**, not 400.
 
-1. `GET /api/v1/files/{nodeId}/chunks` → **200 OK** with chunk hash list (e.g. `fd250474...` for create_admin.cs, `e3b0c44298fc...` for err.txt)
-2. `GET /api/v1/files/chunks/{chunkHash}` → **404 Not Found** (chunk blob doesn't exist in storage)
-3. Client falls back to `GET /api/v1/files/{nodeId}/download` → **400 Bad Request**
+The client's existing fallback path:
+- `GET /api/v1/files/chunks/{hash}` → 404 (no blob in CAS)
+- Fallback: `GET /api/v1/files/{nodeId}/download` → was 400, **now 200 for err.txt** / **404 for create_admin.cs**
 
-The 404 on chunk download is expected (web UI doesn't use chunked storage). The client already handles this with a fallback to direct download. But the **direct download endpoint returns 400** instead of serving the file.
+#### Expected E2E results after server fix
 
-#### Specific Node IDs
+- `Test/err.txt` (0-byte): direct download → **200**, 0 bytes — should sync successfully.
+- `Test/create_admin.cs` (blob missing from CAS): direct download → **404** — client gets a clean not-found; file cannot be synced until re-uploaded via sync client.
 
-- `Test/create_admin.cs`: NodeId=`f4ca7c97-e794-4ec5-bfc2-339ddb44c0eb`, chunk hash `fd250474eef08187c32380149ee3f203bc514c39fd5fcf07ab83513d40190c6a`
-- `Test/err.txt`: NodeId=`bc099775-abf5-466a-a51f-e12da11d2f40`, chunk hash `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` (SHA-256 of empty content — 0-byte file)
+#### What the client agent should do
 
-#### Server endpoint to fix
+1. Pull main (`6b89a60`).
+2. Wipe `state.db` on `Windows11-TestDNC` to force a full re-sync.
+3. Run SyncTray, observe sync passes.
+4. Verify `err.txt` is created locally with 0 bytes.
+5. Document whether `create_admin.cs` 404 is handled gracefully (no crash, clear log line) or causes an unhandled error.
+6. If `create_admin.cs` 404 causes a crash/unhandled path, fix client-side 404 handling in the direct download fallback.
+7. Report results in next handoff.
 
-`GET /api/v1/files/{nodeId}/download` in `FilesController.cs` (line ~245 in `DotNetCloud.Modules.Files.Host`).
+#### Verification commands (mint22)
 
-The `_downloadService.DownloadCurrentAsync(nodeId, caller)` call is either:
-- Throwing an exception that gets caught as 400
-- Returning null/invalid stream
-- Failing because the file content was stored inline (web UI upload) rather than in the chunk store, and the download service only knows how to reassemble from chunks
+```bash
+# Confirm server is on current binaries
+curl -sk https://mint22:15443/health/live | python3 -m json.tool
 
-#### What the server agent should do
+# err.txt — expect 200 + Content-Length: 0
+curl -skI -H "Authorization: Bearer <token>" \
+  "https://mint22:15443/api/v1/files/bc099775-abf5-466a-a51f-e12da11d2f40/download"
 
-1. Pull main (`eedd619`).
-2. Reproduce: `curl -k -H "Authorization: Bearer <token>" https://mint22:15443/api/v1/files/f4ca7c97-e794-4ec5-bfc2-339ddb44c0eb/download` — expect 400.
-3. Debug why `DownloadCurrentAsync` fails for web-UI-uploaded files.
-4. Fix — ensure direct download works for ALL files regardless of upload method (web UI vs sync client).
-5. Verify both NodeIds above return 200 with correct file content.
-
-#### Client-side changes (commit eedd619)
-
-Files changed:
-- `ApiModels.cs` — `[JsonPropertyName("existingChunks")]` on `PresentChunks`
-- `DotNetCloudApiClient.cs` — PUT chunks, direct FileNodeResponse deserialization on CompleteUpload
-- `SyncEngine.cs` — `ReconcileServerTreeAsync`, `BuildServerFileMap`, server tree passed to `ScanLocalDirectoryAsync` for dedup
-- `ChunkedTransferClient.cs` — 409 catch on chunk upload, 409 catch on CompleteUpload, 404→direct download fallback
-
-All 152 client tests pass.
+# create_admin.cs — expect 404
+curl -sk -H "Authorization: Bearer <token>" \
+  "https://mint22:15443/api/v1/files/f4ca7c97-e794-4ec5-bfc2-339ddb44c0eb/download" | python3 -m json.tool
+```
 
 ## Relay Template
 
