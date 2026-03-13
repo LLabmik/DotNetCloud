@@ -5,6 +5,24 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Sync E2E Retry — Client Verification (2026-03-13)
+
+Client agent verified the server-side sync fixes (cursor path + rate limit raise) end-to-end on `Windows11-TestDNC`:
+
+**Test procedure:** Wiped `state.db` in MSIX service context (`ff717557-133a-49b7-b91f-0ab8cecaceee`) at `C:\WINDOWS\system32\config\systemprofile\AppData\Local\DotNetCloud\Sync\`, preserved `.tok` auth file, restarted `DotNetCloudSync` service.
+
+**Results (4 sync passes observed: 16:12, 16:17, 16:17:47, 16:18:09 UTC):**
+- `GET /api/v1/files/sync/changes?limit=500` → **200 OK** (6ms). Client received cursor-based Object format (proven by subsequent pass using `cursor=MDE5Y2MxYWMtZGE0Mi03MzdjLWIwYWItZDBmMmVjY2E4MDE5OjA%3D`). ✅
+- `GET /api/v1/files/sync/tree` → **200 OK** (8–25ms). ✅
+- `POST /connect/token` (refresh) → **200 OK** (209ms). ✅
+- **Zero 429 errors** across all 4 passes. ✅
+- **Zero 404 errors.** ✅
+- **Zero Error-level log entries.** ✅
+- Files on disk: 8 files synced (from prior download), local state.db cursor persisted correctly.
+- FileSystemWatcher reactive sync working — file creation/rename triggers immediate sync passes.
+
+**Finding — Upload gap:** The sync engine currently only handles server→client (download). New local files are NOT detected or queued as `PendingUpload`. `ApplyLocalChangesAsync` only processes already-queued pending operations; there is no local filesystem scan that compares local files against state.db to detect new/modified files. Client→server upload of new files is not yet implemented.
+
 ## Archived: Sync Changes Shape + Rate Limit Fix (2026-03-13)
 
 Server agent fixed two sync blockers:

@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-13 (Sync changes shape fix + chunk rate limit raised — deployed to mint22)
+Last updated: 2026-03-13 (Sync E2E retry verified — download path clean, upload path gap discovered)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -69,6 +69,8 @@ Archived context:
 - Chat message sender names fix: deployed to mint22 (2026-03-12). Display names resolved via IUserDirectory cache.
 - **Sync changes response shape fix**: deployed to mint22 (2026-03-13). `SyncController` now uses cursor path returning `PagedSyncChangesDto {changes, nextCursor, hasMore}` when no `since` param. Legacy `since` path preserved for backward compat.
 - **Chunk rate limit raised**: `appsettings.json` `ModuleLimits.chunks` 3000 → 10000/60s to prevent 429 bursts during initial sync.
+- **Sync E2E retry verified** (2026-03-13): Clean state.db wipe + 4 sync passes — zero 429s, zero 404s, cursor-based response shape confirmed. Download path fully working.
+- **Upload path gap identified** (2026-03-13): Sync engine has no local filesystem scan — new local files are not detected or uploaded. Implementation needed.
 
 ## Environment
 
@@ -86,34 +88,42 @@ Archived context:
 
 ## Active Handoff
 
-### Sync End-to-End Retry — Client Agent
+### Sync Upload Path — Client Agent
 
 **Date:** 2026-03-13
 **Owner:** Client agent
-**Status:** ACTION REQUIRED
+**Status:** DISCOVERY COMPLETE — implementation needed
 
-#### What was fixed (server-side, deployed to mint22)
+#### E2E Retry Results (download path verified ✅)
 
-1. **`SyncController` cursor path** (`src/Core/DotNetCloud.Core.Server/Controllers/SyncController.cs`): The old controller only accepted `?since=<datetime>` and returned a flat `IReadOnlyList<SyncChangeDto>`. It now supports cursor-aware pagination, matching the `Files.Host` controller:
-   - `GET /api/v1/files/sync/changes?limit=500` (no cursor, no since) → calls `GetChangesSinceCursorAsync(null, ...)` → returns `{changes:[...], nextCursor:"...", hasMore:false}` wrapped in envelope.
-   - `GET /api/v1/files/sync/changes?cursor=<token>` → paginated follow-up.
-   - `GET /api/v1/files/sync/changes?since=<datetime>` → legacy flat-array path preserved.
+Server-side fixes confirmed working on `Windows11-TestDNC` (v0.15.0-alpha MSIX):
+- `GET /api/v1/files/sync/changes?limit=500` → **200 OK**, cursor-based `{changes, nextCursor, hasMore}` format confirmed (client reuses cursor `MDE5Y2MxYWMtZGE0Mi03MzdjLWIwYWItZDBmMmVjY2E4MDE5OjA%3D` on subsequent passes).
+- **Zero 429 errors** across 4 observed sync passes (16:12–16:18 UTC).
+- **Zero 404 errors, zero Error-level log entries.**
+- Token refresh, tree fetch, changes fetch — all 200 OK, latency 5–25ms.
+- 8 files on disk from prior sync (test1.docx, test1.odt, 2 client tarballs, checkbook .ods, 2 PNGs, .selective-sync.json).
 
-2. **Chunk rate limit** (`appsettings.json`): `ModuleLimits.chunks` raised from 3000 → 10000 permits/60s. Initial full-sync bursts should no longer hit 429s.
+#### Finding: No client→server upload path
 
-**Binary deployed:** `artifacts/publish/server-baremetal/DotNetCloud.Core.Server.dll` timestamp `2026-03-13 08:15:33`. Health: Healthy.
+The sync engine (`SyncEngine.cs`) has **no local filesystem scan** that detects new/modified local files and queues them as `PendingUpload`. Current flow:
 
-#### Requested action
+1. `SyncAsync()` calls `ApplyRemoteChangesAsync()` — downloads server changes via cursor-based pagination ✅
+2. `SyncAsync()` calls `ApplyLocalChangesAsync()` — but this **only processes operations already in the pending queue**.
+3. `PendingUpload` records are only created by conflict resolution (remote-delete vs local-modified), never by detecting new local files.
+4. `FileSystemWatcher` triggers `SyncAsync()` reactively (confirmed working), but the subsequent sync pass doesn't scan for new files.
+5. `RunPeriodicScanAsync()` just calls `SyncAsync()` on the timer — same gap.
 
-1. On `Windows11-TestDNC`, wipe the local sync cursor/state so a clean full-sync is triggered.
-2. Run the SyncTray client and initiate a sync against `https://mint22:15443/`.
-3. Confirm:
-   - `GET /api/v1/files/sync/changes?limit=500` returns `data` as `{changes:[...], nextCursor, hasMore}` (not a flat array).
-   - Chunk downloads complete without 429 rate-limit errors.
-   - All files sync successfully end-to-end.
-4. Report: HTTP response body shape observed, any remaining errors, and total files synced.
+**Test:** Created `test2.txt` in synctray folder. FileSystemWatcher detected it and triggered 3 sync passes. All completed with `PendingUploads=0, FileCount=0`. File was never uploaded.
 
-**Note:** Client v0.13 already has the dual-shape mitigation in `GetChangesSinceAsync` — it will work with both the old and new format. The server fix makes it canonical.
+#### Next step
+
+Implement local filesystem scan in `SyncEngine.SyncAsync()` — between `ApplyRemoteChangesAsync` and `ApplyLocalChangesAsync`, add a scan that:
+1. Enumerates all files in `context.LocalFolderPath` recursively
+2. Compares against `state.db` file records (hash + mtime)
+3. Queues new/modified files as `PendingUpload` operations
+4. Respects `.syncignore` and selective sync filters
+
+No server-side changes needed — upload endpoints (`InitiateUploadAsync`, chunk upload, `CompleteUploadAsync`) already exist in the API client.
 
 ## Relay Template
 
