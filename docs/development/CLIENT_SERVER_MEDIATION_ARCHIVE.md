@@ -5,6 +5,14 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Sync Changes Shape + Rate Limit Fix (2026-03-13)
+
+Server agent fixed two sync blockers:
+1. **`SyncController` cursor path**: `Core.Server/Controllers/SyncController.cs` was using the legacy `since` path (returning `IReadOnlyList<SyncChangeDto>` flat array) instead of the cursor path (`PagedSyncChangesDto`). Updated controller to match `Files.Host` implementation — now supports `cursor`, `since` (legacy), `limit`, and `folderId` params. No cursor/since → cursor path returns `{changes, nextCursor, hasMore}`.
+2. **Chunk download rate limit**: `appsettings.json` `ModuleLimits.chunks` raised from 3000 → 10000 permits/60s to prevent 429s during initial sync bursts.
+
+Deployed to mint22 (2026-03-13). Binary timestamp: `2026-03-13 08:15:33`. Health: Healthy. Endpoint verified: `GET /api/v1/files/sync/changes?limit=5` → 401 (auth required, correct).
+
 ## Archived: Chat Message Sender Names Fix (2026-03-12)
 
 Server agent deployed display name resolution for chat messages via `_displayNameCache` + `ResolveDisplayNamesAsync()`. All message paths (initial load, load-more, send, edit, search) resolve sender names. Deployed to mint22, verified Healthy.
