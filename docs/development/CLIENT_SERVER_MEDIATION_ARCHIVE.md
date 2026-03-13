@@ -5,6 +5,10 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Chat Message Sender Names Fix (2026-03-12)
+
+Server agent deployed display name resolution for chat messages via `_displayNameCache` + `ResolveDisplayNamesAsync()`. All message paths (initial load, load-more, send, edit, search) resolve sender names. Deployed to mint22, verified Healthy.
+
 ## Archived: Chat UI Fixes — Invite, Online Status, MemberListPanel (2026-03-12)
 
 Server agent deployed channel invite UI, fixed member online status (current user shows "Online"), fixed MemberListPanel CSS class mismatch, overhauled MemberListPanel dark theme styling. All verified on mint22 — health checks Healthy, CSS bundle 200 OK.

@@ -9,8 +9,7 @@
         MinWidth="700"
         MinHeight="500"
         WindowStartupLocation="CenterScreen"
-        CanResize="True"
-        Icon="/Assets/icon-idle.png">
+        CanResize="True">
 
     <Window.Styles>
         <!-- Diff line highlighting -->

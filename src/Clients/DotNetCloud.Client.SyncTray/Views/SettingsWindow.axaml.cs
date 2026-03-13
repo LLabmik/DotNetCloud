@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using DotNetCloud.Client.SyncTray.ViewModels;
 
 namespace DotNetCloud.Client.SyncTray.Views;
@@ -21,4 +22,7 @@ public partial class SettingsWindow : Window
         // Lazily initialise the sync-ignore parser when the window first opens.
         Opened += (_, _) => vm.EnsureSyncIgnoreInitialized();
     }
+
+    /// <summary>Handles the Close button click.</summary>
+    private void OnCloseClick(object? sender, RoutedEventArgs e) => Close();
 }

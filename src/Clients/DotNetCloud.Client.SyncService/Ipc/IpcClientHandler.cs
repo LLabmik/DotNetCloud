@@ -205,9 +205,27 @@ public sealed class IpcClientHandler : IAsyncDisposable
             return;
 
         var contexts = await _contextManager.GetContextsAsync();
+
+        _logger.LogWarning(
+            "ListContexts: {Total} total context(s), caller={CallerAccount}/{CallerNormalized}.",
+            contexts.Count,
+            _callerIdentity.AccountName ?? "<null>",
+            _callerIdentity.NormalizedIdentity ?? "<null>");
+
         var allowedContexts = contexts
             .Where(c => _callerIdentity.MatchesOwner(c.OsUserName))
             .ToList();
+
+        if (allowedContexts.Count < contexts.Count)
+        {
+            var rejected = contexts.Where(c => !_callerIdentity.MatchesOwner(c.OsUserName));
+            foreach (var r in rejected)
+            {
+                _logger.LogWarning(
+                    "ListContexts: context {ContextId} owner '{Owner}' does not match caller '{Caller}'.",
+                    r.Id, r.OsUserName, _callerIdentity.AccountName ?? _callerIdentity.NormalizedIdentity ?? "<null>");
+            }
+        }
 
         var infos = new List<ContextInfo>(contexts.Count);
 
@@ -261,17 +279,20 @@ public sealed class IpcClientHandler : IAsyncDisposable
         if (!await EnsureCallerIdentityAsync(command.Command, null, cancellationToken))
             return;
 
-        var addContextResult = await ExecuteWithCallerIdentityAsync(
-            command.Command,
-            null,
-            null,
-            () => _contextManager.AddContextAsync(request, cancellationToken),
-            cancellationToken);
-
-        if (!addContextResult.Success)
+        // Add-account creates service-owned directories and writes to ProgramData,
+        // so it must run as the service account — NOT impersonated as the caller.
+        // The caller's identity is already captured in request.OsUserName for ownership checks.
+        SyncContextRegistration registration;
+        try
+        {
+            registration = await _contextManager.AddContextAsync(request, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to add account context for server {ServerUrl}.", request.ServerBaseUrl);
+            await SendErrorAsync(command.Command, $"Failed to add account: {ex.Message}", cancellationToken);
             return;
-
-        var registration = addContextResult.Result;
+        }
 
         await SendResponseAsync(command.Command,
             new { contextId = registration.Id, displayName = registration.DisplayName },

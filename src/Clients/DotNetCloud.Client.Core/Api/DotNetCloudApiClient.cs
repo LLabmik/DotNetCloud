@@ -18,6 +18,7 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
 
     private readonly HttpClient _http;
     private readonly ILogger<DotNetCloudApiClient> _logger;
+    private static ILogger<DotNetCloudApiClient>? _staticLogger;
 
     /// <summary>Access token injected per-request.</summary>
     public string? AccessToken { get; set; }
@@ -27,6 +28,7 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
     {
         _http = httpClient;
         _logger = logger;
+        _staticLogger = logger;
     }
 
     // ── Authentication ──────────────────────────────────────────────────────
@@ -291,8 +293,45 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
         var query = $"limit={limit}";
         if (cursor is not null)
             query += $"&cursor={Uri.EscapeDataString(cursor)}";
-        return await GetAsync<PagedSyncChangesResponse>($"api/v1/files/sync/changes?{query}", cancellationToken)
-               ?? new PagedSyncChangesResponse { Changes = [] };
+
+        var path = $"api/v1/files/sync/changes?{query}";
+        using var response = await SendWithRetryAsync(
+            () => CreateAuthenticatedRequest(HttpMethod.Get, path),
+            cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var errBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogError("HTTP {Status} on GET {Path}. Body: {Body}",
+                (int)response.StatusCode, path, errBody);
+        }
+        response.EnsureSuccessStatusCode();
+
+        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+        using var doc = JsonDocument.Parse(responseBody);
+
+        // Extract envelope data if present
+        JsonElement payload = doc.RootElement;
+        if (doc.RootElement.ValueKind == JsonValueKind.Object &&
+            doc.RootElement.TryGetProperty("data", out var dataProp))
+        {
+            payload = dataProp;
+        }
+
+        // New cursor-based format: data is an object { changes, nextCursor, hasMore }
+        if (payload.ValueKind == JsonValueKind.Object)
+        {
+            return payload.Deserialize<PagedSyncChangesResponse>(JsonOptions)
+                   ?? new PagedSyncChangesResponse { Changes = [] };
+        }
+
+        // Legacy format: data is a flat array of change DTOs
+        if (payload.ValueKind == JsonValueKind.Array)
+        {
+            var changes = payload.Deserialize<List<SyncChangeResponse>>(JsonOptions) ?? [];
+            return new PagedSyncChangesResponse { Changes = changes, HasMore = false };
+        }
+
+        return new PagedSyncChangesResponse { Changes = [] };
     }
 
     /// <inheritdoc/>
@@ -418,8 +457,15 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
             // Handle rate limiting
             if (response.StatusCode == HttpStatusCode.TooManyRequests)
             {
-                var retryAfter = response.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(Math.Pow(2, attempt + 1));
-                _logger.LogWarning("Rate limited (429). Waiting {Delay}s before retry.", retryAfter.TotalSeconds);
+                // Use server Retry-After but cap at 10s — server fixed-window resets can send
+                // very large values (60s+) that stall parallel chunk downloads.
+                var serverDelay = response.Headers.RetryAfter?.Delta;
+                var backoff = TimeSpan.FromSeconds(Math.Pow(2, attempt + 1));
+                var retryAfter = serverDelay.HasValue
+                    ? TimeSpan.FromSeconds(Math.Min(serverDelay.Value.TotalSeconds, 10))
+                    : backoff;
+                _logger.LogWarning("Rate limited (429). Waiting {Delay}s before retry (attempt {Attempt}/{Max}).",
+                    retryAfter.TotalSeconds, attempt + 1, MaxRetries);
                 if (attempt >= MaxRetries)
                     return response;
                 response.Dispose();
@@ -450,8 +496,14 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
     /// </summary>
     private static async Task<T?> ReadEnvelopeDataAsync<T>(HttpResponseMessage response, CancellationToken cancellationToken)
     {
-        using var doc = await JsonDocument.ParseAsync(
-            await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
+        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+        _staticLogger?.LogInformation("ReadEnvelopeDataAsync<{TypeName}>: HTTP {StatusCode}, ContentType={ContentType}, BodyLength={Length}, BodyPreview={Preview}",
+            typeof(T).Name, (int)response.StatusCode,
+            response.Content.Headers.ContentType?.ToString() ?? "(none)",
+            responseBody.Length,
+            responseBody.Length > 500 ? responseBody[..500] : responseBody);
+
+        using var doc = JsonDocument.Parse(responseBody);
 
         if (doc.RootElement.ValueKind == JsonValueKind.Object &&
             doc.RootElement.TryGetProperty("data", out var dataProp))

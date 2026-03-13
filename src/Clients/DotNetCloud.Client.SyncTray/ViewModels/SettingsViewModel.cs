@@ -390,10 +390,14 @@ public sealed class SettingsViewModel : ViewModelBase
 
         try
         {
+            _logger.LogInformation("Starting OAuth2 flow for server {Url}.", serverUrl);
+
             var tokens = await _oauth2.AuthorizeAsync(
                 serverUrl, AddAccountClientId,
                 scopes: ["openid", "profile", "offline_access", "files:read", "files:write"],
                 cancellationToken);
+
+            _logger.LogInformation("OAuth2 tokens received. Building account data.");
 
             var data = new AddAccountData
             {
@@ -406,9 +410,39 @@ public sealed class SettingsViewModel : ViewModelBase
                 ExpiresAt = tokens.ExpiresAt,
             };
 
-            await _ipc.AddAccountAsync(data, cancellationToken);
+            // Ensure the sync folder exists before sending to the service.
+            // The tray runs as the user and has permission; the service may not.
+            try { Directory.CreateDirectory(localFolderPath); }
+            catch (Exception dirEx)
+            {
+                _logger.LogWarning(dirEx, "Could not pre-create sync folder {Path}.", localFolderPath);
+            }
+
+            _logger.LogInformation(
+                "Sending add-account to SyncService: UserId={UserId}, DisplayName={DisplayName}, Folder={Folder}.",
+                data.UserId, data.DisplayName, data.LocalFolderPath);
+
+            using var ipcCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            ipcCts.CancelAfter(TimeSpan.FromSeconds(30));
+
+            try
+            {
+                await _ipc.AddAccountAsync(data, ipcCts.Token);
+                _logger.LogInformation("Add-account IPC call completed successfully.");
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogError("Add-account IPC call timed out after 30 seconds.");
+                AddAccountError = "Timed out waiting for SyncService to register the account. The service may still be processing — try restarting the app.";
+                return;
+            }
 
             AddAccountServerUrl = string.Empty;
+
+            // Allow SyncService time to persist the new context before querying.
+            await Task.Delay(500, cancellationToken);
+
+            _logger.LogInformation("Refreshing account list after add.");
             await _trayVm.RefreshAccountsAsync();
 
             // Offer selective sync folder browser after successful add.

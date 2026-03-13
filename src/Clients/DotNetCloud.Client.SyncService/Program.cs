@@ -135,7 +135,7 @@ static string BuildLogPath()
 
 static string GetSystemDataRoot() =>
     OperatingSystem.IsWindows()
-        ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DotNetCloud")
+        ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "DotNetCloud", "Sync")
         : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share", "DotNetCloud");
 
 sealed class SyncLoggingSettings

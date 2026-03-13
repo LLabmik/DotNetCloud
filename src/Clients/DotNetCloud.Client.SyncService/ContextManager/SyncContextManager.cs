@@ -85,8 +85,12 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to start sync context {ContextId} ({DisplayName}). Skipping.",
+                _logger.LogError(ex, "Failed to start sync engine for context {ContextId} ({DisplayName}). Registering as offline.",
                     reg.Id, reg.DisplayName);
+
+                // Register the context without a running engine so it still
+                // appears in ListContexts (shown as offline/error in the UI).
+                RegisterOfflineContext(reg);
             }
         }
     }
@@ -101,8 +105,11 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             {
                 try
                 {
-                    await ctx.Engine.StopAsync(cancellationToken);
-                    await ctx.Engine.DisposeAsync();
+                    if (ctx.Engine is not null)
+                    {
+                        await ctx.Engine.StopAsync(cancellationToken);
+                        await ctx.Engine.DisposeAsync();
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -170,7 +177,21 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            await StartContextInternalAsync(registration, cancellationToken);
+            try
+            {
+                await StartContextInternalAsync(registration, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Failed to start sync engine for new context {ContextId} ({DisplayName}). " +
+                    "Account will be saved as offline.",
+                    contextId, request.DisplayName);
+
+                // Register the context as offline so the account still appears in the UI.
+                RegisterOfflineContext(registration);
+            }
+
             await SaveRegistrationsAsync(cancellationToken);
         }
         finally
@@ -195,8 +216,11 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
                 return;
             }
 
-            await running.Engine.StopAsync(cancellationToken);
-            await running.Engine.DisposeAsync();
+            if (running.Engine is not null)
+            {
+                await running.Engine.StopAsync(cancellationToken);
+                await running.Engine.DisposeAsync();
+            }
 
             var tokenStore = CreateTokenStore(running.Registration.DataDirectory);
             await tokenStore.DeleteAsync(running.Registration.AccountKey, cancellationToken);
@@ -225,6 +249,9 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             if (!_contexts.TryGetValue(contextId, out var running))
                 return null;
 
+            if (running.Engine is null)
+                return new SyncStatus { State = SyncState.Error, LastError = "Sync engine failed to start." };
+
             return await running.Engine.GetStatusAsync(running.SyncContext, cancellationToken);
         }
         finally
@@ -237,7 +264,7 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
     public async Task PauseAsync(Guid contextId, CancellationToken cancellationToken = default)
     {
         var running = await GetRunningContextAsync(contextId);
-        if (running is null) return;
+        if (running?.Engine is null) return;
         await running.Engine.PauseAsync(running.SyncContext, cancellationToken);
     }
 
@@ -245,7 +272,7 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
     public async Task ResumeAsync(Guid contextId, CancellationToken cancellationToken = default)
     {
         var running = await GetRunningContextAsync(contextId);
-        if (running is null) return;
+        if (running?.Engine is null) return;
         await running.Engine.ResumeAsync(running.SyncContext, cancellationToken);
     }
 
@@ -253,7 +280,7 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
     public async Task SyncNowAsync(Guid contextId, CancellationToken cancellationToken = default)
     {
         var running = await GetRunningContextAsync(contextId);
-        if (running is null) return;
+        if (running?.Engine is null) return;
         await running.Engine.SyncAsync(running.SyncContext, cancellationToken);
     }
 
@@ -262,7 +289,7 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
         Guid contextId, bool includeHistory, CancellationToken cancellationToken = default)
     {
         var running = await GetRunningContextAsync(contextId);
-        if (running is null) return [];
+        if (running?.StateDb is null) return [];
 
         var dbPath = running.SyncContext.StateDatabasePath;
         if (includeHistory)
@@ -277,7 +304,7 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         var running = await GetRunningContextAsync(contextId);
-        if (running is null) return;
+        if (running?.StateDb is null) return;
 
         await running.StateDb.ResolveConflictAsync(
             running.SyncContext.StateDatabasePath, conflictId, resolution, cancellationToken);
@@ -301,7 +328,11 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
         Guid contextId, CancellationToken cancellationToken = default)
     {
         var running = await GetRunningContextAsync(contextId);
-        if (running is null) return null;
+        if (running?.ApiClient is null) return null;
+
+        // The access token may not be set yet if this is called before the first
+        // sync pass (e.g. immediately after add-account). Load it from the token store.
+        await EnsureAccessTokenAsync(running, cancellationToken);
 
         return await running.ApiClient.GetFolderTreeAsync(null, cancellationToken);
     }
@@ -415,6 +446,37 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             registration.Id, registration.DisplayName);
     }
 
+    /// <summary>
+    /// Registers a context as offline (no running engine) so it still appears in
+    /// <see cref="GetContextsAsync"/> and the tray can show it with an error/offline state.
+    /// </summary>
+    private void RegisterOfflineContext(SyncContextRegistration registration)
+    {
+        var syncContext = new SyncContext
+        {
+            Id = registration.Id,
+            ServerBaseUrl = registration.ServerBaseUrl,
+            UserId = registration.UserId,
+            LocalFolderPath = registration.LocalFolderPath,
+            DisplayName = registration.DisplayName,
+            StateDatabasePath = Path.Combine(registration.DataDirectory, "state.db"),
+            AccountKey = registration.AccountKey,
+            FullScanInterval = registration.FullScanInterval,
+        };
+
+        _contexts[registration.Id] = new RunningContext
+        {
+            Registration = registration,
+            SyncContext = syncContext,
+            Engine = null,
+            StateDb = null,
+            ApiClient = null,
+        };
+
+        _logger.LogWarning("Registered context {ContextId} ({DisplayName}) as offline.",
+            registration.Id, registration.DisplayName);
+    }
+
     private (ISyncEngine engine, ConflictResolver conflictResolver, LocalStateDb stateDb, IDotNetCloudApiClient apiClient) CreateEngine(
         SyncContextRegistration registration)
     {
@@ -488,6 +550,50 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             _loggerFactory.CreateLogger<SyncEngine>());
 
         return (engine, conflictResolver, stateDb, apiClient);
+    }
+
+    /// <summary>
+    /// Ensures the API client for <paramref name="running"/> has a valid access token loaded.
+    /// Called before out-of-band API calls (e.g. folder tree) that happen outside the sync loop.
+    /// </summary>
+    private async Task EnsureAccessTokenAsync(RunningContext running, CancellationToken cancellationToken)
+    {
+        if (running.ApiClient is null) return;
+        if (running.ApiClient.AccessToken is not null) return;
+
+        var tokenStore = CreateTokenStore(running.Registration.DataDirectory);
+        var tokens = await tokenStore.LoadAsync(running.Registration.AccountKey, cancellationToken);
+        if (tokens is null)
+        {
+            _logger.LogWarning("No tokens found for context {ContextId} when loading for API call.",
+                running.Registration.Id);
+            return;
+        }
+
+        // If expired and refreshable, try to refresh.
+        if (tokens.IsExpired && tokens.CanRefresh)
+        {
+            try
+            {
+                var refreshed = await running.ApiClient.RefreshTokenAsync(
+                    tokens.RefreshToken!, OAuthConstants.ClientId, cancellationToken);
+                tokens = new TokenInfo
+                {
+                    AccessToken = refreshed.AccessToken,
+                    RefreshToken = refreshed.RefreshToken ?? tokens.RefreshToken,
+                    ExpiresAt = DateTimeOffset.UtcNow.AddSeconds(refreshed.ExpiresIn),
+                };
+                await tokenStore.SaveAsync(running.Registration.AccountKey, tokens, cancellationToken);
+                _logger.LogInformation("Refreshed expired token for context {ContextId}.", running.Registration.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to refresh token for context {ContextId}. Using existing token.",
+                    running.Registration.Id);
+            }
+        }
+
+        running.ApiClient.AccessToken = tokens.AccessToken;
     }
 
     private EncryptedFileTokenStore CreateTokenStore(string dataDirectory) =>
@@ -570,12 +676,27 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
         $"{serverBaseUrl.TrimEnd('/')}:{userId}";
 
     /// <summary>Returns the platform-appropriate root directory for service data.</summary>
-    private static string GetSystemDataRoot() =>
-        OperatingSystem.IsWindows()
-            ? Path.Combine(
+    private static string GetSystemDataRoot()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            // When running inside an MSIX package, the service may not have
+            // write access to ProgramData. Use LocalApplicationData instead.
+            var baseDir = AppContext.BaseDirectory;
+            if (baseDir.Contains(@"\WindowsApps\", StringComparison.OrdinalIgnoreCase))
+            {
+                return Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "DotNetCloud", "Sync");
+            }
+
+            return Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-                "DotNetCloud", "Sync")
-            : "/var/lib/dotnetcloud/sync";
+                "DotNetCloud", "Sync");
+        }
+
+        return "/var/lib/dotnetcloud/sync";
+    }
 
     /// <summary>
     /// Persists bandwidth limits to <c>sync-settings.json</c> so they survive service restarts.
@@ -758,8 +879,17 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
     {
         public required SyncContextRegistration Registration { get; init; }
         public required SyncContext SyncContext { get; init; }
-        public required ISyncEngine Engine { get; init; }
-        public required LocalStateDb StateDb { get; init; }
-        public required IDotNetCloudApiClient ApiClient { get; init; }
+
+        /// <summary>Null when the engine failed to start (context is offline).</summary>
+        public ISyncEngine? Engine { get; init; }
+
+        /// <summary>Null when the engine failed to start (context is offline).</summary>
+        public LocalStateDb? StateDb { get; init; }
+
+        /// <summary>Null when the engine failed to start (context is offline).</summary>
+        public IDotNetCloudApiClient? ApiClient { get; init; }
+
+        /// <summary>True when the sync engine is running.</summary>
+        public bool IsOnline => Engine is not null;
     }
 }

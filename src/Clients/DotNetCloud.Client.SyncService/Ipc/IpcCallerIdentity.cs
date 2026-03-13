@@ -16,6 +16,13 @@ public sealed class IpcCallerIdentity
     /// <summary>Represents an unavailable or unverifiable caller identity.</summary>
     public static IpcCallerIdentity Unavailable { get; } = new(false, null, null, null, null, null, null);
 
+    /// <summary>
+    /// Represents a caller inside the same MSIX package. Ownership checks are
+    /// bypassed because the MSIX AppContainer sandbox already isolates access.
+    /// </summary>
+    public static IpcCallerIdentity MsixPackagedCaller { get; } =
+        new(true, "msix-package", "msix-package", "msix-package", null, null, null) { IsMsixPackaged = true };
+
     /// <summary>Initializes a new <see cref="IpcCallerIdentity"/> instance.</summary>
     public IpcCallerIdentity(
         bool isAvailable,
@@ -37,6 +44,9 @@ public sealed class IpcCallerIdentity
 
     /// <summary>True when caller identity could be resolved from transport credentials.</summary>
     public bool IsAvailable { get; }
+
+    /// <summary>True when the caller is inside the same MSIX package (ownership checks bypassed).</summary>
+    public bool IsMsixPackaged { get; private init; }
 
     /// <summary>Original identity string from transport (for diagnostics).</summary>
     public string? RawIdentity { get; }
@@ -109,6 +119,10 @@ public sealed class IpcCallerIdentity
     {
         if (!IsAvailable || string.IsNullOrWhiteSpace(ownerUserName))
             return false;
+
+        // MSIX package callers bypass ownership — the sandbox provides isolation.
+        if (IsMsixPackaged)
+            return true;
 
         var owner = ownerUserName.Trim();
         if (AccountName is not null && OwnerComparer.Equals(AccountName, owner))

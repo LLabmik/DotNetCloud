@@ -391,12 +391,27 @@ public sealed class IpcClient : IIpcClient, IAsyncDisposable
         var response = await SendAndReceiveAsync(
             new IpcCommand { Command = IpcCommands.ListContexts }, cancellationToken);
 
-        if (response?.Success is true && response.Data is not null)
+        if (response is null)
         {
-            var json = JsonSerializer.Serialize(response.Data, JsonOptions);
-            return JsonSerializer.Deserialize<List<ContextInfo>>(json, JsonOptions) ?? [];
+            _logger.LogWarning("ListContexts: no response from SyncService.");
+            return [];
         }
 
+        if (!response.Success)
+        {
+            _logger.LogWarning("ListContexts: service returned error: {Error}.", response.Error);
+            return [];
+        }
+
+        if (response.Data is not null)
+        {
+            var json = JsonSerializer.Serialize(response.Data, JsonOptions);
+            var result = JsonSerializer.Deserialize<List<ContextInfo>>(json, JsonOptions) ?? [];
+            _logger.LogInformation("ListContexts: deserialized {Count} context(s).", result.Count);
+            return result;
+        }
+
+        _logger.LogWarning("ListContexts: success but no data payload.");
         return [];
     }
 

@@ -8,8 +8,7 @@
         MinWidth="400"
         MinHeight="340"
         WindowStartupLocation="CenterScreen"
-        CanResize="True"
-        Icon="/Assets/icon-idle.png">
+        CanResize="True">
 
     <DockPanel>
 
@@ -54,7 +53,7 @@
                                 <DataTemplate DataType="vm:AccountViewModel">
                                     <Border BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
                                             BorderThickness="0,0,0,1" Padding="0,6">
-                                        <Grid ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto,Auto">
+                                        <Grid ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto,Auto,Auto">
                                             <TextBlock Grid.Row="0" Grid.Column="0"
                                                        Text="{Binding DisplayName}"
                                                        FontWeight="SemiBold" />
@@ -62,6 +61,12 @@
                                                        Text="{Binding State}"
                                                        FontSize="11"
                                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3"
+                                                       Text="{Binding LastError}"
+                                                       FontSize="11"
+                                                       Foreground="Red"
+                                                       TextWrapping="Wrap"
+                                                       IsVisible="{Binding LastError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                             <Button Grid.Row="0" Grid.Column="1" Grid.RowSpan="2"
                                                     Content="Choose folders"
                                                     FontSize="11"
@@ -421,7 +426,7 @@
                 Content="Close"
                 HorizontalAlignment="Right"
                 Margin="12"
-                Command="{Binding CloseCommand}" />
+                Click="OnCloseClick" />
 
     </DockPanel>
 </Window>

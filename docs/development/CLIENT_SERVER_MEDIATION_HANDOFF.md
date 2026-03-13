@@ -84,25 +84,62 @@ Archived context:
 
 ## Active Handoff
 
-### Chat Message Sender Names Fix — Deployed and Verified
+### Sync Changes Response Shape Mismatch + Rate Limiting — Server Fix Needed
 
-**Date:** 2026-03-12
+**Date:** 2026-03-13
 **Owner:** Server agent
-**Status:** COMPLETE — deployed to mint22
+**Status:** ACTION REQUIRED
 
-**What was deployed:**
-- Display name resolution for chat messages via `_displayNameCache` + `ResolveDisplayNamesAsync()`
-- All message paths (initial load, load-more, send, edit, search) now resolve sender names
-- Fallback to first 8 chars of user GUID if resolution fails
+#### Issue 1: Sync changes endpoint returns flat array instead of PagedSyncChangesDto
 
-**Deployment verification (2026-03-12):**
-- Chat module DLL timestamp: `2026-03-12 07:49:45` (fresh build)
-- `dotnetcloud.service` restarted successfully
-- `/health/live`: Healthy (5.5ms)
-- `/health/ready`: Healthy — startup complete, linux-resources within thresholds
-- `/apps/chat`: 302 (auth redirect — correct)
+**Symptom:** Desktop sync client calls `GET /api/v1/files/sync/changes?limit=500` (no cursor, no since). Server returns HTTP 200. The `ResponseEnvelopeMiddleware` wraps the response, but the `data` field contains a **flat array** of `SyncChangeDto` objects instead of the expected `PagedSyncChangesDto` object `{changes:[], nextCursor:"...", hasMore:false}`.
 
-**No further cross-agent work needed.** Client agent can verify sender names visually in browser.
+**Evidence from client diagnostic log (v0.13, 2026-03-13T11:59:04Z):**
+```
+ReadEnvelopeDataAsync<PagedSyncChangesResponse>: HTTP 200, ContentType=application/json, BodyLength=9376,
+BodyPreview={"success":true,"data":[{"nodeId":"80147381-...","name":"dotnetcloud-desktop-client-win-x64-0.1.0-alpha.zip","nodeType":"File","parentId":null,...}]}
+```
+
+Expected shape: `{"success":true,"data":{"changes":[...],"nextCursor":"...","hasMore":false}}`
+Actual shape: `{"success":true,"data":[...]}`
+
+**Analysis:** `SyncController.GetChangesAsync` should take the cursor path (since `since` is null), calling `_syncService.GetChangesSinceCursorAsync()` which returns `PagedSyncChangesDto`. The `Ok(paged)` result should serialize as an object with `changes`/`nextCursor`/`hasMore`. But the envelope shows a flat array. Either:
+- The controller is unexpectedly hitting the legacy path (returning `IReadOnlyList<SyncChangeDto>`), OR
+- The `ResponseEnvelopeMiddleware` is re-serializing and flattening the object, OR
+- The deployed server binary on mint22 has stale code
+
+**Requested action:** 
+1. Verify the deployed `SyncController` on mint22 matches current source (check DLL timestamp).
+2. Reproduce with `curl -H "Authorization: Bearer <token>" https://mint22:15443/api/v1/files/sync/changes?limit=500` and inspect the raw response body.
+3. If the response is a flat array, debug why the cursor path returns a flat array instead of `PagedSyncChangesDto`.
+4. Fix so that `GET /api/v1/files/sync/changes?limit=500` returns `{"success":true,"data":{"changes":[...],"nextCursor":"...","hasMore":false/true}}`.
+
+**Client-side mitigation (already deployed in v0.13):** The client's `GetChangesSinceAsync` now handles both shapes — if `data` is an array, it wraps it as `PagedSyncChangesResponse { Changes = list, HasMore = false }`. So sync works with either format, but the proper fix is server-side.
+
+#### Issue 2: Rate limiting on chunk downloads blocks sync completion
+
+**Symptom:** During initial sync (first-time sync, no cursor), the client downloads all file chunks. The server rate limit policy `module-chunks` is 3000 permits/60 seconds per user. The client downloads chunks in parallel and hits 429s, triggering 60-second retry waits. After accumulating enough retries, the sync pass eventually times out with `TaskCanceledException`.
+
+**Evidence (2026-03-13T12:14:34Z):** 36 rate-limited (429) chunk download requests in a single sync pass. Download retries stacked up with 60s delays, eventually the sync was cancelled.
+
+**Log excerpt:**
+```
+{"@t":"2026-03-13T12:14:34.4908012Z","@mt":"Rate limited (429). Waiting {Delay}s before retry.","Delay":60}
+{"@t":"2026-03-13T12:14:34.4295353Z","@mt":"File download failed: NodeId={NodeId}, DurationMs={DurationMs}.","@l":"Error","@x":"System.Threading.Tasks.TaskCanceledException: A task was canceled."}
+```
+
+**Context:** Single user on gigabit LAN, no other clients active. The 3000/min limit should be sufficient, but the fixed-window rate limiter resets at window boundaries — if a burst of parallel chunk requests arrives near a window edge, they can exhaust the budget instantly.
+
+**Requested action:** Consider one or more of:
+- Increase `chunks` rate limit (e.g., 10000/min) for single-user/small-deployment scenarios
+- Switch to a token bucket or sliding window limiter for chunk downloads (smoother burst handling)
+- Add a configuration override in `appsettings.json` on mint22 to raise the limit for testing
+- Exclude chunk downloads from rate limiting entirely for authenticated users (they're already bandwidth-limited by the network)
+
+**Config location:** `src/Core/DotNetCloud.Core.Server/appsettings.json` → `RateLimiting.ModuleLimits.chunks`
+
+#### Files changed (client-side, already committed):
+- `src/Clients/DotNetCloud.Client.Core/Api/DotNetCloudApiClient.cs` — `GetChangesSinceAsync(cursor)` now handles both object and array `data` shapes
 
 ## Relay Template
 

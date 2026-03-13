@@ -59,10 +59,16 @@ public sealed class OAuth2Service : IOAuth2Service
             clientId,
             scope);
 
+        // Start the localhost callback listener BEFORE opening the browser.
+        // If the user is already authenticated, the server may redirect
+        // immediately — the listener must be ready to receive it.
+        _logger.LogInformation("Starting OAuth2 callback listener on port {Port}.", CallbackPort);
+        var callbackTask = ListenForCallbackAsync(cancellationToken);
+
         _logger.LogInformation("Opening browser for OAuth2 authorization.");
         OpenBrowser(authUrl);
 
-        var (code, returnedState) = await ListenForCallbackAsync(cancellationToken);
+        var (code, returnedState) = await callbackTask;
 
         if (returnedState != state)
             throw new InvalidOperationException("OAuth2 state mismatch — possible CSRF attack.");

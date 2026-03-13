@@ -205,6 +205,7 @@ $manifestContent = $manifestContent.Replace("__VERSION__", $msixVersion)
 $manifestContent = $manifestContent.Replace("__DISPLAY_NAME__", $PackageDisplayName)
 $manifestContent = $manifestContent.Replace("__PUBLISHER_DISPLAY_NAME__", $PublisherDisplayName)
 $manifestContent = $manifestContent.Replace("__EXECUTABLE__", "SyncTray/dotnetcloud-sync-tray.exe")
+$manifestContent = $manifestContent.Replace("__SERVICE_EXECUTABLE__", "SyncService/dotnetcloud-sync-service.exe")
 
 Set-Content -Path (Join-Path $stagingRoot "AppxManifest.xml") -Value $manifestContent -Encoding UTF8
 

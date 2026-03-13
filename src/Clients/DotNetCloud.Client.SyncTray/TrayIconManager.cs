@@ -37,6 +37,7 @@ public sealed class TrayIconManager : IDisposable
     // Menu items that need dynamic updates.
     private NativeMenuItem? _statusItem;
     private NativeMenuItem? _conflictsItem;
+    private NativeMenuItem? _errorItem;
     private NativeMenuItem? _syncNowItem;
     private NativeMenuItem? _pauseResumeItem;
     private NativeMenuItem? _quickReplyItem;
@@ -65,8 +66,8 @@ public sealed class TrayIconManager : IDisposable
         // Ensure menu shows on click (Avalonia TrayIcon menu behavior varies by platform)
         _trayIcon.Clicked += (_, _) =>
         {
-            // Menu should show automatically, but log the click for diagnostics
             _logger.LogDebug("Tray icon clicked. Menu items: {Count}", menu.Items.Count);
+            _ = _trayVm.RefreshAccountsAsync();
         };
 
         _trayVm.PropertyChanged += OnTrayViewModelChanged;
@@ -85,6 +86,11 @@ public sealed class TrayIconManager : IDisposable
         // Status summary (read-only header)
         _statusItem = new NativeMenuItem(_trayVm.Tooltip) { IsEnabled = false };
         menu.Items.Add(_statusItem);
+
+        // Error details item — enabled only when one or more accounts have errors
+        _errorItem = new NativeMenuItem("View sync error…") { IsEnabled = false };
+        _errorItem.Click += (_, _) => OnErrorDetailsClicked();
+        menu.Items.Add(_errorItem);
 
         // Conflicts item — enabled only when there are unresolved conflicts
         _conflictsItem = new NativeMenuItem("Conflicts (0)") { IsEnabled = false };
@@ -146,6 +152,16 @@ public sealed class TrayIconManager : IDisposable
             if (e.PropertyName == nameof(TrayViewModel.OverallState))
             {
                 _trayIcon!.Icon = CreateStatusIcon(_trayVm.OverallState, _trayVm.ChatUnreadCount, _trayVm.ChatHasMentions);
+
+                // Show/hide error details menu item based on error state.
+                if (_errorItem is not null)
+                {
+                    var hasError = _trayVm.OverallState == TrayState.Error;
+                    _errorItem.IsEnabled = hasError;
+                    _errorItem.Header = hasError
+                        ? "View sync error…"
+                        : "No sync errors";
+                }
             }
             else if (e.PropertyName is nameof(TrayViewModel.ChatUnreadCount) or nameof(TrayViewModel.ChatHasMentions))
             {
@@ -256,6 +272,15 @@ public sealed class TrayIconManager : IDisposable
 
     private void OnSettingsClicked(object? sender, EventArgs e)
     {
+        OpenSettingsWindow();
+    }
+
+    private void OnErrorDetailsClicked()
+    {
+        var summary = _trayVm.GetErrorSummary();
+        _logger.LogInformation("Sync error details: {Summary}", summary ?? "(no details)");
+
+        // Open Settings to the Accounts tab so user can see which account(s) have errors.
         OpenSettingsWindow();
     }
 

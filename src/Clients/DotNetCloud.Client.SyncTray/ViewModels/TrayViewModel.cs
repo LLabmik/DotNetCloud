@@ -180,6 +180,7 @@ public sealed class TrayViewModel : ViewModelBase
         try
         {
             var contexts = await _ipc.ListContextsAsync();
+            _logger.LogInformation("RefreshAccounts: received {Count} context(s) from SyncService.", contexts.Count);
             UpdateAccounts(contexts);
         }
         catch (Exception ex)
@@ -471,6 +472,30 @@ public sealed class TrayViewModel : ViewModelBase
             return null;
 
         return new Uri(baseUri, $"/apps/chat?channelId={Uri.EscapeDataString(channelId)}").ToString();
+    }
+
+    /// <summary>
+    /// Returns a human-readable summary of current sync errors across all accounts,
+    /// or <c>null</c> when no accounts are in an error state.
+    /// </summary>
+    internal string? GetErrorSummary()
+    {
+        var errors = _accountList
+            .Where(a => a.State == "Error" && !string.IsNullOrWhiteSpace(a.LastError))
+            .Select(a => $"{a.DisplayName}: {a.LastError}")
+            .ToList();
+
+        if (errors.Count == 0)
+        {
+            // Accounts are in error state but no message captured — generic fallback.
+            var errorAccounts = _accountList.Where(a => a.State == "Error").ToList();
+            if (errorAccounts.Count == 0)
+                return null;
+
+            return string.Join("\n", errorAccounts.Select(a => $"{a.DisplayName}: unknown error"));
+        }
+
+        return string.Join("\n", errors);
     }
 
     /// <summary>

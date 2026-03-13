@@ -25,9 +25,7 @@
 
    - `dotnetcloud-sync-tray-win-x64-<version>.msix`
 
-   This installs the desktop client binaries with native Windows app-install UX.
-
-   Current limitation: MSIX installs do not register the `DotNetCloudSync` Windows Service yet. Use the ZIP installer flow below if you need service registration today.
+   This installs both the SyncTray desktop app and registers the `DotNetCloudSync` Windows Service automatically.
 
 2. **Alternative (ZIP + installer scripts):** Download installer bundle from GitHub Releases:
 

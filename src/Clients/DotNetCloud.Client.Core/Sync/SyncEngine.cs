@@ -96,6 +96,19 @@ public sealed class SyncEngine : ISyncEngine
         if (OperatingSystem.IsLinux())
             CheckInotifyLimit();
 
+        // Ensure the local sync folder exists before creating the watcher.
+        // The tray app pre-creates this, but verify just in case.
+        try { Directory.CreateDirectory(context.LocalFolderPath); }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex,
+                "Could not create sync folder {Path} — insufficient permissions. " +
+                "Ensure the folder is pre-created by the tray app.",
+                context.LocalFolderPath);
+            if (!Directory.Exists(context.LocalFolderPath))
+                throw;
+        }
+
         try
         {
             _watcher = new FileSystemWatcher(context.LocalFolderPath)
@@ -116,6 +129,13 @@ public sealed class SyncEngine : ISyncEngine
         {
             _logger.LogWarning(ex,
                 "Could not create FileSystemWatcher — inotify limit likely exhausted. Falling back to polling every 30 seconds.");
+            _pollingFallback = true;
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or ArgumentException)
+        {
+            _logger.LogWarning(ex,
+                "Could not create FileSystemWatcher for {Path} — insufficient permissions. Falling back to polling every 30 seconds.",
+                context.LocalFolderPath);
             _pollingFallback = true;
         }
 
