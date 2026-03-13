@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-13 (Server download bug fixed — 0-byte files return 200, missing chunk blobs return 404; flaky CDC test fixed)
+Last updated: 2026-03-13 (Server download bug fixed; client 404 handling hardened; E2E runtime verification pending on Windows11-TestDNC)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -75,6 +75,7 @@ Archived context:
 - **Client sync fixes complete** (2026-03-13): Upload contract fixed (POST→PUT, chunkHash, existingChunks, CompleteUpload deserialization, 409 handling). Duplicate upload prevention via server tree comparison. Subdirectory download via tree reconciliation. Chunk 404→direct download fallback. 10/12 server files sync correctly. 2 files fail: server returns 400 on direct download for web-UI-uploaded files (`create_admin.cs`, `err.txt`).
 - **Server download bug fixed** (2026-03-13): `BuildStreamFromVersionAsync` in `DownloadService` now (1) serves empty stream for 0-byte files without touching storage, (2) throws `NotFoundException` (→ HTTP 404) instead of `InvalidOperationException` (→ HTTP 400) when a chunk blob is missing. 2 new tests added. Deployed to mint22 commit `f60541c` — health Healthy.
 - **Flaky CDC test fixed** (2026-03-13): `ChunkAndHashCdcAsync_SmallData_ReturnsSingleChunk` used 1KB data with minSize=512 — Phase 2 boundary detection could split it into 2 chunks. Fixed by using 256 bytes (strictly < minSize). Commit `6b89a60`.
+- **Client 404 handling hardened** (2026-03-13): `SyncEngine.ApplyLocalChangesAsync` now treats `PendingDownload` HTTP 404 as terminal and moves operation to failed queue without retry loop. Added `SyncAsync_PendingDownloadNotFound_MovesToFailedWithoutRetry` test.
 
 ## Environment
 
@@ -92,11 +93,11 @@ Archived context:
 
 ## Active Handoff
 
-### E2E Verification — Client Agent
+### E2E Runtime Verification — Client Agent
 
 **Date:** 2026-03-13
 **Owner:** Client agent (`Windows11-TestDNC`)
-**Status:** ACTION REQUIRED — Re-run E2E sync and verify all 12 files download correctly
+**Status:** ACTION REQUIRED (ENVIRONMENT-GATED) — Re-run E2E sync on Windows11-TestDNC and verify runtime behavior
 
 #### Context
 
@@ -121,15 +122,24 @@ The client's existing fallback path:
 - `Test/err.txt` (0-byte): direct download → **200**, 0 bytes — should sync successfully.
 - `Test/create_admin.cs` (blob missing from CAS): direct download → **404** — client gets a clean not-found; file cannot be synced until re-uploaded via sync client.
 
-#### What the client agent should do
+#### What is already completed in code
+
+1. Added client-side safeguard for direct-download 404 during pending downloads:
+  - `PendingDownload` + HTTP 404 now moves directly to failed queue (no exponential retry churn).
+  - Unit test added and passing: `SyncAsync_PendingDownloadNotFound_MovesToFailedWithoutRetry`.
+2. Regression checks passing:
+  - `DotNetCloud.Client.Core.Tests/Sync/SyncEngineTests.cs` (33 passed)
+  - `DotNetCloud.Client.Core.Tests/Transfer/ChunkedTransferClientTests.cs` (23 passed)
+
+#### What the client agent should do next (runtime verification)
 
 1. Pull main (`6b89a60`).
 2. Wipe `state.db` on `Windows11-TestDNC` to force a full re-sync.
 3. Run SyncTray, observe sync passes.
 4. Verify `err.txt` is created locally with 0 bytes.
 5. Document whether `create_admin.cs` 404 is handled gracefully (no crash, clear log line) or causes an unhandled error.
-6. If `create_admin.cs` 404 causes a crash/unhandled path, fix client-side 404 handling in the direct download fallback.
-7. Report results in next handoff.
+6. Verify no crash occurs and that `create_admin.cs` produces a clear failed-operation/log path.
+7. Report raw log lines and endpoint outcomes in next handoff update.
 
 #### Verification commands (mint22)
 

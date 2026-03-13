@@ -740,6 +740,16 @@ public sealed class SyncEngine : ISyncEngine
 
                 await _stateDb.MoveToFailedAsync(context.StateDatabasePath, op, ptlEx.Message, cancellationToken);
             }
+            catch (HttpRequestException httpEx) when (
+                op is PendingDownload &&
+                httpEx.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                // Remote node/content is missing: retries are not useful for this download operation.
+                _logger.LogWarning(httpEx,
+                    "Download operation {OpId} failed with 404 Not Found. Moving to failed queue without retry.",
+                    op.Id);
+                await _stateDb.MoveToFailedAsync(context.StateDatabasePath, op, httpEx.Message, cancellationToken);
+            }
             catch (Exception ex)
             {
                 var newRetryCount = op.RetryCount + 1;
