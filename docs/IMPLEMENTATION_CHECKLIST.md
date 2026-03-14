@@ -1572,6 +1572,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Create `FileVersion` and `FileVersionChunk` records on completion
   - ✓ Update `FileNode` (size, hash, version) on completion
   - ✓ Enforce quota checks before accepting uploads
+  - ✓ Reject exact duplicate sibling/root filenames on upload completion
 
 #### Download Service
 - ✓ Create `IDownloadService` interface:
@@ -1998,6 +1999,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ☐ Drag-and-drop file reordering / move to folder — deferred: requires JS dragstart/dragover/drop interop + move API call
   - ✓ Empty state placeholder ("No files yet — upload or create a folder")
   - ✓ Loading skeleton while fetching data
+  - ✓ Root and folder listings deduplicate tagged nodes from data-service queries
 
 #### File Upload Component
 - ✓ Create `FileUploadComponent.razor`:

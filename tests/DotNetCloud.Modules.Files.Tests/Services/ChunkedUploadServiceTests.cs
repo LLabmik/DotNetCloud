@@ -418,6 +418,89 @@ public class ChunkedUploadServiceTests
     }
 
     [TestMethod]
+    public async Task CompleteUploadAsync_NewRootFile_ExactNameExists_ThrowsValidationException()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var chunkHash = "rootdupe001";
+
+        db.FileNodes.Add(new FileNode
+        {
+            Name = "BenK Toy Package.png",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            Size = 10
+        });
+        db.FileChunks.Add(new FileChunk { ChunkHash = chunkHash, StoragePath = "chunks/ro/ot/rootdupe001", Size = 50 });
+
+        var session = new ChunkedUploadSession
+        {
+            FileName = "BenK Toy Package.png",
+            TotalSize = 50,
+            MimeType = "image/png",
+            TotalChunks = 1,
+            ReceivedChunks = 1,
+            ChunkManifest = JsonSerializer.Serialize(new[] { chunkHash }),
+            UserId = userId,
+            Status = UploadSessionStatus.InProgress
+        };
+        db.UploadSessions.Add(session);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
+            () => service.CompleteUploadAsync(session.Id, UserCaller(userId)));
+    }
+
+    [TestMethod]
+    public async Task CompleteUploadAsync_NewChildFile_ExactNameExists_ThrowsValidationException()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var chunkHash = "childdupe001";
+
+        var parent = new FileNode
+        {
+            Name = "Clients",
+            NodeType = FileNodeType.Folder,
+            OwnerId = userId,
+            Depth = 0
+        };
+        parent.MaterializedPath = $"/{parent.Id}";
+        db.FileNodes.Add(parent);
+        db.FileNodes.Add(new FileNode
+        {
+            Name = "report.pdf",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            ParentId = parent.Id,
+            Size = 10
+        });
+        db.FileChunks.Add(new FileChunk { ChunkHash = chunkHash, StoragePath = "chunks/ch/il/childdupe001", Size = 50 });
+
+        var session = new ChunkedUploadSession
+        {
+            FileName = "report.pdf",
+            TotalSize = 50,
+            MimeType = "application/pdf",
+            TotalChunks = 1,
+            ReceivedChunks = 1,
+            ChunkManifest = JsonSerializer.Serialize(new[] { chunkHash }),
+            UserId = userId,
+            TargetParentId = parent.Id,
+            Status = UploadSessionStatus.InProgress
+        };
+        db.UploadSessions.Add(session);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
+            () => service.CompleteUploadAsync(session.Id, UserCaller(userId)));
+    }
+
+    [TestMethod]
     public async Task InitiateUploadAsync_WithPosixMode_StoresPosixModeOnSession()
     {
         using var db = CreateContext();

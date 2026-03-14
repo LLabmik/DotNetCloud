@@ -206,13 +206,22 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
                 }
             }
 
+            IQueryable<FileNode> siblingQuery = session.TargetParentId.HasValue
+                ? _db.FileNodes.Where(n => n.ParentId == session.TargetParentId.Value)
+                : _db.FileNodes.Where(n => n.OwnerId == caller.UserId && n.ParentId == null);
+
+            var exactNameExists = await siblingQuery
+                .AnyAsync(n => n.Name == session.FileName, cancellationToken);
+
+            if (exactNameExists)
+            {
+                var scope = session.TargetParentId.HasValue ? "this folder" : "the root level";
+                throw new Core.Errors.ValidationException("Name", $"A node named '{session.FileName}' already exists in {scope}.");
+            }
+
             // Guard against case-insensitive name collisions before creating the node.
             if (_fileSystemOptions.EnforceCaseInsensitiveUniqueness)
             {
-                IQueryable<FileNode> siblingQuery = session.TargetParentId.HasValue
-                    ? _db.FileNodes.Where(n => n.ParentId == session.TargetParentId.Value)
-                    : _db.FileNodes.Where(n => n.OwnerId == caller.UserId && n.ParentId == null);
-
                 var conflictingName = await siblingQuery
                     .Where(n => n.Name.ToLower() == session.FileName.ToLower() && n.Name != session.FileName)
                     .Select(n => n.Name)

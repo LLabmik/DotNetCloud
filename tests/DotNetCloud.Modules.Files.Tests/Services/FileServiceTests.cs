@@ -141,6 +141,49 @@ public class FileServiceTests
     }
 
     [TestMethod]
+    public async Task ListChildrenAsync_NodeWithMultipleTags_ReturnsUniqueNode()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var parent = new FileNode { Name = "Root", NodeType = FileNodeType.Folder, OwnerId = userId };
+        var child = new FileNode { Name = "report.pdf", NodeType = FileNodeType.File, OwnerId = userId, ParentId = parent.Id };
+
+        db.FileNodes.AddRange(parent, child);
+        db.FileTags.AddRange(
+            new FileTag { FileNodeId = child.Id, Name = "Work", Color = "#112233", CreatedByUserId = userId },
+            new FileTag { FileNodeId = child.Id, Name = "Important", Color = "#445566", CreatedByUserId = userId });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var children = await service.ListChildrenAsync(parent.Id, UserCaller(userId));
+
+        Assert.AreEqual(1, children.Count);
+        Assert.AreEqual("report.pdf", children[0].Name);
+        Assert.AreEqual(2, children[0].Tags.Count);
+    }
+
+    [TestMethod]
+    public async Task ListRootAsync_NodeWithMultipleTags_ReturnsUniqueNode()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var node = new FileNode { Name = "report.pdf", NodeType = FileNodeType.File, OwnerId = userId };
+
+        db.FileNodes.Add(node);
+        db.FileTags.AddRange(
+            new FileTag { FileNodeId = node.Id, Name = "Work", Color = "#112233", CreatedByUserId = userId },
+            new FileTag { FileNodeId = node.Id, Name = "Important", Color = "#445566", CreatedByUserId = userId });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var roots = await service.ListRootAsync(UserCaller(userId));
+
+        Assert.AreEqual(1, roots.Count);
+        Assert.AreEqual("report.pdf", roots[0].Name);
+        Assert.AreEqual(2, roots[0].Tags.Count);
+    }
+
+    [TestMethod]
     public async Task RenameAsync_ValidInput_UpdatesName()
     {
         using var db = CreateContext();

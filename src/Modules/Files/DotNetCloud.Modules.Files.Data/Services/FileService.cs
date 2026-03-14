@@ -117,7 +117,7 @@ internal sealed class FileService : IFileService
         ArgumentNullException.ThrowIfNull(caller);
 
         var node = await _db.FileNodes
-            .AsNoTracking()
+            .AsNoTrackingWithIdentityResolution()
             .Include(n => n.Tags)
             .FirstOrDefaultAsync(n => n.Id == nodeId, cancellationToken);
 
@@ -144,7 +144,7 @@ internal sealed class FileService : IFileService
         await _permissions.RequirePermissionAsync(folderId, caller, SharePermission.Read, cancellationToken);
 
         var children = await _db.FileNodes
-            .AsNoTracking()
+            .AsNoTrackingWithIdentityResolution()
             .Include(n => n.Tags)
             .Where(n => n.ParentId == folderId)
             .OrderBy(n => n.NodeType)
@@ -160,7 +160,7 @@ internal sealed class FileService : IFileService
         ArgumentNullException.ThrowIfNull(caller);
 
         var roots = await _db.FileNodes
-            .AsNoTracking()
+            .AsNoTrackingWithIdentityResolution()
             .Include(n => n.Tags)
             .Where(n => n.OwnerId == caller.UserId && n.ParentId == null)
             .OrderBy(n => n.NodeType)
@@ -421,7 +421,7 @@ internal sealed class FileService : IFileService
         ArgumentNullException.ThrowIfNull(caller);
 
         var favorites = await _db.FileNodes
-            .AsNoTracking()
+            .AsNoTrackingWithIdentityResolution()
             .Include(n => n.Tags)
             .Where(n => n.OwnerId == caller.UserId && n.IsFavorite)
             .OrderBy(n => n.Name)

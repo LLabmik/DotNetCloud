@@ -2564,11 +2564,12 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Add `StorageMetricsDto` with `PhysicalStorageBytes`, `LogicalStorageBytes`, `DeduplicationSavingsBytes`, `TotalUniqueChunks`, `TotalVersions`, `TotalFiles`
 - ✓ Enhance `UploadSessionCleanupService` to GC orphaned chunks (ReferenceCount = 0) alongside session expiry
 - ✓ Register `IStorageMetricsService` in `FilesServiceRegistration`
+- ✓ Harden `ChunkedUploadService.CompleteUploadAsync` to reject duplicate exact sibling/root filenames before creating a new `FileNode`
 - ✓ 25 new unit tests: seekable stream seeking/position, chunk-by-hash download, storage metrics (dedup savings, orphaned exclusion), session cleanup GC — 347 total Files tests
 
 **Dependencies:** phase-1.4
 **Blocking Issues:** None
-**Notes:** Phase 1.5 complete. All 20 Phase 1.5 checklist items marked ✓. Many were already implemented in Phases 1.2–1.4 (chunking, hashing, dedup, progress tracking, session management). This phase added the remaining pieces: seekable stream for HTTP range requests, per-chunk endpoint for sync clients, deduplication metrics API, and explicit orphaned-chunk GC in the upload cleanup service. 830 total solution tests pass (no regressions).
+**Notes:** Phase 1.5 complete. All 20 Phase 1.5 checklist items marked ✓. Many were already implemented in Phases 1.2–1.4 (chunking, hashing, dedup, progress tracking, session management). This phase added the remaining pieces: seekable stream for HTTP range requests, per-chunk endpoint for sync clients, deduplication metrics API, and explicit orphaned-chunk GC in the upload cleanup service. Follow-up regression hardening now blocks exact duplicate sibling/root file names during upload completion; live PostgreSQL inspection confirmed prior duplicate Files UI rows were persisted `FileNodes`, not a rendering artifact. 830 total solution tests pass (no regressions).
 
 ---
 
@@ -2765,6 +2766,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
   - ✓ One-click-only interaction model: open actions moved to explicit single-click controls; no double-click dependency
   - ✓ Loading skeleton (8 skeleton rows while `IsLoading`)
   - ✓ Empty state: "No files yet — upload or create a folder" with inline action buttons
+  - ✓ Root/folder listings no longer duplicate tagged nodes; EF no-tracking include queries now use identity resolution
 - ✓ `TrashBin.razor` / `.razor.cs` — enhanced trash bin
   - ✓ Trash size display (total across all items)
   - ✓ Sort by Name, Date deleted, Size (column header click + direction toggle)
@@ -2787,7 +2789,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Dependencies:** phase-1.9 (QuotaProgressBar code-behind), phase-1.10 (DocumentEditor)
 **Blocking Issues:** None
-**Notes:** All 8 component groups complete. Build: zero errors, zero warnings. No new tests required (UI-only components, no business logic). Components use the established pattern: `#pragma warning disable CS0649` for fields populated by future API integration, EventCallback parameters for host-page wiring, and `protected` property accessors following the existing FileBrowser/TrashBin pattern. File interactions now follow a one-click-only model (double-click handlers removed from Files UI).
+**Notes:** All 8 component groups complete. Build: zero errors, zero warnings. Follow-up regression fix applied after rollout: file/folder list queries now use EF identity resolution when including tags, which stops repeated root/folder rows in the web UI when a node has multiple tag records. Added service-level regression coverage for both root and child listings. Components use the established pattern: `#pragma warning disable CS0649` for fields populated by future API integration, EventCallback parameters for host-page wiring, and `protected` property accessors following the existing FileBrowser/TrashBin pattern. File interactions now follow a one-click-only model (double-click handlers removed from Files UI).
 
 ### Step: phase-1.12 - File Upload & Preview UI
 **Status:** completed ✅ (17/17 tasks)
