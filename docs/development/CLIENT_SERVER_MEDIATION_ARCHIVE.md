@@ -5,6 +5,21 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Upload Chunk Failure Diagnostic — Client Log Capture on `mint-dnc-client` (2026-03-14)
+
+Archived from Active Handoff on 2026-03-14 when replaced by server-side 409 investigation on `mint22`.
+
+- Client log path verified: `/home/benk/.local/share/DotNetCloud/logs/sync-service20260314.log`.
+- `upload/initiate` for `seq-test-linux.txt` returned `201` with:
+    - `sessionId`: `d32c8036-ee00-4de4-bb52-8a2fd7f61504`
+    - `existingChunks`: `[]`
+    - `missingChunks`: `[5d7383609c20886a2b19d783205b90d3d28a64c6efa6c66f4c7ffa462fe50bea]`
+- Client immediately issued `PUT /api/v1/files/upload/d32c8036-ee00-4de4-bb52-8a2fd7f61504/chunks/5d7383609c20886a2b19d783205b90d3d28a64c6efa6c66f4c7ffa462fe50bea`.
+- Chunk PUT response was `409 Conflict` (request reached server from client; not a silent client drop).
+- `POST /api/v1/files/upload/d32c8036-ee00-4de4-bb52-8a2fd7f61504/complete` also returned `409`, and client treated it as success for existing file semantics.
+- No `File upload failed` record for this file in the captured window; no `ApplyLocalChangesAsync` exception tied to `seq-test-linux.txt`.
+- Diagnostic conclusion: current blocker is server-side contract inconsistency (`missingChunks` says upload needed, chunk PUT returns conflict).
+
 ## Archived: Linux Runtime Verification — Blocked by Upload/Download API Errors (2026-03-14)
 
 Archived from Active Handoff on 2026-03-14 when replaced by upload chunk failure diagnostic task.
