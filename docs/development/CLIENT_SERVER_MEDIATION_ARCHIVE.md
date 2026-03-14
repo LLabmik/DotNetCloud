@@ -5,6 +5,35 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Linux Sync Bring-Up Execution Trail (2026-03-14)
+
+Archived from Active Handoff on 2026-03-14 to enforce single active task policy.
+
+### Summary of Archived Execution Updates
+
+- Initial Linux bring-up on `mint-dnc-client` validated non-root service/tray startup, IPC connectivity, and OAuth discovery to `https://mint22:15443/.well-known/openid-configuration` (HTTP 200), but did not complete interactive OAuth login through a full pass.
+- Reconciliation hardening landed in `SyncEngine` to remove stale `LocalFileRecord` entries when local files are missing and re-queue missing downloads. Regression test added: `SyncAsync_ReconcileWithStaleFileRecord_RemovesRecordAndQueuesDownload`.
+- Linux runtime hardening follow-up landed:
+    - remote path resolution fallback using `ParentId` + path map,
+    - case-insensitive node-type helpers,
+    - bounded/jittered 429 Retry-After handling,
+    - selective-sync folder browser directory-type handling.
+- Paced E2E run confirmed upload-path success (initiate 201, chunk/complete 409-as-success) and cursor/tree calls, but exposed rapid post-pass re-entry leading to `/api/v1/files/sync/tree` 429 pressure.
+- Per-user singleton enforcement landed for both SyncService and SyncTray using user-local lock files to prevent duplicate same-user processes.
+- Sync re-entry coalescing hardening landed in `SyncEngine`:
+    - overlapping `SyncAsync` requests now collapse into one trailing rerun,
+    - regression test added: `SyncAsync_BurstWhileRunning_CoalescesIntoSingleTrailingPass`.
+
+### Archived Validation Snapshot
+
+- `DotNetCloud.Client.Core.Tests`: 160 passed, 0 failed.
+- `DotNetCloud.Client.SyncService.Tests`: 27 passed, 0 failed.
+- `DotNetCloud.Client.SyncTray.Tests`: 72 passed, 0 failed.
+
+### Archived Remaining Work Item
+
+- Complete interactive Linux OAuth + one clean upload/download full pass on `mint-dnc-client` with timestamped logs proving no immediate rapid re-entry churn.
+
 ## Archived: Sync 404 Runtime Verification Closeout (2026-03-13)
 
 Client agent completed final runtime verification on `Windows11-TestDNC` with SyncTray `0.23.2.0` after two client hardening follow-ups (404 terminal classification + reconciliation requeue suppression).
