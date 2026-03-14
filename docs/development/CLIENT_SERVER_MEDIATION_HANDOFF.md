@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-13 (Windows11-TestDNC final runtime verification completed on SyncTray 0.23.2-alpha)
+Last updated: 2026-03-14 (mint-dnc-client onboarding handoff created for Linux sync client implementation/testing)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -89,6 +89,7 @@ Archived context:
 |---|---|---|
 | Server | `mint22` | `https://mint22:15443/` |
 | Client | `Windows11-TestDNC` | Sync dir: `C:\Users\benk\Documents\synctray` |
+| Client | `mint-dnc-client` | Linux Mint 22 validation host for desktop sync client implementation + E2E testing |
 
 ## Key Carry-Forward Contracts
 
@@ -99,15 +100,44 @@ Archived context:
 
 ## Active Handoff
 
-### Standby — No Active Cross-Machine Blocker
+### Linux Sync Client Bring-Up on `mint-dnc-client`
 
-**Date:** 2026-03-13
-**Owner:** Both agents
-**Status:** READY
+**Date:** 2026-03-14
+**Owner:** Client agent first, then server agent if API/contract issues are found
+**Status:** IN PROGRESS
 
-E2E runtime verification for the sync 404/download path is complete on `Windows11-TestDNC` with SyncTray `0.23.2-alpha`. No further cross-machine action is required for this thread.
+Goal: onboard a third machine (`mint-dnc-client`, Linux Mint 22) as the primary Linux runtime for finishing sync client implementation and validating end-to-end behavior against `mint22`.
 
-If new regressions appear, create a new Active Handoff block with reproducible steps, raw log lines, and expected vs actual behavior.
+#### Scope (Client Agent)
+- Pull latest `main` on `mint-dnc-client`.
+- Build and run focused sync client tests in Linux environment:
+	- `tests/DotNetCloud.Client.SyncService.Tests`
+	- `tests/DotNetCloud.Client.Core.Tests` (if touched by sync path)
+- Run desktop/sync runtime against `https://mint22:15443/` using Linux local sync directory.
+- Validate these flows with raw logs and timestamps:
+	- OAuth login/token mint and refresh path
+	- Cursor-based remote changes download path
+	- Local scan upload path (new + modified files)
+	- Conflict and retry behavior (ensure no infinite requeue loops)
+	- 0-byte file handling and missing-chunk 404 terminal behavior
+- Record exact Linux runtime/package details used for the run (build config, binary path, version string).
+
+#### Scope (Server Agent, only if needed)
+- If client reports API/contract/runtime failures, pull latest `main` and reproduce against `mint22`.
+- Fix server-side defects with tests first, redeploy, and provide endpoint + log evidence.
+- Confirm running binaries are current (no stale publish output) and include verification command/output.
+
+#### Required Evidence Back in Next Handoff Update
+- Commit hash.
+- Exact commands run on `mint-dnc-client`.
+- Raw failing/passing log excerpts with timestamps.
+- Endpoint URLs and HTTP status codes involved.
+- Expected vs actual for each validated flow.
+
+#### Exit Criteria
+- Linux Mint client completes at least one clean full sync pass without retry churn.
+- Upload and download paths both verified on Linux runtime.
+- Any discovered server blockers either fixed and verified or documented as explicit next blocker.
 
 ## Relay Template
 
