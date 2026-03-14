@@ -67,91 +67,67 @@ Archived context:
 
 ## Active Handoff
 
-### Linux Sync Client Final Runtime Verification on `mint-dnc-client`
+### Upload Chunk Failure Diagnostic — Client Log Capture on `mint-dnc-client`
 
 **Date:** 2026-03-14
-**Owner:** Client agent (server agent only if API regression is found)
-**Status:** BLOCKED (server/API behavior)
+**Owner:** Client agent on `mint-dnc-client`
+**Status:** ACTIVE — awaiting client-side log capture
 
-Goal: complete one clean Linux Mint sync cycle against `mint22` after re-entry coalescing hardening, with full runtime evidence and no immediate retry churn.
+**Context:** P0 sync hardening fixes (atomic SyncSequence, unique file name constraint, atomic chunk refcount) have been deployed to `mint22`. During P0 validation testing, we discovered that **client uploads initiate successfully but chunk data never reaches the server**. This affects both Linux and Windows clients. All previous file uploads were done via web UI — this is the first time the client-side chunked upload path has been exercised in production.
 
-#### Scope (Client Agent)
-- Pull latest `main` on `mint-dnc-client`.
-- Run targeted client suites:
-	- `tests/DotNetCloud.Client.Core.Tests`
-	- `tests/DotNetCloud.Client.SyncService.Tests`
-- Run SyncService + SyncTray in Linux user mode and complete interactive OAuth login.
-- Validate and capture logs for:
-	- token mint/refresh path,
-	- cursor-based changes + tree fetch,
-	- local upload (new or modified file),
-	- remote download materialization,
-	- no immediate rapid re-entry churn after a completed pass,
-	- no repeated `/api/v1/files/sync/tree` 429 escalation.
+**Server-side evidence (mint22):**
+- Server logs show `upload/initiate` returning 201 for test files (`seq-test-linux.txt`, `seq-test-windows.txt`)
+- Server logs say "0/1 chunks already exist" — meaning 1 chunk needs uploading
+- **Zero** `PUT /api/v1/files/upload/{sessionId}/chunks/{chunkHash}` requests arrive at the server
+- **Zero** `CompleteUpload` calls arrive
+- Upload sessions stuck at `Status=InProgress`, `ReceivedChunks=0`
+- No 429s, no errors, no rejections in server logs — the chunk requests simply never arrive
 
-#### Scope (Server Agent, only if needed)
-- If client finds server/API regressions, reproduce on `mint22`, fix with tests first, redeploy, and provide runtime verification evidence.
+**Hypothesis:** Client-side `ChunkedTransferClient.UploadAsync` initiates the session, but the chunk upload loop (producer-consumer channel → `_api.UploadChunkAsync`) either:
+1. Silently fails with a non-retryable HTTP error (4xx other than 409)
+2. GZip content-encoding on chunk PUT is rejected by server middleware
+3. CDC chunking produces a hash mismatch between metadata pass and upload pass
+4. An exception is swallowed by `SyncEngine.ApplyLocalChangesAsync` generic catch
+
+#### Scope (Client Agent on `mint-dnc-client`)
+
+1. **Pull latest `main`** on `mint-dnc-client`.
+
+2. **Find and capture recent sync service logs** for the upload attempts:
+   - Look in `~/.local/share/DotNetCloud/` or `~/.config/DotNetCloud/` or wherever `sync-service*.log` files are stored.
+   - Search logs for `seq-test-linux.txt` — capture ALL log lines from the upload attempt, including:
+     - `File upload starting` messages
+     - `ComputeChunkMetadata` / chunk count messages
+     - `InitiateUploadAsync` response (session ID, present chunks)
+     - Any `UploadChunkAsync` attempt or failure
+     - Any `HttpRequestException` or error after initiate
+     - Any `File upload failed` messages
+     - Any `ApplyLocalChangesAsync` retry/error messages
+
+3. **If logs don't show enough detail**, temporarily increase client logging:
+   - In the sync service's `appsettings.json` or logging config, set `DotNetCloud.Client.Core.Transfer` to `Debug` level.
+   - Drop a new test file (e.g., `diag-test.txt` with content "diagnostic test") into `~/synctray/`.
+   - Wait for sync to attempt upload.
+   - Capture the full debug-level log output for the upload attempt.
+
+4. **Check the HTTP response** the client gets from `PUT .../chunks/{hash}`:
+   - If the chunk PUT returns a non-200 status, capture the exact status code and response body.
+   - Check if the server's `Content-Encoding: gzip` handling is rejecting the request.
 
 #### Required Evidence Back in Next Handoff Update
-- Commit hash.
-- Exact commands run on `mint-dnc-client`.
-- Timestamped raw log lines proving one clean pass sequence.
-- Endpoint URLs and HTTP status codes observed.
-- Expected vs actual for upload and download flows.
+
+- Exact log file path and relevant timestamped log lines (full, not excerpted)
+- HTTP status code returned by chunk upload PUT (if any request was made)
+- Any exceptions/stack traces from the upload flow
+- The session ID from `InitiateUploadAsync` response
+- Whether `UploadChunkAsync` was ever called (or if it failed before reaching the HTTP call)
+- Whether the file was moved to the failed/retry queue by SyncEngine
 
 #### Exit Criteria
-- At least one clean full sync pass on Linux without immediate churn.
-- Upload and download paths both verified on Linux runtime.
-- Any blocker either fixed and redeployed or documented as the single next blocker.
 
-#### Latest Verification Update (2026-03-14, `mint-dnc-client`)
-
-Commands run:
-- `git pull`
-- `dotnet test tests/DotNetCloud.Client.Core.Tests && dotnet test tests/DotNetCloud.Client.SyncService.Tests`
-- `dotnet run --project src/Clients/DotNetCloud.Client.SyncService --no-build`
-- `dotnet run --project src/Clients/DotNetCloud.Client.SyncTray`
-
-Targeted test results:
-- `DotNetCloud.Client.Core.Tests`: 160 passed, 0 failed.
-- `DotNetCloud.Client.SyncService.Tests`: 27 passed, 0 failed.
-
-Timestamped runtime evidence (raw excerpts):
-- `[03:47:23 INF] OAuth2 tokens received. Building account data.` (`sync-tray20260314.log`)
-- `[03:47:23 INF] Sending add-account to SyncService ... Folder=/home/benk/synctray.` (`sync-tray20260314.log`)
-- `[03:47:24 INF] RefreshAccounts: received 3 context(s) from SyncService.` (`sync-tray20260314.log`)
-- `{"@t":"2026-03-14T08:51:36.9941121Z", ... "Url":"https://mint22:15443/api/v1/files/sync/tree", ...}` (`sync-service20260314.log`)
-- `{"@t":"2026-03-14T08:51:37.0057682Z", ... "StatusCode":200, ... "Uri":"https://mint22:15443/api/v1/files/sync/tree" ...}` (`sync-service20260314.log`)
-- `{"@t":"2026-03-14T08:51:37.0065380Z", ... "Url":"https://mint22:15443/api/v1/files/sync/changes?limit=500&cursor=..." ...}` (`sync-service20260314.log`)
-- `{"@t":"2026-03-14T08:51:37.0130963Z", ... "StatusCode":200, ... "Uri":"https://mint22:15443/api/v1/files/sync/changes?*" ...}` (`sync-service20260314.log`)
-- `{"@t":"2026-03-14T08:51:27.9606138Z", ... "StatusCode":201, ... "Uri":"https://mint22:15443/api/v1/files/upload/initiate" ...}` (`sync-service20260314.log`)
-- `{"@t":"2026-03-14T08:51:45.4538115Z", ... "StatusCode":429, ... "Uri":"https://mint22:15443/api/v1/files/upload/initiate" ...}` (`sync-service20260314.log`)
-- `{"@t":"2026-03-14T08:51:45.7634795Z", ... "Status":404, "Path":"api/v1/files/774553ab-983f-40a4-8f51-f4b3924a19bf/chunks", ...}` (`sync-service20260314.log`)
-
-Observed endpoint/status summary for 08:51 window:
-- `/api/v1/files/sync/tree`: 5 calls, `0` with 429.
-- `/api/v1/files/sync/changes`: 5 calls, `0` with 429.
-- `/api/v1/files/upload/initiate`: 168 calls, 9 with 429.
-- `/api/v1/files/{id}/chunks`: mixed 200 and 404 responses during download materialization.
-
-Expected vs actual:
-- Expected upload path: `upload/initiate` should remain stable (201 or controlled backoff) and converge without retry storms.
-- Actual upload path: intermittent 429 during active pass (`upload/initiate`), indicating throttling pressure under load.
-- Expected download path: chunk manifest/chunks should resolve to 200 for live nodes.
-- Actual download path: repeated 404 for some node chunk requests; operations moved to failed queue without retry.
-- Expected churn profile: no immediate rapid re-entry churn after completed pass.
-- Actual churn profile: no `/api/v1/files/sync/tree` 429 escalation in this run, but full clean pass is still not achieved due upload/download API errors.
-
-Single current blocker:
-- Server/API consistency issue under active sync load: mixed upload 429 throttling and download 404 missing-node responses prevent a clean full pass.
-
-#### Next Action (Server Agent on `mint22`)
-- Reproduce using same account/workload and inspect server logs for:
-	- `POST /api/v1/files/upload/initiate` throttling path returning 429 under client burst.
-	- `GET /api/v1/files/{id}/chunks` returning 404 for nodes still emitted in change/tree feeds.
-- Implement fix + tests first.
-- Redeploy to `mint22`.
-- Hand back commit hash and redeploy/runtime evidence; client will immediately re-run Linux final runtime verification.
+- Root cause of chunk upload failure identified from client logs
+- If client-side bug found: describe the exact failure point so server agent can fix code and redeploy
+- If server-side issue: describe the HTTP response so server agent can investigate
 
 ## Relay Template
 

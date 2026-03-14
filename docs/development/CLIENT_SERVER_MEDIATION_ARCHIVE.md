@@ -5,6 +5,15 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Linux Runtime Verification — Blocked by Upload/Download API Errors (2026-03-14)
+
+Archived from Active Handoff on 2026-03-14 when replaced by upload chunk failure diagnostic task.
+
+- Runtime verification on `mint-dnc-client` partially completed: OAuth login, cursor/tree fetch, upload initiate all working.
+- Blockers found: `upload/initiate` intermittent 429 under burst (168 calls, 9 with 429), and `GET /files/{id}/chunks` returning 404 for some nodes.
+- P0 sync hardening fixes (atomic SyncSequence, unique name constraint, atomic chunk refcount) deployed to `mint22` to address root causes.
+- New issue discovered post-P0: client uploads initiate but chunks never arrive at server. Zero `PUT .../chunks/{hash}` requests in server logs. Upload path has never been exercised from desktop clients (all prior uploads via web UI).
+
 ## Archived: Linux Sync Bring-Up Execution Trail (2026-03-14)
 
 Archived from Active Handoff on 2026-03-14 to enforce single active task policy.
