@@ -6,6 +6,14 @@ using Serilog.Events;
 using Serilog.Formatting.Compact;
 using System.Text.Json;
 
+var singletonLockPath = GetSingletonLockPath();
+using var singletonLock = TryAcquireSingletonLock(singletonLockPath);
+if (singletonLock is null)
+{
+    Console.Error.WriteLine($"DotNetCloud Sync Service is already running for this user (lock: {singletonLockPath}).");
+    return;
+}
+
 var builder = Host.CreateApplicationBuilder(args);
 var loggingSettings = LoadLoggingSettings();
 var logPath = BuildLogPath();
@@ -137,6 +145,30 @@ static string GetSystemDataRoot() =>
     OperatingSystem.IsWindows()
         ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "DotNetCloud", "Sync")
         : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share", "DotNetCloud");
+
+static string GetSingletonLockPath()
+{
+    var lockDirectory = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "DotNetCloud",
+        "locks");
+
+    Directory.CreateDirectory(lockDirectory);
+    return Path.Combine(lockDirectory, "sync-service.instance.lock");
+}
+
+static FileStream? TryAcquireSingletonLock(string lockPath)
+{
+    try
+    {
+        // Keep this stream open for process lifetime to hold the singleton lock.
+        return new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+    }
+    catch (IOException)
+    {
+        return null;
+    }
+}
 
 sealed class SyncLoggingSettings
 {

@@ -322,6 +322,47 @@ Expected vs actual (this run):
 Next action (client):
 - Investigate and fix post-pass rapid re-entry loop in Linux runtime (likely trigger/debounce interaction after pass completion), then re-run paced E2E and capture one full stable pass with no immediate 429 follow-up.
 
+#### Execution Update (2026-03-14, per-user singleton enforcement on Linux)
+
+Commit under test at start: `8445602`
+
+Code changes made:
+- `src/Clients/DotNetCloud.Client.SyncService/Program.cs`
+	- Added per-user singleton guard using lock file:
+		- `~/.local/share/DotNetCloud/locks/sync-service.instance.lock` (Linux)
+		- `%LOCALAPPDATA%\DotNetCloud\locks\sync-service.instance.lock` (Windows user context)
+	- Second startup now exits immediately with message:
+		- `DotNetCloud Sync Service is already running for this user (...)`
+- `src/Clients/DotNetCloud.Client.SyncTray/Program.cs`
+	- Replaced machine-wide `Global\...` mutex with per-user singleton lock file:
+		- `~/.local/share/DotNetCloud/locks/sync-tray.instance.lock` (Linux)
+		- `%LOCALAPPDATA%\DotNetCloud\locks\sync-tray.instance.lock` (Windows user context)
+	- Prevents duplicate tray instances for the same OS user while allowing different OS users to run their own instance.
+
+Commands executed:
+- `dotnet test tests/DotNetCloud.Client.SyncService.Tests/DotNetCloud.Client.SyncService.Tests.csproj`
+- `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj`
+- `dotnet build src/Clients/DotNetCloud.Client.SyncService/DotNetCloud.Client.SyncService.csproj`
+- `dotnet build src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj`
+- `dotnet run --project src/Clients/DotNetCloud.Client.SyncService --no-build` (first instance)
+- `dotnet run --project src/Clients/DotNetCloud.Client.SyncService --no-build` (second instance while first active)
+
+Passing test/build evidence:
+- `DotNetCloud.Client.SyncService.Tests`: 27 passed, 0 failed.
+- `DotNetCloud.Client.SyncTray.Tests`: 72 passed, 0 failed.
+- SyncService + SyncTray project builds: succeeded.
+
+Runtime singleton evidence:
+- Second SyncService startup output:
+	- `DotNetCloud Sync Service is already running for this user (lock: /home/benk/.local/share/DotNetCloud/locks/sync-service.instance.lock).`
+- Process audit after change showed one effective service executable for current user and no duplicate tray executable:
+	- `SERVICE_EXEC_PIDS=26773`
+	- `TRAY_EXEC_PIDS=none`
+
+Expected vs actual (this run):
+- Expected: prevent duplicate SyncService/SyncTray instances per user on Linux while allowing other users to run their own instance.
+- Actual: met via user-local singleton lock files and runtime validation for SyncService; SyncTray singleton path implemented and covered by build/tests.
+
 ## Relay Template
 
 ```markdown
