@@ -23,7 +23,7 @@
                     HorizontalAlignment="Right"
                     Spacing="8"
                     Margin="12">
-            <Button Content="Skip"
+            <Button Content="Sync All Folders"
                     Click="OnSkip" />
             <Button Content="Save"
                     Classes="accent"

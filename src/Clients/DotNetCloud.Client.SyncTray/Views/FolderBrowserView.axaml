@@ -36,6 +36,15 @@
                 Margin="0,8,0,0"
                 Command="{Binding SaveCommand}" />
 
+        <!-- Empty state: server has no subdirectories -->
+        <TextBlock DockPanel.Dock="Top"
+                   Text="No folders found on the server. All files will be synced automatically. Click Sync All Folders or Save to continue."
+                   FontSize="11"
+                   TextWrapping="Wrap"
+                   Margin="4,8,4,8"
+                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                   IsVisible="{Binding NoFoldersFound}" />
+
         <!-- Folder tree -->
         <TreeView ItemsSource="{Binding RootItems}">
             <TreeView.ItemTemplate>

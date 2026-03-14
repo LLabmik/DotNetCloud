@@ -27,6 +27,7 @@ Archived context:
 - OAuth contract check (MANDATORY when auth is involved): verify `client_id`, `redirect_uri`, and requested scopes exactly match server-registered OpenIddict client permissions before requesting cross-machine retries.
 - Secret handling rule (MANDATORY): never commit raw bearer tokens/refresh tokens; share token acquisition steps and sanitized outputs only.
 - Moderator relays a short "check for updates" message to the other machine.
+- Moderator handoff prompt rule (MANDATORY): every ready-to-relay message must explicitly state the target machine name (for example: `mint22`, `mint-dnc-client`, `Windows11-TestDNC`).
 - Other agent pulls latest, reads the handoff, and takes action without asking questions.
 
 **Document maintenance:**
@@ -38,8 +39,8 @@ Archived context:
 
 **Moderator relays ONLY ONE OF THESE messages — nothing more:**
 
-- `New handoff update. Pull main and resume from 'Active Handoff' section.`
-- `<Commit hash> — New handoff update. Pull and check docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md Active Handoff.`
+- `New handoff update for <target-machine>. Pull main and resume from 'Active Handoff' section.`
+- `<Commit hash> — New handoff update for <target-machine>. Pull and check docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md Active Handoff.`
 
 **No moderator task:** Moderator provides zero context, zero explanation. The handoff document has everything the receiving agent needs.
 
@@ -224,11 +225,52 @@ Next action (client):
 	- B file materialization is confirmed on disk,
 	- logs show corresponding upload + download + final clean sync pass.
 
+#### Execution Update (2026-03-14, Linux runtime hardening follow-up)
+
+Commit under test at start: `578fae0`
+
+Code changes made:
+- `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs`
+	- Remote change path resolution now prefers `ParentId` + path-map fallback when `NodeId` path is missing from tree snapshot.
+	- Prevents stale tree/feed races from materializing files at sync-root (`~/synctray/<file>`) when true path is nested.
+	- Node type checks are now case-insensitive helpers (`Folder`/`Directory`, `File`, `SymbolicLink`).
+- `src/Clients/DotNetCloud.Client.Core/Api/DotNetCloudApiClient.cs`
+	- 429 handling now honors `Retry-After` delta/date values with bounded wait (max 60s) and jitter to reduce synchronized retries.
+- `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/FolderBrowserViewModel.cs`
+	- Folder browser now treats both `Folder` and `Directory` as selectable folder nodes.
+- `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/SettingsViewModel.cs`
+	- Post add-account selective-sync dialog now targets the newly added account context by matching `LocalFolderPath` + `ServerBaseUrl` (fallback: latest account), instead of opening against an arbitrary first account.
+- `src/Clients/DotNetCloud.Client.SyncTray/Views/FolderBrowserView.axaml`
+	- Empty-state text updated to match button label (`Sync All Folders`).
+
+Tests added:
+- `tests/DotNetCloud.Client.Core.Tests/Sync/SyncEngineTests.cs`
+	- `SyncAsync_RemoteChangeMissingNodeMap_UsesParentPathForDownload`
+- `tests/DotNetCloud.Client.SyncTray.Tests/ViewModels/FolderBrowserViewModelTests.cs`
+	- `LoadTreeAsync_DirectoryNodeType_IsTreatedAsFolder`
+
+Commands executed:
+- `dotnet test tests/DotNetCloud.Client.Core.Tests/DotNetCloud.Client.Core.Tests.csproj --filter "FullyQualifiedName~SyncEngineTests"`
+- `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj --filter "FullyQualifiedName~FolderBrowserViewModelTests"`
+- `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj`
+
+Passing test evidence:
+- `SyncEngineTests`: 38 passed, 0 failed.
+- `FolderBrowserViewModelTests`: 6 passed, 0 failed.
+- `DotNetCloud.Client.SyncTray.Tests` full suite: 72 passed, 0 failed.
+
+Expected vs actual (this follow-up):
+- Expected: eliminate duplicate root-level file materialization during remote download reconciliation and reduce repeated 429 churn under burst retries.
+- Actual: code-level mitigations implemented with focused regression coverage; targeted suites are green. Full interactive Linux tray OAuth + end-to-end dual-context runtime verification remains pending.
+
+Next action (client):
+- Execute full paced Linux E2E run (OAuth complete, upload A, download B) on `mint-dnc-client` and capture timestamped logs proving one clean full cycle without duplicate root writes.
+
 ## Relay Template
 
 ```markdown
-### Send to [Server|Client] Agent
-<message text>
+### Send to [Server|Client] Agent on <target-machine>
+<message text including target machine>
 
 ### Request Back
 - commit hash

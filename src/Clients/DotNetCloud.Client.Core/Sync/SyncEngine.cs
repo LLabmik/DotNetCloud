@@ -450,7 +450,7 @@ public sealed class SyncEngine : ISyncEngine
                 page.Changes.Count, cursor ?? "(none)", page.HasMore);
 
             // Ensure directories for folder changes before processing file changes
-            foreach (var change in page.Changes.Where(c => c.NodeType == "Folder" && !c.IsDeleted))
+            foreach (var change in page.Changes.Where(c => IsFolderNodeType(c.NodeType) && !c.IsDeleted))
             {
                 if (pathMap.TryGetValue(change.NodeId, out var relPath))
                 {
@@ -464,7 +464,13 @@ public sealed class SyncEngine : ISyncEngine
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var localPath = await ResolveLocalPathAsync(context, change.NodeId, change.Name, pathMap, cancellationToken);
+                var localPath = await ResolveLocalPathAsync(
+                    context,
+                    change.NodeId,
+                    change.ParentId,
+                    change.Name,
+                    pathMap,
+                    cancellationToken);
 
                 if (!_selectiveSync.IsIncluded(context.Id, localPath))
                     continue;
@@ -482,12 +488,12 @@ public sealed class SyncEngine : ISyncEngine
                     await HandleRemoteDeletionAsync(context, localPath, change.NodeId, cancellationToken);
                     appliedChanges++;
                 }
-                else if (change.NodeType == "File")
+                else if (IsFileNodeType(change.NodeType))
                 {
                     await HandleRemoteUpdateAsync(context, localPath, change, cancellationToken);
                     appliedChanges++;
                 }
-                else if (change.NodeType == "SymbolicLink" && change.LinkTarget is not null)
+                else if (IsSymlinkNodeType(change.NodeType) && change.LinkTarget is not null)
                 {
                     await HandleRemoteSymlinkAsync(context, localPath, change, cancellationToken);
                     appliedChanges++;
@@ -1042,11 +1048,13 @@ public sealed class SyncEngine : ISyncEngine
                 await stream.CopyToAsync(output, cancellationToken);
             }
 
+            // Use the written file size — stream.Length throws on non-seekable HTTP response streams.
+            var downloadedBytes = new FileInfo(writePath).Length;
             FileTransferComplete?.Invoke(this, new FileTransferCompleteEventArgs
             {
                 FileName = fileName,
                 Direction = "download",
-                TotalBytes = stream.Length,
+                TotalBytes = downloadedBytes,
                 TotalChunks = 0,
             });
 
@@ -1117,7 +1125,13 @@ public sealed class SyncEngine : ISyncEngine
         _api.AccessToken = tokens.AccessToken;
     }
 
-    private async Task<string> ResolveLocalPathAsync(SyncContext context, Guid nodeId, string name, Dictionary<Guid, string> pathMap, CancellationToken cancellationToken)
+    private async Task<string> ResolveLocalPathAsync(
+        SyncContext context,
+        Guid nodeId,
+        Guid? parentId,
+        string name,
+        Dictionary<Guid, string> pathMap,
+        CancellationToken cancellationToken)
     {
         var existing = await _stateDb.GetFileRecordByNodeIdAsync(context.StateDatabasePath, nodeId, cancellationToken);
         if (existing is not null)
@@ -1127,8 +1141,28 @@ public sealed class SyncEngine : ISyncEngine
         if (pathMap.TryGetValue(nodeId, out var relativePath))
             return Path.Combine(context.LocalFolderPath, relativePath);
 
+        // When this node is missing from the map (stale tree/page race), build from parent path
+        // to avoid incorrectly materializing the file in sync-root.
+        if (parentId.HasValue && pathMap.TryGetValue(parentId.Value, out var parentRelativePath))
+            return Path.Combine(context.LocalFolderPath, parentRelativePath, name);
+
+        _logger.LogWarning(
+            "Could not resolve tree path for node {NodeId} ('{Name}'); falling back to sync-root path.",
+            nodeId,
+            name);
+
         return Path.Combine(context.LocalFolderPath, name);
     }
+
+    private static bool IsFolderNodeType(string? nodeType) =>
+        string.Equals(nodeType, "Folder", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(nodeType, "Directory", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsFileNodeType(string? nodeType) =>
+        string.Equals(nodeType, "File", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsSymlinkNodeType(string? nodeType) =>
+        string.Equals(nodeType, "SymbolicLink", StringComparison.OrdinalIgnoreCase);
 
     private static void BuildPathMap(SyncTreeNodeResponse node, string parentPath, Dictionary<Guid, string> map)
     {
@@ -1154,7 +1188,7 @@ public sealed class SyncEngine : ISyncEngine
             ? parentPath
             : string.IsNullOrEmpty(parentPath) ? node.Name : Path.Combine(parentPath, node.Name);
 
-        if (node.NodeId != Guid.Empty && node.NodeType == "File")
+        if (node.NodeId != Guid.Empty && IsFileNodeType(node.NodeType))
             map.TryAdd(currentPath, node);
 
         foreach (var child in node.Children)

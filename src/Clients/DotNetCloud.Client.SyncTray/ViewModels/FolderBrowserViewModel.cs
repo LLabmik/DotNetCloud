@@ -39,6 +39,12 @@ public sealed class FolderBrowserViewModel : ViewModelBase
         private set => SetProperty(ref _errorMessage, value);
     }
 
+    /// <summary>
+    /// True when loading completed successfully but the server has no subdirectories.
+    /// In this case all files will be synced and selective-sync is not applicable.
+    /// </summary>
+    public bool NoFoldersFound => !IsLoading && ErrorMessage is null && RootItems.Count == 0;
+
     /// <summary>Loads the folder tree from the server.</summary>
     public ICommand LoadTreeCommand { get; }
 
@@ -97,7 +103,7 @@ public sealed class FolderBrowserViewModel : ViewModelBase
             // Build top-level items only (children are lazy-loaded on expand).
             foreach (var child in _fullTree.Children)
             {
-                if (!string.Equals(child.NodeType, "Folder", StringComparison.OrdinalIgnoreCase))
+                if (!IsFolderNodeType(child.NodeType))
                     continue;
 
                 var item = BuildItemLazy(child, parentPath: string.Empty, parent: null);
@@ -114,6 +120,7 @@ public sealed class FolderBrowserViewModel : ViewModelBase
         finally
         {
             IsLoading = false;
+            OnPropertyChanged(nameof(NoFoldersFound));
         }
     }
 
@@ -168,8 +175,7 @@ public sealed class FolderBrowserViewModel : ViewModelBase
         };
 
         // Check if this node has folder children at all.
-        var hasChildFolders = node.Children.Any(c =>
-            string.Equals(c.NodeType, "Folder", StringComparison.OrdinalIgnoreCase));
+        var hasChildFolders = node.Children.Any(c => IsFolderNodeType(c.NodeType));
 
         if (hasChildFolders)
         {
@@ -198,7 +204,7 @@ public sealed class FolderBrowserViewModel : ViewModelBase
 
             foreach (var child in sourceNode.Children)
             {
-                if (!string.Equals(child.NodeType, "Folder", StringComparison.OrdinalIgnoreCase))
+                if (!IsFolderNodeType(child.NodeType))
                     continue;
 
                 var childItem = BuildItemLazy(child, item.RelativePath, item);
@@ -263,6 +269,10 @@ public sealed class FolderBrowserViewModel : ViewModelBase
             // IsChecked == true → fully included, nothing to record.
         }
     }
+
+    private static bool IsFolderNodeType(string? nodeType) =>
+        string.Equals(nodeType, "Folder", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(nodeType, "Directory", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Deletes local files for a folder that was newly excluded from sync.

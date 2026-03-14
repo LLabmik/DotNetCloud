@@ -2940,6 +2940,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
   - ✓ Quota operations (get quota)
   - ✓ Retry with exponential backoff (3 retries, 500ms base delay)
   - ✓ Rate limiting — 429 handling with Retry-After header respect
+  - ✓ 2026-03-14 hardening: `Retry-After` delta/date handling now capped to 60s with jittered delay
 - ✓ **OAuth2 PKCE Authentication** — `IOAuth2Service` + `OAuth2Service`
   - ✓ Authorization Code + PKCE flow (code verifier/challenge generation)
   - ✓ System browser launch for authorization
@@ -2957,6 +2958,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
   - ✓ Remote change application (download, handle deletions)
   - ✓ Local change application (upload pending operations)
   - ✓ Conflict detection (local and remote both modified since last sync)
+  - ✓ 2026-03-14 hardening: remote-change path resolution now uses `ParentId` fallback when tree map is stale (prevents duplicate root-level materialization)
   - ✓ Pause/resume support
   - ✓ `StatusChanged` event for UI/tray notification
   - ✓ `SyncContext`, `SyncStatus`, `SyncState` model classes
@@ -2983,8 +2985,11 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
   - ✓ Longest-match wins (most specific rule takes precedence)
   - ✓ Per-context isolation
   - ✓ JSON persistence (save/load)
+  - ✓ 2026-03-14 hardening: tray folder browser accepts both `Folder` and `Directory` node types
+  - ✓ 2026-03-14 hardening: add-account flow now opens selective-sync dialog for the newly added context
 - ✓ `ClientCoreServiceExtensions.AddDotNetCloudClientCore()` DI registration
-- ✓ 53 unit tests: API client (6), token info (4), token store (4), sync engine (8), chunked transfer (3), conflict resolver (6), local state DB (11), selective sync (11) — all passing
+- ✓ 53 baseline client unit tests from phase delivery
+- ✓ 2026-03-14 regression reruns: `SyncEngineTests` 38/38 passing; `FolderBrowserViewModelTests` 6/6 passing
 
 **File Locations:**
 - `src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj`

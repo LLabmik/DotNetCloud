@@ -679,6 +679,77 @@ public class SyncEngineTests
         Assert.AreEqual(expectedLocalPath, queuedDownload.LocalPath);
     }
 
+    [TestMethod]
+    public async Task SyncAsync_RemoteChangeMissingNodeMap_UsesParentPathForDownload()
+    {
+        var parentId = Guid.NewGuid();
+        var childId = Guid.NewGuid();
+        var expectedPath = Path.Combine(_tempDir, "Docs", "notes.txt");
+
+        // Tree snapshot contains only the parent folder. The changed file is absent from the map,
+        // but provides ParentId in the change feed.
+        _apiMock.Setup(a => a.GetFolderTreeAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SyncTreeNodeResponse
+            {
+                NodeId = Guid.Empty,
+                Name = "/",
+                NodeType = "Folder",
+                Children =
+                [
+                    new SyncTreeNodeResponse
+                    {
+                        NodeId = parentId,
+                        Name = "Docs",
+                        NodeType = "Folder",
+                    },
+                ],
+            });
+
+        _apiMock.SetupSequence(a => a.GetChangesSinceAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedSyncChangesResponse
+            {
+                Changes =
+                [
+                    new SyncChangeResponse
+                    {
+                        NodeId = childId,
+                        ParentId = parentId,
+                        Name = "notes.txt",
+                        NodeType = "File",
+                        UpdatedAt = DateTime.UtcNow,
+                    },
+                ],
+                HasMore = false,
+                NextCursor = null,
+            });
+
+        _stateDbMock.Setup(db => db.GetFileRecordByNodeIdAsync(_context.StateDatabasePath, childId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((LocalFileRecord?)null);
+        _stateDbMock.Setup(db => db.GetFileRecordAsync(_context.StateDatabasePath, expectedPath, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((LocalFileRecord?)null);
+        _stateDbMock.Setup(db => db.GetPendingOperationsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        PendingDownload? queuedDownload = null;
+        _stateDbMock.Setup(db => db.QueueOperationAsync(
+                _context.StateDatabasePath,
+                It.IsAny<PendingOperationRecord>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, PendingOperationRecord, CancellationToken>((_, op, _) =>
+            {
+                if (op is PendingDownload pd && pd.NodeId == childId)
+                    queuedDownload = pd;
+            })
+            .Returns(Task.CompletedTask);
+
+        await _engine.StartAsync(_context);
+        await _engine.SyncAsync(_context);
+        await _engine.StopAsync();
+
+        Assert.IsNotNull(queuedDownload, "Expected the changed file to be queued for download.");
+        Assert.AreEqual(expectedPath, queuedDownload!.LocalPath);
+    }
+
     // ── Idempotent uploads (Issue #40) ──────────────────────────────────────
 
     [TestMethod]
@@ -1096,6 +1167,44 @@ public class SyncEngineTests
     // ── Local directory scan (upload path) ─────────────────────────────────
 
     [TestMethod]
+    public async Task SyncAsync_DownloadWithNonSeekableStream_FiresTransferCompleteWithoutThrowing()
+    {
+        // Regression: stream.Length on an HTTP response stream (non-seekable) throws
+        // NotSupportedException. FileTransferComplete should use FileInfo.Length instead.
+        var localPath = Path.Combine(_tempDir, "non-seekable.txt");
+        var nodeId = Guid.NewGuid();
+        var content = "hello world"u8.ToArray();
+
+        // Wrap content in a non-seekable stream to reproduce the HTTP response stream behaviour.
+        var nonSeekableStream = new NonSeekableStream(new MemoryStream(content));
+
+        var transferMock = new Mock<IChunkedTransferClient>();
+        transferMock
+            .Setup(t => t.DownloadAsync(nodeId, It.IsAny<IProgress<TransferProgress>?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(nonSeekableStream);
+
+        _stateDbMock.Setup(db => db.GetPendingOperationsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new PendingDownload { Id = 1, LocalPath = localPath, NodeId = nodeId }]);
+        _stateDbMock.Setup(db => db.RemoveOperationAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _stateDbMock.Setup(db => db.UpsertFileRecordAsync(It.IsAny<string>(), It.IsAny<LocalFileRecord>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        FileTransferCompleteEventArgs? completed = null;
+        await using var engine = BuildEngine(transferMock.Object);
+        engine.FileTransferComplete += (_, e) => completed = e;
+
+        await engine.StartAsync(_context);
+        await engine.SyncAsync(_context);
+        await engine.StopAsync();
+
+        Assert.IsTrue(File.Exists(localPath), "File should be written to disk.");
+        Assert.IsNotNull(completed, "FileTransferComplete event should have fired.");
+        Assert.AreEqual("download", completed!.Direction);
+        Assert.AreEqual(content.Length, completed.TotalBytes);
+    }
+
+    [TestMethod]
     public async Task SyncAsync_NewLocalFile_QueuesUpload()
     {
         // Arrange: create a file on disk that has no state.db record.
@@ -1233,6 +1342,29 @@ public class SyncEngineTests
         {
             HResult = unchecked((int)0x80070070);
         }
+    }
+
+    /// <summary>
+    /// Wraps a readable stream but disables CanSeek so that calling .Length throws
+    /// NotSupportedException — replicating the behaviour of an HTTP response stream.
+    /// </summary>
+    private sealed class NonSeekableStream(Stream inner) : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException("Stream is not seekable.");
+        public override long Position
+        {
+            get => throw new NotSupportedException("Stream is not seekable.");
+            set => throw new NotSupportedException("Stream is not seekable.");
+        }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => inner.Read(buffer, offset, count);
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException("Stream is not seekable.");
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        protected override void Dispose(bool disposing) { if (disposing) inner.Dispose(); base.Dispose(disposing); }
     }
 }
 

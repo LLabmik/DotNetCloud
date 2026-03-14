@@ -445,8 +445,15 @@ public sealed class SettingsViewModel : ViewModelBase
             _logger.LogInformation("Refreshing account list after add.");
             await _trayVm.RefreshAccountsAsync();
 
-            // Offer selective sync folder browser after successful add.
-            await ShowFolderBrowserAsync(data.UserId);
+            // Offer selective sync folder browser for the newly added context.
+            var addedAccount = _trayVm.Accounts.FirstOrDefault(a =>
+                string.Equals(a.LocalFolderPath, localFolderPath, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(a.ServerBaseUrl.TrimEnd('/'), serverUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase));
+
+            if (addedAccount is not null)
+                await ShowFolderBrowserForAccountAsync(addedAccount.ContextId);
+            else
+                await ShowFolderBrowserForLatestAccountAsync();
         }
         catch (OperationCanceledException)
         {
@@ -593,14 +600,15 @@ public sealed class SettingsViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Shows the folder browser dialog for the most recently added account.
-    /// Used after add-account flow completes.
+    /// Shows the folder browser dialog for the latest account as a fallback when
+    /// exact account matching after add-account cannot be resolved.
     /// </summary>
-    private async Task ShowFolderBrowserAsync(Guid userId)
+    private async Task ShowFolderBrowserForLatestAccountAsync()
     {
-        // Find the context that matches the just-added user.
-        var account = _trayVm.Accounts.FirstOrDefault(a => a.ContextId != Guid.Empty);
-        if (account is null) return;
+        var account = _trayVm.Accounts.LastOrDefault(a => a.ContextId != Guid.Empty);
+        if (account is null)
+            return;
+
         await ShowFolderBrowserForAccountAsync(account.ContextId);
     }
 

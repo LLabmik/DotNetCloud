@@ -241,6 +241,39 @@ public sealed class FolderBrowserViewModelTests
         }
     }
 
+    [TestMethod]
+    public async Task LoadTreeAsync_DirectoryNodeType_IsTreatedAsFolder()
+    {
+        var tree = new SyncTreeNodeResponse
+        {
+            NodeId = Guid.NewGuid(),
+            Name = "root",
+            NodeType = "Folder",
+            Children =
+            [
+                new SyncTreeNodeResponse
+                {
+                    NodeId = Guid.NewGuid(),
+                    Name = "Projects",
+                    NodeType = "Directory",
+                },
+            ],
+        };
+
+        var ipc = new Mock<IIpcClient>();
+        ipc.Setup(x => x.GetFolderTreeAsync(_contextId, It.IsAny<CancellationToken>()))
+           .ReturnsAsync(tree);
+
+        var selectiveSync = new SelectiveSyncConfig();
+        var vm = new FolderBrowserViewModel(ipc.Object, _contextId, selectiveSync, "test-config.json");
+
+        await vm.LoadTreeAsync();
+
+        Assert.AreEqual(1, vm.RootItems.Count);
+        Assert.AreEqual("Projects", vm.RootItems[0].Name);
+        Assert.IsFalse(vm.NoFoldersFound);
+    }
+
     /// <summary>Builds a standard two-level test tree with Documents/Projects, Photos, and a File.</summary>
     private static SyncTreeNodeResponse BuildTestTree()
     {

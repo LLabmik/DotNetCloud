@@ -15,6 +15,7 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private const int MaxRetries = 3;
     private const int BaseDelayMs = 500;
+    private const int MaxRateLimitDelaySeconds = 60;
 
     private readonly HttpClient _http;
     private readonly ILogger<DotNetCloudApiClient> _logger;
@@ -458,15 +459,12 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
             // Handle rate limiting
             if (response.StatusCode == HttpStatusCode.TooManyRequests)
             {
-                // Use server Retry-After but cap at 10s — server fixed-window resets can send
-                // very large values (60s+) that stall parallel chunk downloads.
-                var serverDelay = response.Headers.RetryAfter?.Delta;
-                var backoff = TimeSpan.FromSeconds(Math.Pow(2, attempt + 1));
-                var retryAfter = serverDelay.HasValue
-                    ? TimeSpan.FromSeconds(Math.Min(serverDelay.Value.TotalSeconds, 10))
-                    : backoff;
-                _logger.LogWarning("Rate limited (429). Waiting {Delay}s before retry (attempt {Attempt}/{Max}).",
-                    retryAfter.TotalSeconds, attempt + 1, MaxRetries);
+                var retryAfter = ComputeRateLimitDelay(response, attempt);
+                _logger.LogWarning(
+                    "Rate limited (429). Waiting {DelayMs}ms before retry (attempt {Attempt}/{Max}).",
+                    retryAfter.TotalMilliseconds,
+                    attempt + 1,
+                    MaxRetries);
                 if (attempt >= MaxRetries)
                     return response;
                 response.Dispose();
@@ -537,5 +535,47 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
     {
         var delay = retryAfter ?? TimeSpan.FromMilliseconds(BaseDelayMs * Math.Pow(2, attempt));
         await Task.Delay(delay, cancellationToken);
+    }
+
+    private static TimeSpan ComputeRateLimitDelay(HttpResponseMessage response, int attempt)
+    {
+        var headerDelay = GetRetryAfterDelay(response);
+        if (headerDelay.HasValue)
+        {
+            return ClampWithJitter(headerDelay.Value, maxSeconds: MaxRateLimitDelaySeconds);
+        }
+
+        // Exponential fallback when Retry-After is missing.
+        var fallback = TimeSpan.FromMilliseconds(BaseDelayMs * Math.Pow(2, attempt + 1));
+        return ClampWithJitter(fallback, maxSeconds: MaxRateLimitDelaySeconds);
+    }
+
+    private static TimeSpan? GetRetryAfterDelay(HttpResponseMessage response)
+    {
+        var retryAfter = response.Headers.RetryAfter;
+        if (retryAfter is null)
+            return null;
+
+        if (retryAfter.Delta.HasValue)
+            return retryAfter.Delta.Value;
+
+        if (retryAfter.Date.HasValue)
+        {
+            var delta = retryAfter.Date.Value - DateTimeOffset.UtcNow;
+            return delta <= TimeSpan.Zero ? TimeSpan.FromMilliseconds(BaseDelayMs) : delta;
+        }
+
+        return null;
+    }
+
+    private static TimeSpan ClampWithJitter(TimeSpan baseDelay, int maxSeconds)
+    {
+        var capped = baseDelay > TimeSpan.FromSeconds(maxSeconds)
+            ? TimeSpan.FromSeconds(maxSeconds)
+            : baseDelay;
+
+        // Small jitter avoids synchronized retries across multiple contexts.
+        var jitterMs = Random.Shared.Next(50, 251);
+        return capped + TimeSpan.FromMilliseconds(jitterMs);
     }
 }

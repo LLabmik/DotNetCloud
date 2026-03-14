@@ -2169,6 +2169,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Implement `DotNetCloudApiClient` using `HttpClient`
 - ✓ Implement retry with exponential backoff
 - ✓ Handle rate limiting (429 responses, respect Retry-After header)
+  - ✓ Honor `Retry-After` delta/date with capped wait + jitter to reduce retry stampedes
 
 #### OAuth2 PKCE Authentication
 - ✓ Implement OAuth2 Authorization Code with PKCE flow
@@ -2225,6 +2226,8 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Persist selective sync configuration per account
 - ✓ Skip excluded folders during sync operations
 - ✓ Handle server-side changes in excluded folders gracefully
+  - ✓ Accept both `Folder` and `Directory` node types in selective-sync folder browser loading
+  - ✓ Open post add-account folder browser against the newly added sync context (no arbitrary context fallback)
 
 ---
 
