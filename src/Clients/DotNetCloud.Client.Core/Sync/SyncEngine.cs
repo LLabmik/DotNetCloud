@@ -45,6 +45,7 @@ public sealed class SyncEngine : ISyncEngine
     private string? _lastError;
     private bool _paused;
     private readonly SemaphoreSlim _syncLock = new(1, 1);
+    private int _syncRerunRequested;
 
     /// <inheritdoc/>
     public event EventHandler<SyncStatusChangedEventArgs>? StatusChanged;
@@ -159,7 +160,16 @@ public sealed class SyncEngine : ISyncEngine
             return;
         }
 
-        await _syncLock.WaitAsync(cancellationToken);
+        if (!await _syncLock.WaitAsync(0, cancellationToken))
+        {
+            Interlocked.Exchange(ref _syncRerunRequested, 1);
+            _logger.LogDebug(
+                "Sync already in progress for context {ContextId}; coalescing request into one trailing pass.",
+                context.Id);
+            return;
+        }
+
+        var runTrailingPass = false;
         var syncTimer = Stopwatch.StartNew();
         try
         {
@@ -216,7 +226,16 @@ public sealed class SyncEngine : ISyncEngine
         finally
         {
             _lockedFileReader.ReleaseSnapshot();
+            runTrailingPass = Interlocked.Exchange(ref _syncRerunRequested, 0) == 1;
             _syncLock.Release();
+
+            if (runTrailingPass && !_paused && _cts?.IsCancellationRequested != true)
+            {
+                _logger.LogDebug(
+                    "Running coalesced trailing sync pass for context {ContextId}.",
+                    context.Id);
+                _ = Task.Run(() => SyncAsync(context, _cts?.Token ?? default), _cts?.Token ?? default);
+            }
         }
     }
 

@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-14 (mint-dnc-client onboarding handoff created for Linux sync client implementation/testing)
+Last updated: 2026-03-14 (sync re-entry coalescing hardening logged for mint-dnc-client follow-up runtime validation)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -362,6 +362,33 @@ Runtime singleton evidence:
 Expected vs actual (this run):
 - Expected: prevent duplicate SyncService/SyncTray instances per user on Linux while allowing other users to run their own instance.
 - Actual: met via user-local singleton lock files and runtime validation for SyncService; SyncTray singleton path implemented and covered by build/tests.
+
+#### Execution Update (2026-03-14, sync re-entry coalescing hardening)
+
+Commit under test at start: `5627b41`
+
+Code changes made:
+- `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs`
+	- Added overlap coalescing for `SyncAsync`: if a sync pass is already running, new requests set a single pending rerun flag instead of queueing N full passes behind `_syncLock`.
+	- Added trailing-pass execution after lock release when coalesced requests exist.
+	- Goal: stop post-pass rapid re-entry bursts that can immediately hammer `/sync/tree` and trigger 429 churn.
+- `tests/DotNetCloud.Client.Core.Tests/Sync/SyncEngineTests.cs`
+	- Added regression test: `SyncAsync_BurstWhileRunning_CoalescesIntoSingleTrailingPass`.
+
+Commands executed:
+- `dotnet test tests/DotNetCloud.Client.Core.Tests/DotNetCloud.Client.Core.Tests.csproj`
+- `dotnet test tests/DotNetCloud.Client.SyncService.Tests/DotNetCloud.Client.SyncService.Tests.csproj`
+
+Passing test evidence:
+- `DotNetCloud.Client.Core.Tests`: 160 passed, 0 failed.
+- `DotNetCloud.Client.SyncService.Tests`: 27 passed, 0 failed.
+
+Expected vs actual (this follow-up):
+- Expected: watcher/IPC sync bursts during an in-flight pass are collapsed into one trailing sync pass, reducing tight immediate reruns.
+- Actual: code-level coalescing and regression coverage are in place; focused executable client suites are green.
+
+Next action (client, `mint-dnc-client`):
+- Re-run Linux interactive tray E2E with normal pacing (no manual burst loops) and capture timestamped logs proving one clean pass sequence after upload/download activity without immediate rapid pass churn or `/api/v1/files/sync/tree` 429 escalation.
 
 ## Relay Template
 

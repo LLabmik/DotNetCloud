@@ -9,6 +9,7 @@ using DotNetCloud.Client.Core.Transfer;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
+using System.Diagnostics;
 
 namespace DotNetCloud.Client.Core.Tests.Sync;
 
@@ -180,6 +181,48 @@ public class SyncEngineTests
             It.IsAny<string>(),
             It.IsAny<DateTime>(),
             It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task SyncAsync_BurstWhileRunning_CoalescesIntoSingleTrailingPass()
+    {
+        var firstPassGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var checkpointCalls = 0;
+
+        _stateDbMock
+            .Setup(db => db.UpdateCheckpointAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .Returns(async () =>
+            {
+                var callIndex = Interlocked.Increment(ref checkpointCalls);
+                if (callIndex == 1)
+                    await firstPassGate.Task;
+            });
+
+        await _engine.StartAsync(_context);
+
+        var firstPass = _engine.SyncAsync(_context);
+
+        var spinUntilEntered = Stopwatch.StartNew();
+        while (Volatile.Read(ref checkpointCalls) == 0 && spinUntilEntered.Elapsed < TimeSpan.FromSeconds(2))
+            await Task.Delay(10);
+
+        Assert.AreEqual(1, Volatile.Read(ref checkpointCalls), "First sync pass did not start in time.");
+
+        var burstTasks = Enumerable.Range(0, 5)
+            .Select(_ => _engine.SyncAsync(_context))
+            .ToArray();
+
+        firstPassGate.SetResult();
+
+        await Task.WhenAll(burstTasks.Append(firstPass));
+
+        var spinUntilTrailing = Stopwatch.StartNew();
+        while (Volatile.Read(ref checkpointCalls) < 2 && spinUntilTrailing.Elapsed < TimeSpan.FromSeconds(2))
+            await Task.Delay(10);
+
+        Assert.AreEqual(2, Volatile.Read(ref checkpointCalls));
+
+        await _engine.StopAsync();
     }
 
     [TestMethod]
