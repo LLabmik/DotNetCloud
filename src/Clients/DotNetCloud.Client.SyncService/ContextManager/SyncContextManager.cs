@@ -31,6 +31,7 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
     // LoadContextsAsync is called once before IPC server starts (no lock needed there).
     private readonly Dictionary<Guid, RunningContext> _contexts = [];
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private const string DataRootEnvVar = "DOTNETCLOUD_SYNC_DATA_ROOT";
 
     /// <inheritdoc/>
     public event EventHandler<SyncProgressEventArgs>? SyncProgress;
@@ -678,6 +679,12 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
     /// <summary>Returns the platform-appropriate root directory for service data.</summary>
     private static string GetSystemDataRoot()
     {
+        var configuredPath = Environment.GetEnvironmentVariable(DataRootEnvVar);
+        if (!string.IsNullOrWhiteSpace(configuredPath))
+        {
+            return configuredPath;
+        }
+
         if (OperatingSystem.IsWindows())
         {
             // When running inside an MSIX package, the service may not have
@@ -695,7 +702,40 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
                 "DotNetCloud", "Sync");
         }
 
-        return "/var/lib/dotnetcloud/sync";
+        // Prefer the system-wide location when writable (service/root context).
+        var systemPath = "/var/lib/dotnetcloud/sync";
+        if (CanUseDirectory(systemPath))
+        {
+            return systemPath;
+        }
+
+        // Fallback for non-root developer/runtime sessions.
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".local",
+            "share",
+            "DotNetCloud",
+            "Sync");
+    }
+
+    private static bool CanUseDirectory(string path)
+    {
+        try
+        {
+            Directory.CreateDirectory(path);
+
+            var probePath = Path.Combine(path, $".write-test-{Guid.NewGuid():N}");
+            using (File.Create(probePath))
+            {
+            }
+            File.Delete(probePath);
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     /// <summary>

@@ -22,7 +22,7 @@ public sealed class IpcServer : IIpcServer, IAsyncDisposable
     public const string PipeName = "dotnetcloud-sync";
 
     /// <summary>Unix domain socket path used on Linux/macOS.</summary>
-    public const string UnixSocketPath = "/run/dotnetcloud/sync.sock";
+    public static string UnixSocketPath { get; } = ResolveUnixSocketPath();
 
     private readonly ISyncContextManager _contextManager;
     private readonly ILogger<IpcServer> _logger;
@@ -34,6 +34,8 @@ public sealed class IpcServer : IIpcServer, IAsyncDisposable
     // Tracks in-flight client handler tasks for clean shutdown
     private readonly object _clientLock = new();
     private readonly List<Task> _clientTasks = [];
+
+    private const string UnixSocketPathEnvVar = "DOTNETCLOUD_SYNC_SOCKET_PATH";
 
     /// <summary>Initializes a new <see cref="IpcServer"/>.</summary>
     public IpcServer(ISyncContextManager contextManager, ILogger<IpcServer> logger)
@@ -219,6 +221,37 @@ public sealed class IpcServer : IIpcServer, IAsyncDisposable
                 _logger.LogError(ex, "Error accepting Unix socket connection.");
             }
         }
+    }
+
+    private static string ResolveUnixSocketPath()
+    {
+        var configuredPath = Environment.GetEnvironmentVariable(UnixSocketPathEnvVar);
+        if (!string.IsNullOrWhiteSpace(configuredPath))
+        {
+            return configuredPath;
+        }
+
+        // Keep system-wide socket path for root/service execution.
+        if (OperatingSystem.IsLinux() && string.Equals(Environment.UserName, "root", StringComparison.Ordinal))
+        {
+            return "/run/dotnetcloud/sync.sock";
+        }
+
+        if (OperatingSystem.IsLinux())
+        {
+            var runtimeDir = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR");
+            if (!string.IsNullOrWhiteSpace(runtimeDir))
+            {
+                return Path.Combine(runtimeDir, "dotnetcloud", "sync.sock");
+            }
+        }
+
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".local",
+            "share",
+            "DotNetCloud",
+            "sync.sock");
     }
 
     // ── Client task management ────────────────────────────────────────────

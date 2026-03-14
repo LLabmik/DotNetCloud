@@ -82,6 +82,7 @@ Archived context:
 - **Windows11 runtime re-check completed** (2026-03-13, SyncTray 0.23.1): per-operation exponential retries are gone (`Download operation ... Moving to failed queue without retry`), but `create_admin.cs` is still re-queued each pass by tree reconciliation.
 - **Client tree-requeue hotfix implemented** (2026-03-13): reconciliation now skips re-queue for files with recent terminal 404 download failures; added LocalStateDb tests. Patched package built: `dotnetcloud-sync-tray-win-x64-0.23.2-alpha.msix`.
 - **Windows11 final runtime verification completed** (2026-03-13, SyncTray 0.23.2): `err.txt` exists locally with 0 bytes, `create_admin.cs` remains missing (expected), and latest sync pass completed with `RemoteChanges=0, LocalQueued=0, LocalApplied=0` (no requeue churn observed).
+- **Linux non-root bring-up fix implemented** (2026-03-14, `mint-dnc-client`): Sync service now falls back to user-writable Linux paths when `/var/lib/dotnetcloud/sync` is not writable, and IPC socket path now supports user-mode fallback (`$XDG_RUNTIME_DIR/dotnetcloud/sync.sock`) with env override support (`DOTNETCLOUD_SYNC_DATA_ROOT`, `DOTNETCLOUD_SYNC_SOCKET_PATH`). Runtime verified: service + tray IPC connect; OAuth discovery to `https://mint22:15443/.well-known/openid-configuration` returns HTTP 200.
 
 ## Environment
 
@@ -138,6 +139,54 @@ Goal: onboard a third machine (`mint-dnc-client`, Linux Mint 22) as the primary 
 - Linux Mint client completes at least one clean full sync pass without retry churn.
 - Upload and download paths both verified on Linux runtime.
 - Any discovered server blockers either fixed and verified or documented as explicit next blocker.
+
+#### Execution Update (2026-03-14, `mint-dnc-client`)
+
+Commit under test at start: `578fae0`
+
+Commands executed:
+- `git pull --ff-only`
+- `dotnet test tests/DotNetCloud.Client.SyncService.Tests`
+- `dotnet test tests/DotNetCloud.Client.Core.Tests`
+- `curl -k -I --max-time 15 https://mint22:15443/health`
+- `dotnet run --project src/Clients/DotNetCloud.Client.SyncService --no-build`
+- `dotnet run --project src/Clients/DotNetCloud.Client.SyncTray --no-build`
+- `dotnet test tests/DotNetCloud.Client.SyncService.Tests/DotNetCloud.Client.SyncService.Tests.csproj`
+- `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj`
+
+Passing test evidence:
+- `DotNetCloud.Client.SyncService.Tests`: 27 passed, 0 failed.
+- `DotNetCloud.Client.Core.Tests`: 156 passed, 0 failed.
+- `DotNetCloud.Client.SyncTray.Tests`: 71 passed, 0 failed.
+
+Raw runtime evidence (timestamps preserved):
+- Initial failure before fix: service startup hit `UnauthorizedAccessException` on `/var/lib/dotnetcloud` (from `sync-service20260314.log`, `2026-03-14T06:20:09.8403329Z`).
+- After fix: service startup succeeded (`DotNetCloud Sync Service running — 0 context(s) active`, `2026-03-14T06:23:26.0848218Z`) and IPC started in Unix socket mode (`2026-03-14T06:23:26.0954055Z`).
+- User-mode socket created: `/run/user/<uid>/dotnetcloud/sync.sock`.
+- Tray successfully connected to service:
+	- `[01:23:47 INF] Connected to SyncService.`
+	- `[01:23:47 INF] Subscribed to SyncService IPC events.`
+- OAuth discovery and authorization kickoff against server:
+	- `[01:24:08 INF] Start processing HTTP request GET https://mint22:15443/.well-known/openid-configuration`
+	- `[01:24:09 INF] Received HTTP response headers after 234.5965ms - 200`
+	- `[01:24:09 INF] Opening OAuth authorize URL for client 'dotnetcloud-desktop' with scope 'openid profile offline_access files:read files:write'.`
+
+Endpoints + status codes observed:
+- `https://mint22:15443/health` -> HTTP 200
+- `https://mint22:15443/.well-known/openid-configuration` -> HTTP 200
+
+Expected vs actual (this run):
+- Expected: Linux service/tray can run on `mint-dnc-client` without root for validation work.
+- Actual: Met after fallback-path fix (service starts, IPC connects, OAuth discovery succeeds).
+- Expected: full upload/download E2E sync validation with conflict/retry/404 handling.
+- Actual: Not yet completed in this run because OAuth browser login/callback was started but not completed through credentialed auth and at least one full sync pass.
+
+Remaining blocker / next action for client agent:
+- Complete interactive OAuth login on `mint-dnc-client` tray session, add account + sync folder, then run at least one clean full sync pass and capture logs for:
+	- cursor-based remote changes
+	- local scan upload (new/modified files)
+	- conflict/retry behavior (no infinite requeue)
+	- 0-byte file and missing-chunk 404 terminal handling
 
 ## Relay Template
 
