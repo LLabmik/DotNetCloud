@@ -71,7 +71,7 @@ Archived context:
 
 **Date:** 2026-03-14
 **Owner:** Client agent (server agent only if API regression is found)
-**Status:** IN PROGRESS
+**Status:** BLOCKED (server/API behavior)
 
 Goal: complete one clean Linux Mint sync cycle against `mint22` after re-entry coalescing hardening, with full runtime evidence and no immediate retry churn.
 
@@ -104,11 +104,54 @@ Goal: complete one clean Linux Mint sync cycle against `mint22` after re-entry c
 - Upload and download paths both verified on Linux runtime.
 - Any blocker either fixed and redeployed or documented as the single next blocker.
 
-#### Latest Engineering Update (Completed, archived details moved)
-- Sync re-entry coalescing hardening landed in `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` with regression test `SyncAsync_BurstWhileRunning_CoalescesIntoSingleTrailingPass`.
-- Validation prior to this handoff state:
-	- `DotNetCloud.Client.Core.Tests`: 160 passed, 0 failed.
-	- `DotNetCloud.Client.SyncService.Tests`: 27 passed, 0 failed.
+#### Latest Verification Update (2026-03-14, `mint-dnc-client`)
+
+Commands run:
+- `git pull`
+- `dotnet test tests/DotNetCloud.Client.Core.Tests && dotnet test tests/DotNetCloud.Client.SyncService.Tests`
+- `dotnet run --project src/Clients/DotNetCloud.Client.SyncService --no-build`
+- `dotnet run --project src/Clients/DotNetCloud.Client.SyncTray`
+
+Targeted test results:
+- `DotNetCloud.Client.Core.Tests`: 160 passed, 0 failed.
+- `DotNetCloud.Client.SyncService.Tests`: 27 passed, 0 failed.
+
+Timestamped runtime evidence (raw excerpts):
+- `[03:47:23 INF] OAuth2 tokens received. Building account data.` (`sync-tray20260314.log`)
+- `[03:47:23 INF] Sending add-account to SyncService ... Folder=/home/benk/synctray.` (`sync-tray20260314.log`)
+- `[03:47:24 INF] RefreshAccounts: received 3 context(s) from SyncService.` (`sync-tray20260314.log`)
+- `{"@t":"2026-03-14T08:51:36.9941121Z", ... "Url":"https://mint22:15443/api/v1/files/sync/tree", ...}` (`sync-service20260314.log`)
+- `{"@t":"2026-03-14T08:51:37.0057682Z", ... "StatusCode":200, ... "Uri":"https://mint22:15443/api/v1/files/sync/tree" ...}` (`sync-service20260314.log`)
+- `{"@t":"2026-03-14T08:51:37.0065380Z", ... "Url":"https://mint22:15443/api/v1/files/sync/changes?limit=500&cursor=..." ...}` (`sync-service20260314.log`)
+- `{"@t":"2026-03-14T08:51:37.0130963Z", ... "StatusCode":200, ... "Uri":"https://mint22:15443/api/v1/files/sync/changes?*" ...}` (`sync-service20260314.log`)
+- `{"@t":"2026-03-14T08:51:27.9606138Z", ... "StatusCode":201, ... "Uri":"https://mint22:15443/api/v1/files/upload/initiate" ...}` (`sync-service20260314.log`)
+- `{"@t":"2026-03-14T08:51:45.4538115Z", ... "StatusCode":429, ... "Uri":"https://mint22:15443/api/v1/files/upload/initiate" ...}` (`sync-service20260314.log`)
+- `{"@t":"2026-03-14T08:51:45.7634795Z", ... "Status":404, "Path":"api/v1/files/774553ab-983f-40a4-8f51-f4b3924a19bf/chunks", ...}` (`sync-service20260314.log`)
+
+Observed endpoint/status summary for 08:51 window:
+- `/api/v1/files/sync/tree`: 5 calls, `0` with 429.
+- `/api/v1/files/sync/changes`: 5 calls, `0` with 429.
+- `/api/v1/files/upload/initiate`: 168 calls, 9 with 429.
+- `/api/v1/files/{id}/chunks`: mixed 200 and 404 responses during download materialization.
+
+Expected vs actual:
+- Expected upload path: `upload/initiate` should remain stable (201 or controlled backoff) and converge without retry storms.
+- Actual upload path: intermittent 429 during active pass (`upload/initiate`), indicating throttling pressure under load.
+- Expected download path: chunk manifest/chunks should resolve to 200 for live nodes.
+- Actual download path: repeated 404 for some node chunk requests; operations moved to failed queue without retry.
+- Expected churn profile: no immediate rapid re-entry churn after completed pass.
+- Actual churn profile: no `/api/v1/files/sync/tree` 429 escalation in this run, but full clean pass is still not achieved due upload/download API errors.
+
+Single current blocker:
+- Server/API consistency issue under active sync load: mixed upload 429 throttling and download 404 missing-node responses prevent a clean full pass.
+
+#### Next Action (Server Agent on `mint22`)
+- Reproduce using same account/workload and inspect server logs for:
+	- `POST /api/v1/files/upload/initiate` throttling path returning 429 under client burst.
+	- `GET /api/v1/files/{id}/chunks` returning 404 for nodes still emitted in change/tree feeds.
+- Implement fix + tests first.
+- Redeploy to `mint22`.
+- Hand back commit hash and redeploy/runtime evidence; client will immediately re-run Linux final runtime verification.
 
 ## Relay Template
 
