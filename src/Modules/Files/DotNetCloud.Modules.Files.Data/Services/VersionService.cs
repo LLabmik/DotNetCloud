@@ -120,12 +120,7 @@ internal sealed class VersionService : IVersionService
                 SequenceIndex = sc.SequenceIndex
             });
 
-            var chunk = await _db.FileChunks.FindAsync([sc.FileChunkId], cancellationToken);
-            if (chunk is not null)
-            {
-                chunk.ReferenceCount++;
-                chunk.LastReferencedAt = DateTime.UtcNow;
-            }
+            await ChunkReferenceHelper.IncrementAsync(_db, sc.FileChunkId, cancellationToken);
         }
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -191,11 +186,7 @@ internal sealed class VersionService : IVersionService
 
         foreach (var vc in versionChunks)
         {
-            var chunk = await _db.FileChunks.FindAsync([vc.FileChunkId], cancellationToken);
-            if (chunk is not null)
-            {
-                chunk.ReferenceCount = Math.Max(0, chunk.ReferenceCount - 1);
-            }
+            await ChunkReferenceHelper.DecrementAsync(_db, vc.FileChunkId, cancellationToken);
         }
 
         _db.FileVersionChunks.RemoveRange(versionChunks);

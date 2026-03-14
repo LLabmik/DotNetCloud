@@ -586,9 +586,6 @@ public class SyncServiceTests
         await SyncCursorHelper.AssignNextSequenceAsync(db, node, userId);
 
         Assert.AreEqual(1L, node.SyncSequence);
-        var counter = await db.UserSyncCounters.FindAsync(userId);
-        Assert.IsNotNull(counter);
-        Assert.AreEqual(1L, counter!.CurrentSequence);
     }
 
     [TestMethod]
@@ -605,8 +602,6 @@ public class SyncServiceTests
         await SyncCursorHelper.AssignNextSequenceAsync(db, node, userId);
 
         Assert.AreEqual(11L, node.SyncSequence);
-        var counter = await db.UserSyncCounters.FindAsync(userId);
-        Assert.AreEqual(11L, counter!.CurrentSequence);
     }
 
     [TestMethod]

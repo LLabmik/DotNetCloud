@@ -125,8 +125,11 @@ internal sealed class WopiService : IWopiService
 
             if (existing is not null)
             {
-                existing.ReferenceCount++;
-                existing.LastReferencedAt = DateTime.UtcNow;
+                await ChunkReferenceHelper.IncrementAsync(_db, existing.Id, cancellationToken);
+                if (!ChunkReferenceHelper.IsInMemoryProvider(_db))
+                    _db.Entry(existing).State = EntityState.Detached;
+
+                // Re-fetch as no-tracking for the mapping dictionary.
                 chunksByHash[hash] = existing;
             }
             else

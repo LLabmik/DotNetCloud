@@ -37,5 +37,10 @@ public sealed class FileChunkConfiguration : IEntityTypeConfiguration<FileChunk>
 
         builder.HasIndex(c => c.ReferenceCount)
             .HasDatabaseName("ix_file_chunks_ref_count");
+
+        // Safety net: prevent garbage collection from driving refcount negative.
+        builder.ToTable(t => t.HasCheckConstraint(
+            "ck_file_chunks_ref_count_non_negative",
+            "\"ReferenceCount\" >= 0"));
     }
 }

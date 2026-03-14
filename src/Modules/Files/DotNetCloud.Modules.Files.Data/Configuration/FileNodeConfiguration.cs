@@ -66,6 +66,24 @@ public sealed class FileNodeConfiguration : IEntityTypeConfiguration<FileNode>
         builder.HasIndex(n => new { n.ParentId, n.Name })
             .HasDatabaseName("ix_file_nodes_parent_name");
 
+        // Unique constraint: only one active (non-deleted) file per name per parent folder.
+        // This prevents race conditions where concurrent uploads create duplicate entries.
+        // PostgreSQL treats NULLs as distinct in unique indexes, so root-level nodes
+        // (ParentId IS NULL) are covered — each user+name combo is still unique because
+        // root queries also filter by OwnerId.
+        builder.HasIndex(n => new { n.ParentId, n.Name })
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = false AND \"ParentId\" IS NOT NULL")
+            .HasDatabaseName("uq_file_nodes_parent_name_active");
+
+        // Separate unique index for root-level nodes (ParentId IS NULL) scoped by owner.
+        // Without this, two users could not both have a root-level "Documents" folder,
+        // and two concurrent uploads to root for the same user would not be caught.
+        builder.HasIndex(n => new { n.OwnerId, n.Name })
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = false AND \"ParentId\" IS NULL")
+            .HasDatabaseName("uq_file_nodes_root_name_active");
+
         builder.HasIndex(n => n.ContentHash)
             .HasDatabaseName("ix_file_nodes_content_hash");
 

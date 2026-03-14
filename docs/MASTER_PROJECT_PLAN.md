@@ -76,6 +76,7 @@
 | Sync Batch 4 | 5 | 5 | 0 | 0 |
 | Sync Batch 5 | 2 | 2 | 0 | 0 |
 | Sync Verification | 1 | 1 | 0 | 0 |
+| Sync Hardening P0 | 3 | 3 | 0 | 0 |
 | Phase 3-9 | Summary | 0 | 0 | 1 |
 | Infrastructure | Summary | 0 | 0 | 1 |
 | Documentation | Summary | 0 | 0 | 1 |
@@ -3859,6 +3860,27 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Final runtime verification on `Windows11-TestDNC` with SyncTray `0.23.2-alpha`: `err.txt` synced as 0-byte, `create_admin.cs` remained missing as expected, and latest pass completed with `RemoteChanges=0, LocalQueued=0, LocalApplied=0`
 
 **Notes:** Verification complete. All 28 sync improvement tasks confirmed implemented. Build: 0 errors. Tests: 1063/1065 passed (2 expected Linux-only failures). Merge editor uses DiffPlex for line-level diffs with three-way auto-merge and conflict markers for overlapping changes. Post-verification runtime probes on Windows (SyncTray 0.23.0/0.23.1) exposed 404 edge cases (retry classification, then tree-requeue churn). Both client hotfixes and tests were implemented, and final runtime verification on SyncTray 0.23.2 confirmed closeout.
+
+---
+
+### Multi-Client Sync Hardening — P0 Critical Fixes
+
+#### Step: sync-hardening-p0 - Atomic Operations & Constraint Enforcement
+**Status:** completed ✅
+**Duration:** ~4 hours
+**Description:** Database-level hardening to eliminate race conditions causing duplicate files, lost sync sequence numbers, and corrupted chunk reference counts when multiple sync clients operate concurrently.
+
+**Deliverables:**
+- ✓ **P0.1 — Atomic SyncSequence Assignment:** Replaced EF read-modify-write pattern in `SyncCursorHelper.AssignNextSequenceAsync` with PostgreSQL `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` atomic upsert. Added InMemory provider fallback for unit tests.
+- ✓ **P0.2 — Unique Constraint on File Names:** Added two filtered unique indexes in `FileNodeConfiguration` — `uq_file_nodes_parent_name_active` (ParentId, Name where not deleted) and `uq_file_nodes_root_name_active` (OwnerId, Name where not deleted and no parent). Added `DbUpdateException` catch with `IsUniqueViolation` helper in `ChunkedUploadService` and `FileService.CreateFolderAsync`.
+- ✓ **P0.3 — Atomic Chunk Reference Counting:** Created `ChunkReferenceHelper` with `IncrementAsync`/`DecrementAsync` using raw SQL `UPDATE` with PostgreSQL row-level locking. Replaced all 8 `ReferenceCount` mutation sites across 6 service files (`ChunkedUploadService`, `WopiService`, `VersionService`, `TrashService`, `VersionCleanupService`, `TrashCleanupService`, `FilesGrpcService`). Added CHECK constraint `ck_file_chunks_ref_count_non_negative` on `FileChunk`.
+- ✓ **EF Migration `SyncHardeningP0`** — Drops redundant non-unique index, creates 2 unique filtered indexes + 1 CHECK constraint.
+- ✓ **Test suite: 581/581 passing** — All InMemory fallback paths verified, 3 previously-ignored sync tests re-enabled.
+- ✓ **InternalsVisibleTo** for `dotnetcloud.files` (Host assembly) added to Data project.
+
+**Dependencies:** Sync Batches 1-5, sync-verification
+
+**Notes:** All P0 critical fixes code-complete. PostgreSQL-specific SQL uses atomic operations (INSERT...ON CONFLICT, GREATEST for floor-clamped decrement); InMemory provider detected via `db.Database.ProviderName` string comparison and falls back to EF change tracking for unit tests. Production database verified clean (no existing duplicates). P1 work (Device Identity, Echo Suppression, Rate Limiting) not yet started.
 
 ---
 

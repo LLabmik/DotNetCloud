@@ -12,23 +12,54 @@ namespace DotNetCloud.Modules.Files.Data;
 internal static class SyncCursorHelper
 {
     /// <summary>
-    /// Fetches (or creates) the <see cref="UserSyncCounter"/> for the given user, increments
-    /// <see cref="UserSyncCounter.CurrentSequence"/>, and assigns the new value to
-    /// <see cref="FileNode.SyncSequence"/>.
+    /// Atomically increments the <see cref="UserSyncCounter"/> for the given user using a raw SQL
+    /// upsert with <c>RETURNING</c>, and assigns the new value to <see cref="FileNode.SyncSequence"/>.
+    /// This guarantees sequential, gap-free sequence numbers even under concurrent access
+    /// by using PostgreSQL row-level locking via <c>INSERT ... ON CONFLICT DO UPDATE ... RETURNING</c>.
+    /// Falls back to EF change tracking when using InMemory provider (unit tests).
     /// Call this before <c>SaveChangesAsync</c> for each mutated node.
     /// </summary>
     public static async Task AssignNextSequenceAsync(FilesDbContext db, FileNode node, Guid ownerId, CancellationToken cancellationToken = default)
     {
-        var counter = await db.UserSyncCounters.FindAsync([ownerId], cancellationToken);
-        if (counter is null)
+        if (ChunkReferenceHelper.IsInMemoryProvider(db))
         {
-            counter = new UserSyncCounter { UserId = ownerId };
-            db.UserSyncCounters.Add(counter);
+            // Fallback for InMemory provider (unit tests) — not safe under concurrency.
+            var counter = await db.UserSyncCounters.FindAsync([ownerId], cancellationToken);
+            if (counter is null)
+            {
+                counter = new UserSyncCounter { UserId = ownerId };
+                db.UserSyncCounters.Add(counter);
+            }
+
+            counter.CurrentSequence++;
+            counter.UpdatedAt = DateTime.UtcNow;
+            node.SyncSequence = counter.CurrentSequence;
+            return;
         }
 
-        counter.CurrentSequence++;
-        counter.UpdatedAt = DateTime.UtcNow;
-        node.SyncSequence = counter.CurrentSequence;
+        // Atomic upsert: inserts with sequence=1 if no row exists, otherwise increments.
+        // PostgreSQL's INSERT ... ON CONFLICT DO UPDATE acquires a row-level lock, preventing
+        // concurrent reads of the same value. RETURNING gives us the post-increment value.
+        var nextSequence = await db.Database.SqlQueryRaw<long>(
+            """
+            INSERT INTO "UserSyncCounters" ("UserId", "CurrentSequence", "UpdatedAt")
+            VALUES ({0}, 1, NOW())
+            ON CONFLICT ("UserId") DO UPDATE
+            SET "CurrentSequence" = "UserSyncCounters"."CurrentSequence" + 1,
+                "UpdatedAt" = NOW()
+            RETURNING "CurrentSequence"
+            """,
+            ownerId
+        ).SingleAsync(cancellationToken);
+
+        node.SyncSequence = nextSequence;
+
+        // Detach any tracked UserSyncCounter entity for this user so EF doesn't try to
+        // overwrite the value we just set atomically via raw SQL.
+        var tracked = db.ChangeTracker.Entries<UserSyncCounter>()
+            .FirstOrDefault(e => e.Entity.UserId == ownerId);
+        if (tracked is not null)
+            tracked.State = EntityState.Detached;
     }
 
     /// <summary>

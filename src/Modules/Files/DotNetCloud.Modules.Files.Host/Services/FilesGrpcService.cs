@@ -632,8 +632,9 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
 
         if (existingChunk is not null)
         {
-            existingChunk.ReferenceCount++;
-            existingChunk.LastReferencedAt = DateTime.UtcNow;
+            await ChunkReferenceHelper.IncrementAsync(_db, existingChunk.Id, context.CancellationToken);
+            if (!ChunkReferenceHelper.IsInMemoryProvider(_db))
+                _db.Entry(existingChunk).State = EntityState.Detached;
         }
         else
         {

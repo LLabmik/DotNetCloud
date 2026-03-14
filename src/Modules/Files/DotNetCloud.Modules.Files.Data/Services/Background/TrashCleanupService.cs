@@ -121,9 +121,7 @@ internal sealed class TrashCleanupService : BackgroundService
             var versionChunks = await db.FileVersionChunks.Where(vc => vc.FileVersionId == version.Id).ToListAsync(cancellationToken);
             foreach (var vc in versionChunks)
             {
-                var chunk = await db.FileChunks.FindAsync([vc.FileChunkId], cancellationToken);
-                if (chunk is not null)
-                    chunk.ReferenceCount = Math.Max(0, chunk.ReferenceCount - 1);
+                await ChunkReferenceHelper.DecrementAsync(db, vc.FileChunkId, cancellationToken);
             }
             db.FileVersionChunks.RemoveRange(versionChunks);
         }

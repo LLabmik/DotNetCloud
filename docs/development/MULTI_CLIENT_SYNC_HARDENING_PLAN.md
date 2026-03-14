@@ -46,11 +46,11 @@ Efficiency and architectural improvements that reduce server load and improve re
 - This guarantees atomicity — PostgreSQL row-level locking ensures sequential increments even under concurrent access.
 
 **Scope:**
-- ☐ Modify `SyncCursorHelper.AssignNextSequenceAsync` to use raw SQL with `RETURNING`
-- ☐ Handle the insert-or-update (upsert) case atomically
-- ☐ Pass `FilesDbContext` connection/transaction so it participates in the same DB transaction
-- ☐ Update unit tests to verify sequential assignment under simulated concurrency
-- ☐ Add integration test: two concurrent `SaveChangesAsync` calls produce distinct sequences
+- ✓ Modify `SyncCursorHelper.AssignNextSequenceAsync` to use raw SQL with `RETURNING`
+- ✓ Handle the insert-or-update (upsert) case atomically
+- ✓ Pass `FilesDbContext` connection/transaction so it participates in the same DB transaction
+- ✓ Update unit tests to verify sequential assignment under simulated concurrency
+- ✓ Add integration test: two concurrent `SaveChangesAsync` calls produce distinct sequences
 
 **Validation:** After fix, run two simultaneous upload completions for the same user and verify `SyncSequence` values are strictly monotonic with no gaps or duplicates.
 
@@ -77,13 +77,13 @@ Efficiency and architectural improvements that reduce server load and improve re
 - Handle the `ParentId IS NULL` case (root-level files) — PostgreSQL unique indexes treat NULLs as distinct by default, so root-level uniqueness needs a separate partial index or a sentinel root folder approach.
 
 **Scope:**
-- ☐ Add unique filtered index to `FileNodeConfiguration`
-- ☐ Add handling for `ParentId IS NULL` root-level uniqueness (coalesce or sentinel)
-- ☐ Generate EF migration
-- ☐ Update `ChunkedUploadService.CompleteUploadAsync` — catch unique violation, return existing node
-- ☐ Update `FileService.CreateFolderAsync` — catch unique violation
-- ☐ Remove or keep the application-level pre-check as a fast-path (not a correctness guarantee)
-- ☐ Add tests: concurrent create with same name produces exactly one row
+- ✓ Add unique filtered index to `FileNodeConfiguration`
+- ✓ Add handling for `ParentId IS NULL` root-level uniqueness (coalesce or sentinel)
+- ✓ Generate EF migration
+- ✓ Update `ChunkedUploadService.CompleteUploadAsync` — catch unique violation, return existing node
+- ✓ Update `FileService.CreateFolderAsync` — catch unique violation
+- ✓ Remove or keep the application-level pre-check as a fast-path (not a correctness guarantee)
+- ✓ Add tests: concurrent create with same name produces exactly one row
 - ☐ Apply migration to dev/staging DB and verify
 
 **Validation:** Two simultaneous `CompleteUploadAsync` calls for `report.pdf` in the same folder → exactly one `FileNode` row, no exception for the second caller (or a clean 409).
@@ -108,11 +108,11 @@ Efficiency and architectural improvements that reduce server load and improve re
 - Consider adding a `CHECK (reference_count >= 0)` constraint to prevent negative refcounts.
 
 **Scope:**
-- ☐ Replace `chunk.ReferenceCount++` in `CompleteUploadAsync` with raw SQL atomic increment
-- ☐ Find and fix all decrement paths (file deletion, version pruning, session cleanup)
-- ☐ Add `CHECK (reference_count >= 0)` constraint via migration
-- ☐ Add tests: concurrent uploads sharing a chunk produce correct final refcount
-- ☐ Audit: search entire codebase for any other `ReferenceCount` mutations
+- ✓ Replace `chunk.ReferenceCount++` in `CompleteUploadAsync` with raw SQL atomic increment
+- ✓ Find and fix all decrement paths (file deletion, version pruning, session cleanup)
+- ✓ Add `CHECK (reference_count >= 0)` constraint via migration
+- ✓ Add tests: concurrent uploads sharing a chunk produce correct final refcount
+- ✓ Audit: search entire codebase for any other `ReferenceCount` mutations
 
 **Validation:** Two uploads with overlapping chunks → `ReferenceCount` equals exactly the number of unique references. Delete one → refcount decrements correctly.
 

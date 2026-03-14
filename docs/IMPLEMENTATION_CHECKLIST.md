@@ -3939,3 +3939,36 @@ Before marking a phase complete:
 
 **Status:** ✅ Completed
 **Last Reviewed:** 2026-03-13
+
+---
+
+### Multi-Client Sync Hardening — P0 Critical Fixes (2026-03-14)
+
+#### P0.1 — Atomic SyncSequence Assignment
+- ✓ Replace EF read-modify-write in `SyncCursorHelper.AssignNextSequenceAsync` with raw SQL `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`
+- ✓ Handle upsert case atomically (new user counter creation)
+- ✓ InMemory provider fallback for unit test compatibility
+- ✓ Existing SyncCursorHelper unit tests updated and passing
+
+#### P0.2 — Unique Constraint on File Names Per Parent Folder
+- ✓ Add unique filtered index `uq_file_nodes_parent_name_active` on `(ParentId, Name)` where `IsDeleted = false AND ParentId IS NOT NULL`
+- ✓ Add unique filtered index `uq_file_nodes_root_name_active` on `(OwnerId, Name)` where `IsDeleted = false AND ParentId IS NULL`
+- ✓ `CompleteUploadAsync` catches `DbUpdateException` unique violation (PostgreSQL 23505)
+- ✓ `CreateFolderAsync` catches `DbUpdateException` unique violation
+- ✓ Application-level pre-checks kept as fast-path (not sole correctness guarantee)
+- ✓ Configuration tests verify indexes exist
+
+#### P0.3 — Atomic Chunk Reference Counting
+- ✓ Created `ChunkReferenceHelper` with atomic `IncrementAsync` / `DecrementAsync` using raw SQL
+- ✓ Replaced all 4 increment sites: `ChunkedUploadService`, `WopiService`, `VersionService`, `FilesGrpcService`
+- ✓ Replaced all 4 decrement sites: `VersionService`, `TrashService`, `VersionCleanupService`, `TrashCleanupService`
+- ✓ Added `CHECK (reference_count >= 0)` constraint on `FileChunks` table
+- ✓ InMemory provider fallback for unit test compatibility
+- ✓ Full codebase audit — all `ReferenceCount` mutations now use `ChunkReferenceHelper`
+
+#### Migration
+- ✓ EF migration `SyncHardeningP0` generated (unique indexes + check constraint)
+- ☐ Apply migration to production database
+
+**Status:** ✅ Code Complete — Pending deployment
+**Last Reviewed:** 2026-03-14

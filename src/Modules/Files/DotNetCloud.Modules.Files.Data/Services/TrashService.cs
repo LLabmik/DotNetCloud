@@ -279,9 +279,7 @@ internal sealed class TrashService : ITrashService
 
             foreach (var vc in versionChunks)
             {
-                var chunk = await _db.FileChunks.FindAsync([vc.FileChunkId], cancellationToken);
-                if (chunk is not null)
-                    chunk.ReferenceCount = Math.Max(0, chunk.ReferenceCount - 1);
+                await ChunkReferenceHelper.DecrementAsync(_db, vc.FileChunkId, cancellationToken);
             }
 
             _db.FileVersionChunks.RemoveRange(versionChunks);

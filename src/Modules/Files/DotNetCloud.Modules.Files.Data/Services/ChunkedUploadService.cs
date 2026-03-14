@@ -290,8 +290,14 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
             });
 
             byteOffset += chunkSize;
-            chunk.ReferenceCount++;
-            chunk.LastReferencedAt = DateTime.UtcNow;
+
+            // Atomic increment via raw SQL — avoids EF in-memory read-modify-write race.
+            await ChunkReferenceHelper.IncrementAsync(_db, chunk.Id, cancellationToken);
+
+            // When using a real DB (not InMemory), detach the chunk so EF doesn't
+            // overwrite the atomically-set value on SaveChangesAsync.
+            if (!ChunkReferenceHelper.IsInMemoryProvider(_db))
+                _db.Entry(chunk).State = EntityState.Detached;
         }
 
         // Mark session as completed
@@ -300,7 +306,20 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         session.UpdatedAt = DateTime.UtcNow;
 
         await SyncCursorHelper.AssignNextSequenceAsync(_db, fileNode, caller.UserId, cancellationToken);
-        await _db.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            // Another concurrent upload won the race for the same filename in the same folder.
+            // Discard tracked changes and return the existing node (idempotent behavior).
+            _db.ChangeTracker.Clear();
+
+            var scope = session.TargetParentId.HasValue ? "this folder" : "the root level";
+            throw new Core.Errors.ValidationException("Name", $"A node named '{session.FileName}' already exists in {scope}.");
+        }
 
         // Update quota usage in real time
         if (quotaDelta != 0)
@@ -405,5 +424,19 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         }
 
         return session;
+    }
+
+    /// <summary>
+    /// Checks whether a <see cref="DbUpdateException"/> was caused by a unique constraint violation.
+    /// PostgreSQL reports this as error code 23505.
+    /// </summary>
+    private static bool IsUniqueViolation(DbUpdateException ex)
+    {
+        // Npgsql wraps the PG error as the InnerException of DbUpdateException.
+        // We check the PostgresException.SqlState without taking a hard dependency on the Npgsql type.
+        return ex.InnerException is { } inner
+            && inner.GetType().Name == "PostgresException"
+            && inner.Data["SqlState"] is string sqlState
+            && sqlState == "23505";
     }
 }

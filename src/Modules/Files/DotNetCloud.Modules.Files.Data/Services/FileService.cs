@@ -103,7 +103,16 @@ internal sealed class FileService : IFileService
 
         _db.FileNodes.Add(folder);
         await SyncCursorHelper.AssignNextSequenceAsync(_db, folder, caller.UserId, cancellationToken);
-        await _db.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            _db.ChangeTracker.Clear();
+            throw new Core.Errors.ValidationException("Name", $"A folder named '{dto.Name}' already exists in this location.");
+        }
 
         _logger.LogInformation("Folder '{Name}' created by {UserId} under {ParentId}",
             dto.Name, caller.UserId, dto.ParentId);
@@ -650,5 +659,17 @@ internal sealed class FileService : IFileService
                 "Name",
                 $"Filename '{name}' is a reserved device name on Windows ('{baseName}') and cannot be synced to Windows clients. Please choose a different name.");
         }
+    }
+
+    /// <summary>
+    /// Checks whether a <see cref="DbUpdateException"/> was caused by a unique constraint violation.
+    /// PostgreSQL reports this as error code 23505.
+    /// </summary>
+    private static bool IsUniqueViolation(DbUpdateException ex)
+    {
+        return ex.InnerException is { } inner
+            && inner.GetType().Name == "PostgresException"
+            && inner.Data["SqlState"] is string sqlState
+            && sqlState == "23505";
     }
 }
