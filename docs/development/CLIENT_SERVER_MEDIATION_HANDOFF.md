@@ -266,6 +266,62 @@ Expected vs actual (this follow-up):
 Next action (client):
 - Execute full paced Linux E2E run (OAuth complete, upload A, download B) on `mint-dnc-client` and capture timestamped logs proving one clean full cycle without duplicate root writes.
 
+#### Execution Update (2026-03-14, Linux paced E2E re-run on `mint-dnc-client`)
+
+Commit under test at start: `348c9cb`
+
+Commands executed:
+- `git pull --ff-only`
+- `dotnet run --project src/Clients/DotNetCloud.Client.SyncService --no-build`
+- `printf '{"command":"list-contexts"}\n' | nc -N -U /run/user/$(id -u)/dotnetcloud/sync.sock`
+- `printf '{"command":"get-status","contextId":"6d8aafbb-152c-4867-9262-8f2f4d6a098c"}\n' | nc -N -U /run/user/$(id -u)/dotnetcloud/sync.sock`
+- `printf '{"command":"sync-now","contextId":"6d8aafbb-152c-4867-9262-8f2f4d6a098c"}\n' | nc -N -U /run/user/$(id -u)/dotnetcloud/sync.sock`
+- `dotnet test tests/DotNetCloud.Client.SyncService.Tests/DotNetCloud.Client.SyncService.Tests.csproj`
+- `dotnet test tests/DotNetCloud.Client.Core.Tests/DotNetCloud.Client.Core.Tests.csproj --filter "FullyQualifiedName~SyncEngineTests"`
+
+Runtime context observed:
+- `list-contexts` returned one active context:
+	- `id=6d8aafbb-152c-4867-9262-8f2f4d6a098c`
+	- `displayName=testdude@llabmik.net @ mint22`
+	- `localFolderPath=/home/benk/synctray`
+- Probe file created locally for upload validation:
+	- `/home/benk/synctray/linux-e2e-probe-20260314-032306.txt`
+
+Passing test evidence:
+- `DotNetCloud.Client.SyncService.Tests`: 27 passed, 0 failed.
+- `SyncEngineTests`: 38 passed, 0 failed.
+
+Raw runtime evidence (timestamps preserved from `~/.local/share/DotNetCloud/logs/sync-service20260314.log`):
+- Upload path succeeded for local scan probe:
+	- `2026-03-14T08:23:45.1683632Z` `Local scan queued 1 new/modified file(s) for upload`
+	- `2026-03-14T08:23:45.1707065Z` `File upload starting ... linux-e2e-probe-20260314-032306.txt`
+	- `POST /api/v1/files/upload/initiate` -> `201` (`2026-03-14T08:23:45.1815180Z`)
+	- `PUT /api/v1/files/upload/{session}/chunks/{hash}` -> `409` (`2026-03-14T08:23:45.1923209Z`)
+	- `POST /api/v1/files/upload/{session}/complete` -> `409` (`2026-03-14T08:23:45.2033112Z`)
+	- `2026-03-14T08:23:45.2039879Z` `CompleteUpload returned 409 ... Treating as success.`
+	- `2026-03-14T08:23:45.2315211Z` `Sync pass complete ... LocalQueued=1, LocalApplied=1`
+- Cursor-based changes and tree fetch initially healthy:
+	- `GET /api/v1/files/sync/tree` -> `200`
+	- `GET /api/v1/files/sync/changes?limit=500&cursor=...` -> `200`
+- Churn/regression observed after completion: sync loop rapidly re-entered pass start and then hit throttling:
+	- repeated `Sync pass starting` / `Sync pass complete` in very short intervals (~30-40ms passes)
+	- `2026-03-14T08:23:45.5542919Z` `GET /api/v1/files/sync/tree` -> `429`
+	- `2026-03-14T08:23:45.5545793Z` `Rate limited (429). Waiting 60151ms before retry (attempt 1/3).`
+
+Endpoints + status codes observed (this run):
+- `https://mint22:15443/api/v1/files/upload/initiate` -> `201`
+- `https://mint22:15443/api/v1/files/upload/{session}/chunks/{hash}` -> `409`
+- `https://mint22:15443/api/v1/files/upload/{session}/complete` -> `409` (client treats as success)
+- `https://mint22:15443/api/v1/files/sync/tree` -> `200`, later `429`
+- `https://mint22:15443/api/v1/files/sync/changes?limit=500&cursor=...` -> `200`
+
+Expected vs actual (this run):
+- Expected: paced Linux E2E pass completes and remains stable without retry churn.
+- Actual: upload path and cursor/tree API path validated, but context immediately re-enters tight sync pass loop and reaches 429 throttling, so "clean full sync pass without churn" exit criterion is still not met.
+
+Next action (client):
+- Investigate and fix post-pass rapid re-entry loop in Linux runtime (likely trigger/debounce interaction after pass completion), then re-run paced E2E and capture one full stable pass with no immediate 429 follow-up.
+
 ## Relay Template
 
 ```markdown
