@@ -606,6 +606,79 @@ public class SyncEngineTests
         Assert.AreEqual("storedCursor", receivedCursor, "Expected stored cursor passed to GetChangesSinceAsync.");
     }
 
+    [TestMethod]
+    public async Task SyncAsync_ReconcileWithStaleFileRecord_RemovesRecordAndQueuesDownload()
+    {
+        // Arrange: server tree contains a file that is missing locally. The state DB has a
+        // stale record for the same node pointing at a non-existent old path.
+        var nodeId = Guid.NewGuid();
+        var stalePath = Path.Combine(_tempDir, "stale", "remote.txt");
+        var expectedLocalPath = Path.Combine(_tempDir, "remote.txt");
+
+        _apiMock.Setup(a => a.GetFolderTreeAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SyncTreeNodeResponse
+            {
+                NodeId = Guid.Empty,
+                Name = "/",
+                NodeType = "Folder",
+                Children =
+                [
+                    new SyncTreeNodeResponse
+                    {
+                        NodeId = nodeId,
+                        Name = "remote.txt",
+                        NodeType = "File",
+                    },
+                ],
+            });
+
+        _stateDbMock.Setup(db => db.GetFileRecordByNodeIdAsync(_context.StateDatabasePath, nodeId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new LocalFileRecord
+            {
+                LocalPath = stalePath,
+                NodeId = nodeId,
+            });
+
+        _stateDbMock.Setup(db => db.RemoveFileRecordAsync(_context.StateDatabasePath, stalePath, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        _stateDbMock.Setup(db => db.HasRecentTerminalDownloadFailureAsync(
+                _context.StateDatabasePath,
+                nodeId,
+                expectedLocalPath,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        PendingDownload? queuedDownload = null;
+        _stateDbMock.Setup(db => db.QueueOperationAsync(
+                _context.StateDatabasePath,
+                It.IsAny<PendingOperationRecord>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<string, PendingOperationRecord, CancellationToken>((_, op, _) => queuedDownload = op as PendingDownload)
+            .Returns(Task.CompletedTask);
+
+        await _engine.StartAsync(_context);
+
+        // Act
+        await _engine.SyncAsync(_context);
+        await _engine.StopAsync();
+
+        // Assert
+        _stateDbMock.Verify(db => db.RemoveFileRecordAsync(
+            _context.StateDatabasePath,
+            stalePath,
+            It.IsAny<CancellationToken>()), Times.Once);
+
+        _stateDbMock.Verify(db => db.QueueOperationAsync(
+            _context.StateDatabasePath,
+            It.IsAny<PendingOperationRecord>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+
+        Assert.IsNotNull(queuedDownload);
+        Assert.AreEqual(nodeId, queuedDownload.NodeId);
+        Assert.AreEqual(expectedLocalPath, queuedDownload.LocalPath);
+    }
+
     // ── Idempotent uploads (Issue #40) ──────────────────────────────────────
 
     [TestMethod]

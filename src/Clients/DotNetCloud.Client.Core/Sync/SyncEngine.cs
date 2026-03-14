@@ -546,11 +546,27 @@ public sealed class SyncEngine : ISyncEngine
             if (File.Exists(localPath))
                 continue;
 
-            // Skip if we already have a state DB record for this node (download may be pending).
+            // Skip when we already have a valid state DB record that points to an existing
+            // local file. If the record points to a missing file, treat it as stale state
+            // and re-queue the download so recovery can proceed.
             var existingRecord = await _stateDb.GetFileRecordByNodeIdAsync(
                 context.StateDatabasePath, serverNode.NodeId, cancellationToken);
             if (existingRecord is not null)
-                continue;
+            {
+                if (File.Exists(existingRecord.LocalPath))
+                    continue;
+
+                _logger.LogWarning(
+                    "Removing stale file record for missing local file: NodeId={NodeId}, RecordedPath={RecordedPath}, ReconcilePath={ReconcilePath}.",
+                    serverNode.NodeId,
+                    existingRecord.LocalPath,
+                    localPath);
+
+                await _stateDb.RemoveFileRecordAsync(
+                    context.StateDatabasePath,
+                    existingRecord.LocalPath,
+                    cancellationToken);
+            }
 
             // Avoid immediate requeue churn for files that recently failed with terminal not-found.
             var hasRecentTerminalFailure = await _stateDb.HasRecentTerminalDownloadFailureAsync(

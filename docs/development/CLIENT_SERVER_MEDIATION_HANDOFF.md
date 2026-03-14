@@ -188,6 +188,42 @@ Remaining blocker / next action for client agent:
 	- conflict/retry behavior (no infinite requeue)
 	- 0-byte file and missing-chunk 404 terminal handling
 
+#### Execution Update (2026-03-14, follow-up reconciliation hardening)
+
+Commit under test at start: `578fae0`
+
+Code changes made:
+- `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs`
+  - Tree reconciliation now removes stale `LocalFileRecord` entries when the recorded local path is missing on disk, then re-queues a `PendingDownload` for the server file instead of silently skipping it.
+  - Previous behavior skipped any node with an existing record, which could strand missing files indefinitely after partial/failed history.
+- `tests/DotNetCloud.Client.Core.Tests/Sync/SyncEngineTests.cs`
+  - Added regression test: `SyncAsync_ReconcileWithStaleFileRecord_RemovesRecordAndQueuesDownload`.
+
+Commands executed:
+- `dotnet test tests/DotNetCloud.Client.Core.Tests/DotNetCloud.Client.Core.Tests.csproj --filter "FullyQualifiedName~SyncEngineTests"`
+- `dotnet test tests/DotNetCloud.Client.SyncService.Tests/DotNetCloud.Client.SyncService.Tests.csproj`
+- `printf '{"command":"list-contexts"}\n' | nc -N -U /run/user/$(id -u)/dotnetcloud/sync.sock`
+
+Passing test evidence:
+- `SyncEngineTests`: 36 passed, 0 failed.
+- `DotNetCloud.Client.SyncService.Tests`: 27 passed, 0 failed.
+
+Runtime findings (Linux IPC status snapshot):
+- `list-contexts` returned both headless contexts in `Error` state with `lastError: Response status code does not indicate success: 429 (Too Many Requests).`
+- This indicates forced rapid sync triggering can enter API rate-limit pressure and invalidate E2E download conclusions when driven too aggressively.
+
+Expected vs actual (this follow-up):
+- Expected: prove dual-context A->B download propagation deterministically.
+- Actual: upload path and API connectivity remain validated, but download proof is still not yet conclusive due request-throttling/error state during forced runs.
+
+Next action (client):
+- Re-run Linux E2E with controlled pacing (avoid rapid `sync-now` bursts), fresh unique probe names, and a clean context state.
+- Capture one full cycle where:
+	- A uploads a unique file with no 409 conflicts,
+	- B consumes the resulting delta (or reconciliation queue),
+	- B file materialization is confirmed on disk,
+	- logs show corresponding upload + download + final clean sync pass.
+
 ## Relay Template
 
 ```markdown
