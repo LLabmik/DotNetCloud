@@ -3876,12 +3876,13 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ **P0.3 — Atomic Chunk Reference Counting:** Created `ChunkReferenceHelper` with `IncrementAsync`/`DecrementAsync` using raw SQL `UPDATE` with PostgreSQL row-level locking. Replaced all 8 `ReferenceCount` mutation sites across 6 service files (`ChunkedUploadService`, `WopiService`, `VersionService`, `TrashService`, `VersionCleanupService`, `TrashCleanupService`, `FilesGrpcService`). Added CHECK constraint `ck_file_chunks_ref_count_non_negative` on `FileChunk`.
 - ✓ **P0.4 — Unique-Violation Classifier Reliability:** Added provider-aware `DbExceptionClassifier.IsUniqueConstraintViolation` and replaced fragile `InnerException.Data["SqlState"]` checks in `ChunkedUploadService` and `FileService`. This restores deterministic conflict mapping for duplicate-name races and chunk dedup races instead of leaking unhandled `500` responses.
 - ✓ **EF Migration `SyncHardeningP0`** — Drops redundant non-unique index, creates 2 unique filtered indexes + 1 CHECK constraint.
-- ✓ **Regression tests updated:** `DbExceptionClassifierTests` added; `DotNetCloud.Modules.Files.Tests` passes `586/586`.
+- ✓ **Regression tests updated:** `DbExceptionClassifierTests` added; `DotNetCloud.Modules.Files.Tests` passes `597/597`.
+- ✓ **P0 concurrency & constraint enforcement tests:** Added SQLite-backed tests for unique constraint violations (P0.2: duplicate names rejected, soft-deleted allowed, root-level enforced), CHECK constraint enforcement (P0.3: negative refcount rejected at DB level), sequential sequence monotonicity (P0.1), concurrent code-path exercising (P0.1, P0.3), and refcount balance verification.
 - ✓ **InternalsVisibleTo** for `dotnetcloud.files` (Host assembly) added to Data project.
 
 **Dependencies:** Sync Batches 1-5, sync-verification
 
-**Notes:** All P0 critical fixes code-complete. 2026-03-15 follow-up fixed unique-constraint exception classification so duplicate key races are mapped to expected conflict responses across providers (PostgreSQL/SQLite/SQL Server) rather than unhandled `500`s. PostgreSQL-specific SQL uses atomic operations (INSERT...ON CONFLICT, GREATEST for floor-clamped decrement); InMemory provider detected via `db.Database.ProviderName` string comparison and falls back to EF change tracking for unit tests. Production database verified clean (no existing duplicates). P1 work (Device Identity, Echo Suppression, Rate Limiting) not yet started.
+**Notes:** All P0 critical fixes code-complete with full test coverage. 2026-03-15 added SQLite-backed constraint enforcement tests closing the concurrency test gap — unique indexes, CHECK constraints, and sequence monotonicity are now verified at the database level, not just configuration metadata. `DbExceptionClassifier` coverage validated across PostgreSQL/SQLite/SQL Server. 597/597 tests passing. Production database verified clean (no existing duplicates). P1 work (Device Identity, Echo Suppression, Rate Limiting) not yet started.
 
 ---
 

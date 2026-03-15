@@ -3976,5 +3976,20 @@ Before marking a phase complete:
 - ✓ EF migration `SyncHardeningP0` generated (unique indexes + check constraint)
 - ☐ Apply migration to production database
 
+#### P0 Concurrency & Constraint Enforcement Tests (2026-03-15)
+- ✓ P0.1: Sequential sequence assignment produces distinct monotonic values
+- ✓ P0.1: Independent counters per user verified
+- ✓ P0.1: Concurrent sequence calls exercise code path (InMemory; PostgreSQL atomicity requires integration env)
+- ✓ P0.2: SQLite-backed test — duplicate name in same parent throws `DbUpdateException` classified as unique violation
+- ✓ P0.2: SQLite-backed test — duplicate root-level name for same owner rejected
+- ✓ P0.2: Same name in different parents allowed
+- ✓ P0.2: Soft-deleted + active with same name allowed (filter exclusion verified with SQLite)
+- ✓ P0.3: Multiple increments produce correct refcount
+- ✓ P0.3: Decrement clamps at zero (no negative refcount)
+- ✓ P0.3: Increment-then-decrement balance verified
+- ✓ P0.3: Concurrent increments exercise code path (InMemory)
+- ✓ P0.3: SQLite CHECK constraint rejects negative `ReferenceCount` at DB level
+- ✓ Added `Microsoft.EntityFrameworkCore.Sqlite` to test project for real constraint enforcement
+
 **Status:** ✅ Code Complete — Pending deployment
 **Last Reviewed:** 2026-03-15
