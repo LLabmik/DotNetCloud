@@ -5,6 +5,39 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Step 2 of 3 — Windows Install + Runtime Verification on `Windows11-TestDNC` (2026-03-15)
+
+Archived from Active Handoff on 2026-03-15 after Windows-side verification completed and handoff advanced to `mint22`.
+
+- Pulled latest `main` and confirmed target client fix commit is present:
+    - `4c575cc fix: client-side upload dedup + echo suppression`
+- Client.Core tests passed on Windows:
+    - `dotnet test tests/DotNetCloud.Client.Core.Tests/`
+    - Result: `164 passed, 0 failed`.
+- Rebuilt publish payloads:
+    - `artifacts/desktop-client-staging/0.1.0-alpha/win-x64/payload/SyncService/`
+    - `artifacts/desktop-client-staging/0.1.0-alpha/win-x64/payload/SyncTray/`
+- Built signed installer:
+    - `artifacts/installers/dotnetcloud-sync-tray-win-x64-0.23.3-alpha.msix`
+- Runtime gate initially showed stale runtime (`0.23.2.0`) with hash mismatch; package cleanup completed:
+    - `Get-AppxPackage -Name "DotNetCloud.SyncTray" | Remove-AppxPackage`
+    - `APPX_UNINSTALL: SUCCESS`
+- Manual install completed for `0.23.3.0`; runtime gate then passed:
+    - `APPX_VERSION: 0.23.3.0`
+    - Service path: `C:\Program Files\WindowsApps\DotNetCloud.SyncTray_0.23.3.0_x64__xrs2wr7p8d2rc\SyncService\dotnetcloud-sync-service.exe`
+    - `SYNC_SERVICE_EXE_MATCH: True`
+    - `CLIENT_CORE_DLL_MATCH: True`
+- Runtime evidence file:
+    - `C:\ProgramData\DotNetCloud\Sync\logs\sync-service20260314.log`
+- Verification file:
+    - `seq-test-windows-20260314-234612.txt`
+- Runtime behavior evidence:
+    - Create event showed one upload initiation sequence (lines around `11355-11359`).
+    - Append event showed one upload initiation sequence (lines around `11442-11446`).
+    - No conflict evidence for verification file (`CONFLICT_LINES_FOR_FILE: 0`).
+
+Conclusion: Windows runtime verification passed on installed `0.23.3.0` binaries; chain advanced to Step 3 on `mint22` for final closeout.
+
 ## Archived: Standby Monitoring — Upload Hardening Story (2026-03-15)
 
 Archived from Active Handoff on 2026-03-14 to make room for client-side upload dedup + echo suppression deployment.

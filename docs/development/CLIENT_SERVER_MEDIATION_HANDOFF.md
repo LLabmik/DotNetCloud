@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-15 (Linux verification complete; handoff advanced to Windows — chain: mint-dnc-client → Windows11-TestDNC → mint22)
+Last updated: 2026-03-15 (Windows verification complete; handoff advanced to mint22 for chain closeout)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -50,7 +50,7 @@ Archived context:
 - P0 server-side sync hardening deployed and verified on `mint22`.
 - **NEW (commit `4c575cc`):** Client-side upload dedup + echo suppression fixes committed to main.
 - **Linux verification complete on `mint-dnc-client` (tests + rebuild + runtime checks).**
-- **Windows verification on `Windows11-TestDNC` is in progress:** tests/publish completed, signed MSIX `0.23.3-alpha` built, runtime verification is currently blocked on manual MSIX install to move the running WindowsApps service to the new binaries.
+- **Windows verification on `Windows11-TestDNC` is complete:** package `0.23.3.0` installed, runtime binary hash gate passed, and sync runtime evidence confirms expected initiate/conflict behavior.
 
 ## Environment
 
@@ -69,128 +69,39 @@ Archived context:
 
 ## Active Handoff
 
-### Step 2 of 3: Install Updated MSIX and Complete Windows Runtime Verification on `Windows11-TestDNC`
+### Step 3 of 3: Final Chain Closeout on `mint22`
 
 **Date:** 2026-03-15
-**Owner:** `Windows11-TestDNC` agent
+**Owner:** `mint22` agent
 **Status:** ACTIVE
-**Commit:** `4c575cc` — fix: client-side upload dedup + echo suppression
+**Commits:** `4c575cc` (client dedup + echo suppression), `33d4672` (Windows handoff status updates)
 
-#### Prior Step Result (Step 1 Complete on `mint-dnc-client`)
+#### Verification Summary (Linux + Windows)
 
-- Linux verification is complete and archived in `docs/development/CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
-- Client.Core tests passed (`164/164`).
-- Linux SyncService + SyncTray were rebuilt and deployed from release payloads.
-- Runtime evidence (single-context run) shows one `upload/initiate` per file event and no local conflict-copy creation for test files.
+- Linux (`mint-dnc-client`) verification: complete and archived, including runtime evidence showing one `upload/initiate` per file event and no local conflict-copy creation for verification files.
+- Windows (`Windows11-TestDNC`) verification: complete.
+  - Client.Core tests: `164 passed, 0 failed`.
+  - Installed package/version: `DotNetCloud.SyncTray_0.23.3.0_x64__xrs2wr7p8d2rc`.
+  - Runtime service path now points to `0.23.3.0` package.
+  - Runtime hash gate: `SYNC_SERVICE_EXE_MATCH: True`, `CLIENT_CORE_DLL_MATCH: True`.
+  - Runtime evidence file: `C:\ProgramData\DotNetCloud\Sync\logs\sync-service20260314.log`.
+  - Verification file: `seq-test-windows-20260314-234612.txt`.
+    - Create event produced one upload initiation sequence (`upload/initiate` line cluster around `11355-11359`).
+    - Append event produced one upload initiation sequence (`upload/initiate` line cluster around `11442-11446`).
+    - Conflict evidence for verification file: `CONFLICT_LINES_FOR_FILE: 0`.
 
-#### What Changed (already on `main`)
+#### Active Task for `mint22`
 
-- Upload dedup in `LocalStateDb.QueueOperationAsync` to suppress duplicate pending operations for same file/node.
-- Echo suppression in `SyncEngine.HandleRemoteUpdateAsync` to skip conflict resolver when local and remote hashes match.
-
-**Files changed in fix commit (`4c575cc`):**
-- `src/Clients/DotNetCloud.Client.Core/LocalState/LocalStateDb.cs` — dedup in `QueueOperationAsync`
-- `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` — echo suppression in `HandleRemoteUpdateAsync`
-- `tests/DotNetCloud.Client.Core.Tests/LocalState/LocalStateDbTests.cs` — 4 new tests
-
-#### Work Completed on `Windows11-TestDNC` (this cycle)
-
-1. Pulled latest main and confirmed fix commit present in local history:
-   - `4c575cc fix: client-side upload dedup + echo suppression`
-2. Ran Client.Core tests:
-   - `dotnet test tests/DotNetCloud.Client.Core.Tests/`
-   - Result: `164 passed, 0 failed`.
-3. Rebuilt publish payloads:
-   - SyncService publish to `artifacts/desktop-client-staging/0.1.0-alpha/win-x64/payload/SyncService/`
-   - SyncTray publish to `artifacts/desktop-client-staging/0.1.0-alpha/win-x64/payload/SyncTray/`
-4. Built signed MSIX carrying updated binaries:
-   - `artifacts/installers/dotnetcloud-sync-tray-win-x64-0.23.3-alpha.msix`
-   - Status: signed.
-5. Runtime gate verification command/output captured:
-   - Service path is currently:
-     `"C:\Program Files\WindowsApps\DotNetCloud.SyncTray_0.23.2.0_x64__xrs2wr7p8d2rc\SyncService\dotnetcloud-sync-service.exe"`
-   - Hash comparison vs newly published staging binaries:
-     - `SYNC_SERVICE_EXE_MATCH: False`
-     - `CLIENT_CORE_DLL_MATCH: False` (installed `DotNetCloud.Client.Core.dll` not present at Program Files target; service is running from WindowsApps/MSIX path)
-6. Executed package cleanup step to prepare manual reinstall:
-   - `Get-AppxPackage -Name "DotNetCloud.SyncTray" | Remove-AppxPackage`
-   - Result: `APPX_UNINSTALL: SUCCESS`
-   - Post-check: `APPX_INSTALLED_AFTER_UNINSTALL: False`
-
-#### Runtime Evidence (current running build)
-
-- Log file used: `C:\ProgramData\DotNetCloud\Sync\logs\sync-service20260314.log`
-- Evidence of prior conflict behavior (old runtime):
-  - Conflict copy created for `seq-test-windows.txt` at line `9585`.
-- Evidence from new timestamped test file created during this cycle:
-  - `seq-test-windows-20260314-193147.txt` queued/uploaded once for create event:
-    - Local queue line `10478`
-    - Upload start line `10479`
-    - `upload/initiate` request lines `10480-10484`
-  - Append event showed one queue + one upload start for that event:
-    - Local queue line `10574`
-    - Upload start line `10581`
-    - `upload/initiate` request lines `10582-10586`
-  - No conflict-copy log entry for `seq-test-windows-20260314-193147.txt` in the captured segment.
-
-#### Remaining Task for `Windows11-TestDNC` (environment-gated)
-
-This step is blocked on a manual MSIX install action (required by environment/tooling constraints).
-
-1. Manually install:
-  `artifacts\installers\dotnetcloud-sync-tray-win-x64-0.23.3-alpha.msix`
-2. Start/confirm service and tray from newly installed package.
-3. Re-run runtime verification with a fresh timestamped test file.
-4. Confirm runtime gate with command output showing service path on `0.23.3.0` package and matching behavior (single initiate per event, no spurious conflict copy).
-
-#### Task for `Windows11-TestDNC` (after manual MSIX install)
-
-1. `git pull origin main` and confirm commit includes `4c575cc`.
-2. Run all Client.Core tests: `dotnet test tests/DotNetCloud.Client.Core.Tests/` — all must pass (including 4 new dedup tests).
-3. Rebuild SyncService for Windows (`win-x64`):
-  ```powershell
-  dotnet publish src/Clients/DotNetCloud.Client.SyncService/DotNetCloud.Client.SyncService.csproj `
-    -c Release -r win-x64 --self-contained `
-    -o artifacts/desktop-client-staging/0.1.0-alpha/win-x64/payload/SyncService/
-  ```
-4. Rebuild SyncTray for Windows (`win-x64`):
-  ```powershell
-  dotnet publish src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj `
-    -c Release -r win-x64 --self-contained `
-    -o artifacts/desktop-client-staging/0.1.0-alpha/win-x64/payload/SyncTray/
-  ```
-5. Stop running desktop client processes and service.
-  ```powershell
-  Stop-Process -Name dotnetcloud-sync-tray -Force -ErrorAction SilentlyContinue
-  Stop-Service DotNetCloudSync -ErrorAction SilentlyContinue
-  ```
-6. Deploy rebuilt binaries to install location (default: `$env:ProgramFiles\DotNetCloud\DesktopClient\SyncService` and `...\SyncTray`).
-7. Restart service and tray.
-  ```powershell
-  Start-Service DotNetCloudSync
-  & "$env:ProgramFiles\DotNetCloud\DesktopClient\SyncTray\dotnetcloud-sync-tray.exe"
-  ```
-8. **Runtime verification:**
-  - Create a unique test file (for example `seq-test-windows-<timestamp>.txt`) in `C:\Users\benk\Documents\synctray`.
-  - Optionally append one additional line after first upload to validate exactly one initiate per file event.
-   - Watch logs for: exactly **one** `upload/initiate` request per file (no duplicates).
-   - After upload completes, trigger another sync pass — verify **no** conflict copy is created (echo suppression working).
-  - Capture timestamped log evidence for both behaviors from sync service logs (`%ProgramData%\DotNetCloud\logs\sync-service*.log` and/or service profile log path in use).
+1. Pull latest `main` and review the archived Step 1 + Step 2 evidence in `docs/development/CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
+2. Run a short server-side sanity window focused on upload endpoints:
+   - confirm no new 5xx/error bursts for `POST /api/v1/files/upload/initiate` and `POST /api/v1/files/upload/{sessionId}/complete` after Windows `0.23.3.0` runtime verification.
+3. If server-side sanity is green, archive this Step 3 block and replace Active Handoff with standby monitoring.
 
 #### Exit Criteria
 
-- All Client.Core tests pass on Windows.
-- SyncService and SyncTray rebuilt and deployed for `win-x64`.
-- Runtime log evidence shows: one `upload/initiate` per file event, no spurious conflict copies after echo.
-- Commit/push handoff doc updates.
-
-#### Chain Handoff
-
-When done, update this document:
-- Archive this step 2 block.
-- Write **Step 3 of 3** Active Handoff targeting `mint22` confirming both Linux + Windows client verification results.
-- Include concise pass/fail summary and any residual blockers.
-- Push and provide relay message for moderator (must include target machine `mint22`).
+- Cross-machine verification chain is complete (Linux + Windows pass evidence archived).
+- `mint22` confirms no immediate server-side regressions under the verified client runtime.
+- Active Handoff is transitioned to either standby monitoring or next concrete task.
 
 ## Relay Template
 
