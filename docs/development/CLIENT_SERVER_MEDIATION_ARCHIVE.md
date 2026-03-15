@@ -5,6 +5,16 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Upload Complete 500 — Server-Side Fix (2026-03-15)
+
+Archived from Active Handoff on 2026-03-15 — root cause identified and fixed on `mint22`.
+
+- **Root cause:** `SyncCursorHelper.AssignNextSequenceAsync` used `db.Database.SqlQueryRaw<long>(...).SingleAsync()`. EF Core 10 considers the P0.1 atomic upsert SQL (`INSERT ... ON CONFLICT DO UPDATE ... RETURNING`) non-composable. `.SingleAsync()` attempts to compose a LINQ operator on top, throwing `System.InvalidOperationException: 'FromSql' or 'SqlQuery' was called with non-composable SQL and with a query composing over it.`
+- **Fix:** Replaced `.SingleAsync(ct)` with `.ToListAsync(ct)).Single()` — materializes the raw SQL result first, then applies `.Single()` on the in-memory list. No LINQ composition on the SQL query.
+- **File changed:** `src/Modules/Files/DotNetCloud.Modules.Files.Data/SyncCursorHelper.cs` (line 43)
+- **Evidence:** 2,150 tests pass (581 files module), 0 failures. Server redeployed to `mint22` and healthy at `https://mint22:15443/health/live`.
+- **Binary verification:** `DotNetCloud.Modules.Files.Data.dll` timestamp `Mar 14 19:27`, process PID `95716` started `19:28`.
+
 ## Archived: Upload Retry Verification on `mint-dnc-client` (2026-03-15)
 
 Archived from Active Handoff on 2026-03-15 when replaced by server-side `complete` 500 investigation on `mint22`.

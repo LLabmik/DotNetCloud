@@ -40,7 +40,9 @@ internal static class SyncCursorHelper
         // Atomic upsert: inserts with sequence=1 if no row exists, otherwise increments.
         // PostgreSQL's INSERT ... ON CONFLICT DO UPDATE acquires a row-level lock, preventing
         // concurrent reads of the same value. RETURNING gives us the post-increment value.
-        var nextSequence = await db.Database.SqlQueryRaw<long>(
+        // Note: EF Core considers RETURNING-based SQL non-composable, so we materialize with
+        // ToListAsync first — .SingleAsync() would fail with InvalidOperationException.
+        var nextSequence = (await db.Database.SqlQueryRaw<long>(
             """
             INSERT INTO "UserSyncCounters" ("UserId", "CurrentSequence", "UpdatedAt")
             VALUES ({0}, 1, NOW())
@@ -50,7 +52,7 @@ internal static class SyncCursorHelper
             RETURNING "CurrentSequence"
             """,
             ownerId
-        ).SingleAsync(cancellationToken);
+        ).ToListAsync(cancellationToken)).Single();
 
         node.SyncSequence = nextSequence;
 

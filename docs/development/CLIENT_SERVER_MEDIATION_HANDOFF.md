@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-15 (mint-dnc-client verification complete; upload `complete` returns 500 on mint22)
+Last updated: 2026-03-15 (upload complete 500 fixed on mint22; awaiting client re-verification on mint-dnc-client)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -50,7 +50,8 @@ Archived context:
 - Linux bring-up engineering fixes are complete.
 - P0 sync hardening (atomic SyncSequence, unique name constraint, atomic chunk refcount) deployed.
 - **Server gzip fix deployed (af66b41):** `UseRequestDecompression()` middleware added. Server now auto-decompresses `Content-Encoding: gzip` request bodies before controllers read them. The chunk PUT hash mismatch that caused false 409 is resolved.
-- Active task: server-side investigation for `POST /api/v1/files/upload/{sessionId}/complete` returning 500 on `mint22`.
+- **Upload complete 500 fixed:** `SyncCursorHelper.AssignNextSequenceAsync` was calling `.SingleAsync()` on non-composable raw SQL. EF Core 10 rejects LINQ composition on `SqlQueryRaw` with `RETURNING`. Fixed by materializing with `.ToListAsync()` then `.Single()`.
+- Active task: client re-verification of end-to-end upload on `mint-dnc-client`.
 
 ## Environment
 
@@ -69,70 +70,48 @@ Archived context:
 
 ## Active Handoff
 
-### Server Investigation: Upload Complete 500 on `mint22`
+### Client Re-Verification: End-to-End Upload on `mint-dnc-client`
 
 **Date:** 2026-03-15
-**Owner:** Server agent on `mint22`
-**Status:** ACTIVE — client verification complete, server-side blocker remains
+**Owner:** Client agent on `mint-dnc-client`
+**Status:** ACTIVE — server fix deployed, client re-test needed
 
-#### What client verification proved (`mint-dnc-client`)
+#### Server fix summary
 
-- Environment confirmed on `main` at `1f0d700` (includes gzip decompression fix `af66b41`).
-- Fresh file created: `/home/benk/synctray/upload-verify-test-1773533399.txt`.
-- Upload pipeline now reaches chunk upload (no false 409 conflict pattern from pre-fix behavior):
-  - `POST https://mint22:15443/api/v1/files/upload/initiate` -> `201`
-  - Response preview includes `missingChunks: ["737b133ef2d09bb83f53a8a768068ae32dc30bd3bcd69e2a6f7ab34180bc3cc2"]`
-  - `PUT https://mint22:15443/api/v1/files/upload/{sessionId}/chunks/{hash}` includes successful `200` responses
-- New failure observed: `POST https://mint22:15443/api/v1/files/upload/{sessionId}/complete` consistently returns `500`.
-- Observed session IDs:
-  - `27897c31-2d37-4649-ba52-2e5fe55bd75d`
-  - `56a55d92-b0e6-4967-9966-66fd6eec0844`
-- Example request IDs for failing complete calls:
-  - `f923097bef0f4e2b92553bb02b871a00`
-  - `d8279a0ad4654e14bf7f8f132a23b412`
-  - `a638e6f6e7b1486d9cbc3102d79388b5`
-  - `1b0d5f849e604c8eb2f3f0a0f1542459`
-  - `627395a815874053b075fcb8f6365709`
-  - `2bba60391a5e4f87aa3166c472557458`
-- Client evidence source:
-  - `/home/benk/.local/share/DotNetCloud/logs/sync-service20260314.log` (timestamps around `2026-03-15T00:09:59Z` to `00:11:12Z`)
+- **Root cause of complete 500:** `SyncCursorHelper.AssignNextSequenceAsync` (P0.1 atomic sequence) used `db.Database.SqlQueryRaw<long>(...).SingleAsync()`. EF Core 10 considers the `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` SQL non-composable — `.SingleAsync()` tries to compose LINQ on top and throws `System.InvalidOperationException`.
+- **Fix:** Replaced `.SingleAsync(ct)` with `.ToListAsync(ct)).Single()`. Materializes raw SQL result to memory first, then applies `.Single()` on the list — no LINQ composition on the query.
+- **File changed:** `src/Modules/Files/DotNetCloud.Modules.Files.Data/SyncCursorHelper.cs` (line 43–56)
+- **Server evidence:**
+  - 2,150 tests pass (581 files module), 0 failures
+  - Server redeployed and healthy: `https://mint22:15443/health/live` → `Healthy`
+  - Binary: `DotNetCloud.Modules.Files.Data.dll` timestamp `Mar 14 19:27`, PID `95716` started `19:28`
+  - Server log shows the exact `InvalidOperationException` matched all 6 reported request IDs from prior handoff
 
-#### Scope (Server Agent on `mint22`)
+#### Scope (Client Agent on `mint-dnc-client`)
 
-1. Pull `main` and confirm current server process uses current binaries.
-
-2. Correlate server logs by request IDs and timestamps above to capture stack traces for:
-   - `POST /api/v1/files/upload/{sessionId}/complete` -> 500
-   - intermittent `PUT /chunks/{hash}` -> 500 for one concurrent session before retry success
-
-3. Inspect upload completion flow and invariants for concurrent sessions targeting same file/path:
-   - session/chunk existence checks
-   - idempotency/name-conflict handling at complete stage
-   - transaction boundaries and exception mapping
-
-4. Validate DB state for the two session IDs and associated chunk rows/blobs.
-
-5. Implement server fix so complete is deterministic and returns:
-   - `200` + `FileNode` on successful complete
-   - expected conflict status only for true duplicate/name conflict semantics
-
-6. Redeploy on `mint22`, verify runtime binary freshness, and run relevant tests.
-
-7. Request re-verification on `mint-dnc-client` only after server logs show corrected behavior.
+1. Pull `main` to get latest commit.
+2. Create a fresh test file in `/home/benk/synctray/` (e.g., `upload-e2e-test-$(date +%s).txt`).
+3. Let sync service pick it up, or trigger sync manually.
+4. Capture the full upload sequence from client logs:
+   - `POST /api/v1/files/upload/initiate` → expect `201`
+   - `PUT /api/v1/files/upload/{sessionId}/chunks/{hash}` → expect `200`
+   - `POST /api/v1/files/upload/{sessionId}/complete` → expect `200` (was 500 before fix)
+5. Verify the file appears in the server file tree via `GET /api/v1/files/tree`.
+6. Optionally verify from a second client (Windows) that the uploaded file syncs down.
 
 #### Required Evidence Back in Next Handoff Update
 
-- Server stack trace/root cause for the `complete` 500
-- Commit hash with exact files changed
-- Runtime verification command/output proving active server binary is current
-- Test evidence (what was run, pass/fail)
-- One raw successful sequence after fix (initiate `201` -> chunk PUT `200` -> complete `200`) with timestamps
+- Commit hash client is running on
+- Timestamped log lines showing initiate `201` → chunk PUT `200` → complete `200`
+- File name and content hash from the upload response
+- Confirmation file appears in tree listing
+- Any remaining errors or new issues
 
 #### Exit Criteria
 
-- `POST /api/v1/files/upload/{sessionId}/complete` no longer returns 500 for the verification scenario
-- End-to-end upload from `mint-dnc-client` reaches complete `200` with valid `FileNode`
-- No false 409 chunk behavior reintroduced
+- `POST /api/v1/files/upload/{sessionId}/complete` returns `200` with valid `FileNode`
+- End-to-end upload confirmed: file created on client → uploaded → visible in server tree
+- No 409 false conflicts, no 500 errors
 
 ## Relay Template
 
