@@ -28,6 +28,7 @@ public sealed class SyncEngine : ISyncEngine
     private readonly ISelectiveSyncConfig _selectiveSync;
     private readonly ISyncIgnoreParser _syncIgnore;
     private readonly ILockedFileReader _lockedFileReader;
+    private readonly SyncStreamListener? _streamListener;
     private readonly ILogger<SyncEngine> _logger;
 
     /// <summary>
@@ -72,7 +73,8 @@ public sealed class SyncEngine : ISyncEngine
         ISelectiveSyncConfig selectiveSync,
         ISyncIgnoreParser syncIgnore,
         ILockedFileReader lockedFileReader,
-        ILogger<SyncEngine> logger)
+        ILogger<SyncEngine> logger,
+        SyncStreamListener? streamListener = null)
     {
         _api = api;
         _tokenStore = tokenStore;
@@ -83,6 +85,7 @@ public sealed class SyncEngine : ISyncEngine
         _syncIgnore = syncIgnore;
         _lockedFileReader = lockedFileReader;
         _logger = logger;
+        _streamListener = streamListener;
     }
 
     /// <inheritdoc/>
@@ -96,6 +99,9 @@ public sealed class SyncEngine : ISyncEngine
         // Clean up stale upload sessions (created > 48 h ago; server TTL is 24 h).
         await _stateDb.DeleteStaleActiveUploadSessionsAsync(
             context.StateDatabasePath, DateTime.UtcNow.AddHours(-48), cancellationToken);
+
+        // Attempt server-side cursor recovery if local cursor is missing (e.g. after reinstall).
+        await RecoverCursorFromServerAsync(context, cancellationToken);
 
         _syncIgnore.Initialize(context.LocalFolderPath);
 
@@ -148,6 +154,15 @@ public sealed class SyncEngine : ISyncEngine
 
         _periodicScanTask = RunPeriodicScanAsync(context, _cts.Token);
 
+        // Start SSE listener if available — enables push-based sync
+        if (_streamListener is not null)
+        {
+            _streamListener.AccessToken = _api.AccessToken;
+            _streamListener.SyncChanged += OnSseNotification;
+            _streamListener.Start(_cts.Token);
+            _logger.LogInformation("SSE sync stream listener started for context {ContextId}.", context.Id);
+        }
+
         if (_stateDb.WasRecentlyReset(context.StateDatabasePath))
             _logger.LogWarning("Local state DB was reset due to corruption for context {ContextId}. A full resync will be performed.", context.Id);
 
@@ -188,6 +203,10 @@ public sealed class SyncEngine : ISyncEngine
             var localOperationsApplied = await ApplyLocalChangesAsync(context, cancellationToken);
             await _stateDb.UpdateCheckpointAsync(context.StateDatabasePath, DateTime.UtcNow, cancellationToken);
             await _stateDb.CheckpointWalAsync(context.StateDatabasePath, cancellationToken);
+
+            // Acknowledge cursor to server for per-device tracking and recovery
+            await AcknowledgeCursorToServerAsync(context, cancellationToken);
+
             SetState(SyncState.Idle, context);
             syncTimer.Stop();
 
@@ -320,6 +339,13 @@ public sealed class SyncEngine : ISyncEngine
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
         _cts?.Cancel();
+
+        // Stop SSE listener
+        if (_streamListener is not null)
+        {
+            _streamListener.SyncChanged -= OnSseNotification;
+            await _streamListener.StopAsync();
+        }
 
         if (_watcher is not null)
         {
@@ -1506,6 +1532,7 @@ public sealed class SyncEngine : ISyncEngine
     private async Task RunPeriodicScanAsync(SyncContext context, CancellationToken cancellationToken)
     {
         // When inotify is unavailable, fall back to a 30-second polling interval.
+        // When SSE is connected, extend poll interval to 5 minutes (safety net only).
         var interval = _pollingFallback ? TimeSpan.FromSeconds(30) : context.FullScanInterval;
 
         while (!cancellationToken.IsCancellationRequested)
@@ -1513,8 +1540,11 @@ public sealed class SyncEngine : ISyncEngine
             try
             {
                 await Task.Delay(interval, cancellationToken);
-                // Refresh interval in case it changes (e.g., config hot-reload or watcher recovery)
-                interval = _pollingFallback ? TimeSpan.FromSeconds(30) : context.FullScanInterval;
+                // Adjust interval: longer when SSE is active (push-based), shorter when polling.
+                if (_streamListener?.IsConnected == true)
+                    interval = TimeSpan.FromMinutes(5);
+                else
+                    interval = _pollingFallback ? TimeSpan.FromSeconds(30) : context.FullScanInterval;
                 _logger.LogDebug("Periodic full scan triggered for context {ContextId}.", context.Id);
                 await SyncAsync(context, cancellationToken);
             }
@@ -1526,6 +1556,102 @@ public sealed class SyncEngine : ISyncEngine
             {
                 _logger.LogError(ex, "Periodic scan failed for context {ContextId}.", context.Id);
             }
+        }
+    }
+
+    // ── SSE event handler ───────────────────────────────────────────────────
+
+    private void OnSseNotification(object? sender, SyncChangedEventArgs e)
+    {
+        if (_paused || _activeContext is null || _cts?.IsCancellationRequested == true)
+            return;
+
+        _logger.LogDebug("SSE push notification received (sequence={Sequence}). Triggering sync pass.",
+            e.LatestSequence);
+
+        _ = Task.Run(() => SyncAsync(_activeContext, _cts?.Token ?? default), _cts?.Token ?? default);
+    }
+
+    // ── Cursor acknowledgement ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Sends the current local cursor to the server as an ack, enabling server-side
+    /// per-device cursor tracking and recovery after reinstallation.
+    /// Best-effort: failures are logged but do not break the sync pass.
+    /// </summary>
+    private async Task AcknowledgeCursorToServerAsync(SyncContext context, CancellationToken cancellationToken)
+    {
+        if (DeviceId is null)
+            return;
+
+        try
+        {
+            var cursor = await _stateDb.GetSyncCursorAsync(context.StateDatabasePath, cancellationToken);
+            if (cursor is null)
+                return;
+
+            // Decode cursor to get the sequence number
+            var decoded = DecodeCursorSequence(cursor);
+            if (decoded is null)
+                return;
+
+            await _api.AcknowledgeCursorAsync(DeviceId.Value, decoded.Value, cancellationToken);
+            _logger.LogDebug("Acknowledged cursor (sequence={Sequence}) to server for device {DeviceId}.",
+                decoded.Value, DeviceId.Value);
+        }
+        catch (Exception ex)
+        {
+            // Best-effort — don't break the sync pass
+            _logger.LogDebug(ex, "Failed to acknowledge cursor to server.");
+        }
+    }
+
+    /// <summary>
+    /// Decodes a base64 cursor string to extract the sequence number.
+    /// Cursor format: base64("{userId}:{sequence}")
+    /// </summary>
+    private static long? DecodeCursorSequence(string cursor)
+    {
+        try
+        {
+            var raw = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(cursor));
+            var colon = raw.LastIndexOf(':');
+            if (colon < 1) return null;
+            return long.TryParse(raw[(colon + 1)..], out var seq) ? seq : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// If this device has no local cursor but the server has a stored cursor,
+    /// restore it to avoid a full re-sync. Best-effort: failures fall back to full sync.
+    /// </summary>
+    private async Task RecoverCursorFromServerAsync(SyncContext context, CancellationToken cancellationToken)
+    {
+        if (DeviceId is null)
+            return;
+
+        try
+        {
+            var localCursor = await _stateDb.GetSyncCursorAsync(context.StateDatabasePath, cancellationToken);
+            if (localCursor is not null)
+                return; // Already have a local cursor — nothing to recover
+
+            var serverCursor = await _api.GetDeviceCursorAsync(DeviceId.Value, cancellationToken);
+            if (serverCursor?.Cursor is null)
+                return; // No server-side cursor — full sync is needed
+
+            await _stateDb.UpdateSyncCursorAsync(context.StateDatabasePath, serverCursor.Cursor, cancellationToken);
+            _logger.LogInformation(
+                "Recovered server-side cursor for device {DeviceId}: sequence={Sequence}. Skipping full re-sync.",
+                DeviceId.Value, serverCursor.LastAcknowledgedSequence);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Server-side cursor recovery failed — will do full sync.");
         }
     }
 

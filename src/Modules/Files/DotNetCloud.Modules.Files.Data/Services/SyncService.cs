@@ -442,4 +442,78 @@ internal sealed class SyncService : ISyncService
             LinkTarget = node.LinkTarget
         };
     }
+
+    /// <inheritdoc />
+    public async Task AcknowledgeCursorAsync(Guid userId, Guid deviceId, long acknowledgedSequence, CancellationToken cancellationToken = default)
+    {
+        // Verify the device belongs to this user
+        var device = await _db.SyncDevices.AsNoTracking()
+            .FirstOrDefaultAsync(d => d.Id == deviceId && d.UserId == userId, cancellationToken);
+
+        if (device is null)
+            throw new Core.Errors.NotFoundException($"Device {deviceId} not found for user.");
+
+        if (acknowledgedSequence < 0)
+            throw new Core.Errors.ValidationException("AcknowledgedSequence", "Sequence must be non-negative.");
+
+        var cursor = await _db.SyncDeviceCursors.FindAsync([deviceId], cancellationToken);
+        if (cursor is null)
+        {
+            cursor = new Models.SyncDeviceCursor
+            {
+                DeviceId = deviceId,
+                UserId = userId,
+                LastAcknowledgedSequence = acknowledgedSequence,
+                UpdatedAt = DateTime.UtcNow,
+            };
+            _db.SyncDeviceCursors.Add(cursor);
+        }
+        else
+        {
+            // Only advance forward — never regress the cursor
+            if (acknowledgedSequence > cursor.LastAcknowledgedSequence)
+            {
+                cursor.LastAcknowledgedSequence = acknowledgedSequence;
+                cursor.UpdatedAt = DateTime.UtcNow;
+            }
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogDebug("Device {DeviceId} acked sequence {Sequence} for user {UserId}.",
+            deviceId, acknowledgedSequence, userId);
+    }
+
+    /// <inheritdoc />
+    public async Task<DeviceCursorDto> GetDeviceCursorAsync(Guid userId, Guid deviceId, CancellationToken cancellationToken = default)
+    {
+        // Verify the device belongs to this user
+        var device = await _db.SyncDevices.AsNoTracking()
+            .FirstOrDefaultAsync(d => d.Id == deviceId && d.UserId == userId, cancellationToken);
+
+        if (device is null)
+            throw new Core.Errors.NotFoundException($"Device {deviceId} not found for user.");
+
+        var cursor = await _db.SyncDeviceCursors.AsNoTracking()
+            .FirstOrDefaultAsync(c => c.DeviceId == deviceId, cancellationToken);
+
+        if (cursor is null)
+        {
+            return new DeviceCursorDto
+            {
+                DeviceId = deviceId,
+                LastAcknowledgedSequence = null,
+                Cursor = null,
+                UpdatedAt = null,
+            };
+        }
+
+        return new DeviceCursorDto
+        {
+            DeviceId = deviceId,
+            LastAcknowledgedSequence = cursor.LastAcknowledgedSequence,
+            Cursor = SyncCursorHelper.EncodeCursor(userId, cursor.LastAcknowledgedSequence),
+            UpdatedAt = cursor.UpdatedAt,
+        };
+    }
 }

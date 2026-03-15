@@ -773,4 +773,200 @@ public class SyncServiceTests
         Assert.AreEqual(1, result.Changes.Count);
         Assert.IsNull(result.Changes[0].OriginatingDeviceId);
     }
+
+    // ── P2.2: Per-Device Cursor Tracking ─────────────────────────────────────
+
+    [TestMethod]
+    public async Task AcknowledgeCursorAsync_CreatesNewCursor()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var deviceId = Guid.NewGuid();
+
+        db.SyncDevices.Add(new SyncDevice
+        {
+            Id = deviceId,
+            UserId = userId,
+            DeviceName = "test-device"
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, deviceId);
+        await service.AcknowledgeCursorAsync(userId, deviceId, 10);
+
+        var cursor = await db.SyncDeviceCursors.FindAsync(deviceId);
+        Assert.IsNotNull(cursor);
+        Assert.AreEqual(10L, cursor!.LastAcknowledgedSequence);
+        Assert.AreEqual(userId, cursor.UserId);
+    }
+
+    [TestMethod]
+    public async Task AcknowledgeCursorAsync_AdvancesForward()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var deviceId = Guid.NewGuid();
+
+        db.SyncDevices.Add(new SyncDevice { Id = deviceId, UserId = userId, DeviceName = "test" });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, deviceId);
+        await service.AcknowledgeCursorAsync(userId, deviceId, 5);
+        await service.AcknowledgeCursorAsync(userId, deviceId, 15);
+
+        var cursor = await db.SyncDeviceCursors.FindAsync(deviceId);
+        Assert.AreEqual(15L, cursor!.LastAcknowledgedSequence);
+    }
+
+    [TestMethod]
+    public async Task AcknowledgeCursorAsync_DoesNotRegress()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var deviceId = Guid.NewGuid();
+
+        db.SyncDevices.Add(new SyncDevice { Id = deviceId, UserId = userId, DeviceName = "test" });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, deviceId);
+        await service.AcknowledgeCursorAsync(userId, deviceId, 20);
+        await service.AcknowledgeCursorAsync(userId, deviceId, 5); // Lower value — should be ignored
+
+        var cursor = await db.SyncDeviceCursors.FindAsync(deviceId);
+        Assert.AreEqual(20L, cursor!.LastAcknowledgedSequence,
+            "Cursor should not regress to a lower sequence number.");
+    }
+
+    [TestMethod]
+    public async Task AcknowledgeCursorAsync_WrongUser_ThrowsNotFoundException()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var otherUserId = Guid.NewGuid();
+        var deviceId = Guid.NewGuid();
+
+        db.SyncDevices.Add(new SyncDevice { Id = deviceId, UserId = userId, DeviceName = "test" });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, deviceId);
+
+        await Assert.ThrowsExactlyAsync<NotFoundException>(
+            () => service.AcknowledgeCursorAsync(otherUserId, deviceId, 10));
+    }
+
+    [TestMethod]
+    public async Task AcknowledgeCursorAsync_NegativeSequence_ThrowsValidationException()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var deviceId = Guid.NewGuid();
+
+        db.SyncDevices.Add(new SyncDevice { Id = deviceId, UserId = userId, DeviceName = "test" });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, deviceId);
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
+            () => service.AcknowledgeCursorAsync(userId, deviceId, -1));
+    }
+
+    [TestMethod]
+    public async Task GetDeviceCursorAsync_NoCursorYet_ReturnsNullSequence()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var deviceId = Guid.NewGuid();
+
+        db.SyncDevices.Add(new SyncDevice { Id = deviceId, UserId = userId, DeviceName = "test" });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, deviceId);
+        var result = await service.GetDeviceCursorAsync(userId, deviceId);
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual(deviceId, result.DeviceId);
+        Assert.IsNull(result.LastAcknowledgedSequence);
+        Assert.IsNull(result.Cursor);
+        Assert.IsNull(result.UpdatedAt);
+    }
+
+    [TestMethod]
+    public async Task GetDeviceCursorAsync_WithCursor_ReturnsEncodedCursor()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var deviceId = Guid.NewGuid();
+
+        db.SyncDevices.Add(new SyncDevice { Id = deviceId, UserId = userId, DeviceName = "test" });
+        db.SyncDeviceCursors.Add(new SyncDeviceCursor
+        {
+            DeviceId = deviceId,
+            UserId = userId,
+            LastAcknowledgedSequence = 42,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, deviceId);
+        var result = await service.GetDeviceCursorAsync(userId, deviceId);
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual(42L, result.LastAcknowledgedSequence);
+        Assert.IsNotNull(result.Cursor);
+
+        // Verify the cursor decodes correctly
+        var decoded = SyncCursorHelper.DecodeCursor(result.Cursor!);
+        Assert.IsNotNull(decoded);
+        Assert.AreEqual(userId, decoded!.Value.UserId);
+        Assert.AreEqual(42L, decoded.Value.Sequence);
+    }
+
+    [TestMethod]
+    public async Task GetDeviceCursorAsync_WrongUser_ThrowsNotFoundException()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var otherUserId = Guid.NewGuid();
+        var deviceId = Guid.NewGuid();
+
+        db.SyncDevices.Add(new SyncDevice { Id = deviceId, UserId = userId, DeviceName = "test" });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, deviceId);
+
+        await Assert.ThrowsExactlyAsync<NotFoundException>(
+            () => service.GetDeviceCursorAsync(otherUserId, deviceId));
+    }
+
+    [TestMethod]
+    public async Task AcknowledgeCursorAsync_ThenGet_RoundTrip()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var deviceId = Guid.NewGuid();
+
+        db.SyncDevices.Add(new SyncDevice { Id = deviceId, UserId = userId, DeviceName = "test" });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, deviceId);
+        await service.AcknowledgeCursorAsync(userId, deviceId, 99);
+
+        var result = await service.GetDeviceCursorAsync(userId, deviceId);
+        Assert.AreEqual(99L, result.LastAcknowledgedSequence);
+        Assert.IsNotNull(result.Cursor);
+        Assert.IsNotNull(result.UpdatedAt);
+    }
+
+    [TestMethod]
+    public async Task AcknowledgeCursorAsync_NonExistentDevice_ThrowsNotFoundException()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var nonExistentDeviceId = Guid.NewGuid();
+
+        var service = CreateService(db);
+
+        await Assert.ThrowsExactlyAsync<NotFoundException>(
+            () => service.AcknowledgeCursorAsync(userId, nonExistentDeviceId, 10));
+    }
 }

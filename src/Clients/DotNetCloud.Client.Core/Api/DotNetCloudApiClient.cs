@@ -354,6 +354,19 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
                ?? new ReconcileResponse();
     }
 
+    /// <inheritdoc/>
+    public async Task AcknowledgeCursorAsync(Guid deviceId, long acknowledgedSequence, CancellationToken cancellationToken = default)
+    {
+        var body = new { deviceId, acknowledgedSequence };
+        await PostJsonAsync<object>("api/v1/files/sync/ack", body, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<DeviceCursorResponse?> GetDeviceCursorAsync(Guid deviceId, CancellationToken cancellationToken = default)
+    {
+        return await GetAsync<DeviceCursorResponse>($"api/v1/files/sync/device-cursor?deviceId={deviceId}", cancellationToken);
+    }
+
     // ── Quota Operations ────────────────────────────────────────────────────
 
     /// <inheritdoc/>

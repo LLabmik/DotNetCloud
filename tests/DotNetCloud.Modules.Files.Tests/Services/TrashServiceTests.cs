@@ -24,7 +24,7 @@ public class TrashServiceTests
     }
 
     private static TrashService CreateService(FilesDbContext db) =>
-        new(db, Mock.Of<IFileStorageEngine>(), Mock.Of<IEventBus>(), NullLoggerFactory.Instance.CreateLogger<TrashService>());
+        new(db, Mock.Of<IFileStorageEngine>(), Mock.Of<IEventBus>(), Mock.Of<ISyncChangeNotifier>(), NullLoggerFactory.Instance.CreateLogger<TrashService>());
 
     private static CallerContext UserCaller(Guid userId) => new(userId, Array.Empty<string>(), CallerType.User);
 

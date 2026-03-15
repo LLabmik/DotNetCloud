@@ -1,4 +1,5 @@
 using DotNetCloud.Modules.Files.Models;
+using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace DotNetCloud.Modules.Files.Data;
@@ -18,8 +19,9 @@ internal static class SyncCursorHelper
     /// by using PostgreSQL row-level locking via <c>INSERT ... ON CONFLICT DO UPDATE ... RETURNING</c>.
     /// Falls back to EF change tracking when using InMemory provider (unit tests).
     /// Call this before <c>SaveChangesAsync</c> for each mutated node.
+    /// When <paramref name="notifier"/> is provided, publishes a change notification after assignment.
     /// </summary>
-    public static async Task AssignNextSequenceAsync(FilesDbContext db, FileNode node, Guid ownerId, CancellationToken cancellationToken = default)
+    public static async Task AssignNextSequenceAsync(FilesDbContext db, FileNode node, Guid ownerId, ISyncChangeNotifier? notifier = null, CancellationToken cancellationToken = default)
     {
         if (ChunkReferenceHelper.IsInMemoryProvider(db))
         {
@@ -34,6 +36,10 @@ internal static class SyncCursorHelper
             counter.CurrentSequence++;
             counter.UpdatedAt = DateTime.UtcNow;
             node.SyncSequence = counter.CurrentSequence;
+
+            if (notifier is not null)
+                await notifier.NotifyAsync(ownerId, counter.CurrentSequence, cancellationToken);
+
             return;
         }
 
@@ -62,6 +68,10 @@ internal static class SyncCursorHelper
             .FirstOrDefault(e => e.Entity.UserId == ownerId);
         if (tracked is not null)
             tracked.State = EntityState.Detached;
+
+        // Notify SSE subscribers that a new change is available for this user.
+        if (notifier is not null)
+            await notifier.NotifyAsync(ownerId, nextSequence, cancellationToken);
     }
 
     /// <summary>

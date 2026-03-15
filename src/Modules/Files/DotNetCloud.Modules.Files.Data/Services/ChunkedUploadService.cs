@@ -22,6 +22,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
     private readonly IQuotaService _quotaService;
     private readonly IEventBus _eventBus;
     private readonly IDeviceContext _deviceContext;
+    private readonly ISyncChangeNotifier _syncNotifier;
     private readonly ILogger<ChunkedUploadService> _logger;
     private readonly long _maxFileSizeBytes;
     private readonly FileSystemOptions _fileSystemOptions;
@@ -32,6 +33,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         IQuotaService quotaService,
         IEventBus eventBus,
         IDeviceContext deviceContext,
+        ISyncChangeNotifier syncNotifier,
         ILogger<ChunkedUploadService> logger,
         IOptions<FileUploadOptions> uploadOptions,
         IOptions<FileSystemOptions> fileSystemOptions)
@@ -41,6 +43,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         _quotaService = quotaService;
         _eventBus = eventBus;
         _deviceContext = deviceContext;
+        _syncNotifier = syncNotifier;
         _logger = logger;
         _maxFileSizeBytes = uploadOptions.Value.MaxFileSizeBytes;
         _fileSystemOptions = fileSystemOptions.Value;
@@ -337,7 +340,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         session.TargetFileNodeId = fileNode.Id;
         session.UpdatedAt = DateTime.UtcNow;
 
-        await SyncCursorHelper.AssignNextSequenceAsync(_db, fileNode, caller.UserId, cancellationToken);
+        await SyncCursorHelper.AssignNextSequenceAsync(_db, fileNode, caller.UserId, _syncNotifier, cancellationToken);
 
         try
         {

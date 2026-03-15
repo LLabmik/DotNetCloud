@@ -56,6 +56,7 @@ public static class FilesServiceRegistration
         services.AddScoped<ISyncService, SyncService>();
         services.AddScoped<ISyncDeviceResolver, SyncDeviceResolver>();
         services.AddScoped<IDeviceContext, DeviceContext>();
+        services.AddSingleton<ISyncChangeNotifier, SyncChangeNotifier>();
         services.AddScoped<IStorageMetricsService, StorageMetricsService>();
         services.AddSingleton<IVideoFrameExtractor, FfmpegVideoFrameExtractor>();
         services.AddSingleton<IPdfPageRenderer, PdftoppmPdfPageRenderer>();

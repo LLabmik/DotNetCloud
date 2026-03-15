@@ -29,7 +29,8 @@ public class FileServiceTests
 
     private static FileService CreateService(FilesDbContext db, IQuotaService? quotaService = null, FileSystemOptions? fileSystemOptions = null) =>
         new(db, Mock.Of<IEventBus>(), NullLoggerFactory.Instance.CreateLogger<FileService>(), new PermissionService(db), new DeviceContext(), quotaService ?? Mock.Of<IQuotaService>(),
-            Microsoft.Extensions.Options.Options.Create(fileSystemOptions ?? new FileSystemOptions()));
+            Microsoft.Extensions.Options.Options.Create(fileSystemOptions ?? new FileSystemOptions()),
+            Mock.Of<ISyncChangeNotifier>());
 
     private static CallerContext UserCaller(Guid userId) => new(userId, Array.Empty<string>(), CallerType.User);
 

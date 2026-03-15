@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
+using System.Text.Json;
 
 namespace DotNetCloud.Modules.Files.Host.Controllers;
 
@@ -14,14 +15,16 @@ namespace DotNetCloud.Modules.Files.Host.Controllers;
 public class SyncController : FilesControllerBase
 {
     private readonly ISyncService _syncService;
+    private readonly ISyncChangeNotifier _syncNotifier;
     private readonly ILogger<SyncController> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SyncController"/> class.
     /// </summary>
-    public SyncController(ISyncService syncService, ILogger<SyncController> logger)
+    public SyncController(ISyncService syncService, ISyncChangeNotifier syncNotifier, ILogger<SyncController> logger)
     {
         _syncService = syncService;
+        _syncNotifier = syncNotifier;
         _logger = logger;
     }
 
@@ -83,5 +86,116 @@ public class SyncController : FilesControllerBase
         _logger.LogInformation("sync.reconcile.completed {UserId} {ChangeCount} {DurationMs}",
             caller.UserId, result.Actions.Count, sw.ElapsedMilliseconds);
         return Ok(result);
+    });
+
+    /// <summary>
+    /// Server-Sent Events endpoint for real-time sync change notifications.
+    /// Clients should keep this connection open to receive push notifications
+    /// when the user's file tree changes, eliminating the need for frequent polling.
+    /// </summary>
+    /// <remarks>
+    /// Each notification is a JSON object: <c>{ "type": "sync-changed", "latestSequence": 157 }</c>.
+    /// The client should trigger a <c>sync/changes</c> poll upon receiving a notification.
+    /// Falls back to a 30-second keepalive comment to prevent proxy timeouts.
+    /// Maximum <c>25</c> concurrent SSE connections per user.
+    /// </remarks>
+    [HttpGet("stream")]
+    [EnableRateLimiting("module-sync-stream")]
+    public async Task StreamAsync(CancellationToken cancellationToken)
+    {
+        var caller = GetAuthenticatedCaller();
+        var userId = caller.UserId;
+
+        // Check connection limit before starting the stream.
+        if (_syncNotifier.GetConnectionCount(userId) >= 25)
+        {
+            Response.StatusCode = 429;
+            Response.ContentType = "application/json";
+            await Response.WriteAsync(
+                JsonSerializer.Serialize(ErrorEnvelope("SSE_LIMIT_REACHED", "Maximum SSE connections reached for this user.")),
+                cancellationToken);
+            return;
+        }
+
+        Response.StatusCode = 200;
+        Response.ContentType = "text/event-stream";
+        Response.Headers.CacheControl = "no-cache";
+        Response.Headers.Connection = "keep-alive";
+        Response.Headers["X-Accel-Buffering"] = "no"; // Nginx: disable proxy buffering
+
+        await Response.Body.FlushAsync(cancellationToken);
+
+        _logger.LogInformation("SSE stream opened for user {UserId}.", userId);
+
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, HttpContext.RequestAborted);
+
+        // Keepalive timer: send a comment every 30s to keep proxies from closing the connection.
+        using var keepaliveTimer = new PeriodicTimer(TimeSpan.FromSeconds(30));
+        var keepaliveTask = Task.Run(async () =>
+        {
+            try
+            {
+                while (await keepaliveTimer.WaitForNextTickAsync(linkedCts.Token))
+                {
+                    await Response.WriteAsync(": keepalive\n\n", linkedCts.Token);
+                    await Response.Body.FlushAsync(linkedCts.Token);
+                }
+            }
+            catch (OperationCanceledException) { }
+        }, linkedCts.Token);
+
+        try
+        {
+            await foreach (var notification in _syncNotifier.SubscribeAsync(userId, linkedCts.Token))
+            {
+                var data = JsonSerializer.Serialize(new
+                {
+                    type = "sync-changed",
+                    latestSequence = notification.LatestSequence,
+                    timestamp = notification.Timestamp,
+                });
+
+                await Response.WriteAsync($"event: sync-changed\ndata: {data}\n\n", linkedCts.Token);
+                await Response.Body.FlushAsync(linkedCts.Token);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Client disconnected — normal shutdown
+        }
+        finally
+        {
+            await linkedCts.CancelAsync();
+            _logger.LogInformation("SSE stream closed for user {UserId}.", userId);
+        }
+    }
+
+    /// <summary>
+    /// Acknowledges that the client has successfully processed changes up to a given sequence.
+    /// Updates the server-side per-device cursor for crash recovery and admin visibility.
+    /// </summary>
+    [HttpPost("ack")]
+    [EnableRateLimiting("module-sync-changes")]
+    public Task<IActionResult> AcknowledgeCursorAsync(
+        [FromBody] SyncCursorAckDto request) => ExecuteAsync(async () =>
+    {
+        var caller = GetAuthenticatedCaller();
+        await _syncService.AcknowledgeCursorAsync(caller.UserId, request.DeviceId, request.AcknowledgedSequence, cancellationToken: HttpContext.RequestAborted);
+        return Ok(Envelope(new { acknowledged = true }));
+    });
+
+    /// <summary>
+    /// Gets the server-side cursor for a specific device. Used for cursor recovery
+    /// after reinstallation or state database corruption.
+    /// </summary>
+    [HttpGet("device-cursor")]
+    [EnableRateLimiting("module-sync-changes")]
+    public Task<IActionResult> GetDeviceCursorAsync(
+        [FromQuery] Guid deviceId) => ExecuteAsync(async () =>
+    {
+        var caller = GetAuthenticatedCaller();
+        var cursor = await _syncService.GetDeviceCursorAsync(caller.UserId, deviceId, HttpContext.RequestAborted);
+        return Ok(Envelope(cursor));
     });
 }

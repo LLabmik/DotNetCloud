@@ -158,3 +158,35 @@ public sealed record SyncActionDto
     /// <summary>Reason for the action.</summary>
     public string? Reason { get; init; }
 }
+
+/// <summary>
+/// Request body for <c>POST /api/v1/files/sync/ack</c>.
+/// Acknowledges that a device has processed changes up to a given sequence.
+/// </summary>
+public sealed record SyncCursorAckDto
+{
+    /// <summary>The device making the acknowledgement.</summary>
+    public Guid DeviceId { get; init; }
+
+    /// <summary>The highest sync sequence number successfully processed.</summary>
+    public long AcknowledgedSequence { get; init; }
+}
+
+/// <summary>
+/// Response from <c>GET /api/v1/files/sync/device-cursor</c>.
+/// Contains the server-side cursor for a specific device.
+/// </summary>
+public sealed record DeviceCursorDto
+{
+    /// <summary>The device ID.</summary>
+    public Guid DeviceId { get; init; }
+
+    /// <summary>The last acknowledged sync sequence, or null if no cursor exists.</summary>
+    public long? LastAcknowledgedSequence { get; init; }
+
+    /// <summary>Encoded cursor string for use with <c>sync/changes</c>, or null if no cursor exists.</summary>
+    public string? Cursor { get; init; }
+
+    /// <summary>When the cursor was last updated.</summary>
+    public DateTime? UpdatedAt { get; init; }
+}

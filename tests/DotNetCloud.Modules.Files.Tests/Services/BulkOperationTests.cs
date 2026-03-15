@@ -34,11 +34,12 @@ public class BulkOperationTests
     private static FileService CreateFileService(FilesDbContext db, IQuotaService? quotaService = null) =>
         new(db, Mock.Of<IEventBus>(), NullLogger<FileService>.Instance,
             new PermissionService(db), new DeviceContext(), quotaService ?? Mock.Of<IQuotaService>(),
-            Microsoft.Extensions.Options.Options.Create(new FileSystemOptions()));
+            Microsoft.Extensions.Options.Options.Create(new FileSystemOptions()),
+            Mock.Of<ISyncChangeNotifier>());
 
     private static TrashService CreateTrashService(FilesDbContext db) =>
         new(db, Mock.Of<IFileStorageEngine>(), Mock.Of<IEventBus>(),
-            NullLogger<TrashService>.Instance);
+            Mock.Of<ISyncChangeNotifier>(), NullLogger<TrashService>.Instance);
 
     private static CallerContext UserCaller(Guid userId) => new(userId, Array.Empty<string>(), CallerType.User);
 

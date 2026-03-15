@@ -18,13 +18,15 @@ internal sealed class TrashService : ITrashService
     private readonly FilesDbContext _db;
     private readonly IFileStorageEngine _storageEngine;
     private readonly IEventBus _eventBus;
+    private readonly ISyncChangeNotifier _syncNotifier;
     private readonly ILogger<TrashService> _logger;
 
-    public TrashService(FilesDbContext db, IFileStorageEngine storageEngine, IEventBus eventBus, ILogger<TrashService> logger)
+    public TrashService(FilesDbContext db, IFileStorageEngine storageEngine, IEventBus eventBus, ISyncChangeNotifier syncNotifier, ILogger<TrashService> logger)
     {
         _db = db;
         _storageEngine = storageEngine;
         _eventBus = eventBus;
+        _syncNotifier = syncNotifier;
         _logger = logger;
     }
 
@@ -107,7 +109,7 @@ internal sealed class TrashService : ITrashService
             await RestoreDescendantsAsync(node, cancellationToken);
         }
 
-        await SyncCursorHelper.AssignNextSequenceAsync(_db, node, node.OwnerId, cancellationToken);
+        await SyncCursorHelper.AssignNextSequenceAsync(_db, node, node.OwnerId, _syncNotifier, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
         await _eventBus.PublishAsync(new FileRestoredEvent

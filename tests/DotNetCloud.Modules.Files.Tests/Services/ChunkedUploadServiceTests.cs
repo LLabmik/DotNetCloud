@@ -37,7 +37,7 @@ public class ChunkedUploadServiceTests
         var quotaMock = quotaService ?? CreateMockQuotaService(true);
         return new ChunkedUploadService(
             db, storageMock, quotaMock,
-            Mock.Of<IEventBus>(), new DeviceContext(), NullLoggerFactory.Instance.CreateLogger<ChunkedUploadService>(),
+            Mock.Of<IEventBus>(), new DeviceContext(), Mock.Of<ISyncChangeNotifier>(), NullLoggerFactory.Instance.CreateLogger<ChunkedUploadService>(),
             Microsoft.Extensions.Options.Options.Create(new FileUploadOptions()),
             Microsoft.Extensions.Options.Options.Create(new FileSystemOptions()));
     }

@@ -306,3 +306,21 @@ public sealed record PagedResponse<T>
     /// <summary>Items per page.</summary>
     public int PageSize { get; init; }
 }
+
+/// <summary>
+/// Server-side per-device cursor for sync recovery.
+/// </summary>
+public sealed record DeviceCursorResponse
+{
+    /// <summary>The device ID.</summary>
+    public Guid DeviceId { get; init; }
+
+    /// <summary>Last acknowledged sync sequence, or null if no cursor exists.</summary>
+    public long? LastAcknowledgedSequence { get; init; }
+
+    /// <summary>Encoded cursor for use with <c>sync/changes</c>.</summary>
+    public string? Cursor { get; init; }
+
+    /// <summary>When the cursor was last updated.</summary>
+    public DateTime? UpdatedAt { get; init; }
+}

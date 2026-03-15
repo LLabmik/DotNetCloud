@@ -27,4 +27,16 @@ public interface ISyncService
 
     /// <summary>Reconciles the client's file state against the server and produces sync actions.</summary>
     Task<SyncReconcileResultDto> ReconcileAsync(SyncReconcileRequestDto request, CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Acknowledges that a device has successfully processed changes up to a given sequence.
+    /// Creates or updates the server-side <c>SyncDeviceCursor</c>.
+    /// </summary>
+    Task AcknowledgeCursorAsync(Guid userId, Guid deviceId, long acknowledgedSequence, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the server-side cursor for a specific device, enabling cursor recovery
+    /// after reinstallation or local state corruption.
+    /// </summary>
+    Task<DeviceCursorDto> GetDeviceCursorAsync(Guid userId, Guid deviceId, CancellationToken cancellationToken = default);
 }

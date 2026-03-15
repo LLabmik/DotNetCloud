@@ -211,12 +211,12 @@ Efficiency and architectural improvements that reduce server load and improve re
 - Fallback: clients still poll at a longer interval (e.g., 5 minutes) as a safety net if SSE disconnects.
 
 **Scope:**
-- ☐ Implement SSE endpoint for sync change notifications
-- ☐ Server: publish notification on any `SyncSequence` increment for a user
-- ☐ Client: add SSE listener, trigger sync on notification
-- ☐ Client: increase poll interval to 5 minutes when SSE is connected
-- ☐ Handle SSE reconnection and missed-notification recovery
-- ☐ Tests and load benchmarking
+- ✓ Implement SSE endpoint for sync change notifications
+- ✓ Server: publish notification on any `SyncSequence` increment for a user
+- ✓ Client: add SSE listener, trigger sync on notification
+- ✓ Client: increase poll interval to 5 minutes when SSE is connected
+- ✓ Handle SSE reconnection and missed-notification recovery
+- ✓ Tests and load benchmarking
 
 ---
 
@@ -242,13 +242,13 @@ Efficiency and architectural improvements that reduce server load and improve re
 - Admin dashboard shows per-device sync lag.
 
 **Scope:**
-- ☐ Define `SyncDeviceCursor` model and EF configuration
-- ☐ Server: update cursor on ack header
-- ☐ Server: expose cursor recovery endpoint
-- ☐ Client: send ack header after processing changes
-- ☐ Client: query cursor on first connect (skip full re-sync if cursor exists)
+- ✓ Define `SyncDeviceCursor` model and EF configuration
+- ✓ Server: update cursor on ack header
+- ✓ Server: expose cursor recovery endpoint
+- ✓ Client: send ack header after processing changes
+- ✓ Client: query cursor on first connect (skip full re-sync if cursor exists)
 - ☐ Admin: surface per-device sync status
-- ☐ Migration
+- ✓ Migration
 
 ---
 

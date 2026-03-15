@@ -81,6 +81,12 @@ public interface IDotNetCloudApiClient
     /// <summary>Reconciles the client's file state against the server.</summary>
     Task<ReconcileResponse> ReconcileAsync(Guid? folderId, IReadOnlyList<ClientNodeEntry> clientNodes, CancellationToken cancellationToken = default);
 
+    /// <summary>Acknowledges that this device has processed changes up to the given sequence.</summary>
+    Task AcknowledgeCursorAsync(Guid deviceId, long acknowledgedSequence, CancellationToken cancellationToken = default);
+
+    /// <summary>Gets the server-side cursor for a specific device (for recovery after reinstall).</summary>
+    Task<DeviceCursorResponse?> GetDeviceCursorAsync(Guid deviceId, CancellationToken cancellationToken = default);
+
     // ── Quota Operations ────────────────────────────────────────────────────
 
     /// <summary>Gets quota information for the authenticated user.</summary>

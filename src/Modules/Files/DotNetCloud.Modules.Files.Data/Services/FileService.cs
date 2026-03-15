@@ -40,11 +40,12 @@ internal sealed class FileService : IFileService
     private readonly ILogger<FileService> _logger;
     private readonly IPermissionService _permissions;
     private readonly IDeviceContext _deviceContext;
+    private readonly ISyncChangeNotifier _syncNotifier;
 
     private readonly IQuotaService _quotaService;
     private readonly FileSystemOptions _fileSystemOptions;
 
-    public FileService(FilesDbContext db, IEventBus eventBus, ILogger<FileService> logger, IPermissionService permissions, IDeviceContext deviceContext, IQuotaService quotaService, IOptions<FileSystemOptions> fileSystemOptions)
+    public FileService(FilesDbContext db, IEventBus eventBus, ILogger<FileService> logger, IPermissionService permissions, IDeviceContext deviceContext, IQuotaService quotaService, IOptions<FileSystemOptions> fileSystemOptions, ISyncChangeNotifier syncNotifier)
     {
         _db = db;
         _eventBus = eventBus;
@@ -53,6 +54,7 @@ internal sealed class FileService : IFileService
         _deviceContext = deviceContext;
         _quotaService = quotaService;
         _fileSystemOptions = fileSystemOptions.Value;
+        _syncNotifier = syncNotifier;
     }
 
     /// <inheritdoc />
@@ -105,7 +107,7 @@ internal sealed class FileService : IFileService
             : $"{parentPath}/{folder.Id}";
 
         _db.FileNodes.Add(folder);
-        await SyncCursorHelper.AssignNextSequenceAsync(_db, folder, caller.UserId, cancellationToken);
+        await SyncCursorHelper.AssignNextSequenceAsync(_db, folder, caller.UserId, _syncNotifier, cancellationToken);
 
         try
         {
@@ -202,7 +204,7 @@ internal sealed class FileService : IFileService
 
         node.Name = dto.Name;
         node.UpdatedAt = DateTime.UtcNow;
-        await SyncCursorHelper.AssignNextSequenceAsync(_db, node, node.OwnerId, cancellationToken);
+        await SyncCursorHelper.AssignNextSequenceAsync(_db, node, node.OwnerId, _syncNotifier, cancellationToken);
 
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -254,7 +256,7 @@ internal sealed class FileService : IFileService
         var newPath = $"{targetParent.MaterializedPath}/{node.Id}";
         node.MaterializedPath = newPath;
         node.UpdatedAt = DateTime.UtcNow;
-        await SyncCursorHelper.AssignNextSequenceAsync(_db, node, node.OwnerId, cancellationToken);
+        await SyncCursorHelper.AssignNextSequenceAsync(_db, node, node.OwnerId, _syncNotifier, cancellationToken);
 
         // Batch update descendant paths
         if (node.NodeType == FileNodeType.Folder)
@@ -331,7 +333,7 @@ internal sealed class FileService : IFileService
         };
         copy.MaterializedPath = $"{targetParent.MaterializedPath}/{copy.Id}";
 
-        await SyncCursorHelper.AssignNextSequenceAsync(_db, copy, caller.UserId, cancellationToken);
+        await SyncCursorHelper.AssignNextSequenceAsync(_db, copy, caller.UserId, _syncNotifier, cancellationToken);
         _db.FileNodes.Add(copy);
 
         // Deep copy children for folders
@@ -367,7 +369,7 @@ internal sealed class FileService : IFileService
         node.DeletedByUserId = caller.UserId;
         node.OriginalParentId = node.ParentId;
         node.ParentId = null;
-        await SyncCursorHelper.AssignNextSequenceAsync(_db, node, node.OwnerId, cancellationToken);
+        await SyncCursorHelper.AssignNextSequenceAsync(_db, node, node.OwnerId, _syncNotifier, cancellationToken);
 
         // Collect all affected node IDs (for share removal)
         var allNodeIds = new List<Guid> { nodeId };

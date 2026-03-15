@@ -62,6 +62,9 @@ public class FilesDbContext : DbContext
     /// <summary>Registered sync devices (one per physical client per user).</summary>
     public DbSet<SyncDevice> SyncDevices => Set<SyncDevice>();
 
+    /// <summary>Per-device sync cursor for server-side tracking and recovery.</summary>
+    public DbSet<SyncDeviceCursor> SyncDeviceCursors => Set<SyncDeviceCursor>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -78,5 +81,6 @@ public class FilesDbContext : DbContext
         modelBuilder.ApplyConfiguration(new ChunkedUploadSessionConfiguration());
         modelBuilder.ApplyConfiguration(new UserSyncCounterConfiguration());
         modelBuilder.ApplyConfiguration(new SyncDeviceConfiguration());
+        modelBuilder.ApplyConfiguration(new SyncDeviceCursorConfiguration());
     }
 }
