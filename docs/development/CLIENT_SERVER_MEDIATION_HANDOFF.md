@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-15 (server DB migration `SyncDeviceIdentity` applied — `OriginatingDeviceId` column now exists; sync/tree 500s fixed)
+Last updated: 2026-03-15 (Linux parity re-verification failed: uploaded node still echoed back on `mint-dnc-client`; server correlation task active)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -55,7 +55,8 @@ Archived context:
 - **Upload hardening story: CLOSED.** Full chain verification complete across all three machines.
 - Server-side P1 echo suppression/device-identity fix and `SyncDeviceIdentity` DB migration are now applied on `mint22`.
 - **Windows (`Windows11-TestDNC`) re-verification PASSED** on 2026-03-15: uploaded file completed, immediate follow-up pass showed `RemoteChanges=1, LocalApplied=0`, no download path was entered for the uploaded node, and the next scheduled pass was clean.
-- **Next active cycle:** Linux (`mint-dnc-client`) parity re-verification for the same server-side fix.
+- **Linux (`mint-dnc-client`) parity re-verification FAILED** on 2026-03-15: uploaded verification node was downloaded on follow-up pass (`RemoteChanges=1, LocalApplied=1`), so parity with Windows behavior is not achieved.
+- **Next active cycle:** server/client correlation on `mint22` to identify why the Linux-uploaded node is still treated as remote.
 
 ## Environment
 
@@ -74,59 +75,48 @@ Archived context:
 
 ## Active Handoff
 
-### P1 Echo Suppression Fix — Linux Re-Verification
+### P1 Echo Suppression Fix — Linux Failure Correlation (Server + Client)
 
 **Date:** 2026-03-15
-**Owner:** `mint-dnc-client` (Linux Mint 22) — **this cycle is Linux-only**
-**Status:** READY FOR CLIENT RE-VERIFICATION (Windows passed; Linux parity check pending)
+**Owner:** `mint22` (server-side investigation first)
+**Status:** READY FOR SERVER INVESTIGATION
 
-#### Server-Side Fixes Already Applied
+#### Linux Failure Evidence (Completed)
 
-Linux should verify against the same server-side fixes that Windows just passed against:
+Linux (`mint-dnc-client`) re-verification used:
 
-- `ChunkedUploadService.CompleteUploadAsync` now persists `OriginatingDeviceId` from `session.DeviceId` first:
-  - file update path: `session.DeviceId ?? _deviceContext.DeviceId ?? fileNode.OriginatingDeviceId`
-  - new file path: `session.DeviceId ?? _deviceContext.DeviceId`
-- Production database migration `20260315074239_SyncDeviceIdentity` is applied on `mint22`.
-- Server-side sanity verification already passed on `mint22`:
-  - `GET /health/live` healthy
-  - unauthenticated `GET /api/v1/files/sync/tree` now returns `401` instead of `500`
+- verification file: `/home/benk/synctray/echo-reverify-linux-20260315-090808.txt`
+- log path: `/home/benk/.local/share/DotNetCloud/logs/sync-service20260315.log`
 
-No Linux code changes are requested in this cycle. This is runtime parity verification only.
+Observed runtime sequence:
 
-#### Windows Result (Completed)
+- `2026-03-15T09:08:09.0136307Z` upload complete: `NodeId=97471092-72de-4654-9217-f653d1a2059f`
+- `2026-03-15T09:09:09.1872615Z` follow-up pass: `RemoteChanges=1, LocalApplied=1` (expected `LocalApplied=0`)
+- `2026-03-15T09:09:09.1531502Z` and `2026-03-15T09:09:09.2020480Z` download path entered for same node (`File download starting`)
+- `2026-03-15T09:09:09.3059273Z` next pass clean: `RemoteChanges=0, LocalApplied=0`
 
-Windows (`Windows11-TestDNC`) re-verification passed with file `echo-reverify-20260315-014651.txt`:
+Windows still passes the same scenario, so current regression is Linux-specific (or Linux-runtime-context specific) under the same server deployment.
 
-- upload completed successfully
-- immediate follow-up pass showed `RemoteChanges=1, LocalApplied=0`
-- no download path was entered for verification node `e2174c04-8fbd-43cc-a853-e45cc2d9dd53`
-- next scheduled pass was clean (`RemoteChanges=0, LocalApplied=0`)
+#### Action Required — `mint22` ONLY
 
-#### Action Required — `mint-dnc-client` ONLY
-
-1. `git pull` to get latest `main`
-2. Upload a fresh test file into the Linux sync directory
-3. Wait for the next sync pass
-4. Verify the uploaded file is not re-downloaded on the next pass
-5. Update the verification table below with Linux evidence, commit, and push
-
-Preferred evidence mirrors Windows:
-
-- file path used for the test
-- log path used for proof
-- upload completion line with node ID
-- immediate follow-up pass showing remote change observed without a local apply/download
-- next scheduled clean pass, or equivalent proof that no echo download occurred
+1. Pull latest `main` and read this section.
+2. Correlate node `97471092-72de-4654-9217-f653d1a2059f` on server:
+   - `FileNode.OriginatingDeviceId`
+   - upload session `DeviceId`
+   - sync tree/change payload device metadata returned for this node to Linux client.
+3. Confirm whether server is returning device identity for this node that should have been suppressed for the Linux uploader.
+4. Document findings and root cause in this handoff file.
+5. If server bug is confirmed, implement fix, run tests, redeploy, and post runtime verification gate evidence.
+6. If server looks correct, explicitly call out required Linux-side diagnostic target (for example context/device-id mismatch across local contexts) with exact next steps.
 
 #### Verification Results
 
 | Machine | Status | Echo suppression working | Notes |
 |---|---|---|---|
-| `Windows11-TestDNC` | COMPLETE | ✓ | Verified on 2026-03-15. Upload completed; follow-up pass showed `RemoteChanges=1, LocalApplied=0`; no download entry for verification node; next scheduled pass clean. |
-| `mint-dnc-client` | PENDING | ☐ | Perform Linux parity re-verification against current `mint22` runtime. |
+| `Windows11-TestDNC` | COMPLETE | ✓ | Verified on 2026-03-15. Upload completed; follow-up pass `RemoteChanges=1, LocalApplied=0`; no download entry for verification node; next scheduled pass clean. |
+| `mint-dnc-client` | COMPLETE (FAILED RESULT) | ☐ | Re-verification completed on 2026-03-15; uploaded node `97471092-72de-4654-9217-f653d1a2059f` was downloaded on follow-up pass (`RemoteChanges=1, LocalApplied=1`). |
 
-**Instructions for `mint-dnc-client` agent:** Upload a fresh test file, verify echo suppression works at runtime, update YOUR row, then commit and push.
+**Instructions for `mint22` agent:** Correlate this exact node/session/device identity path on server, update findings in-place, then commit and push.
 
 ## Relay Template
 

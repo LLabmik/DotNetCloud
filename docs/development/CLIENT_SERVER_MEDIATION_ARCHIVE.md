@@ -5,6 +5,31 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: P1 Echo Suppression Fix — Linux Re-Verification FAILED (2026-03-15)
+
+Archived from Active Handoff on 2026-03-15 after Linux parity re-verification completed with a failure outcome.
+
+- Linux (`mint-dnc-client`) pulled latest `main` and executed runtime parity verification against `mint22`.
+- Verification file created in sync root:
+    - `/home/benk/synctray/echo-reverify-linux-20260315-090808.txt`
+- Runtime evidence source:
+    - `/home/benk/.local/share/DotNetCloud/logs/sync-service20260315.log`
+- Upload evidence:
+    - `2026-03-15T09:08:08.9586056Z` `File upload starting ... echo-reverify-linux-20260315-090808.txt`
+    - `2026-03-15T09:08:09.0136307Z` `File upload complete ... NodeId=97471092-72de-4654-9217-f653d1a2059f`
+- Follow-up pass evidence (unexpected behavior):
+    - `2026-03-15T09:09:09.1872615Z` `Sync pass complete ... RemoteChanges=1, LocalQueued=0, LocalApplied=1`
+    - Expected parity target was `RemoteChanges=1, LocalApplied=0` with no download.
+- Echo download evidence for verification node:
+    - `2026-03-15T09:09:09.1531502Z` `File download starting: NodeId=97471092-72de-4654-9217-f653d1a2059f`
+    - `2026-03-15T09:09:09.2020480Z` `File download starting: NodeId=97471092-72de-4654-9217-f653d1a2059f`
+- Subsequent pass reached idle state:
+    - `2026-03-15T09:09:09.3059273Z` `Sync pass complete ... RemoteChanges=0, LocalQueued=0, LocalApplied=0`
+- Note:
+    - IPC-triggered sync (`socat` + Unix socket) was unavailable on this machine (`socat` not installed), so evidence used scheduled passes from the same runtime log.
+
+Conclusion: Linux parity check failed for P1 echo suppression criteria. Server/client correlation is required before closing the fix.
+
 ## Archived: P1 Echo Suppression Fix — Windows Re-Verification Passed (2026-03-15)
 
 Archived from Active Handoff on 2026-03-15 after Windows runtime re-verification completed successfully.
