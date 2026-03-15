@@ -5,6 +5,31 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: P1 Echo Suppression Fix — Windows Re-Verification Passed (2026-03-15)
+
+Archived from Active Handoff on 2026-03-15 after Windows runtime re-verification completed successfully.
+
+- Windows (`Windows11-TestDNC`) pulled latest `main` after the server-side `ChunkedUploadService` device-id fix and production DB migration application.
+- Verification file created in sync root:
+    - `C:\Users\benk\Documents\synctray\echo-reverify-20260315-014651.txt`
+- Runtime evidence source:
+    - `C:\ProgramData\DotNetCloud\Sync\logs\sync-service20260315.log`
+- Upload evidence:
+    - `2026-03-15T08:46:51.7198288Z` `File upload starting ... echo-reverify-20260315-014651.txt`
+    - `2026-03-15T08:46:51.7920701Z` `File upload complete ... NodeId=e2174c04-8fbd-43cc-a853-e45cc2d9dd53`
+- Immediate follow-up reconciliation evidence:
+    - `2026-03-15T08:46:51.8976398Z` `Sync pass complete ... RemoteChanges=1, LocalQueued=0, LocalApplied=0`
+    - This is the expected self-originated echo case: the server reported one remote change, but Windows applied nothing locally.
+- Next scheduled pass evidence:
+    - `2026-03-15T08:49:26.7000733Z` `Sync pass complete ... RemoteChanges=0, LocalQueued=0, LocalApplied=0`
+- Download-path check:
+    - No `File download starting` entry exists for verification node `e2174c04-8fbd-43cc-a853-e45cc2d9dd53`.
+    - The verification file remained a single local artifact with unchanged create/write timestamp; no duplicate or conflict copy was created for that file.
+- Note on log verbosity:
+    - The explicit `Skipping self-originated change ... (device echo suppression)` message is emitted at debug level and was not present in the production Windows log configuration, so verification relied on the stronger runtime evidence above.
+
+Conclusion: Windows echo suppression is working after the server-side fix and DB migration application. Next cycle advances to Linux (`mint-dnc-client`) for parity re-verification.
+
 ## Archived: P1 Sync Hardening — Client-Side Device Identity Deployment (2026-03-15)
 
 Archived from Active Handoff on 2026-03-15 after Windows client reported echo suppression failure. Server-side bug identified and fixed.

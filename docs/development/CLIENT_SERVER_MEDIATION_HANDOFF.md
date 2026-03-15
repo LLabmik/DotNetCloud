@@ -53,6 +53,9 @@ Archived context:
   - **Windows (`Windows11-TestDNC`):** runtime verified on MSIX `0.23.3.0` — single initiate per event, no conflict copies.
   - **Server (`mint22`):** zero 5xx errors since deployment; only normal token-refresh 401s observed.
 - **Upload hardening story: CLOSED.** Full chain verification complete across all three machines.
+- Server-side P1 echo suppression/device-identity fix and `SyncDeviceIdentity` DB migration are now applied on `mint22`.
+- **Windows (`Windows11-TestDNC`) re-verification PASSED** on 2026-03-15: uploaded file completed, immediate follow-up pass showed `RemoteChanges=1, LocalApplied=0`, no download path was entered for the uploaded node, and the next scheduled pass was clean.
+- **Next active cycle:** Linux (`mint-dnc-client`) parity re-verification for the same server-side fix.
 
 ## Environment
 
@@ -71,67 +74,59 @@ Archived context:
 
 ## Active Handoff
 
-### P1 Echo Suppression Fix — Client Re-Verification
+### P1 Echo Suppression Fix — Linux Re-Verification
 
 **Date:** 2026-03-15
-**Owner:** `Windows11-TestDNC` (Windows) — **this cycle is Windows-only**
-**Status:** READY FOR CLIENT RE-VERIFICATION (server 500 fixed)
+**Owner:** `mint-dnc-client` (Linux Mint 22) — **this cycle is Linux-only**
+**Status:** READY FOR CLIENT RE-VERIFICATION (Windows passed; Linux parity check pending)
 
-**Verification order:** Windows first → report back to `mint22` → then separate cycle for `mint-dnc-client`.
+#### Server-Side Fixes Already Applied
 
-#### Bug Found and Fixed (Server — Echo Suppression)
+Linux should verify against the same server-side fixes that Windows just passed against:
 
-Windows client (`0.23.4.0`) reported echo suppression failure: uploaded file was immediately re-downloaded on next sync pass.
+- `ChunkedUploadService.CompleteUploadAsync` now persists `OriginatingDeviceId` from `session.DeviceId` first:
+  - file update path: `session.DeviceId ?? _deviceContext.DeviceId ?? fileNode.OriginatingDeviceId`
+  - new file path: `session.DeviceId ?? _deviceContext.DeviceId`
+- Production database migration `20260315074239_SyncDeviceIdentity` is applied on `mint22`.
+- Server-side sanity verification already passed on `mint22`:
+  - `GET /health/live` healthy
+  - unauthenticated `GET /api/v1/files/sync/tree` now returns `401` instead of `500`
 
-**Root cause:** `ChunkedUploadService.CompleteUploadAsync` used `_deviceContext.DeviceId` (per-request device context) to set `FileNode.OriginatingDeviceId`. The device ID was captured correctly during `InitiateUploadAsync` into `session.DeviceId`, but `CompleteUploadAsync` didn't use the session value. If the device context was null/missing on the complete request, `OriginatingDeviceId` was set to null, and echo suppression had nothing to match against.
+No Linux code changes are requested in this cycle. This is runtime parity verification only.
 
-**Fix applied** in `ChunkedUploadService.cs`:
-- File update path (line 209): `session.DeviceId ?? _deviceContext.DeviceId ?? fileNode.OriginatingDeviceId`
-- New file path (line 265): `session.DeviceId ?? _deviceContext.DeviceId`
+#### Windows Result (Completed)
 
-All tests pass: 607 (Files) + 138 (Core) + 176 (Data) = 921 total.
+Windows (`Windows11-TestDNC`) re-verification passed with file `echo-reverify-20260315-014651.txt`:
 
-#### Bug Found and Fixed (Server — Missing DB Migration)
+- upload completed successfully
+- immediate follow-up pass showed `RemoteChanges=1, LocalApplied=0`
+- no download path was entered for verification node `e2174c04-8fbd-43cc-a853-e45cc2d9dd53`
+- next scheduled pass was clean (`RemoteChanges=0, LocalApplied=0`)
 
-Windows client reported `500 INTERNAL_ERROR` on `GET /api/v1/files/sync/tree`. Server logs showed:
-```
-SqlState: 42703
-MessageText: column f.OriginatingDeviceId does not exist
-```
+#### Action Required — `mint-dnc-client` ONLY
 
-**Root cause:** The EF Core migration `20260315074239_SyncDeviceIdentity` (which adds `OriginatingDeviceId` to `FileNodes`, `DeviceId` to `UploadSessions`, and creates `SyncDevices` table) was committed but never applied to the production `dotnetcloud` database. The server's `EnsureModuleTablesCreatedAsync` only fires when the sentinel table (`FileNodes`) doesn't exist — it does not apply incremental migrations.
+1. `git pull` to get latest `main`
+2. Upload a fresh test file into the Linux sync directory
+3. Wait for the next sync pass
+4. Verify the uploaded file is not re-downloaded on the next pass
+5. Update the verification table below with Linux evidence, commit, and push
 
-**Fix applied:**
-```bash
-dotnet ef database update --project src/Modules/Files/DotNetCloud.Modules.Files.Data \
-  --context FilesDbContext \
-  --connection "Host=localhost;Database=dotnetcloud;Username=postgres;Password=postgres"
-```
-Migration `20260315074239_SyncDeviceIdentity` applied successfully. Server restarted via `systemctl restart dotnetcloud.service`.
+Preferred evidence mirrors Windows:
 
-**Verification:**
-- `curl -sk -w "%{http_code}" https://localhost:15443/health/live` → `Healthy`
-- `curl -sk -w "%{http_code}" https://localhost:15443/api/v1/files/sync/tree` → `401` (expected — requires auth, no more 500)
-- No `42703` errors in post-restart journalctl output
-
-#### Action Required — Windows11-TestDNC ONLY
-
-No client code changes needed — both fixes are server-side only.
-
-1. `git pull` to get latest main
-2. Upload a new test file (e.g., `echo-test-fix-20260315.txt`) to sync dir
-3. Wait for next sync pass
-4. Verify the sync pass does NOT re-download the file you just uploaded (check logs for echo suppression skip message)
-5. Update verification table below, commit and push
+- file path used for the test
+- log path used for proof
+- upload completion line with node ID
+- immediate follow-up pass showing remote change observed without a local apply/download
+- next scheduled clean pass, or equivalent proof that no echo download occurred
 
 #### Verification Results
 
 | Machine | Status | Echo suppression working | Notes |
 |---|---|---|---|
-| `Windows11-TestDNC` | PENDING | ☐ | Previous FAIL was caused by missing DB migration on server (now fixed). Retry verification. |
-| `mint-dnc-client` | DEFERRED | ☐ | Will be verified in a separate cycle after Windows completes. |
+| `Windows11-TestDNC` | COMPLETE | ✓ | Verified on 2026-03-15. Upload completed; follow-up pass showed `RemoteChanges=1, LocalApplied=0`; no download entry for verification node; next scheduled pass clean. |
+| `mint-dnc-client` | PENDING | ☐ | Perform Linux parity re-verification against current `mint22` runtime. |
 
-**Instructions for `Windows11-TestDNC` agent:** Upload a test file, verify echo suppression works (uploaded file is NOT re-downloaded), update YOUR row. Commit and push.
+**Instructions for `mint-dnc-client` agent:** Upload a fresh test file, verify echo suppression works at runtime, update YOUR row, then commit and push.
 
 ## Relay Template
 
