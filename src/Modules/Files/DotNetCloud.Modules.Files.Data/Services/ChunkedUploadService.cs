@@ -206,7 +206,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
             // Preserve existing POSIX metadata when Windows client re-uploads (sends null)
             fileNode.PosixMode = session.PosixMode ?? fileNode.PosixMode;
             fileNode.PosixOwnerHint = session.PosixOwnerHint ?? fileNode.PosixOwnerHint;
-            fileNode.OriginatingDeviceId = _deviceContext.DeviceId ?? fileNode.OriginatingDeviceId;
+            fileNode.OriginatingDeviceId = session.DeviceId ?? _deviceContext.DeviceId ?? fileNode.OriginatingDeviceId;
         }
         else
         {
@@ -262,7 +262,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
                 Depth = parentDepth + 1,
                 PosixMode = session.PosixMode,
                 PosixOwnerHint = session.PosixOwnerHint,
-                OriginatingDeviceId = _deviceContext.DeviceId
+                OriginatingDeviceId = session.DeviceId ?? _deviceContext.DeviceId
             };
             fileNode.MaterializedPath = string.IsNullOrEmpty(parentPath)
                 ? $"/{fileNode.Id}"

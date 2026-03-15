@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-15 (P1 sync hardening — device identity, echo suppression, per-device rate limiting deployed server-side)
+Last updated: 2026-03-15 (P1 echo suppression fix — server-side `CompleteUploadAsync` now uses session.DeviceId for OriginatingDeviceId)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -71,68 +71,44 @@ Archived context:
 
 ## Active Handoff
 
-### P1 Sync Hardening — Client-Side Device Identity Deployment
+### P1 Echo Suppression Fix — Client Re-Verification
 
 **Date:** 2026-03-15
-**Owner:** `mint-dnc-client` (Linux), `Windows11-TestDNC` (Windows)
-**Status:** READY FOR CLIENT DEPLOYMENT
+**Owner:** `Windows11-TestDNC` (Windows), `mint-dnc-client` (Linux)
+**Status:** READY FOR CLIENT RE-VERIFICATION
 
-#### What Changed (Server)
+#### Bug Found and Fixed (Server)
 
-Server-side P1 sync hardening is complete and committed on `main`. Three features implemented:
+Windows client (`0.23.4.0`) reported echo suppression failure: uploaded file was immediately re-downloaded on next sync pass.
 
-1. **P1.1 — Device Identity Registration**
-   - New `SyncDevice` table, auto-registered on first contact
-   - `FileNode.OriginatingDeviceId` tracks which device created/modified each file
-   - `ChunkedUploadSession.DeviceId` tracks upload source
-   - `DeviceIdentityFilter` (global MVC filter) extracts `X-Device-Id`, `X-Device-Name`, `X-Device-Platform`, `X-Client-Version` headers
-   - EF migration `SyncDeviceIdentity` generated (adds table, columns, indexes, FK)
+**Root cause:** `ChunkedUploadService.CompleteUploadAsync` used `_deviceContext.DeviceId` (per-request device context) to set `FileNode.OriginatingDeviceId`. The device ID was captured correctly during `InitiateUploadAsync` into `session.DeviceId`, but `CompleteUploadAsync` didn't use the session value. If the device context was null/missing on the complete request, `OriginatingDeviceId` was set to null, and echo suppression had nothing to match against.
 
-2. **P1.2 — Echo Suppression**
-   - `SyncChangeDto` now includes `OriginatingDeviceId`
-   - Server populates it from `FileNode.OriginatingDeviceId` in all sync queries
-   - Client-side: `SyncEngine.HandleRemoteUpdateAsync` skips download when `change.OriginatingDeviceId == DeviceId` and local hash matches remote hash
+**Fix applied** in `ChunkedUploadService.cs`:
+- File update path (line 209): `session.DeviceId ?? _deviceContext.DeviceId ?? fileNode.OriginatingDeviceId`
+- New file path (line 265): `session.DeviceId ?? _deviceContext.DeviceId`
 
-3. **P1.3 — Per-Device Rate Limiting**
-   - Rate limit partition key changed from `userId` to `{module}:{userId}:{deviceId}` when module config has `PerDevice = true`
-   - `X-RateLimit-Remaining: 0` header added on 429 rejections
+**Server redeployed** on `mint22` — verified healthy at `https://localhost:15443/health/live`.
+Deployed binary hash: `1482ba2a964a245a67b8451d1d11e1228c912340eca992e320acf9bbfc1708eb` (`DotNetCloud.Modules.Files.Data.dll`).
 
-#### Client-Side Changes (Already Committed)
-
-The following client-side files were modified and are on `main`:
-
-- **`src/Clients/DotNetCloud.Client.Core/Api/DeviceIdProvider.cs`** (NEW) — generates stable per-installation device GUID, persists to `device-id` file in data directory
-- **`src/Clients/DotNetCloud.Client.Core/Api/DeviceIdentityHandler.cs`** (NEW) — `DelegatingHandler` that adds `X-Device-Id`, `X-Device-Name`, `X-Device-Platform`, `X-Client-Version` headers to every request
-- **`src/Clients/DotNetCloud.Client.Core/Api/ApiModels.cs`** — `SyncChangeResponse` gained `OriginatingDeviceId` property
-- **`src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs`** — added `DeviceId` property, device-aware echo suppression in `HandleRemoteUpdateAsync`
-- **`src/Clients/DotNetCloud.Client.SyncService/ContextManager/SyncContextManager.cs`** — wires up `DeviceIdProvider` and `DeviceIdentityHandler` into HTTP pipeline, sets `DeviceId` on `SyncEngine`
-- **`src/Clients/DotNetCloud.Client.SyncService/SyncServiceExtensions.cs`** — adds `DeviceIdentityHandler` to named HttpClient DI pipeline
+All tests pass: 607 (Files) + 138 (Core) + 176 (Data) = 921 total.
 
 #### Action Required on Client Machines
 
-1. `git pull origin main`
-2. Rebuild the sync client: `dotnet build src/Clients/DotNetCloud.Client.SyncService/`
-3. Restart the sync service
-4. Verify device ID persistence: check for `device-id` file in the sync data directory
-5. Verify headers: observe sync requests include `X-Device-Id` header (check server logs or use curl)
-6. Test echo suppression: upload a file, verify next sync pass doesn't re-download it
+No client code changes needed — the fix is server-side only.
 
-#### Verification Criteria
+1. Upload a new test file (e.g., `echo-test-fix-20260315.txt`)
+2. Wait for next sync pass
+3. Verify the sync pass does NOT re-download the file you just uploaded (check logs for echo suppression skip message)
+4. Update verification table below
 
-- `device-id` file created in data directory on first run
-- All API requests include `X-Device-Id` header
-- Server `SyncDevices` table shows registered device entry
-- Echo suppression: uploading a file doesn't trigger re-download on the same device
-- No regressions in normal sync flow
+#### Verification Results
 
-#### Verification Results (each client updates its own row)
+| Machine | Status | Echo suppression working | Notes |
+|---|---|---|---|
+| `Windows11-TestDNC` | PENDING | ☐ | — |
+| `mint-dnc-client` | PENDING | ☐ | — |
 
-| Machine | Status | device-id file | X-Device-Id header | Echo suppression | Notes |
-|---|---|---|---|---|---|
-| `mint-dnc-client` | PENDING | ☐ | ☐ | ☐ | — |
-| `Windows11-TestDNC` | FAIL | ✓ | ☐ | ☐ | 2026-03-15 runtime verified on installed MSIX `0.23.4.0`; packaged `DotNetCloud.Client.Core.dll` hash matches release payload (`E3F56B9EDE8C2B5BCA0680FEC0D81665A132BD2A1B3557D6EB7DAF43BB5C97C3`). Sync service generated device ID `3035f6e1-4337-4377-8661-f7288d677b34` at `C:\WINDOWS\system32\config\systemprofile\AppData\Local\DotNetCloud\Sync\device-id` (log timestamp `2026-03-15T08:03:32Z`). Client tests still pass (`DotNetCloud.Client.Core.Tests`: 39/39, `DotNetCloud.Client.SyncService.Tests`: 27/27). Echo suppression failed at runtime: local upload `echo-suppress-verify-20260315-010450.txt` completed (`NodeId=e484e52f-991e-4fef-a8de-8801d044b170`) and the next sync pass immediately downloaded the same node back (`RemoteChanges=1`, `File download starting`), so self-originated change skipping did not trigger. `X-Device-Id` header not directly observable from this machine's logs. |
-
-**Instructions for client agents:** After completing verification, update YOUR row in this table (change PENDING → PASS/FAIL, mark ☐ → ✓ for each criterion, add notes). Commit and push. Do NOT modify the other machine's row.
+**Instructions for client agents:** Upload a test file, verify echo suppression works (uploaded file is NOT re-downloaded), update YOUR row. Commit and push.
 
 ## Relay Template
 

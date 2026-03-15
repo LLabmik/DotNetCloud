@@ -5,6 +5,16 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: P1 Sync Hardening — Client-Side Device Identity Deployment (2026-03-15)
+
+Archived from Active Handoff on 2026-03-15 after Windows client reported echo suppression failure. Server-side bug identified and fixed.
+
+- Windows (`Windows11-TestDNC`) built and installed MSIX `0.23.4.0`, device-id file created, tests passed (39/39 core, 27/27 service).
+- Echo suppression FAILED at runtime: uploaded file was re-downloaded on next sync pass.
+- Root cause: `ChunkedUploadService.CompleteUploadAsync` used per-request `_deviceContext.DeviceId` instead of `session.DeviceId` (captured at upload initiation). If the complete request didn't carry `X-Device-Id` header or device context was lost between requests, `FileNode.OriginatingDeviceId` was null, breaking echo suppression.
+- Fix: both file-update (line 209) and new-file (line 265) paths now use `session.DeviceId ?? _deviceContext.DeviceId` fallback chain.
+- Server redeployed with fix, all tests pass (607 Files + 138 Core + 176 Data = 921 total).
+
 ## Archived: Step 3 of 3 — Final Chain Closeout on `mint22` (2026-03-15)
 
 Archived from Active Handoff on 2026-03-15 after server-side sanity verification completed.
