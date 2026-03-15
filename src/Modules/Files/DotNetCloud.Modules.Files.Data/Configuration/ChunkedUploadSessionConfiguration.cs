@@ -46,5 +46,9 @@ public sealed class ChunkedUploadSessionConfiguration : IEntityTypeConfiguration
 
         builder.HasIndex(s => s.ExpiresAt)
             .HasDatabaseName("ix_upload_sessions_expires_at");
+
+        builder.HasIndex(s => s.DeviceId)
+            .HasDatabaseName("ix_upload_sessions_device_id")
+            .HasFilter("\"DeviceId\" IS NOT NULL");
     }
 }

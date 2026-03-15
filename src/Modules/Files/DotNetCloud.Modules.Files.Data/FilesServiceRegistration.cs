@@ -54,6 +54,8 @@ public static class FilesServiceRegistration
         services.AddScoped<ITagService, TagService>();
         services.AddScoped<ICommentService, CommentService>();
         services.AddScoped<ISyncService, SyncService>();
+        services.AddScoped<ISyncDeviceResolver, SyncDeviceResolver>();
+        services.AddScoped<IDeviceContext, DeviceContext>();
         services.AddScoped<IStorageMetricsService, StorageMetricsService>();
         services.AddSingleton<IVideoFrameExtractor, FfmpegVideoFrameExtractor>();
         services.AddSingleton<IPdfPageRenderer, PdftoppmPdfPageRenderer>();

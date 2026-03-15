@@ -35,6 +35,12 @@ public sealed record SyncChangeDto
     /// <summary>Sync sequence number for cursor-based sync (null for legacy rows).</summary>
     public long? SyncSequence { get; init; }
 
+    /// <summary>
+    /// ID of the device that created or last modified this node.
+    /// Clients use this for echo suppression — skip re-downloading changes originated from this device.
+    /// </summary>
+    public Guid? OriginatingDeviceId { get; init; }
+
     /// <summary>POSIX file mode bitmask. Null for folders or Windows-uploaded files.</summary>
     public int? PosixMode { get; init; }
 

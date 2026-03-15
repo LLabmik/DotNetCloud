@@ -59,6 +59,11 @@ public sealed class ChunkedUploadSession
     /// <summary>User who initiated the upload.</summary>
     public Guid UserId { get; set; }
 
+    /// <summary>
+    /// Device that initiated the upload. Null if the client did not send <c>X-Device-Id</c>.
+    /// </summary>
+    public Guid? DeviceId { get; set; }
+
     /// <summary>Upload session status.</summary>
     public UploadSessionStatus Status { get; set; } = UploadSessionStatus.InProgress;
 

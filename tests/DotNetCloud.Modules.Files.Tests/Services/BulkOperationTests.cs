@@ -33,7 +33,7 @@ public class BulkOperationTests
 
     private static FileService CreateFileService(FilesDbContext db, IQuotaService? quotaService = null) =>
         new(db, Mock.Of<IEventBus>(), NullLogger<FileService>.Instance,
-            new PermissionService(db), quotaService ?? Mock.Of<IQuotaService>(),
+            new PermissionService(db), new DeviceContext(), quotaService ?? Mock.Of<IQuotaService>(),
             Microsoft.Extensions.Options.Options.Create(new FileSystemOptions()));
 
     private static TrashService CreateTrashService(FilesDbContext db) =>

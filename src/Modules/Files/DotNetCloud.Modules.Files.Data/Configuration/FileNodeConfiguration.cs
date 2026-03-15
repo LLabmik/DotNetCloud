@@ -102,6 +102,16 @@ public sealed class FileNodeConfiguration : IEntityTypeConfiguration<FileNode>
         builder.HasIndex(n => new { n.OwnerId, n.SyncSequence })
             .HasDatabaseName("ix_file_nodes_owner_sync_sequence");
 
+        // Optional FK to the device that created/last modified this node
+        builder.HasOne(n => n.OriginatingDevice)
+            .WithMany()
+            .HasForeignKey(n => n.OriginatingDeviceId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(n => n.OriginatingDeviceId)
+            .HasDatabaseName("ix_file_nodes_originating_device_id")
+            .HasFilter("\"OriginatingDeviceId\" IS NOT NULL");
+
         builder.Property(n => n.PosixOwnerHint)
             .HasMaxLength(200);
     }

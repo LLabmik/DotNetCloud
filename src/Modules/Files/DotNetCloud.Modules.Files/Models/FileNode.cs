@@ -84,6 +84,16 @@ public sealed class FileNode
     public long? SyncSequence { get; set; }
 
     /// <summary>
+    /// ID of the device that created or last modified this node.
+    /// Used for echo suppression — clients skip re-downloading their own uploads.
+    /// Null for nodes created before device tracking was introduced.
+    /// </summary>
+    public Guid? OriginatingDeviceId { get; set; }
+
+    /// <summary>Navigation property to the originating device.</summary>
+    public SyncDevice? OriginatingDevice { get; set; }
+
+    /// <summary>
     /// For <see cref="FileNodeType.SymbolicLink"/> nodes: the relative path the link
     /// points to within the sync root (e.g. <c>"../shared/config.json"</c>).
     /// Null for files and folders. Absolute targets and targets that escape the sync

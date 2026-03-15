@@ -63,7 +63,7 @@ public sealed class RateLimitingOptions
 public sealed class ModuleRateLimitConfig
 {
     /// <summary>
-    /// Gets or sets the permit limit for the module.
+    /// Gets or sets the permit limit for the module (per partition).
     /// </summary>
     public int PermitLimit { get; set; } = 100;
 
@@ -71,6 +71,12 @@ public sealed class ModuleRateLimitConfig
     /// Gets or sets the window in seconds.
     /// </summary>
     public int WindowSeconds { get; set; } = 60;
+
+    /// <summary>
+    /// Gets or sets whether to partition by device ID in addition to user ID.
+    /// When true, each device gets its own rate limit bucket. Defaults to false.
+    /// </summary>
+    public bool PerDevice { get; set; }
 }
 
 /// <summary>
@@ -145,8 +151,22 @@ public static class RateLimitingConfiguration
                 limiterOptions.AddPolicy($"module-{moduleName}", context =>
                 {
                     var userId = context.User?.FindFirst("sub")?.Value ?? GetClientIpAddress(context);
+
+                    // When PerDevice is enabled, partition by {module}:{userId}:{deviceId}
+                    // so each device gets its own bucket instead of sharing across all devices.
+                    string partitionKey;
+                    if (moduleConfig.PerDevice)
+                    {
+                        var deviceId = context.Request.Headers["X-Device-Id"].FirstOrDefault() ?? "no-device";
+                        partitionKey = $"{moduleName}:{userId}:{deviceId}";
+                    }
+                    else
+                    {
+                        partitionKey = $"{moduleName}:{userId}";
+                    }
+
                     return RateLimitPartition.GetFixedWindowLimiter(
-                        partitionKey: $"{moduleName}:{userId}",
+                        partitionKey: partitionKey,
                         factory: _ => new FixedWindowRateLimiterOptions
                         {
                             PermitLimit = moduleConfig.PermitLimit,
@@ -172,6 +192,7 @@ public static class RateLimitingConfiguration
                 {
                     context.HttpContext.Response.Headers["Retry-After"] =
                         ((int)retryAfter.TotalSeconds).ToString(CultureInfo.InvariantCulture);
+                    context.HttpContext.Response.Headers["X-RateLimit-Remaining"] = "0";
                 }
 
                 var errorResponse = new ApiErrorResponse(

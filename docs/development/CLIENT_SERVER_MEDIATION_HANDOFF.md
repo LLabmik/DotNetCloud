@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-15 (Chain closeout complete — Linux + Windows + server verified; standby monitoring)
+Last updated: 2026-03-15 (P1 sync hardening — device identity, echo suppression, per-device rate limiting deployed server-side)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -71,28 +71,59 @@ Archived context:
 
 ## Active Handoff
 
-### Standby Monitoring — Upload Hardening Story Closed
+### P1 Sync Hardening — Client-Side Device Identity Deployment
 
 **Date:** 2026-03-15
-**Owner:** all machines (standby)
-**Status:** STANDBY
+**Owner:** `mint-dnc-client` (Linux), `Windows11-TestDNC` (Windows)
+**Status:** READY FOR CLIENT DEPLOYMENT
 
-#### Summary
+#### What Changed (Server)
 
-The upload dedup + echo suppression chain verification is complete across all three machines:
+Server-side P1 sync hardening is complete and committed on `main`. Three features implemented:
 
-| Machine | Role | Result |
-|---|---|---|
-| `mint-dnc-client` | Linux client | Pass — single initiate per event, no conflict copies |
-| `Windows11-TestDNC` | Windows client | Pass — MSIX `0.23.3.0`, single initiate per event, no conflict copies |
-| `mint22` | Server | Pass — zero 5xx since deployment, normal token-refresh 401s only |
+1. **P1.1 — Device Identity Registration**
+   - New `SyncDevice` table, auto-registered on first contact
+   - `FileNode.OriginatingDeviceId` tracks which device created/modified each file
+   - `ChunkedUploadSession.DeviceId` tracks upload source
+   - `DeviceIdentityFilter` (global MVC filter) extracts `X-Device-Id`, `X-Device-Name`, `X-Device-Platform`, `X-Client-Version` headers
+   - EF migration `SyncDeviceIdentity` generated (adds table, columns, indexes, FK)
 
-All evidence is archived in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
+2. **P1.2 — Echo Suppression**
+   - `SyncChangeDto` now includes `OriginatingDeviceId`
+   - Server populates it from `FileNode.OriginatingDeviceId` in all sync queries
+   - Client-side: `SyncEngine.HandleRemoteUpdateAsync` skips download when `change.OriginatingDeviceId == DeviceId` and local hash matches remote hash
 
-#### Next Steps
+3. **P1.3 — Per-Device Rate Limiting**
+   - Rate limit partition key changed from `userId` to `{module}:{userId}:{deviceId}` when module config has `PerDevice = true`
+   - `X-RateLimit-Remaining: 0` header added on 429 rejections
 
-No active work items. This handoff slot is available for the next task.
-To reactivate, replace this standby block with a new Active Handoff task.
+#### Client-Side Changes (Already Committed)
+
+The following client-side files were modified and are on `main`:
+
+- **`src/Clients/DotNetCloud.Client.Core/Api/DeviceIdProvider.cs`** (NEW) — generates stable per-installation device GUID, persists to `device-id` file in data directory
+- **`src/Clients/DotNetCloud.Client.Core/Api/DeviceIdentityHandler.cs`** (NEW) — `DelegatingHandler` that adds `X-Device-Id`, `X-Device-Name`, `X-Device-Platform`, `X-Client-Version` headers to every request
+- **`src/Clients/DotNetCloud.Client.Core/Api/ApiModels.cs`** — `SyncChangeResponse` gained `OriginatingDeviceId` property
+- **`src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs`** — added `DeviceId` property, device-aware echo suppression in `HandleRemoteUpdateAsync`
+- **`src/Clients/DotNetCloud.Client.SyncService/ContextManager/SyncContextManager.cs`** — wires up `DeviceIdProvider` and `DeviceIdentityHandler` into HTTP pipeline, sets `DeviceId` on `SyncEngine`
+- **`src/Clients/DotNetCloud.Client.SyncService/SyncServiceExtensions.cs`** — adds `DeviceIdentityHandler` to named HttpClient DI pipeline
+
+#### Action Required on Client Machines
+
+1. `git pull origin main`
+2. Rebuild the sync client: `dotnet build src/Clients/DotNetCloud.Client.SyncService/`
+3. Restart the sync service
+4. Verify device ID persistence: check for `device-id` file in the sync data directory
+5. Verify headers: observe sync requests include `X-Device-Id` header (check server logs or use curl)
+6. Test echo suppression: upload a file, verify next sync pass doesn't re-download it
+
+#### Verification Criteria
+
+- `device-id` file created in data directory on first run
+- All API requests include `X-Device-Id` header
+- Server `SyncDevices` table shows registered device entry
+- Echo suppression: uploading a file doesn't trigger re-download on the same device
+- No regressions in normal sync flow
 
 ## Relay Template
 

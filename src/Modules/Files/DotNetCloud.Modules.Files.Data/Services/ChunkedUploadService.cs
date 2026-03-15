@@ -6,8 +6,7 @@ using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Options;
-using DotNetCloud.Modules.Files.Services;
-using Microsoft.EntityFrameworkCore;
+using DotNetCloud.Modules.Files.Services;using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -22,6 +21,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
     private readonly IFileStorageEngine _storageEngine;
     private readonly IQuotaService _quotaService;
     private readonly IEventBus _eventBus;
+    private readonly IDeviceContext _deviceContext;
     private readonly ILogger<ChunkedUploadService> _logger;
     private readonly long _maxFileSizeBytes;
     private readonly FileSystemOptions _fileSystemOptions;
@@ -31,6 +31,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         IFileStorageEngine storageEngine,
         IQuotaService quotaService,
         IEventBus eventBus,
+        IDeviceContext deviceContext,
         ILogger<ChunkedUploadService> logger,
         IOptions<FileUploadOptions> uploadOptions,
         IOptions<FileSystemOptions> fileSystemOptions)
@@ -39,6 +40,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         _storageEngine = storageEngine;
         _quotaService = quotaService;
         _eventBus = eventBus;
+        _deviceContext = deviceContext;
         _logger = logger;
         _maxFileSizeBytes = uploadOptions.Value.MaxFileSizeBytes;
         _fileSystemOptions = fileSystemOptions.Value;
@@ -87,6 +89,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
             PosixMode = dto.PosixMode,
             PosixOwnerHint = dto.PosixOwnerHint,
             UserId = caller.UserId,
+            DeviceId = _deviceContext.DeviceId,
             Status = UploadSessionStatus.InProgress
         };
 
@@ -203,6 +206,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
             // Preserve existing POSIX metadata when Windows client re-uploads (sends null)
             fileNode.PosixMode = session.PosixMode ?? fileNode.PosixMode;
             fileNode.PosixOwnerHint = session.PosixOwnerHint ?? fileNode.PosixOwnerHint;
+            fileNode.OriginatingDeviceId = _deviceContext.DeviceId ?? fileNode.OriginatingDeviceId;
         }
         else
         {
@@ -257,7 +261,8 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
                 StoragePath = storagePath,
                 Depth = parentDepth + 1,
                 PosixMode = session.PosixMode,
-                PosixOwnerHint = session.PosixOwnerHint
+                PosixOwnerHint = session.PosixOwnerHint,
+                OriginatingDeviceId = _deviceContext.DeviceId
             };
             fileNode.MaterializedPath = string.IsNullOrEmpty(parentPath)
                 ? $"/{fileNode.Id}"

@@ -3,6 +3,7 @@ using DotNetCloud.Client.Core.Auth;
 using DotNetCloud.Client.SyncService.ContextManager;
 using DotNetCloud.Client.SyncService.Ipc;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Client.SyncService;
 
@@ -23,9 +24,17 @@ public static class SyncServiceExtensions
         // Uses the same TLS bypass as OAuth2Service so self-signed certs
         // on local/private hosts (e.g. mint22) are accepted.
         services.AddTransient<CorrelationIdHandler>();
+        services.AddTransient(sp =>
+        {
+            var dataRoot = SyncContextManager.GetSystemDataRoot();
+            var deviceIdProvider = new DeviceIdProvider(sp.GetRequiredService<ILogger<DeviceIdProvider>>());
+            var deviceId = deviceIdProvider.GetOrCreateDeviceId(dataRoot);
+            return new DeviceIdentityHandler(deviceId, sp.GetRequiredService<ILogger<DeviceIdentityHandler>>());
+        });
         services.AddHttpClient("DotNetCloudSync")
             .ConfigurePrimaryHttpMessageHandler(OAuthHttpClientHandlerFactory.CreateHandler)
-            .AddHttpMessageHandler<CorrelationIdHandler>();
+            .AddHttpMessageHandler<CorrelationIdHandler>()
+            .AddHttpMessageHandler<DeviceIdentityHandler>();
 
         services.AddSingleton<ISyncContextManager, SyncContextManager>();
         services.AddSingleton<IIpcServer, IpcServer>();

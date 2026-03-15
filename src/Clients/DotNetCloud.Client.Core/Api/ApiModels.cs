@@ -143,6 +143,9 @@ public sealed record SyncChangeResponse
     /// <summary>Server-assigned monotonic sync sequence number. Null for legacy rows.</summary>
     public long? SyncSequence { get; init; }
 
+    /// <summary>ID of the device that originated this change. Null for pre-device-tracking nodes.</summary>
+    public Guid? OriginatingDeviceId { get; init; }
+
     /// <summary>POSIX permission bitmask. Null for Windows-originated files.</summary>
     public int? PosixMode { get; init; }
 

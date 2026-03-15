@@ -51,6 +51,7 @@ internal sealed class SyncService : ISyncService
                 UpdatedAt = n.UpdatedAt,
                 IsDeleted = false,
                 SyncSequence = n.SyncSequence,
+                OriginatingDeviceId = n.OriginatingDeviceId,
                 PosixMode = n.PosixMode,
                 PosixOwnerHint = n.PosixOwnerHint,
                 LinkTarget = n.LinkTarget
@@ -79,6 +80,7 @@ internal sealed class SyncService : ISyncService
                 IsDeleted = true,
                 DeletedAt = n.DeletedAt,
                 SyncSequence = n.SyncSequence,
+                OriginatingDeviceId = n.OriginatingDeviceId,
                 PosixMode = n.PosixMode,
                 PosixOwnerHint = n.PosixOwnerHint,
                 LinkTarget = n.LinkTarget
@@ -154,6 +156,7 @@ internal sealed class SyncService : ISyncService
                 UpdatedAt = n.UpdatedAt,
                 IsDeleted = false,
                 SyncSequence = n.SyncSequence,
+                OriginatingDeviceId = n.OriginatingDeviceId,
                 PosixMode = n.PosixMode,
                 PosixOwnerHint = n.PosixOwnerHint,
                 LinkTarget = n.LinkTarget
@@ -175,6 +178,7 @@ internal sealed class SyncService : ISyncService
                 IsDeleted = true,
                 DeletedAt = n.DeletedAt,
                 SyncSequence = n.SyncSequence,
+                OriginatingDeviceId = n.OriginatingDeviceId,
                 PosixMode = n.PosixMode,
                 PosixOwnerHint = n.PosixOwnerHint,
                 LinkTarget = n.LinkTarget

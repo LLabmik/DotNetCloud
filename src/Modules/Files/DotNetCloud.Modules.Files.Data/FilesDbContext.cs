@@ -59,6 +59,9 @@ public class FilesDbContext : DbContext
     /// <summary>Per-user monotonic sequence counters for cursor-based sync.</summary>
     public DbSet<UserSyncCounter> UserSyncCounters => Set<UserSyncCounter>();
 
+    /// <summary>Registered sync devices (one per physical client per user).</summary>
+    public DbSet<SyncDevice> SyncDevices => Set<SyncDevice>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -74,5 +77,6 @@ public class FilesDbContext : DbContext
         modelBuilder.ApplyConfiguration(new FileQuotaConfiguration());
         modelBuilder.ApplyConfiguration(new ChunkedUploadSessionConfiguration());
         modelBuilder.ApplyConfiguration(new UserSyncCounterConfiguration());
+        modelBuilder.ApplyConfiguration(new SyncDeviceConfiguration());
     }
 }

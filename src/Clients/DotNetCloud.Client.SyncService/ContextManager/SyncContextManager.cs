@@ -483,6 +483,10 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
     {
         var tokenStore = CreateTokenStore(registration.DataDirectory);
 
+        // Resolve or generate a stable device ID for this installation.
+        var deviceIdProvider = new DeviceIdProvider(_loggerFactory.CreateLogger<DeviceIdProvider>());
+        var deviceId = deviceIdProvider.GetOrCreateDeviceId(_dataRoot);
+
         // Each context gets its own API client configured with the correct base URL.
         // When bandwidth limits are set, build a custom pipeline with ThrottledHttpHandler.
         var uploadBytes = (long)(registration.UploadLimitKbps * 1024);
@@ -493,10 +497,15 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
         {
             var throttledHandler = new ThrottledHttpHandler(uploadBytes, downloadBytes)
             {
-                InnerHandler = new CorrelationIdHandler(
-                    _loggerFactory.CreateLogger<CorrelationIdHandler>())
+                InnerHandler = new DeviceIdentityHandler(
+                    deviceId,
+                    _loggerFactory.CreateLogger<DeviceIdentityHandler>())
                 {
-                    InnerHandler = OAuthHttpClientHandlerFactory.CreateHandler()
+                    InnerHandler = new CorrelationIdHandler(
+                        _loggerFactory.CreateLogger<CorrelationIdHandler>())
+                    {
+                        InnerHandler = OAuthHttpClientHandlerFactory.CreateHandler()
+                    }
                 }
             };
             httpClient = new HttpClient(throttledHandler)
@@ -548,7 +557,10 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             selectiveSync,
             syncIgnore,
             lockedFileReader,
-            _loggerFactory.CreateLogger<SyncEngine>());
+            _loggerFactory.CreateLogger<SyncEngine>())
+        {
+            DeviceId = deviceId
+        };
 
         return (engine, conflictResolver, stateDb, apiClient);
     }
@@ -677,7 +689,7 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
         $"{serverBaseUrl.TrimEnd('/')}:{userId}";
 
     /// <summary>Returns the platform-appropriate root directory for service data.</summary>
-    private static string GetSystemDataRoot()
+    internal static string GetSystemDataRoot()
     {
         var configuredPath = Environment.GetEnvironmentVariable(DataRootEnvVar);
         if (!string.IsNullOrWhiteSpace(configuredPath))

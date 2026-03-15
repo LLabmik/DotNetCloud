@@ -621,4 +621,90 @@ public class SyncServiceTests
         Assert.AreEqual(2L, node2.SyncSequence);
         Assert.AreEqual(3L, node3.SyncSequence);
     }
+
+    // --- Device identity / echo suppression data flow tests ---
+
+    [TestMethod]
+    public async Task GetChangesSinceCursorAsync_IncludesOriginatingDeviceId()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var deviceId = Guid.NewGuid();
+        var service = CreateService(db);
+
+        var node = new FileNode
+        {
+            Id = Guid.NewGuid(),
+            Name = "device-file.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            ContentHash = "abc123",
+            Size = 100,
+            OriginatingDeviceId = deviceId,
+            SyncSequence = 1
+        };
+        db.FileNodes.Add(node);
+        await db.SaveChangesAsync();
+
+        var result = await service.GetChangesSinceCursorAsync(null, null, 100, UserCaller(userId));
+
+        Assert.AreEqual(1, result.Changes.Count);
+        Assert.AreEqual(deviceId, result.Changes[0].OriginatingDeviceId);
+    }
+
+    [TestMethod]
+    public async Task GetChangesSinceAsync_IncludesOriginatingDeviceId()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var deviceId = Guid.NewGuid();
+        var now = DateTime.UtcNow;
+        var service = CreateService(db);
+
+        var node = new FileNode
+        {
+            Id = Guid.NewGuid(),
+            Name = "device-file.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            ContentHash = "abc123",
+            Size = 100,
+            OriginatingDeviceId = deviceId,
+            UpdatedAt = now
+        };
+        db.FileNodes.Add(node);
+        await db.SaveChangesAsync();
+
+        var changes = await service.GetChangesSinceAsync(now.AddMinutes(-1), null, UserCaller(userId));
+
+        Assert.AreEqual(1, changes.Count);
+        Assert.AreEqual(deviceId, changes[0].OriginatingDeviceId);
+    }
+
+    [TestMethod]
+    public async Task GetChangesSinceCursorAsync_NullOriginatingDeviceId_IsPreserved()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var service = CreateService(db);
+
+        var node = new FileNode
+        {
+            Id = Guid.NewGuid(),
+            Name = "no-device-file.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            ContentHash = "abc123",
+            Size = 100,
+            OriginatingDeviceId = null,
+            SyncSequence = 1
+        };
+        db.FileNodes.Add(node);
+        await db.SaveChangesAsync();
+
+        var result = await service.GetChangesSinceCursorAsync(null, null, 100, UserCaller(userId));
+
+        Assert.AreEqual(1, result.Changes.Count);
+        Assert.IsNull(result.Changes[0].OriginatingDeviceId);
+    }
 }

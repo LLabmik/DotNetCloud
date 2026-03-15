@@ -221,7 +221,10 @@ public class Program
             new LocalFileStorageEngine(filesStoragePath, sp.GetRequiredService<ILogger<LocalFileStorageEngine>>()));
 
         // Add controllers
-        builder.Services.AddControllers();
+        builder.Services.AddControllers(options =>
+        {
+            options.Filters.Add<DotNetCloud.Modules.Files.Filters.DeviceIdentityFilter>();
+        });
 
         // Add reverse proxy forwarding for Collabora paths (single-origin deployment on core HTTPS port).
         builder.Services.AddHttpForwarder();

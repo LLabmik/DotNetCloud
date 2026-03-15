@@ -39,7 +39,10 @@ builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
 builder.Services.AddGrpc();
 
 // REST API controllers
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add<DotNetCloud.Modules.Files.Filters.DeviceIdentityFilter>();
+});
 
 // Health checks
 builder.Services.AddHealthChecks()

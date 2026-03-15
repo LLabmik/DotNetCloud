@@ -39,16 +39,18 @@ internal sealed class FileService : IFileService
     private readonly IEventBus _eventBus;
     private readonly ILogger<FileService> _logger;
     private readonly IPermissionService _permissions;
+    private readonly IDeviceContext _deviceContext;
 
     private readonly IQuotaService _quotaService;
     private readonly FileSystemOptions _fileSystemOptions;
 
-    public FileService(FilesDbContext db, IEventBus eventBus, ILogger<FileService> logger, IPermissionService permissions, IQuotaService quotaService, IOptions<FileSystemOptions> fileSystemOptions)
+    public FileService(FilesDbContext db, IEventBus eventBus, ILogger<FileService> logger, IPermissionService permissions, IDeviceContext deviceContext, IQuotaService quotaService, IOptions<FileSystemOptions> fileSystemOptions)
     {
         _db = db;
         _eventBus = eventBus;
         _logger = logger;
         _permissions = permissions;
+        _deviceContext = deviceContext;
         _quotaService = quotaService;
         _fileSystemOptions = fileSystemOptions.Value;
     }
@@ -95,7 +97,8 @@ internal sealed class FileService : IFileService
             NodeType = FileNodeType.Folder,
             ParentId = dto.ParentId,
             OwnerId = caller.UserId,
-            Depth = parentDepth + 1
+            Depth = parentDepth + 1,
+            OriginatingDeviceId = _deviceContext.DeviceId
         };
         folder.MaterializedPath = string.IsNullOrEmpty(parentPath)
             ? $"/{folder.Id}"

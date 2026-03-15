@@ -144,15 +144,15 @@ Efficiency and architectural improvements that reduce server load and improve re
 - Device registration is auto-upsert (first request with unknown `DeviceId` creates the row).
 
 **Scope:**
-- ☐ Define `SyncDevice` model and EF configuration
-- ☐ Add `OriginatingDeviceId` to `FileNode`
-- ☐ Add `DeviceId` to `ChunkedUploadSession`
-- ☐ Create middleware or action filter to extract `X-Device-Id` and resolve/create `SyncDevice`
-- ☐ Generate EF migration
-- ☐ Client: generate stable `DeviceId` on first run (store in sync service config)
-- ☐ Client: send `X-Device-Id` header via `DelegatingHandler`
+- ✓ Define `SyncDevice` model and EF configuration
+- ✓ Add `OriginatingDeviceId` to `FileNode`
+- ✓ Add `DeviceId` to `ChunkedUploadSession`
+- ✓ Create middleware or action filter to extract `X-Device-Id` and resolve/create `SyncDevice`
+- ✓ Generate EF migration
+- ✓ Client: generate stable `DeviceId` on first run (store in sync service config)
+- ✓ Client: send `X-Device-Id` header via `DelegatingHandler`
 - ☐ Add admin API endpoint to list/manage devices per user
-- ☐ Tests for device auto-registration and attribution
+- ✓ Tests for device auto-registration and attribution
 
 ---
 
@@ -171,9 +171,9 @@ Efficiency and architectural improvements that reduce server load and improve re
 **Alternative (simpler):** On `CompleteUploadAsync` response, server returns the assigned `SyncSequence`. Client records it. On next `sync/changes`, client recognizes "I already have this sequence" and skips.
 
 **Scope:**
-- ☐ Add `OriginatingDeviceId` to `SyncChangeDto` response
-- ☐ Client: track uploaded sequences locally
-- ☐ Client: skip self-originated changes in `ApplyRemoteChangesAsync`
+- ✓ Add `OriginatingDeviceId` to `SyncChangeDto` response
+- ✓ Client: track uploaded sequences locally
+- ✓ Client: skip self-originated changes in `ApplyRemoteChangesAsync`
 - ☐ Tests: upload from device A → device A's sync pass doesn't re-download
 
 ---
@@ -188,9 +188,9 @@ Efficiency and architectural improvements that reduce server load and improve re
 - Alternatively, keep per-user limits but increase them proportionally, and use `X-Device-Id` only for diagnostics.
 
 **Scope:**
-- ☐ Update rate limiting configuration to include device ID in partition key
-- ☐ Review and adjust rate limit values for multi-client scenarios
-- ☐ Add `X-RateLimit-Remaining` response header so clients can self-throttle
+- ✓ Update rate limiting configuration to include device ID in partition key
+- ✓ Review and adjust rate limit values for multi-client scenarios
+- ✓ Add `X-RateLimit-Remaining` response header so clients can self-throttle
 - ☐ Tests: two devices don't starve each other
 
 ---
