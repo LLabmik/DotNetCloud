@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-15 (client re-verification complete; server deployment follow-up for unique-violation hardening)
+Last updated: 2026-03-15 (server deployment + chunk dedup hardening complete; optional client sanity retry)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -52,7 +52,7 @@ Archived context:
 - **Server gzip fix deployed (af66b41):** `UseRequestDecompression()` middleware added. Server now auto-decompresses `Content-Encoding: gzip` request bodies before controllers read them. The chunk PUT hash mismatch that caused false 409 is resolved.
 - **Upload complete 500 fixed:** `SyncCursorHelper.AssignNextSequenceAsync` was calling `.SingleAsync()` on non-composable raw SQL. EF Core 10 rejects LINQ composition on `SqlQueryRaw` with `RETURNING`. Fixed by materializing with `.ToListAsync()` then `.Single()`.
 - Client re-verification complete on `mint-dnc-client`: fresh upload now succeeds with initiate `201` -> chunk `200` -> complete `200`.
-- Active task: deploy and runtime-verify unique-violation hardening commit on `mint22`.
+- Active task: optional client sanity retry on `mint-dnc-client` to confirm end-to-end after server-side chunk dedup hardening.
 
 ## Environment
 
@@ -71,49 +71,39 @@ Archived context:
 
 ## Active Handoff
 
-### Server Deployment Follow-Up: Unique-Violation Hardening on `mint22`
+### Optional Client Sanity Retry: Upload E2E on `mint-dnc-client`
 
 **Date:** 2026-03-15
-**Owner:** Server agent on `mint22`
-**Status:** ACTIVE — code complete, pending deploy/runtime verification
+**Owner:** Client agent on `mint-dnc-client`
+**Status:** ACTIVE — optional sanity verification
 
-#### Completed verification context
+#### Context
 
-- Client re-verification is complete and archived in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
-- Successful sequence for fresh file `/home/benk/synctray/upload-e2e-test-1773534949.txt`:
-  - `2026-03-15T00:36:22.1527216Z` `POST /api/v1/files/upload/initiate` -> `201`
-  - `2026-03-15T00:36:22.1918408Z` `PUT /api/v1/files/upload/39ca2304-9012-4a88-83c1-b8154832d43a/chunks/9f1d9a31b19ff8659781e0ee0fb28424ab05687e12aca7aa6dc5966a40e35da9` -> `200`
-  - `2026-03-15T00:36:22.2229962Z` `POST /api/v1/files/upload/39ca2304-9012-4a88-83c1-b8154832d43a/complete` -> `200`
-- `FileNodeResponse` for successful complete:
-  - `id=280339db-3ece-4a00-8129-2a688ede1a79`
-  - `name=upload-e2e-test-1773534949.txt`
-  - `contentHash=7172fa139d61bcf795a2b5dc0d3d78756f86839f0d2776a6ec83765eaba06b25`
+Server-side unique-violation hardening is fully deployed on `mint22`:
+- Commit `954f89b` (client-side `DbExceptionClassifier` + upload complete race catch) deployed.
+- Additional fix: chunk dedup race protection added to `ChunkedUploadService.StoreChunkAsync()` — concurrent PUT for same chunk hash no longer causes unhandled 500.
+- All 586 file module tests passed on server.
+- Unique constraints verified on PostgreSQL:
+  - `uq_file_nodes_root_name_active` / `uq_file_nodes_parent_name_active` → catches duplicate filename races
+  - `ix_file_chunks_hash` → catches concurrent chunk dedup races
+  - Direct duplicate insert test confirmed PostgreSQL error code `23505` is properly produced.
+- Server PID 104608, started 2026-03-14 20:04:24 CDT, `/health/live` healthy.
 
-#### Scope (Server Agent on `mint22`)
+#### Scope (Client Agent on `mint-dnc-client`)
 
-1. Pull `main` and deploy latest server binaries.
-2. Runtime-verify binary freshness (PID/start time, deployed DLL timestamp, `/health/live`).
-3. Validate conflict behavior for duplicate-key races (no unhandled 500s):
-   - upload complete duplicate/name race
-   - chunk dedup race on concurrent PUT
-4. Run targeted verification tests:
-   - `dotnet test tests/DotNetCloud.Modules.Files.Tests/DotNetCloud.Modules.Files.Tests.csproj`
-   - document any environment-gated suites explicitly if skipped.
-5. If clean, request one optional client sanity retry on `mint-dnc-client`.
-
-#### Required Evidence Back in Next Handoff Update
-
-- Commit hash deployed on `mint22`
-- Runtime verification command outputs (PID/start time, binary timestamp, health endpoint)
-- Raw endpoint evidence from at least one conflict/race scenario showing expected non-500 mapping
-- Test evidence (what ran, pass/fail, and any gated skips)
-- Any remaining blockers
+1. Pull `main`.
+2. Upload a fresh test file to verify upload still succeeds end-to-end:
+   - `POST /api/v1/files/upload/initiate` → `201`
+   - `PUT /api/v1/files/upload/{sessionId}/chunks/{hash}` → `200`
+   - `POST /api/v1/files/upload/{sessionId}/complete` → `200`
+3. Optionally: re-upload the same filename to verify the server returns a proper validation error (not a 500).
+4. Report results back in handoff.
 
 #### Exit Criteria
 
-- Latest server build is running on `mint22` with verified fresh binaries
-- No unhandled `500` responses for duplicate-key conflict paths in upload complete/chunk dedup races
-- Handoff contains deploy + verification evidence and is ready for optional client sanity retry
+- Fresh upload succeeds (201 → 200 → 200).
+- Duplicate filename upload returns a validation error (not 500) — optional but nice to verify.
+- No remaining blockers for the upload hardening story.
 
 ## Relay Template
 

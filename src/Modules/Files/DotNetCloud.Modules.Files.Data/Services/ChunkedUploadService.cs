@@ -143,7 +143,21 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         session.ReceivedChunks++;
         session.UpdatedAt = DateTime.UtcNow;
 
-        await _db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (DbExceptionClassifier.IsUniqueConstraintViolation(ex))
+        {
+            // Another concurrent upload won the race for the same chunk hash.
+            // Detach the duplicate chunk entity and re-save only the session progress.
+            _db.ChangeTracker.Clear();
+
+            session = await GetActiveSessionAsync(sessionId, caller, cancellationToken);
+            session.ReceivedChunks++;
+            session.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
+        }
 
         _logger.LogDebug("Chunk {ChunkHash} uploaded for session {SessionId}. {Received}/{Total}",
             chunkHash, sessionId, session.ReceivedChunks, session.TotalChunks);

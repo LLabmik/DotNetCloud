@@ -2486,3 +2486,31 @@ Archived from `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` when enforci
 2. `DirectMessageView.razor` — Same fix applied (Messages, IsLoading, ErrorMessage, HasMoreMessages, TypingUsers, MentionSuggestions, ReplyToMessage, and all EventCallback bindings).
 3. Build: succeeded (0 errors).
 4. Tests: 263 Chat tests passed / 0 failed.
+
+---
+
+### Server Deployment: Unique-Violation Hardening on `mint22` (COMPLETED)
+
+**Date:** 2026-03-15
+**Owner:** Server agent on `mint22`
+**Status:** COMPLETED
+
+#### Work performed
+
+1. Deployed commit `954f89b` (unique-violation mapping from client agent) to `mint22`.
+2. Runtime-verified binary freshness:
+   - PID 102128 → 104608 (fresh restart after fix deployment)
+   - `ActiveEnterTimestamp=Sat 2026-03-14 20:04:24 CDT`
+   - DLL timestamp: `2026-03-14 20:04:09` (after build)
+   - `/health/live` → `"status": "Healthy"`
+3. All 586 file module tests passed (0 failed, 0 skipped).
+4. Validated unique constraints on PostgreSQL:
+   - `uq_file_nodes_root_name_active`: unique on `(OwnerId, Name)` where `IsDeleted=false AND ParentId IS NULL`
+   - `uq_file_nodes_parent_name_active`: unique on `(ParentId, Name)` where `IsDeleted=false AND ParentId IS NOT NULL`
+   - `ix_file_chunks_hash`: unique on `ChunkHash`
+   - Duplicate insert test confirmed PostgreSQL raises error code `23505` ("duplicate key value violates unique constraint") — exactly what `DbExceptionClassifier.IsUniqueConstraintViolation()` catches.
+5. Found and fixed missing chunk dedup race protection:
+   - `ChunkedUploadService.StoreChunkAsync()` SaveChangesAsync had no catch for `DbUpdateException` on concurrent chunk PUT.
+   - Added `DbExceptionClassifier.IsUniqueConstraintViolation()` catch: clears tracker, re-fetches session, and re-saves session progress only.
+   - Build: 0 errors, 0 warnings. Tests: 586 passed / 0 failed.
+6. Redeployed with chunk dedup fix. New PID 104608, `/health/live` healthy.
