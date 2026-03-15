@@ -548,6 +548,16 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             ? new VssLockedFileReader(_loggerFactory.CreateLogger<VssLockedFileReader>())
             : new NoOpLockedFileReader();
 
+        // Create a dedicated HttpClient for the SSE stream listener (long-lived connection).
+        var sseHttpClient = new HttpClient(OAuthHttpClientHandlerFactory.CreateHandler())
+        {
+            BaseAddress = httpClient.BaseAddress,
+            Timeout = Timeout.InfiniteTimeSpan
+        };
+        var streamListener = new SyncStreamListener(
+            sseHttpClient,
+            _loggerFactory.CreateLogger<SyncStreamListener>());
+
         var engine = new SyncEngine(
             apiClient,
             tokenStore,
@@ -557,7 +567,8 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             selectiveSync,
             syncIgnore,
             lockedFileReader,
-            _loggerFactory.CreateLogger<SyncEngine>())
+            _loggerFactory.CreateLogger<SyncEngine>(),
+            streamListener)
         {
             DeviceId = deviceId
         };
