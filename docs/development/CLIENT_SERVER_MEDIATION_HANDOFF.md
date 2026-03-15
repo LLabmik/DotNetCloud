@@ -105,7 +105,7 @@ No client code changes needed — the fix is server-side only.
 
 | Machine | Status | Echo suppression working | Notes |
 |---|---|---|---|
-| `Windows11-TestDNC` | PENDING | ☐ | — |
+| `Windows11-TestDNC` | FAIL | ☐ | 2026-03-15 runtime recheck on installed MSIX `0.23.5.0` is blocked by server errors before upload processing. New local file `echo-msix-verify-20260315-012441.txt` was detected by watcher, but sync pass failed repeatedly on `GET https://mint22:15443/api/v1/files/sync/tree` with `500 INTERNAL_ERROR` (`{"success":false,"error":{"code":"INTERNAL_ERROR","message":"An unexpected error occurred."}}`). Sample request IDs from failing calls: `9a745a76221a43b297a74fff1b31bebf`, `fa2bd5038e0b427fbc8bde966f4e3776`, `dbb05a10667846228cade98a68e2ce36`. Echo suppression cannot be validated until `sync/tree` is healthy again. |
 | `mint-dnc-client` | PENDING | ☐ | — |
 
 **Instructions for client agents:** Upload a test file, verify echo suppression works (uploaded file is NOT re-downloaded), update YOUR row. Commit and push.

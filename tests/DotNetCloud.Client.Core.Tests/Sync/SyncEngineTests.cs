@@ -226,6 +226,71 @@ public class SyncEngineTests
     }
 
     [TestMethod]
+    public async Task SyncAsync_SelfOriginatedRemoteChangeWithDifferentHashFormat_DoesNotQueueDownload()
+    {
+        var deviceId = Guid.NewGuid();
+        var nodeId = Guid.NewGuid();
+        var localPath = Path.Combine(_tempDir, "echo-self-originated.txt");
+        File.WriteAllText(localPath, "self-originated content");
+
+        var localModifiedAt = File.GetLastWriteTimeUtc(localPath);
+        var localRecord = new LocalFileRecord
+        {
+            LocalPath = localPath,
+            NodeId = nodeId,
+            ContentHash = "raw-file-sha256",
+            LastSyncedAt = localModifiedAt.AddSeconds(1),
+            LocalModifiedAt = localModifiedAt,
+        };
+
+        _engine.DeviceId = deviceId;
+
+        _stateDbMock
+            .Setup(db => db.GetAllFileRecordsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([localRecord]);
+        _stateDbMock
+            .Setup(db => db.GetFileRecordByNodeIdAsync(It.IsAny<string>(), nodeId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(localRecord);
+        _stateDbMock
+            .Setup(db => db.GetFileRecordAsync(It.IsAny<string>(), localPath, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(localRecord);
+
+        _apiMock
+            .Setup(a => a.GetChangesSinceAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedSyncChangesResponse
+            {
+                Changes =
+                [
+                    new SyncChangeResponse
+                    {
+                        NodeId = nodeId,
+                        Name = Path.GetFileName(localPath),
+                        NodeType = "File",
+                        ContentHash = "server-manifest-hash",
+                        UpdatedAt = DateTime.UtcNow,
+                        OriginatingDeviceId = deviceId,
+                    },
+                ],
+                NextCursor = null,
+                HasMore = false,
+            });
+
+        await _engine.StartAsync(_context);
+        await _engine.SyncAsync(_context);
+        await _engine.StopAsync();
+
+        _stateDbMock.Verify(db => db.QueueOperationAsync(
+            It.IsAny<string>(),
+            It.Is<PendingDownload>(op => op.NodeId == nodeId),
+            It.IsAny<CancellationToken>()), Times.Never);
+
+        _stateDbMock.Verify(db => db.UpsertFileRecordAsync(
+            It.IsAny<string>(),
+            It.Is<LocalFileRecord>(r => r.NodeId == nodeId && r.ContentHash == "server-manifest-hash"),
+            It.IsAny<CancellationToken>()), Times.AtLeastOnce);
+    }
+
+    [TestMethod]
     public async Task SyncAsync_DiskFullError_SetsErrorAndPausesFurtherSyncAttempts()
     {
         _stateDbMock

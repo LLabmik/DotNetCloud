@@ -739,30 +739,23 @@ public sealed class SyncEngine : ISyncEngine
         }
         else if (localRecord is null || localRecord.ContentHash != change.ContentHash)
         {
-            // Device-aware echo suppression: if we originated this change and the local file
-            // is already present with matching hash, skip the redundant download.
+            // Device-aware echo suppression: for self-originated changes, trust the local
+            // node mapping instead of hash equality because server content hash is manifest-based.
             if (DeviceId.HasValue &&
                 change.OriginatingDeviceId == DeviceId.Value &&
                 localRecord is not null &&
+                localRecord.NodeId == change.NodeId &&
                 File.Exists(localPath))
             {
-                string? localHash = null;
-                try { localHash = await ComputeFileHashAsync(localPath, cancellationToken); }
-                catch { /* non-critical */ }
-
-                if (!string.IsNullOrEmpty(localHash) &&
-                    localHash.Equals(change.ContentHash, StringComparison.OrdinalIgnoreCase))
-                {
-                    _logger.LogDebug(
-                        "Skipping self-originated change for {RelPath} (device echo suppression).",
-                        Path.GetRelativePath(context.LocalFolderPath, localPath));
-                    localRecord.ContentHash = change.ContentHash;
-                    localRecord.SyncStateTag = "Synced";
-                    localRecord.LastSyncedAt = DateTime.UtcNow;
-                    localRecord.LocalModifiedAt = File.GetLastWriteTimeUtc(localPath);
-                    await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, localRecord, cancellationToken);
-                    return;
-                }
+                _logger.LogDebug(
+                    "Skipping self-originated change for {RelPath} (device echo suppression).",
+                    Path.GetRelativePath(context.LocalFolderPath, localPath));
+                localRecord.ContentHash = change.ContentHash;
+                localRecord.SyncStateTag = "Synced";
+                localRecord.LastSyncedAt = DateTime.UtcNow;
+                localRecord.LocalModifiedAt = File.GetLastWriteTimeUtc(localPath);
+                await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, localRecord, cancellationToken);
+                return;
             }
 
             // Download the remote version
