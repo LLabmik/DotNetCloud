@@ -969,4 +969,226 @@ public class SyncServiceTests
         await Assert.ThrowsExactlyAsync<NotFoundException>(
             () => service.AcknowledgeCursorAsync(userId, nonExistentDeviceId, 10));
     }
+
+    // ── P1.1: Admin Device Management ─────────────────────────────────────────
+
+    [TestMethod]
+    public async Task SetDeviceActiveAsync_DeactivatesDevice()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var deviceId = Guid.NewGuid();
+
+        db.SyncDevices.Add(new SyncDevice { Id = deviceId, UserId = userId, DeviceName = "test", IsActive = true });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        await service.SetDeviceActiveAsync(deviceId, false);
+
+        var device = await db.SyncDevices.FindAsync(deviceId);
+        Assert.IsFalse(device!.IsActive);
+    }
+
+    [TestMethod]
+    public async Task SetDeviceActiveAsync_ReactivatesDevice()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var deviceId = Guid.NewGuid();
+
+        db.SyncDevices.Add(new SyncDevice { Id = deviceId, UserId = userId, DeviceName = "test", IsActive = false });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        await service.SetDeviceActiveAsync(deviceId, true);
+
+        var device = await db.SyncDevices.FindAsync(deviceId);
+        Assert.IsTrue(device!.IsActive);
+    }
+
+    [TestMethod]
+    public async Task SetDeviceActiveAsync_NonExistentDevice_ThrowsNotFoundException()
+    {
+        using var db = CreateContext();
+        var service = CreateService(db);
+
+        await Assert.ThrowsExactlyAsync<NotFoundException>(
+            () => service.SetDeviceActiveAsync(Guid.NewGuid(), false));
+    }
+
+    [TestMethod]
+    public async Task GetAllDeviceSyncStatusAsync_IncludesIsActiveFlag()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+
+        db.SyncDevices.Add(new SyncDevice { Id = Guid.NewGuid(), UserId = userId, DeviceName = "active-device", IsActive = true });
+        db.SyncDevices.Add(new SyncDevice { Id = Guid.NewGuid(), UserId = userId, DeviceName = "disabled-device", IsActive = false });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var statuses = await service.GetAllDeviceSyncStatusAsync();
+
+        Assert.AreEqual(2, statuses.Count);
+        Assert.IsTrue(statuses.Any(s => s.DeviceName == "active-device" && s.IsActive));
+        Assert.IsTrue(statuses.Any(s => s.DeviceName == "disabled-device" && !s.IsActive));
+    }
+
+    // ── P1.2: Echo Suppression Tests ──────────────────────────────────────────
+
+    [TestMethod]
+    public async Task GetChangesSinceCursorAsync_DeviceUploadsThenSyncs_OwnChangesAreSuppressed()
+    {
+        // Simulates: Device A uploads a file, then queries changes — its own upload should not appear
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var deviceA = Guid.NewGuid();
+        var deviceB = Guid.NewGuid();
+
+        // Device A uploaded file1, Device B uploaded file2
+        db.FileNodes.Add(new FileNode
+        {
+            Name = "from-device-a.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            SyncSequence = 1,
+            OriginatingDeviceId = deviceA,
+            ContentHash = "hash-a"
+        });
+        db.FileNodes.Add(new FileNode
+        {
+            Name = "from-device-b.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            SyncSequence = 2,
+            OriginatingDeviceId = deviceB,
+            ContentHash = "hash-b"
+        });
+        await db.SaveChangesAsync();
+
+        // Device A queries changes — should only see Device B's file
+        var serviceForA = CreateService(db, deviceA);
+        var result = await serviceForA.GetChangesSinceCursorAsync(null, null, 500, UserCaller(userId));
+
+        Assert.AreEqual(1, result.Changes.Count);
+        Assert.AreEqual("from-device-b.txt", result.Changes[0].Name);
+        Assert.AreEqual(deviceB, result.Changes[0].OriginatingDeviceId);
+    }
+
+    [TestMethod]
+    public async Task GetChangesSinceCursorAsync_DeviceUploadsThenSyncs_CursorAdvancesPastOwnChanges()
+    {
+        // After suppression, cursor should still advance past self-originated items
+        // so the device doesn't repeatedly re-fetch them
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var deviceA = Guid.NewGuid();
+
+        // Only Device A's own changes exist (sequences 1-3)
+        for (long seq = 1; seq <= 3; seq++)
+        {
+            db.FileNodes.Add(new FileNode
+            {
+                Name = $"self-{seq}.txt",
+                NodeType = FileNodeType.File,
+                OwnerId = userId,
+                SyncSequence = seq,
+                OriginatingDeviceId = deviceA
+            });
+        }
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, deviceA);
+        var result = await service.GetChangesSinceCursorAsync(null, null, 500, UserCaller(userId));
+
+        // No changes returned (all suppressed)
+        Assert.AreEqual(0, result.Changes.Count);
+
+        // But cursor should advance to sequence 3 so next poll won't re-check these
+        var decoded = SyncCursorHelper.DecodeCursor(result.NextCursor!);
+        Assert.IsNotNull(decoded);
+        Assert.AreEqual(3L, decoded!.Value.Sequence);
+    }
+
+    [TestMethod]
+    public async Task GetChangesSinceCursorAsync_MixedOrigins_OnlyOtherDevicesReturned()
+    {
+        // Multiple devices contribute changes; each device only sees others' changes
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var deviceA = Guid.NewGuid();
+        var deviceB = Guid.NewGuid();
+        var deviceC = Guid.NewGuid();
+
+        db.FileNodes.Add(new FileNode { Name = "a1.txt", NodeType = FileNodeType.File, OwnerId = userId, SyncSequence = 1, OriginatingDeviceId = deviceA });
+        db.FileNodes.Add(new FileNode { Name = "b1.txt", NodeType = FileNodeType.File, OwnerId = userId, SyncSequence = 2, OriginatingDeviceId = deviceB });
+        db.FileNodes.Add(new FileNode { Name = "a2.txt", NodeType = FileNodeType.File, OwnerId = userId, SyncSequence = 3, OriginatingDeviceId = deviceA });
+        db.FileNodes.Add(new FileNode { Name = "c1.txt", NodeType = FileNodeType.File, OwnerId = userId, SyncSequence = 4, OriginatingDeviceId = deviceC });
+        db.FileNodes.Add(new FileNode { Name = "b2.txt", NodeType = FileNodeType.File, OwnerId = userId, SyncSequence = 5, OriginatingDeviceId = deviceB });
+        await db.SaveChangesAsync();
+
+        // Device A sees 3 changes (b1, c1, b2)
+        var serviceA = CreateService(db, deviceA);
+        var resultA = await serviceA.GetChangesSinceCursorAsync(null, null, 500, UserCaller(userId));
+        Assert.AreEqual(3, resultA.Changes.Count);
+        Assert.IsTrue(resultA.Changes.All(c => c.OriginatingDeviceId != deviceA));
+
+        // Device B sees 3 changes (a1, a2, c1)
+        var serviceB = CreateService(db, deviceB);
+        var resultB = await serviceB.GetChangesSinceCursorAsync(null, null, 500, UserCaller(userId));
+        Assert.AreEqual(3, resultB.Changes.Count);
+        Assert.IsTrue(resultB.Changes.All(c => c.OriginatingDeviceId != deviceB));
+    }
+
+    [TestMethod]
+    public async Task GetChangesSinceAsync_DeviceUploadsThenSyncs_OwnChangesAreSuppressed()
+    {
+        // Same echo suppression test but for the legacy timestamp-based path
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var deviceA = Guid.NewGuid();
+        var now = DateTime.UtcNow;
+
+        db.FileNodes.Add(new FileNode
+        {
+            Name = "self-upload.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            UpdatedAt = now,
+            OriginatingDeviceId = deviceA
+        });
+        db.FileNodes.Add(new FileNode
+        {
+            Name = "other-upload.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            UpdatedAt = now,
+            OriginatingDeviceId = Guid.NewGuid()
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, deviceA);
+        var changes = await service.GetChangesSinceAsync(now.AddMinutes(-1), null, UserCaller(userId));
+
+        Assert.AreEqual(1, changes.Count);
+        Assert.AreEqual("other-upload.txt", changes[0].Name);
+    }
+
+    [TestMethod]
+    public async Task GetChangesSinceCursorAsync_NoDeviceContext_AllChangesReturned()
+    {
+        // Without device context, no echo suppression happens
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var deviceA = Guid.NewGuid();
+
+        db.FileNodes.Add(new FileNode { Name = "file1.txt", NodeType = FileNodeType.File, OwnerId = userId, SyncSequence = 1, OriginatingDeviceId = deviceA });
+        db.FileNodes.Add(new FileNode { Name = "file2.txt", NodeType = FileNodeType.File, OwnerId = userId, SyncSequence = 2, OriginatingDeviceId = deviceA });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db); // No device context
+        var result = await service.GetChangesSinceCursorAsync(null, null, 500, UserCaller(userId));
+
+        Assert.AreEqual(2, result.Changes.Count, "Without device context, all changes should be returned.");
+    }
 }

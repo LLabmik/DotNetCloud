@@ -211,4 +211,18 @@ public class SyncController : FilesControllerBase
         var statuses = await _syncService.GetAllDeviceSyncStatusAsync(HttpContext.RequestAborted);
         return Ok(Envelope(statuses));
     });
+
+    /// <summary>
+    /// Activates or deactivates a sync device. Inactive devices are rejected
+    /// during device resolution and cannot sync.
+    /// </summary>
+    [HttpPut("admin/device/{deviceId:guid}/active")]
+    [Authorize(Policy = "RequireAdmin")]
+    public Task<IActionResult> SetDeviceActiveAsync(
+        Guid deviceId,
+        [FromBody] SetDeviceActiveDto request) => ExecuteAsync(async () =>
+    {
+        await _syncService.SetDeviceActiveAsync(deviceId, request.IsActive, HttpContext.RequestAborted);
+        return Ok(Envelope(new { deviceId, isActive = request.IsActive }));
+    });
 }

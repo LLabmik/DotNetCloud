@@ -45,4 +45,10 @@ public interface ISyncService
     /// Includes per-device lag relative to each user's current sequence.
     /// </summary>
     Task<IReadOnlyList<DeviceSyncStatusDto>> GetAllDeviceSyncStatusAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Activates or deactivates a sync device (admin-only).
+    /// Inactive devices are rejected during device resolution and cannot sync.
+    /// </summary>
+    Task SetDeviceActiveAsync(Guid deviceId, bool isActive, CancellationToken cancellationToken = default);
 }

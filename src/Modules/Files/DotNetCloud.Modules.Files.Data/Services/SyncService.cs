@@ -565,4 +565,17 @@ internal sealed class SyncService : ISyncService
             };
         }).ToList();
     }
+
+    /// <inheritdoc />
+    public async Task SetDeviceActiveAsync(Guid deviceId, bool isActive, CancellationToken cancellationToken = default)
+    {
+        var device = await _db.SyncDevices.FindAsync([deviceId], cancellationToken)
+            ?? throw new Core.Errors.NotFoundException($"Device {deviceId} not found.");
+
+        device.IsActive = isActive;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Device {DeviceId} ({DeviceName}) set to IsActive={IsActive} by admin.",
+            deviceId, device.DeviceName, isActive);
+    }
 }

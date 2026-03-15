@@ -145,4 +145,51 @@ public class SyncDeviceResolverTests
         Assert.IsNotNull(result);
         Assert.AreEqual("Unknown", result.DeviceName);
     }
+
+    [TestMethod]
+    public async Task ResolveAsync_InactiveDevice_ReturnsNull()
+    {
+        using var db = CreateContext();
+        var resolver = CreateResolver(db);
+        var deviceId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+
+        // Register device, then deactivate it
+        db.SyncDevices.Add(new SyncDevice
+        {
+            Id = deviceId,
+            UserId = userId,
+            DeviceName = "disabled-box",
+            IsActive = false
+        });
+        await db.SaveChangesAsync();
+
+        var result = await resolver.ResolveAsync(deviceId, userId, "disabled-box", "Linux", "0.1.0", CancellationToken.None);
+
+        Assert.IsNull(result, "Deactivated devices should be rejected by the resolver.");
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_ReactivatedDevice_ReturnsDevice()
+    {
+        using var db = CreateContext();
+        var resolver = CreateResolver(db);
+        var deviceId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+
+        // Register device as active
+        db.SyncDevices.Add(new SyncDevice
+        {
+            Id = deviceId,
+            UserId = userId,
+            DeviceName = "reactivated-box",
+            IsActive = true
+        });
+        await db.SaveChangesAsync();
+
+        var result = await resolver.ResolveAsync(deviceId, userId, "reactivated-box", "Linux", "0.1.0", CancellationToken.None);
+
+        Assert.IsNotNull(result, "Active devices should be resolved normally.");
+        Assert.AreEqual(deviceId, result.Id);
+    }
 }

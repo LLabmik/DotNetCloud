@@ -77,6 +77,7 @@
 | Sync Batch 5 | 2 | 2 | 0 | 0 |
 | Sync Verification | 1 | 1 | 0 | 0 |
 | Sync Hardening P0 | 3 | 3 | 0 | 0 |
+| Sync Hardening P1–P2 | 6 | 6 | 0 | 0 |
 | Phase 3-9 | Summary | 0 | 0 | 1 |
 | Infrastructure | Summary | 0 | 0 | 1 |
 | Documentation | Summary | 0 | 0 | 1 |
@@ -3883,6 +3884,27 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Dependencies:** Sync Batches 1-5, sync-verification
 
 **Notes:** All P0 critical fixes code-complete with full test coverage. 2026-03-15 added SQLite-backed constraint enforcement tests closing the concurrency test gap — unique indexes, CHECK constraints, and sequence monotonicity are now verified at the database level, not just configuration metadata. `DbExceptionClassifier` coverage validated across PostgreSQL/SQLite/SQL Server. 597/597 tests passing. Production database verified clean (no existing duplicates). P1 has now started: server-side self-origin sync-change suppression and diagnostic hardening are implemented with regression tests; Linux parity validation remains in progress due duplicate local context configuration on `mint-dnc-client`.
+
+---
+
+### Multi-Client Sync Hardening — P1 Improvements & P2 Enhancements
+
+#### Step: sync-hardening-p1-p2 - Device Management, Echo Suppression, Per-Device Rate Limiting, SSE Push, Cursor Tracking
+**Status:** completed ✅
+**Duration:** ~6 hours
+**Description:** P1 improvements (device management, echo suppression, per-device rate limiting) and P2 enhancements (SSE push notifications, server-side per-device cursor tracking, admin dashboard).
+
+**Deliverables:**
+- ✓ **P1.1 — Admin Device Management:** `SetDeviceActiveAsync` in `ISyncService`/`SyncService`; `PUT admin/device/{id}/active` admin endpoint in `SyncController`; `IsActive` enforcement in `SyncDeviceResolver` (deactivated devices are rejected); UI toggle button in `SyncDevices.razor` admin page; UI API client `SetDeviceActiveAsync` method.
+- ✓ **P1.2 — Echo Suppression Tests:** 5 server-side tests: Device A uploads then syncs (own changes suppressed); cursor advances past suppressed items; mixed origins (each device sees only others' changes); legacy timestamp path suppression; no device context = no suppression.
+- ✓ **P1.3 — Per-Device Rate Limiting:** Enabled `PerDevice: true` on 7 module policies (sync-changes, sync-tree, sync-reconcile, sync-stream, upload-initiate, upload-chunks, download); added missing `sync-stream` config entry; 4 config tests for partition key isolation.
+- ✓ **P2.1 — SSE Push Notifications:** `ISyncChangeNotifier`/`SyncChangeNotifier` (in-memory Channel<T> per user, max 25 connections, bounded 64-message buffer); `SyncCursorHelper` publishes notifications after sequence assignment; `GET stream` SSE endpoint; client `SyncStreamListener` with auto-reconnect; `SyncEngine` integration (5-min poll when connected, 30s fallback); 8 P2.1 tests.
+- ✓ **P2.2 — Server-Side Cursor Tracking:** `SyncDeviceCursor` model/EF config/migration; `POST ack` and `GET device-cursor` endpoints; client-side cursor ack after sync pass + recovery on startup; 10 P2.2 tests.
+- ✓ **P2.2 — Admin Sync Dashboard:** `GET admin/device-status` endpoint; `SyncDevices.razor` Blazor page with stat cards + data table + activate/deactivate toggles; nav menu entry.
+
+**Dependencies:** sync-hardening-p0 (completed)
+
+**Notes:** All P0–P2 hardening plan items are code-complete with 638 Files module tests, 331 Core Server tests, and 170 Client Core tests passing. Rate limiting now partitions per-device for all sync/upload/download policies, preventing multi-client starvation. Admin can deactivate devices from the UI dashboard. P3 (runtime verification) is the only remaining phase — requires deployment to mint22 and dual-client E2E testing.
 
 ---
 

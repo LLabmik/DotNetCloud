@@ -232,3 +232,12 @@ public sealed record DeviceSyncStatusDto
     /// <summary>When the cursor was last updated, or null if no ack received.</summary>
     public DateTime? CursorUpdatedAt { get; init; }
 }
+
+/// <summary>
+/// Request body for <c>PUT /api/v1/files/sync/admin/device/{id}/active</c>.
+/// </summary>
+public sealed record SetDeviceActiveDto
+{
+    /// <summary>Whether the device should be active.</summary>
+    public bool IsActive { get; init; }
+}

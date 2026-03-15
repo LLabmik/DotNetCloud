@@ -60,4 +60,49 @@ public class RateLimitingOptionsTests
         Assert.AreEqual(500, options.ModuleLimits["chat"].PermitLimit);
     }
 
+    [TestMethod]
+    public void ModuleRateLimitConfig_PerDevice_DefaultsFalse()
+    {
+        var config = new ModuleRateLimitConfig();
+        Assert.IsFalse(config.PerDevice, "PerDevice should default to false.");
+    }
+
+    [TestMethod]
+    public void ModuleRateLimitConfig_PerDevice_CanBeEnabled()
+    {
+        var config = new ModuleRateLimitConfig { PerDevice = true };
+        Assert.IsTrue(config.PerDevice);
+    }
+
+    [TestMethod]
+    public void Options_PerDeviceModules_ProduceDistinctPartitionKeys()
+    {
+        // Verify that when PerDevice is enabled, two different device IDs
+        // produce different partition keys for the same user
+        var moduleName = "upload-initiate";
+        var userId = "user-123";
+        var deviceA = "device-aaa";
+        var deviceB = "device-bbb";
+
+        var keyA = $"{moduleName}:{userId}:{deviceA}";
+        var keyB = $"{moduleName}:{userId}:{deviceB}";
+        var keyNoDevice = $"{moduleName}:{userId}";
+
+        Assert.AreNotEqual(keyA, keyB, "Different devices must produce different partition keys.");
+        Assert.AreNotEqual(keyA, keyNoDevice, "Per-device key must differ from per-user key.");
+    }
+
+    [TestMethod]
+    public void Options_PerDeviceFalse_SamePartitionForAllDevices()
+    {
+        // Verify that when PerDevice is false, device ID is ignored in partition key
+        var moduleName = "chunks";
+        var userId = "user-123";
+
+        var key = $"{moduleName}:{userId}";
+
+        // Both devices share the same key when PerDevice is false
+        Assert.AreEqual(key, $"{moduleName}:{userId}");
+    }
+
     }

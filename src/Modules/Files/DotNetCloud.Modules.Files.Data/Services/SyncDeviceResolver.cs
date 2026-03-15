@@ -47,6 +47,15 @@ internal sealed class SyncDeviceResolver : ISyncDeviceResolver
                 return null;
             }
 
+            // Reject deactivated devices
+            if (!device.IsActive)
+            {
+                _logger.LogWarning(
+                    "Device {DeviceId} for user {UserId} is deactivated. Ignoring device header.",
+                    deviceId, userId);
+                return null;
+            }
+
             // Update last-seen and metadata
             device.LastSeenAt = DateTime.UtcNow;
             if (!string.IsNullOrEmpty(deviceName))

@@ -49,13 +49,14 @@ else
                     <th>Lag</th>
                     <th>Last Seen</th>
                     <th>Last Ack</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
                 @if (_devices.Count == 0)
                 {
                     <tr>
-                        <td colspan="9" class="text-center">No sync devices registered.</td>
+                        <td colspan="10" class="text-center">No sync devices registered.</td>
                     </tr>
                 }
                 @foreach (var device in _devices)
@@ -81,6 +82,13 @@ else
                         </td>
                         <td>@FormatRelativeTime(device.LastSeenAt)</td>
                         <td>@(device.CursorUpdatedAt is not null ? FormatRelativeTime(device.CursorUpdatedAt.Value) : "Never")</td>
+                        <td>
+                            <button class="btn btn-sm btn-@(device.IsActive ? "danger-outline" : "success-outline")"
+                                    disabled="@(_togglingDeviceId == device.DeviceId)"
+                                    @onclick="() => ToggleDeviceActiveAsync(device)">
+                                @(device.IsActive ? "Deactivate" : "Activate")
+                            </button>
+                        </td>
                     </tr>
                 }
             </tbody>
@@ -94,6 +102,7 @@ else
 
     private bool _loading = true;
     private IReadOnlyList<DeviceSyncStatusDto> _devices = [];
+    private Guid? _togglingDeviceId;
 
     protected override async Task OnInitializedAsync()
     {
@@ -114,6 +123,26 @@ else
         finally
         {
             _loading = false;
+        }
+    }
+
+    private async Task ToggleDeviceActiveAsync(DeviceSyncStatusDto device)
+    {
+        _togglingDeviceId = device.DeviceId;
+        try
+        {
+            var newState = !device.IsActive;
+            await Api.SetDeviceActiveAsync(device.DeviceId, newState);
+            Toast.ShowSuccess($"{device.DeviceName} {(newState ? "activated" : "deactivated")}.");
+            await RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to update device. {ex.Message}");
+        }
+        finally
+        {
+            _togglingDeviceId = null;
         }
     }
 

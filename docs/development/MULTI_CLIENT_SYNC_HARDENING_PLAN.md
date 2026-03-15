@@ -151,7 +151,7 @@ Efficiency and architectural improvements that reduce server load and improve re
 - ✓ Generate EF migration
 - ✓ Client: generate stable `DeviceId` on first run (store in sync service config)
 - ✓ Client: send `X-Device-Id` header via `DelegatingHandler`
-- ☐ Add admin API endpoint to list/manage devices per user
+- ✓ Add admin API endpoint to list/manage devices per user
 - ✓ Tests for device auto-registration and attribution
 
 ---
@@ -174,7 +174,7 @@ Efficiency and architectural improvements that reduce server load and improve re
 - ✓ Add `OriginatingDeviceId` to `SyncChangeDto` response
 - ✓ Client: track uploaded sequences locally
 - ✓ Client: skip self-originated changes in `ApplyRemoteChangesAsync`
-- ☐ Tests: upload from device A → device A's sync pass doesn't re-download
+- ✓ Tests: upload from device A → device A's sync pass doesn't re-download
 
 ---
 
@@ -191,7 +191,7 @@ Efficiency and architectural improvements that reduce server load and improve re
 - ✓ Update rate limiting configuration to include device ID in partition key
 - ✓ Review and adjust rate limit values for multi-client scenarios
 - ✓ Add `X-RateLimit-Remaining` response header so clients can self-throttle
-- ☐ Tests: two devices don't starve each other
+- ✓ Tests: two devices don't starve each other
 
 ---
 

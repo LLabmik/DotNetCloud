@@ -4002,3 +4002,27 @@ Before marking a phase complete:
 - ✓ Linux runtime re-test on fresh client binary captured and documented in handoff
 - ☐ Remove duplicate local sync contexts on `mint-dnc-client` (same user/server/folder)
 - ☐ Re-run single-context Linux parity verification and record final pass evidence
+
+#### P1.1 — Admin Device Management (2026-03-15)
+- ✓ `SetDeviceActiveAsync` added to `ISyncService` / `SyncService`
+- ✓ `PUT admin/device/{id}/active` endpoint in `SyncController` (RequireAdmin)
+- ✓ `IsActive` enforcement in `SyncDeviceResolver` — deactivated devices rejected
+- ✓ UI: `SetDeviceActiveAsync` in `DotNetCloudApiClient`
+- ✓ UI: Activate/Deactivate button column in `SyncDevices.razor` admin page
+- ✓ Tests: `SetDeviceActiveAsync` activate/deactivate/not-found, `GetAllDeviceSyncStatusAsync` includes IsActive
+- ✓ Tests: `ResolveAsync` returns null for inactive device, returns device for active
+
+#### P1.2 — Echo Suppression Tests (2026-03-15)
+- ✓ Test: Device A uploads then syncs — own changes are suppressed (cursor path)
+- ✓ Test: Cursor advances past suppressed self-originated changes
+- ✓ Test: Mixed origins — each device only sees other devices' changes
+- ✓ Test: Legacy timestamp path echo suppression
+- ✓ Test: No device context — all changes returned (no suppression)
+
+#### P1.3 — Per-Device Rate Limiting (2026-03-15)
+- ✓ Enabled `PerDevice: true` on sync-changes, sync-tree, sync-reconcile, sync-stream, upload-initiate, upload-chunks, download
+- ✓ Added missing `sync-stream` rate limit config entry
+- ✓ Tests: `PerDevice` default false, can be enabled, distinct partition keys per device
+- ✓ Tests: Same partition key when PerDevice is false
+
+**Status:** ✅ P0–P2 Code Complete — Pending deployment + P3 runtime verification

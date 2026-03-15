@@ -358,6 +358,17 @@ public sealed class DotNetCloudApiClient
         return envelope?.Data ?? [];
     }
 
+    /// <summary>
+    /// Activates or deactivates a sync device (admin-only).
+    /// </summary>
+    public async Task SetDeviceActiveAsync(Guid deviceId, bool isActive, CancellationToken ct = default)
+    {
+        var response = await _http.PutAsJsonAsync(
+            $"api/v1/files/sync/admin/device/{deviceId}/active",
+            new { isActive }, ct);
+        response.EnsureSuccessStatusCode();
+    }
+
     // -----------------------------------------------------------------------
     // Response envelope
     // -----------------------------------------------------------------------
