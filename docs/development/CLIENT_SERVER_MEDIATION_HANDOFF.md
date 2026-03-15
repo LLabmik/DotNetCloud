@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-15 (standby monitoring updated with Windows11 runtime evidence: 429 burst + successful auto token refresh)
+Last updated: 2026-03-14 (client-side upload dedup + echo suppression — chained handoff: mint-dnc-client → Windows11-TestDNC → mint22)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -72,36 +72,70 @@ Archived context:
 
 ## Active Handoff
 
-### Standby Monitoring: Upload Hardening Story (No Active Blocker)
+### Step 1 of 3: Rebuild & Verify Linux Sync Client on `mint-dnc-client`
 
-**Date:** 2026-03-15
-**Owner:** Server/client agents (`mint22`, `Windows11-TestDNC`, `mint-dnc-client`)
-**Status:** ACTIVE — standby monitoring only
+**Date:** 2026-03-14
+**Owner:** `mint-dnc-client` agent
+**Status:** ACTIVE
+**Commit:** `4c575cc` — fix: client-side upload dedup + echo suppression
 
-#### Context
+#### What Changed (Server Agent on `mint22`)
 
-- Optional client sanity retry completed on `mint-dnc-client` and archived in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
-- Fresh upload runtime evidence captured from client logs: `POST initiate` -> `201`, `PUT chunk` -> `200`, `POST complete` -> `200`.
-- Duplicate-name behavior observed as `409` (expected validation/existing-file class), with no `500` during the verification window.
-- Additional Windows client runtime evidence captured on `Windows11-TestDNC` (2026-03-15 UTC):
-  - Sync and tray processes running (`dotnetcloud-sync-service`, `dotnetcloud-sync-tray`).
-  - A transient throttling burst on `GET /api/v1/files/sync/tree` returned repeated `429` with `HTTP_RATE_LIMIT_EXCEEDED` and then recovered to `200`.
-  - Token lifecycle remained healthy during the throttling window (`IsExpired=false`), then later expired and auto-refreshed successfully (`Refreshing expired access token` -> `Access token refreshed successfully`).
-  - Upload path remained healthy for `seq-test-windows.txt` (`upload/initiate` `201`, upload complete success or expected duplicate `409` handling), with no `500` evidence.
+Two client-side bugs were found and fixed in `DotNetCloud.Client.Core`:
 
-#### Scope (Any Agent If Regression Appears)
+1. **Upload dedup missing** (`LocalStateDb.QueueOperationAsync`): No dedup check existed. Multiple sync triggers (FileSystemWatcher, periodic scan, SyncNow IPC) all independently queued the same file. Linux client fired 6 concurrent `upload/initiate` for one file, Windows fired 21+. **Fixed:** Before inserting a Pending operation, check if an identical one already exists (same `LocalPath` for uploads, same `NodeId` for downloads). Skip with debug log if duplicate.
 
-1. Keep current upload hardening story in monitoring state.
-2. If any `upload/initiate`, chunk PUT, or `complete` regression reappears, create a new active handoff block with:
-  - timestamped endpoint/status evidence,
-  - request IDs,
-  - affected machine and commit hash.
-3. Do not reopen this story without reproducible runtime evidence.
+2. **Echo-triggered conflict copies** (`SyncEngine.HandleRemoteUpdateAsync`): When client A uploads a file, the server's `sync/changes` feed echoes it back. Client A's next sync pass saw the echo, entered the conflict resolver, and created a spurious conflict copy (e.g., `seq-test-windows (conflict - WINDOWS11-DNC$ - 2026-03-14).txt`). **Fixed:** Before entering conflict resolver, compare local file content hash with remote change `ContentHash`. If they match, update the record as "Synced" and return early (echo suppression).
+
+**Files modified:**
+- `src/Clients/DotNetCloud.Client.Core/LocalState/LocalStateDb.cs` — dedup in `QueueOperationAsync`
+- `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` — echo suppression in `HandleRemoteUpdateAsync`
+- `tests/DotNetCloud.Client.Core.Tests/LocalState/LocalStateDbTests.cs` — 4 new tests
+
+**Server DB cleanup already done on `mint22`:**
+- 121 stale InProgress upload sessions deleted
+- Spurious conflict copy FileNode (`149f66ce`) soft-deleted
+
+#### Task for `mint-dnc-client`
+
+1. `git pull origin main` to get commit `4c575cc`.
+2. Run all Client.Core tests: `dotnet test tests/DotNetCloud.Client.Core.Tests/` — all must pass (including 4 new dedup tests).
+3. Rebuild the SyncService for Linux:
+   ```bash
+   dotnet publish src/Clients/DotNetCloud.Client.SyncService/DotNetCloud.Client.SyncService.csproj \
+     -c Release -r linux-x64 --self-contained \
+     -o artifacts/desktop-client-staging/0.1.0-alpha/linux-x64/payload/SyncService/
+   ```
+4. Rebuild the SyncTray for Linux:
+   ```bash
+   dotnet publish src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj \
+     -c Release -r linux-x64 --self-contained \
+     -o artifacts/desktop-client-staging/0.1.0-alpha/linux-x64/payload/SyncTray/
+   ```
+5. Stop running sync client processes if any.
+6. Deploy rebuilt binaries to the sync client install location (wherever SyncService/SyncTray are installed on `mint-dnc-client`).
+7. Start the sync client.
+8. **Runtime verification:**
+   - Delete and re-add a test file (e.g., `seq-test-linux.txt`) to the sync folder.
+   - Watch logs for: exactly **one** `upload/initiate` request per file (no duplicates).
+   - After upload completes, trigger another sync pass — verify **no** conflict copy is created (echo suppression working).
+   - Capture timestamped log evidence of both behaviors.
 
 #### Exit Criteria
 
-- No new upload regression evidence reported.
-- Story remains archived as resolved unless new data appears.
+- All Client.Core tests pass.
+- SyncService and SyncTray rebuilt and deployed.
+- Runtime log evidence shows: single upload per file (no dedup spam), no spurious conflict copies after echo.
+- Commit any local changes (if needed) and push.
+
+#### Chain Handoff
+
+When done, update this document:
+- Archive this step 1 block.
+- Write a new **Active Handoff** targeting `Windows11-TestDNC` with the same task (steps 2-8 adapted for Windows: `win-x64` RID, PowerShell commands, Windows paths). The Windows agent should:
+  - Pull main, run tests, rebuild SyncService + SyncTray for `win-x64`, redeploy, runtime verify.
+  - When Windows is done, write a final Active Handoff back to `mint22` confirming both clients verified.
+- Push and provide relay message for moderator.
 
 ## Relay Template
 

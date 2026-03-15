@@ -5,6 +5,17 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Standby Monitoring — Upload Hardening Story (2026-03-15)
+
+Archived from Active Handoff on 2026-03-14 to make room for client-side upload dedup + echo suppression deployment.
+
+- Standby monitoring was active; no regression appeared.
+- Windows client runtime evidence showed transient 429 bursts + successful auto token refresh.
+- Linux client sanity retry verified successful upload flow.
+- Story closed — superseded by client-side fix deployment (`4c575cc`).
+
+---
+
 ## Archived: Optional Client Sanity Retry — Upload E2E on `mint-dnc-client` (2026-03-15)
 
 Archived from Active Handoff on 2026-03-15 after optional sanity verification completed.
