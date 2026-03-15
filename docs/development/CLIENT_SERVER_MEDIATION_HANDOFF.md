@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-15 (Windows closeout completed on this machine; relay to mint22)
+Last updated: 2026-03-15 (Upload hardening story fully closed — all machines verified)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -64,7 +64,7 @@ Archived context:
 - Test gate on `mint-dnc-client`:
   - `dotnet test` (solution-wide) is environment-gated on this host due missing `maui-android` workload (`NETSDK1147`).
   - Executable non-gated suite passed: `dotnet test tests/DotNetCloud.Modules.Files.Tests/DotNetCloud.Modules.Files.Tests.csproj` => `609 passed, 0 failed`.
-- **Next active cycle:** Server confirmation/closeout relay on `mint22`.
+- **Next active cycle:** No pending work. Upload hardening story fully closed across all machines.
 
 ## Environment
 
@@ -83,47 +83,12 @@ Archived context:
 
 ## Active Handoff
 
-### Windows Closeout Complete — Relay + Final Confirmation on `mint22`
+No pending work. Upload hardening story fully closed on 2026-03-15.
 
-**Date:** 2026-03-15
-**Target machine:** `mint22`
-**Status:** READY FOR EXECUTION
-
-#### Background
-
-This Windows machine (`Windows11-TestDNC`) has already executed closeout verification. The next action is on `mint22`: pull latest handoff, confirm closure state, and (if needed) publish the final closure relay to any remaining validation host.
-
-#### Step-by-Step Instructions (Execute ALL on `mint22`)
-
-**Step 1: Pull latest `main` on `mint22`**
-
-```powershell
-cd /srv/dotnetcloud
-git pull
-```
-
-**Step 2: Review Windows closeout evidence recorded below**
-
-Windows verification already performed on `Windows11-TestDNC`:
-- `dotnet test` (solution-wide): **2,177 passed, 0 failed, 13 skipped** (expected environment skips)
-- Verification file created/uploaded: `win-closeout-20260315_043003.txt`
-- Upload completion: `NodeId=718929be-1cfc-449a-92c1-9f9828f69e6d`
-- Follow-up sync pass: `RemoteChanges=1, LocalQueued=0, LocalApplied=0`
-- No download path entered for the uploaded node (no self-echo)
-
-**Step 3: If server view is clean, mark story fully closed and relay**
-
-1. Confirm no new server-side regressions in service logs since closeout window.
-2. Archive this Active Handoff block and set Active Handoff to no pending work.
-3. Commit and push the handoff closeout update.
-4. Relay to `mint-dnc-client` only if additional Linux parity confirmation is requested.
-
-#### Evidence to Keep in Final Closeout
-
-- Windows `dotnet test` outcome and pass counts
-- Upload line + NodeId
-- Follow-up pass line showing `RemoteChanges=1, LocalApplied=0`
-- Explicit note that target machine for this handoff is `mint22` (not `Windows11-TestDNC`)
+All three machines verified clean:
+- **Windows (`Windows11-TestDNC`):** 2,177 tests passed, upload verified, no self-echo.
+- **Linux (`mint-dnc-client`):** 609 file module tests passed, upload verified, no self-echo.
+- **Server (`mint22`):** Zero errors/exceptions in logs, all client uploads confirmed server-side.
 
 ## Relay Template
 

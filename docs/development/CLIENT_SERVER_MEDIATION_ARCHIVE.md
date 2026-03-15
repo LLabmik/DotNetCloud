@@ -2733,3 +2733,19 @@ Archived from `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md` when enforci
    - Added `DbExceptionClassifier.IsUniqueConstraintViolation()` catch: clears tracker, re-fetches session, and re-saves session progress only.
    - Build: 0 errors, 0 warnings. Tests: 586 passed / 0 failed.
 6. Redeployed with chunk dedup fix. New PID 104608, `/health/live` healthy.
+
+---
+
+### Archived: 2026-03-15 — Upload Hardening Story Final Closeout
+
+**Machines involved:** `Windows11-TestDNC` (closeout verification), `mint22` (server confirmation)
+
+#### Summary
+
+Upload hardening story fully closed. All three machines (Windows, Linux, Server) verified clean:
+
+- **Windows (`Windows11-TestDNC`):** `dotnet test` 2,177 passed / 0 failed / 13 skipped. Upload `win-closeout-20260315_043003.txt` completed (NodeId `718929be-1cfc-449a-92c1-9f9828f69e6d`). Follow-up pass: `RemoteChanges=1, LocalApplied=0`, no self-echo.
+- **Linux (`mint-dnc-client`):** Context registry reduced to one context. Upload `m2_single_ctx_20260315_061322.txt` completed (NodeId `289d45f4-2c97-498c-920e-8eb5f61c6768`). Follow-up pass: `RemoteChanges=1, LocalApplied=0`, no self-echo. Files module tests: 609 passed / 0 failed.
+- **Server (`mint22`):** Zero errors/exceptions in journalctl since closeout window. Only normal token refreshes, device identity resolution, and health check logs. Windows closeout upload confirmed server-side (session `84ec9aac-d60f-489e-9a57-91976048f9de`, file `718929be-1cfc-449a-92c1-9f9828f69e6d`).
+
+**Upload hardening story: CLOSED.**
