@@ -5,6 +5,24 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Upload Retry Verification on `mint-dnc-client` (2026-03-15)
+
+Archived from Active Handoff on 2026-03-15 when replaced by server-side `complete` 500 investigation on `mint22`.
+
+- Verification run on `main` commit `1f0d700` (includes gzip decompression fix `af66b41`).
+- Fresh file created in sync folder: `/home/benk/synctray/upload-verify-test-1773533399.txt`.
+- Evidence confirms upload flow progressed beyond prior hash-mismatch/409 issue:
+    - `POST /api/v1/files/upload/initiate` returned `201`.
+    - Response included `missingChunks=[737b133ef2d09bb83f53a8a768068ae32dc30bd3bcd69e2a6f7ab34180bc3cc2]`.
+    - `PUT /api/v1/files/upload/{sessionId}/chunks/{hash}` returned `200` for active attempts (with one intermittent 500 on a parallel session that later retried to 200).
+- New blocker: `POST /api/v1/files/upload/{sessionId}/complete` consistently returned `500` across retries.
+- Observed failing session IDs:
+    - `27897c31-2d37-4649-ba52-2e5fe55bd75d`
+    - `56a55d92-b0e6-4967-9966-66fd6eec0844`
+- Representative failing request IDs: `f923097bef0f4e2b92553bb02b871a00`, `d8279a0ad4654e14bf7f8f132a23b412`, `a638e6f6e7b1486d9cbc3102d79388b5`, `1b0d5f849e604c8eb2f3f0a0f1542459`, `627395a815874053b075fcb8f6365709`, `2bba60391a5e4f87aa3166c472557458`.
+- Client log evidence source: `/home/benk/.local/share/DotNetCloud/logs/sync-service20260314.log` (`2026-03-15T00:09:59Z` through `00:11:12Z`).
+- Conclusion: gzip request decompression fix resolved the original false-409 chunk hash mismatch class, but upload completion now fails server-side with 500 and requires server investigation.
+
 ## Archived: Chunk PUT 409 Conflict — Server-Side Fix (2026-03-14)
 
 Archived from Active Handoff on 2026-03-14 — root cause identified and fixed.
