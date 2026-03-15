@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-15 (Linux re-test run on fresh client binaries: echo suppression split by duplicate local contexts; client context cleanup now required)
+Last updated: 2026-03-15 (Linux duplicate-context cleanup completed; single-context parity re-test passed)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -55,8 +55,16 @@ Archived context:
 - **Upload hardening story: CLOSED.** Full chain verification complete across all three machines.
 - Server-side P1 echo suppression/device-identity fix and `SyncDeviceIdentity` DB migration are now applied on `mint22`.
 - **Windows (`Windows11-TestDNC`) re-verification PASSED** on 2026-03-15: uploaded file completed, immediate follow-up pass showed `RemoteChanges=1, LocalApplied=0`, no download path was entered for the uploaded node, and the next scheduled pass was clean.
-- **Linux (`mint-dnc-client`) parity re-verification FAILED** on 2026-03-15: uploaded verification node was downloaded on follow-up pass (`RemoteChanges=1, LocalApplied=1`), so parity with Windows behavior is not achieved.
-- **Next active cycle:** client-side duplicate-context cleanup on `mint-dnc-client`, then a single-context Linux re-test.
+- **Linux (`mint-dnc-client`) duplicate-context cleanup + parity re-verification PASSED** on 2026-03-15:
+  - context registry reduced to one context (`cb22726a-cdef-4cc8-a29c-755b22f1c899`)
+  - service restart logged `Loading 1 persisted sync context(s)`
+  - verification upload `m2_single_ctx_20260315_061322.txt` completed (`NodeId=289d45f4-2c97-498c-920e-8eb5f61c6768`)
+  - follow-up pass showed `RemoteChanges=1, LocalApplied=0`
+  - no `File download starting` line appeared for the uploaded node
+- Test gate on `mint-dnc-client`:
+  - `dotnet test` (solution-wide) is environment-gated on this host due missing `maui-android` workload (`NETSDK1147`).
+  - Executable non-gated suite passed: `dotnet test tests/DotNetCloud.Modules.Files.Tests/DotNetCloud.Modules.Files.Tests.csproj` => `609 passed, 0 failed`.
+- **Next active cycle:** mint22 closeout verification and archive handoff chain.
 
 ## Environment
 
@@ -75,84 +83,41 @@ Archived context:
 
 ## Active Handoff
 
-### Duplicate Sync Context Cleanup — Execute on `mint-dnc-client`
+### Closeout Verification — Execute on `mint22`
 
 **Date:** 2026-03-15
-**Target machine:** `mint-dnc-client` ONLY (server work is done — `mint22` has nothing to do)
-**Status:** EXECUTE NOW
+**Target machine:** `mint22`
+**Status:** READY FOR EXECUTION
 
-#### Background (Do Not Re-Investigate — Just Execute Steps Below)
+#### Background
 
-Echo suppression works per-context, but the Linux client has **two sync contexts** pointing at the same folder/server/user. Context A suppresses the echo correctly, but Context B doesn't know about the upload and re-downloads the file. Fix: delete one context, keep one, re-test.
+Linux duplicate-context cleanup is complete and parity now matches Windows behavior. This handoff asks `mint22` to perform final server-side closeout checks, then archive this cycle.
 
 #### Step-by-Step Instructions (Execute ALL)
 
-**Step 1: Stop any running sync service**
+**Step 1: Pull latest and confirm Linux PASS evidence is present in docs**
 
-```bash
-# Kill any running sync service process
-pkill -f dotnetcloud-sync-service 2>/dev/null || true
-pkill -f DotNetCloud.Client.SyncService 2>/dev/null || true
-```
+Confirm in `docs/development/CLIENT_SERVER_MEDIATION_ARCHIVE.md` that the archived section `Duplicate Sync Context Cleanup — Linux Single-Context Re-Test PASSED (2026-03-15)` includes:
+- retained context `cb22726a-cdef-4cc8-a29c-755b22f1c899`
+- startup line `Loading 1 persisted sync context(s)`
+- follow-up line `RemoteChanges=1, LocalApplied=0`
+- no download line for `NodeId=289d45f4-2c97-498c-920e-8eb5f61c6768`
 
-**Step 2: Find and inspect the context registry file**
+**Step 2: Run server-side sanity check for sync upload endpoints**
 
-The file is at one of these paths (check in order):
-```bash
-cat /var/lib/dotnetcloud/sync/contexts.json 2>/dev/null || \
-cat ~/.local/share/DotNetCloud/Sync/contexts.json
-```
+Verify there are no new 5xx responses in recent server logs for:
+- `POST /api/v1/files/upload/initiate`
+- `POST /api/v1/files/upload/*/complete`
 
-You will see TWO context entries with the same `ServerBaseUrl`, `UserId`, and `LocalFolderPath`:
-- Context `e7ba5002-dc72-4c97-a511-17f194ca79c5`
-- Context `cb22726a-cdef-4cc8-a29c-755b22f1c899`
+Document timestamps + command used.
 
-**Step 3: Edit the contexts.json file — remove one duplicate**
+**Step 3: If server checks are clean, close this chain**
 
-Keep context `cb22726a-cdef-4cc8-a29c-755b22f1c899` (the one that successfully suppressed echo).
-Delete context `e7ba5002-dc72-4c97-a511-17f194ca79c5` from the JSON array.
+Update this handoff file to indicate the P1 echo suppression/device identity story is closed across Linux + Windows + server, then archive the completed block.
 
-Make sure the resulting JSON is valid (no trailing commas, proper brackets).
+**Step 4: Commit, push, relay**
 
-**Step 4: Also delete the data directory for the removed context**
-
-```bash
-# Whichever data root holds contexts.json, the context data dir is a subdirectory named by the context ID (no dashes):
-rm -rf ~/.local/share/DotNetCloud/Sync/e7ba5002dc724697a51117f194ca79c5 2>/dev/null
-rm -rf /var/lib/dotnetcloud/sync/e7ba5002dc724697a51117f194ca79c5 2>/dev/null
-```
-
-**Step 5: Start the sync service**
-
-```bash
-cd ~/Repos/dotnetcloud
-dotnet run --project src/Clients/DotNetCloud.Client.SyncService/DotNetCloud.Client.SyncService.csproj
-```
-
-Wait for it to log `Loading 1 persisted sync context(s)` (not 2).
-
-**Step 6: Create a verification upload file**
-
-```bash
-echo "echo-verify-single-context-$(date +%Y%m%d-%H%M%S)" > ~/synctray/echo-verify-single-context-$(date +%Y%m%d-%H%M%S).txt
-```
-
-**Step 7: Watch the sync service logs for follow-up pass results**
-
-After the file uploads, wait for the next sync pass (30-60 seconds). Look for:
-- `RemoteChanges=1, LocalApplied=0` → **PASS** (echo was suppressed)
-- `RemoteChanges=1, LocalApplied=1` or `File download starting` → **FAIL**
-
-**Step 8: Update this handoff and push**
-
-Replace this Active Handoff section with results:
-- Remaining context ID
-- Whether `Loading 1 persisted sync context(s)` appeared
-- Follow-up pass log line showing `RemoteChanges` / `LocalApplied` values
-- Whether `File download starting` appeared for the uploaded node
-- PASS or FAIL verdict
-
-Then commit, push, and provide the relay message for `mint22`.
+Commit doc updates, push to `main`, and send the relay message targeting `mint-dnc-client`.
 
 ## Relay Template
 

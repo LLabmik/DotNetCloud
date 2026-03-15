@@ -5,6 +5,30 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Duplicate Sync Context Cleanup — Linux Single-Context Re-Test PASSED (2026-03-15)
+
+Archived from Active Handoff on 2026-03-15 after executing duplicate-context cleanup and re-verification on `mint-dnc-client`.
+
+- Context registry cleanup applied:
+    - File: `/home/benk/.local/share/DotNetCloud/Sync/contexts.json`
+    - Removed context: `e7ba5002-dc72-4c97-a511-17f194ca79c5`
+    - Retained context: `cb22726a-cdef-4cc8-a29c-755b22f1c899`
+- Removed duplicate context data directory:
+    - `/home/benk/.local/share/DotNetCloud/Sync/e7ba5002dc724c97a51117f194ca79c5`
+- Service restart evidence:
+    - `2026-03-15T11:11:18.3409516Z` `Loading 1 persisted sync context(s).`
+- Verification file created:
+    - `/home/benk/synctray/m2_single_ctx_20260315_061322.txt`
+- Upload evidence:
+    - `2026-03-15T11:13:23.0477390Z` `File upload starting ... m2_single_ctx_20260315_061322.txt`
+    - `2026-03-15T11:13:23.2679168Z` `File upload complete ... NodeId=289d45f4-2c97-498c-920e-8eb5f61c6768`
+- Follow-up pass evidence (expected behavior):
+    - `2026-03-15T11:13:23.4984138Z` `Sync pass complete ... ContextId=cb22726a-cdef-4cc8-a29c-755b22f1c899 ... RemoteChanges=1, LocalQueued=0, LocalApplied=0`
+- Download-path check for uploaded node:
+    - No `File download starting` entry for `NodeId=289d45f4-2c97-498c-920e-8eb5f61c6768`.
+
+Conclusion: Linux parity is restored under single-context configuration. Duplicate local context state was the blocker; server/device-identity behavior now matches Windows expectations.
+
 ## Archived: P1 Echo Suppression Fix — Linux Re-Verification FAILED (2026-03-15)
 
 Archived from Active Handoff on 2026-03-15 after Linux parity re-verification completed with a failure outcome.
