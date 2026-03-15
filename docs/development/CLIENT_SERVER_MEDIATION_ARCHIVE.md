@@ -16,6 +16,44 @@ Archived from Active Handoff on 2026-03-14 to make room for client-side upload d
 
 ---
 
+## Archived: Step 1 of 3 — Linux Client Rebuild + Runtime Verification on `mint-dnc-client` (2026-03-15)
+
+Archived from Active Handoff on 2026-03-15 after Linux-side verification completed and handoff advanced to Windows.
+
+- Pulled latest `main` and executed required test suite:
+    - `dotnet test tests/DotNetCloud.Client.Core.Tests/`
+    - Result: `164 passed, 0 failed`.
+- Rebuilt Linux client binaries:
+    - `dotnet publish src/Clients/DotNetCloud.Client.SyncService/DotNetCloud.Client.SyncService.csproj -c Release -r linux-x64 --self-contained -o artifacts/desktop-client-staging/0.1.0-alpha/linux-x64/payload/SyncService/`
+    - `dotnet publish src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj -c Release -r linux-x64 --self-contained -o artifacts/desktop-client-staging/0.1.0-alpha/linux-x64/payload/SyncTray/`
+- Deployed and ran rebuilt binaries from:
+    - `/home/benk/.local/opt/dotnetcloud-desktop-client/SyncService/dotnetcloud-sync-service`
+    - `/home/benk/.local/opt/dotnetcloud-desktop-client/SyncTray/dotnetcloud-sync-tray`
+- Runtime evidence source:
+    - `/home/benk/.local/share/DotNetCloud/logs/sync-service20260314_001.log`
+- Verification file A (`seq-test-linux-20260315T022520Z.txt`):
+    - Single upload start + initiate sequence for file creation:
+        - `02:25:29.9719697Z` `File upload starting ... seq-test-linux-20260315T022520Z.txt`
+        - `02:25:29.9722245Z` `POST /api/v1/files/upload/initiate`
+        - `02:25:30.0393849Z` `File upload complete ... seq-test-linux-20260315T022520Z.txt`
+    - Echo pass observed without conflict copy:
+        - `02:25:30.2021015Z` `Sync pass complete ... RemoteChanges=1, LocalQueued=0, LocalApplied=1`
+- Verification file B (`seq-test-linux-20260315T022559Z.txt`):
+    - Single upload start + initiate sequence for file creation:
+        - `02:25:59.8492492Z` `File upload starting ... seq-test-linux-20260315T022559Z.txt`
+        - `02:25:59.8495317Z` `POST /api/v1/files/upload/initiate`
+        - `02:25:59.8993297Z` `File upload complete ... seq-test-linux-20260315T022559Z.txt`
+    - Follow-up edit produced one additional upload cycle (expected for content change), not duplicate spam:
+        - `02:26:39.8574525Z` `File upload starting ... seq-test-linux-20260315T022559Z.txt`
+        - `02:26:39.8576453Z` `POST /api/v1/files/upload/initiate`
+- Conflict-copy check (local filesystem):
+    - `find /home/benk/synctray -maxdepth 1 -name 'seq-test-linux-20260315T022520Z (conflict*'` -> `0`
+    - `find /home/benk/synctray -maxdepth 1 -name 'seq-test-linux-20260315T022559Z (conflict*'` -> `0`
+
+Conclusion: Linux client verification passed for dedup and echo-suppression behavior; chain handoff advanced to `Windows11-TestDNC`.
+
+---
+
 ## Archived: Optional Client Sanity Retry — Upload E2E on `mint-dnc-client` (2026-03-15)
 
 Archived from Active Handoff on 2026-03-15 after optional sanity verification completed.
