@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-15 (P1 echo suppression fix — server-side `CompleteUploadAsync` now uses session.DeviceId for OriginatingDeviceId)
+Last updated: 2026-03-15 (server DB migration `SyncDeviceIdentity` applied — `OriginatingDeviceId` column now exists; sync/tree 500s fixed)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -75,9 +75,9 @@ Archived context:
 
 **Date:** 2026-03-15
 **Owner:** `Windows11-TestDNC` (Windows), `mint-dnc-client` (Linux)
-**Status:** READY FOR CLIENT RE-VERIFICATION
+**Status:** READY FOR CLIENT RE-VERIFICATION (server 500 fixed)
 
-#### Bug Found and Fixed (Server)
+#### Bug Found and Fixed (Server — Echo Suppression)
 
 Windows client (`0.23.4.0`) reported echo suppression failure: uploaded file was immediately re-downloaded on next sync pass.
 
@@ -87,14 +87,34 @@ Windows client (`0.23.4.0`) reported echo suppression failure: uploaded file was
 - File update path (line 209): `session.DeviceId ?? _deviceContext.DeviceId ?? fileNode.OriginatingDeviceId`
 - New file path (line 265): `session.DeviceId ?? _deviceContext.DeviceId`
 
-**Server redeployed** on `mint22` — verified healthy at `https://localhost:15443/health/live`.
-Deployed binary hash: `1482ba2a964a245a67b8451d1d11e1228c912340eca992e320acf9bbfc1708eb` (`DotNetCloud.Modules.Files.Data.dll`).
-
 All tests pass: 607 (Files) + 138 (Core) + 176 (Data) = 921 total.
+
+#### Bug Found and Fixed (Server — Missing DB Migration)
+
+Windows client reported `500 INTERNAL_ERROR` on `GET /api/v1/files/sync/tree`. Server logs showed:
+```
+SqlState: 42703
+MessageText: column f.OriginatingDeviceId does not exist
+```
+
+**Root cause:** The EF Core migration `20260315074239_SyncDeviceIdentity` (which adds `OriginatingDeviceId` to `FileNodes`, `DeviceId` to `UploadSessions`, and creates `SyncDevices` table) was committed but never applied to the production `dotnetcloud` database. The server's `EnsureModuleTablesCreatedAsync` only fires when the sentinel table (`FileNodes`) doesn't exist — it does not apply incremental migrations.
+
+**Fix applied:**
+```bash
+dotnet ef database update --project src/Modules/Files/DotNetCloud.Modules.Files.Data \
+  --context FilesDbContext \
+  --connection "Host=localhost;Database=dotnetcloud;Username=postgres;Password=postgres"
+```
+Migration `20260315074239_SyncDeviceIdentity` applied successfully. Server restarted via `systemctl restart dotnetcloud.service`.
+
+**Verification:**
+- `curl -sk -w "%{http_code}" https://localhost:15443/health/live` → `Healthy`
+- `curl -sk -w "%{http_code}" https://localhost:15443/api/v1/files/sync/tree` → `401` (expected — requires auth, no more 500)
+- No `42703` errors in post-restart journalctl output
 
 #### Action Required on Client Machines
 
-No client code changes needed — the fix is server-side only.
+No client code changes needed — both fixes are server-side only.
 
 1. Upload a new test file (e.g., `echo-test-fix-20260315.txt`)
 2. Wait for next sync pass
@@ -105,7 +125,7 @@ No client code changes needed — the fix is server-side only.
 
 | Machine | Status | Echo suppression working | Notes |
 |---|---|---|---|
-| `Windows11-TestDNC` | FAIL | ☐ | 2026-03-15 runtime recheck on installed MSIX `0.23.5.0` is blocked by server errors before upload processing. New local file `echo-msix-verify-20260315-012441.txt` was detected by watcher, but sync pass failed repeatedly on `GET https://mint22:15443/api/v1/files/sync/tree` with `500 INTERNAL_ERROR` (`{"success":false,"error":{"code":"INTERNAL_ERROR","message":"An unexpected error occurred."}}`). Sample request IDs from failing calls: `9a745a76221a43b297a74fff1b31bebf`, `fa2bd5038e0b427fbc8bde966f4e3776`, `dbb05a10667846228cade98a68e2ce36`. Echo suppression cannot be validated until `sync/tree` is healthy again. |
+| `Windows11-TestDNC` | PENDING | ☐ | Previous FAIL was caused by missing DB migration on server (now fixed). Retry verification. |
 | `mint-dnc-client` | PENDING | ☐ | — |
 
 **Instructions for client agents:** Upload a test file, verify echo suppression works (uploaded file is NOT re-downloaded), update YOUR row. Commit and push.
