@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-15 (server deployment + chunk dedup hardening complete; optional client sanity retry)
+Last updated: 2026-03-15 (optional client sanity retry complete; upload hardening runtime check green)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -52,7 +52,8 @@ Archived context:
 - **Server gzip fix deployed (af66b41):** `UseRequestDecompression()` middleware added. Server now auto-decompresses `Content-Encoding: gzip` request bodies before controllers read them. The chunk PUT hash mismatch that caused false 409 is resolved.
 - **Upload complete 500 fixed:** `SyncCursorHelper.AssignNextSequenceAsync` was calling `.SingleAsync()` on non-composable raw SQL. EF Core 10 rejects LINQ composition on `SqlQueryRaw` with `RETURNING`. Fixed by materializing with `.ToListAsync()` then `.Single()`.
 - Client re-verification complete on `mint-dnc-client`: fresh upload now succeeds with initiate `201` -> chunk `200` -> complete `200`.
-- Active task: optional client sanity retry on `mint-dnc-client` to confirm end-to-end after server-side chunk dedup hardening.
+- Optional sanity retry complete on `mint-dnc-client`: fresh file upload again validated (`201` -> `200` -> `200`) with duplicate-name `409` behavior and no `500`.
+- Active task: standby monitoring only; no active cross-machine upload blocker.
 
 ## Environment
 
@@ -71,39 +72,31 @@ Archived context:
 
 ## Active Handoff
 
-### Optional Client Sanity Retry: Upload E2E on `mint-dnc-client`
+### Standby Monitoring: Upload Hardening Story (No Active Blocker)
 
 **Date:** 2026-03-15
-**Owner:** Client agent on `mint-dnc-client`
-**Status:** ACTIVE — optional sanity verification
+**Owner:** Server/client agents (`mint22`, `Windows11-TestDNC`, `mint-dnc-client`)
+**Status:** ACTIVE — standby monitoring only
 
 #### Context
 
-Server-side unique-violation hardening is fully deployed on `mint22`:
-- Commit `954f89b` (client-side `DbExceptionClassifier` + upload complete race catch) deployed.
-- Additional fix: chunk dedup race protection added to `ChunkedUploadService.StoreChunkAsync()` — concurrent PUT for same chunk hash no longer causes unhandled 500.
-- All 586 file module tests passed on server.
-- Unique constraints verified on PostgreSQL:
-  - `uq_file_nodes_root_name_active` / `uq_file_nodes_parent_name_active` → catches duplicate filename races
-  - `ix_file_chunks_hash` → catches concurrent chunk dedup races
-  - Direct duplicate insert test confirmed PostgreSQL error code `23505` is properly produced.
-- Server PID 104608, started 2026-03-14 20:04:24 CDT, `/health/live` healthy.
+- Optional client sanity retry completed on `mint-dnc-client` and archived in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
+- Fresh upload runtime evidence captured from client logs: `POST initiate` -> `201`, `PUT chunk` -> `200`, `POST complete` -> `200`.
+- Duplicate-name behavior observed as `409` (expected validation/existing-file class), with no `500` during the verification window.
 
-#### Scope (Client Agent on `mint-dnc-client`)
+#### Scope (Any Agent If Regression Appears)
 
-1. Pull `main`.
-2. Upload a fresh test file to verify upload still succeeds end-to-end:
-   - `POST /api/v1/files/upload/initiate` → `201`
-   - `PUT /api/v1/files/upload/{sessionId}/chunks/{hash}` → `200`
-   - `POST /api/v1/files/upload/{sessionId}/complete` → `200`
-3. Optionally: re-upload the same filename to verify the server returns a proper validation error (not a 500).
-4. Report results back in handoff.
+1. Keep current upload hardening story in monitoring state.
+2. If any `upload/initiate`, chunk PUT, or `complete` regression reappears, create a new active handoff block with:
+  - timestamped endpoint/status evidence,
+  - request IDs,
+  - affected machine and commit hash.
+3. Do not reopen this story without reproducible runtime evidence.
 
 #### Exit Criteria
 
-- Fresh upload succeeds (201 → 200 → 200).
-- Duplicate filename upload returns a validation error (not 500) — optional but nice to verify.
-- No remaining blockers for the upload hardening story.
+- No new upload regression evidence reported.
+- Story remains archived as resolved unless new data appears.
 
 ## Relay Template
 

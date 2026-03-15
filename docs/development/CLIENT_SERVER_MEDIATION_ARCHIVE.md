@@ -5,6 +5,24 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Optional Client Sanity Retry — Upload E2E on `mint-dnc-client` (2026-03-15)
+
+Archived from Active Handoff on 2026-03-15 after optional sanity verification completed.
+
+- Fresh test file created: `/home/benk/synctray/upload-e2e-sanity-1773536955.txt`.
+- Client log evidence (`/home/benk/.local/share/DotNetCloud/logs/sync-service20260314.log`) confirms successful upload sequence:
+    - `2026-03-15T01:09:17.4524998Z` `POST /api/v1/files/upload/initiate` -> `201`
+    - `2026-03-15T01:09:16.7547499Z` `PUT /api/v1/files/upload/380f4de6-ec19-41a1-a686-580c6afe87e7/chunks/577e6832fad62431489ee549ad125bb24fe37f46e8c111323950ff9f65e49622` -> `200`
+    - `2026-03-15T01:09:17.1026074Z` `POST /api/v1/files/upload/84e10978-24d1-474a-a4f3-1cf016d1cbfb/complete` -> `200`
+- Upload completion evidence:
+    - `2026-03-15T01:09:17.1071024Z` `File upload complete ... FileName=upload-e2e-sanity-1773536955.txt NodeId=f0807867-4519-4d36-909b-c04c68d589c0`
+- Optional duplicate-name verification also observed:
+    - `POST .../complete` returned `409` for parallel sessions for same filename.
+    - Client log classified this as expected existing-file handling: `CompleteUpload returned 409 ... Treating as success.`
+    - No `500` observed in the verification window.
+
+Conclusion: optional sanity retry passed. Upload hardening story remains green from client runtime perspective on `mint-dnc-client`.
+
 ## Archived: Client Re-Verification — Upload Complete 500 Resolved on `mint-dnc-client` (2026-03-15)
 
 Archived from Active Handoff on 2026-03-15 after verification completed.
