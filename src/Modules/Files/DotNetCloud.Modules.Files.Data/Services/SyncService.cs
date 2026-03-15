@@ -19,11 +19,13 @@ internal sealed class SyncService : ISyncService
 
     private readonly FilesDbContext _db;
     private readonly ILogger<SyncService> _logger;
+    private readonly IDeviceContext _deviceContext;
 
-    public SyncService(FilesDbContext db, ILogger<SyncService> logger)
+    public SyncService(FilesDbContext db, ILogger<SyncService> logger, IDeviceContext deviceContext)
     {
         _db = db;
         _logger = logger;
+        _deviceContext = deviceContext;
     }
 
     /// <inheritdoc />
@@ -90,6 +92,25 @@ internal sealed class SyncService : ISyncService
         var allChanges = activeChanges.Concat(deletedChanges)
             .OrderByDescending(c => c.UpdatedAt)
             .ToList();
+
+        if (_deviceContext.DeviceId.HasValue)
+        {
+            var currentDeviceId = _deviceContext.DeviceId.Value;
+            var beforeCount = allChanges.Count;
+            allChanges = allChanges
+                .Where(c => c.OriginatingDeviceId != currentDeviceId)
+                .ToList();
+
+            var suppressed = beforeCount - allChanges.Count;
+            if (suppressed > 0)
+            {
+                _logger.LogInformation(
+                    "sync.changes.suppressed_self_origin {UserId} {DeviceId} {SuppressedCount}",
+                    caller.UserId,
+                    currentDeviceId,
+                    suppressed);
+            }
+        }
 
         return allChanges;
     }
@@ -190,11 +211,39 @@ internal sealed class SyncService : ISyncService
             .OrderBy(c => c.SyncSequence)
             .ToList();
 
+        var maxSequenceInWindow = allChanges.Count > 0
+            ? allChanges.Max(c => c.SyncSequence ?? sinceSequence)
+            : sinceSequence;
+        var suppressedSelfOriginCount = 0;
+
+        if (_deviceContext.DeviceId.HasValue)
+        {
+            var currentDeviceId = _deviceContext.DeviceId.Value;
+            var beforeCount = allChanges.Count;
+            allChanges = allChanges
+                .Where(c => c.OriginatingDeviceId != currentDeviceId)
+                .ToList();
+
+            suppressedSelfOriginCount = beforeCount - allChanges.Count;
+            if (suppressedSelfOriginCount > 0)
+            {
+                _logger.LogInformation(
+                    "sync.cursor.suppressed_self_origin {UserId} {DeviceId} {SuppressedCount}",
+                    caller.UserId,
+                    currentDeviceId,
+                    suppressedSelfOriginCount);
+            }
+        }
+
         var hasMore = allChanges.Count > effectiveLimit;
         var page = allChanges.Take(effectiveLimit).ToList();
-
-        var maxSequenceInPage = page.Count > 0 ? page.Max(c => c.SyncSequence ?? 0) : sinceSequence;
-        var nextCursor = SyncCursorHelper.EncodeCursor(caller.UserId, maxSequenceInPage);
+        var maxSequenceInPage = page.Count > 0
+            ? page.Max(c => c.SyncSequence ?? sinceSequence)
+            : sinceSequence;
+        var nextSequence = suppressedSelfOriginCount > 0 && maxSequenceInWindow > maxSequenceInPage
+            ? maxSequenceInWindow
+            : maxSequenceInPage;
+        var nextCursor = SyncCursorHelper.EncodeCursor(caller.UserId, nextSequence);
 
         return new PagedSyncChangesDto
         {

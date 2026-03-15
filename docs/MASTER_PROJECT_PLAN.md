@@ -3882,7 +3882,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 **Dependencies:** Sync Batches 1-5, sync-verification
 
-**Notes:** All P0 critical fixes code-complete with full test coverage. 2026-03-15 added SQLite-backed constraint enforcement tests closing the concurrency test gap — unique indexes, CHECK constraints, and sequence monotonicity are now verified at the database level, not just configuration metadata. `DbExceptionClassifier` coverage validated across PostgreSQL/SQLite/SQL Server. 597/597 tests passing. Production database verified clean (no existing duplicates). P1 work (Device Identity, Echo Suppression, Rate Limiting) not yet started.
+**Notes:** All P0 critical fixes code-complete with full test coverage. 2026-03-15 added SQLite-backed constraint enforcement tests closing the concurrency test gap — unique indexes, CHECK constraints, and sequence monotonicity are now verified at the database level, not just configuration metadata. `DbExceptionClassifier` coverage validated across PostgreSQL/SQLite/SQL Server. 597/597 tests passing. Production database verified clean (no existing duplicates). P1 has now started: server-side self-origin sync-change suppression and diagnostic hardening are implemented with regression tests; Linux parity validation remains in progress due duplicate local context configuration on `mint-dnc-client`.
 
 ---
 

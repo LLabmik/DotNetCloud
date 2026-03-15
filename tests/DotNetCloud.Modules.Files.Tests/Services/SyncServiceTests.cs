@@ -4,6 +4,7 @@ using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Data.Services;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Models;
+using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -21,8 +22,11 @@ public class SyncServiceTests
         return new FilesDbContext(options);
     }
 
-    private static SyncService CreateService(FilesDbContext db) =>
-        new(db, NullLoggerFactory.Instance.CreateLogger<SyncService>());
+    private static SyncService CreateService(FilesDbContext db, Guid? deviceId = null) =>
+        new(
+            db,
+            NullLoggerFactory.Instance.CreateLogger<SyncService>(),
+            new DeviceContext { DeviceId = deviceId });
 
     private static CallerContext UserCaller(Guid userId) => new(userId, Array.Empty<string>(), CallerType.User);
 
@@ -139,6 +143,40 @@ public class SyncServiceTests
 
         Assert.AreEqual(1, changes.Count);
         Assert.AreEqual("mine.txt", changes[0].Name);
+    }
+
+    [TestMethod]
+    public async Task GetChangesSinceAsync_SelfOriginatedChanges_AreSuppressed()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var selfDeviceId = Guid.NewGuid();
+        var otherDeviceId = Guid.NewGuid();
+        var now = DateTime.UtcNow;
+
+        db.FileNodes.Add(new FileNode
+        {
+            Name = "self.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            UpdatedAt = now,
+            OriginatingDeviceId = selfDeviceId
+        });
+        db.FileNodes.Add(new FileNode
+        {
+            Name = "other.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            UpdatedAt = now,
+            OriginatingDeviceId = otherDeviceId
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, selfDeviceId);
+        var changes = await service.GetChangesSinceAsync(now.AddMinutes(-1), null, UserCaller(userId));
+
+        Assert.AreEqual(1, changes.Count);
+        Assert.AreEqual("other.txt", changes[0].Name);
     }
 
     [TestMethod]
@@ -534,6 +572,34 @@ public class SyncServiceTests
         var decoded = SyncCursorHelper.DecodeCursor(result.NextCursor!);
         Assert.IsNotNull(decoded);
         Assert.AreEqual(42L, decoded!.Value.Sequence);
+    }
+
+    [TestMethod]
+    public async Task GetChangesSinceCursorAsync_SelfOriginatedChange_FilteredButCursorAdvances()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var selfDeviceId = Guid.NewGuid();
+
+        db.FileNodes.Add(new FileNode
+        {
+            Name = "self-only.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            SyncSequence = 1,
+            OriginatingDeviceId = selfDeviceId
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, selfDeviceId);
+        var result = await service.GetChangesSinceCursorAsync(null, null, 500, UserCaller(userId));
+
+        Assert.AreEqual(0, result.Changes.Count);
+        Assert.IsFalse(result.HasMore);
+
+        var decoded = SyncCursorHelper.DecodeCursor(result.NextCursor!);
+        Assert.IsNotNull(decoded);
+        Assert.AreEqual(1L, decoded!.Value.Sequence);
     }
 
     // ── SyncCursorHelper unit tests ───────────────────────────────────────────

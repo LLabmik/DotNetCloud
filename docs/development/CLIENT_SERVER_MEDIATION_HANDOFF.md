@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-15 (Server correlation complete: OriginatingDeviceId=NULL for Linux uploads, diagnostic logging deployed, awaiting `mint-dnc-client` re-test)
+Last updated: 2026-03-15 (Linux re-test run on fresh client binaries: echo suppression split by duplicate local contexts; client context cleanup now required)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -56,7 +56,7 @@ Archived context:
 - Server-side P1 echo suppression/device-identity fix and `SyncDeviceIdentity` DB migration are now applied on `mint22`.
 - **Windows (`Windows11-TestDNC`) re-verification PASSED** on 2026-03-15: uploaded file completed, immediate follow-up pass showed `RemoteChanges=1, LocalApplied=0`, no download path was entered for the uploaded node, and the next scheduled pass was clean.
 - **Linux (`mint-dnc-client`) parity re-verification FAILED** on 2026-03-15: uploaded verification node was downloaded on follow-up pass (`RemoteChanges=1, LocalApplied=1`), so parity with Windows behavior is not achieved.
-- **Next active cycle:** Linux client re-test on `mint-dnc-client` with diagnostic logging deployed on `mint22` to trace the exact `DeviceIdentityFilter` failure path.
+- **Next active cycle:** client-side duplicate-context cleanup on `mint-dnc-client`, then a single-context Linux re-test.
 
 ## Environment
 
@@ -75,11 +75,11 @@ Archived context:
 
 ## Active Handoff
 
-### P1 Echo Suppression — Server Correlation Complete, Linux Client Re-Test Required
+### P1 Echo Suppression — Linux Re-Test Completed, Duplicate Context Blocker Identified
 
 **Date:** 2026-03-15
-**Owner:** `mint-dnc-client` (Linux client re-test)
-**Status:** READY FOR LINUX CLIENT RE-VERIFICATION
+**Owner:** `mint-dnc-client` (context cleanup + re-test)
+**Status:** READY FOR CLIENT CONTEXT CLEANUP
 
 #### Server Investigation Findings (Completed on `mint22`)
 
@@ -126,18 +126,51 @@ Under PID 35979, the file log (min level: Warning) shows NO device-related warni
 
 3. **Server redeployed** with diagnostic logging active (PID 48362+ after restart).
 
+#### Linux Re-Test Results (Completed on `mint-dnc-client`)
+
+Runtime process verification:
+
+- stale client process (started 02:12) was still running old binary; restarted from current source at 05:18.
+- process after restart:
+  - `dotnet run --project src/Clients/DotNetCloud.Client.SyncService/DotNetCloud.Client.SyncService.csproj`
+  - child binary: `src/Clients/DotNetCloud.Client.SyncService/bin/Debug/net10.0/dotnetcloud-sync-service`
+
+Device identity persistence after restart:
+
+- `~/.local/share/DotNetCloud/Sync/device-id` now exists
+- value: `21c95ee6-2094-447e-bc8a-e70177c3025f`
+
+Verification upload file:
+
+- `/home/benk/synctray/echo-diag-linux-restart-20260315-052729.txt`
+- server node id (from client log): `a0359028-e93e-4aae-b080-ebb3485117ce`
+
+Observed follow-up behavior:
+
+- context `cb22726a-cdef-4cc8-a29c-755b22f1c899`: follow-up pass shows `RemoteChanges=1, LocalApplied=0` (suppressed)
+- context `e7ba5002-dc72-4c97-a511-17f194ca79c5`: same node still downloaded (`File download starting`), pass shows `RemoteChanges=1, LocalApplied=1`
+
+Key evidence:
+
+- contexts registry contains **two active contexts** with same `ServerBaseUrl`, `UserId`, and `LocalFolderPath` (`/home/benk/synctray`):
+  - `e7ba5002-dc72-4c97-a511-17f194ca79c5`
+  - `cb22726a-cdef-4cc8-a29c-755b22f1c899`
+- this dual-engine configuration causes one engine to suppress and the other to re-download the same uploaded node.
+
+Conclusion:
+
+- server-side device identity path is no longer the only blocker.
+- primary Linux parity blocker is now **duplicate local sync contexts against the same folder/account**.
+
 #### Action Required — `mint-dnc-client` ONLY
 
-1. Pull latest `main`.
-2. Upload a NEW test file to the sync folder (e.g., `echo-diag-linux-$(date +%Y%m%d-%H%M%S).txt`).
-3. Wait for the upload to complete and one follow-up sync pass to occur.
-4. **Report back in this handoff file:**
-   - Whether echo suppression worked (`LocalApplied=0` for the uploaded node on follow-up pass)
-   - The sync-service log lines showing the upload and follow-up pass
-   - The client's `device-id` file content: `cat ~/.local/share/DotNetCloud/device-id` (or wherever `SyncContextManager.GetSystemDataRoot()` points)
-5. **On mint22** (server-side verification — the moderator or mint22 agent should check):
-   - `grep "DeviceIdentityFilter\|NULL DeviceId\|NULL OriginatingDeviceId" /home/benk/Repos/dotnetcloud/artifacts/publish/server-baremetal/logs/dotnetcloud-$(date +%Y%m%d).log | tail -20`
-   - This will show whether the filter succeeded, which precondition failed, or if the upload service logged null values.
+1. Remove one duplicate context so only a single context remains bound to `/home/benk/synctray` + `https://mint22:15443` + user `019cc1ac-da42-737c-b0ab-d0f2ecca8019`.
+2. Restart sync service.
+3. Re-run the same upload/follow-up verification with one context only.
+4. Update this handoff with:
+   - remaining context id
+   - follow-up pass summary (`RemoteChanges`/`LocalApplied`)
+   - whether `File download starting` appears for the uploaded node.
 
 #### Expected Diagnostic Log Output
 

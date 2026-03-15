@@ -3993,3 +3993,12 @@ Before marking a phase complete:
 
 **Status:** ✅ Code Complete — Pending deployment
 **Last Reviewed:** 2026-03-15
+
+#### P1 — Device Identity & Echo Suppression (2026-03-15)
+- ✓ Add server-side self-origin sync-change suppression in `SyncService` using request `IDeviceContext.DeviceId`
+- ✓ Preserve cursor advancement when self-originated rows are filtered out
+- ✓ Add regression tests for self-origin filtering (`GetChangesSinceAsync` + cursor path)
+- ✓ Validate module tests/build after change (`SyncServiceTests` passing)
+- ✓ Linux runtime re-test on fresh client binary captured and documented in handoff
+- ☐ Remove duplicate local sync contexts on `mint-dnc-client` (same user/server/folder)
+- ☐ Re-run single-context Linux parity verification and record final pass evidence
