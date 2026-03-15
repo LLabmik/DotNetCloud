@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-15 (Windows closeout verification handoff queued)
+Last updated: 2026-03-15 (Windows closeout completed on this machine; relay to mint22)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -64,7 +64,7 @@ Archived context:
 - Test gate on `mint-dnc-client`:
   - `dotnet test` (solution-wide) is environment-gated on this host due missing `maui-android` workload (`NETSDK1147`).
   - Executable non-gated suite passed: `dotnet test tests/DotNetCloud.Modules.Files.Tests/DotNetCloud.Modules.Files.Tests.csproj` => `609 passed, 0 failed`.
-- **Next active cycle:** Windows closeout verification on `Windows11-TestDNC`.
+- **Next active cycle:** Server confirmation/closeout relay on `mint22`.
 
 ## Environment
 
@@ -83,57 +83,47 @@ Archived context:
 
 ## Active Handoff
 
-### Windows Closeout Verification — Execute on `Windows11-TestDNC`
+### Windows Closeout Complete — Relay + Final Confirmation on `mint22`
 
 **Date:** 2026-03-15
-**Target machine:** `Windows11-TestDNC`
+**Target machine:** `mint22`
 **Status:** READY FOR EXECUTION
 
 #### Background
 
-The P1 echo suppression / device identity story has been closed on both `mint-dnc-client` (Linux) and `mint22` (server). This handoff asks `Windows11-TestDNC` to pull latest, confirm the chain is clean from its perspective, and run a quick upload verification to confirm continued parity.
+This Windows machine (`Windows11-TestDNC`) has already executed closeout verification. The next action is on `mint22`: pull latest handoff, confirm closure state, and (if needed) publish the final closure relay to any remaining validation host.
 
-#### Step-by-Step Instructions (Execute ALL)
+#### Step-by-Step Instructions (Execute ALL on `mint22`)
 
-**Step 1: Pull latest `main`**
+**Step 1: Pull latest `main` on `mint22`**
 
 ```powershell
-cd D:\Repos\dotnetcloud
+cd /srv/dotnetcloud
 git pull
 ```
 
-**Step 2: Run the test suite**
+**Step 2: Review Windows closeout evidence recorded below**
 
-```powershell
-dotnet test
-```
+Windows verification already performed on `Windows11-TestDNC`:
+- `dotnet test` (solution-wide): **2,177 passed, 0 failed, 13 skipped** (expected environment skips)
+- Verification file created/uploaded: `win-closeout-20260315_043003.txt`
+- Upload completion: `NodeId=718929be-1cfc-449a-92c1-9f9828f69e6d`
+- Follow-up sync pass: `RemoteChanges=1, LocalQueued=0, LocalApplied=0`
+- No download path entered for the uploaded node (no self-echo)
 
-All tests must pass.
+**Step 3: If server view is clean, mark story fully closed and relay**
 
-**Step 3: Runtime upload verification**
+1. Confirm no new server-side regressions in service logs since closeout window.
+2. Archive this Active Handoff block and set Active Handoff to no pending work.
+3. Commit and push the handoff closeout update.
+4. Relay to `mint-dnc-client` only if additional Linux parity confirmation is requested.
 
-Create a test file in the sync directory and verify upload completes without echo download:
+#### Evidence to Keep in Final Closeout
 
-1. Create a small test file in the sync root (`C:\Users\benk\Documents\synctray`):
-   ```powershell
-   Set-Content -Path "C:\Users\benk\Documents\synctray\win-closeout-$(Get-Date -Format 'yyyyMMdd_HHmmss').txt" -Value "Windows closeout verification $(Get-Date -Format 'o')"
-   ```
-2. Wait for the sync service to pick up the file change (check logs in `%LOCALAPPDATA%\DotNetCloud\logs\`).
-3. Verify in the sync log:
-   - `File upload starting` and `File upload complete` for the verification file.
-   - Follow-up sync pass shows `RemoteChanges=1, LocalApplied=0` (no echo download).
-   - No `File download starting` entry for the uploaded file's NodeId.
-
-**Step 4: If all clean, confirm and close**
-
-Update this handoff to confirm Windows closeout passed. Archive the completed block. Commit, push, and relay back to `mint22`.
-
-#### Evidence to Document
-
-- `dotnet test` result (pass count)
-- Upload log lines with timestamps
-- Follow-up sync pass line showing `RemoteChanges=1, LocalApplied=0`
-- Confirmation that no download occurred for the uploaded node
+- Windows `dotnet test` outcome and pass counts
+- Upload line + NodeId
+- Follow-up pass line showing `RemoteChanges=1, LocalApplied=0`
+- Explicit note that target machine for this handoff is `mint22` (not `Windows11-TestDNC`)
 
 ## Relay Template
 
