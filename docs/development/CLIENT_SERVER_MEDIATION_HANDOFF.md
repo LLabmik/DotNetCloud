@@ -50,7 +50,7 @@ Archived context:
 - P0 server-side sync hardening deployed and verified on `mint22`.
 - **NEW (commit `4c575cc`):** Client-side upload dedup + echo suppression fixes committed to main.
 - **Linux verification complete on `mint-dnc-client` (tests + rebuild + runtime checks).**
-- **Active task: `Windows11-TestDNC` must rebuild SyncService/SyncTray with new Client.Core, deploy, and runtime-verify.** See Active Handoff below for full instructions.
+- **Windows verification on `Windows11-TestDNC` is in progress:** tests/publish completed, signed MSIX `0.23.3-alpha` built, runtime verification is currently blocked on manual MSIX install to move the running WindowsApps service to the new binaries.
 
 ## Environment
 
@@ -69,7 +69,7 @@ Archived context:
 
 ## Active Handoff
 
-### Step 2 of 3: Rebuild & Verify Windows Sync Client on `Windows11-TestDNC`
+### Step 2 of 3: Install Updated MSIX and Complete Windows Runtime Verification on `Windows11-TestDNC`
 
 **Date:** 2026-03-15
 **Owner:** `Windows11-TestDNC` agent
@@ -93,7 +93,57 @@ Archived context:
 - `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` — echo suppression in `HandleRemoteUpdateAsync`
 - `tests/DotNetCloud.Client.Core.Tests/LocalState/LocalStateDbTests.cs` — 4 new tests
 
-#### Task for `Windows11-TestDNC`
+#### Work Completed on `Windows11-TestDNC` (this cycle)
+
+1. Pulled latest main and confirmed fix commit present in local history:
+   - `4c575cc fix: client-side upload dedup + echo suppression`
+2. Ran Client.Core tests:
+   - `dotnet test tests/DotNetCloud.Client.Core.Tests/`
+   - Result: `164 passed, 0 failed`.
+3. Rebuilt publish payloads:
+   - SyncService publish to `artifacts/desktop-client-staging/0.1.0-alpha/win-x64/payload/SyncService/`
+   - SyncTray publish to `artifacts/desktop-client-staging/0.1.0-alpha/win-x64/payload/SyncTray/`
+4. Built signed MSIX carrying updated binaries:
+   - `artifacts/installers/dotnetcloud-sync-tray-win-x64-0.23.3-alpha.msix`
+   - Status: signed.
+5. Runtime gate verification command/output captured:
+   - Service path is currently:
+     `"C:\Program Files\WindowsApps\DotNetCloud.SyncTray_0.23.2.0_x64__xrs2wr7p8d2rc\SyncService\dotnetcloud-sync-service.exe"`
+   - Hash comparison vs newly published staging binaries:
+     - `SYNC_SERVICE_EXE_MATCH: False`
+     - `CLIENT_CORE_DLL_MATCH: False` (installed `DotNetCloud.Client.Core.dll` not present at Program Files target; service is running from WindowsApps/MSIX path)
+
+#### Runtime Evidence (current running build)
+
+- Log file used: `C:\ProgramData\DotNetCloud\Sync\logs\sync-service20260314.log`
+- Evidence of prior conflict behavior (old runtime):
+  - Conflict copy created for `seq-test-windows.txt` at line `9585`.
+- Evidence from new timestamped test file created during this cycle:
+  - `seq-test-windows-20260314-193147.txt` queued/uploaded once for create event:
+    - Local queue line `10478`
+    - Upload start line `10479`
+    - `upload/initiate` request lines `10480-10484`
+  - Append event showed one queue + one upload start for that event:
+    - Local queue line `10574`
+    - Upload start line `10581`
+    - `upload/initiate` request lines `10582-10586`
+  - No conflict-copy log entry for `seq-test-windows-20260314-193147.txt` in the captured segment.
+
+#### Remaining Task for `Windows11-TestDNC` (environment-gated)
+
+This step is blocked on a manual MSIX install action (required by environment/tooling constraints).
+
+1. Uninstall currently installed package (if present):
+  ```powershell
+  Get-AppxPackage -Name "DotNetCloud.SyncTray" | Remove-AppxPackage
+  ```
+2. Manually install:
+  `artifacts\installers\dotnetcloud-sync-tray-win-x64-0.23.3-alpha.msix`
+3. Start/confirm service and tray from newly installed package.
+4. Re-run runtime verification with a fresh timestamped test file.
+5. Confirm runtime gate with command output showing service path on `0.23.3.0` package and matching behavior (single initiate per event, no spurious conflict copy).
+
+#### Task for `Windows11-TestDNC` (after manual MSIX install)
 
 1. `git pull origin main` and confirm commit includes `4c575cc`.
 2. Run all Client.Core tests: `dotnet test tests/DotNetCloud.Client.Core.Tests/` — all must pass (including 4 new dedup tests).
