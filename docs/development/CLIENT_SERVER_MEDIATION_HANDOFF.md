@@ -112,6 +112,10 @@ Archived context:
    - Hash comparison vs newly published staging binaries:
      - `SYNC_SERVICE_EXE_MATCH: False`
      - `CLIENT_CORE_DLL_MATCH: False` (installed `DotNetCloud.Client.Core.dll` not present at Program Files target; service is running from WindowsApps/MSIX path)
+6. Executed package cleanup step to prepare manual reinstall:
+   - `Get-AppxPackage -Name "DotNetCloud.SyncTray" | Remove-AppxPackage`
+   - Result: `APPX_UNINSTALL: SUCCESS`
+   - Post-check: `APPX_INSTALLED_AFTER_UNINSTALL: False`
 
 #### Runtime Evidence (current running build)
 
@@ -133,15 +137,11 @@ Archived context:
 
 This step is blocked on a manual MSIX install action (required by environment/tooling constraints).
 
-1. Uninstall currently installed package (if present):
-  ```powershell
-  Get-AppxPackage -Name "DotNetCloud.SyncTray" | Remove-AppxPackage
-  ```
-2. Manually install:
+1. Manually install:
   `artifacts\installers\dotnetcloud-sync-tray-win-x64-0.23.3-alpha.msix`
-3. Start/confirm service and tray from newly installed package.
-4. Re-run runtime verification with a fresh timestamped test file.
-5. Confirm runtime gate with command output showing service path on `0.23.3.0` package and matching behavior (single initiate per event, no spurious conflict copy).
+2. Start/confirm service and tray from newly installed package.
+3. Re-run runtime verification with a fresh timestamped test file.
+4. Confirm runtime gate with command output showing service path on `0.23.3.0` package and matching behavior (single initiate per event, no spurious conflict copy).
 
 #### Task for `Windows11-TestDNC` (after manual MSIX install)
 
