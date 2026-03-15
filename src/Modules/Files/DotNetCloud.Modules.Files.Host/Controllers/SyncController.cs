@@ -1,5 +1,6 @@
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
@@ -197,5 +198,17 @@ public class SyncController : FilesControllerBase
         var caller = GetAuthenticatedCaller();
         var cursor = await _syncService.GetDeviceCursorAsync(caller.UserId, deviceId, HttpContext.RequestAborted);
         return Ok(Envelope(cursor));
+    });
+
+    /// <summary>
+    /// Returns sync status for all registered devices across all users.
+    /// Admin-only endpoint for monitoring per-device sync lag.
+    /// </summary>
+    [HttpGet("admin/device-status")]
+    [Authorize(Policy = "RequireAdmin")]
+    public Task<IActionResult> GetAllDeviceSyncStatusAsync() => ExecuteAsync(async () =>
+    {
+        var statuses = await _syncService.GetAllDeviceSyncStatusAsync(HttpContext.RequestAborted);
+        return Ok(Envelope(statuses));
     });
 }

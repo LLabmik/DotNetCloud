@@ -516,4 +516,53 @@ internal sealed class SyncService : ISyncService
             UpdatedAt = cursor.UpdatedAt,
         };
     }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<DeviceSyncStatusDto>> GetAllDeviceSyncStatusAsync(CancellationToken cancellationToken = default)
+    {
+        // Load all devices with their optional cursor in one query
+        var devices = await _db.SyncDevices
+            .AsNoTracking()
+            .OrderBy(d => d.UserId)
+            .ThenBy(d => d.DeviceName)
+            .ToListAsync(cancellationToken);
+
+        if (devices.Count == 0)
+            return [];
+
+        // Load cursors keyed by DeviceId
+        var cursors = await _db.SyncDeviceCursors
+            .AsNoTracking()
+            .ToDictionaryAsync(c => c.DeviceId, cancellationToken);
+
+        // Load counters keyed by UserId
+        var userIds = devices.Select(d => d.UserId).Distinct().ToList();
+        var counters = await _db.UserSyncCounters
+            .AsNoTracking()
+            .Where(c => userIds.Contains(c.UserId))
+            .ToDictionaryAsync(c => c.UserId, cancellationToken);
+
+        return devices.Select(d =>
+        {
+            var currentSeq = counters.TryGetValue(d.UserId, out var counter)
+                ? counter.CurrentSequence : 0L;
+            var acked = cursors.TryGetValue(d.Id, out var cursor)
+                ? (long?)cursor.LastAcknowledgedSequence : null;
+
+            return new DeviceSyncStatusDto
+            {
+                DeviceId = d.Id,
+                UserId = d.UserId,
+                DeviceName = d.DeviceName,
+                Platform = d.Platform,
+                ClientVersion = d.ClientVersion,
+                IsActive = d.IsActive,
+                CurrentSequence = currentSeq,
+                LastAcknowledgedSequence = acked,
+                Lag = currentSeq - (acked ?? 0),
+                LastSeenAt = d.LastSeenAt,
+                CursorUpdatedAt = cursor?.UpdatedAt,
+            };
+        }).ToList();
+    }
 }

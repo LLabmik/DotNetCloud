@@ -247,7 +247,7 @@ Efficiency and architectural improvements that reduce server load and improve re
 - ✓ Server: expose cursor recovery endpoint
 - ✓ Client: send ack header after processing changes
 - ✓ Client: query cursor on first connect (skip full re-sync if cursor exists)
-- ☐ Admin: surface per-device sync status
+- ✓ Admin: surface per-device sync status
 - ✓ Migration
 
 ---

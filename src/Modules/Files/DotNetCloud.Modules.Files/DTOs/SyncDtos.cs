@@ -190,3 +190,45 @@ public sealed record DeviceCursorDto
     /// <summary>When the cursor was last updated.</summary>
     public DateTime? UpdatedAt { get; init; }
 }
+
+/// <summary>
+/// Admin view of a device's sync status, including lag relative to the user's current sequence.
+/// </summary>
+public sealed record DeviceSyncStatusDto
+{
+    /// <summary>Device identifier.</summary>
+    public Guid DeviceId { get; init; }
+
+    /// <summary>The user who owns this device.</summary>
+    public Guid UserId { get; init; }
+
+    /// <summary>Display name of the user.</summary>
+    public string? UserDisplayName { get; init; }
+
+    /// <summary>Human-readable device name.</summary>
+    public required string DeviceName { get; init; }
+
+    /// <summary>Platform (Linux, Windows, Android, etc.).</summary>
+    public string? Platform { get; init; }
+
+    /// <summary>Client version string.</summary>
+    public string? ClientVersion { get; init; }
+
+    /// <summary>Whether the device is active.</summary>
+    public bool IsActive { get; init; }
+
+    /// <summary>The user's current (latest) sync sequence on the server.</summary>
+    public long CurrentSequence { get; init; }
+
+    /// <summary>The last sequence this device acknowledged processing, or null if never acked.</summary>
+    public long? LastAcknowledgedSequence { get; init; }
+
+    /// <summary>How many sequences behind the device is (CurrentSequence - LastAcknowledgedSequence).</summary>
+    public long Lag { get; init; }
+
+    /// <summary>When the device last contacted the server.</summary>
+    public DateTime LastSeenAt { get; init; }
+
+    /// <summary>When the cursor was last updated, or null if no ack received.</summary>
+    public DateTime? CursorUpdatedAt { get; init; }
+}

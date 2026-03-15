@@ -345,6 +345,20 @@ public sealed class DotNetCloudApiClient
     }
 
     // -----------------------------------------------------------------------
+    // Sync Device Status (Admin)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Gets sync status for all registered devices across all users (admin-only).
+    /// </summary>
+    public async Task<IReadOnlyList<DeviceSyncStatusDto>> ListDeviceSyncStatusAsync(CancellationToken ct = default)
+    {
+        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<IReadOnlyList<DeviceSyncStatusDto>>>(
+            "api/v1/files/sync/admin/device-status", ct);
+        return envelope?.Data ?? [];
+    }
+
+    // -----------------------------------------------------------------------
     // Response envelope
     // -----------------------------------------------------------------------
 
@@ -377,4 +391,23 @@ public sealed class HealthEntryDto
     public string? Description { get; set; }
     public double Duration { get; set; }
     public Dictionary<string, object>? Data { get; set; }
+}
+
+/// <summary>
+/// Admin view of a device's sync status including lag.
+/// </summary>
+public sealed class DeviceSyncStatusDto
+{
+    public Guid DeviceId { get; set; }
+    public Guid UserId { get; set; }
+    public string? UserDisplayName { get; set; }
+    public string DeviceName { get; set; } = string.Empty;
+    public string? Platform { get; set; }
+    public string? ClientVersion { get; set; }
+    public bool IsActive { get; set; }
+    public long CurrentSequence { get; set; }
+    public long? LastAcknowledgedSequence { get; set; }
+    public long Lag { get; set; }
+    public DateTime LastSeenAt { get; set; }
+    public DateTime? CursorUpdatedAt { get; set; }
 }

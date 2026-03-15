@@ -369,6 +369,23 @@ textarea.input { resize: vertical; min-height: 60px; }
     margin-top: 24px;
 }
 
+/* --- Sync Devices Status --- */
+.sync-summary { margin-bottom: 24px; }
+.stat-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 16px;
+}
+.stat-card {
+    background: var(--color-surface);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+    text-align: center;
+}
+.stat-value { font-size: 32px; font-weight: 700; color: var(--color-text); }
+.stat-label { font-size: 12px; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: .5px; margin-top: 4px; }
+
 .module-home-section h2 {
     margin-bottom: 12px;
     font-size: 18px;

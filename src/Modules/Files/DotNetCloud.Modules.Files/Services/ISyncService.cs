@@ -39,4 +39,10 @@ public interface ISyncService
     /// after reinstallation or local state corruption.
     /// </summary>
     Task<DeviceCursorDto> GetDeviceCursorAsync(Guid userId, Guid deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets sync status for all registered devices across all users (admin-only).
+    /// Includes per-device lag relative to each user's current sequence.
+    /// </summary>
+    Task<IReadOnlyList<DeviceSyncStatusDto>> GetAllDeviceSyncStatusAsync(CancellationToken cancellationToken = default);
 }

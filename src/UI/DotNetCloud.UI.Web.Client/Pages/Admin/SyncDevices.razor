@@ -1,0 +1,153 @@
+@page "/admin/sync-devices"
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveWebAssemblyRenderMode(prerender: false))
+@attribute [Authorize(Policy = "RequireAdmin")]
+
+<PageTitle>Sync Devices - DotNetCloud</PageTitle>
+
+<div class="page-header">
+    <h1>Sync Devices</h1>
+    <button class="btn btn-outline" @onclick="RefreshAsync" disabled="@_loading">Refresh</button>
+</div>
+
+@if (_loading)
+{
+    <LoadingIndicator Message="Loading device sync status..." />
+}
+else
+{
+    <div class="sync-summary">
+        <div class="stat-cards">
+            <div class="stat-card">
+                <div class="stat-value">@_devices.Count</div>
+                <div class="stat-label">Total Devices</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">@_devices.Count(d => d.Lag == 0 && d.LastAcknowledgedSequence is not null)</div>
+                <div class="stat-label">Caught Up</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">@_devices.Count(d => d.Lag > 0)</div>
+                <div class="stat-label">Behind</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">@_devices.Count(d => d.LastAcknowledgedSequence is null)</div>
+                <div class="stat-label">Never Acked</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Device</th>
+                    <th>Platform</th>
+                    <th>Version</th>
+                    <th>Status</th>
+                    <th>Server Seq</th>
+                    <th>Device Seq</th>
+                    <th>Lag</th>
+                    <th>Last Seen</th>
+                    <th>Last Ack</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_devices.Count == 0)
+                {
+                    <tr>
+                        <td colspan="9" class="text-center">No sync devices registered.</td>
+                    </tr>
+                }
+                @foreach (var device in _devices)
+                {
+                    <tr>
+                        <td>
+                            <strong>@device.DeviceName</strong>
+                            <small>@device.UserId.ToString()[..8]…</small>
+                        </td>
+                        <td>@(device.Platform ?? "—")</td>
+                        <td>@(device.ClientVersion ?? "—")</td>
+                        <td>
+                            <span class="badge badge-@(device.IsActive ? "success" : "muted")">
+                                @(device.IsActive ? "Active" : "Disabled")
+                            </span>
+                        </td>
+                        <td>@device.CurrentSequence</td>
+                        <td>@(device.LastAcknowledgedSequence?.ToString() ?? "—")</td>
+                        <td>
+                            <span class="badge badge-@GetLagBadge(device)">
+                                @GetLagText(device)
+                            </span>
+                        </td>
+                        <td>@FormatRelativeTime(device.LastSeenAt)</td>
+                        <td>@(device.CursorUpdatedAt is not null ? FormatRelativeTime(device.CursorUpdatedAt.Value) : "Never")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+
+    private bool _loading = true;
+    private IReadOnlyList<DeviceSyncStatusDto> _devices = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        _loading = true;
+        try
+        {
+            _devices = await Api.ListDeviceSyncStatusAsync();
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load sync status. {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string GetLagBadge(DeviceSyncStatusDto device)
+    {
+        if (device.LastAcknowledgedSequence is null)
+            return "muted";
+        if (device.Lag == 0)
+            return "success";
+        if (device.Lag <= 10)
+            return "warning";
+        return "danger";
+    }
+
+    private static string GetLagText(DeviceSyncStatusDto device)
+    {
+        if (device.LastAcknowledgedSequence is null)
+            return "No data";
+        if (device.Lag == 0)
+            return "Caught up";
+        return $"{device.Lag} behind";
+    }
+
+    private static string FormatRelativeTime(DateTime utcTime)
+    {
+        var elapsed = DateTime.UtcNow - utcTime;
+        if (elapsed.TotalMinutes < 1)
+            return "Just now";
+        if (elapsed.TotalMinutes < 60)
+            return $"{(int)elapsed.TotalMinutes}m ago";
+        if (elapsed.TotalHours < 24)
+            return $"{(int)elapsed.TotalHours}h ago";
+        if (elapsed.TotalDays < 30)
+            return $"{(int)elapsed.TotalDays}d ago";
+        return utcTime.ToString("yyyy-MM-dd");
+    }
+}
