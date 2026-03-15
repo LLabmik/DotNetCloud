@@ -673,13 +673,31 @@ public sealed class SyncEngine : ISyncEngine
 
         if (localRecord is not null && IsLocallyModified(localRecord, localPath))
         {
-            // Both local and remote changed — run auto-resolution pipeline.
+            // Echo suppression: if the local file's content hash matches the remote change,
+            // this is likely our own upload echoing back. Just update the record and move on.
             string? localContentHash = null;
             try
             {
                 localContentHash = await ComputeFileHashAsync(localPath, cancellationToken);
             }
             catch { /* non-critical; resolver falls through to conflict copy if null */ }
+
+            if (!string.IsNullOrEmpty(localContentHash) &&
+                !string.IsNullOrEmpty(change.ContentHash) &&
+                localContentHash.Equals(change.ContentHash, StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogDebug(
+                    "Skipping remote change for {RelPath} — local file matches remote hash (echo suppression).",
+                    Path.GetRelativePath(context.LocalFolderPath, localPath));
+                localRecord.ContentHash = change.ContentHash;
+                localRecord.SyncStateTag = "Synced";
+                localRecord.LastSyncedAt = DateTime.UtcNow;
+                localRecord.LocalModifiedAt = File.Exists(localPath) ? File.GetLastWriteTimeUtc(localPath) : default;
+                await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, localRecord, cancellationToken);
+                return;
+            }
+
+            // Both local and remote changed — run auto-resolution pipeline.
 
             var outcome = await _conflictResolver.ResolveAsync(new ConflictInfo
             {

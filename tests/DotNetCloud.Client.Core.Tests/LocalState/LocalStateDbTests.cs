@@ -394,4 +394,50 @@ public class LocalStateDbTests
         Assert.AreEqual(now, checkpoint, "LastSyncedAt should be unchanged.");
         Assert.AreEqual("cursor-after-checkpoint", cursor, "Cursor should be set independently.");
     }
+
+    // ── Upload Dedup ────────────────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task QueueOperationAsync_DuplicateUpload_SkipsSecondQueue()
+    {
+        await _db.QueueOperationAsync(_dbPath, new PendingUpload { LocalPath = "/docs/same-file.txt" });
+        await _db.QueueOperationAsync(_dbPath, new PendingUpload { LocalPath = "/docs/same-file.txt" });
+
+        var ops = await _db.GetPendingOperationsAsync(_dbPath);
+        Assert.AreEqual(1, ops.Count, "Duplicate upload for same path should be deduplicated.");
+    }
+
+    [TestMethod]
+    public async Task QueueOperationAsync_DifferentUploadPaths_BothQueued()
+    {
+        await _db.QueueOperationAsync(_dbPath, new PendingUpload { LocalPath = "/docs/file-a.txt" });
+        await _db.QueueOperationAsync(_dbPath, new PendingUpload { LocalPath = "/docs/file-b.txt" });
+
+        var ops = await _db.GetPendingOperationsAsync(_dbPath);
+        Assert.AreEqual(2, ops.Count, "Uploads for different paths should both be queued.");
+    }
+
+    [TestMethod]
+    public async Task QueueOperationAsync_DuplicateDownload_SkipsSecondQueue()
+    {
+        var nodeId = Guid.NewGuid();
+        await _db.QueueOperationAsync(_dbPath, new PendingDownload { NodeId = nodeId, LocalPath = "/docs/dl.txt" });
+        await _db.QueueOperationAsync(_dbPath, new PendingDownload { NodeId = nodeId, LocalPath = "/docs/dl.txt" });
+
+        var ops = await _db.GetPendingOperationsAsync(_dbPath);
+        Assert.AreEqual(1, ops.Count, "Duplicate download for same NodeId should be deduplicated.");
+    }
+
+    [TestMethod]
+    public async Task QueueOperationAsync_UploadAfterRemoval_AllowsRequeue()
+    {
+        await _db.QueueOperationAsync(_dbPath, new PendingUpload { LocalPath = "/docs/requeue.txt" });
+        var ops = await _db.GetPendingOperationsAsync(_dbPath);
+        await _db.RemoveOperationAsync(_dbPath, ops[0].Id);
+
+        // After removal, same path should be queueable again.
+        await _db.QueueOperationAsync(_dbPath, new PendingUpload { LocalPath = "/docs/requeue.txt" });
+        var opsAfter = await _db.GetPendingOperationsAsync(_dbPath);
+        Assert.AreEqual(1, opsAfter.Count, "Upload should be re-queueable after previous one is removed.");
+    }
 }

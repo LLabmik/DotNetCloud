@@ -167,6 +167,38 @@ public sealed class LocalStateDb : ILocalStateDb
     public async Task QueueOperationAsync(string dbPath, PendingOperationRecord operation, CancellationToken cancellationToken = default)
     {
         await using var ctx = CreateContext(dbPath);
+
+        // Dedup: skip if an identical operation is already queued for the same local path.
+        if (operation is PendingUpload upload)
+        {
+            var alreadyQueued = await ctx.PendingOperations.AnyAsync(
+                r => r.OperationType == "Upload"
+                  && r.LocalPath != null
+                  && r.LocalPath == upload.LocalPath,
+                cancellationToken);
+            if (alreadyQueued)
+            {
+                _logger.LogDebug(
+                    "Skipping duplicate upload queue for {LocalPath} — already pending.",
+                    upload.LocalPath);
+                return;
+            }
+        }
+        else if (operation is PendingDownload download)
+        {
+            var alreadyQueued = await ctx.PendingOperations.AnyAsync(
+                r => r.OperationType == "Download"
+                  && r.NodeId == download.NodeId,
+                cancellationToken);
+            if (alreadyQueued)
+            {
+                _logger.LogDebug(
+                    "Skipping duplicate download queue for NodeId={NodeId} — already pending.",
+                    download.NodeId);
+                return;
+            }
+        }
+
         var row = MapToRow(operation);
         ctx.PendingOperations.Add(row);
         await ctx.SaveChangesAsync(cancellationToken);
