@@ -5,6 +5,16 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Chunk PUT 409 Conflict — Server-Side Fix (2026-03-14)
+
+Archived from Active Handoff on 2026-03-14 — root cause identified and fixed.
+
+- **Root cause:** Server had no request decompression middleware. Client sends `Content-Encoding: gzip` on chunk PUT bodies. Server read raw gzip bytes → `ContentHasher.ComputeHash()` → SHA-256 of compressed data ≠ declared chunk hash → `ValidationException` → mapped to 409 Conflict. Client treated 409 as "chunk already exists" → silently skipped. Chunks were never stored. `CompleteUpload` then failed (missing chunks or name-exists check) → also 409.
+- **Fix:** Added `builder.Services.AddRequestDecompression()` and `app.UseRequestDecompression()` to `Program.cs`. ASP.NET Core now auto-decompresses gzip/br/deflate request bodies before controllers read `Request.Body`.
+- **Commit:** `af66b41`
+- **Verification:** Server redeployed via `redeploy-baremetal.sh`, service active since 2026-03-14 19:05:02 CDT (PID 85460). Health endpoint healthy. 1,516 tests passing (0 failures).
+- **Tests run:** Server (329), Files (581), Client (160), Core (138), Data (176), Integration (132) — all green.
+
 ## Archived: Upload Chunk Failure Diagnostic — Client Log Capture on `mint-dnc-client` (2026-03-14)
 
 Archived from Active Handoff on 2026-03-14 when replaced by server-side 409 investigation on `mint22`.

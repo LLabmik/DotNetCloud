@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-14 (client chunk-upload diagnostics captured on mint-dnc-client; active task moved to server-side 409 investigation)
+Last updated: 2026-03-14 (server gzip request decompression fix deployed; client upload retry verification needed on mint-dnc-client)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -47,9 +47,10 @@ Archived context:
 ## Current Status
 
 - All prior Phase 2, chat, and pre-Linux sync remediation work is complete and archived.
-- Linux bring-up engineering fixes are complete (non-root path fallback, per-user singleton guards, reconciliation hardening, and sync re-entry coalescing).
-- Client diagnostics on `mint-dnc-client` confirmed chunk PUTs are sent; server responds `409 Conflict` for chunk PUT and complete calls during upload attempts.
-- Active blocker is now server-side investigation on `mint22` for why `upload/initiate` reports missing chunks while `PUT .../chunks/{hash}` immediately returns `409`.
+- Linux bring-up engineering fixes are complete.
+- P0 sync hardening (atomic SyncSequence, unique name constraint, atomic chunk refcount) deployed.
+- **Server gzip fix deployed (af66b41):** `UseRequestDecompression()` middleware added. Server now auto-decompresses `Content-Encoding: gzip` request bodies before controllers read them. The chunk PUT hash mismatch that caused false 409 is resolved.
+- Active task: client-side upload retry verification on `mint-dnc-client` to confirm end-to-end upload flow works.
 
 ## Environment
 
@@ -68,67 +69,55 @@ Archived context:
 
 ## Active Handoff
 
-### Chunk PUT 409 Conflict Investigation on `mint22`
+### Upload Retry Verification on `mint-dnc-client`
 
 **Date:** 2026-03-14
-**Owner:** Server agent on `mint22`
-**Status:** ACTIVE — client diagnostics complete, server investigation required
+**Owner:** Client agent on `mint-dnc-client`
+**Status:** ACTIVE — server fix deployed, needs client-side verification
 
-**What changed:** Client-side log capture on `mint-dnc-client` is complete. It disproves the original theory that chunk PUT requests never leave the client.
+**What changed on server (`mint22`):**
+- Commit `af66b41`: Added `AddRequestDecompression()` / `UseRequestDecompression()` to `Program.cs`.
+- Server now auto-decompresses `Content-Encoding: gzip` request bodies before controllers read `Request.Body`.
+- Previously: client gzip-compressed chunk data → server read raw gzip bytes → SHA-256 hash of compressed data ≠ declared chunk hash → `ValidationException` → 409 Conflict → client treated as "already exists" → upload never completed.
+- Now: middleware decompresses before hash validation → hash matches → chunk stored → upload completes.
+- Server redeployed and healthy on `mint22:15443` (PID 85460, started 2026-03-14T19:05:02-05:00).
 
-**Diagnostic evidence captured (client, `mint-dnc-client`):**
-- Log file path: `/home/benk/.local/share/DotNetCloud/logs/sync-service20260314.log`
-- `UploadChunkAsync` path is executed and reaches HTTP layer.
-- `InitiateUploadAsync` for `seq-test-linux.txt` returns `201` with a new session and one missing chunk:
-  - `{"@t":"2026-03-14T23:28:37.1661843Z","@mt":"ReadEnvelopeDataAsync<{TypeName}>: HTTP {StatusCode}, ContentType={ContentType}, BodyLength={Length}, BodyPreview={Preview}","TypeName":"UploadSessionResponse","StatusCode":201,"ContentType":"application/json","Length":267,"BodyPreview":"{\"success\":true,\"data\":{\"sessionId\":\"d32c8036-ee00-4de4-bb52-8a2fd7f61504\",\"existingChunks\":[],\"missingChunks\":[\"5d7383609c20886a2b19d783205b90d3d28a64c6efa6c66f4c7ffa462fe50bea\"],\"expiresAt\":\"2026-03-15T23:28:37.1630095Z\"},\"timestamp\":\"2026-03-14T23:28:37.1669161Z\"}","SourceContext":"DotNetCloud.Client.Core.Api.DotNetCloudApiClient"}`
-- Immediately after initiate, client sends chunk PUT for that exact session/chunk and receives `409`:
-  - `{"@t":"2026-03-14T23:28:37.1714667Z","@mt":"API call {Method} {Url} RequestId={RequestId}","Method":"PUT","Url":"https://mint22:15443/api/v1/files/upload/d32c8036-ee00-4de4-bb52-8a2fd7f61504/chunks/5d7383609c20886a2b19d783205b90d3d28a64c6efa6c66f4c7ffa462fe50bea","RequestId":"2907dc47071c4b63b14da31a43a655f3","SourceContext":"DotNetCloud.Client.Core.Api.CorrelationIdHandler","HttpMethod":"PUT","Uri":"https://mint22:15443/api/v1/files/upload/d32c8036-ee00-4de4-bb52-8a2fd7f61504/chunks/5d7383609c20886a2b19d783205b90d3d28a64c6efa6c66f4c7ffa462fe50bea","Scope":["HTTP PUT https://mint22:15443/api/v1/files/upload/d32c8036-ee00-4de4-bb52-8a2fd7f61504/chunks/5d7383609c20886a2b19d783205b90d3d28a64c6efa6c66f4c7ffa462fe50bea"]}`
-  - `{"@t":"2026-03-14T23:28:37.1773411Z","@mt":"Received HTTP response headers after {ElapsedMilliseconds}ms - {StatusCode}","ElapsedMilliseconds":5.813,"StatusCode":409,"EventId":{"Id":101,"Name":"RequestEnd"},"SourceContext":"System.Net.Http.HttpClient.DotNetCloudSync.ClientHandler","HttpMethod":"PUT","Uri":"https://mint22:15443/api/v1/files/upload/d32c8036-ee00-4de4-bb52-8a2fd7f61504/chunks/5d7383609c20886a2b19d783205b90d3d28a64c6efa6c66f4c7ffa462fe50bea","Scope":["HTTP PUT https://mint22:15443/api/v1/files/upload/d32c8036-ee00-4de4-bb52-8a2fd7f61504/chunks/5d7383609c20886a2b19d783205b90d3d28a64c6efa6c66f4c7ffa462fe50bea"]}`
-- Complete call also returns `409` and client treats as success:
-  - `{"@t":"2026-03-14T23:28:37.1895467Z","@mt":"CompleteUpload returned 409 for {FileName} — file already exists on server. Treating as success.","@l":"Warning","FileName":"seq-test-linux.txt","SourceContext":"DotNetCloud.Client.Core.Transfer.ChunkedTransferClient"}`
-- No `File upload failed` entry for `seq-test-linux.txt`; no `ApplyLocalChangesAsync` exception tied to this file; sync pass reports local apply completed.
+#### Scope (Client Agent on `mint-dnc-client`)
 
-**Conclusion from client diagnostics:**
-- The client does call chunk upload (`UploadChunkAsync`) and the request reaches `mint22`.
-- This is not a client-side silent drop and not evidence of gzip middleware rejection.
-- There is a server-side contract inconsistency: initiate says chunk is missing, then chunk PUT returns conflict.
+1. Pull `main` (commit `af66b41` or later).
 
-#### Scope (Server Agent on `mint22`)
+2. Create a fresh test file in the sync folder:
+   ```bash
+   echo "upload-verify-$(date +%s)" > ~/synctray/upload-verify-test.txt
+   ```
 
-1. Reproduce with the exact failing tuple from logs:
-   - `sessionId`: `d32c8036-ee00-4de4-bb52-8a2fd7f61504`
-   - `chunkHash`: `5d7383609c20886a2b19d783205b90d3d28a64c6efa6c66f4c7ffa462fe50bea`
-   - Endpoint: `PUT /api/v1/files/upload/{sessionId}/chunks/{chunkHash}`
+3. Wait for sync service to detect the new file and attempt upload (or restart the sync service to trigger immediate sync).
 
-2. Trace server path for `UploadChunk` conflict decisions:
-   - Validate whether `409` means global chunk already exists, duplicate within session, invalid session ownership/state, or file-name conflict leakage.
-   - Confirm whether response should be `200/204` for idempotent existing chunk instead of `409` when session requests that chunk.
+4. Check client logs for the upload flow:
+   - `upload/initiate` → should return 201 with `missingChunks` containing the hash
+   - `PUT .../chunks/{hash}` → should return **200** (not 409)
+   - `POST .../complete` → should return **200** with the created `FileNode`
 
-3. Verify session/chunk state transitions in DB for the same request window:
-   - upload session status,
-   - received chunk entries,
-   - chunk reference counts,
-   - any unique constraint or concurrency conflict.
+5. Verify the file appears in the server's file tree:
+   ```bash
+   # From mint-dnc-client, using the sync service's auth token or via curl:
+   # Check server DB for the uploaded file (or use the web UI on mint22:15443)
+   ```
 
-4. Implement fix so initiate/PUT contract is coherent:
-   - If `missingChunks` includes hash, `PUT` should succeed idempotently.
-   - If chunk already exists globally, it should be attachable without hard-fail semantics.
-
-5. Redeploy and provide runtime verification evidence from current binaries (not stale publish output), per runtime verification gate.
+6. If upload succeeds, also verify downloads work by checking if existing server-side files download correctly to the sync folder.
 
 #### Required Evidence Back in Next Handoff Update
 
-- Server log lines for the exact `PUT /chunks/{hash}` handling path (timestamped)
-- Branch/commit hash containing the server fix
-- Runtime verification command proving current binaries are running
-- Post-fix request/response sample showing coherent initiate -> PUT -> complete behavior
-- Any schema/constraint notes if migration changes were required
+- Client log lines showing successful `initiate` → `chunk PUT 200` → `complete 200` sequence (timestamped)
+- Confirmation that `upload-verify-test.txt` exists on server (DB query or web UI screenshot description)
+- Any remaining errors or unexpected behavior
+- Client commit hash if any client-side changes were needed
 
 #### Exit Criteria
 
-- `upload/initiate` + `PUT chunk` + `complete` path is internally consistent on `mint22`
-- Chunk PUT no longer fails with contradictory `409` when chunk was reported missing
-- Client can finish upload flow without conflict-loop semantics
+- At least one new file uploaded successfully from `mint-dnc-client` through the full `initiate → chunk PUT → complete` path
+- No false 409 on chunk PUT
+- Upload completion returns a valid `FileNode` response
 
 ## Relay Template
 
