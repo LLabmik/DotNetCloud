@@ -311,7 +311,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         {
             await _db.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        catch (DbUpdateException ex) when (DbExceptionClassifier.IsUniqueConstraintViolation(ex))
         {
             // Another concurrent upload won the race for the same filename in the same folder.
             // Discard tracked changes and return the existing node (idempotent behavior).
@@ -426,17 +426,4 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         return session;
     }
 
-    /// <summary>
-    /// Checks whether a <see cref="DbUpdateException"/> was caused by a unique constraint violation.
-    /// PostgreSQL reports this as error code 23505.
-    /// </summary>
-    private static bool IsUniqueViolation(DbUpdateException ex)
-    {
-        // Npgsql wraps the PG error as the InnerException of DbUpdateException.
-        // We check the PostgresException.SqlState without taking a hard dependency on the Npgsql type.
-        return ex.InnerException is { } inner
-            && inner.GetType().Name == "PostgresException"
-            && inner.Data["SqlState"] is string sqlState
-            && sqlState == "23505";
-    }
 }

@@ -5,6 +5,26 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Client Re-Verification — Upload Complete 500 Resolved on `mint-dnc-client` (2026-03-15)
+
+Archived from Active Handoff on 2026-03-15 after verification completed.
+
+- Fresh test file created: `/home/benk/synctray/upload-e2e-test-1773534949.txt`.
+- Client log evidence (`/home/benk/.local/share/DotNetCloud/logs/sync-service20260314.log`) shows full successful sequence:
+    - `2026-03-15T00:36:22.1527216Z` `POST /api/v1/files/upload/initiate` -> `201`
+    - `2026-03-15T00:36:22.1918408Z` `PUT /api/v1/files/upload/39ca2304-9012-4a88-83c1-b8154832d43a/chunks/9f1d9a31b19ff8659781e0ee0fb28424ab05687e12aca7aa6dc5966a40e35da9` -> `200`
+    - `2026-03-15T00:36:22.2229962Z` `POST /api/v1/files/upload/39ca2304-9012-4a88-83c1-b8154832d43a/complete` -> `200`
+- Complete response envelope included:
+    - `id`: `280339db-3ece-4a00-8129-2a688ede1a79`
+    - `name`: `upload-e2e-test-1773534949.txt`
+    - `contentHash`: `7172fa139d61bcf795a2b5dc0d3d78756f86839f0d2776a6ec83765eaba06b25`
+- Upload completion line:
+    - `2026-03-15T00:36:22.2275382Z` `File upload complete ... NodeId=280339db-3ece-4a00-8129-2a688ede1a79`
+- Tree visibility evidence:
+    - `2026-03-15T00:36:22.2518419Z` `ReadEnvelopeDataAsync<SyncTreeNodeResponse>` from sync tree call shows updated root payload length increase (`7264`), immediately after successful complete.
+
+Conclusion: the prior `complete` 500 class is resolved for the verification scenario; upload now completes successfully end-to-end on `mint-dnc-client`.
+
 ## Archived: Upload Complete 500 — Server-Side Fix (2026-03-15)
 
 Archived from Active Handoff on 2026-03-15 — root cause identified and fixed on `mint22`.

@@ -3874,13 +3874,14 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ **P0.1 — Atomic SyncSequence Assignment:** Replaced EF read-modify-write pattern in `SyncCursorHelper.AssignNextSequenceAsync` with PostgreSQL `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` atomic upsert. Added InMemory provider fallback for unit tests.
 - ✓ **P0.2 — Unique Constraint on File Names:** Added two filtered unique indexes in `FileNodeConfiguration` — `uq_file_nodes_parent_name_active` (ParentId, Name where not deleted) and `uq_file_nodes_root_name_active` (OwnerId, Name where not deleted and no parent). Added `DbUpdateException` catch with `IsUniqueViolation` helper in `ChunkedUploadService` and `FileService.CreateFolderAsync`.
 - ✓ **P0.3 — Atomic Chunk Reference Counting:** Created `ChunkReferenceHelper` with `IncrementAsync`/`DecrementAsync` using raw SQL `UPDATE` with PostgreSQL row-level locking. Replaced all 8 `ReferenceCount` mutation sites across 6 service files (`ChunkedUploadService`, `WopiService`, `VersionService`, `TrashService`, `VersionCleanupService`, `TrashCleanupService`, `FilesGrpcService`). Added CHECK constraint `ck_file_chunks_ref_count_non_negative` on `FileChunk`.
+- ✓ **P0.4 — Unique-Violation Classifier Reliability:** Added provider-aware `DbExceptionClassifier.IsUniqueConstraintViolation` and replaced fragile `InnerException.Data["SqlState"]` checks in `ChunkedUploadService` and `FileService`. This restores deterministic conflict mapping for duplicate-name races and chunk dedup races instead of leaking unhandled `500` responses.
 - ✓ **EF Migration `SyncHardeningP0`** — Drops redundant non-unique index, creates 2 unique filtered indexes + 1 CHECK constraint.
-- ✓ **Test suite: 581/581 passing** — All InMemory fallback paths verified, 3 previously-ignored sync tests re-enabled.
+- ✓ **Regression tests updated:** `DbExceptionClassifierTests` added; `DotNetCloud.Modules.Files.Tests` passes `586/586`.
 - ✓ **InternalsVisibleTo** for `dotnetcloud.files` (Host assembly) added to Data project.
 
 **Dependencies:** Sync Batches 1-5, sync-verification
 
-**Notes:** All P0 critical fixes code-complete. PostgreSQL-specific SQL uses atomic operations (INSERT...ON CONFLICT, GREATEST for floor-clamped decrement); InMemory provider detected via `db.Database.ProviderName` string comparison and falls back to EF change tracking for unit tests. Production database verified clean (no existing duplicates). P1 work (Device Identity, Echo Suppression, Rate Limiting) not yet started.
+**Notes:** All P0 critical fixes code-complete. 2026-03-15 follow-up fixed unique-constraint exception classification so duplicate key races are mapped to expected conflict responses across providers (PostgreSQL/SQLite/SQL Server) rather than unhandled `500`s. PostgreSQL-specific SQL uses atomic operations (INSERT...ON CONFLICT, GREATEST for floor-clamped decrement); InMemory provider detected via `db.Database.ProviderName` string comparison and falls back to EF change tracking for unit tests. Production database verified clean (no existing duplicates). P1 work (Device Identity, Echo Suppression, Rate Limiting) not yet started.
 
 ---
 

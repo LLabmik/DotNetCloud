@@ -108,7 +108,7 @@ internal sealed class FileService : IFileService
         {
             await _db.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        catch (DbUpdateException ex) when (DbExceptionClassifier.IsUniqueConstraintViolation(ex))
         {
             _db.ChangeTracker.Clear();
             throw new Core.Errors.ValidationException("Name", $"A folder named '{dto.Name}' already exists in this location.");
@@ -661,15 +661,4 @@ internal sealed class FileService : IFileService
         }
     }
 
-    /// <summary>
-    /// Checks whether a <see cref="DbUpdateException"/> was caused by a unique constraint violation.
-    /// PostgreSQL reports this as error code 23505.
-    /// </summary>
-    private static bool IsUniqueViolation(DbUpdateException ex)
-    {
-        return ex.InnerException is { } inner
-            && inner.GetType().Name == "PostgresException"
-            && inner.Data["SqlState"] is string sqlState
-            && sqlState == "23505";
-    }
 }

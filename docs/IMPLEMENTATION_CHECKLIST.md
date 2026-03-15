@@ -3966,9 +3966,15 @@ Before marking a phase complete:
 - ✓ InMemory provider fallback for unit test compatibility
 - ✓ Full codebase audit — all `ReferenceCount` mutations now use `ChunkReferenceHelper`
 
+#### P0.4 — Unique-Violation Detection Reliability (Upload Complete 500)
+- ✓ Replaced fragile `InnerException.Data["SqlState"]` checks with provider-aware `DbExceptionClassifier.IsUniqueConstraintViolation`
+- ✓ Added PostgreSQL/SQLite/SQL Server duplicate-key detection paths (`SqlState=23505`, SQLite `19/2067`, SQL Server `2601/2627`)
+- ✓ Wired classifier into both `ChunkedUploadService` and `FileService` conflict mapping paths
+- ✓ Added regression tests in `DbExceptionClassifierTests` to lock unique-violation detection behavior
+
 #### Migration
 - ✓ EF migration `SyncHardeningP0` generated (unique indexes + check constraint)
 - ☐ Apply migration to production database
 
 **Status:** ✅ Code Complete — Pending deployment
-**Last Reviewed:** 2026-03-14
+**Last Reviewed:** 2026-03-15
