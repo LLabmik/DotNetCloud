@@ -99,6 +99,12 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         _logger.LogInformation("Upload session {SessionId} initiated for '{FileName}' by {UserId}. {Existing}/{Total} chunks already exist.",
             session.Id, dto.FileName, caller.UserId, existingHashes.Count, dto.ChunkHashes.Count);
 
+        if (session.DeviceId is null)
+        {
+            _logger.LogWarning("Upload session {SessionId} has NULL DeviceId at initiation (DeviceContext.DeviceId={ContextDeviceId}). Echo suppression will not work for this upload.",
+                session.Id, _deviceContext.DeviceId);
+        }
+
         return new UploadSessionDto
         {
             SessionId = session.Id,
@@ -264,6 +270,13 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
                 PosixOwnerHint = session.PosixOwnerHint,
                 OriginatingDeviceId = session.DeviceId ?? _deviceContext.DeviceId
             };
+
+            if (fileNode.OriginatingDeviceId is null)
+            {
+                _logger.LogWarning("CompleteUpload: new FileNode '{FileName}' has NULL OriginatingDeviceId (session.DeviceId={SessionDeviceId}, context.DeviceId={ContextDeviceId}).",
+                    session.FileName, session.DeviceId, _deviceContext.DeviceId);
+            }
+
             fileNode.MaterializedPath = string.IsNullOrEmpty(parentPath)
                 ? $"/{fileNode.Id}"
                 : $"{parentPath}/{fileNode.Id}";

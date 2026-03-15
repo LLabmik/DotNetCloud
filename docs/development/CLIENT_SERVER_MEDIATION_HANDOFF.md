@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-15 (Linux parity re-verification failed: uploaded node still echoed back on `mint-dnc-client`; server correlation task active)
+Last updated: 2026-03-15 (Server correlation complete: OriginatingDeviceId=NULL for Linux uploads, diagnostic logging deployed, awaiting `mint-dnc-client` re-test)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -56,7 +56,7 @@ Archived context:
 - Server-side P1 echo suppression/device-identity fix and `SyncDeviceIdentity` DB migration are now applied on `mint22`.
 - **Windows (`Windows11-TestDNC`) re-verification PASSED** on 2026-03-15: uploaded file completed, immediate follow-up pass showed `RemoteChanges=1, LocalApplied=0`, no download path was entered for the uploaded node, and the next scheduled pass was clean.
 - **Linux (`mint-dnc-client`) parity re-verification FAILED** on 2026-03-15: uploaded verification node was downloaded on follow-up pass (`RemoteChanges=1, LocalApplied=1`), so parity with Windows behavior is not achieved.
-- **Next active cycle:** server/client correlation on `mint22` to identify why the Linux-uploaded node is still treated as remote.
+- **Next active cycle:** Linux client re-test on `mint-dnc-client` with diagnostic logging deployed on `mint22` to trace the exact `DeviceIdentityFilter` failure path.
 
 ## Environment
 
@@ -75,48 +75,92 @@ Archived context:
 
 ## Active Handoff
 
-### P1 Echo Suppression Fix — Linux Failure Correlation (Server + Client)
+### P1 Echo Suppression — Server Correlation Complete, Linux Client Re-Test Required
 
 **Date:** 2026-03-15
-**Owner:** `mint22` (server-side investigation first)
-**Status:** READY FOR SERVER INVESTIGATION
+**Owner:** `mint-dnc-client` (Linux client re-test)
+**Status:** READY FOR LINUX CLIENT RE-VERIFICATION
 
-#### Linux Failure Evidence (Completed)
+#### Server Investigation Findings (Completed on `mint22`)
 
-Linux (`mint-dnc-client`) re-verification used:
+**Root cause confirmed: `OriginatingDeviceId` is NULL for all Linux-uploaded nodes.**
 
-- verification file: `/home/benk/synctray/echo-reverify-linux-20260315-090808.txt`
-- log path: `/home/benk/.local/share/DotNetCloud/logs/sync-service20260315.log`
+Database evidence for node `97471092-72de-4654-9217-f653d1a2059f`:
 
-Observed runtime sequence:
+| Field | Value |
+|---|---|
+| `FileNode.OriginatingDeviceId` | **NULL** |
+| `UploadSession.DeviceId` (completed session `71940839-ca6f-4498-b2d4-ff35df7d8e10`) | **NULL** |
+| `SyncDevices` table — Linux device entry | **DOES NOT EXIST** |
 
-- `2026-03-15T09:08:09.0136307Z` upload complete: `NodeId=97471092-72de-4654-9217-f653d1a2059f`
-- `2026-03-15T09:09:09.1872615Z` follow-up pass: `RemoteChanges=1, LocalApplied=1` (expected `LocalApplied=0`)
-- `2026-03-15T09:09:09.1531502Z` and `2026-03-15T09:09:09.2020480Z` download path entered for same node (`File download starting`)
-- `2026-03-15T09:09:09.3059273Z` next pass clean: `RemoteChanges=0, LocalApplied=0`
+Comparison — Windows node (`echo-reverify-20260315-014651.txt`):
 
-Windows still passes the same scenario, so current regression is Linux-specific (or Linux-runtime-context specific) under the same server deployment.
+| Field | Value |
+|---|---|
+| `FileNode.OriginatingDeviceId` | `3035f6e1-4337-4377-8661-f7288d677b34` ✓ |
+| `SyncDevices` entry | Present, `FirstSeenAt: 03:44 CDT` ✓ |
 
-#### Action Required — `mint22` ONLY
+**Server timeline on 2026-03-15:**
+- PID 1529 (01:34–02:41): Old binary without device identity code.
+- PID 31217 (03:14–03:39): New binary, but `SyncDeviceIdentity` migration NOT yet applied. All `SyncDeviceResolver` calls failed with `relation "SyncDevices" does not exist` (252 occurrences).
+- PID 35979 (03:41–04:52): Migration applied, new binary. Windows device successfully auto-registered at 03:44. Windows upload at 03:46 correctly captured `DeviceId`. **Linux upload at 04:08 did NOT capture `DeviceId`** — but no error or warning logged for the Linux device.
 
-1. Pull latest `main` and read this section.
-2. Correlate node `97471092-72de-4654-9217-f653d1a2059f` on server:
-   - `FileNode.OriginatingDeviceId`
-   - upload session `DeviceId`
-   - sync tree/change payload device metadata returned for this node to Linux client.
-3. Confirm whether server is returning device identity for this node that should have been suppressed for the Linux uploader.
-4. Document findings and root cause in this handoff file.
-5. If server bug is confirmed, implement fix, run tests, redeploy, and post runtime verification gate evidence.
-6. If server looks correct, explicitly call out required Linux-side diagnostic target (for example context/device-id mismatch across local contexts) with exact next steps.
+**Diagnosis: DeviceIdentityFilter has silent skip paths (no logging at Warning level for non-exceptional failures).** The filter silently skips device registration when:
+- Auth not established
+- `X-Device-Id` header missing/unparseable
+- User claim (`NameIdentifier`/`sub`) not parseable
+- DI services (`ISyncDeviceResolver`/`IDeviceContext`) unavailable
 
-#### Verification Results
+Under PID 35979, the file log (min level: Warning) shows NO device-related warnings for the Linux upload — meaning the filter either completed successfully (impossible since device wasn't registered) or silently skipped ONE of its preconditions without logging.
 
-| Machine | Status | Echo suppression working | Notes |
-|---|---|---|---|
-| `Windows11-TestDNC` | COMPLETE | ✓ | Verified on 2026-03-15. Upload completed; follow-up pass `RemoteChanges=1, LocalApplied=0`; no download entry for verification node; next scheduled pass clean. |
-| `mint-dnc-client` | COMPLETE (FAILED RESULT) | ☐ | Re-verification completed on 2026-03-15; uploaded node `97471092-72de-4654-9217-f653d1a2059f` was downloaded on follow-up pass (`RemoteChanges=1, LocalApplied=1`). |
+#### Server-Side Fixes Applied
 
-**Instructions for `mint22` agent:** Correlate this exact node/session/device identity path on server, update findings in-place, then commit and push.
+1. **Comprehensive Warning-level diagnostic logging added to `DeviceIdentityFilter`:**
+   - Logs on every code path: success, resolver-null, DI-missing, userId-parse-failure, deviceId-parse-failure
+   - All at Warning level so they appear in the file log (FileMinimumLevel: Warning)
+
+2. **Warning-level logging added to `ChunkedUploadService`:**
+   - Logs when `DeviceId` is NULL at upload initiation
+   - Logs when `OriginatingDeviceId` is NULL at upload completion
+   - Captures both `session.DeviceId` and `context.DeviceId` values for correlation
+
+3. **Server redeployed** with diagnostic logging active (PID 48362+ after restart).
+
+#### Action Required — `mint-dnc-client` ONLY
+
+1. Pull latest `main`.
+2. Upload a NEW test file to the sync folder (e.g., `echo-diag-linux-$(date +%Y%m%d-%H%M%S).txt`).
+3. Wait for the upload to complete and one follow-up sync pass to occur.
+4. **Report back in this handoff file:**
+   - Whether echo suppression worked (`LocalApplied=0` for the uploaded node on follow-up pass)
+   - The sync-service log lines showing the upload and follow-up pass
+   - The client's `device-id` file content: `cat ~/.local/share/DotNetCloud/device-id` (or wherever `SyncContextManager.GetSystemDataRoot()` points)
+5. **On mint22** (server-side verification — the moderator or mint22 agent should check):
+   - `grep "DeviceIdentityFilter\|NULL DeviceId\|NULL OriginatingDeviceId" /home/benk/Repos/dotnetcloud/artifacts/publish/server-baremetal/logs/dotnetcloud-$(date +%Y%m%d).log | tail -20`
+   - This will show whether the filter succeeded, which precondition failed, or if the upload service logged null values.
+
+#### Expected Diagnostic Log Output
+
+On success (device properly resolved):
+```
+DeviceIdentityFilter: resolved device {GUID} for user {GUID} on /api/v1/files/upload/initiate
+```
+
+On failure — identifies exactly which precondition failed:
+```
+DeviceIdentityFilter: failed to parse userId from claims (NameIdentifier=..., sub=...) ...
+DeviceIdentityFilter: missing DI services — resolver=..., deviceContext=...
+DeviceIdentityFilter: X-Device-Id header present but not a valid GUID: '...'
+Upload session {GUID} has NULL DeviceId at initiation ...
+CompleteUpload: new FileNode '...' has NULL OriginatingDeviceId ...
+```
+
+#### Verification Flow
+
+1. Linux client uploads file → server logs show which filter path was taken
+2. If filter succeeded → check `SyncDevices` table for new Linux entry and `FileNode.OriginatingDeviceId` is set
+3. If filter failed → log message identifies exact failing precondition
+4. Fix the identified issue → re-test
 
 ## Relay Template
 

@@ -30,6 +30,7 @@ public sealed class DeviceIdentityFilter : IAsyncActionFilter
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
         var httpContext = context.HttpContext;
+        var logger = httpContext.RequestServices.GetService<ILogger<DeviceIdentityFilter>>();
 
         // Only process for authenticated requests
         if (httpContext.User?.Identity?.IsAuthenticated == true)
@@ -48,7 +49,6 @@ public sealed class DeviceIdentityFilter : IAsyncActionFilter
 
                     var resolver = httpContext.RequestServices.GetService<ISyncDeviceResolver>();
                     var deviceContext = httpContext.RequestServices.GetService<IDeviceContext>();
-                    var logger = httpContext.RequestServices.GetService<ILogger<DeviceIdentityFilter>>();
 
                     if (resolver is not null && deviceContext is not null)
                     {
@@ -59,7 +59,18 @@ public sealed class DeviceIdentityFilter : IAsyncActionFilter
                                 httpContext.RequestAborted);
 
                             if (device is not null)
+                            {
                                 deviceContext.DeviceId = device.Id;
+                                logger?.LogWarning(
+                                    "DeviceIdentityFilter: resolved device {DeviceId} for user {UserId} on {RequestPath}.",
+                                    device.Id, userId, httpContext.Request.Path);
+                            }
+                            else
+                            {
+                                logger?.LogWarning(
+                                    "DeviceIdentityFilter: resolver returned null for device {DeviceId}, user {UserId} on {RequestPath}.",
+                                    deviceId, userId, httpContext.Request.Path);
+                            }
                         }
                         catch (Exception ex)
                         {
@@ -69,7 +80,27 @@ public sealed class DeviceIdentityFilter : IAsyncActionFilter
                                 deviceId, userId);
                         }
                     }
+                    else
+                    {
+                        logger?.LogWarning(
+                            "DeviceIdentityFilter: missing DI services — resolver={ResolverAvailable}, deviceContext={ContextAvailable} for device {DeviceId} on {RequestPath}.",
+                            resolver is not null, deviceContext is not null, deviceId, httpContext.Request.Path);
+                    }
                 }
+                else
+                {
+                    logger?.LogWarning(
+                        "DeviceIdentityFilter: failed to parse userId from claims (NameIdentifier={NameId}, sub={Sub}) for device header {RawDeviceId} on {RequestPath}.",
+                        httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier),
+                        httpContext.User.FindFirstValue("sub"),
+                        rawDeviceId, httpContext.Request.Path);
+                }
+            }
+            else if (!string.IsNullOrEmpty(rawDeviceId))
+            {
+                logger?.LogWarning(
+                    "DeviceIdentityFilter: X-Device-Id header present but not a valid GUID: '{RawDeviceId}' on {RequestPath}.",
+                    rawDeviceId, httpContext.Request.Path);
             }
         }
 
