@@ -74,8 +74,10 @@ Archived context:
 ### P1 Echo Suppression Fix — Client Re-Verification
 
 **Date:** 2026-03-15
-**Owner:** `Windows11-TestDNC` (Windows), `mint-dnc-client` (Linux)
+**Owner:** `Windows11-TestDNC` (Windows) — **this cycle is Windows-only**
 **Status:** READY FOR CLIENT RE-VERIFICATION (server 500 fixed)
+
+**Verification order:** Windows first → report back to `mint22` → then separate cycle for `mint-dnc-client`.
 
 #### Bug Found and Fixed (Server — Echo Suppression)
 
@@ -112,23 +114,24 @@ Migration `20260315074239_SyncDeviceIdentity` applied successfully. Server resta
 - `curl -sk -w "%{http_code}" https://localhost:15443/api/v1/files/sync/tree` → `401` (expected — requires auth, no more 500)
 - No `42703` errors in post-restart journalctl output
 
-#### Action Required on Client Machines
+#### Action Required — Windows11-TestDNC ONLY
 
 No client code changes needed — both fixes are server-side only.
 
-1. Upload a new test file (e.g., `echo-test-fix-20260315.txt`)
-2. Wait for next sync pass
-3. Verify the sync pass does NOT re-download the file you just uploaded (check logs for echo suppression skip message)
-4. Update verification table below
+1. `git pull` to get latest main
+2. Upload a new test file (e.g., `echo-test-fix-20260315.txt`) to sync dir
+3. Wait for next sync pass
+4. Verify the sync pass does NOT re-download the file you just uploaded (check logs for echo suppression skip message)
+5. Update verification table below, commit and push
 
 #### Verification Results
 
 | Machine | Status | Echo suppression working | Notes |
 |---|---|---|---|
 | `Windows11-TestDNC` | PENDING | ☐ | Previous FAIL was caused by missing DB migration on server (now fixed). Retry verification. |
-| `mint-dnc-client` | PENDING | ☐ | — |
+| `mint-dnc-client` | DEFERRED | ☐ | Will be verified in a separate cycle after Windows completes. |
 
-**Instructions for client agents:** Upload a test file, verify echo suppression works (uploaded file is NOT re-downloaded), update YOUR row. Commit and push.
+**Instructions for `Windows11-TestDNC` agent:** Upload a test file, verify echo suppression works (uploaded file is NOT re-downloaded), update YOUR row. Commit and push.
 
 ## Relay Template
 
