@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-15 (P1 echo suppression / device identity story CLOSED — all machines verified)
+Last updated: 2026-03-15 (Windows closeout verification handoff queued)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -64,7 +64,7 @@ Archived context:
 - Test gate on `mint-dnc-client`:
   - `dotnet test` (solution-wide) is environment-gated on this host due missing `maui-android` workload (`NETSDK1147`).
   - Executable non-gated suite passed: `dotnet test tests/DotNetCloud.Modules.Files.Tests/DotNetCloud.Modules.Files.Tests.csproj` => `609 passed, 0 failed`.
-- **Next active cycle:** No active task. P1 echo suppression / device identity story CLOSED on 2026-03-15.
+- **Next active cycle:** Windows closeout verification on `Windows11-TestDNC`.
 
 ## Environment
 
@@ -83,20 +83,57 @@ Archived context:
 
 ## Active Handoff
 
-### P1 Echo Suppression / Device Identity — STORY CLOSED
+### Windows Closeout Verification — Execute on `Windows11-TestDNC`
 
 **Date:** 2026-03-15
-**Status:** CLOSED
+**Target machine:** `Windows11-TestDNC`
+**Status:** READY FOR EXECUTION
 
-All verification gates passed. The P1 echo suppression and device identity chain is complete across all three machines:
+#### Background
 
-- **Linux (`mint-dnc-client`):** Single-context parity PASSED. Upload → no echo download.
-- **Windows (`Windows11-TestDNC`):** Re-verification PASSED on MSIX `0.23.3.0`. Upload → no echo download.
-- **Server (`mint22`):** Zero HTTP 5xx responses since deployment. Upload endpoints clean. Verification timestamp: 2026-03-15T06:25 CDT.
+The P1 echo suppression / device identity story has been closed on both `mint-dnc-client` (Linux) and `mint22` (server). This handoff asks `Windows11-TestDNC` to pull latest, confirm the chain is clean from its perspective, and run a quick upload verification to confirm continued parity.
 
-Full evidence archived in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
+#### Step-by-Step Instructions (Execute ALL)
 
-No active handoff task at this time. Next work cycle to be determined.
+**Step 1: Pull latest `main`**
+
+```powershell
+cd D:\Repos\dotnetcloud
+git pull
+```
+
+**Step 2: Run the test suite**
+
+```powershell
+dotnet test
+```
+
+All tests must pass.
+
+**Step 3: Runtime upload verification**
+
+Create a test file in the sync directory and verify upload completes without echo download:
+
+1. Create a small test file in the sync root (`C:\Users\benk\Documents\synctray`):
+   ```powershell
+   Set-Content -Path "C:\Users\benk\Documents\synctray\win-closeout-$(Get-Date -Format 'yyyyMMdd_HHmmss').txt" -Value "Windows closeout verification $(Get-Date -Format 'o')"
+   ```
+2. Wait for the sync service to pick up the file change (check logs in `%LOCALAPPDATA%\DotNetCloud\logs\`).
+3. Verify in the sync log:
+   - `File upload starting` and `File upload complete` for the verification file.
+   - Follow-up sync pass shows `RemoteChanges=1, LocalApplied=0` (no echo download).
+   - No `File download starting` entry for the uploaded file's NodeId.
+
+**Step 4: If all clean, confirm and close**
+
+Update this handoff to confirm Windows closeout passed. Archive the completed block. Commit, push, and relay back to `mint22`.
+
+#### Evidence to Document
+
+- `dotnet test` result (pass count)
+- Upload log lines with timestamps
+- Follow-up sync pass line showing `RemoteChanges=1, LocalApplied=0`
+- Confirmation that no download occurred for the uploaded node
 
 ## Relay Template
 
