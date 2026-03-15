@@ -5,6 +5,22 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Closeout Verification — P1 Echo Suppression / Device Identity CLOSED (2026-03-15)
+
+Archived from Active Handoff on 2026-03-15 after server-side closeout verification on `mint22`.
+
+**Story: P1 Echo Suppression + Device Identity — CLOSED across all three machines.**
+
+- **Linux (`mint-dnc-client`):** PASSED — single-context parity restored. Upload completes, follow-up pass shows `RemoteChanges=1, LocalApplied=0`, no echo download. Archived evidence in section below.
+- **Windows (`Windows11-TestDNC`):** PASSED — verified on MSIX `0.23.3.0`. Upload completes, follow-up pass shows `RemoteChanges=1, LocalApplied=0`, no echo download.
+- **Server (`mint22`):** CLEAN — zero HTTP 5xx responses since deployment. Only benign EF Core `SaveChangesFailed` from concurrent duplicate uploads (expected race condition; one request wins, duplicate is discarded). Verified via:
+    - Command: `sudo journalctl -u dotnetcloud --no-pager --since "2026-03-14" | grep "Request finished" | grep -E " 5[0-9]{2} "` → zero results.
+    - Command: `sudo journalctl -u dotnetcloud --no-pager --since "2026-03-14" | grep -iE "unhandled exception|InternalServerError"` → zero results.
+    - Verification timestamp: 2026-03-15T06:25 CDT.
+- Upload endpoint verification scope: `POST /api/v1/files/upload/initiate`, `POST /api/v1/files/upload/*/complete`.
+
+Upload hardening story: CLOSED. Full chain verification complete across all three machines.
+
 ## Archived: Duplicate Sync Context Cleanup — Linux Single-Context Re-Test PASSED (2026-03-15)
 
 Archived from Active Handoff on 2026-03-15 after executing duplicate-context cleanup and re-verification on `mint-dnc-client`.
