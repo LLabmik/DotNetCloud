@@ -291,6 +291,10 @@ public class Program
         builder.Services.Configure<GzipCompressionProviderOptions>(options =>
             options.Level = System.IO.Compression.CompressionLevel.Fastest);
 
+        // Add request decompression (handles Content-Encoding: gzip/br/deflate on incoming requests).
+        // Required because desktop/mobile clients gzip-compress chunk upload bodies.
+        builder.Services.AddRequestDecompression();
+
         // Add rate limiting
         builder.Services.AddDotNetCloudRateLimiting(builder.Configuration);
 
@@ -450,6 +454,11 @@ public class Program
         // Response compression — must be before any middleware that writes response bodies.
         // Client advertises support via Accept-Encoding: br, gzip.
         app.UseResponseCompression();
+
+        // Request decompression — unwraps Content-Encoding (gzip, br, deflate) on incoming
+        // request bodies so controllers receive uncompressed data. Must be before any
+        // middleware that reads Request.Body (e.g. chunk upload hash validation).
+        app.UseRequestDecompression();
 
         // Apply middleware (security headers, exception handler, request logging)
         app.UseDotNetCloudMiddleware(headers =>
