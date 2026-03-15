@@ -47,13 +47,9 @@ Archived context:
 ## Current Status
 
 - All prior Phase 2, chat, and pre-Linux sync remediation work is complete and archived.
-- Linux bring-up engineering fixes are complete.
-- P0 sync hardening (atomic SyncSequence, unique name constraint, atomic chunk refcount) deployed.
-- **Server gzip fix deployed (af66b41):** `UseRequestDecompression()` middleware added. Server now auto-decompresses `Content-Encoding: gzip` request bodies before controllers read them. The chunk PUT hash mismatch that caused false 409 is resolved.
-- **Upload complete 500 fixed:** `SyncCursorHelper.AssignNextSequenceAsync` was calling `.SingleAsync()` on non-composable raw SQL. EF Core 10 rejects LINQ composition on `SqlQueryRaw` with `RETURNING`. Fixed by materializing with `.ToListAsync()` then `.Single()`.
-- Client re-verification complete on `mint-dnc-client`: fresh upload now succeeds with initiate `201` -> chunk `200` -> complete `200`.
-- Optional sanity retry complete on `mint-dnc-client`: fresh file upload again validated (`201` -> `200` -> `200`) with duplicate-name `409` behavior and no `500`.
-- Active task: standby monitoring only; no active cross-machine upload blocker.
+- P0 server-side sync hardening deployed and verified on `mint22`.
+- **NEW (commit `4c575cc`):** Client-side upload dedup + echo suppression fixes committed to main.
+- **Active task: `mint-dnc-client` must rebuild SyncService/SyncTray with new Client.Core, deploy, and runtime-verify.** See Active Handoff below for full instructions.
 
 ## Environment
 
