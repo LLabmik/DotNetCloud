@@ -130,7 +130,7 @@ The following client-side files were modified and are on `main`:
 | Machine | Status | device-id file | X-Device-Id header | Echo suppression | Notes |
 |---|---|---|---|---|---|
 | `mint-dnc-client` | PENDING | ☐ | ☐ | ☐ | — |
-| `Windows11-TestDNC` | PENDING | ☐ | ☐ | ☐ | — |
+| `Windows11-TestDNC` | PENDING | ☐ | ☐ | ☐ | 2026-03-15: `dotnet build src/Clients/DotNetCloud.Client.SyncService/` passed; client tests passed (`DotNetCloud.Client.Core.Tests`: 39/39, `DotNetCloud.Client.SyncService.Tests`: 27/27). Installed MSIX `0.23.3.0` is stale vs current `main` (installed `DotNetCloud.Client.Core.dll` hash differs; no `device-id` file observed under current runtime data roots). Fresh signed installer staged at `artifacts/installers/dotnetcloud-sync-tray-win-x64-0.23.4-alpha.msix` using trusted cert `E6F026F512D09FF0C23AB3391EE84A06D2639DAB`. Manual install of `0.23.4-alpha` is required before runtime verification of `device-id`, `X-Device-Id`, and echo suppression. |
 
 **Instructions for client agents:** After completing verification, update YOUR row in this table (change PENDING → PASS/FAIL, mark ☐ → ✓ for each criterion, add notes). Commit and push. Do NOT modify the other machine's row.
 
