@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-15 (Windows verification complete; handoff advanced to mint22 for chain closeout)
+Last updated: 2026-03-15 (Chain closeout complete — Linux + Windows + server verified; standby monitoring)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -48,9 +48,11 @@ Archived context:
 
 - All prior Phase 2, chat, and pre-Linux sync remediation work is complete and archived.
 - P0 server-side sync hardening deployed and verified on `mint22`.
-- **NEW (commit `4c575cc`):** Client-side upload dedup + echo suppression fixes committed to main.
-- **Linux verification complete on `mint-dnc-client` (tests + rebuild + runtime checks).**
-- **Windows verification on `Windows11-TestDNC` is complete:** package `0.23.3.0` installed, runtime binary hash gate passed, and sync runtime evidence confirms expected initiate/conflict behavior.
+- Client-side upload dedup + echo suppression (commit `4c575cc`) verified on all machines:
+  - **Linux (`mint-dnc-client`):** runtime verified — single initiate per event, no conflict copies.
+  - **Windows (`Windows11-TestDNC`):** runtime verified on MSIX `0.23.3.0` — single initiate per event, no conflict copies.
+  - **Server (`mint22`):** zero 5xx errors since deployment; only normal token-refresh 401s observed.
+- **Upload hardening story: CLOSED.** Full chain verification complete across all three machines.
 
 ## Environment
 
@@ -69,39 +71,28 @@ Archived context:
 
 ## Active Handoff
 
-### Step 3 of 3: Final Chain Closeout on `mint22`
+### Standby Monitoring — Upload Hardening Story Closed
 
 **Date:** 2026-03-15
-**Owner:** `mint22` agent
-**Status:** ACTIVE
-**Commits:** `4c575cc` (client dedup + echo suppression), `33d4672` (Windows handoff status updates)
+**Owner:** all machines (standby)
+**Status:** STANDBY
 
-#### Verification Summary (Linux + Windows)
+#### Summary
 
-- Linux (`mint-dnc-client`) verification: complete and archived, including runtime evidence showing one `upload/initiate` per file event and no local conflict-copy creation for verification files.
-- Windows (`Windows11-TestDNC`) verification: complete.
-  - Client.Core tests: `164 passed, 0 failed`.
-  - Installed package/version: `DotNetCloud.SyncTray_0.23.3.0_x64__xrs2wr7p8d2rc`.
-  - Runtime service path now points to `0.23.3.0` package.
-  - Runtime hash gate: `SYNC_SERVICE_EXE_MATCH: True`, `CLIENT_CORE_DLL_MATCH: True`.
-  - Runtime evidence file: `C:\ProgramData\DotNetCloud\Sync\logs\sync-service20260314.log`.
-  - Verification file: `seq-test-windows-20260314-234612.txt`.
-    - Create event produced one upload initiation sequence (`upload/initiate` line cluster around `11355-11359`).
-    - Append event produced one upload initiation sequence (`upload/initiate` line cluster around `11442-11446`).
-    - Conflict evidence for verification file: `CONFLICT_LINES_FOR_FILE: 0`.
+The upload dedup + echo suppression chain verification is complete across all three machines:
 
-#### Active Task for `mint22`
+| Machine | Role | Result |
+|---|---|---|
+| `mint-dnc-client` | Linux client | Pass — single initiate per event, no conflict copies |
+| `Windows11-TestDNC` | Windows client | Pass — MSIX `0.23.3.0`, single initiate per event, no conflict copies |
+| `mint22` | Server | Pass — zero 5xx since deployment, normal token-refresh 401s only |
 
-1. Pull latest `main` and review the archived Step 1 + Step 2 evidence in `docs/development/CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
-2. Run a short server-side sanity window focused on upload endpoints:
-   - confirm no new 5xx/error bursts for `POST /api/v1/files/upload/initiate` and `POST /api/v1/files/upload/{sessionId}/complete` after Windows `0.23.3.0` runtime verification.
-3. If server-side sanity is green, archive this Step 3 block and replace Active Handoff with standby monitoring.
+All evidence is archived in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
 
-#### Exit Criteria
+#### Next Steps
 
-- Cross-machine verification chain is complete (Linux + Windows pass evidence archived).
-- `mint22` confirms no immediate server-side regressions under the verified client runtime.
-- Active Handoff is transitioned to either standby monitoring or next concrete task.
+No active work items. This handoff slot is available for the next task.
+To reactivate, replace this standby block with a new Active Handoff task.
 
 ## Relay Template
 

@@ -5,6 +5,25 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Step 3 of 3 — Final Chain Closeout on `mint22` (2026-03-15)
+
+Archived from Active Handoff on 2026-03-15 after server-side sanity verification completed.
+
+- Pulled latest `main` with commit `1405b5d` (Windows handoff status updates).
+- Reviewed archived Step 1 (Linux) and Step 2 (Windows) evidence — both passed clean.
+- Server-side upload endpoint sanity check (since 2026-03-14):
+    - Total `upload/initiate` requests: 547
+    - Total `upload/*/complete` requests: 456
+    - 5xx status codes: **0**
+    - Structured `StatusCode` 5xx: **0**
+    - Only errors observed: expired-token `invalid_token` 401s (normal token refresh cycle, not regressions).
+- Cross-machine verification chain complete:
+    - Linux (`mint-dnc-client`): dedup + echo suppression verified at runtime.
+    - Windows (`Windows11-TestDNC`): dedup + echo suppression verified at runtime on `0.23.3.0` MSIX.
+    - Server (`mint22`): zero regressions under verified client runtimes.
+
+Conclusion: Upload dedup + echo suppression story fully verified across all three machines. Chain closed.
+
 ## Archived: Step 2 of 3 — Windows Install + Runtime Verification on `Windows11-TestDNC` (2026-03-15)
 
 Archived from Active Handoff on 2026-03-15 after Windows-side verification completed and handoff advanced to `mint22`.
