@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-15 (optional client sanity retry complete; upload hardening runtime check green)
+Last updated: 2026-03-15 (standby monitoring updated with Windows11 runtime evidence: 429 burst + successful auto token refresh)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -83,6 +83,11 @@ Archived context:
 - Optional client sanity retry completed on `mint-dnc-client` and archived in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
 - Fresh upload runtime evidence captured from client logs: `POST initiate` -> `201`, `PUT chunk` -> `200`, `POST complete` -> `200`.
 - Duplicate-name behavior observed as `409` (expected validation/existing-file class), with no `500` during the verification window.
+- Additional Windows client runtime evidence captured on `Windows11-TestDNC` (2026-03-15 UTC):
+  - Sync and tray processes running (`dotnetcloud-sync-service`, `dotnetcloud-sync-tray`).
+  - A transient throttling burst on `GET /api/v1/files/sync/tree` returned repeated `429` with `HTTP_RATE_LIMIT_EXCEEDED` and then recovered to `200`.
+  - Token lifecycle remained healthy during the throttling window (`IsExpired=false`), then later expired and auto-refreshed successfully (`Refreshing expired access token` -> `Access token refreshed successfully`).
+  - Upload path remained healthy for `seq-test-windows.txt` (`upload/initiate` `201`, upload complete success or expected duplicate `409` handling), with no `500` evidence.
 
 #### Scope (Any Agent If Regression Appears)
 
