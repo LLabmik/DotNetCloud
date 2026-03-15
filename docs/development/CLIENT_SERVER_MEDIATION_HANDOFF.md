@@ -125,6 +125,15 @@ The following client-side files were modified and are on `main`:
 - Echo suppression: uploading a file doesn't trigger re-download on the same device
 - No regressions in normal sync flow
 
+#### Verification Results (each client updates its own row)
+
+| Machine | Status | device-id file | X-Device-Id header | Echo suppression | Notes |
+|---|---|---|---|---|---|
+| `mint-dnc-client` | PENDING | ☐ | ☐ | ☐ | — |
+| `Windows11-TestDNC` | PENDING | ☐ | ☐ | ☐ | — |
+
+**Instructions for client agents:** After completing verification, update YOUR row in this table (change PENDING → PASS/FAIL, mark ☐ → ✓ for each criterion, add notes). Commit and push. Do NOT modify the other machine's row.
+
 ## Relay Template
 
 ```markdown
