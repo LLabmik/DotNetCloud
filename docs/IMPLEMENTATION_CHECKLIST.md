@@ -2307,6 +2307,8 @@ This phase implements the core Files module, which is the primary public-facing 
 
 #### Tray Context Menu
 - ✓ "Open sync folder" (opens file explorer at sync root)
+- ✓ "Open sync service logs" (opens sync service log folder)
+- ✓ "Open tray logs" (opens SyncTray log folder)
 - ✓ "Open DotNetCloud in browser" (opens web UI)
 - ✓ "Sync now" (trigger immediate sync)
 - ✓ "Pause syncing" / "Resume syncing"
