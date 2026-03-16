@@ -126,7 +126,14 @@ internal sealed class PhotoAutoUploadService : IPhotoAutoUploadService
 
         _logger.LogInformation("Found {Count} new photo(s) to upload.", photos.Count);
 
-        var nm = NotificationManagerCompat.From(Platform.AppContext);
+        var appContext = Platform.AppContext;
+        if (appContext is null)
+        {
+            _logger.LogWarning("Platform.AppContext is null; cannot show upload notifications.");
+            return;
+        }
+
+        var nm = NotificationManagerCompat.From(appContext);
         int uploaded = 0;
 
         foreach (var (contentUri, fileName, dateAdded) in photos)
@@ -140,7 +147,7 @@ internal sealed class PhotoAutoUploadService : IPhotoAutoUploadService
                 Preferences.Default.Set(PrefLastUploadAt, dateAdded);
                 uploaded++;
 
-                var notification = new NotificationCompat.Builder(Platform.AppContext, MainApplication.ChannelIdUpload)
+                var notification = new NotificationCompat.Builder(appContext, MainApplication.ChannelIdUpload)
                     .SetSmallIcon(global::Android.Resource.Drawable.IcMenuGallery)
                     .SetContentTitle("Uploading photos")
                     .SetContentText($"{uploaded} of {photos.Count} uploaded")
@@ -165,12 +172,31 @@ internal sealed class PhotoAutoUploadService : IPhotoAutoUploadService
         string fileName,
         CancellationToken ct)
     {
-        var resolver = Platform.AppContext.ContentResolver!;
+        var resolver = Platform.AppContext?.ContentResolver;
+        if (resolver is null)
+        {
+            _logger.LogWarning("ContentResolver is null; cannot upload photo.");
+            return;
+        }
+
         byte[] data;
 
-        using (var inputStream = resolver.OpenInputStream(AndroidUri.Parse(contentUri))!)
-        using (var ms = new MemoryStream())
+        var uri = AndroidUri.Parse(contentUri);
+        if (uri is null)
         {
+            _logger.LogWarning("Failed to parse content URI: {Uri}", contentUri);
+            return;
+        }
+
+        using (var inputStream = resolver.OpenInputStream(uri))
+        {
+            if (inputStream is null)
+            {
+                _logger.LogWarning("Failed to open input stream for URI: {Uri}", contentUri);
+                return;
+            }
+
+            using var ms = new MemoryStream();
             await inputStream.CopyToAsync(ms, ct).ConfigureAwait(false);
             data = ms.ToArray();
         }
@@ -230,8 +256,14 @@ internal sealed class PhotoAutoUploadService : IPhotoAutoUploadService
     private static List<(string Uri, string FileName, long DateAdded)> QueryNewPhotosSince(long afterTimestamp)
     {
         var result = new List<(string, string, long)>();
-        var resolver = Platform.AppContext.ContentResolver!;
+        var resolver = Platform.AppContext?.ContentResolver;
+        if (resolver is null)
+            return result;
+
         var mediaUri = AndroidUri.Parse("content://media/external/images/media");
+        if (mediaUri is null)
+            return result;
+
         var projection = new[] { "_id", "_display_name", "date_added" };
 
         using var cursor = resolver.Query(

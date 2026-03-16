@@ -18,13 +18,13 @@
         <ShellContent
             Route="ChannelList"
             Title="Channels"
-            Icon="tab_channels.png"
+            Icon="dotnet_bot.png"
             ContentTemplate="{DataTemplate views:ChannelListPage}" />
 
         <ShellContent
             Route="Settings"
             Title="Settings"
-            Icon="tab_settings.png"
+            Icon="dotnet_bot.png"
             ContentTemplate="{DataTemplate views:SettingsPage}" />
 
     </TabBar>

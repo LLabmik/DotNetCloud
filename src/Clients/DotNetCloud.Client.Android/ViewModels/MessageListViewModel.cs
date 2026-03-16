@@ -214,7 +214,10 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     {
         try
         {
-            var result = await MediaPicker.Default.PickPhotoAsync().ConfigureAwait(false);
+            var results = await MediaPicker.Default.PickPhotosAsync().ConfigureAwait(false);
+            if (results is null || !results.Any()) return;
+
+            var result = results.FirstOrDefault();
             if (result is null) return;
 
             // Send the file name as plain-text message for now;

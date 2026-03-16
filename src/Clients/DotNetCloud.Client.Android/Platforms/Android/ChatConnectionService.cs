@@ -54,15 +54,22 @@ public sealed class ChatConnectionService : Service
         }
 
         // Build and show the persistent notification required for foreground services.
-        StartForeground(NotificationId, BuildNotification(),
-            global::Android.Content.PM.ForegroundService.TypeDataSync);
+        if (Build.VERSION.SdkInt >= BuildVersionCodes.Q)
+        {
+            StartForeground(NotificationId, BuildNotification(),
+                global::Android.Content.PM.ForegroundService.TypeDataSync);
+        }
+        else
+        {
+            StartForeground(NotificationId, BuildNotification());
+        }
 
         // Acquire partial wake lock to prevent the CPU from sleeping while SignalR is active.
         var pm = (PowerManager?)GetSystemService(PowerService);
         if (pm is not null)
         {
             _wakeLock = pm.NewWakeLock(WakeLockFlags.Partial, "DotNetCloud::ChatWakeLock");
-            _wakeLock.Acquire();
+            _wakeLock?.Acquire();
         }
 
         _logger?.LogInformation("ChatConnectionService started; wake lock acquired.");
