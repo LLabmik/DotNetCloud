@@ -150,6 +150,17 @@ public sealed class LocalStateDb : ILocalStateDb
     }
 
     /// <inheritdoc/>
+    public async Task<IReadOnlySet<Guid>> GetPendingDeleteNodeIdsAsync(string dbPath, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        var nodeIds = await ctx.PendingOperations
+            .Where(r => r.OperationType == "Delete" && r.NodeId != null)
+            .Select(r => r.NodeId!.Value)
+            .ToListAsync(cancellationToken);
+        return new HashSet<Guid>(nodeIds);
+    }
+
+    /// <inheritdoc/>
     public async Task RemoveFileRecordAsync(string dbPath, string localPath, CancellationToken cancellationToken = default)
     {
         await using var ctx = CreateContext(dbPath);
@@ -157,6 +168,22 @@ public sealed class LocalStateDb : ILocalStateDb
         if (existing is not null)
         {
             ctx.FileRecords.Remove(existing);
+            await ctx.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task RemoveFileRecordsUnderPathAsync(string dbPath, string folderPath, CancellationToken cancellationToken = default)
+    {
+        await using var ctx = CreateContext(dbPath);
+        var prefix = folderPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+        var records = await ctx.FileRecords
+            .Where(r => r.LocalPath.StartsWith(prefix))
+            .ToListAsync(cancellationToken);
+        if (records.Count > 0)
+        {
+            ctx.FileRecords.RemoveRange(records);
             await ctx.SaveChangesAsync(cancellationToken);
         }
     }
@@ -198,6 +225,20 @@ public sealed class LocalStateDb : ILocalStateDb
                 return;
             }
         }
+        else if (operation is PendingDelete delete)
+        {
+            var alreadyQueued = await ctx.PendingOperations.AnyAsync(
+                r => r.OperationType == "Delete"
+                  && r.NodeId == delete.NodeId,
+                cancellationToken);
+            if (alreadyQueued)
+            {
+                _logger.LogDebug(
+                    "Skipping duplicate delete queue for NodeId={NodeId} — already pending.",
+                    delete.NodeId);
+                return;
+            }
+        }
 
         var row = MapToRow(operation);
         ctx.PendingOperations.Add(row);
@@ -222,7 +263,8 @@ public sealed class LocalStateDb : ILocalStateDb
         await using var ctx = CreateContext(dbPath);
         var uploads = await ctx.PendingOperations.CountAsync(r => r.OperationType == "Upload", cancellationToken);
         var downloads = await ctx.PendingOperations.CountAsync(r => r.OperationType == "Download", cancellationToken);
-        return new PendingOperationCount { Uploads = uploads, Downloads = downloads };
+        var deletes = await ctx.PendingOperations.CountAsync(r => r.OperationType == "Delete", cancellationToken);
+        return new PendingOperationCount { Uploads = uploads, Downloads = downloads, Deletes = deletes };
     }
 
     /// <inheritdoc/>
@@ -614,6 +656,16 @@ public sealed class LocalStateDb : ILocalStateDb
             PosixMode = d.PosixMode,
             LinkTarget = d.LinkTarget,
         },
+        PendingDelete del => new PendingOperationDbRow
+        {
+            OperationType = "Delete",
+            LocalPath = del.LocalPath,
+            NodeId = del.NodeId,
+            QueuedAt = del.QueuedAt,
+            RetryCount = del.RetryCount,
+            NextRetryAt = del.NextRetryAt,
+            LastError = del.LastError,
+        },
         _ => throw new ArgumentException($"Unknown operation type: {op.GetType().Name}"),
     };
 
@@ -640,6 +692,16 @@ public sealed class LocalStateDb : ILocalStateDb
             LastError = row.LastError,
             PosixMode = row.PosixMode,
             LinkTarget = row.LinkTarget,
+        },
+        "Delete" => new PendingDelete
+        {
+            Id = row.Id,
+            NodeId = row.NodeId ?? Guid.Empty,
+            LocalPath = row.LocalPath ?? string.Empty,
+            QueuedAt = row.QueuedAt,
+            RetryCount = row.RetryCount,
+            NextRetryAt = row.NextRetryAt,
+            LastError = row.LastError,
         },
         _ => throw new ArgumentException($"Unknown operation type: {row.OperationType}"),
     };

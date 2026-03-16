@@ -478,6 +478,99 @@ public sealed class SyncEngine : ISyncEngine
                 "Local scan queued {Count} new/modified file(s) for upload in context {ContextId}.",
                 queued, context.Id);
 
+        // ── Local deletion detection ────────────────────────────────────────
+        // Check tracked files that no longer exist on disk — these are local deletions
+        // that need to be propagated to the server.
+        var queuedDeleteNodeIds = await _stateDb.GetPendingDeleteNodeIdsAsync(context.StateDatabasePath, cancellationToken);
+
+        // Build server folder map for folder-level deletion support.
+        var serverFoldersByRelPath = new Dictionary<string, SyncTreeNodeResponse>(StringComparer.OrdinalIgnoreCase);
+        BuildServerFolderMap(serverTree, "", serverFoldersByRelPath);
+
+        // Phase 1: Collect all missing tracked files.
+        var missingFiles = new List<LocalFileRecord>();
+        foreach (var record in allRecords)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (record.NodeId == Guid.Empty)
+                continue;
+            if (File.Exists(record.LocalPath))
+                continue;
+            if (queuedDeleteNodeIds.Contains(record.NodeId))
+                continue;
+
+            var relPath = Path.GetRelativePath(context.LocalFolderPath, record.LocalPath);
+            if (_syncIgnore.IsIgnored(relPath))
+                continue;
+
+            missingFiles.Add(record);
+        }
+
+        // Phase 2: Detect deleted directories — queue a single folder-level delete
+        // instead of individual file deletes (server cascade handles children).
+        var coveredByFolderDelete = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var folderDeletesQueued = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var record in missingFiles)
+        {
+            var parentDir = Path.GetDirectoryName(record.LocalPath);
+            if (parentDir is null || Directory.Exists(parentDir))
+                continue; // Parent exists — will need individual file delete
+
+            // Walk up to the highest-level missing ancestor within the sync folder.
+            var highestMissing = parentDir;
+            var current = Path.GetDirectoryName(parentDir);
+            while (current is not null
+                && current.Length > context.LocalFolderPath.Length
+                && current.StartsWith(context.LocalFolderPath, StringComparison.OrdinalIgnoreCase)
+                && !Directory.Exists(current))
+            {
+                highestMissing = current;
+                current = Path.GetDirectoryName(current);
+            }
+
+            var folderRelPath = Path.GetRelativePath(context.LocalFolderPath, highestMissing);
+
+            if (folderDeletesQueued.Contains(folderRelPath))
+            {
+                // Already queued a folder delete for this path — mark file as covered.
+                coveredByFolderDelete.Add(record.LocalPath);
+                continue;
+            }
+
+            // Look up folder NodeId from the server tree.
+            if (serverFoldersByRelPath.TryGetValue(folderRelPath, out var folderNode)
+                && !queuedDeleteNodeIds.Contains(folderNode.NodeId))
+            {
+                _logger.LogInformation(
+                    "Deleted directory detected, queuing folder deletion: {RelPath} (NodeId={NodeId}).",
+                    folderRelPath, folderNode.NodeId);
+
+                await _stateDb.QueueOperationAsync(context.StateDatabasePath,
+                    new PendingDelete { LocalPath = highestMissing, NodeId = folderNode.NodeId }, cancellationToken);
+                folderDeletesQueued.Add(folderRelPath);
+                coveredByFolderDelete.Add(record.LocalPath);
+                queued++;
+            }
+        }
+
+        // Phase 3: Queue individual file deletes for files not covered by a folder delete.
+        foreach (var record in missingFiles)
+        {
+            if (coveredByFolderDelete.Contains(record.LocalPath))
+                continue;
+
+            var relPath = Path.GetRelativePath(context.LocalFolderPath, record.LocalPath);
+            _logger.LogInformation(
+                "Local file deleted, queuing server deletion: {RelPath} (NodeId={NodeId}).",
+                relPath, record.NodeId);
+
+            await _stateDb.QueueOperationAsync(context.StateDatabasePath,
+                new PendingDelete { LocalPath = record.LocalPath, NodeId = record.NodeId }, cancellationToken);
+            queued++;
+        }
+
         return queued;
     }
 
@@ -586,6 +679,9 @@ public sealed class SyncEngine : ISyncEngine
         var serverFiles = new Dictionary<string, SyncTreeNodeResponse>(StringComparer.OrdinalIgnoreCase);
         BuildServerFileMap(tree, "", serverFiles);
 
+        // Load pending delete node IDs so we don't re-download files the user just deleted locally.
+        var pendingDeleteNodeIds = await _stateDb.GetPendingDeleteNodeIdsAsync(context.StateDatabasePath, cancellationToken);
+
         var reconciled = 0;
         foreach (var (relativePath, serverNode) in serverFiles)
         {
@@ -603,9 +699,15 @@ public sealed class SyncEngine : ISyncEngine
             if (File.Exists(localPath))
                 continue;
 
-            // Skip when we already have a valid state DB record that points to an existing
-            // local file. If the record points to a missing file, treat it as stale state
-            // and re-queue the download so recovery can proceed.
+            // Skip if a delete operation is pending for this node — the user deleted it locally
+            // and we should not re-download it before the delete is sent to the server.
+            if (pendingDeleteNodeIds.Contains(serverNode.NodeId))
+                continue;
+
+            // Skip when we already have a valid state DB record for this node.
+            // If the record exists but the file is missing on disk, this is a local deletion —
+            // don't remove the record or re-download. ScanLocalDirectoryAsync will detect the
+            // missing file via the intact record and queue a PendingDelete to propagate to the server.
             var existingRecord = await _stateDb.GetFileRecordByNodeIdAsync(
                 context.StateDatabasePath, serverNode.NodeId, cancellationToken);
             if (existingRecord is not null)
@@ -613,16 +715,11 @@ public sealed class SyncEngine : ISyncEngine
                 if (File.Exists(existingRecord.LocalPath))
                     continue;
 
-                _logger.LogWarning(
-                    "Removing stale file record for missing local file: NodeId={NodeId}, RecordedPath={RecordedPath}, ReconcilePath={ReconcilePath}.",
+                _logger.LogDebug(
+                    "Tracked file missing locally (likely user-deleted), skipping re-download: NodeId={NodeId}, Path={Path}.",
                     serverNode.NodeId,
-                    existingRecord.LocalPath,
-                    localPath);
-
-                await _stateDb.RemoveFileRecordAsync(
-                    context.StateDatabasePath,
-                    existingRecord.LocalPath,
-                    cancellationToken);
+                    existingRecord.LocalPath);
+                continue;
             }
 
             // Avoid immediate requeue churn for files that recently failed with terminal not-found.
@@ -874,6 +971,21 @@ public sealed class SyncEngine : ISyncEngine
                     "Download operation {OpId} failed with 404 Not Found. Moving to failed queue without retry.",
                     op.Id);
                 await _stateDb.MoveToFailedAsync(context.StateDatabasePath, op, httpEx.Message, cancellationToken);
+            }
+            catch (HttpRequestException httpEx) when (
+                op is PendingDelete &&
+                IsNotFoundHttp(httpEx))
+            {
+                // Server node already deleted (e.g. cascade from parent folder delete).
+                // Treat as successful — clean up local state.
+                _logger.LogInformation(
+                    "Delete operation {OpId} — server node already gone (404). Cleaning up local state.",
+                    op.Id);
+                var del = (PendingDelete)op;
+                await _stateDb.RemoveFileRecordAsync(context.StateDatabasePath, del.LocalPath, cancellationToken);
+                await _stateDb.RemoveFileRecordsUnderPathAsync(context.StateDatabasePath, del.LocalPath, cancellationToken);
+                await _stateDb.RemoveOperationAsync(context.StateDatabasePath, op.Id, cancellationToken);
+                completedOperations++;
             }
             catch (Exception ex)
             {
@@ -1180,6 +1292,21 @@ public sealed class SyncEngine : ISyncEngine
                 PosixMode = download.PosixMode,
             }, cancellationToken);
         }
+        else if (op is PendingDelete delete)
+        {
+            var delRelPath = Path.GetRelativePath(context.LocalFolderPath, delete.LocalPath);
+            _logger.LogInformation(
+                "Deleting server node {NodeId} for locally deleted file/folder: {RelPath}.",
+                delete.NodeId, delRelPath);
+
+            await _api.DeleteAsync(delete.NodeId, cancellationToken);
+
+            // Clean up file record (individual file) and any child records (folder cascade).
+            await _stateDb.RemoveFileRecordAsync(context.StateDatabasePath, delete.LocalPath, cancellationToken);
+            await _stateDb.RemoveFileRecordsUnderPathAsync(context.StateDatabasePath, delete.LocalPath, cancellationToken);
+
+            _logger.LogDebug("Server deletion complete for {RelPath} (NodeId={NodeId}).", delRelPath, delete.NodeId);
+        }
     }
 
     private async Task RefreshAccessTokenAsync(SyncContext context, CancellationToken cancellationToken)
@@ -1281,6 +1408,23 @@ public sealed class SyncEngine : ISyncEngine
 
         foreach (var child in node.Children)
             BuildServerFileMap(child, currentPath, map);
+    }
+
+    /// <summary>
+    /// Recursively flattens a server tree into a relative-path → node lookup for folders only.
+    /// Used by <see cref="ScanLocalDirectoryAsync"/> to detect deleted directories.
+    /// </summary>
+    private static void BuildServerFolderMap(SyncTreeNodeResponse node, string parentPath, Dictionary<string, SyncTreeNodeResponse> map)
+    {
+        var currentPath = node.NodeId == Guid.Empty
+            ? parentPath
+            : string.IsNullOrEmpty(parentPath) ? node.Name : Path.Combine(parentPath, node.Name);
+
+        if (node.NodeId != Guid.Empty && IsFolderNodeType(node.NodeType))
+            map.TryAdd(currentPath, node);
+
+        foreach (var child in node.Children)
+            BuildServerFolderMap(child, currentPath, map);
     }
 
     private static bool IsLocallyModified(LocalFileRecord record, string localPath)

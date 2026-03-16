@@ -55,3 +55,16 @@ public sealed class PendingDownload : PendingOperationRecord
     /// <summary>Initializes a new <see cref="PendingDownload"/>.</summary>
     public PendingDownload() { OperationType = "Download"; }
 }
+
+/// <summary>Pending server-side deletion of a file that was deleted locally.</summary>
+public sealed class PendingDelete : PendingOperationRecord
+{
+    /// <summary>Server node ID to delete.</summary>
+    public Guid NodeId { get; set; }
+
+    /// <summary>Local file path (already deleted). Used for logging and state cleanup.</summary>
+    public required string LocalPath { get; set; }
+
+    /// <summary>Initializes a new <see cref="PendingDelete"/>.</summary>
+    public PendingDelete() { OperationType = "Delete"; }
+}

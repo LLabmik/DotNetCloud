@@ -11,6 +11,9 @@ public sealed class PendingOperationCount
     /// <summary>Number of pending downloads.</summary>
     public int Downloads { get; init; }
 
+    /// <summary>Number of pending server-side deletions.</summary>
+    public int Deletes { get; init; }
+
     /// <summary>Number of unresolved conflicts.</summary>
     public int Conflicts { get; init; }
 }
@@ -47,11 +50,21 @@ public interface ILocalStateDb
     /// </summary>
     Task<IReadOnlySet<string>> GetPendingUploadPathsAsync(string dbPath, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Returns the set of server node IDs that already have a pending delete operation queued.
+    /// Used to avoid double-queueing during local deletion detection.
+    /// </summary>
+    Task<IReadOnlySet<Guid>> GetPendingDeleteNodeIdsAsync(string dbPath, CancellationToken cancellationToken = default);
+
     /// <summary>Inserts or updates a file sync record.</summary>
     Task UpsertFileRecordAsync(string dbPath, LocalFileRecord record, CancellationToken cancellationToken = default);
 
     /// <summary>Removes a file sync record by local path.</summary>
     Task RemoveFileRecordAsync(string dbPath, string localPath, CancellationToken cancellationToken = default);
+
+    /// <summary>Removes all file sync records whose <c>LocalPath</c> starts with the given folder path.
+    /// Used to clean up child records after a folder-level server cascade delete.</summary>
+    Task RemoveFileRecordsUnderPathAsync(string dbPath, string folderPath, CancellationToken cancellationToken = default);
 
     // ── Pending Operations ──────────────────────────────────────────────────
 

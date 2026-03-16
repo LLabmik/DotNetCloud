@@ -440,4 +440,106 @@ public class LocalStateDbTests
         var opsAfter = await _db.GetPendingOperationsAsync(_dbPath);
         Assert.AreEqual(1, opsAfter.Count, "Upload should be re-queueable after previous one is removed.");
     }
+
+    // ── PendingDelete operations ────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task QueueOperationAsync_PendingDelete_RoundTrips()
+    {
+        var nodeId = Guid.NewGuid();
+        await _db.QueueOperationAsync(_dbPath, new PendingDelete { NodeId = nodeId, LocalPath = "/docs/deleted.txt" });
+
+        var ops = await _db.GetPendingOperationsAsync(_dbPath);
+        Assert.AreEqual(1, ops.Count);
+        Assert.IsInstanceOfType(ops[0], typeof(PendingDelete));
+        var del = (PendingDelete)ops[0];
+        Assert.AreEqual(nodeId, del.NodeId);
+        Assert.AreEqual("/docs/deleted.txt", del.LocalPath);
+    }
+
+    [TestMethod]
+    public async Task QueueOperationAsync_DuplicateDelete_SkipsSecondQueue()
+    {
+        var nodeId = Guid.NewGuid();
+        await _db.QueueOperationAsync(_dbPath, new PendingDelete { NodeId = nodeId, LocalPath = "/docs/del.txt" });
+        await _db.QueueOperationAsync(_dbPath, new PendingDelete { NodeId = nodeId, LocalPath = "/docs/del.txt" });
+
+        var ops = await _db.GetPendingOperationsAsync(_dbPath);
+        Assert.AreEqual(1, ops.Count, "Duplicate delete for same NodeId should be deduplicated.");
+    }
+
+    [TestMethod]
+    public async Task GetPendingDeleteNodeIdsAsync_ReturnsQueuedDeletes()
+    {
+        var nodeId1 = Guid.NewGuid();
+        var nodeId2 = Guid.NewGuid();
+        await _db.QueueOperationAsync(_dbPath, new PendingDelete { NodeId = nodeId1, LocalPath = "/a.txt" });
+        await _db.QueueOperationAsync(_dbPath, new PendingDelete { NodeId = nodeId2, LocalPath = "/b.txt" });
+        // Also queue an upload — should not appear in delete IDs.
+        await _db.QueueOperationAsync(_dbPath, new PendingUpload { LocalPath = "/c.txt" });
+
+        var deleteIds = await _db.GetPendingDeleteNodeIdsAsync(_dbPath);
+        Assert.AreEqual(2, deleteIds.Count);
+        Assert.IsTrue(deleteIds.Contains(nodeId1));
+        Assert.IsTrue(deleteIds.Contains(nodeId2));
+    }
+
+    [TestMethod]
+    public async Task GetPendingOperationCountAsync_IncludesDeletes()
+    {
+        await _db.QueueOperationAsync(_dbPath, new PendingUpload { LocalPath = "/u.txt" });
+        await _db.QueueOperationAsync(_dbPath, new PendingDownload { NodeId = Guid.NewGuid(), LocalPath = "/d.txt" });
+        await _db.QueueOperationAsync(_dbPath, new PendingDelete { NodeId = Guid.NewGuid(), LocalPath = "/del.txt" });
+
+        var counts = await _db.GetPendingOperationCountAsync(_dbPath);
+        Assert.AreEqual(1, counts.Uploads);
+        Assert.AreEqual(1, counts.Downloads);
+        Assert.AreEqual(1, counts.Deletes);
+    }
+
+    // ── RemoveFileRecordsUnderPathAsync ─────────────────────────────────────
+
+    [TestMethod]
+    public async Task RemoveFileRecordsUnderPathAsync_RemovesChildRecords()
+    {
+        // Insert records under a folder path and one outside.
+        await _db.UpsertFileRecordAsync(_dbPath, new LocalFileRecord
+        {
+            LocalPath = "/sync/photos/a.jpg", NodeId = Guid.NewGuid(),
+            LastSyncedAt = DateTime.UtcNow, LocalModifiedAt = DateTime.UtcNow,
+        });
+        await _db.UpsertFileRecordAsync(_dbPath, new LocalFileRecord
+        {
+            LocalPath = "/sync/photos/sub/b.jpg", NodeId = Guid.NewGuid(),
+            LastSyncedAt = DateTime.UtcNow, LocalModifiedAt = DateTime.UtcNow,
+        });
+        await _db.UpsertFileRecordAsync(_dbPath, new LocalFileRecord
+        {
+            LocalPath = "/sync/docs/readme.md", NodeId = Guid.NewGuid(),
+            LastSyncedAt = DateTime.UtcNow, LocalModifiedAt = DateTime.UtcNow,
+        });
+
+        // Act: remove all records under /sync/photos
+        await _db.RemoveFileRecordsUnderPathAsync(_dbPath, "/sync/photos");
+
+        // Assert: only the docs file remains.
+        var remaining = await _db.GetAllFileRecordsAsync(_dbPath);
+        Assert.AreEqual(1, remaining.Count);
+        Assert.AreEqual("/sync/docs/readme.md", remaining[0].LocalPath);
+    }
+
+    [TestMethod]
+    public async Task RemoveFileRecordsUnderPathAsync_NoMatchingRecords_DoesNothing()
+    {
+        await _db.UpsertFileRecordAsync(_dbPath, new LocalFileRecord
+        {
+            LocalPath = "/sync/docs/file.txt", NodeId = Guid.NewGuid(),
+            LastSyncedAt = DateTime.UtcNow, LocalModifiedAt = DateTime.UtcNow,
+        });
+
+        await _db.RemoveFileRecordsUnderPathAsync(_dbPath, "/sync/photos");
+
+        var remaining = await _db.GetAllFileRecordsAsync(_dbPath);
+        Assert.AreEqual(1, remaining.Count);
+    }
 }

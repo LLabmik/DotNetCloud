@@ -59,6 +59,8 @@ public class SyncEngineTests
             .ReturnsAsync([]);
         _stateDbMock.Setup(db => db.GetPendingUploadPathsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new HashSet<string>());
+        _stateDbMock.Setup(db => db.GetPendingDeleteNodeIdsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HashSet<Guid>());
         _stateDbMock.Setup(db => db.UpdateCheckpointAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
@@ -715,13 +717,14 @@ public class SyncEngineTests
     }
 
     [TestMethod]
-    public async Task SyncAsync_ReconcileWithStaleFileRecord_RemovesRecordAndQueuesDownload()
+    public async Task SyncAsync_ReconcileWithTrackedRecord_FileMissing_SkipsRedownload()
     {
         // Arrange: server tree contains a file that is missing locally. The state DB has a
-        // stale record for the same node pointing at a non-existent old path.
+        // record for the same node pointing at a non-existent path.
+        // With the reconciliation fix, the engine should NOT remove the record and
+        // NOT queue a download — it defers to ScanLocalDirectoryAsync to queue a PendingDelete.
         var nodeId = Guid.NewGuid();
-        var stalePath = Path.Combine(_tempDir, "stale", "remote.txt");
-        var expectedLocalPath = Path.Combine(_tempDir, "remote.txt");
+        var missingPath = Path.Combine(_tempDir, "missing", "remote.txt");
 
         _apiMock.Setup(a => a.GetFolderTreeAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new SyncTreeNodeResponse
@@ -740,29 +743,25 @@ public class SyncEngineTests
                 ],
             });
 
+        var trackedRecord = new LocalFileRecord
+        {
+            LocalPath = missingPath,
+            NodeId = nodeId,
+            LastSyncedAt = DateTime.UtcNow.AddMinutes(-5),
+            LocalModifiedAt = DateTime.UtcNow.AddMinutes(-10),
+        };
+
         _stateDbMock.Setup(db => db.GetFileRecordByNodeIdAsync(_context.StateDatabasePath, nodeId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new LocalFileRecord
-            {
-                LocalPath = stalePath,
-                NodeId = nodeId,
-            });
+            .ReturnsAsync(trackedRecord);
 
-        _stateDbMock.Setup(db => db.RemoveFileRecordAsync(_context.StateDatabasePath, stalePath, It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+        // Provide the tracked record via GetAllFileRecordsAsync so ScanLocalDirectoryAsync can detect the deletion.
+        _stateDbMock.Setup(db => db.GetAllFileRecordsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([trackedRecord]);
 
-        _stateDbMock.Setup(db => db.HasRecentTerminalDownloadFailureAsync(
-                _context.StateDatabasePath,
-                nodeId,
-                expectedLocalPath,
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(false);
-
-        PendingDownload? queuedDownload = null;
         _stateDbMock.Setup(db => db.QueueOperationAsync(
                 _context.StateDatabasePath,
                 It.IsAny<PendingOperationRecord>(),
                 It.IsAny<CancellationToken>()))
-            .Callback<string, PendingOperationRecord, CancellationToken>((_, op, _) => queuedDownload = op as PendingDownload)
             .Returns(Task.CompletedTask);
 
         await _engine.StartAsync(_context);
@@ -771,20 +770,23 @@ public class SyncEngineTests
         await _engine.SyncAsync(_context);
         await _engine.StopAsync();
 
-        // Assert
+        // Assert: file record was NOT removed by reconciliation.
         _stateDbMock.Verify(db => db.RemoveFileRecordAsync(
             _context.StateDatabasePath,
-            stalePath,
-            It.IsAny<CancellationToken>()), Times.Once);
+            missingPath,
+            It.IsAny<CancellationToken>()), Times.Never);
 
+        // Assert: NO PendingDownload queued (reconciliation skipped re-download).
         _stateDbMock.Verify(db => db.QueueOperationAsync(
             _context.StateDatabasePath,
-            It.IsAny<PendingOperationRecord>(),
-            It.IsAny<CancellationToken>()), Times.Once);
+            It.Is<PendingDownload>(d => d.NodeId == nodeId),
+            It.IsAny<CancellationToken>()), Times.Never);
 
-        Assert.IsNotNull(queuedDownload);
-        Assert.AreEqual(nodeId, queuedDownload.NodeId);
-        Assert.AreEqual(expectedLocalPath, queuedDownload.LocalPath);
+        // Assert: PendingDelete WAS queued by ScanLocalDirectoryAsync.
+        _stateDbMock.Verify(db => db.QueueOperationAsync(
+            _context.StateDatabasePath,
+            It.Is<PendingDelete>(d => d.NodeId == nodeId),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [TestMethod]
@@ -1441,6 +1443,301 @@ public class SyncEngineTests
             It.IsAny<string>(),
             It.Is<PendingUpload>(u => u.LocalPath == filePath),
             It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // ── Local deletion propagation ──────────────────────────────────────────
+
+    [TestMethod]
+    public async Task SyncAsync_LocallyDeletedTrackedFile_QueuesPendingDelete()
+    {
+        // Arrange: a file that was previously synced (tracked) but has since been deleted from disk.
+        var deletedFilePath = Path.Combine(_tempDir, "deleted-file.txt");
+        var nodeId = Guid.NewGuid();
+
+        // File does NOT exist on disk (user deleted it).
+        // But we have a tracking record for it in the state DB.
+        var trackedRecord = new LocalFileRecord
+        {
+            LocalPath = deletedFilePath,
+            NodeId = nodeId,
+            ContentHash = "abc123",
+            LastSyncedAt = DateTime.UtcNow.AddMinutes(-5),
+            LocalModifiedAt = DateTime.UtcNow.AddMinutes(-10),
+        };
+
+        _stateDbMock.Setup(db => db.GetAllFileRecordsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([trackedRecord]);
+
+        // No pending deletes already queued.
+        _stateDbMock.Setup(db => db.GetPendingDeleteNodeIdsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HashSet<Guid>());
+
+        _stateDbMock.Setup(db => db.QueueOperationAsync(
+                It.IsAny<string>(), It.IsAny<PendingOperationRecord>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        // Act
+        await _engine.StartAsync(_context);
+        await _engine.SyncAsync(_context);
+        await _engine.StopAsync();
+
+        // Assert: a PendingDelete was queued for the missing file's NodeId.
+        _stateDbMock.Verify(db => db.QueueOperationAsync(
+            It.IsAny<string>(),
+            It.Is<PendingDelete>(d => d.NodeId == nodeId && d.LocalPath == deletedFilePath),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task SyncAsync_LocallyDeletedFile_ExecutesPendingDelete_CallsServerDelete()
+    {
+        // Arrange: a PendingDelete in the queue; verify it calls _api.DeleteAsync + removes the record.
+        var deletedFilePath = Path.Combine(_tempDir, "gone-file.txt");
+        var nodeId = Guid.NewGuid();
+
+        var pendingOp = new PendingDelete { Id = 99, LocalPath = deletedFilePath, NodeId = nodeId };
+        _stateDbMock
+            .Setup(db => db.GetPendingOperationsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([pendingOp]);
+        _stateDbMock.Setup(db => db.RemoveOperationAsync(
+                It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _stateDbMock.Setup(db => db.RemoveFileRecordAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        _apiMock.Setup(a => a.DeleteAsync(nodeId, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        // Act
+        await _engine.StartAsync(_context);
+        await _engine.SyncAsync(_context);
+        await _engine.StopAsync();
+
+        // Assert: server-side delete was called.
+        _apiMock.Verify(a => a.DeleteAsync(nodeId, It.IsAny<CancellationToken>()), Times.Once);
+
+        // Assert: the operation was removed from the queue after success.
+        _stateDbMock.Verify(db => db.RemoveOperationAsync(
+            It.IsAny<string>(), 99, It.IsAny<CancellationToken>()), Times.Once);
+
+        // Assert: the local file record was cleaned up.
+        _stateDbMock.Verify(db => db.RemoveFileRecordAsync(
+            It.IsAny<string>(), deletedFilePath, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task ReconcileServerTree_SkipsFilesWithPendingDelete()
+    {
+        // Arrange: server tree has a file that is missing locally,
+        // but it has a pending delete queued — should NOT re-download.
+        var nodeId = Guid.NewGuid();
+        var serverTree = new SyncTreeNodeResponse
+        {
+            NodeId = Guid.Empty,
+            Name = "/",
+            NodeType = "Folder",
+            Children =
+            [
+                new SyncTreeNodeResponse
+                {
+                    NodeId = nodeId,
+                    Name = "deleted-file.txt",
+                    NodeType = "File",
+                    ContentHash = "abc123",
+                }
+            ],
+        };
+
+        _apiMock.Setup(a => a.GetFolderTreeAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(serverTree);
+
+        // Pending delete already queued for this nodeId.
+        _stateDbMock.Setup(db => db.GetPendingDeleteNodeIdsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HashSet<Guid> { nodeId });
+
+        // Act
+        await _engine.StartAsync(_context);
+        await _engine.SyncAsync(_context);
+        await _engine.StopAsync();
+
+        // Assert: no download was queued for the file with a pending delete.
+        _stateDbMock.Verify(db => db.QueueOperationAsync(
+            It.IsAny<string>(),
+            It.Is<PendingDownload>(d => d.NodeId == nodeId),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task SyncAsync_Reconcile_TrackedFileMissingLocally_SkipsRedownloadAndQueuesPendingDelete()
+    {
+        // Arrange: a file that exists on the server and is tracked in state DB,
+        // but was deleted from disk. Reconciliation should NOT re-download it —
+        // ScanLocalDirectoryAsync should detect it and queue a PendingDelete.
+        var nodeId = Guid.NewGuid();
+        var deletedFilePath = Path.Combine(_tempDir, "user-deleted.txt");
+
+        var serverTree = new SyncTreeNodeResponse
+        {
+            NodeId = Guid.Empty, Name = "/", NodeType = "Folder",
+            Children =
+            [
+                new SyncTreeNodeResponse
+                {
+                    NodeId = nodeId, Name = "user-deleted.txt", NodeType = "File", ContentHash = "abc",
+                }
+            ],
+        };
+
+        _apiMock.Setup(a => a.GetFolderTreeAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(serverTree);
+
+        // File record exists (previously synced) but file is NOT on disk.
+        var trackedRecord = new LocalFileRecord
+        {
+            LocalPath = deletedFilePath,
+            NodeId = nodeId,
+            ContentHash = "abc",
+            LastSyncedAt = DateTime.UtcNow.AddMinutes(-5),
+            LocalModifiedAt = DateTime.UtcNow.AddMinutes(-10),
+        };
+
+        _stateDbMock.Setup(db => db.GetFileRecordByNodeIdAsync(
+                It.IsAny<string>(), nodeId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(trackedRecord);
+
+        _stateDbMock.Setup(db => db.GetAllFileRecordsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([trackedRecord]);
+
+        _stateDbMock.Setup(db => db.QueueOperationAsync(
+                It.IsAny<string>(), It.IsAny<PendingOperationRecord>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        // Act
+        await _engine.StartAsync(_context);
+        await _engine.SyncAsync(_context);
+        await _engine.StopAsync();
+
+        // Assert: NO PendingDownload queued (reconciliation didn't re-download).
+        _stateDbMock.Verify(db => db.QueueOperationAsync(
+            It.IsAny<string>(),
+            It.Is<PendingDownload>(d => d.NodeId == nodeId),
+            It.IsAny<CancellationToken>()), Times.Never);
+
+        // Assert: PendingDelete WAS queued (scan detected the missing file).
+        _stateDbMock.Verify(db => db.QueueOperationAsync(
+            It.IsAny<string>(),
+            It.Is<PendingDelete>(d => d.NodeId == nodeId),
+            It.IsAny<CancellationToken>()), Times.Once);
+
+        // Assert: file record was NOT removed by reconciliation.
+        _stateDbMock.Verify(db => db.RemoveFileRecordAsync(
+            It.IsAny<string>(), deletedFilePath, It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task SyncAsync_DeletedDirectory_QueuesFolderLevelDelete()
+    {
+        // Arrange: a directory with tracked files was entirely deleted.
+        var folderNodeId = Guid.NewGuid();
+        var fileNodeId1 = Guid.NewGuid();
+        var fileNodeId2 = Guid.NewGuid();
+        var folderPath = Path.Combine(_tempDir, "photos");
+        var filePath1 = Path.Combine(folderPath, "a.jpg");
+        var filePath2 = Path.Combine(folderPath, "b.jpg");
+
+        // Directory does NOT exist (user deleted it).
+        var serverTree = new SyncTreeNodeResponse
+        {
+            NodeId = Guid.Empty, Name = "/", NodeType = "Folder",
+            Children =
+            [
+                new SyncTreeNodeResponse
+                {
+                    NodeId = folderNodeId, Name = "photos", NodeType = "Folder",
+                    Children =
+                    [
+                        new SyncTreeNodeResponse { NodeId = fileNodeId1, Name = "a.jpg", NodeType = "File", ContentHash = "aaa" },
+                        new SyncTreeNodeResponse { NodeId = fileNodeId2, Name = "b.jpg", NodeType = "File", ContentHash = "bbb" },
+                    ],
+                }
+            ],
+        };
+
+        _apiMock.Setup(a => a.GetFolderTreeAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(serverTree);
+
+        var records = new List<LocalFileRecord>
+        {
+            new() { LocalPath = filePath1, NodeId = fileNodeId1, ContentHash = "aaa", LastSyncedAt = DateTime.UtcNow.AddMinutes(-5), LocalModifiedAt = DateTime.UtcNow.AddMinutes(-10) },
+            new() { LocalPath = filePath2, NodeId = fileNodeId2, ContentHash = "bbb", LastSyncedAt = DateTime.UtcNow.AddMinutes(-5), LocalModifiedAt = DateTime.UtcNow.AddMinutes(-10) },
+        };
+
+        _stateDbMock.Setup(db => db.GetAllFileRecordsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(records);
+
+        _stateDbMock.Setup(db => db.GetFileRecordByNodeIdAsync(
+                It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string _, Guid nid, CancellationToken _) =>
+                records.FirstOrDefault(r => r.NodeId == nid));
+
+        _stateDbMock.Setup(db => db.QueueOperationAsync(
+                It.IsAny<string>(), It.IsAny<PendingOperationRecord>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        // Act
+        await _engine.StartAsync(_context);
+        await _engine.SyncAsync(_context);
+        await _engine.StopAsync();
+
+        // Assert: a single PendingDelete for the FOLDER (not individual files).
+        _stateDbMock.Verify(db => db.QueueOperationAsync(
+            It.IsAny<string>(),
+            It.Is<PendingDelete>(d => d.NodeId == folderNodeId),
+            It.IsAny<CancellationToken>()), Times.Once);
+
+        // Assert: NO individual file deletes queued.
+        _stateDbMock.Verify(db => db.QueueOperationAsync(
+            It.IsAny<string>(),
+            It.Is<PendingDelete>(d => d.NodeId == fileNodeId1 || d.NodeId == fileNodeId2),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task SyncAsync_PendingDelete404_TreatedAsSuccess()
+    {
+        // Arrange: a PendingDelete that gets 404 (node already deleted, e.g. cascade).
+        // Should be treated as success, not failure.
+        var deletedFilePath = Path.Combine(_tempDir, "cascade-deleted.txt");
+        var nodeId = Guid.NewGuid();
+
+        var pendingOp = new PendingDelete { Id = 77, LocalPath = deletedFilePath, NodeId = nodeId };
+        _stateDbMock
+            .Setup(db => db.GetPendingOperationsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([pendingOp]);
+        _stateDbMock.Setup(db => db.RemoveOperationAsync(
+                It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _stateDbMock.Setup(db => db.RemoveFileRecordAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        _apiMock.Setup(a => a.DeleteAsync(nodeId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("Not Found", null, System.Net.HttpStatusCode.NotFound));
+
+        // Act
+        await _engine.StartAsync(_context);
+        await _engine.SyncAsync(_context);
+        await _engine.StopAsync();
+
+        // Assert: operation was removed (treated as success, not moved to failed queue).
+        _stateDbMock.Verify(db => db.RemoveOperationAsync(
+            It.IsAny<string>(), 77, It.IsAny<CancellationToken>()), Times.Once);
+
+        // Assert: NOT moved to failed queue.
+        _stateDbMock.Verify(db => db.MoveToFailedAsync(
+            It.IsAny<string>(), It.IsAny<PendingOperationRecord>(),
+            It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     private sealed class DiskFullIOException : IOException
