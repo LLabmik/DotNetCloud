@@ -345,6 +345,15 @@ public sealed record BulkOperationDto
 }
 
 /// <summary>
+/// Request DTO for downloading multiple nodes as a ZIP archive.
+/// </summary>
+public sealed record BulkDownloadRequest
+{
+    /// <summary>List of node IDs to include in the ZIP.</summary>
+    public required IReadOnlyList<Guid> NodeIds { get; init; }
+}
+
+/// <summary>
 /// Response DTO for a bulk operation result.
 /// </summary>
 public sealed record BulkResultDto

@@ -21,4 +21,10 @@ public interface IDownloadService
     /// Returns null if the chunk is not found.
     /// </summary>
     Task<Stream?> DownloadChunkByHashAsync(string chunkHash, CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a ZIP archive containing the specified nodes (files and/or folders with hierarchy preserved).
+    /// Returns a stream that the caller must dispose.
+    /// </summary>
+    Task<Stream> DownloadZipAsync(IReadOnlyList<Guid> nodeIds, CallerContext caller, CancellationToken cancellationToken = default);
 }

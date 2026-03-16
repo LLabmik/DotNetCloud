@@ -6,6 +6,7 @@ using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.IO.Compression;
 using SharePermission = DotNetCloud.Modules.Files.Models.SharePermission;
 
 namespace DotNetCloud.Modules.Files.Data.Services;
@@ -148,6 +149,123 @@ internal sealed class DownloadService : IDownloadService
             return null;
 
         return await _storageEngine.OpenReadStreamAsync(chunk.StoragePath, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<Stream> DownloadZipAsync(IReadOnlyList<Guid> nodeIds, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+        ArgumentNullException.ThrowIfNull(nodeIds);
+
+        if (nodeIds.Count == 0)
+            throw new Core.Errors.InvalidOperationException("No nodes specified for download.");
+
+        if (nodeIds.Count > 500)
+            throw new Core.Errors.InvalidOperationException("Cannot download more than 500 items at once.");
+
+        var tempPath = Path.Combine(_tmpPath, $"dotnetcloud-zip-{Guid.NewGuid():N}.zip");
+
+        try
+        {
+            await using (var zipStream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, System.IO.FileShare.None, 81920, FileOptions.Asynchronous))
+            using (var archive = new ZipArchive(zipStream, ZipArchiveMode.Create, leaveOpen: false))
+            {
+                foreach (var nodeId in nodeIds.Distinct())
+                {
+                    var node = await _db.FileNodes
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(n => n.Id == nodeId, cancellationToken);
+
+                    if (node is null) continue;
+
+                    await _permissions.RequirePermissionAsync(nodeId, caller, SharePermission.Read, cancellationToken);
+
+                    if (node.NodeType == FileNodeType.Folder)
+                    {
+                        await AddFolderToZipAsync(archive, node, node.Name, caller, cancellationToken);
+                    }
+                    else
+                    {
+                        await AddFileToZipAsync(archive, node, node.Name, cancellationToken);
+                    }
+                }
+            }
+
+            _logger.LogInformation("zip.created {NodeCount} {UserId}", nodeIds.Count, caller.UserId);
+
+            return new FileStream(
+                tempPath,
+                FileMode.Open,
+                FileAccess.Read,
+                System.IO.FileShare.Read,
+                81920,
+                FileOptions.Asynchronous | FileOptions.SequentialScan | FileOptions.DeleteOnClose);
+        }
+        catch
+        {
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { /* best-effort */ }
+            throw;
+        }
+    }
+
+    private async Task AddFolderToZipAsync(ZipArchive archive, FileNode folder, string pathPrefix, CallerContext caller, CancellationToken cancellationToken)
+    {
+        // Add an empty directory entry
+        archive.CreateEntry(pathPrefix + "/");
+
+        var children = await _db.FileNodes
+            .AsNoTracking()
+            .Where(n => n.ParentId == folder.Id && !n.IsDeleted)
+            .ToListAsync(cancellationToken);
+
+        foreach (var child in children)
+        {
+            var childPath = $"{pathPrefix}/{child.Name}";
+
+            if (child.NodeType == FileNodeType.Folder)
+            {
+                await AddFolderToZipAsync(archive, child, childPath, caller, cancellationToken);
+            }
+            else
+            {
+                await AddFileToZipAsync(archive, child, childPath, cancellationToken);
+            }
+        }
+    }
+
+    private async Task AddFileToZipAsync(ZipArchive archive, FileNode fileNode, string entryPath, CancellationToken cancellationToken)
+    {
+        var latestVersion = await _db.FileVersions
+            .AsNoTracking()
+            .Where(v => v.FileNodeId == fileNode.Id)
+            .OrderByDescending(v => v.VersionNumber)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var entry = archive.CreateEntry(entryPath, CompressionLevel.Fastest);
+
+        if (latestVersion is null) return;
+
+        await using var entryStream = entry.Open();
+
+        var versionChunks = await _db.FileVersionChunks
+            .AsNoTracking()
+            .Include(vc => vc.FileChunk)
+            .Where(vc => vc.FileVersionId == latestVersion.Id)
+            .OrderBy(vc => vc.SequenceIndex)
+            .ToListAsync(cancellationToken);
+
+        foreach (var vc in versionChunks)
+        {
+            if (vc.FileChunk!.Size == 0) continue;
+
+            var chunkStream = await _storageEngine.OpenReadStreamAsync(vc.FileChunk.StoragePath, cancellationToken);
+            if (chunkStream is null) continue;
+
+            await using (chunkStream)
+            {
+                await chunkStream.CopyToAsync(entryStream, cancellationToken);
+            }
+        }
     }
 
     private async Task<Stream> BuildStreamFromVersionAsync(Guid versionId, CancellationToken cancellationToken)

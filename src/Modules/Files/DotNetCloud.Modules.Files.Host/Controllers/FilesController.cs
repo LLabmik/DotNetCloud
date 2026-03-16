@@ -137,6 +137,105 @@ public class FilesController : FilesControllerBase
     });
 
     /// <summary>
+    /// Bulk-moves multiple files/folders to a target parent.
+    /// </summary>
+    [HttpPost("bulk-move")]
+    public Task<IActionResult> BulkMoveAsync([FromBody] BulkOperationDto dto) => ExecuteAsync(async () =>
+    {
+        if (dto.NodeIds.Count == 0 || !dto.TargetParentId.HasValue)
+            return BadRequest(ErrorEnvelope("validation_error", "NodeIds and TargetParentId are required."));
+
+        var caller = GetAuthenticatedCaller();
+        var results = new List<BulkItemResultDto>();
+        foreach (var nodeId in dto.NodeIds)
+        {
+            try
+            {
+                await _fileService.MoveAsync(nodeId, new MoveNodeDto { TargetParentId = dto.TargetParentId.Value }, caller);
+                results.Add(new BulkItemResultDto { NodeId = nodeId, Success = true });
+            }
+            catch (Exception ex)
+            {
+                results.Add(new BulkItemResultDto { NodeId = nodeId, Success = false, Error = ex.Message });
+            }
+        }
+
+        return Ok(new BulkResultDto
+        {
+            TotalCount = dto.NodeIds.Count,
+            SuccessCount = results.Count(r => r.Success),
+            FailureCount = results.Count(r => !r.Success),
+            Results = results
+        });
+    });
+
+    /// <summary>
+    /// Bulk-copies multiple files/folders to a target parent.
+    /// </summary>
+    [HttpPost("bulk-copy")]
+    public Task<IActionResult> BulkCopyAsync([FromBody] BulkOperationDto dto) => ExecuteAsync(async () =>
+    {
+        if (dto.NodeIds.Count == 0 || !dto.TargetParentId.HasValue)
+            return BadRequest(ErrorEnvelope("validation_error", "NodeIds and TargetParentId are required."));
+
+        var caller = GetAuthenticatedCaller();
+        var results = new List<BulkItemResultDto>();
+        foreach (var nodeId in dto.NodeIds)
+        {
+            try
+            {
+                await _fileService.CopyAsync(nodeId, dto.TargetParentId.Value, caller);
+                results.Add(new BulkItemResultDto { NodeId = nodeId, Success = true });
+            }
+            catch (Exception ex)
+            {
+                results.Add(new BulkItemResultDto { NodeId = nodeId, Success = false, Error = ex.Message });
+            }
+        }
+
+        return Ok(new BulkResultDto
+        {
+            TotalCount = dto.NodeIds.Count,
+            SuccessCount = results.Count(r => r.Success),
+            FailureCount = results.Count(r => !r.Success),
+            Results = results
+        });
+    });
+
+    /// <summary>
+    /// Bulk-deletes (moves to trash) multiple files/folders.
+    /// </summary>
+    [HttpPost("bulk-delete")]
+    public Task<IActionResult> BulkDeleteAsync([FromBody] BulkOperationDto dto) => ExecuteAsync(async () =>
+    {
+        if (dto.NodeIds.Count == 0)
+            return BadRequest(ErrorEnvelope("validation_error", "NodeIds are required."));
+
+        var caller = GetAuthenticatedCaller();
+        var results = new List<BulkItemResultDto>();
+        foreach (var nodeId in dto.NodeIds)
+        {
+            try
+            {
+                await _fileService.DeleteAsync(nodeId, caller);
+                results.Add(new BulkItemResultDto { NodeId = nodeId, Success = true });
+            }
+            catch (Exception ex)
+            {
+                results.Add(new BulkItemResultDto { NodeId = nodeId, Success = false, Error = ex.Message });
+            }
+        }
+
+        return Ok(new BulkResultDto
+        {
+            TotalCount = dto.NodeIds.Count,
+            SuccessCount = results.Count(r => r.Success),
+            FailureCount = results.Count(r => !r.Success),
+            Results = results
+        });
+    });
+
+    /// <summary>
     /// Toggles favorite status on a file or folder.
     /// </summary>
     [HttpPost("{nodeId:guid}/favorite")]
@@ -268,6 +367,20 @@ public class FilesController : FilesControllerBase
         _logger.LogInformation("file.downloaded {NodeId} {FileName} {FileSize} {UserId}",
             nodeId, node.Name, node.Size, caller.UserId);
         return File(downloadStream, node.MimeType ?? "application/octet-stream", node.Name, enableRangeProcessing: false);
+    });
+
+    /// <summary>
+    /// Downloads multiple files/folders as a ZIP archive. Folder hierarchy is preserved.
+    /// </summary>
+    [HttpPost("download-zip")]
+    public Task<IActionResult> DownloadZipAsync([FromBody] BulkDownloadRequest request) => ExecuteAsync(async () =>
+    {
+        if (request.NodeIds is null || request.NodeIds.Count == 0)
+            return BadRequest(ErrorEnvelope("validation_error", "No nodes specified."));
+
+        var caller = GetAuthenticatedCaller();
+        var stream = await _downloadService.DownloadZipAsync(request.NodeIds, caller);
+        return File(stream, "application/zip", "download.zip", enableRangeProcessing: false);
     });
 
     /// <summary>

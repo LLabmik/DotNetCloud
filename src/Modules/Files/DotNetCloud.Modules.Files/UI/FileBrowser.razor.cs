@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Net.Http.Json;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Options;
@@ -98,7 +99,15 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     private FileNodeViewModel? _previewNode;
     private FileNodeViewModel? _editorNode;
     private int _currentPage = 1;
-    private int _pageSize = 50;
+    // Selection mode
+    private bool _selectionMode;
+
+    // Folder picker dialog
+    private bool _showFolderPicker;
+    private FolderPickerMode _folderPickerMode;
+    private Guid? _pickerCurrentFolderId;
+    private readonly List<BreadcrumbItem> _pickerBreadcrumbs = [];
+    private List<FileNodeViewModel> _pickerFolders = [];    private int _pageSize = 50;
 #pragma warning disable CS0649
     private int _totalCount;
 #pragma warning restore CS0649
@@ -204,6 +213,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     protected FileTagViewModel? ActiveTag => _activeTag;
     protected IReadOnlyList<FileNodeViewModel> TaggedNodes => _taggedNodes;
     protected IReadOnlyList<FileTagViewModel> UserTags => _userTags;
+    protected bool IsAllSelected => _nodes.Count > 0 && _selectedNodes.Count == _nodes.Count;
     protected string NewFolderName { get => _newFolderName; set => _newFolderName = value; }
     protected string NewDocumentName { get => _newDocumentName; set => _newDocumentName = value; }
     protected string SelectedDocumentExtension { get => _selectedDocumentExtension; set => _selectedDocumentExtension = value; }
@@ -253,10 +263,39 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     protected void HandleNodeClick(FileNodeViewModel node)
     {
+        if (_selectionMode)
+        {
+            ToggleSelect(node.Id);
+            return;
+        }
+
         if (_selectedNodes.Contains(node.Id))
             _selectedNodes.Remove(node.Id);
         else
             _selectedNodes.Add(node.Id);
+    }
+
+    /// <summary>Toggles selection of a single item.</summary>
+    protected void ToggleSelect(Guid id)
+    {
+        if (!_selectedNodes.Add(id)) _selectedNodes.Remove(id);
+    }
+
+    /// <summary>Selects or deselects all items.</summary>
+    protected void ToggleSelectAll()
+    {
+        if (IsAllSelected)
+            _selectedNodes.Clear();
+        else
+            foreach (var node in _nodes) _selectedNodes.Add(node.Id);
+    }
+
+    /// <summary>Toggles selection mode on/off. Clears selection when exiting.</summary>
+    protected void ToggleSelectionMode()
+    {
+        _selectionMode = !_selectionMode;
+        if (!_selectionMode)
+            _selectedNodes.Clear();
     }
 
     protected async Task HandleNodeDoubleClick(FileNodeViewModel node)
@@ -454,6 +493,134 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
         _selectedNodes.Clear();
         await LoadCurrentFolderAsync();
+    }
+
+    // ── Bulk actions ─────────────────────────────────────────────────────────
+
+    /// <summary>Moves all selected items to trash.</summary>
+    protected async Task BulkTrashSelected()
+    {
+        await DeleteSelected();
+        await LoadTrashCountAsync();
+    }
+
+    /// <summary>Downloads all selected items as a ZIP archive.</summary>
+    protected async Task BulkDownloadZip()
+    {
+        if (_selectedNodes.Count == 0) return;
+
+        var nodeIds = _selectedNodes.ToList();
+        var idsParam = string.Join(",", nodeIds);
+        var effectiveUserId = UserId;
+        if (effectiveUserId == Guid.Empty)
+            effectiveUserId = (await GetCallerContextAsync()).UserId;
+
+        var baseUrl = string.IsNullOrWhiteSpace(ApiBaseUrl) ? string.Empty : ApiBaseUrl.TrimEnd('/');
+        var url = $"{baseUrl}/api/v1/files/download-zip?userId={Uri.EscapeDataString(effectiveUserId.ToString())}";
+
+        // Use JS to POST the node IDs and trigger a browser download
+        await Js.InvokeVoidAsync("dotnetcloudFiles.downloadZip", url, nodeIds);
+    }
+
+    /// <summary>Shows the folder picker for moving selected items.</summary>
+    protected async Task ShowMoveDialog()
+    {
+        _folderPickerMode = FolderPickerMode.Move;
+        await OpenFolderPicker();
+    }
+
+    /// <summary>Shows the folder picker for copying selected items.</summary>
+    protected async Task ShowCopyDialog()
+    {
+        _folderPickerMode = FolderPickerMode.Copy;
+        await OpenFolderPicker();
+    }
+
+    /// <summary>Hides the folder picker dialog.</summary>
+    protected void HideFolderPicker() => _showFolderPicker = false;
+
+    /// <summary>Navigates the folder picker to a given folder.</summary>
+    protected async Task PickerNavigate(Guid? folderId)
+    {
+        _pickerCurrentFolderId = folderId;
+
+        if (folderId is null)
+        {
+            _pickerBreadcrumbs.Clear();
+        }
+        else
+        {
+            // If navigating to a folder already in breadcrumbs, truncate
+            var existingIdx = _pickerBreadcrumbs.FindIndex(b => b.Id == folderId.Value);
+            if (existingIdx >= 0)
+            {
+                _pickerBreadcrumbs.RemoveRange(existingIdx + 1, _pickerBreadcrumbs.Count - existingIdx - 1);
+            }
+            else
+            {
+                var folder = _pickerFolders.FirstOrDefault(f => f.Id == folderId.Value);
+                if (folder is not null)
+                    _pickerBreadcrumbs.Add(new BreadcrumbItem(folder.Id, folder.Name));
+            }
+        }
+
+        await LoadPickerFoldersAsync();
+    }
+
+    /// <summary>Confirms the folder picker selection and executes the bulk operation.</summary>
+    protected async Task ConfirmFolderPicker()
+    {
+        if (_selectedNodes.Count == 0)
+        {
+            HideFolderPicker();
+            return;
+        }
+
+        var caller = await GetCallerContextAsync();
+        var targetId = _pickerCurrentFolderId;
+
+        if (_folderPickerMode == FolderPickerMode.Move)
+        {
+            foreach (var nodeId in _selectedNodes.ToList())
+            {
+                if (targetId.HasValue)
+                    await FileService.MoveAsync(nodeId, new MoveNodeDto { TargetParentId = targetId.Value }, caller);
+            }
+        }
+        else
+        {
+            foreach (var nodeId in _selectedNodes.ToList())
+            {
+                if (targetId.HasValue)
+                    await FileService.CopyAsync(nodeId, targetId.Value, caller);
+            }
+        }
+
+        _selectedNodes.Clear();
+        _selectionMode = false;
+        HideFolderPicker();
+        await LoadCurrentFolderAsync();
+    }
+
+    private async Task OpenFolderPicker()
+    {
+        _pickerCurrentFolderId = null;
+        _pickerBreadcrumbs.Clear();
+        await LoadPickerFoldersAsync();
+        _showFolderPicker = true;
+    }
+
+    private async Task LoadPickerFoldersAsync()
+    {
+        var caller = await GetCallerContextAsync();
+        var nodes = _pickerCurrentFolderId.HasValue
+            ? await FileService.ListChildrenAsync(_pickerCurrentFolderId.Value, caller)
+            : await FileService.ListRootAsync(caller);
+
+        _pickerFolders = nodes
+            .Where(n => n.NodeType == "Folder")
+            .Select(ToViewModel)
+            .ToList();
     }
 
     /// <summary>Activates the tag filter view for the given tag.</summary>

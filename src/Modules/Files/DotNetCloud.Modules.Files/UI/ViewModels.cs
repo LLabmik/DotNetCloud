@@ -57,6 +57,18 @@ public enum ViewMode
 }
 
 /// <summary>
+/// Mode for the folder picker dialog (move or copy).
+/// </summary>
+public enum FolderPickerMode
+{
+    /// <summary>Move selected items to the chosen folder.</summary>
+    Move,
+
+    /// <summary>Copy selected items to the chosen folder.</summary>
+    Copy
+}
+
+/// <summary>
 /// View model for a trashed file or folder in the trash bin UI.
 /// </summary>
 public sealed class TrashItemViewModel

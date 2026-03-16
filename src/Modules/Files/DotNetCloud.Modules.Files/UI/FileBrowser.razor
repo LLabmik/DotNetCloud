@@ -119,6 +119,9 @@ else
     <div class="files-header">
         <h1>Files</h1>
         <div class="files-header-actions">
+            <button class="btn btn-sm @(_selectionMode ? "btn-active" : "")" @onclick="ToggleSelectionMode" title="@(_selectionMode ? "Exit selection" : "Select items")">
+                @(_selectionMode ? "✕ Cancel" : "☑ Select")
+            </button>
             <button class="btn btn-sm" @onclick="ToggleViewMode" title="Toggle view">
                 @GetViewToggleLabel()
             </button>
@@ -142,29 +145,45 @@ else
         </ol>
     </nav>
 
-    <div class="files-actions">
-        <button class="btn btn-primary btn-sm" @onclick="ShowCreateFolderDialog">New Folder</button>
-        @if (CanCreateCollaboraDocument)
-        {
-            <button class="btn btn-primary btn-sm" @onclick="ShowCreateDocumentDialog">New Document</button>
-        }
-        <button class="btn btn-primary btn-sm" @onclick="ShowUploadDialog">Upload</button>
-        @if (SelectedCount > 0)
-        {
-            <span class="selection-info">@SelectedCount selected</span>
-            <button class="btn btn-sm btn-danger" @onclick="DeleteSelected">Delete</button>
-            <button class="btn btn-sm" @onclick="ShowBulkTagAdd" title="Add tag to selected">Tag</button>
-            <button class="btn btn-sm" @onclick="ClearSelection">Clear</button>
-        }
+    @if (!_selectionMode)
+    {
+        <div class="files-actions">
+            <button class="btn btn-primary btn-sm" @onclick="ShowCreateFolderDialog">New Folder</button>
+            @if (CanCreateCollaboraDocument)
+            {
+                <button class="btn btn-primary btn-sm" @onclick="ShowCreateDocumentDialog">New Document</button>
+            }
+            <button class="btn btn-primary btn-sm" @onclick="ShowUploadDialog">Upload</button>
+        </div>
+    }
+    else
+    {
+        <div class="files-actions bulk-actions-bar">
+            <label class="checkbox-label">
+                <input type="checkbox"
+                       checked="@IsAllSelected"
+                       @onchange="ToggleSelectAll" />
+                <span>Select all</span>
+            </label>
+            @if (SelectedCount > 0)
+            {
+                <span class="selection-info">@SelectedCount selected</span>
+                <button class="btn btn-sm" @onclick="ShowMoveDialog" title="Move selected items to another folder">📁 Move</button>
+                <button class="btn btn-sm" @onclick="ShowCopyDialog" title="Copy selected items to another folder">📋 Copy</button>
+                <button class="btn btn-sm btn-danger" @onclick="BulkTrashSelected" title="Move selected items to trash">🗑️ Trash</button>
+                <button class="btn btn-sm" @onclick="BulkDownloadZip" title="Download selected items as ZIP">📥 Download ZIP</button>
+                <button class="btn btn-sm" @onclick="ShowBulkTagAdd" title="Add tag to selected">🏷️ Tag</button>
+            }
+        </div>
 
-        @if (IsShowBulkTagAdd)
+        @if (IsShowBulkTagAdd && SelectedCount > 0)
         {
             <div class="bulk-tag-dialog">
                 <TagInput ExistingTags="UserTags" OnTagAdded="HandleBulkTagAdd" />
                 <button class="btn btn-sm" @onclick="HideBulkTagAdd">Cancel</button>
             </div>
         }
-    </div>
+    }
 
     @if (IsShowUploadDialog)
     {
@@ -261,8 +280,19 @@ else
         <div class="@GetFilesContainerClass()">
             @foreach (var node in SortedNodes)
             {
-                <div class="file-item @(IsSelected(node.Id) ? "selected" : "")"
+                <div class="file-item @(IsSelected(node.Id) ? "selected" : "") @(_selectionMode ? "selection-mode" : "")"
                      @onclick="() => HandleNodeClick(node)">
+
+                    @if (_selectionMode)
+                    {
+                        <div class="col-check">
+                            <input type="checkbox"
+                                   checked="@IsSelected(node.Id)"
+                                   @onclick:stopPropagation
+                                   @onchange="() => ToggleSelect(node.Id)"
+                                   aria-label="Select @node.Name" />
+                        </div>
+                    }
 
                     <div class="file-icon">
                         @if (_viewMode == ViewMode.Grid && node.ThumbnailUrl is not null)
@@ -313,15 +343,18 @@ else
                         </span>
                     </div>
 
-                    <div class="file-actions">
-                        <button class="btn-icon" @onclick:stopPropagation
-                                @onclick="() => ToggleFavorite(node.Id)"
-                                title="@(node.IsFavorite ? "Unfavorite" : "Favorite")">
-                            @(node.IsFavorite ? "★" : "☆")
-                        </button>
-                        <button class="btn-icon" @onclick:stopPropagation
-                                @onclick="() => ShowShareDialog(node)" title="Share" aria-label="Share">🔗</button>
-                    </div>
+                    @if (!_selectionMode)
+                    {
+                        <div class="file-actions">
+                            <button class="btn-icon" @onclick:stopPropagation
+                                    @onclick="() => ToggleFavorite(node.Id)"
+                                    title="@(node.IsFavorite ? "Unfavorite" : "Favorite")">
+                                @(node.IsFavorite ? "★" : "☆")
+                            </button>
+                            <button class="btn-icon" @onclick:stopPropagation
+                                    @onclick="() => ShowShareDialog(node)" title="Share" aria-label="Share">🔗</button>
+                        </div>
+                    }
                 </div>
             }
         </div>
@@ -369,6 +402,51 @@ else
 
 </div>
 }
+
+    @if (_showFolderPicker)
+    {
+        <div class="folder-picker-overlay" @onclick="HideFolderPicker">
+            <div class="folder-picker-dialog" @onclick:stopPropagation>
+                <div class="folder-picker-header">
+                    <h3>@(_folderPickerMode == FolderPickerMode.Move ? "Move to…" : "Copy to…")</h3>
+                    <button class="btn-icon" @onclick="HideFolderPicker" title="Close">✕</button>
+                </div>
+
+                <nav class="folder-picker-breadcrumbs">
+                    <button class="btn btn-sm" @onclick="() => PickerNavigate(null)">Home</button>
+                    @foreach (var crumb in _pickerBreadcrumbs)
+                    {
+                        <span class="separator">/</span>
+                        <button class="btn btn-sm" @onclick="() => PickerNavigate(crumb.Id)">@crumb.Name</button>
+                    }
+                </nav>
+
+                <div class="folder-picker-list">
+                    @if (_pickerFolders.Count == 0)
+                    {
+                        <p class="text-muted folder-picker-empty">No subfolders</p>
+                    }
+                    else
+                    {
+                        @foreach (var folder in _pickerFolders)
+                        {
+                            <button class="folder-picker-item" @onclick="() => PickerNavigate(folder.Id)">
+                                📁 @folder.Name
+                            </button>
+                        }
+                    }
+                </div>
+
+                <div class="folder-picker-actions">
+                    <button class="btn btn-primary btn-sm"
+                            @onclick="ConfirmFolderPicker">
+                        @(_folderPickerMode == FolderPickerMode.Move ? "Move here" : "Copy here")
+                    </button>
+                    <button class="btn btn-sm" @onclick="HideFolderPicker">Cancel</button>
+                </div>
+            </div>
+        </div>
+    }
 
     </div> @* .files-page-main *@
 </div> @* .files-page-layout *@
