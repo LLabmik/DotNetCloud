@@ -206,7 +206,7 @@ a:hover { text-decoration: underline; }
     padding: 24px;
 }
 
-.content-area { max-width: 1200px; margin: 0 auto; }
+.content-area { max-width: 1400px; margin: 0 auto; }
 
 /* --- Page Header --- */
 .page-header {
@@ -562,9 +562,14 @@ textarea.input { resize: vertical; min-height: 60px; }
 /* --- Files Page Layout (Sidebar + Main) --- */
 .files-page-layout {
     display: grid;
-    grid-template-columns: 240px 1fr;
-    gap: 20px;
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 16px;
     min-height: calc(100vh - 120px);
+}
+
+.files-page-main {
+    min-width: 0;
+    overflow: hidden;
 }
 
 /* --- Files Sidebar Navigation --- */
@@ -750,8 +755,9 @@ textarea.input { resize: vertical; min-height: 60px; }
 
 .trash-bin-page .page-header h1 {
     margin: 0;
-    font-size: 28px;
+    font-size: 24px;
     line-height: 1.2;
+    white-space: nowrap;
 }
 
 .trash-size-info {
@@ -805,9 +811,9 @@ textarea.input { resize: vertical; min-height: 60px; }
 .trash-list-header,
 .trash-item {
     display: grid;
-    grid-template-columns: 32px 28px 1fr 140px 80px auto;
+    grid-template-columns: 32px 28px minmax(0, 1fr) minmax(100px, 140px) minmax(60px, 80px) auto;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     padding: 8px 10px;
 }
 
@@ -839,7 +845,15 @@ textarea.input { resize: vertical; min-height: 60px; }
 
 .trash-actions {
     display: flex;
-    gap: 6px;
+    gap: 4px;
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+}
+
+.trash-actions .btn {
+    white-space: nowrap;
+    font-size: 12px;
+    padding: 4px 8px;
 }
 
 .sort-header {
@@ -876,7 +890,11 @@ textarea.input { resize: vertical; min-height: 60px; }
 
     .trash-list-header,
     .trash-item {
-        grid-template-columns: 32px 28px 1fr 80px auto;
+        grid-template-columns: 28px 1fr 60px auto;
+    }
+
+    .col-check {
+        display: none;
     }
 
     .col-date {
@@ -1042,12 +1060,14 @@ textarea.input { resize: vertical; min-height: 60px; }
 
 .file-info {
     min-width: 0;
+    overflow: hidden;
 }
 
 .file-name {
     font-weight: 600;
     display: block;
     min-width: 0;
+    max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
