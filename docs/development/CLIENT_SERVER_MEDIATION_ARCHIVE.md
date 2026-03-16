@@ -5,6 +5,28 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Deletion Propagation Chain — CLOSED (2026-03-16)
+
+Full 3-step chain completed. Deletion propagation (files and directories) verified on all machines.
+
+**Step 1 — Linux (`mint-dnc-client`):** PASSED 2026-03-16 ~03:00Z
+- File: `delete_test_linux_retry2_20260316_030012.txt` (NodeId `34370895-2422-4603-80e0-5796dd753a86`) — deleted, propagated, did not reappear.
+- Directory: `deltest_dir_20260316_030153/inner.txt` (NodeId `e2655c3f-5d18-43e7-88f8-c9417a82a312`) — deleted, propagated, did not reappear.
+
+**Step 2 — Windows (`Windows11-TestDNC`):** PASSED 2026-03-16 ~08:16Z
+- File: `delete_test_win_20260316_011615.txt` (NodeId `a8b932cb-4990-4aa5-9007-fd32bb7a7e63`) — deleted, propagated via `DELETE /api/v1/files/a8b932cb...` → HTTP 200, did not reappear.
+- Bug fix: `RemoveFileRecordsUnderPathAsync` path separator on Windows (used `\` instead of `/`). Fixed and committed.
+
+**Step 3 — Server (`mint22`):** CONFIRMED STABLE 2026-03-16
+- Zero ERR-level log entries since 2026-03-16 02:00.
+- Both node IDs confirmed soft-deleted server-side:
+    - `34370895-2422-4603-80e0-5796dd753a86` soft-deleted at 03:00:43 CDT
+    - `a8b932cb-4990-4aa5-9007-fd32bb7a7e63` soft-deleted at 03:16:40 CDT
+- No 5xx responses, no exceptions, no panics.
+- One pre-existing WRN: chunk blob missing for hash `fd250474ee...` (unrelated to deletion chain; pre-existing orphaned chunk).
+
+---
+
 ## Archived: Step 1 of 3 - Linux Deletion Propagation Verification PASSED (2026-03-16)
 
 Archived from Active Handoff on 2026-03-16 after Linux-side deletion-propagation verification completed and handoff advanced to `Windows11-TestDNC`.
