@@ -5,6 +5,36 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Step 1 of 3 - Linux Deletion Propagation Verification PASSED (2026-03-16)
+
+Archived from Active Handoff on 2026-03-16 after Linux-side deletion-propagation verification completed and handoff advanced to `Windows11-TestDNC`.
+
+- Pull/build/tests:
+    - `git pull` completed for latest handoff chain.
+    - `dotnet build src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj` passed.
+    - `dotnet test tests/DotNetCloud.Client.Core.Tests/` result: `182 passed, 0 failed`.
+- Runtime gate note:
+    - Initial probe on stale runtime reproduced old re-download behavior.
+    - Runtime was rebuilt/restarted from current binaries:
+        - `dotnet build src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj`
+        - restarted `dotnetcloud-sync-service` from `src/Clients/DotNetCloud.Client.SyncTray/bin/Debug/net10.0/`.
+- File deletion verification (PASS):
+    - File: `delete_test_linux_retry2_20260316_030012.txt`
+    - Upload: `File upload complete ... NodeId=34370895-2422-4603-80e0-5796dd753a86`.
+    - Delete propagation:
+        - `Local file deleted, queuing server deletion: delete_test_linux_retry2_20260316_030012.txt`
+        - `Deleting server node 34370895-2422-4603-80e0-5796dd753a86 for locally deleted file/folder`
+    - Result: file did not reappear locally and no queue-download line was emitted for that file after delete.
+- Directory deletion verification (PASS):
+    - Directory: `deltest_dir_20260316_030153` with `inner.txt`.
+    - Upload: `inner.txt` uploaded with `NodeId=e2655c3f-5d18-43e7-88f8-c9417a82a312`.
+    - Delete propagation:
+        - `Local file deleted, queuing server deletion: deltest_dir_20260316_030153/inner.txt`
+        - `Deleting server node e2655c3f-5d18-43e7-88f8-c9417a82a312 for locally deleted file/folder`
+    - Result: directory did not reappear locally.
+
+Conclusion: Linux client runtime now reflects deletion propagation fix from `b4160c6`. Chain advanced to Step 2 (`Windows11-TestDNC`).
+
 ## Archived: Closeout Verification — P1 Echo Suppression / Device Identity CLOSED (2026-03-15)
 
 Archived from Active Handoff on 2026-03-15 after server-side closeout verification on `mint22`.

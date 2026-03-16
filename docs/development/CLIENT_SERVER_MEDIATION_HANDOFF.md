@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-15 (Upload hardening story fully closed — all machines verified)
+Last updated: 2026-03-16 (Deletion propagation chain in progress: Linux complete, Windows active)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -55,7 +55,7 @@ Archived context:
   - Supports single files, multiple files, and recursive directory deletions.
   - All changes are in `src/Clients/DotNetCloud.Client.Core/` — shared client library. Server unchanged.
   - **Both client machines must pull and rebuild to pick up the fix.**
-- **Active cycle:** Chained handoff — Linux client → Windows client → mint22 confirmation.
+- **Active cycle:** Deletion propagation chain — Linux client complete, Windows client active, mint22 confirmation pending.
 
 ## Environment
 
@@ -74,7 +74,7 @@ Archived context:
 
 ## Active Handoff
 
-**Chain: Step 1 of 3 — Target: `mint-dnc-client` (Linux client)**
+**Chain: Step 2 of 3 — Target: `Windows11-TestDNC` (Windows client)**
 
 ### What Changed (commit `b4160c6`)
 
@@ -90,54 +90,78 @@ Client-side file/directory deletions were not propagating to the server. When a 
 - `tests/DotNetCloud.Client.Core.Tests/LocalState/LocalStateDbTests.cs`
 - `tests/DotNetCloud.Client.Core.Tests/Sync/SyncEngineTests.cs`
 
-### Instructions for `mint-dnc-client`
+### Step 1 Results (`mint-dnc-client`) - COMPLETED
+
+- Pull/build/tests:
+   - `git pull` completed (fast-forward to include `b4160c6` chain changes)
+   - `dotnet build src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj` -> succeeded
+   - `dotnet test tests/DotNetCloud.Client.Core.Tests/` -> `182 passed, 0 failed`
+- Runtime gate note:
+   - Initial deletion probe on stale running process reproduced old behavior (file re-downloaded).
+   - Rebuilt/restarted runtime from current binaries:
+      - `dotnet build src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj`
+      - restarted `dotnetcloud-sync-service` from `src/Clients/DotNetCloud.Client.SyncTray/bin/Debug/net10.0/`
+- File deletion verification (PASS):
+   - File: `delete_test_linux_retry2_20260316_030012.txt`
+   - Upload evidence: `File upload complete ... NodeId=34370895-2422-4603-80e0-5796dd753a86`
+   - Delete propagation evidence:
+      - `Local file deleted, queuing server deletion: delete_test_linux_retry2_20260316_030012.txt`
+      - `Deleting server node 34370895-2422-4603-80e0-5796dd753a86 for locally deleted file/folder`
+   - Result: `REAPPEARED=no` and no queue-download line for that file after deletion.
+- Directory deletion verification (PASS):
+   - Directory: `deltest_dir_20260316_030153` with file `inner.txt`
+   - Upload evidence: `File upload complete ... FileName=inner.txt ... NodeId=e2655c3f-5d18-43e7-88f8-c9417a82a312`
+   - Delete propagation evidence:
+      - `Local file deleted, queuing server deletion: deltest_dir_20260316_030153/inner.txt`
+      - `Deleting server node e2655c3f-5d18-43e7-88f8-c9417a82a312 for locally deleted file/folder`
+   - Result: `DIR_REAPPEARED=no`.
+
+### Instructions for `Windows11-TestDNC`
 
 1. **Pull latest:**
-   ```bash
-   cd ~/Repos/dotnetcloud && git pull
+    ```powershell
+    Set-Location "D:\Repos\dotnetcloud"
+    git pull
    ```
 
 2. **Build and run tests:**
-   ```bash
-   dotnet build src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj
-   dotnet test tests/DotNetCloud.Client.Core.Tests/ 2>&1 | tail -20
+    ```powershell
+    dotnet build src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj
+    dotnet test tests/DotNetCloud.Client.Core.Tests/
    ```
    All new deletion tests must pass.
 
-3. **Rebuild and redeploy the sync client** (use whatever the current deployment method is on this host — rebuild SyncTray or restart the service).
+3. **Rebuild and redeploy the sync client** on Windows (MSIX rebuild/install or restart service/tray from freshly built binaries).
 
 4. **Runtime verification — file deletion:**
-   - Create a test file in the sync directory (e.g., `echo "delete-test" > ~/synctray/delete_test_linux_$(date +%s).txt`)
+    - Create a test file in the sync directory (e.g., `delete_test_win_<timestamp>.txt` in `C:\Users\benk\Documents\synctray`)
    - Wait for sync to upload it to the server
-   - Verify it appears on the server (check server logs or web UI)
+    - Verify upload completed in Windows sync-service log
    - Delete the file from the sync directory
-   - Wait for the next sync pass
-   - Verify the file is **deleted on the server** (not re-downloaded to client)
-   - Document the test file name and results
+    - Verify logs show delete propagation (`Local file deleted, queuing server deletion` and `Deleting server node ...`)
+    - Verify file does not reappear locally and is not queued for download
+    - Document file name, NodeId, and key log lines with timestamps
 
 5. **Runtime verification — directory deletion (optional but recommended):**
-   - Create a test directory with a file: `mkdir ~/synctray/deltest_dir && echo "inner" > ~/synctray/deltest_dir/inner.txt`
+    - Create a test directory with a file under `C:\Users\benk\Documents\synctray`
    - Wait for sync to upload
-   - Delete the directory: `rm -rf ~/synctray/deltest_dir`
-   - Wait for sync pass
-   - Verify directory and contents deleted on server
+    - Delete the directory
+    - Verify deletion propagation in logs and no local reappearance
 
-6. **When done — write handoff for Windows:**
+6. **When done — write Step 3 handoff for `mint22`:**
    - Update this document's **Active Handoff** section:
-     - Record Linux test results (pass/fail, file names, any issues)
-     - Change target to `Windows11-TestDNC` (Step 2 of 3)
-     - Keep the same "What Changed" and similar instructions adapted for Windows
-     - Windows instructions: pull, build, run tests, rebuild MSIX or restart service, same deletion verification
-     - After Windows completes, it should write Step 3 targeting `mint22` with confirmation results
+       - Record Windows test results (pass/fail, file names, any issues)
+       - Change target to `mint22` (Step 3 of 3)
+       - Ask `mint22` to confirm both clients are updated and verify server-side stability/no regression errors
    - Commit and push
-   - Provide relay message for moderator targeting `Windows11-TestDNC`
+    - Provide relay message for moderator targeting `mint22`
 
 ### Chain Summary
 
 | Step | Target | Action | Status |
 |------|--------|--------|--------|
-| 1 | `mint-dnc-client` | Pull, build, test, verify deletion sync | **ACTIVE** |
-| 2 | `Windows11-TestDNC` | Pull, build, test, verify deletion sync | Pending |
+| 1 | `mint-dnc-client` | Pull, build, test, verify deletion sync | **Completed** |
+| 2 | `Windows11-TestDNC` | Pull, build, test, verify deletion sync | **ACTIVE** |
 | 3 | `mint22` | Confirm both clients updated and verified | Pending |
 
 ## Relay Template
