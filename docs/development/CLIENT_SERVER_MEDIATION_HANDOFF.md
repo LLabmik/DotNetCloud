@@ -49,13 +49,10 @@ Archived context:
 - All prior Phase 2, chat, and pre-Linux sync remediation work is complete and archived.
 - P0 server-side sync hardening deployed and verified on `mint22`.
 - Upload hardening story: CLOSED (2026-03-15). All machines verified.
-- **New (2026-03-16):** Client-side deletion propagation implemented on `mint22` (commit `b4160c6`).
-  - Files deleted from sync directory on client were not being deleted on server — they just reappeared.
-  - Fix: SyncEngine now detects files/directories tracked in LocalStateDb but missing from disk, creates PendingDelete operations, calls server DELETE API, and removes local state entries.
-  - Supports single files, multiple files, and recursive directory deletions.
-  - All changes are in `src/Clients/DotNetCloud.Client.Core/` — shared client library. Server unchanged.
-  - **Both client machines must pull and rebuild to pick up the fix.**
-- **Active cycle:** Deletion propagation chain — Linux client complete, Windows client active, mint22 confirmation pending.
+- Deletion propagation story: Both clients updated and verified (2026-03-16). Pending `mint22` server-side confirmation.
+  - Linux client (`mint-dnc-client`): verified 2026-03-16 ~03:00Z
+  - Windows client (`Windows11-TestDNC`): verified 2026-03-16 ~08:16Z. Bug fixed: `RemoveFileRecordsUnderPathAsync` path separator on Windows.
+- **Active cycle:** Deletion propagation chain — Step 3 of 3, `mint22` server confirmation pending.
 
 ## Environment
 
@@ -156,13 +153,52 @@ Client-side file/directory deletions were not propagating to the server. When a 
    - Commit and push
     - Provide relay message for moderator targeting `mint22`
 
+### Step 2 Results (`Windows11-TestDNC`) — COMPLETED
+
+**Bug fix committed in this handoff:** `RemoveFileRecordsUnderPathAsync` in `LocalStateDb.cs` used `Path.DirectorySeparatorChar` (`\` on Windows) to build the path prefix. Since sync paths are stored with `/` separators, the query never matched on Windows, so directory-scoped record removal silently did nothing. Fixed by inferring the separator from the stored path itself.
+
+- Build/tests:
+    - `dotnet build src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj` → succeeded
+    - `dotnet test tests/DotNetCloud.Client.Core.Tests/` → `182 passed, 0 failed` (1 failure before fix, 0 after)
+- MSIX rebuilt and installed: `0.24.0-alpha` (cert thumbprint `E6F026F512D09FF0C23AB3391EE84A06D2639DAB`)
+- File deletion verification (PASS):
+    - File: `delete_test_win_20260316_011615.txt`
+    - Upload evidence: `File upload complete ... NodeId=a8b932cb-4990-4aa5-9007-fd32bb7a7e63` at `2026-03-16T08:16:16Z`
+    - Delete propagation evidence:
+        - `FileSystemWatcher trigger: ChangeType=Deleted ... delete_test_win_20260316_011615.txt` at `2026-03-16T08:16:40Z`
+        - `Local file deleted, queuing server deletion: delete_test_win_20260316_011615.txt (NodeId=a8b932cb-4990-4aa5-9007-fd32bb7a7e63)`
+        - `Deleting server node a8b932cb-4990-4aa5-9007-fd32bb7a7e63 for locally deleted file/folder`
+        - `DELETE https://mint22:15443/api/v1/files/a8b932cb-4990-4aa5-9007-fd32bb7a7e63` → HTTP 200 OK
+    - `REAPPEARED=False` — file did not reappear locally, no queue-download emitted.
+
+### Active Handoff — Step 3 of 3: Target `mint22`
+
+Both client machines have pulled the deletion-propagation fix, passed all tests, and verified runtime deletion propagation end-to-end.
+
+**Instructions for `mint22`:**
+
+1. **Confirm server-side stability:** Check server logs for any unexpected errors since the deletion tests were run (around `2026-03-16T08:16:40Z` from Windows, earlier from Linux around `2026-03-16T03:00Z`).
+
+2. **Specifically look for:**
+    - Any 5xx errors on `DELETE /api/v1/files/<nodeId>` from either client
+    - Any orphaned file-node entries (deleted nodes still appearing in tree queries)
+    - Any server panics or port exhaustion around the sync endpoints
+
+3. **Verify the deleted nodes are gone:**
+    - Windows test: `NodeId=a8b932cb-4990-4aa5-9007-fd32bb7a7e63`
+    - Linux test: `NodeId=34370895-2422-4603-80e0-5796dd753a86`
+
+4. **If server is stable:** Archive this handoff entry and mark the deletion-propagation chain **CLOSED**. The feature is fully verified on both client platforms.
+
+5. **If any regressions found:** Document error details here, fix on `mint22`, and relay back to the relevant client agent.
+
 ### Chain Summary
 
 | Step | Target | Action | Status |
 |------|--------|--------|--------|
 | 1 | `mint-dnc-client` | Pull, build, test, verify deletion sync | **Completed** |
-| 2 | `Windows11-TestDNC` | Pull, build, test, verify deletion sync | **ACTIVE** |
-| 3 | `mint22` | Confirm both clients updated and verified | Pending |
+| 2 | `Windows11-TestDNC` | Pull, build, test, verify deletion sync | **Completed** |
+| 3 | `mint22` | Confirm server stability, close chain | **ACTIVE** |
 
 ## Relay Template
 

@@ -176,8 +176,10 @@ public sealed class LocalStateDb : ILocalStateDb
     public async Task RemoveFileRecordsUnderPathAsync(string dbPath, string folderPath, CancellationToken cancellationToken = default)
     {
         await using var ctx = CreateContext(dbPath);
-        var prefix = folderPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-            + Path.DirectorySeparatorChar;
+        var normalized = folderPath.TrimEnd('/', '\\');
+        // Infer the separator from the path itself so callers using either convention work correctly.
+        var sep = normalized.Contains('/') ? '/' : Path.DirectorySeparatorChar;
+        var prefix = normalized + sep;
         var records = await ctx.FileRecords
             .Where(r => r.LocalPath.StartsWith(prefix))
             .ToListAsync(cancellationToken);
