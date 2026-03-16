@@ -16,10 +16,10 @@ DotNetCloud gives you full control of your data by running your own cloud server
 
 | Feature | Description | Status |
 |---|---|---|
-| 📁 **Files** | File sync and sharing with desktop client | Phase 1 |
-| 📝 **Document Editing** | Browser-based editing via Collabora Online (LibreOffice-based) | Phase 1 |
-| 💬 **Chat** | Real-time messaging, channels, direct messages | Phase 2 |
-| 📱 **Android App** | Mobile client with photo auto-upload | Phase 2 |
+| 📁 **Files** | File sync and sharing with desktop client | 🔨 Phase 1 (near complete) |
+| 📝 **Document Editing** | Browser-based editing via Collabora Online (LibreOffice-based) | ✅ Phase 1 |
+| 💬 **Chat** | Real-time messaging, channels, direct messages | ✅ Phase 2 |
+| 📱 **Android App** | Mobile client with photo auto-upload | ✅ Phase 2 |
 | 👤 **Contacts** | Contact management with CardDAV support | Phase 3 |
 | 📅 **Calendar** | Events, scheduling, CalDAV support | Phase 3 |
 | 📝 **Notes** | Markdown-based note taking | Phase 3 |
@@ -32,6 +32,23 @@ DotNetCloud gives you full control of your data by running your own cloud server
 | 🔍 **Search** | Full-text search across all modules | Phase 8 |
 | 🔒 **E2EE** | Optional zero-knowledge encryption | Phase 8 |
 | 🤖 **AI Assistant** | LLM-powered assistant via Ollama (local) or Claude/OpenAI (cloud) | Phase 9 |
+
+### Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for the full phased implementation plan. Detailed status is tracked in [MASTER_PROJECT_PLAN.md](docs/MASTER_PROJECT_PLAN.md).
+
+| Phase | Milestone | Status |
+|---|---|---|
+| **Phase 0** | Foundation — core platform, auth, module system, CLI, web shell, observability | ✅ Complete |
+| **Phase 1** | Files + Desktop Sync Client — file browser, upload/download, sharing, Collabora editing, bulk operations, trash, tags, versioning, Windows & Linux sync | 🔨 In Progress (near complete) |
+| **Phase 2** | Chat + Notifications + Android — real-time messaging, push notifications, Android MAUI client | ✅ Complete |
+| **Phase 3** | Contacts + Calendar + Notes + NextCloud Migration | ⬜ Planned |
+| **Phase 4** | Project Management (Deck) | ⬜ Planned |
+| **Phase 5** | Photos + Music | ⬜ Planned |
+| **Phase 6** | Email + Bookmarks | ⬜ Planned |
+| **Phase 7** | Video Calling + Screen Sharing | ⬜ Planned |
+| **Phase 8** | Search + Auto-Updates + E2EE | ⬜ Planned |
+| **Phase 9** | AI Assistant | ⬜ Planned |
 
 ---
 
@@ -146,26 +163,6 @@ dotnet new dotnetcloud-module -n MyCustomModule
 ```
 
 See the [Module Development Guide](docs/module-development/) for the full walkthrough, including the [Example Module](src/Modules/DotNetCloud.Modules.Example/) as a working reference.
-
----
-
-## Roadmap
-
-See [ROADMAP.md](ROADMAP.md) for the full phased implementation plan.
-
-Current implementation status is tracked in detail in `docs/MASTER_PROJECT_PLAN.md`.
-
-| Phase | Milestone | Status |
-|---|---|---|
-| **Phase 0** | Foundation — architecture proven end-to-end | 🔨 In Progress (near complete) |
-| **Phase 1** | Files + Sync Client — **public launch** | 🔨 In Progress |
-| **Phase 2** | Chat + Notifications + Android | 🔨 Early In Progress |
-| **Phase 3** | Contacts + Calendar + Notes + NextCloud Migration | ⬜ Planned |
-| **Phase 4** | Project Management (Deck) | ⬜ Planned |
-| **Phase 5** | Photos + Music | ⬜ Planned |
-| **Phase 6** | Email + Bookmarks | ⬜ Planned |
-| **Phase 7** | Video Calling + Screen Sharing | ⬜ Planned |
-| **Phase 8** | Search + Auto-Updates + E2EE | ⬜ Planned |
 
 ---
 
