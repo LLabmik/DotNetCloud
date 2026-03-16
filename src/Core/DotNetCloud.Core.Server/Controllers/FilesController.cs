@@ -250,7 +250,7 @@ public sealed class FilesController : FilesControllerBase
 
         var downloadStream = await _downloadService.DownloadCurrentAsync(nodeId, caller);
         Response.Headers["X-Content-Type-Options"] = "nosniff";
-        return File(downloadStream, NormalizeDownloadMimeType(node.MimeType), node.Name, enableRangeProcessing: false);
+        return File(downloadStream, NormalizeDownloadMimeType(node.MimeType), node.Name, enableRangeProcessing: true);
     });
 
     private static string NormalizeDownloadMimeType(string? mimeType)

@@ -326,6 +326,7 @@ public class Program
         builder.Services.AddScoped<AdminSeeder>();
         builder.Services.AddScoped<OidcClientSeeder>();
         builder.Services.AddHostedService<ModuleUiRegistrationHostedService>();
+        builder.Services.AddHostedService<NotificationEventSubscriber>();
 
         // Configure forwarded headers for reverse proxy support
         builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(options =>

@@ -366,7 +366,7 @@ public class FilesController : FilesControllerBase
         var downloadStream = await _downloadService.DownloadCurrentAsync(nodeId, caller);
         _logger.LogInformation("file.downloaded {NodeId} {FileName} {FileSize} {UserId}",
             nodeId, node.Name, node.Size, caller.UserId);
-        return File(downloadStream, node.MimeType ?? "application/octet-stream", node.Name, enableRangeProcessing: false);
+        return File(downloadStream, node.MimeType ?? "application/octet-stream", node.Name, enableRangeProcessing: true);
     });
 
     /// <summary>

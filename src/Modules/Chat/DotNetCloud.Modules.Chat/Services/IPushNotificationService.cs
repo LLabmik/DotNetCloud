@@ -83,6 +83,12 @@ public enum NotificationCategory
     /// <summary>File shared with user.</summary>
     FileShared,
 
+    /// <summary>Storage quota warning (approaching limit).</summary>
+    QuotaWarning,
+
+    /// <summary>Storage quota critical (near limit).</summary>
+    QuotaCritical,
+
     /// <summary>System notification.</summary>
     System
 }
