@@ -2793,6 +2793,18 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Blocking Issues:** None
 **Notes:** All 8 component groups complete. Build: zero errors, zero warnings. Follow-up regression fix applied after rollout: file/folder list queries now use EF identity resolution when including tags, which stops repeated root/folder rows in the web UI when a node has multiple tag records. Added service-level regression coverage for both root and child listings. Components use the established pattern: `#pragma warning disable CS0649` for fields populated by future API integration, EventCallback parameters for host-page wiring, and `protected` property accessors following the existing FileBrowser/TrashBin pattern. File interactions now follow a one-click-only model (double-click handlers removed from Files UI).
 
+**Post-completion enhancements (2026-03-16):**
+- ✓ **Trash viewing in web UI** — sidebar "Trash" navigation now opens TrashBin view; file names display with word-wrap (no truncation); "Empty Trash" permanently deletes all items (per-user scoped)
+- ✓ **Selection mode** — toggle button (☑ Select) switches FileBrowser to checkbox mode with per-item checkboxes and "Select All" toggle; selection mode hides normal action buttons (favorite, share) and shows bulk action toolbar
+- ✓ **Bulk action toolbar** — Move, Copy, Trash, Download ZIP, Tag buttons appear when items are selected; selection count displayed
+- ✓ **Folder picker dialog** — modal overlay for Move/Copy destination selection with breadcrumb navigation, folder listing, and confirm/cancel actions; `FolderPickerMode` enum (Move, Copy) added to ViewModels.cs
+- ✓ **Bulk Download ZIP** — `DownloadZipAsync` in DownloadService creates ZIP with preserved folder hierarchy (recursive `AddFolderToZipAsync`); REST endpoint `POST /api/v1/files/download-zip` streams ZIP; JS interop (`files-bulk.js`) uses fetch+Blob for browser download
+- ✓ **Bulk REST endpoints** — `POST bulk-move`, `POST bulk-copy`, `POST bulk-delete` on FilesController with per-item success/failure reporting via `BulkResultDto`/`BulkItemResultDto`
+- ✓ **Share button icon** — replaced "Share" text with 🔗 icon in btn-icon to prevent text overflow
+- ✓ **Sidebar overlap fix** — corrected CSS to prevent overlapping text in sidebar navigation
+- ✓ New files: `src/UI/DotNetCloud.UI.Web/wwwroot/js/files-bulk.js`
+- ✓ New DTOs: `BulkDownloadRequest` in FileDtos.cs
+
 ### Step: phase-1.12 - File Upload & Preview UI
 **Status:** completed ✅ (17/17 tasks)
 **Duration:** ~1 session

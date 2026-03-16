@@ -1264,12 +1264,12 @@ This phase implements the core Files module, which is the primary public-facing 
 - [ ] Chunked upload with content-hash deduplication works end-to-end
 - [ ] File versioning stores history and allows restore to previous versions
 - [ ] Sharing works for users, teams, groups, and public links with permissions
-- [ ] Trash bin supports soft-delete, restore, permanent delete, and auto-cleanup
+- ✓ Trash bin supports soft-delete, restore, permanent delete, and auto-cleanup
 - [ ] Storage quotas enforce per-user limits and display usage
 - [ ] Collabora CODE integration enables browser-based document editing via WOPI
-- [ ] File browser Blazor UI supports grid/list view, drag-drop, preview, and sharing
+- ✓ File browser Blazor UI supports grid/list view, drag-drop, preview, and sharing
 - [ ] Desktop sync client (SyncService + SyncTray) syncs files bidirectionally
-- [ ] Bulk operations (move, copy, delete) work via REST API
+- ✓ Bulk operations (move, copy, delete) work via REST API
 - [ ] All unit and integration tests pass against PostgreSQL and SQL Server
 - [ ] gRPC communication with the Files module host works correctly
 - [ ] REST API documentation is generated via OpenAPI/Swagger
@@ -2555,18 +2555,18 @@ This phase implements the core Files module, which is the primary public-facing 
 - ☐ File versioning stores history and allows restore
 - ☐ Sharing works for users, teams, groups, and public links
 - ☐ Public links with password protection and download limits work
-- ☐ Trash bin supports soft-delete, restore, and permanent delete
-- ☐ Trash auto-cleanup permanently deletes expired items
+- ✓ Trash bin supports soft-delete, restore, and permanent delete
+- ✓ Trash auto-cleanup permanently deletes expired items
 - ☐ Storage quotas enforce per-user limits
 - ☐ Quota warnings are sent at 80% and 95% usage
 - ☐ Collabora CODE integration enables browser-based document editing
 - ☐ WOPI endpoints respond correctly (CheckFileInfo, GetFile, PutFile)
-- ☐ File browser Blazor UI supports grid/list view, navigation, upload, and sharing
+- ✓ File browser Blazor UI supports grid/list view, navigation, upload, and sharing
 - ☐ File preview works for images, video, audio, PDF, text/code, and Markdown
 - ✓ Drag-and-drop upload works in file browser (JS interop drop bridge)
 - ☐ Tags can be added, removed, and filtered
 - ☐ Comments can be added, edited, deleted, and threaded
-- ☐ Bulk operations (move, copy, delete) work via REST API
+- ✓ Bulk operations (move, copy, delete) work via REST API
 - ☐ Sync endpoints return correct change data for clients
 
 ### Desktop Sync Client
