@@ -320,7 +320,7 @@ else
                             @(node.IsFavorite ? "★" : "☆")
                         </button>
                         <button class="btn-icon" @onclick:stopPropagation
-                                @onclick="() => ShowShareDialog(node)" title="Share">Share</button>
+                                @onclick="() => ShowShareDialog(node)" title="Share" aria-label="Share">🔗</button>
                     </div>
                 </div>
             }
