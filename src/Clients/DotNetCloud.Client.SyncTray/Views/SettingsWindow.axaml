@@ -93,7 +93,8 @@
             <!-- ── General ── -->
             <TabItem Header="General">
                 <StackPanel Margin="8" Spacing="12">
-                    <CheckBox Content="Start DotNetCloud Sync on login"
+                    <CheckBox Content="Start DotNetCloud Sync at graphical login"
+                              ToolTip.Tip="Creates a Linux desktop-session autostart entry for SyncTray. SyncTray starts SyncService automatically."
                               IsChecked="{Binding StartOnLogin}" />
                     <CheckBox Content="Mute chat notifications"
                               ToolTip.Tip="Suppress desktop chat popups from chat messages and mentions"

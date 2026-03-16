@@ -172,6 +172,71 @@ public sealed class IpcClientTests
         await Task.WhenAny(connectTask, Task.Delay(500));
     }
 
+    [TestMethod]
+    public async Task ListContextsAsync_ConcurrentDuplicateRequests_ShareSingleResponse()
+    {
+        var (clientStream, serverStream) = DuplexStreamPair.Create();
+        var client = ClientFromStream(clientStream);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var connectTask = client.ConnectAsync(cts.Token);
+
+        _ = Task.Run(async () =>
+        {
+            var writer = new StreamWriter(serverStream, Encoding.UTF8) { AutoFlush = true };
+            var reader = new StreamReader(serverStream, Encoding.UTF8);
+
+            await reader.ReadLineAsync(cts.Token);
+            await writer.WriteLineAsync(JsonSerializer.Serialize(new IpcMessage
+            {
+                Type = "response",
+                Command = IpcCommands.Subscribe,
+                Success = true,
+                Data = new { subscribed = true },
+            }, JsonOptions));
+
+            var listContextsRequest = await reader.ReadLineAsync(cts.Token);
+            Assert.IsNotNull(listContextsRequest);
+            StringAssert.Contains(listContextsRequest, IpcCommands.ListContexts);
+
+            await writer.WriteLineAsync(JsonSerializer.Serialize(new IpcMessage
+            {
+                Type = "response",
+                Command = IpcCommands.ListContexts,
+                Success = true,
+                Data = new[]
+                {
+                    new
+                    {
+                        id = Guid.NewGuid(),
+                        displayName = "testdude@llabmik.net @ mint22",
+                        serverBaseUrl = "https://mint22:15443",
+                        localFolderPath = "/home/benk/synctray",
+                        state = "Idle",
+                        pendingUploads = 0,
+                        pendingDownloads = 0,
+                    },
+                },
+            }, JsonOptions));
+
+            try { await Task.Delay(Timeout.Infinite, cts.Token); }
+            catch (OperationCanceledException) { }
+        }, cts.Token);
+
+        await WaitForCondition(() => client.IsConnected, cts.Token);
+
+        var first = client.ListContextsAsync(cts.Token);
+        var second = client.ListContextsAsync(cts.Token);
+        await Task.WhenAll(first, second);
+
+        Assert.AreEqual(1, first.Result.Count);
+        Assert.AreEqual(1, second.Result.Count);
+        Assert.AreEqual(first.Result[0].DisplayName, second.Result[0].DisplayName);
+
+        cts.Cancel();
+        await Task.WhenAny(connectTask, Task.Delay(500));
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────
 
     /// <summary>

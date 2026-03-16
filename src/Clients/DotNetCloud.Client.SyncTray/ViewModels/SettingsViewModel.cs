@@ -7,6 +7,7 @@ using DotNetCloud.Client.Core.SelectiveSync;
 using DotNetCloud.Client.Core.SyncIgnore;
 using DotNetCloud.Client.SyncService.Ipc;
 using DotNetCloud.Client.SyncTray.Ipc;
+using DotNetCloud.Client.SyncTray.Startup;
 using DotNetCloud.Client.SyncTray.Views;
 using Microsoft.Extensions.Logging;
 
@@ -23,6 +24,7 @@ public sealed class SettingsViewModel : ViewModelBase
     private readonly IOAuth2Service _oauth2;
     private readonly ISyncIgnoreParser _syncIgnore;
     private readonly ISelectiveSyncConfig _selectiveSync;
+    private readonly IDesktopStartupManager _startupManager;
     private readonly ILogger<SettingsViewModel> _logger;
     private readonly string _localSettingsPath;
 
@@ -98,7 +100,7 @@ public sealed class SettingsViewModel : ViewModelBase
         set
         {
             if (SetProperty(ref _startOnLogin, value))
-                ApplyStartOnLogin(value);
+                _ = UpdateStartOnLoginAsync(value);
         }
     }
 
@@ -304,6 +306,7 @@ public sealed class SettingsViewModel : ViewModelBase
         IOAuth2Service oauth2,
         ISyncIgnoreParser syncIgnore,
         ISelectiveSyncConfig selectiveSync,
+        IDesktopStartupManager startupManager,
         ILogger<SettingsViewModel> logger,
         string? localSettingsPath = null)
     {
@@ -312,6 +315,7 @@ public sealed class SettingsViewModel : ViewModelBase
         _oauth2 = oauth2;
         _syncIgnore = syncIgnore;
         _selectiveSync = selectiveSync;
+        _startupManager = startupManager;
         _logger = logger;
         _localSettingsPath = localSettingsPath ?? GetDefaultLocalSettingsPath();
 
@@ -575,6 +579,17 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
+    private async Task UpdateStartOnLoginAsync(bool enable)
+    {
+        if (!_startupManager.TryApplyStartOnLogin(enable))
+        {
+            RevertStartOnLogin(enable);
+            return;
+        }
+
+        await PersistLocalSettingsAsync();
+    }
+
     /// <summary>
     /// Persists the conflict resolution settings via IPC.
     /// Issue #55: settings are saved to sync-settings.json by the service.
@@ -652,13 +667,15 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
-    private static void ApplyStartOnLogin(bool enable)
+    private void RevertStartOnLogin(bool attemptedValue)
     {
-        // Platform-specific auto-start registration.
-        // Windows: HKCU\Software\Microsoft\Windows\CurrentVersion\Run
-        // Linux: $HOME/.config/autostart/dotnetcloud-sync-tray.desktop
-        // Deferred to a future platform-packaging phase.
-        _ = enable;
+        if (_startOnLogin != attemptedValue)
+        {
+            return;
+        }
+
+        _startOnLogin = !attemptedValue;
+        OnPropertyChanged(nameof(StartOnLogin));
     }
 
     private static string GetDefaultLocalSettingsPath()
@@ -681,6 +698,7 @@ public sealed class SettingsViewModel : ViewModelBase
             if (settings is null)
                 return;
 
+            _startOnLogin = settings.StartOnLogin;
             _isMuteChatNotifications = settings.IsMuteChatNotifications;
         }
         catch (Exception ex)
@@ -700,7 +718,11 @@ public sealed class SettingsViewModel : ViewModelBase
             await using var stream = File.Create(_localSettingsPath);
             await JsonSerializer.SerializeAsync(
                 stream,
-                new SyncTrayLocalSettings { IsMuteChatNotifications = _isMuteChatNotifications },
+                new SyncTrayLocalSettings
+                {
+                    StartOnLogin = _startOnLogin,
+                    IsMuteChatNotifications = _isMuteChatNotifications,
+                },
                 new JsonSerializerOptions { WriteIndented = true });
         }
         catch (Exception ex)
@@ -813,6 +835,8 @@ public sealed class SettingsViewModel : ViewModelBase
 
 internal sealed class SyncTrayLocalSettings
 {
+    public bool StartOnLogin { get; init; }
+
     public bool IsMuteChatNotifications { get; init; }
 }
 

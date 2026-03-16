@@ -550,6 +550,12 @@ public sealed class IpcClient : IIpcClient, IAsyncDisposable
         var tcs = new TaskCompletionSource<IpcMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
         if (!_pendingCommands.TryAdd(command.Command, tcs))
         {
+            if (_pendingCommands.TryGetValue(command.Command, out var existingTcs))
+            {
+                _logger.LogDebug("Joining existing pending command '{Command}'.", command.Command);
+                return await existingTcs.Task.WaitAsync(cancellationToken);
+            }
+
             _logger.LogWarning("Duplicate command '{Command}' already pending.", command.Command);
             return null;
         }

@@ -91,7 +91,7 @@
    dotnetcloud-sync-tray
    ```
 
-6. **Auto-start SyncTray on login:** Configure your desktop environment startup applications if desired.
+6. **Auto-start SyncTray on login:** Open SyncTray, go to `Settings -> General`, and enable `Start DotNetCloud Sync at graphical login`. This writes `~/.config/autostart/dotnetcloud-sync-tray.desktop` (or `$XDG_CONFIG_HOME/autostart/...`).
 
 ## Updating to a New Client Version
 

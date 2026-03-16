@@ -2313,6 +2313,9 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ "Settings..." (open settings window)
 - ✓ "Quit"
 
+#### Linux Desktop Integration
+- ✓ Start-menu launcher entry (`~/.local/share/applications/dotnetcloud-sync-tray.desktop`) created/maintained at startup with cloud icon asset
+
 #### Settings Window
 - ✓ Account management:
   - ✓ List connected accounts (server URL, user, status)
@@ -2323,7 +2326,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Change sync root folder
   - ✓ Selective sync (folder tree with checkboxes)
 - ✓ General settings:
-  - ✓ Start on login (auto-start)
+  - ✓ Start on login (auto-start, Linux XDG autostart wired)
   - ✓ Full scan interval
   - ✓ Bandwidth limits (upload/download)
   - ✓ Notification preferences
@@ -2339,7 +2342,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Connect to SyncService via Named Pipe / Unix socket
 - ✓ Receive real-time sync status updates
 - ✓ Send commands (pause, resume, sync-now, add-account, remove-account)
-- ✓ Handle SyncService unavailable (display "Service not running" status)
+- ✓ Handle SyncService unavailable (display "Service not running" status; startup duplicate-request race fixed + Linux socket-ready wait)
 
 ---
 

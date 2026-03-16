@@ -7,8 +7,10 @@ using DotNetCloud.Client.Core.Api;
 using DotNetCloud.Client.Core.Auth;
 using DotNetCloud.Client.Core.SelectiveSync;
 using DotNetCloud.Client.Core.SyncIgnore;
+using DotNetCloud.Client.SyncService.Ipc;
 using DotNetCloud.Client.SyncTray.Ipc;
 using DotNetCloud.Client.SyncTray.Notifications;
+using DotNetCloud.Client.SyncTray.Startup;
 using DotNetCloud.Client.SyncTray.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -42,6 +44,9 @@ public partial class App : Application
             var logger = _services.GetRequiredService<ILogger<App>>();
             logger.LogInformation("DotNetCloud SyncTray starting...");
 
+            var startupManager = _services.GetRequiredService<IDesktopStartupManager>();
+            startupManager.TryEnsureApplicationLauncher();
+
             _ipcClient = _services.GetRequiredService<IIpcClient>();
             _trayIconManager = _services.GetRequiredService<TrayIconManager>();
 
@@ -49,7 +54,7 @@ public partial class App : Application
             logger.LogInformation("Tray icon manager initialized");
 
             // Connect to the background SyncService (reconnects automatically on failure).
-            _ = _ipcClient.ConnectAsync(_cts.Token);
+            _ = StartIpcClientAsync(startupManager, _cts.Token);
             logger.LogInformation("IPC client connection started");
 
             // First-run onboarding: prompt for server/account when none exist.
@@ -103,6 +108,9 @@ public partial class App : Application
         // IPC client for communication with SyncService.
         services.AddSingleton<IIpcClient, IpcClient>();
 
+        // Startup integration for service bootstrap and Linux XDG autostart.
+        services.AddSingleton<IDesktopStartupManager, DesktopStartupManager>();
+
         // Chat real-time client used by tray unread badge features.
         services.AddSingleton<IChatSignalRClient, NoOpChatSignalRClient>();
 
@@ -117,6 +125,43 @@ public partial class App : Application
             NotificationServiceFactory.Create(sp.GetRequiredService<ILogger<INotificationService>>()));
 
         return services.BuildServiceProvider();
+    }
+
+    private async Task StartIpcClientAsync(IDesktopStartupManager startupManager, CancellationToken cancellationToken)
+    {
+        if (_ipcClient is null || _services is null)
+            return;
+
+        var logger = _services.GetRequiredService<ILogger<App>>();
+        var startedService = startupManager.TryEnsureSyncServiceStarted();
+
+        if (OperatingSystem.IsLinux() && startedService)
+        {
+            await WaitForLinuxIpcSocketAsync(logger, cancellationToken);
+        }
+
+        await _ipcClient.ConnectAsync(cancellationToken);
+    }
+
+    private static async Task WaitForLinuxIpcSocketAsync(Microsoft.Extensions.Logging.ILogger logger, CancellationToken cancellationToken)
+    {
+        var socketPath = IpcServer.UnixSocketPath;
+        if (File.Exists(socketPath))
+            return;
+
+        const int maxAttempts = 100;
+        for (var i = 0; i < maxAttempts && !cancellationToken.IsCancellationRequested; i++)
+        {
+            if (File.Exists(socketPath))
+            {
+                logger.LogDebug("SyncService IPC socket ready at {Path}.", socketPath);
+                return;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken);
+        }
+
+        logger.LogDebug("SyncService IPC socket not ready after startup wait window ({Path}).", socketPath);
     }
 
     private async Task PromptForInitialAccountIfNeededAsync(CancellationToken cancellationToken)

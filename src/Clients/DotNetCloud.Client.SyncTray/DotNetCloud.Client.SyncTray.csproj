@@ -33,4 +33,10 @@
     <ProjectReference Include="..\DotNetCloud.Client.Core\DotNetCloud.Client.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="Assets\dotnetcloud-sync-cloud.svg">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

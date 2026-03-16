@@ -4,6 +4,7 @@ using DotNetCloud.Client.Core.SelectiveSync;
 using DotNetCloud.Client.Core.SyncIgnore;
 using DotNetCloud.Client.SyncTray.Ipc;
 using DotNetCloud.Client.SyncTray.Notifications;
+using DotNetCloud.Client.SyncTray.Startup;
 using DotNetCloud.Client.SyncTray.ViewModels;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -151,6 +152,8 @@ public sealed class SettingsViewModelTests
             var notifMock = new Mock<INotificationService>();
             var trayVm = new TrayViewModel(ipcMock.Object, chatMock.Object, notifMock.Object, NullLogger<TrayViewModel>.Instance);
             var oauth2Mock = new Mock<IOAuth2Service>();
+            var startupManager = new Mock<IDesktopStartupManager>();
+            startupManager.Setup(m => m.TryApplyStartOnLogin(It.IsAny<bool>())).Returns(true);
 
             var vm1 = new SettingsViewModel(
                 trayVm,
@@ -158,6 +161,7 @@ public sealed class SettingsViewModelTests
                 oauth2Mock.Object,
                 new Mock<ISyncIgnoreParser>().Object,
                 new Mock<ISelectiveSyncConfig>().Object,
+                startupManager.Object,
                 NullLogger<SettingsViewModel>.Instance,
                 settingsPath);
 
@@ -170,10 +174,178 @@ public sealed class SettingsViewModelTests
                 oauth2Mock.Object,
                 new Mock<ISyncIgnoreParser>().Object,
                 new Mock<ISelectiveSyncConfig>().Object,
+                startupManager.Object,
                 NullLogger<SettingsViewModel>.Instance,
                 settingsPath);
 
             Assert.IsTrue(vm2.IsMuteChatNotifications);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task StartOnLogin_PersistsAndCreatesLinuxAutostartEntry()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"dotnetcloud-sync-startup-tests-{Guid.NewGuid():N}");
+        var settingsPath = Path.Combine(tempDir, "sync-tray-settings.json");
+        var autostartDir = Path.Combine(tempDir, "autostart");
+        var trayExecutablePath = Path.Combine(tempDir, "dotnetcloud-sync-tray");
+
+        Directory.CreateDirectory(tempDir);
+        await File.WriteAllTextAsync(trayExecutablePath, string.Empty);
+
+        try
+        {
+            var ipcMock = new Mock<IIpcClient>();
+            ipcMock.SetupGet(i => i.IsConnected).Returns(false);
+
+            var chatMock = new Mock<IChatSignalRClient>();
+            chatMock.Setup(c => c.ConnectAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+            var notifMock = new Mock<INotificationService>();
+            var trayVm = new TrayViewModel(ipcMock.Object, chatMock.Object, notifMock.Object, NullLogger<TrayViewModel>.Instance);
+            var startupManager = new DesktopStartupManager(
+                NullLogger<DesktopStartupManager>.Instance,
+                trayExecutablePathProvider: () => trayExecutablePath,
+                autostartDirectory: autostartDir,
+                isLinux: () => true);
+
+            var vm1 = new SettingsViewModel(
+                trayVm,
+                ipcMock.Object,
+                new Mock<IOAuth2Service>().Object,
+                new Mock<ISyncIgnoreParser>().Object,
+                new Mock<ISelectiveSyncConfig>().Object,
+                startupManager,
+                NullLogger<SettingsViewModel>.Instance,
+                settingsPath);
+
+            vm1.StartOnLogin = true;
+            await Task.Delay(100);
+
+            var desktopFilePath = Path.Combine(autostartDir, "dotnetcloud-sync-tray.desktop");
+            Assert.IsTrue(File.Exists(desktopFilePath));
+
+            var desktopFileContents = await File.ReadAllTextAsync(desktopFilePath);
+            StringAssert.Contains(desktopFileContents, trayExecutablePath);
+
+            var vm2 = new SettingsViewModel(
+                trayVm,
+                ipcMock.Object,
+                new Mock<IOAuth2Service>().Object,
+                new Mock<ISyncIgnoreParser>().Object,
+                new Mock<ISelectiveSyncConfig>().Object,
+                startupManager,
+                NullLogger<SettingsViewModel>.Instance,
+                settingsPath);
+
+            Assert.IsTrue(vm2.StartOnLogin);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task StartOnLogin_DisablingRemovesLinuxAutostartEntry()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"dotnetcloud-sync-startup-tests-{Guid.NewGuid():N}");
+        var settingsPath = Path.Combine(tempDir, "sync-tray-settings.json");
+        var autostartDir = Path.Combine(tempDir, "autostart");
+        var trayExecutablePath = Path.Combine(tempDir, "dotnetcloud-sync-tray");
+
+        Directory.CreateDirectory(tempDir);
+        await File.WriteAllTextAsync(trayExecutablePath, string.Empty);
+
+        try
+        {
+            var ipcMock = new Mock<IIpcClient>();
+            ipcMock.SetupGet(i => i.IsConnected).Returns(false);
+
+            var chatMock = new Mock<IChatSignalRClient>();
+            chatMock.Setup(c => c.ConnectAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+            var notifMock = new Mock<INotificationService>();
+            var trayVm = new TrayViewModel(ipcMock.Object, chatMock.Object, notifMock.Object, NullLogger<TrayViewModel>.Instance);
+            var startupManager = new DesktopStartupManager(
+                NullLogger<DesktopStartupManager>.Instance,
+                trayExecutablePathProvider: () => trayExecutablePath,
+                autostartDirectory: autostartDir,
+                isLinux: () => true);
+
+            var vm1 = new SettingsViewModel(
+                trayVm,
+                ipcMock.Object,
+                new Mock<IOAuth2Service>().Object,
+                new Mock<ISyncIgnoreParser>().Object,
+                new Mock<ISelectiveSyncConfig>().Object,
+                startupManager,
+                NullLogger<SettingsViewModel>.Instance,
+                settingsPath);
+
+            vm1.StartOnLogin = true;
+            await Task.Delay(100);
+
+            var desktopFilePath = Path.Combine(autostartDir, "dotnetcloud-sync-tray.desktop");
+            Assert.IsTrue(File.Exists(desktopFilePath));
+
+            vm1.StartOnLogin = false;
+            await Task.Delay(100);
+
+            Assert.IsFalse(File.Exists(desktopFilePath));
+
+            var vm2 = new SettingsViewModel(
+                trayVm,
+                ipcMock.Object,
+                new Mock<IOAuth2Service>().Object,
+                new Mock<ISyncIgnoreParser>().Object,
+                new Mock<ISelectiveSyncConfig>().Object,
+                startupManager,
+                NullLogger<SettingsViewModel>.Instance,
+                settingsPath);
+
+            Assert.IsFalse(vm2.StartOnLogin);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task StartupManager_EnsuresLinuxApplicationLauncherEntry()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"dotnetcloud-sync-launcher-tests-{Guid.NewGuid():N}");
+        var trayExecutablePath = Path.Combine(tempDir, "dotnetcloud-sync-tray");
+        var applicationsDir = Path.Combine(tempDir, "applications");
+
+        Directory.CreateDirectory(tempDir);
+        await File.WriteAllTextAsync(trayExecutablePath, string.Empty);
+
+        try
+        {
+            var startupManager = new DesktopStartupManager(
+                NullLogger<DesktopStartupManager>.Instance,
+                trayExecutablePathProvider: () => trayExecutablePath,
+                applicationsDirectory: applicationsDir,
+                isLinux: () => true);
+
+            var created = startupManager.TryEnsureApplicationLauncher();
+            Assert.IsTrue(created);
+
+            var launcherPath = Path.Combine(applicationsDir, "dotnetcloud-sync-tray.desktop");
+            Assert.IsTrue(File.Exists(launcherPath));
+
+            var launcherContents = await File.ReadAllTextAsync(launcherPath);
+            StringAssert.Contains(launcherContents, "Name=DotNetCloud Sync Client");
+            StringAssert.Contains(launcherContents, trayExecutablePath);
         }
         finally
         {
@@ -202,11 +374,14 @@ public sealed class SettingsViewModelTests
         var trayVm = new TrayViewModel(ipcMock.Object, chatMock.Object, notifMock.Object, NullLogger<TrayViewModel>.Instance);
 
         var oauth2Mock = new Mock<IOAuth2Service>();
+        var startupManager = new Mock<IDesktopStartupManager>();
+        startupManager.Setup(m => m.TryApplyStartOnLogin(It.IsAny<bool>())).Returns(true);
 
         var settingsVm = new SettingsViewModel(
             trayVm, ipcMock.Object, oauth2Mock.Object,
             new Mock<ISyncIgnoreParser>().Object,
             new Mock<ISelectiveSyncConfig>().Object,
+            startupManager.Object,
             NullLogger<SettingsViewModel>.Instance);
 
         return (settingsVm, ipcMock, oauth2Mock, notifMock);
