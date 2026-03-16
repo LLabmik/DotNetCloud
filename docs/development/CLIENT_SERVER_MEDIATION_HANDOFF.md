@@ -48,23 +48,14 @@ Archived context:
 
 - All prior Phase 2, chat, and pre-Linux sync remediation work is complete and archived.
 - P0 server-side sync hardening deployed and verified on `mint22`.
-- Client-side upload dedup + echo suppression (commit `4c575cc`) verified on all machines:
-  - **Linux (`mint-dnc-client`):** runtime verified — single initiate per event, no conflict copies.
-  - **Windows (`Windows11-TestDNC`):** runtime verified on MSIX `0.23.3.0` — single initiate per event, no conflict copies.
-  - **Server (`mint22`):** zero 5xx errors since deployment; only normal token-refresh 401s observed.
-- **Upload hardening story: CLOSED.** Full chain verification complete across all three machines.
-- Server-side P1 echo suppression/device-identity fix and `SyncDeviceIdentity` DB migration are now applied on `mint22`.
-- **Windows (`Windows11-TestDNC`) re-verification PASSED** on 2026-03-15: uploaded file completed, immediate follow-up pass showed `RemoteChanges=1, LocalApplied=0`, no download path was entered for the uploaded node, and the next scheduled pass was clean.
-- **Linux (`mint-dnc-client`) duplicate-context cleanup + parity re-verification PASSED** on 2026-03-15:
-  - context registry reduced to one context (`cb22726a-cdef-4cc8-a29c-755b22f1c899`)
-  - service restart logged `Loading 1 persisted sync context(s)`
-  - verification upload `m2_single_ctx_20260315_061322.txt` completed (`NodeId=289d45f4-2c97-498c-920e-8eb5f61c6768`)
-  - follow-up pass showed `RemoteChanges=1, LocalApplied=0`
-  - no `File download starting` line appeared for the uploaded node
-- Test gate on `mint-dnc-client`:
-  - `dotnet test` (solution-wide) is environment-gated on this host due missing `maui-android` workload (`NETSDK1147`).
-  - Executable non-gated suite passed: `dotnet test tests/DotNetCloud.Modules.Files.Tests/DotNetCloud.Modules.Files.Tests.csproj` => `609 passed, 0 failed`.
-- **Next active cycle:** No pending work. Upload hardening story fully closed across all machines.
+- Upload hardening story: CLOSED (2026-03-15). All machines verified.
+- **New (2026-03-16):** Client-side deletion propagation implemented on `mint22` (commit `b4160c6`).
+  - Files deleted from sync directory on client were not being deleted on server — they just reappeared.
+  - Fix: SyncEngine now detects files/directories tracked in LocalStateDb but missing from disk, creates PendingDelete operations, calls server DELETE API, and removes local state entries.
+  - Supports single files, multiple files, and recursive directory deletions.
+  - All changes are in `src/Clients/DotNetCloud.Client.Core/` — shared client library. Server unchanged.
+  - **Both client machines must pull and rebuild to pick up the fix.**
+- **Active cycle:** Chained handoff — Linux client → Windows client → mint22 confirmation.
 
 ## Environment
 
@@ -83,12 +74,71 @@ Archived context:
 
 ## Active Handoff
 
-No pending work. Upload hardening story fully closed on 2026-03-15.
+**Chain: Step 1 of 3 — Target: `mint-dnc-client` (Linux client)**
 
-All three machines verified clean:
-- **Windows (`Windows11-TestDNC`):** 2,177 tests passed, upload verified, no self-echo.
-- **Linux (`mint-dnc-client`):** 609 file module tests passed, upload verified, no self-echo.
-- **Server (`mint22`):** Zero errors/exceptions in logs, all client uploads confirmed server-side.
+### What Changed (commit `b4160c6`)
+
+Client-side file/directory deletions were not propagating to the server. When a user deleted a file from their sync directory, the next sync pass would re-download it from the server. This is now fixed.
+
+**Changed files (all in `src/Clients/DotNetCloud.Client.Core/`):**
+- `LocalState/Entities/PendingOperationRecord.cs` — added `PendingDelete` operation type
+- `LocalState/ILocalStateDb.cs` — added `GetAllTrackedFilesAsync`, `GetAllTrackedDirectoriesAsync`, `GetTrackedFilesInDirectoryAsync`, `RemoveDirectoryAsync`
+- `LocalState/LocalStateDb.cs` — implemented the new methods
+- `Sync/SyncEngine.cs` — deletion detection in `ScanLocalDirectoryAsync`, execution in `ExecutePendingOperationAsync`, skip re-download in reconciliation
+
+**Test files updated:**
+- `tests/DotNetCloud.Client.Core.Tests/LocalState/LocalStateDbTests.cs`
+- `tests/DotNetCloud.Client.Core.Tests/Sync/SyncEngineTests.cs`
+
+### Instructions for `mint-dnc-client`
+
+1. **Pull latest:**
+   ```bash
+   cd ~/Repos/dotnetcloud && git pull
+   ```
+
+2. **Build and run tests:**
+   ```bash
+   dotnet build src/Clients/DotNetCloud.Client.Core/DotNetCloud.Client.Core.csproj
+   dotnet test tests/DotNetCloud.Client.Core.Tests/ 2>&1 | tail -20
+   ```
+   All new deletion tests must pass.
+
+3. **Rebuild and redeploy the sync client** (use whatever the current deployment method is on this host — rebuild SyncTray or restart the service).
+
+4. **Runtime verification — file deletion:**
+   - Create a test file in the sync directory (e.g., `echo "delete-test" > ~/synctray/delete_test_linux_$(date +%s).txt`)
+   - Wait for sync to upload it to the server
+   - Verify it appears on the server (check server logs or web UI)
+   - Delete the file from the sync directory
+   - Wait for the next sync pass
+   - Verify the file is **deleted on the server** (not re-downloaded to client)
+   - Document the test file name and results
+
+5. **Runtime verification — directory deletion (optional but recommended):**
+   - Create a test directory with a file: `mkdir ~/synctray/deltest_dir && echo "inner" > ~/synctray/deltest_dir/inner.txt`
+   - Wait for sync to upload
+   - Delete the directory: `rm -rf ~/synctray/deltest_dir`
+   - Wait for sync pass
+   - Verify directory and contents deleted on server
+
+6. **When done — write handoff for Windows:**
+   - Update this document's **Active Handoff** section:
+     - Record Linux test results (pass/fail, file names, any issues)
+     - Change target to `Windows11-TestDNC` (Step 2 of 3)
+     - Keep the same "What Changed" and similar instructions adapted for Windows
+     - Windows instructions: pull, build, run tests, rebuild MSIX or restart service, same deletion verification
+     - After Windows completes, it should write Step 3 targeting `mint22` with confirmation results
+   - Commit and push
+   - Provide relay message for moderator targeting `Windows11-TestDNC`
+
+### Chain Summary
+
+| Step | Target | Action | Status |
+|------|--------|--------|--------|
+| 1 | `mint-dnc-client` | Pull, build, test, verify deletion sync | **ACTIVE** |
+| 2 | `Windows11-TestDNC` | Pull, build, test, verify deletion sync | Pending |
+| 3 | `mint22` | Confirm both clients updated and verified | Pending |
 
 ## Relay Template
 
