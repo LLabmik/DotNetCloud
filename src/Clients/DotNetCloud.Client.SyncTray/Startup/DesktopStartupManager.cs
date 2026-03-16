@@ -56,6 +56,12 @@ internal sealed class DesktopStartupManager : IDesktopStartupManager
             return false;
         }
 
+        if (IsSyncServiceAlreadyRunning(serviceExecutablePath))
+        {
+            _logger.LogDebug("SyncService already running; skipping auto-start.");
+            return true;
+        }
+
         try
         {
             var startInfo = new ProcessStartInfo
@@ -74,6 +80,17 @@ internal sealed class DesktopStartupManager : IDesktopStartupManager
             _logger.LogWarning(ex, "Failed to auto-start SyncService from {Path}.", serviceExecutablePath);
             return false;
         }
+    }
+
+    private static bool IsSyncServiceAlreadyRunning(string serviceExecutablePath)
+    {
+        var processName = Path.GetFileNameWithoutExtension(serviceExecutablePath);
+        if (string.IsNullOrWhiteSpace(processName))
+        {
+            return false;
+        }
+
+        return Process.GetProcessesByName(processName).Length > 0;
     }
 
     public bool TryApplyStartOnLogin(bool enable)

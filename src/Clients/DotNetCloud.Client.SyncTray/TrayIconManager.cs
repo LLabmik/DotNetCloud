@@ -317,10 +317,37 @@ public sealed class TrayIconManager : IDisposable
         _settingsWindow.Show();
     }
 
-    private static void OnQuitClicked(object? sender, EventArgs e)
+    private void OnQuitClicked(object? sender, EventArgs e)
     {
-        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime lifetime)
-            lifetime.Shutdown();
+        _logger.LogInformation("Quit clicked from tray menu.");
+
+        try
+        {
+            if (_trayIcon is not null)
+            {
+                _trayIcon.IsVisible = false;
+                _trayIcon.Dispose();
+                _trayIcon = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to dispose tray icon during quit.");
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime lifetime)
+            {
+                lifetime.Shutdown();
+            }
+        });
+
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(2));
+            Environment.Exit(0);
+        });
     }
 
     // ── Icon generation ───────────────────────────────────────────────────

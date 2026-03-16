@@ -29,6 +29,8 @@ public partial class App : Application
     private TrayIconManager? _trayIconManager;
     private IIpcClient? _ipcClient;
     private CancellationTokenSource? _cts;
+    private readonly SemaphoreSlim _serviceRecoveryLock = new(1, 1);
+    private DateTimeOffset _lastServiceRecoveryAttemptUtc = DateTimeOffset.MinValue;
 
     /// <inheritdoc/>
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
@@ -49,6 +51,14 @@ public partial class App : Application
 
             _ipcClient = _services.GetRequiredService<IIpcClient>();
             _trayIconManager = _services.GetRequiredService<TrayIconManager>();
+
+            _ipcClient.ConnectionStateChanged += (_, connected) =>
+            {
+                if (!connected && _cts is not null)
+                {
+                    _ = TryRecoverServiceAsync(startupManager, _cts.Token);
+                }
+            };
 
             _trayIconManager.Initialize();
             logger.LogInformation("Tray icon manager initialized");
@@ -143,6 +153,46 @@ public partial class App : Application
         await _ipcClient.ConnectAsync(cancellationToken);
     }
 
+    private async Task TryRecoverServiceAsync(IDesktopStartupManager startupManager, CancellationToken cancellationToken)
+    {
+        if (!OperatingSystem.IsLinux() || _services is null)
+        {
+            return;
+        }
+
+        var logger = _services.GetRequiredService<ILogger<App>>();
+
+        await _serviceRecoveryLock.WaitAsync(cancellationToken);
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            if ((now - _lastServiceRecoveryAttemptUtc) < TimeSpan.FromSeconds(10))
+            {
+                return;
+            }
+
+            _lastServiceRecoveryAttemptUtc = now;
+            var started = startupManager.TryEnsureSyncServiceStarted();
+            if (started)
+            {
+                logger.LogInformation("IPC disconnected; attempted SyncService recovery.");
+                await WaitForLinuxIpcSocketAsync(logger, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected during shutdown.
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed while attempting SyncService recovery after IPC disconnect.");
+        }
+        finally
+        {
+            _serviceRecoveryLock.Release();
+        }
+    }
+
     private static async Task WaitForLinuxIpcSocketAsync(Microsoft.Extensions.Logging.ILogger logger, CancellationToken cancellationToken)
     {
         var socketPath = IpcServer.UnixSocketPath;
@@ -219,6 +269,7 @@ public partial class App : Application
         }
 
         (_services as IDisposable)?.Dispose();
+        _serviceRecoveryLock.Dispose();
         Log.CloseAndFlush();
     }
 }
