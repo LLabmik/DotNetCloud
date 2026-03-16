@@ -8,7 +8,23 @@
     Code-behind: FileBrowser.razor.cs
 *@
 
-@if (ActiveSection == FileSidebarSection.SharedWithMe)
+<div class="files-page-layout">
+    <FileSidebar
+        ActiveSection="_activeSection"
+        OnSectionChanged="HandleSectionChanged"
+        OnTagSelected="HandleTagSelected"
+        TrashItemCount="_trashItemCount"
+        Quota="Quota"
+        Tags="UserTags" />
+
+    <div class="files-page-main">
+
+@if (_activeSection == FileSidebarSection.Trash)
+{
+    <TrashBin
+        OnTrashChanged="HandleTrashChanged" />
+}
+else if (_activeSection == FileSidebarSection.SharedWithMe)
 {
     <SharedWithMeView
         Items="SharedWithMeItems"
@@ -16,7 +32,7 @@
         OnOpenItem="HandleOpenSharedItem"
         OnDeclineShare="HandleDeclineShare" />
 }
-else if (ActiveSection == FileSidebarSection.SharedByMe)
+else if (_activeSection == FileSidebarSection.SharedByMe)
 {
     <SharedByMeView
         Items="SharedByMeItems"
@@ -26,7 +42,7 @@ else if (ActiveSection == FileSidebarSection.SharedByMe)
         OnPermissionChanged="HandleSharePermissionChanged"
         OnCopyLink="HandleCopyShareLink" />
 }
-else if (ActiveSection == FileSidebarSection.Tags && ActiveTag is not null)
+else if (_activeSection == FileSidebarSection.Tags && ActiveTag is not null)
 {
     <div class="files-browser">
         <div class="files-header">
@@ -353,3 +369,6 @@ else
 
 </div>
 }
+
+    </div> @* .files-page-main *@
+</div> @* .files-page-layout *@

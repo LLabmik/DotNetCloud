@@ -1,4 +1,8 @@
+using DotNetCloud.Core.Authorization;
+using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
+using System.Security.Claims;
 
 namespace DotNetCloud.Modules.Files.UI;
 
@@ -7,13 +11,26 @@ namespace DotNetCloud.Modules.Files.UI;
 /// </summary>
 public partial class TrashBin : ComponentBase
 {
+    [Inject] private ITrashService TrashService { get; set; } = default!;
+    [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
+
     /// <summary>Number of days items are retained before permanent deletion (displayed in the empty state).</summary>
     [Parameter] public int RetentionDays { get; set; } = 30;
+
+    /// <summary>Raised when trash contents change (restore, purge, or empty) so the parent can update counts.</summary>
+    [Parameter] public EventCallback OnTrashChanged { get; set; }
 
     private List<TrashItemViewModel> _trashedItems = [];
     private readonly HashSet<Guid> _selectedItems = [];
     private string _sortColumn = "Date";
     private bool _sortAscending;
+    private bool _isLoading;
+    private bool _showEmptyConfirm;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTrashAsync();
+    }
 
     /// <summary>All trashed items (unsorted).</summary>
     protected IReadOnlyList<TrashItemViewModel> TrashedItems => _trashedItems;
@@ -39,6 +56,12 @@ public partial class TrashBin : ComponentBase
     /// <summary>Human-readable total size of all items in the trash.</summary>
     protected string TrashTotalSizeLabel => FormatSize(_trashedItems.Sum(i => i.Size));
 
+    /// <summary>Whether the loading indicator is shown.</summary>
+    protected bool IsLoading => _isLoading;
+
+    /// <summary>Whether the empty-trash confirmation dialog is shown.</summary>
+    protected bool IsShowEmptyConfirm => _showEmptyConfirm;
+
     /// <summary>Returns whether the given item is currently selected.</summary>
     protected bool IsSelected(Guid id) => _selectedItems.Contains(id);
 
@@ -58,38 +81,68 @@ public partial class TrashBin : ComponentBase
     }
 
     /// <summary>Restores selected items back to their original location.</summary>
-    protected void RestoreSelected()
+    protected async Task RestoreSelected()
     {
-        _trashedItems.RemoveAll(i => _selectedItems.Contains(i.Id));
+        var caller = await GetCallerContextAsync();
+        foreach (var id in _selectedItems.ToList())
+        {
+            await TrashService.RestoreAsync(id, caller);
+        }
+
         _selectedItems.Clear();
+        await LoadTrashAsync();
+        await OnTrashChanged.InvokeAsync();
     }
 
     /// <summary>Permanently deletes all selected items.</summary>
-    protected void DeleteSelected()
+    protected async Task DeleteSelected()
     {
-        _trashedItems.RemoveAll(i => _selectedItems.Contains(i.Id));
+        var caller = await GetCallerContextAsync();
+        foreach (var id in _selectedItems.ToList())
+        {
+            await TrashService.PermanentDeleteAsync(id, caller);
+        }
+
         _selectedItems.Clear();
+        await LoadTrashAsync();
+        await OnTrashChanged.InvokeAsync();
     }
 
     /// <summary>Restores a single item.</summary>
-    protected void RestoreItem(Guid itemId)
+    protected async Task RestoreItem(Guid itemId)
     {
-        _trashedItems.RemoveAll(i => i.Id == itemId);
+        var caller = await GetCallerContextAsync();
+        await TrashService.RestoreAsync(itemId, caller);
         _selectedItems.Remove(itemId);
+        await LoadTrashAsync();
+        await OnTrashChanged.InvokeAsync();
     }
 
     /// <summary>Permanently deletes a single item.</summary>
-    protected void PurgeItem(Guid itemId)
+    protected async Task PurgeItem(Guid itemId)
     {
-        _trashedItems.RemoveAll(i => i.Id == itemId);
+        var caller = await GetCallerContextAsync();
+        await TrashService.PermanentDeleteAsync(itemId, caller);
         _selectedItems.Remove(itemId);
+        await LoadTrashAsync();
+        await OnTrashChanged.InvokeAsync();
     }
 
+    /// <summary>Shows the empty-trash confirmation dialog.</summary>
+    protected void ShowEmptyConfirm() => _showEmptyConfirm = true;
+
+    /// <summary>Hides the empty-trash confirmation dialog.</summary>
+    protected void HideEmptyConfirm() => _showEmptyConfirm = false;
+
     /// <summary>Permanently deletes all items in the trash.</summary>
-    protected void EmptyTrash()
+    protected async Task EmptyTrash()
     {
-        _trashedItems.Clear();
+        _showEmptyConfirm = false;
+        var caller = await GetCallerContextAsync();
+        await TrashService.EmptyTrashAsync(caller);
         _selectedItems.Clear();
+        await LoadTrashAsync();
+        await OnTrashChanged.InvokeAsync();
     }
 
     /// <summary>Sets the active sort column; toggles direction if already active.</summary>
@@ -119,5 +172,51 @@ public partial class TrashBin : ComponentBase
         if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
         if (bytes < 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0):F1} MB";
         return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
+    }
+
+    private async Task LoadTrashAsync()
+    {
+        _isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            var items = await TrashService.ListTrashAsync(caller);
+            _trashedItems = items.Select(dto => new TrashItemViewModel
+            {
+                Id = dto.Id,
+                Name = dto.Name,
+                NodeType = dto.NodeType,
+                Size = dto.Size,
+                DeletedAt = dto.DeletedAt
+            }).ToList();
+        }
+        catch
+        {
+            _trashedItems = [];
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task<CallerContext> GetCallerContextAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = state.User;
+
+        var userIdClaim = user.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? user.FindFirst("sub")?.Value;
+
+        if (!Guid.TryParse(userIdClaim, out var userId))
+        {
+            throw new InvalidOperationException("Authenticated user id claim is missing or invalid.");
+        }
+
+        var roles = user.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
+        return new CallerContext(userId, roles, CallerType.User);
     }
 }

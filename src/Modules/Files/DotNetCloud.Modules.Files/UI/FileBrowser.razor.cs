@@ -23,6 +23,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     [Inject] private IChunkedUploadService UploadService { get; set; } = default!;
     [Inject] private ICollaboraDiscoveryService CollaboraDiscoveryService { get; set; } = default!;
     [Inject] private IOptions<CollaboraOptions> CollaboraOptions { get; set; } = default!;
+    [Inject] private ITrashService TrashService { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private IJSRuntime Js { get; set; } = default!;
@@ -33,8 +34,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     /// <summary>Base URL for the Files API (e.g., "https://cloud.example.com"), used for the document editor.</summary>
     [Parameter] public string ApiBaseUrl { get; set; } = string.Empty;
 
-    /// <summary>The currently active sidebar section, controlling which view is rendered.</summary>
-    [Parameter] public FileSidebarSection ActiveSection { get; set; } = FileSidebarSection.AllFiles;
+    private FileSidebarSection _activeSection = FileSidebarSection.AllFiles;
+    private int _trashItemCount;
 
     /// <summary>Items shared with the current user (for the SharedWithMe view).</summary>
     [Parameter] public IReadOnlyList<SharedItemViewModel> SharedWithMeItems { get; set; } = [];
@@ -116,6 +117,52 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     {
         await LoadCollaboraCapabilitiesAsync();
         await LoadCurrentFolderAsync();
+        await LoadTrashCountAsync();
+    }
+
+    /// <summary>Handles sidebar section navigation.</summary>
+    protected async Task HandleSectionChanged(FileSidebarSection section)
+    {
+        _activeSection = section;
+
+        if (section == FileSidebarSection.AllFiles)
+        {
+            _currentFolderId = null;
+            _breadcrumbs.Clear();
+            await LoadCurrentFolderAsync();
+        }
+
+        StateHasChanged();
+    }
+
+    /// <summary>Handles tag selection from the sidebar.</summary>
+    protected void HandleTagSelected(FileTagViewModel tag)
+    {
+        _activeSection = FileSidebarSection.Tags;
+        _activeTag = tag;
+        _taggedNodes = [];
+        StateHasChanged();
+    }
+
+    /// <summary>Called when the trash bin contents change (item restored, purged, or emptied).</summary>
+    protected async Task HandleTrashChanged()
+    {
+        await LoadTrashCountAsync();
+        StateHasChanged();
+    }
+
+    private async Task LoadTrashCountAsync()
+    {
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            var items = await TrashService.ListTrashAsync(caller);
+            _trashItemCount = items.Count;
+        }
+        catch
+        {
+            _trashItemCount = 0;
+        }
     }
 
     protected IReadOnlyList<FileNodeViewModel> Nodes => _nodes;
