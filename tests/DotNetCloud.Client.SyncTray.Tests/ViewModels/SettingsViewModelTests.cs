@@ -84,6 +84,39 @@ public sealed class SettingsViewModelTests
     }
 
     [TestMethod]
+    public async Task AddAccountAsync_ExistingAccount_SetsErrorAndSkipsAddFlow()
+    {
+        var (vm, ipcMock, oauth2Mock, _) = BuildVm();
+
+        var existingContextId = Guid.NewGuid();
+        ipcMock
+            .Setup(i => i.ListContextsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                new DotNetCloud.Client.SyncService.Ipc.ContextInfo
+                {
+                    Id = existingContextId,
+                    DisplayName = "test@example.com @ cloud.example.com",
+                    ServerBaseUrl = "https://cloud.example.com",
+                    LocalFolderPath = "/tmp/existing-sync",
+                    State = "Idle",
+                }
+            ]);
+
+        await vm.TrayVm.RefreshAccountsAsync();
+        Assert.IsTrue(vm.HasAccount);
+
+        await vm.AddAccountAsync("https://another.example.com", "/tmp/new-sync");
+
+        StringAssert.Contains(vm.AddAccountError, "Only one account");
+        oauth2Mock.Verify(
+            o => o.AuthorizeAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        ipcMock.Verify(
+            i => i.AddAccountAsync(It.IsAny<DotNetCloud.Client.SyncService.Ipc.AddAccountData>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [TestMethod]
     public async Task AddAccountAsync_OAuth2Throws_SetsError()
     {
         var (vm, _, oauth2Mock, _) = BuildVm();

@@ -1,4 +1,5 @@
 using DotNetCloud.Client.Core.Api;
+using DotNetCloud.Client.Core.SelectiveSync;
 using DotNetCloud.Client.SyncService.Ipc;
 
 namespace DotNetCloud.Client.SyncTray.Ipc;
@@ -85,6 +86,12 @@ public interface IIpcClient
 
     /// <summary>Fetches the server-side folder tree for the given context (for selective sync).</summary>
     Task<SyncTreeNodeResponse?> GetFolderTreeAsync(Guid contextId, CancellationToken cancellationToken = default);
+
+    /// <summary>Applies and persists the full selective sync rule set for a context via SyncService.</summary>
+    Task UpdateSelectiveSyncAsync(
+        Guid contextId,
+        IReadOnlyList<SelectiveSyncRule> rules,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>Event data for <see cref="IIpcClient.SyncProgressReceived"/>.</summary>

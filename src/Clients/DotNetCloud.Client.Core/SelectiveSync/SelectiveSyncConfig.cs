@@ -63,8 +63,25 @@ public sealed class SelectiveSyncConfig : ISelectiveSyncConfig
         var serializable = _rules.ToDictionary(
             kvp => kvp.Key.ToString(),
             kvp => kvp.Value);
-        await using var stream = File.Create(filePath);
-        await JsonSerializer.SerializeAsync(stream, serializable, JsonOptions, cancellationToken);
+
+        // Write to a temp file first, then atomically replace the target.
+        // This prevents file-contention crashes when the sync service has the
+        // config file open for reading at the same moment the UI is saving.
+        var dir = Path.GetDirectoryName(filePath) ?? ".";
+        var tmp = Path.Combine(dir, Path.GetRandomFileName());
+        try
+        {
+            await using (var stream = File.Create(tmp))
+                await JsonSerializer.SerializeAsync(stream, serializable, JsonOptions, cancellationToken);
+
+            File.Move(tmp, filePath, overwrite: true);
+        }
+        catch
+        {
+            if (File.Exists(tmp))
+                File.Delete(tmp);
+            throw;
+        }
     }
 
     /// <inheritdoc/>
@@ -72,7 +89,11 @@ public sealed class SelectiveSyncConfig : ISelectiveSyncConfig
     {
         if (!File.Exists(filePath)) return;
 
-        await using var stream = File.OpenRead(filePath);
+        await using var stream = new FileStream(
+            filePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete);
         var loaded = await JsonSerializer.DeserializeAsync<Dictionary<string, List<SelectiveSyncRule>>>(
             stream, JsonOptions, cancellationToken);
 

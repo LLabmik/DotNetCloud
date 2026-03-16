@@ -325,6 +325,28 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
     }
 
     /// <inheritdoc/>
+    public async Task UpdateSelectiveSyncAsync(
+        Guid contextId,
+        IReadOnlyList<SelectiveSyncRule> rules,
+        CancellationToken cancellationToken = default)
+    {
+        var running = await GetRunningContextAsync(contextId);
+        if (running?.SelectiveSync is null)
+            return;
+
+        running.SelectiveSync.ClearRules(contextId);
+        foreach (var rule in rules)
+        {
+            if (rule.IsInclude)
+                running.SelectiveSync.Include(contextId, rule.FolderPath);
+            else
+                running.SelectiveSync.Exclude(contextId, rule.FolderPath);
+        }
+
+        await running.SelectiveSync.SaveAsync(GetSelectiveSyncConfigPath(running.Registration), cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async Task<SyncTreeNodeResponse?> GetFolderTreeAsync(
         Guid contextId, CancellationToken cancellationToken = default)
     {
@@ -370,7 +392,8 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             DownloadLimitKbps = registration.DownloadLimitKbps,
         };
 
-        var (engine, conflictResolver, stateDb, apiClient) = CreateEngine(registration);
+        var (engine, conflictResolver, stateDb, apiClient, selectiveSync) = CreateEngine(registration);
+        await selectiveSync.LoadAsync(GetSelectiveSyncConfigPath(registration), cancellationToken);
 
         // Forward conflict events with the context ID
         conflictResolver.ConflictDetected += (_, args) =>
@@ -441,6 +464,7 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             Engine = engine,
             StateDb = stateDb,
             ApiClient = apiClient,
+            SelectiveSync = selectiveSync,
         };
 
         _logger.LogDebug("Started sync engine for context {ContextId} ({DisplayName}).",
@@ -472,13 +496,14 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             Engine = null,
             StateDb = null,
             ApiClient = null,
+            SelectiveSync = new SelectiveSyncConfig(),
         };
 
         _logger.LogWarning("Registered context {ContextId} ({DisplayName}) as offline.",
             registration.Id, registration.DisplayName);
     }
 
-    private (ISyncEngine engine, ConflictResolver conflictResolver, LocalStateDb stateDb, IDotNetCloudApiClient apiClient) CreateEngine(
+    private (ISyncEngine engine, ConflictResolver conflictResolver, LocalStateDb stateDb, IDotNetCloudApiClient apiClient, SelectiveSyncConfig selectiveSync) CreateEngine(
         SyncContextRegistration registration)
     {
         var tokenStore = CreateTokenStore(registration.DataDirectory);
@@ -573,8 +598,11 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
             DeviceId = deviceId
         };
 
-        return (engine, conflictResolver, stateDb, apiClient);
+        return (engine, conflictResolver, stateDb, apiClient, selectiveSync);
     }
+
+    private static string GetSelectiveSyncConfigPath(SyncContextRegistration registration) =>
+        Path.Combine(registration.LocalFolderPath, ".selective-sync.json");
 
     /// <summary>
     /// Ensures the API client for <paramref name="running"/> has a valid access token loaded.
@@ -951,6 +979,9 @@ public sealed class SyncContextManager : ISyncContextManager, IAsyncDisposable
 
         /// <summary>Null when the engine failed to start (context is offline).</summary>
         public IDotNetCloudApiClient? ApiClient { get; init; }
+
+        /// <summary>Selective sync rules used by the running engine and persisted config file.</summary>
+        public required ISelectiveSyncConfig SelectiveSync { get; init; }
 
         /// <summary>True when the sync engine is running.</summary>
         public bool IsOnline => Engine is not null;

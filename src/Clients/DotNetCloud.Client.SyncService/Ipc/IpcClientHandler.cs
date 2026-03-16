@@ -191,6 +191,10 @@ public sealed class IpcClientHandler : IAsyncDisposable
                 await HandleGetFolderTreeAsync(command, cancellationToken);
                 break;
 
+            case IpcCommands.UpdateSelectiveSync:
+                await HandleUpdateSelectiveSyncAsync(command, cancellationToken);
+                break;
+
             default:
                 await SendErrorAsync(command.Command, $"Unknown command: '{command.Command}'.", cancellationToken);
                 break;
@@ -579,6 +583,38 @@ public sealed class IpcClientHandler : IAsyncDisposable
         }
 
         await SendResponseAsync(command.Command, tree, cancellationToken);
+    }
+
+    private async Task HandleUpdateSelectiveSyncAsync(IpcCommand command, CancellationToken cancellationToken)
+    {
+        var registration = await GetOwnedContextOrRejectAsync(command.Command, command.ContextId, cancellationToken);
+        if (registration is null)
+            return;
+
+        if (command.Data is null)
+        {
+            await SendErrorAsync(command.Command, "Missing 'data' payload.", cancellationToken);
+            return;
+        }
+
+        var data = command.Data.Value.Deserialize<SelectiveSyncRulesData>(JsonOptions);
+        if (data is null)
+        {
+            await SendErrorAsync(command.Command, "Invalid 'data' payload.", cancellationToken);
+            return;
+        }
+
+        var updated = await ExecuteWithCallerIdentityAsync(
+            command.Command,
+            registration.Id,
+            registration.OsUserName,
+            () => _contextManager.UpdateSelectiveSyncAsync(registration.Id, data.Rules, cancellationToken),
+            cancellationToken);
+
+        if (!updated)
+            return;
+
+        await SendResponseAsync(command.Command, new { updated = true }, cancellationToken);
     }
 
     // ── Event subscription ────────────────────────────────────────────────

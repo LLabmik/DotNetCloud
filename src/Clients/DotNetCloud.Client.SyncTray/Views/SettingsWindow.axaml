@@ -8,84 +8,166 @@
         MinWidth="400"
         MinHeight="340"
         WindowStartupLocation="CenterScreen"
+        RequestedThemeVariant="Dark"
+        Background="#0D1118"
+        Foreground="#E6ECF5"
         CanResize="True">
+
+    <Window.Styles>
+        <Style Selector="TabControl">
+            <Setter Property="Background" Value="#0D1118" />
+        </Style>
+
+        <Style Selector="TabControl#SettingsTabs > TabItem">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="CornerRadius" Value="8,8,0,0" />
+            <Setter Property="Background" Value="#141E2D" />
+            <Setter Property="BorderBrush" Value="#2A3A54" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="#B8C3D9" />
+        </Style>
+
+        <Style Selector="TabControl#SettingsTabs > TabItem:pointerover">
+            <Setter Property="Background" Value="#1A273A" />
+            <Setter Property="BorderBrush" Value="#355074" />
+            <Setter Property="Foreground" Value="#DDE7F8" />
+        </Style>
+
+        <Style Selector="TabControl#SettingsTabs > TabItem:selected">
+            <Setter Property="Background" Value="#1E2D44" />
+            <Setter Property="BorderBrush" Value="#2F86CE" />
+            <Setter Property="BorderThickness" Value="1,1,1,0" />
+            <Setter Property="Foreground" Value="#F4F7FF" />
+        </Style>
+
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="#151C29" />
+            <Setter Property="BorderBrush" Value="#263247" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="12" />
+        </Style>
+
+        <Style Selector="TextBox, NumericUpDown, ComboBox">
+            <Setter Property="Background" Value="#111A28" />
+            <Setter Property="BorderBrush" Value="#2C3A52" />
+            <Setter Property="Foreground" Value="#E6ECF5" />
+        </Style>
+
+        <Style Selector="Button">
+            <Setter Property="Background" Value="#243146" />
+            <Setter Property="BorderBrush" Value="#334663" />
+            <Setter Property="Foreground" Value="#EFF4FF" />
+            <Setter Property="Padding" Value="12,7" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+
+        <Style Selector="Button:pointerover">
+            <Setter Property="Background" Value="#2D3E58" />
+        </Style>
+
+        <Style Selector="Button:pressed">
+            <Setter Property="Background" Value="#1D2A3D" />
+        </Style>
+
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="#0E6CB8" />
+            <Setter Property="BorderBrush" Value="#2193E6" />
+        </Style>
+
+        <Style Selector="Button.danger">
+            <Setter Property="Background" Value="#5D2530" />
+            <Setter Property="BorderBrush" Value="#8B3446" />
+        </Style>
+    </Window.Styles>
 
     <DockPanel>
 
         <!-- Tab strip -->
-        <TabControl DockPanel.Dock="Top" Margin="12"
+        <TabControl x:Name="SettingsTabs" DockPanel.Dock="Top" Margin="12"
                     SelectedIndex="{Binding SelectedSettingsTab}">
 
             <!-- ── Accounts ── -->
             <TabItem Header="Accounts">
                 <DockPanel Margin="8">
 
-                    <!-- Add account row -->
-                    <Border DockPanel.Dock="Bottom"
-                            Background="{DynamicResource SubtleFillColorSecondaryBrush}"
-                            CornerRadius="4" Padding="8" Margin="0,8,0,0">
-                        <StackPanel>
-                            <TextBlock Text="Add account" FontWeight="SemiBold" Margin="0,0,0,6" />
-                            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
+                    <Border Classes="card" IsVisible="{Binding !HasAccount}">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Connect your DotNetCloud account"
+                                       FontSize="16"
+                                       FontWeight="SemiBold" />
+                            <TextBlock Text="This client supports one account per device profile."
+                                       Foreground="#A4B1C7"
+                                       FontSize="12" />
+                            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
                                 <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
-                                           Text="Server URL (e.g. https://cloud.example.com)" FontSize="11" />
+                                           Text="Server URL"
+                                           FontWeight="SemiBold"
+                                           Foreground="#B7C4DA"
+                                           FontSize="12" />
                                 <TextBox Grid.Row="1" Grid.Column="0"
                                          Text="{Binding AddAccountServerUrl}"
                                          Watermark="https://cloud.example.com"
-                                         IsEnabled="{Binding !IsAddingAccount}" />
+                                         IsEnabled="{Binding CanAddAccount}" />
                                 <Button Grid.Row="1" Grid.Column="1"
-                                        Content="Connect…"
-                                        Margin="6,0,0,0"
+                                        Classes="primary"
+                                        Content="Connect"
+                                        Margin="8,0,0,0"
                                         Command="{Binding ConnectCommand}"
-                                        IsEnabled="{Binding !IsAddingAccount}" />
+                                        IsEnabled="{Binding CanAddAccount}" />
                                 <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
                                            Text="{Binding AddAccountError}"
-                                           Foreground="Red" FontSize="11"
+                                           Foreground="#FF7B88"
+                                           FontSize="12"
                                            IsVisible="{Binding AddAccountError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                             </Grid>
                         </StackPanel>
                     </Border>
 
-                    <!-- Account list -->
-                    <ScrollViewer>
-                        <ItemsControl ItemsSource="{Binding Accounts}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="vm:AccountViewModel">
-                                    <Border BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
-                                            BorderThickness="0,0,0,1" Padding="0,6">
-                                        <Grid ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto,Auto,Auto">
+                    <Border Classes="card" IsVisible="{Binding HasAccount}">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="Connected Account"
+                                       FontSize="16"
+                                       FontWeight="SemiBold" />
+
+                            <ContentControl Content="{Binding PrimaryAccount}">
+                                <ContentControl.ContentTemplate>
+                                    <DataTemplate DataType="vm:AccountViewModel">
+                                        <Grid ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
                                             <TextBlock Grid.Row="0" Grid.Column="0"
                                                        Text="{Binding DisplayName}"
+                                                       FontSize="18"
                                                        FontWeight="SemiBold" />
                                             <TextBlock Grid.Row="1" Grid.Column="0"
                                                        Text="{Binding State}"
-                                                       FontSize="11"
-                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                       FontSize="12"
+                                                       Foreground="#A7B4C8" />
                                             <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3"
                                                        Text="{Binding LastError}"
-                                                       FontSize="11"
-                                                       Foreground="Red"
+                                                       FontSize="12"
+                                                       Foreground="#FF7B88"
                                                        TextWrapping="Wrap"
                                                        IsVisible="{Binding LastError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                             <Button Grid.Row="0" Grid.Column="1" Grid.RowSpan="2"
                                                     Content="Choose folders"
-                                                    FontSize="11"
-                                                    Margin="0,0,6,0"
+                                                    Margin="8,0,8,0"
                                                     VerticalAlignment="Center"
                                                     Command="{Binding $parent[Window].DataContext.ChooseFoldersCommand}"
                                                     CommandParameter="{Binding ContextId}" />
                                             <Button Grid.Row="0" Grid.Column="2" Grid.RowSpan="2"
                                                     Content="Remove"
                                                     Classes="danger"
-                                                    Tag="{Binding ContextId}"
                                                     Command="{Binding $parent[Window].DataContext.RemoveAccountCommand}"
                                                     CommandParameter="{Binding ContextId}" />
                                         </Grid>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
+                                    </DataTemplate>
+                                </ContentControl.ContentTemplate>
+                            </ContentControl>
+                        </StackPanel>
+                    </Border>
 
                 </DockPanel>
             </TabItem>
@@ -425,6 +507,7 @@
         <!-- Close button -->
         <Button DockPanel.Dock="Bottom"
                 Content="Close"
+                Classes="primary"
                 HorizontalAlignment="Right"
                 Margin="12"
                 Click="OnCloseClick" />

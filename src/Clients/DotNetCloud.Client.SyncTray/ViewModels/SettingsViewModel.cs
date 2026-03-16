@@ -90,7 +90,11 @@ public sealed class SettingsViewModel : ViewModelBase
     public bool IsAddingAccount
     {
         get => _isAddingAccount;
-        set => SetProperty(ref _isAddingAccount, value);
+        set
+        {
+            if (SetProperty(ref _isAddingAccount, value))
+                OnPropertyChanged(nameof(CanAddAccount));
+        }
     }
 
     /// <summary>Whether SyncTray should start automatically on OS login.</summary>
@@ -142,6 +146,15 @@ public sealed class SettingsViewModel : ViewModelBase
 
     /// <summary>Accounts list exposed from the tray view-model.</summary>
     public IReadOnlyList<AccountViewModel> Accounts => _trayVm.Accounts;
+
+    /// <summary>Whether at least one account is configured.</summary>
+    public bool HasAccount => Accounts.Count > 0;
+
+    /// <summary>Primary account shown in settings when single-account mode is active.</summary>
+    public AccountViewModel? PrimaryAccount => Accounts.FirstOrDefault();
+
+    /// <summary>Whether adding a new account is currently allowed.</summary>
+    public bool CanAddAccount => !IsAddingAccount && !HasAccount;
 
     /// <summary>Exposes the tray view-model for bindings that need it (e.g. conflict badge).</summary>
     public TrayViewModel TrayVm => _trayVm;
@@ -332,7 +345,12 @@ public sealed class SettingsViewModel : ViewModelBase
         _trayVm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(TrayViewModel.Accounts))
+            {
                 OnPropertyChanged(nameof(Accounts));
+                OnPropertyChanged(nameof(HasAccount));
+                OnPropertyChanged(nameof(PrimaryAccount));
+                OnPropertyChanged(nameof(CanAddAccount));
+            }
         };
 
         LoadLocalSettings();
@@ -347,6 +365,12 @@ public sealed class SettingsViewModel : ViewModelBase
     /// </summary>
     public async Task BeginAddAccountFlowAsync()
     {
+        if (HasAccount)
+        {
+            AddAccountError = "Only one account is supported in this client.";
+            return;
+        }
+
         var dialog = new AddAccountDialog(AddAccountServerUrl);
         // Show as a standalone window; owner resolution is handled at the call site.
         dialog.Show();
@@ -371,6 +395,12 @@ public sealed class SettingsViewModel : ViewModelBase
         CancellationToken cancellationToken = default)
     {
         AddAccountError = string.Empty;
+
+        if (HasAccount)
+        {
+            AddAccountError = "Only one account is supported in this client.";
+            return;
+        }
 
         if (string.IsNullOrWhiteSpace(serverUrl))
         {

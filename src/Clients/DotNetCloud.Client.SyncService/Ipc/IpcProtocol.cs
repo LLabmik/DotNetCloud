@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using DotNetCloud.Client.Core.SelectiveSync;
 
 namespace DotNetCloud.Client.SyncService.Ipc;
 
@@ -46,6 +47,9 @@ public static class IpcCommands
 
     /// <summary>Fetch the server-side folder tree for a context (for selective sync).</summary>
     public const string GetFolderTree = "get-folder-tree";
+
+    /// <summary>Apply and persist selective sync rules for a context.</summary>
+    public const string UpdateSelectiveSync = "update-selective-sync";
 }
 
 /// <summary>IPC event names pushed from service to subscribed clients.</summary>
@@ -194,6 +198,14 @@ public sealed class ConflictSettingsData
     [
         "identical", "fast-forward", "clean-merge", "newer-wins", "append-only"
     ];
+}
+
+/// <summary>Payload for the <c>update-selective-sync</c> command.</summary>
+public sealed class SelectiveSyncRulesData
+{
+    /// <summary>Complete set of selective sync rules for the context.</summary>
+    [JsonPropertyName("rules")]
+    public List<SelectiveSyncRule> Rules { get; init; } = [];
 }
 
 // ── Response data types ───────────────────────────────────────────────────────

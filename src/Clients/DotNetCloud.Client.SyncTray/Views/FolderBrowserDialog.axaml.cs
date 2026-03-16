@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using System;
 using Avalonia.Interactivity;
 using DotNetCloud.Client.SyncTray.ViewModels;
 
@@ -30,11 +31,23 @@ public partial class FolderBrowserDialog : Window
 
     private async void OnSave(object? sender, RoutedEventArgs e)
     {
-        if (BrowserView.DataContext is FolderBrowserViewModel vm)
-            await vm.SaveAsync();
+        if (BrowserView.DataContext is not FolderBrowserViewModel vm)
+        {
+            Saved = true;
+            Close();
+            return;
+        }
 
-        Saved = true;
-        Close();
+        try
+        {
+            await vm.SaveAsync();
+            Saved = true;
+            Close();
+        }
+        catch (Exception ex)
+        {
+            vm.SetSaveError($"Failed to save folder selection: {ex.Message}");
+        }
     }
 
     private void OnSkip(object? sender, RoutedEventArgs e) => Close();

@@ -127,6 +127,7 @@ public sealed class FolderBrowserViewModel : ViewModelBase
     /// <summary>Persists the current folder selection as selective sync rules.</summary>
     public async Task SaveAsync()
     {
+        ErrorMessage = null;
         // Collect previously excluded paths before saving new state.
         var previousExclusions = new HashSet<string>(
             _selectiveSync.GetRules(_contextId)
@@ -143,7 +144,7 @@ public sealed class FolderBrowserViewModel : ViewModelBase
             newExclusions.Add(path);
         });
 
-        await _selectiveSync.SaveAsync(_configFilePath);
+        await _ipc.UpdateSelectiveSyncAsync(_contextId, _selectiveSync.GetRules(_contextId), CancellationToken.None);
 
         // Issue #58: clean up local files for newly excluded folders.
         if (LocalSyncRoot is not null)
@@ -157,6 +158,9 @@ public sealed class FolderBrowserViewModel : ViewModelBase
             }
         }
     }
+
+    /// <summary>Surfaces a save-time error in the existing error panel.</summary>
+    public void SetSaveError(string message) => ErrorMessage = message;
 
     /// <summary>
     /// Builds a tree item with lazy-loaded children. Child nodes are populated

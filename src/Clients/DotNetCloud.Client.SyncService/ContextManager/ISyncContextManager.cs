@@ -1,4 +1,5 @@
 using DotNetCloud.Client.Core.Api;
+using DotNetCloud.Client.Core.SelectiveSync;
 using DotNetCloud.Client.Core.Sync;
 
 namespace DotNetCloud.Client.SyncService.ContextManager;
@@ -75,6 +76,15 @@ public interface ISyncContextManager
     /// </summary>
     Task UpdateBandwidthAsync(
         decimal uploadLimitKbps, decimal downloadLimitKbps,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Applies selective sync rules for the given context and persists them to the
+    /// context's local sync folder configuration file.
+    /// </summary>
+    Task UpdateSelectiveSyncAsync(
+        Guid contextId,
+        IReadOnlyList<SelectiveSyncRule> rules,
         CancellationToken cancellationToken = default);
 
     /// <summary>

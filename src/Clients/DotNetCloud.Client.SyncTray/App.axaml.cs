@@ -268,7 +268,14 @@ public partial class App : Application
             disposable.Dispose();
         }
 
-        (_services as IDisposable)?.Dispose();
+        if (_services is IAsyncDisposable asyncServices)
+        {
+            asyncServices.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        }
+        else
+        {
+            (_services as IDisposable)?.Dispose();
+        }
         _serviceRecoveryLock.Dispose();
         Log.CloseAndFlush();
     }

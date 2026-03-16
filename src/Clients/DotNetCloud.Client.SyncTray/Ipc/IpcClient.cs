@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using DotNetCloud.Client.Core.Api;
+using DotNetCloud.Client.Core.SelectiveSync;
 using DotNetCloud.Client.SyncService.Ipc;
 using Microsoft.Extensions.Logging;
 
@@ -538,6 +539,21 @@ public sealed class IpcClient : IIpcClient, IAsyncDisposable
         }
 
         return null;
+    }
+
+    /// <inheritdoc/>
+    public async Task UpdateSelectiveSyncAsync(
+        Guid contextId,
+        IReadOnlyList<SelectiveSyncRule> rules,
+        CancellationToken cancellationToken = default)
+    {
+        var data = JsonSerializer.SerializeToElement(
+            new SelectiveSyncRulesData { Rules = rules.ToList() },
+            JsonOptions);
+
+        await SendAndReceiveAsync(
+            new IpcCommand { Command = IpcCommands.UpdateSelectiveSync, ContextId = contextId, Data = data },
+            cancellationToken);
     }
 
     // ── Send helpers ──────────────────────────────────────────────────────
