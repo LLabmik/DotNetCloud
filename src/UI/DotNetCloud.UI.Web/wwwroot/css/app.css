@@ -813,7 +813,7 @@ textarea.input { resize: vertical; min-height: 60px; }
 .trash-list-header,
 .trash-item {
     display: grid;
-    grid-template-columns: 32px 28px minmax(0, 1fr) minmax(100px, 140px) minmax(60px, 80px) auto;
+    grid-template-columns: 32px 28px minmax(120px, 1fr) minmax(100px, 140px) minmax(60px, 80px) auto;
     align-items: center;
     gap: 6px;
     padding: 8px 10px;
@@ -843,6 +843,17 @@ textarea.input { resize: vertical; min-height: 60px; }
 
 .trash-item.selected {
     background: #eff6ff;
+}
+
+.col-name.file-info {
+    overflow: hidden;
+}
+
+.col-name.file-info .file-name {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .trash-actions {
@@ -890,17 +901,45 @@ textarea.input { resize: vertical; min-height: 60px; }
         position: static;
     }
 
-    .trash-list-header,
+    .trash-list-header {
+        display: none;
+    }
+
     .trash-item {
-        grid-template-columns: 28px 1fr 60px auto;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+        padding: 10px;
     }
 
-    .col-check {
-        display: none;
+    .trash-item .col-check {
+        flex: 0 0 auto;
     }
 
-    .col-date {
-        display: none;
+    .trash-item .col-icon {
+        flex: 0 0 auto;
+    }
+
+    .trash-item .col-name {
+        flex: 1 1 100%;
+        min-width: 0;
+        order: -1;
+        padding-left: 38px; /* align with checkbox + icon width */
+    }
+
+    .trash-item .col-date {
+        font-size: 12px;
+        color: var(--color-text-secondary);
+    }
+
+    .trash-item .col-size {
+        font-size: 12px;
+        color: var(--color-text-secondary);
+    }
+
+    .trash-item .col-actions {
+        margin-left: auto;
     }
 }
 
