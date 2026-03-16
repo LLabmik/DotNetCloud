@@ -629,6 +629,8 @@ textarea.input { resize: vertical; min-height: 60px; }
     width: 20px;
     text-align: center;
     flex-shrink: 0;
+    overflow: hidden;
+    line-height: 1;
 }
 
 .nav-label {
