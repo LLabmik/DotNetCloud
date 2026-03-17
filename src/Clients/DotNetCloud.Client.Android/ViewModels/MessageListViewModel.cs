@@ -6,6 +6,7 @@ using DotNetCloud.Client.Android.Chat;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Client.Core;
 using Microsoft.Extensions.Logging;
+using Microsoft.Maui.ApplicationModel;
 
 namespace DotNetCloud.Client.Android.ViewModels;
 
@@ -93,10 +94,10 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         var connection = _serverStore.GetActive()
                          ?? throw new InvalidOperationException("No active server connection.");
         _serverUrl = connection.ServerBaseUrl;
-        _accessToken = await _tokenStore.GetAccessTokenAsync(_serverUrl, ct).ConfigureAwait(false)
+        _accessToken = await _tokenStore.GetAccessTokenAsync(_serverUrl, ct)
                        ?? throw new InvalidOperationException("No access token found.");
 
-        await LoadMessagesAsync(ct).ConfigureAwait(false);
+        await LoadMessagesAsync(ct);
 
         // Prefetch member names for @mention autocomplete
         _ = LoadMemberNamesAsync(ct);
@@ -106,7 +107,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     {
         try
         {
-            var members = await _chatApi.GetChannelMembersAsync(_serverUrl!, _accessToken!, _channelId, ct).ConfigureAwait(false);
+            var members = await _chatApi.GetChannelMembersAsync(_serverUrl!, _accessToken!, _channelId, ct);
             _allMemberNames = members.Select(m => m.DisplayName).ToList();
         }
         catch (Exception ex)
@@ -123,24 +124,24 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         Messages.Clear();
 
         // Show cached messages while fetching
-        var cached = await _cache.GetRecentAsync(_channelId, ct: ct).ConfigureAwait(false);
+        var cached = await _cache.GetRecentAsync(_channelId, ct: ct);
         foreach (var m in cached)
             Messages.Add(new MessageItemViewModel(m.Id, m.SenderName, m.Content, m.SentAt));
 
         try
         {
-            var messages = await _chatApi.GetMessagesAsync(_serverUrl!, _accessToken!, _channelId, ct: ct).ConfigureAwait(false);
+            var messages = await _chatApi.GetMessagesAsync(_serverUrl!, _accessToken!, _channelId, ct: ct);
 
             Messages.Clear();
             foreach (var m in messages.OrderBy(m => m.SentAt))
                 Messages.Add(new MessageItemViewModel(m.Id, m.SenderName, m.Content, m.SentAt));
 
             // Update cache in background
-            _ = _cache.UpsertAsync(messages.Select(m => new CachedMessage(m.Id, m.ChannelId, m.SenderName, m.Content, m.SentAt))).ConfigureAwait(false);
+            _ = _cache.UpsertAsync(messages.Select(m => new CachedMessage(m.Id, m.ChannelId, m.SenderName, m.Content, m.SentAt)));
 
             // Mark latest message as read
             if (messages.Count > 0)
-                await _chatApi.MarkReadAsync(_serverUrl!, _accessToken!, _channelId, messages[^1].Id, ct).ConfigureAwait(false);
+                await _chatApi.MarkReadAsync(_serverUrl!, _accessToken!, _channelId, messages[^1].Id, ct);
         }
         catch (Exception ex)
         {
@@ -167,7 +168,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
 
         try
         {
-            var message = await _chatApi.SendMessageAsync(_serverUrl!, _accessToken!, _channelId, content, ct).ConfigureAwait(false);
+            var message = await _chatApi.SendMessageAsync(_serverUrl!, _accessToken!, _channelId, content, ct);
             Messages.Add(new MessageItemViewModel(message.Id, message.SenderName, message.Content, message.SentAt));
         }
         catch (Exception ex)
@@ -214,7 +215,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     {
         try
         {
-            var results = await MediaPicker.Default.PickPhotosAsync().ConfigureAwait(false);
+            var results = await MediaPicker.Default.PickPhotosAsync();
             if (results is null || !results.Any()) return;
 
             var result = results.FirstOrDefault();
@@ -226,7 +227,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             ErrorMessage = null;
             IsSending = true;
 
-            var message = await _chatApi.SendMessageAsync(_serverUrl!, _accessToken!, _channelId, content, ct).ConfigureAwait(false);
+            var message = await _chatApi.SendMessageAsync(_serverUrl!, _accessToken!, _channelId, content, ct);
             Messages.Add(new MessageItemViewModel(message.Id, message.SenderName, message.Content, message.SentAt));
         }
         catch (OperationCanceledException) { }
@@ -290,6 +291,13 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
 
     private bool CanSend() => !string.IsNullOrWhiteSpace(ComposerText) && !IsSending;
 
+    /// <summary>Raised when the user wants to view full channel details.</summary>
+    public event EventHandler? ViewDetailsRequested;
+
+    /// <summary>Opens the channel details page.</summary>
+    [RelayCommand]
+    private void ViewDetails() => ViewDetailsRequested?.Invoke(this, EventArgs.Empty);
+
     /// <inheritdoc />
     public void Dispose()
     {
@@ -300,8 +308,12 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     private void OnNewChatMessage(object? sender, ChatMessageReceivedEventArgs e)
     {
         if (e.ChannelId != _channelId.ToString()) return;
-        var vm = new MessageItemViewModel(Guid.NewGuid(), e.SenderDisplayName, e.MessagePreview, DateTimeOffset.UtcNow);
-        Messages.Add(vm);
+
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            var vm = new MessageItemViewModel(Guid.NewGuid(), e.SenderDisplayName, e.MessagePreview, DateTimeOffset.UtcNow);
+            Messages.Add(vm);
+        });
     }
 }
 

@@ -1,5 +1,6 @@
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Client.Core;
+using DotNetCloud.Client.Core.Auth;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
 using System.Text.Json.Serialization;
@@ -72,6 +73,7 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
             .WithUrl(hubUrl, options =>
             {
                 options.AccessTokenProvider = () => Task.FromResult<string?>(accessToken);
+                options.HttpMessageHandlerFactory = static _ => OAuthHttpClientHandlerFactory.CreateHandler();
             })
             .WithAutomaticReconnect([TimeSpan.Zero, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(15)])
             .Build();

@@ -17,7 +17,7 @@
 
         <ShellContent
             Route="ChannelList"
-            Title="Channels"
+            Title="Chat"
             Icon="dotnet_bot.png"
             ContentTemplate="{DataTemplate views:ChannelListPage}" />
 

@@ -6,6 +6,14 @@
     xmlns:vm="clr-namespace:DotNetCloud.Client.Android.ViewModels"
     Title="{Binding ChannelName}">
 
+    <ContentPage.ToolbarItems>
+        <ToolbarItem
+            Text="Details"
+            Command="{Binding ViewDetailsCommand}"
+            Order="Primary"
+            Priority="0" />
+    </ContentPage.ToolbarItems>
+
     <Grid RowDefinitions="*,Auto,Auto">
 
         <!-- Message list -->

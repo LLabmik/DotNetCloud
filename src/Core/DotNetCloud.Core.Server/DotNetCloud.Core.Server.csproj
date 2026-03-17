@@ -37,7 +37,9 @@
     <ProjectReference Include="..\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
     <ProjectReference Include="..\DotNetCloud.Core.ServiceDefaults\DotNetCloud.Core.ServiceDefaults.csproj" />
     <ProjectReference Include="..\..\Modules\Chat\DotNetCloud.Modules.Chat.Data\DotNetCloud.Modules.Chat.Data.csproj" />
+    <ProjectReference Include="..\..\Modules\Chat\DotNetCloud.Modules.Chat.Host\DotNetCloud.Modules.Chat.Host.csproj" />
     <ProjectReference Include="..\..\Modules\Files\DotNetCloud.Modules.Files.Data\DotNetCloud.Modules.Files.Data.csproj" />
+    <ProjectReference Include="..\..\Modules\Files\DotNetCloud.Modules.Files.Host\DotNetCloud.Modules.Files.Host.csproj" />
     <ProjectReference Include="..\..\UI\DotNetCloud.UI.Web\DotNetCloud.UI.Web.csproj" />
     <ProjectReference Include="..\..\UI\DotNetCloud.UI.Web.Client\DotNetCloud.UI.Web.Client.csproj" />
   </ItemGroup>

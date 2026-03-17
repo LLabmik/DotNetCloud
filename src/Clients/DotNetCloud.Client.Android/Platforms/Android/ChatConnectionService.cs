@@ -56,8 +56,10 @@ public sealed class ChatConnectionService : Service
         // Build and show the persistent notification required for foreground services.
         if (Build.VERSION.SdkInt >= BuildVersionCodes.Q)
         {
+#pragma warning disable CA1416 // already guarded by runtime SDK check above
             StartForeground(NotificationId, BuildNotification(),
                 global::Android.Content.PM.ForegroundService.TypeDataSync);
+#pragma warning restore CA1416
         }
         else
         {

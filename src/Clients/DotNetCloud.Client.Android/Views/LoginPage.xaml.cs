@@ -1,4 +1,5 @@
 using DotNetCloud.Client.Android.ViewModels;
+using Microsoft.Maui.ApplicationModel;
 
 namespace DotNetCloud.Client.Android.Views;
 
@@ -15,9 +16,8 @@ public partial class LoginPage : ContentPage
         vm.LoginSucceeded += OnLoginSucceeded;
     }
 
-    private void OnLoginSucceeded(object? sender, EventArgs e)
+    private async void OnLoginSucceeded(object? sender, EventArgs e)
     {
-        // Replace the entire navigation stack with the channel list
-        Shell.Current.GoToAsync("//ChannelList", animate: true);
+        await MainThread.InvokeOnMainThreadAsync(() => Shell.Current.GoToAsync("//Main/ChannelList", animate: true));
     }
 }

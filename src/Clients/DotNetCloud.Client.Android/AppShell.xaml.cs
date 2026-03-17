@@ -1,4 +1,4 @@
-﻿using DotNetCloud.Client.Android.Views;
+using DotNetCloud.Client.Android.Views;
 
 namespace DotNetCloud.Client.Android;
 
@@ -12,6 +12,7 @@ public partial class AppShell : Shell
 
         // Register routes for detail pages not expressed in the ShellContent hierarchy
         Routing.RegisterRoute("MessageList", typeof(MessageListPage));
+        Routing.RegisterRoute("ChannelDetails", typeof(ChannelDetailsPage));
     }
 }
 

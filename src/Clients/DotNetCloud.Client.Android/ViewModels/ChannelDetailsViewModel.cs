@@ -5,6 +5,7 @@ using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Chat;
 using DotNetCloud.Client.Android.Services;
 using Microsoft.Extensions.Logging;
+using Microsoft.Maui.ApplicationModel;
 
 namespace DotNetCloud.Client.Android.ViewModels;
 
@@ -85,10 +86,10 @@ public sealed partial class ChannelDetailsViewModel : ObservableObject
             var connection = _serverStore.GetActive()
                              ?? throw new InvalidOperationException("No active server connection.");
             _serverUrl = connection.ServerBaseUrl;
-            _accessToken = await _tokenStore.GetAccessTokenAsync(_serverUrl, ct).ConfigureAwait(false)
+            _accessToken = await _tokenStore.GetAccessTokenAsync(_serverUrl, ct)
                            ?? throw new InvalidOperationException("No access token found.");
 
-            var members = await _chatApi.GetChannelMembersAsync(_serverUrl, _accessToken, _channelId, ct).ConfigureAwait(false);
+            var members = await _chatApi.GetChannelMembersAsync(_serverUrl, _accessToken, _channelId, ct);
 
             Members.Clear();
             foreach (var m in members.OrderBy(m => m.Role).ThenBy(m => m.DisplayName))
@@ -116,8 +117,8 @@ public sealed partial class ChannelDetailsViewModel : ObservableObject
 
         try
         {
-            await _chatApi.LeaveChannelAsync(_serverUrl, _accessToken, _channelId, ct).ConfigureAwait(false);
-            ChannelLeft?.Invoke(this, EventArgs.Empty);
+            await _chatApi.LeaveChannelAsync(_serverUrl, _accessToken, _channelId, ct);
+            await MainThread.InvokeOnMainThreadAsync(() => ChannelLeft?.Invoke(this, EventArgs.Empty));
         }
         catch (Exception ex)
         {

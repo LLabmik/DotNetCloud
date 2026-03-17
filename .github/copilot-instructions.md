@@ -465,3 +465,15 @@ When the user says the keyword **"remember"**, it means this information should 
 ## Domain Information
 
 **IMPORTANT:** The dotnetcloud.net domain has no content yet. References to dotnetcloud.net/docs are incorrect — documentation is only available from the GitHub repository (https://github.com/LLabmik/DotNetCloud). Only generic informational references to dotnetcloud.net are acceptable (website coming soon, contact, domain name). No URLs pointing to specific resources on dotnetcloud.net (docs, downloads, install scripts, etc.).
+
+---
+
+## Android Emulator Testing
+
+### Local Testing Configuration
+
+For local Android emulator testing in this workspace, use the DHCP-provided DNS servers:
+- `192.168.0.14`
+- `192.168.0.2`
+
+**Note:** Avoid using custom proxy DNS settings for this purpose.

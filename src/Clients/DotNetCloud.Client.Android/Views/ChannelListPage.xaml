@@ -4,7 +4,7 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:vm="clr-namespace:DotNetCloud.Client.Android.ViewModels"
-    Title="Channels">
+    Title="Chat Channels">
 
     <RefreshView
         Command="{Binding LoadChannelsCommand}"
@@ -55,7 +55,7 @@
                         <Grid.GestureRecognizers>
                             <TapGestureRecognizer
                                 Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectChannelCommand}"
-                                CommandParameter="{Binding ChannelId}" />
+                                CommandParameter="{Binding .}" />
                         </Grid.GestureRecognizers>
 
                     </Grid>
@@ -72,7 +72,7 @@
                     <Label
                         FontSize="16"
                         HorizontalOptions="Center"
-                        Text="No channels yet." />
+                        Text="No chat channels yet." />
                     <Label
                         FontSize="13"
                         HorizontalOptions="Center"

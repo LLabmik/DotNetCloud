@@ -71,9 +71,8 @@
 		<MauiFont Include="Resources\Fonts\*" />
 		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
 	</ItemGroup>
-
 	<!-- ========================
-	     Core dependencies
+		 Core dependencies
 	     ======================== -->
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
@@ -104,6 +103,36 @@
 	<ItemGroup>
 		<ProjectReference Include="..\DotNetCloud.Client.Core\DotNetCloud.Client.Core.csproj" />
 	</ItemGroup>
+
+	<!-- ========================
+	     Release signing
+	     Set env vars before building:
+	       KEYSTORE_FILE   — path to dotnetcloud.keystore
+	       KEYSTORE_ALIAS  — key alias (default: dotnetcloud)
+	       KEYSTORE_PASS   — keystore + key password
+	     Google Play: dotnet publish -f net10.0-android -c Release -p:BuildFlavor=googleplay
+	     F-Droid APK:  dotnet publish -f net10.0-android -c Release -p:BuildFlavor=fdroid
+	     F-Droid reproducible builds require AndroidUseAapt2=true (set below).
+	     ======================== -->
+	<PropertyGroup Condition="'$(Configuration)' == 'Release'">
+		<AndroidKeyStore>true</AndroidKeyStore>
+		<AndroidSigningKeyStore>$(KEYSTORE_FILE)</AndroidSigningKeyStore>
+		<AndroidSigningKeyAlias>$(KEYSTORE_ALIAS)</AndroidSigningKeyAlias>
+		<AndroidSigningKeyPass>$(KEYSTORE_PASS)</AndroidSigningKeyPass>
+		<AndroidSigningStorePass>$(KEYSTORE_PASS)</AndroidSigningStorePass>
+		<!-- Required for F-Droid reproducible builds -->
+		<AndroidUseAapt2>true</AndroidUseAapt2>
+	</PropertyGroup>
+
+	<!-- ========================
+	     Debug deployment: embed assemblies into APK.
+	     Fast Deployment (the default) requires assemblies STORED uncompressed
+	     in lib/<abi>/, but Gradle can compress them, causing monodroid to abort
+	     with "No assemblies found … MUST be STORED". Embedding avoids that path.
+	     ======================== -->
+	<PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+		<EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+	</PropertyGroup>
 
 	<!-- ========================
 	     Release signing

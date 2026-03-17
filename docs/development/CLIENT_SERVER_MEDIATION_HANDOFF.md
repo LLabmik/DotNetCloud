@@ -53,7 +53,7 @@ Archived context:
   - Linux client (`mint-dnc-client`): verified 2026-03-16 ~03:00Z
   - Windows client (`Windows11-TestDNC`): verified 2026-03-16 ~08:16Z. Bug fixed: `RemoveFileRecordsUnderPathAsync` path separator on Windows.
   - Server (`mint22`): confirmed stable 2026-03-16. Zero ERR entries, both nodes soft-deleted, no 5xx.
-- **Active cycle:** No active handoff. All chains closed.
+- **Active cycle:** Server redeploy requested — Chat.Host + Files.Host references added to Core.Server.
 
 ## Environment
 
@@ -72,11 +72,53 @@ Archived context:
 
 ## Active Handoff
 
-No active handoff. All chains closed as of 2026-03-16.
+### Server Redeploy — Chat.Host + Files.Host Endpoint Registration
 
-### Last Completed: Deletion Propagation Chain — CLOSED
+**Target machine:** `mint22`
+**Priority:** Normal
+**Requested by:** `Windows11-TestDNC` (client agent)
 
-All 3 steps verified. Server confirmed stable — zero errors, both test nodes soft-deleted, no regressions. Full details archived in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
+#### What Changed
+
+`DotNetCloud.Core.Server.csproj` now references two additional Host projects:
+
+- `DotNetCloud.Modules.Chat.Host` — registers Chat API endpoints (ChatController)
+- `DotNetCloud.Modules.Files.Host` — registers Files API endpoints
+
+Without these references, the server binary does not include the Chat/Files controller assemblies, so their API endpoints are not discovered or mapped at startup.
+
+#### Action Required
+
+1. `git pull origin main` to get the latest changes.
+2. Run the bare-metal redeploy script:
+   ```bash
+   cd /path/to/dotnetcloud   # wherever the repo is cloned on mint22
+   ./tools/redeploy-baremetal.sh
+   ```
+   This will:
+   - `dotnet publish` the server project in Release mode
+   - Restart `dotnetcloud.service` via systemd
+   - Probe the health endpoint to confirm the service is live
+3. After redeploy, verify the Chat endpoints are registered by hitting:
+   ```bash
+   curl -kfsS https://localhost:15443/api/chat/health
+   ```
+   Expected: HTTP 200 with a health response (not 404).
+
+#### Verification Checklist
+
+- [ ] `dotnet publish` succeeds with no errors
+- [ ] `dotnetcloud.service` restarts without failure
+- [ ] Health probe passes (`/health/live` returns 200)
+- [ ] Chat API endpoint reachable (`/api/chat/health` returns 200, not 404)
+- [ ] No ERR entries in `journalctl -u dotnetcloud.service --since "5 min ago"`
+
+#### Request Back
+
+- Commit hash on mint22 after pull
+- Output of `curl -kfsS https://localhost:15443/api/chat/health`
+- Output of `systemctl status dotnetcloud.service --no-pager` (first 10 lines)
+- Any errors from `journalctl -u dotnetcloud.service --since "5 min ago" | grep -i err`
 
 ## Relay Template
 

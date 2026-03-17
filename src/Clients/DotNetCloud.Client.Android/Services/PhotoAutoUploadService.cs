@@ -126,14 +126,18 @@ internal sealed class PhotoAutoUploadService : IPhotoAutoUploadService
 
         _logger.LogInformation("Found {Count} new photo(s) to upload.", photos.Count);
 
-        var appContext = Platform.AppContext;
-        if (appContext is null)
+        if (Platform.AppContext is not { } appContext)
         {
             _logger.LogWarning("Platform.AppContext is null; cannot show upload notifications.");
             return;
         }
 
         var nm = NotificationManagerCompat.From(appContext);
+        if (nm is null)
+        {
+            _logger.LogWarning("NotificationManagerCompat unavailable; skipping upload notifications.");
+            return;
+        }
         int uploaded = 0;
 
         foreach (var (contentUri, fileName, dateAdded) in photos)
@@ -147,13 +151,17 @@ internal sealed class PhotoAutoUploadService : IPhotoAutoUploadService
                 Preferences.Default.Set(PrefLastUploadAt, dateAdded);
                 uploaded++;
 
+                // NotificationCompat.Builder fluent setters return Builder? in the AndroidX binding
+                // even though the real Java API is @NonNull. The chain is always safe here.
+#pragma warning disable CS8602
                 var notification = new NotificationCompat.Builder(appContext, MainApplication.ChannelIdUpload)
                     .SetSmallIcon(global::Android.Resource.Drawable.IcMenuGallery)
                     .SetContentTitle("Uploading photos")
                     .SetContentText($"{uploaded} of {photos.Count} uploaded")
                     .SetProgress(photos.Count, uploaded, false)
                     .SetOngoing(true)
-                    .Build();
+                    .Build()!;
+#pragma warning restore CS8602
                 nm.Notify(NotificationId, notification);
             }
             catch (Exception ex)

@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Services;
 using Microsoft.Extensions.Logging;
+using Microsoft.Maui.ApplicationModel;
 
 namespace DotNetCloud.Client.Android.ViewModels;
 
@@ -56,11 +57,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             if (!string.IsNullOrEmpty(ServerBaseUrl))
             {
-                await _tokenStore.DeleteTokensAsync(ServerBaseUrl, ct).ConfigureAwait(false);
+                await _tokenStore.DeleteTokensAsync(ServerBaseUrl, ct);
                 _serverStore.Remove(ServerBaseUrl);
             }
             _logger.LogInformation("User logged out from {ServerBaseUrl}.", ServerBaseUrl);
-            LoggedOut?.Invoke(this, EventArgs.Empty);
+            await MainThread.InvokeOnMainThreadAsync(() => LoggedOut?.Invoke(this, EventArgs.Empty));
         }
         catch (Exception ex)
         {

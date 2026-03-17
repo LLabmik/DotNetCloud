@@ -1,4 +1,5 @@
 using DotNetCloud.Client.Android.ViewModels;
+using Microsoft.Maui.ApplicationModel;
 
 namespace DotNetCloud.Client.Android.Views;
 
@@ -13,8 +14,8 @@ public partial class SettingsPage : ContentPage
         vm.LoggedOut += OnLoggedOut;
     }
 
-    private void OnLoggedOut(object? sender, EventArgs e)
+    private async void OnLoggedOut(object? sender, EventArgs e)
     {
-        Shell.Current.GoToAsync("//Login", animate: true);
+        await MainThread.InvokeOnMainThreadAsync(() => Shell.Current.GoToAsync("//Login", animate: true));
     }
 }

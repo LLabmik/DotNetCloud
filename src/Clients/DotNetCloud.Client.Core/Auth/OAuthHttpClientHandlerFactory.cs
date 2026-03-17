@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http;
 using System.Net.Security;
+using System.Net.Sockets;
 
 namespace DotNetCloud.Client.Core.Auth;
 
@@ -30,7 +31,6 @@ public static class OAuthHttpClientHandlerFactory
                 return false;
             }
 
-            // Keep strict TLS for public internet hosts.
             return IsLocalOrPrivateHost(host);
         };
 
@@ -46,7 +46,7 @@ public static class OAuthHttpClientHandlerFactory
 
         if (IPAddress.TryParse(host, out var ip))
         {
-            return IPAddress.IsLoopback(ip) || IsPrivateIpv4(ip);
+            return IsLoopbackOrPrivate(ip);
         }
 
         // Single-label hosts are typically local network names (for example: mint22).
@@ -55,7 +55,43 @@ public static class OAuthHttpClientHandlerFactory
             return true;
         }
 
-        return false;
+        if (host.EndsWith(".local", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".home", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".lan", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".internal", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".test", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        try
+        {
+            var addresses = Dns.GetHostAddresses(host);
+            return addresses.Length > 0 && Array.TrueForAll(addresses, IsLoopbackOrPrivate);
+        }
+        catch (SocketException)
+        {
+            return false;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    private static bool IsLoopbackOrPrivate(IPAddress ip)
+    {
+        if (IPAddress.IsLoopback(ip))
+        {
+            return true;
+        }
+
+        if (ip.AddressFamily == AddressFamily.InterNetworkV6)
+        {
+            return ip.IsIPv6LinkLocal || IsUniqueLocalIpv6(ip);
+        }
+
+        return IsPrivateIpv4(ip);
     }
 
     private static bool IsPrivateIpv4(IPAddress ip)
@@ -69,5 +105,11 @@ public static class OAuthHttpClientHandlerFactory
         return bytes[0] == 10
             || (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31)
             || (bytes[0] == 192 && bytes[1] == 168);
+    }
+
+    private static bool IsUniqueLocalIpv6(IPAddress ip)
+    {
+        var bytes = ip.GetAddressBytes();
+        return bytes.Length == 16 && (bytes[0] & 0xFE) == 0xFC;
     }
 }

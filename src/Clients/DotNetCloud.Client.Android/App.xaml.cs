@@ -1,4 +1,4 @@
-﻿using DotNetCloud.Client.Android.Services;
+using DotNetCloud.Client.Android.Services;
 
 namespace DotNetCloud.Client.Android;
 
@@ -24,7 +24,7 @@ public partial class App : Application
     protected override async void OnStart()
     {
         base.OnStart();
-        await NavigateToStartPageAsync().ConfigureAwait(false);
+        await NavigateToStartPageAsync();
     }
 
     private async Task NavigateToStartPageAsync()
@@ -32,8 +32,8 @@ public partial class App : Application
         // Navigate to the channel list if a server connection is already active,
         // otherwise drop the user on the login screen.
         if (_serverStore.GetActive() is not null)
-            await Shell.Current.GoToAsync("//Main/ChannelList").ConfigureAwait(false);
+            await Shell.Current.GoToAsync("//Main/ChannelList");
         else
-            await Shell.Current.GoToAsync("//Login").ConfigureAwait(false);
+            await Shell.Current.GoToAsync("//Login");
     }
 }

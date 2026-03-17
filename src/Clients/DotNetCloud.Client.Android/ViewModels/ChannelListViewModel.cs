@@ -6,6 +6,7 @@ using DotNetCloud.Client.Android.Chat;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Client.Core;
 using Microsoft.Extensions.Logging;
+using Microsoft.Maui.ApplicationModel;
 
 namespace DotNetCloud.Client.Android.ViewModels;
 
@@ -22,7 +23,7 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
     private readonly ILogger<ChannelListViewModel> _logger;
 
     /// <summary>Raised when a channel is selected and the app should navigate to it.</summary>
-    public event EventHandler<Guid>? ChannelSelected;
+    public event EventHandler<(Guid ChannelId, string Name)>? ChannelSelected;
 
     /// <summary>Initializes a new <see cref="ChannelListViewModel"/>.</summary>
     public ChannelListViewModel(
@@ -61,8 +62,8 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
 
         try
         {
-            var (serverUrl, token) = await GetActiveCredentialsAsync(ct).ConfigureAwait(false);
-            var channels = await _chatApi.GetChannelsAsync(serverUrl, token, ct).ConfigureAwait(false);
+            var (serverUrl, token) = await GetActiveCredentialsAsync(ct);
+            var channels = await _chatApi.GetChannelsAsync(serverUrl, token, ct);
 
             foreach (var ch in channels)
                 Channels.Add(new ChannelItemViewModel(ch.Id, ch.Name, ch.UnreadCount, ch.HasMention, ch.LastMessagePreview));
@@ -70,7 +71,7 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load channels.");
-            ErrorMessage = "Failed to load channels. Pull to refresh.";
+            ErrorMessage = "Failed to load chat channels. Pull to refresh.";
         }
         finally
         {
@@ -80,9 +81,9 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
 
     /// <summary>Navigates into a channel when tapped.</summary>
     [RelayCommand]
-    private void SelectChannel(Guid channelId)
+    private void SelectChannel(ChannelItemViewModel item)
     {
-        ChannelSelected?.Invoke(this, channelId);
+        ChannelSelected?.Invoke(this, (item.ChannelId, item.Name));
     }
 
     /// <inheritdoc />
@@ -96,12 +97,15 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
 
     private void OnUnreadCountUpdated(object? sender, ChatUnreadCountUpdatedEventArgs e)
     {
-        var item = Channels.FirstOrDefault(c => c.ChannelId.ToString() == e.ChannelId);
-        if (item is not null)
+        MainThread.BeginInvokeOnMainThread(() =>
         {
-            item.UnreadCount = e.UnreadCount;
-            item.HasMention = e.HasMention;
-        }
+            var item = Channels.FirstOrDefault(c => c.ChannelId.ToString() == e.ChannelId);
+            if (item is not null)
+            {
+                item.UnreadCount = e.UnreadCount;
+                item.HasMention = e.HasMention;
+            }
+        });
     }
 
     private void OnNewMessage(object? sender, ChatMessageReceivedEventArgs e) { /* handled via unread update */ }
@@ -110,7 +114,7 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
     {
         var connection = _serverStore.GetActive()
                          ?? throw new InvalidOperationException("No active server connection.");
-        var token = await _tokenStore.GetAccessTokenAsync(connection.ServerBaseUrl, ct).ConfigureAwait(false)
+        var token = await _tokenStore.GetAccessTokenAsync(connection.ServerBaseUrl, ct)
                     ?? throw new InvalidOperationException("No access token found.");
         return (connection.ServerBaseUrl, token);
     }

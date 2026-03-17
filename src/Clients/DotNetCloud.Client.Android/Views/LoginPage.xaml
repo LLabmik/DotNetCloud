@@ -31,7 +31,7 @@
                 AutomationId="ServerUrlEntry"
                 IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBool}}"
                 Keyboard="Url"
-                Placeholder="https://cloud.example.com"
+                Placeholder="http://10.0.2.2:5080"
                 ReturnType="Go"
                 ReturnCommand="{Binding LoginCommand}"
                 Text="{Binding ServerUrl}" />

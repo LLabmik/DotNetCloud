@@ -1,4 +1,5 @@
 using DotNetCloud.Client.Android.ViewModels;
+using Microsoft.Maui.ApplicationModel;
 
 namespace DotNetCloud.Client.Android.Views;
 
@@ -23,8 +24,9 @@ public partial class ChannelListPage : ContentPage
             _vm.LoadChannelsCommand.Execute(null);
     }
 
-    private void OnChannelSelected(object? sender, Guid channelId)
+    private async void OnChannelSelected(object? sender, (Guid ChannelId, string Name) e)
     {
-        Shell.Current.GoToAsync($"MessageList?channelId={channelId}", animate: true);
+        await MainThread.InvokeOnMainThreadAsync(() =>
+            Shell.Current.GoToAsync($"MessageList?channelId={e.ChannelId}&channelName={Uri.EscapeDataString(e.Name)}", animate: true));
     }
 }

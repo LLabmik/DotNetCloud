@@ -149,7 +149,8 @@ internal sealed class HttpChatRestClient : IChatRestClient
     // ── DTO mappings ────────────────────────────────────────────────
 
     private static ChannelSummary ToChannelSummary(ChannelSummaryDto d) =>
-        new(d.Id, d.Name, d.UnreadCount, d.HasMention, d.LastMessagePreview, d.LastMessageAt);
+        new(d.Id, d.Name, d.UnreadCount, d.HasMention, d.LastMessagePreview,
+            d.LastMessageAt ?? (d.LastActivityAt.HasValue ? new DateTimeOffset(d.LastActivityAt.Value, TimeSpan.Zero) : null));
 
     private static ChatMessage ToChatMessage(ChatMessageDto d) =>
         new(d.Id, d.ChannelId, d.SenderName, d.Content, d.SentAt, d.IsEdited);
@@ -173,10 +174,14 @@ internal sealed class HttpChatRestClient : IChatRestClient
     {
         public Guid Id { get; init; }
         public string Name { get; init; } = string.Empty;
+        public string? Description { get; init; }
+        public string? Type { get; init; }
+        public int MemberCount { get; init; }
         public int UnreadCount { get; init; }
         public bool HasMention { get; init; }
         public string? LastMessagePreview { get; init; }
         public DateTimeOffset? LastMessageAt { get; init; }
+        public DateTime? LastActivityAt { get; init; }
     }
 
     private sealed class ChatMessageDto

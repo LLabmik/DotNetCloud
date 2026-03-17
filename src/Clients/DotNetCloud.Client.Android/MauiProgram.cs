@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.DependencyInjection;
+using CommunityToolkit.Mvvm.DependencyInjection;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Chat;
 using DotNetCloud.Client.Android.Services;
@@ -38,7 +38,8 @@ public static class MauiProgram
 
         // ── Chat / real-time ──────────────────────────────────────────
         builder.Services.AddSingleton<IChatSignalRClient, SignalRChatClient>();
-        builder.Services.AddHttpClient<IChatRestClient, HttpChatRestClient>();
+        builder.Services.AddHttpClient<IChatRestClient, HttpChatRestClient>()
+            .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
 
         // ── Push notifications ────────────────────────────────────────
 #if GOOGLEPLAY
@@ -48,7 +49,8 @@ public static class MauiProgram
 #endif
 
         // ── Photo auto-upload ─────────────────────────────────────────
-        builder.Services.AddHttpClient<IPhotoAutoUploadService, PhotoAutoUploadService>();
+        builder.Services.AddHttpClient<IPhotoAutoUploadService, PhotoAutoUploadService>()
+            .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
 
         // ── ViewModels ────────────────────────────────────────────────
         builder.Services.AddTransient<LoginViewModel>();

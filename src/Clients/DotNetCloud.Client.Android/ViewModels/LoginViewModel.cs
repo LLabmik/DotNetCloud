@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Services;
 using Microsoft.Extensions.Logging;
+using Microsoft.Maui.ApplicationModel;
 
 namespace DotNetCloud.Client.Android.ViewModels;
 
@@ -50,13 +51,13 @@ public sealed partial class LoginViewModel : ObservableObject
         try
         {
             var normalizedUrl = NormalizeUrl(ServerUrl);
-            var result = await _oauth.AuthenticateAsync(normalizedUrl, ct).ConfigureAwait(false);
+            var result = await _oauth.AuthenticateAsync(normalizedUrl, ct);
 
-            await _tokenStore.SaveTokensAsync(normalizedUrl, result.AccessToken, result.RefreshToken, ct).ConfigureAwait(false);
+            await _tokenStore.SaveTokensAsync(normalizedUrl, result.AccessToken, result.RefreshToken, ct);
             _serverStore.SetActive(normalizedUrl);
 
             _logger.LogInformation("Login succeeded for {ServerUrl}.", normalizedUrl);
-            LoginSucceeded?.Invoke(this, EventArgs.Empty);
+            await MainThread.InvokeOnMainThreadAsync(() => LoginSucceeded?.Invoke(this, EventArgs.Empty));
         }
         catch (OperationCanceledException)
         {

@@ -1,4 +1,5 @@
 using DotNetCloud.Client.Android.ViewModels;
+using Microsoft.Maui.ApplicationModel;
 
 namespace DotNetCloud.Client.Android.Views;
 
@@ -28,12 +29,21 @@ public partial class MessageListPage : ContentPage
     {
         InitializeComponent();
         BindingContext = _vm = vm;
+        vm.ViewDetailsRequested += OnViewDetailsRequested;
     }
 
     /// <inheritdoc />
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        await _vm.InitializeAsync(_channelId, _channelDisplayName).ConfigureAwait(false);
+        await _vm.InitializeAsync(_channelId, _channelDisplayName);
+    }
+
+    private async void OnViewDetailsRequested(object? sender, EventArgs e)
+    {
+        await MainThread.InvokeOnMainThreadAsync(() =>
+            Shell.Current.GoToAsync(
+                $"ChannelDetails?channelId={_channelId}&channelName={Uri.EscapeDataString(_channelDisplayName)}",
+                animate: true));
     }
 }

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
+using DotNetCloud.Client.Core.Auth;
 using Microsoft.Maui.ApplicationModel;
 
 namespace DotNetCloud.Client.Android.Auth;
@@ -15,7 +16,7 @@ internal sealed class MauiOAuth2Service : IOAuth2Service
     private const string RedirectUri = "net.dotnetcloud.client://oauth2redirect";
     private const string ClientId = "dotnetcloud-mobile";
 
-    private readonly HttpClient _http = new();
+    private readonly HttpClient _http = new(OAuthHttpClientHandlerFactory.CreateHandler(), disposeHandler: true);
 
     /// <inheritdoc />
     public async Task<OAuth2Result> AuthenticateAsync(string serverBaseUrl, CancellationToken ct = default)
