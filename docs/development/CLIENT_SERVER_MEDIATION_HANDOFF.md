@@ -53,7 +53,7 @@ Archived context:
   - Linux client (`mint-dnc-client`): verified 2026-03-16 ~03:00Z
   - Windows client (`Windows11-TestDNC`): verified 2026-03-16 ~08:16Z. Bug fixed: `RemoveFileRecordsUnderPathAsync` path separator on Windows.
   - Server (`mint22`): confirmed stable 2026-03-16. Zero ERR entries, both nodes soft-deleted, no 5xx.
-- **Active cycle:** Real-time chat message delivery fix in progress. Client-side (Android) SignalR group join/leave completed on `monolith`. Server-side broadcast changes needed on `mint22`.
+- **Active cycle:** Real-time chat message delivery — server-side SignalR broadcast from REST endpoints completed and deployed on `mint22`. Ready for Android client verification.
 
 ## Environment
 
@@ -74,79 +74,35 @@ Archived context:
 
 ## Active Handoff
 
-### Add SignalR Broadcast to ChatController REST Endpoints
+### Server-Side SignalR Broadcast — COMPLETED, Ready for Verification
 
-**Target machine:** `mint22`
+**Target machine:** `monolith`
 **Priority:** High
-**Requested by:** `monolith` (Android client agent)
+**Completed by:** `mint22` (server agent)
 
-#### Problem
+#### What Was Done on mint22 (Server-Side — COMPLETED)
 
-Real-time chat message delivery does not work. When a client sends a message via REST API (Android or Blazor web), other connected clients do not receive the message in real time — they must manually refresh. The root cause has two parts:
+1. Injected `IChatRealtimeService` into `ChatController` constructor (alongside existing `IRealtimeBroadcaster`).
+2. Added `BroadcastNewMessageAsync(channelId, message)` call after `SendMessageAsync` in `POST /api/v1/chat/channels/{channelId}/messages`.
+3. Added `BroadcastMessageEditedAsync(channelId, message)` call after `EditMessageAsync` in `PUT /api/v1/chat/channels/{channelId}/messages/{messageId}`.
+4. Added `BroadcastMessageDeletedAsync(channelId, messageId)` call after `DeleteMessageAsync` in `DELETE /api/v1/chat/channels/{channelId}/messages/{messageId}`.
+5. Updated `ChatControllerTests` to inject mock `IChatRealtimeService` — all 283 tests pass.
+6. Published and redeployed on mint22. Server healthy at `https://mint22:15443/health`.
 
-1. **Server-side (this handoff):** `ChatController` REST message endpoints call `IMessageService` to persist but do NOT broadcast via SignalR. Compare with `CoreHub.SendMessageAsync` which correctly calls both `_messageService.SendMessageAsync()` AND `_chatRealtimeService.BroadcastNewMessageAsync()`.
+These broadcast calls mirror exactly what `CoreHub` already does for SignalR-originated messages. Now REST API calls (from Android/Blazor) will also broadcast to connected SignalR group members.
 
-2. **Client-side (completed on `monolith`):** Android `SignalRChatClient` was not joining SignalR channel groups, so even if the server broadcast, the client wouldn't receive it. This is now fixed — `JoinChannelGroupAsync` / `LeaveChannelGroupAsync` are wired.
+#### Verification Steps for monolith
 
-#### What Was Done on monolith (Client-Side — COMPLETED)
+1. Pull latest `main`.
+2. Build Android app, deploy to emulator.
+3. **Test 1 — Android sends, Blazor receives:** Open a channel in both Android app and Blazor web UI (`https://mint22:15443/`). Send a message from Android. The message should appear in Blazor **without refresh**.
+4. **Test 2 — Blazor sends, Android receives:** Send a message from Blazor web UI. If `ChatPageLayout` doesn't broadcast (Task 2 from prior handoff was optional), this may not work yet. Report findings.
+5. **Test 3 — Edit/Delete propagation:** Edit or delete a message from Android. Verify the change is visible in other connected clients in real time.
 
-1. Added `JoinChannelGroupAsync(Guid channelId)` and `LeaveChannelGroupAsync(Guid channelId)` to `IChatSignalRClient` interface (`src\Clients\DotNetCloud.Client.Core\IChatSignalRClient.cs`).
-2. Implemented in `SignalRChatClient` (`src\Clients\DotNetCloud.Client.Android\Chat\SignalRChatClient.cs`) — invokes hub's `JoinGroupAsync` / `LeaveGroupAsync` with group name `chat-channel-{channelId}`.
-3. `MessageListViewModel.InitializeAsync` joins the channel group after loading messages.
-4. `MessageListViewModel.Dispose` leaves the channel group (fire-and-forget, best-effort).
-5. Updated `NoOpChatSignalRClient` with no-op stubs.
-6. Build passes cleanly.
+#### Notes
 
-#### What Needs to Be Done on mint22 (Server-Side)
-
-**Task 1: Add `IChatRealtimeService` to `ChatController` and broadcast after REST message operations.**
-
-File: `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Controllers/ChatController.cs`
-
-The controller already injects `IRealtimeBroadcaster` but never uses it for message operations. Instead, inject `IChatRealtimeService` (from `DotNetCloud.Modules.Chat.Services`) which already has the correct group-naming logic.
-
-**Changes needed in constructor:**
-- Add `IChatRealtimeService chatRealtimeService` parameter.
-- Store as `private readonly IChatRealtimeService _chatRealtimeService`.
-
-**Changes needed in endpoints:**
-
-1. `SendMessageAsync` (line ~318): After `_messageService.SendMessageAsync()` returns `message`, add:
-   ```csharp
-   await _chatRealtimeService.BroadcastNewMessageAsync(channelId, message);
-   ```
-
-2. `EditMessageAsync` (line ~371): After `_messageService.EditMessageAsync()` returns `message`, add:
-   ```csharp
-   await _chatRealtimeService.BroadcastMessageEditedAsync(channelId, message);
-   ```
-
-3. `DeleteMessageAsync` (line ~389): After `_messageService.DeleteMessageAsync()`, add:
-   ```csharp
-   await _chatRealtimeService.BroadcastMessageDeletedAsync(channelId, messageId);
-   ```
-
-These are the same broadcast calls that `CoreHub` already makes (see lines 177, 201, 224 in `CoreHub.cs`).
-
-**Task 2 (Optional, follow-up): Blazor `ChatPageLayout` real-time updates.**
-
-File: `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChatPageLayout.razor.cs`
-
-`ChatPageLayout` runs in Blazor Server (`InteractiveServer`) mode. It calls `MessageService.SendMessageAsync()` directly — no SignalR broadcast occurs, so other Blazor users viewing the same channel see nothing until refresh.
-
-Options for the server agent:
-- A) After `HandleSendMessage` persists via `MessageService`, also call `IChatRealtimeService.BroadcastNewMessageAsync()` — this broadcasts to SignalR groups. Then add an `ISignalRChatService` subscription (or inject a thin in-process notifier) so other `ChatPageLayout` instances receive and display the message.
-- B) Create a simple `IChatMessageNotifier` in-process pub/sub (singleton) that `ChatPageLayout` subscribes to. Both `ChatController` and `ChatPageLayout.HandleSendMessage` publish through it. This keeps the Blazor-to-Blazor path independent of SignalR.
-
-The server agent should choose the approach that fits best. Task 1 is the critical fix; Task 2 is a nice-to-have for this cycle.
-
-#### Verification Steps (After Server Changes)
-
-1. `dotnet build` — must pass.
-2. `dotnet test` — all existing chat tests must pass.
-3. Redeploy on mint22: `dotnet publish`, restart `dotnetcloud.service`.
-4. Functional test: from Android emulator, send a message via REST. Open the same channel in the Blazor web UI. The message should appear in real time (without refresh) in the web UI.
-5. Reverse test: send from Blazor web UI, message should appear in Android app (if connected to SignalR group).
+- Task 2 (Blazor `ChatPageLayout` in-process broadcast) was not done in this cycle — it's server-side Blazor calling `MessageService` directly without going through REST, so no SignalR broadcast happens for Blazor-originated messages. This can be a follow-up if needed.
+- The server is running current binaries (PID 101610, started 2026-03-17 04:08:48 CDT).
 
 #### Request Back
 
