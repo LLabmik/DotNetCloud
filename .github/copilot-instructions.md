@@ -477,3 +477,9 @@ For local Android emulator testing in this workspace, use the DHCP-provided DNS 
 - `192.168.0.2`
 
 **Note:** Avoid using custom proxy DNS settings for this purpose.
+
+---
+
+## Git Instruction Modification Protocol
+
+If `.github/copilot-instructions.md` or any instruction/configuration file shows as modified in `git status`, NEVER restore or discard changes silently. Always run `git diff` on the file FIRST, show the user the full diff, and ask whether the changes should be kept or discarded. The user must make the decision about instruction file modifications.
