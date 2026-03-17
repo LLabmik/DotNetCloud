@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Runtime;
 
 namespace DotNetCloud.Client.Android;
@@ -16,6 +16,7 @@ public class MainApplication : MauiApplication
     internal const string ChannelIdMentions      = "chat_mentions";
     internal const string ChannelIdAnnouncements = "chat_announcements";
     internal const string ChannelIdUpload        = "photo_upload";
+    internal const string ChannelIdMediaUpload   = "media_upload";
 
     /// <summary>
     /// Initializes a new <see cref="MainApplication"/> and registers notification channels.
@@ -86,6 +87,15 @@ public class MainApplication : MauiApplication
             NotificationImportance.Low)
         {
             Description = "Progress updates for automatic photo uploads."
+        });
+
+        // Media (photo + video) auto-upload progress — low importance, no sound.
+        nm.CreateNotificationChannel(new NotificationChannel(
+            ChannelIdMediaUpload,
+            "Media upload",
+            NotificationImportance.Low)
+        {
+            Description = "Progress updates for automatic photo and video uploads."
         });
     }
 }

@@ -65,7 +65,7 @@
 | Phase 2.7 | 4 | 4 | 0 | 0 |
 | Phase 2.8 | 11 | 11 | 0 | 0 |
 | Phase 2.9 | 3 | 3 | 0 | 0 |
-| Phase 2.10 | 8 | 8 | 0 | 0 |
+| Phase 2.10 | 10 | 10 | 0 | 0 |
 | Phase 2.11 | 3 | 3 | 0 | 0 |
 | Phase 2.12 | 2 | 2 | 0 | 0 |
 | Phase 2.13 | 3 | 3 | 0 | 0 |
@@ -1229,10 +1229,12 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Push: FcmMessagingService (googleplay flavor), UnifiedPushReceiver (fdroid flavor), 5 notification channels (connection, messages, mentions, announcements, photo_upload), AndroidManifest declarations
 - ✓ Offline: SqliteMessageCache (read), IPendingMessageQueue + SqlitePendingMessageQueue (write), flush queue on SignalR reconnect
 - ✓ Photo auto-upload: IPhotoAutoUploadService + PhotoAutoUploadService; MediaStore query, 4 MB chunked upload, WiFi-only + enabled preference, progress notification
+- ✓ File browser: IFileRestClient + HttpFileRestClient (chunked upload, envelope unwrapping, download streaming), FileBrowserViewModel (folder navigation, file picker upload, camera photo/video capture, download-and-open, delete, quota), FileBrowserPage.xaml + code-behind, Files tab in AppShell
+- ✓ Media auto-upload (photos + videos): IMediaAutoUploadService + MediaAutoUploadService; scans MediaStore for both photos and videos, uploads into InstantUpload/YYYY/MM folder hierarchy (auto-created, Nextcloud-style), configurable folder name, uses IFileRestClient for chunked upload with parentId, ChannelIdMediaUpload notification channel
 - ✓ Distribution signing: Release PropertyGroup with AndroidKeyStore/KEYSTORE_* env vars, AndroidUseAapt2=true for F-Droid reproducibility
 - ✓ Direct APK download option documented
 - ✓ App store listing description written
 
 **Dependencies:** phase-2.7, phase-2.8
 **Blocking Issues:** None
-**Notes:** Phase 2.10 fully complete. All deliverables shipped: auth (PKCE+Keystore), real-time chat (SignalR + FCM/UP push), offline queue (SQLite), photo upload (MediaStore → chunked API), distribution signing, notification badges (AppBadgeManager → SetNumber on notification builders), direct APK download docs, and app store listing. Android callback handling was hardened by de-duplicating the `oauth2redirect` intent registration and applying explicit `DotNetCloud` labels so browser return prompts no longer present duplicate generic `.NET` targets. The local HTTPS path was also hardened so private LAN FQDNs that resolve inside the home network, including `mint22.kimball.home`, are treated like other local/self-hosted targets for self-signed certificate acceptance during OAuth token exchange and subsequent app traffic. Post-login navigation was further stabilized by aligning the authenticated Shell route with `//Main/ChannelList` and keeping Shell transitions plus bound collection updates on the UI thread across login, channel list, message list, channel details, and settings flows. All services registered in MauiProgram.cs via `AddSingleton`/`AddTransient`/`AddHttpClient`.
+**Notes:** Phase 2.10 fully complete. All deliverables shipped: auth (PKCE+Keystore), real-time chat (SignalR + FCM/UP push), offline queue (SQLite), photo upload (MediaStore → chunked API), file browser (IFileRestClient with chunked upload/download, FileBrowserViewModel with folder navigation and camera capture, Files tab in Shell), media auto-upload (photos + videos into InstantUpload/YYYY/MM folders via IFileRestClient), distribution signing, notification badges (AppBadgeManager → SetNumber on notification builders), direct APK download docs, and app store listing. Android callback handling was hardened by de-duplicating the `oauth2redirect` intent registration and applying explicit `DotNetCloud` labels so browser return prompts no longer present duplicate generic `.NET` targets. The local HTTPS path was also hardened so private LAN FQDNs that resolve inside the home network, including `mint22.kimball.home`, are treated like other local/self-hosted targets for self-signed certificate acceptance during OAuth token exchange and subsequent app traffic. Post-login navigation was further stabilized by aligning the authenticated Shell route with `//Main/ChannelList` and keeping Shell transitions plus bound collection updates on the UI thread across login, channel list, message list, channel details, and settings flows. All services registered in MauiProgram.cs via `AddSingleton`/`AddTransient`/`AddHttpClient`.

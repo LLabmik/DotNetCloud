@@ -30,6 +30,12 @@
             ContentTemplate="{DataTemplate views:ChannelListPage}" />
 
         <ShellContent
+            Route="Files"
+            Title="Files"
+            Icon="dotnet_bot.png"
+            ContentTemplate="{DataTemplate views:FileBrowserPage}" />
+
+        <ShellContent
             Route="Settings"
             Title="Settings"
             Icon="dotnet_bot.png"

@@ -2984,6 +2984,23 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Configurable: WiFi only, battery threshold
 - ✓ Progress notification during upload
 
+#### File Browser
+- ✓ Create `IFileRestClient` interface (browse, upload, download, quota, folder CRUD)
+- ✓ Implement `HttpFileRestClient` with chunked upload protocol and envelope unwrapping
+- ✓ Create `FileBrowserViewModel` with folder navigation, file picker upload, camera capture (photo + video), download-and-open, delete, quota display
+- ✓ Create `FileBrowserPage.xaml` UI with toolbar, CollectionView, swipe-to-delete, upload progress, quota bar
+- ✓ Register `IFileRestClient` → `HttpFileRestClient` in DI (AddHttpClient)
+- ✓ Add Files tab to `AppShell.xaml` (between Chat and Settings)
+
+#### Media Auto-Upload (Photos + Videos)
+- ✓ Create `IMediaAutoUploadService` interface (start, stop, scan-now)
+- ✓ Implement `MediaAutoUploadService` scanning both photos and videos from MediaStore
+- ✓ Organize uploads into `InstantUpload/YYYY/MM` folder hierarchy (default on)
+- ✓ Configurable upload folder name (default: "InstantUpload")
+- ✓ Upload via `IFileRestClient` (chunked upload with folder parentId)
+- ✓ Add `ChannelIdMediaUpload` notification channel in `MainApplication.cs`
+- ✓ Register `IMediaAutoUploadService` → `MediaAutoUploadService` in DI
+
 #### Android Distribution
 - ✓ Configure Google Play Store build (signed APK/AAB)
 - ✓ Configure F-Droid build (reproducible, no proprietary deps)

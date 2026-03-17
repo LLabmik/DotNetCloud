@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.DependencyInjection;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Chat;
+using DotNetCloud.Client.Android.Files;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Client.Android.ViewModels;
 using DotNetCloud.Client.Android.Views;
@@ -52,12 +53,18 @@ public static class MauiProgram
         builder.Services.AddHttpClient<IPhotoAutoUploadService, PhotoAutoUploadService>()
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
 
+        // ── Files / media upload ────────────────────────────────────
+        builder.Services.AddHttpClient<IFileRestClient, HttpFileRestClient>()
+            .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
+        builder.Services.AddSingleton<IMediaAutoUploadService, MediaAutoUploadService>();
+
         // ── ViewModels ────────────────────────────────────────────────
         builder.Services.AddTransient<LoginViewModel>();
         builder.Services.AddTransient<ChannelListViewModel>();
         builder.Services.AddTransient<MessageListViewModel>();
         builder.Services.AddTransient<ChannelDetailsViewModel>();
         builder.Services.AddTransient<SettingsViewModel>();
+        builder.Services.AddTransient<FileBrowserViewModel>();
 
         // ── Pages ─────────────────────────────────────────────────────
         builder.Services.AddTransient<LoginPage>();
@@ -65,6 +72,7 @@ public static class MauiProgram
         builder.Services.AddTransient<MessageListPage>();
         builder.Services.AddTransient<ChannelDetailsPage>();
         builder.Services.AddTransient<SettingsPage>();
+        builder.Services.AddTransient<FileBrowserPage>();
 
 #if DEBUG
         builder.Logging.AddDebug();

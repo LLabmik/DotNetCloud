@@ -1,0 +1,316 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="DotNetCloud.Client.Android.Views.FileBrowserPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:DotNetCloud.Client.Android.ViewModels"
+    Title="{Binding CurrentFolderName}"
+    BackgroundColor="#0F172A">
+
+    <Grid RowDefinitions="Auto,*,Auto,Auto">
+
+        <!-- Top toolbar: back + folder name + actions -->
+        <Border
+            Grid.Row="0"
+            BackgroundColor="#1E293B"
+            StrokeThickness="0"
+            Padding="8,8">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto">
+
+                <!-- Back button -->
+                <ImageButton
+                    Grid.Column="0"
+                    BackgroundColor="Transparent"
+                    IsVisible="{Binding CanGoBack}"
+                    Command="{Binding GoBackCommand}"
+                    HeightRequest="40"
+                    WidthRequest="40">
+                    <ImageButton.Source>
+                        <FontImageSource
+                            FontFamily="OpenSansRegular"
+                            Glyph="←"
+                            Size="20"
+                            Color="#94A3B8" />
+                    </ImageButton.Source>
+                </ImageButton>
+
+                <!-- Spacer -->
+                <BoxView Grid.Column="1" BackgroundColor="Transparent" />
+
+                <!-- New folder button -->
+                <Border
+                    Grid.Column="2"
+                    BackgroundColor="#334155"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 8"
+                    Padding="0"
+                    Margin="4,0"
+                    HeightRequest="36"
+                    WidthRequest="36">
+                    <Label
+                        FontSize="18"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center"
+                        TextColor="#94A3B8"
+                        Text="📁+" />
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding CreateFolderCommand}" />
+                    </Border.GestureRecognizers>
+                </Border>
+
+                <!-- Upload file button -->
+                <Border
+                    Grid.Column="3"
+                    BackgroundColor="#334155"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 8"
+                    Padding="0"
+                    Margin="4,0"
+                    HeightRequest="36"
+                    WidthRequest="36">
+                    <Label
+                        FontSize="18"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center"
+                        TextColor="#94A3B8"
+                        Text="📤" />
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding UploadFileCommand}" />
+                    </Border.GestureRecognizers>
+                </Border>
+
+                <!-- Camera photo button -->
+                <Border
+                    Grid.Column="4"
+                    BackgroundColor="#334155"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 8"
+                    Padding="0"
+                    Margin="4,0"
+                    HeightRequest="36"
+                    WidthRequest="36">
+                    <Label
+                        FontSize="18"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center"
+                        TextColor="#94A3B8"
+                        Text="📷" />
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding CapturePhotoCommand}" />
+                    </Border.GestureRecognizers>
+                </Border>
+
+                <!-- Camera video button -->
+                <Border
+                    Grid.Column="5"
+                    BackgroundColor="#334155"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 8"
+                    Padding="0"
+                    Margin="4,0"
+                    HeightRequest="36"
+                    WidthRequest="36">
+                    <Label
+                        FontSize="18"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center"
+                        TextColor="#94A3B8"
+                        Text="🎥" />
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding CaptureVideoCommand}" />
+                    </Border.GestureRecognizers>
+                </Border>
+
+            </Grid>
+        </Border>
+
+        <!-- File list with pull-to-refresh -->
+        <RefreshView
+            Grid.Row="1"
+            Command="{Binding LoadFilesCommand}"
+            IsRefreshing="{Binding IsLoading}"
+            RefreshColor="#0EA5E9">
+
+            <CollectionView
+                ItemsSource="{Binding Items}"
+                SelectionMode="None">
+
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="vm:FileItemViewModel">
+                        <SwipeView>
+                            <SwipeView.RightItems>
+                                <SwipeItems Mode="Execute">
+                                    <SwipeItem
+                                        Text="Delete"
+                                        BackgroundColor="#EF4444"
+                                        Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.DeleteItemCommand}"
+                                        CommandParameter="{Binding .}" />
+                                </SwipeItems>
+                            </SwipeView.RightItems>
+
+                            <Border
+                                BackgroundColor="#1E293B"
+                                StrokeThickness="0"
+                                StrokeShape="RoundRectangle 12"
+                                Margin="12,3"
+                                Padding="0">
+
+                                <Grid
+                                    ColumnDefinitions="Auto,*,Auto"
+                                    Padding="14,12">
+
+                                    <!-- File/Folder icon -->
+                                    <Border
+                                        Grid.Column="0"
+                                        BackgroundColor="#334155"
+                                        HeightRequest="44"
+                                        WidthRequest="44"
+                                        StrokeThickness="0"
+                                        StrokeShape="RoundRectangle 12"
+                                        Margin="0,0,12,0">
+                                        <Label
+                                            FontSize="20"
+                                            HorizontalOptions="Center"
+                                            VerticalOptions="Center"
+                                            Text="{Binding Icon}" />
+                                    </Border>
+
+                                    <!-- Name + details -->
+                                    <VerticalStackLayout
+                                        Grid.Column="1"
+                                        VerticalOptions="Center"
+                                        Spacing="2">
+                                        <Label
+                                            FontSize="15"
+                                            TextColor="#F1F5F9"
+                                            LineBreakMode="TailTruncation"
+                                            MaxLines="1"
+                                            Text="{Binding Name}" />
+                                        <HorizontalStackLayout Spacing="8">
+                                            <Label
+                                                FontSize="12"
+                                                TextColor="#64748B"
+                                                Text="{Binding SizeDisplay}" />
+                                            <Label
+                                                FontSize="12"
+                                                TextColor="#475569"
+                                                Text="·" />
+                                            <Label
+                                                FontSize="12"
+                                                TextColor="#64748B"
+                                                Text="{Binding DateDisplay}" />
+                                        </HorizontalStackLayout>
+                                    </VerticalStackLayout>
+
+                                    <!-- Folder chevron -->
+                                    <Label
+                                        Grid.Column="2"
+                                        FontSize="16"
+                                        IsVisible="{Binding IsFolder}"
+                                        TextColor="#475569"
+                                        VerticalOptions="Center"
+                                        Text="›" />
+
+                                    <Grid.GestureRecognizers>
+                                        <TapGestureRecognizer
+                                            Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectItemCommand}"
+                                            CommandParameter="{Binding .}" />
+                                    </Grid.GestureRecognizers>
+
+                                </Grid>
+                            </Border>
+                        </SwipeView>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+
+                <CollectionView.Header>
+                    <BoxView HeightRequest="4" BackgroundColor="Transparent" />
+                </CollectionView.Header>
+
+                <CollectionView.Footer>
+                    <BoxView HeightRequest="4" BackgroundColor="Transparent" />
+                </CollectionView.Footer>
+
+                <!-- Empty state -->
+                <CollectionView.EmptyView>
+                    <VerticalStackLayout
+                        HorizontalOptions="Center"
+                        Padding="32"
+                        Spacing="12"
+                        VerticalOptions="Center">
+                        <Label
+                            FontSize="40"
+                            HorizontalOptions="Center"
+                            Text="📂" />
+                        <Label
+                            FontSize="16"
+                            FontAttributes="Bold"
+                            HorizontalOptions="Center"
+                            TextColor="#F1F5F9"
+                            Text="This folder is empty" />
+                        <Label
+                            FontSize="13"
+                            HorizontalOptions="Center"
+                            HorizontalTextAlignment="Center"
+                            TextColor="#64748B"
+                            Text="Upload files, take a photo, or create a folder to get started." />
+                        <Label
+                            FontSize="13"
+                            HorizontalOptions="Center"
+                            IsVisible="{Binding ErrorMessage, Converter={StaticResource IsNotNullOrEmpty}}"
+                            TextColor="#FCA5A5"
+                            Text="{Binding ErrorMessage}" />
+                    </VerticalStackLayout>
+                </CollectionView.EmptyView>
+
+            </CollectionView>
+        </RefreshView>
+
+        <!-- Upload progress overlay -->
+        <Border
+            Grid.Row="2"
+            BackgroundColor="#1E293B"
+            StrokeThickness="0"
+            Padding="16,10"
+            IsVisible="{Binding IsUploading}">
+            <VerticalStackLayout Spacing="6">
+                <HorizontalStackLayout Spacing="8">
+                    <Label
+                        FontSize="13"
+                        TextColor="#0EA5E9"
+                        Text="Uploading:" />
+                    <Label
+                        FontSize="13"
+                        TextColor="#F1F5F9"
+                        LineBreakMode="TailTruncation"
+                        Text="{Binding UploadFileName}" />
+                </HorizontalStackLayout>
+                <ProgressBar
+                    Progress="{Binding UploadProgress}"
+                    ProgressColor="#0EA5E9"
+                    HeightRequest="4" />
+            </VerticalStackLayout>
+        </Border>
+
+        <!-- Quota bar -->
+        <Border
+            Grid.Row="3"
+            BackgroundColor="#1E293B"
+            StrokeThickness="0"
+            Padding="16,8"
+            IsVisible="{Binding QuotaDisplayText, Converter={StaticResource IsNotNullOrEmpty}}">
+            <VerticalStackLayout Spacing="4">
+                <Label
+                    FontSize="11"
+                    TextColor="#64748B"
+                    Text="{Binding QuotaDisplayText}" />
+                <ProgressBar
+                    Progress="{Binding QuotaPercentage}"
+                    ProgressColor="#0EA5E9"
+                    HeightRequest="3" />
+            </VerticalStackLayout>
+        </Border>
+
+    </Grid>
+
+</ContentPage>
