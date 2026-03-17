@@ -27,6 +27,7 @@ public class ChatControllerTests
     private Mock<IChannelInviteService> _inviteService = null!;
     private Mock<IRealtimeBroadcaster> _realtimeBroadcaster = null!;
     private Mock<IChatRealtimeService> _chatRealtimeService = null!;
+    private Mock<IChatMessageNotifier> _chatMessageNotifier = null!;
     private Mock<IPushNotificationService> _pushNotificationService = null!;
     private Mock<INotificationPreferenceStore> _notificationPreferenceStore = null!;
     private ChatController _controller = null!;
@@ -44,6 +45,7 @@ public class ChatControllerTests
         _inviteService = new Mock<IChannelInviteService>();
         _realtimeBroadcaster = new Mock<IRealtimeBroadcaster>();
         _chatRealtimeService = new Mock<IChatRealtimeService>();
+        _chatMessageNotifier = new Mock<IChatMessageNotifier>();
         _pushNotificationService = new Mock<IPushNotificationService>();
         _notificationPreferenceStore = new Mock<INotificationPreferenceStore>();
 
@@ -67,6 +69,7 @@ public class ChatControllerTests
             _inviteService.Object,
             _realtimeBroadcaster.Object,
             _chatRealtimeService.Object,
+            _chatMessageNotifier.Object,
             _pushNotificationService.Object,
             _notificationPreferenceStore.Object,
             NullLogger<ChatController>.Instance);

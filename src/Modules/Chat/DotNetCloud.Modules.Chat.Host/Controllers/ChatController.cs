@@ -27,6 +27,7 @@ public class ChatController : ControllerBase
     private readonly IChannelInviteService _inviteService;
     private readonly IRealtimeBroadcaster _realtimeBroadcaster;
     private readonly IChatRealtimeService _chatRealtimeService;
+    private readonly IChatMessageNotifier _chatMessageNotifier;
     private readonly IPushNotificationService _pushNotificationService;
     private readonly INotificationPreferenceStore _notificationPreferenceStore;
     private readonly ILogger<ChatController> _logger;
@@ -45,6 +46,7 @@ public class ChatController : ControllerBase
         IChannelInviteService inviteService,
         IRealtimeBroadcaster realtimeBroadcaster,
         IChatRealtimeService chatRealtimeService,
+        IChatMessageNotifier chatMessageNotifier,
         IPushNotificationService pushNotificationService,
         INotificationPreferenceStore notificationPreferenceStore,
         ILogger<ChatController> logger)
@@ -59,6 +61,7 @@ public class ChatController : ControllerBase
         _inviteService = inviteService;
         _realtimeBroadcaster = realtimeBroadcaster;
         _chatRealtimeService = chatRealtimeService;
+        _chatMessageNotifier = chatMessageNotifier;
         _pushNotificationService = pushNotificationService;
         _notificationPreferenceStore = notificationPreferenceStore;
         _logger = logger;
@@ -324,6 +327,7 @@ public class ChatController : ControllerBase
         {
             var message = await _messageService.SendMessageAsync(channelId, dto, ToCaller(userId));
             await _chatRealtimeService.BroadcastNewMessageAsync(channelId, message);
+            _chatMessageNotifier.NotifyMessageReceived(channelId, message);
             return Ok(Envelope(message));
         }
         catch (ArgumentException ex)
@@ -378,6 +382,7 @@ public class ChatController : ControllerBase
         {
             var message = await _messageService.EditMessageAsync(messageId, dto, ToCaller(userId));
             await _chatRealtimeService.BroadcastMessageEditedAsync(channelId, message);
+            _chatMessageNotifier.NotifyMessageEdited(channelId, message);
             return Ok(Envelope(message));
         }
         catch (InvalidOperationException)
@@ -398,6 +403,7 @@ public class ChatController : ControllerBase
         {
             await _messageService.DeleteMessageAsync(messageId, ToCaller(userId));
             await _chatRealtimeService.BroadcastMessageDeletedAsync(channelId, messageId);
+            _chatMessageNotifier.NotifyMessageDeleted(channelId, messageId);
             return Ok(Envelope(new { deleted = true }));
         }
         catch (InvalidOperationException)

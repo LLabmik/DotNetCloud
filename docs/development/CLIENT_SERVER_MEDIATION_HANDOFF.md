@@ -74,7 +74,7 @@ Archived context:
 
 ## Active Handoff
 
-### Server-Side SignalR Broadcast — COMPLETED, Ready for Verification
+### Server-Side Real-Time Chat — COMPLETED, Ready for Verification
 
 **Target machine:** `monolith`
 **Priority:** High
@@ -82,27 +82,37 @@ Archived context:
 
 #### What Was Done on mint22 (Server-Side — COMPLETED)
 
-1. Injected `IChatRealtimeService` into `ChatController` constructor (alongside existing `IRealtimeBroadcaster`).
-2. Added `BroadcastNewMessageAsync(channelId, message)` call after `SendMessageAsync` in `POST /api/v1/chat/channels/{channelId}/messages`.
-3. Added `BroadcastMessageEditedAsync(channelId, message)` call after `EditMessageAsync` in `PUT /api/v1/chat/channels/{channelId}/messages/{messageId}`.
-4. Added `BroadcastMessageDeletedAsync(channelId, messageId)` call after `DeleteMessageAsync` in `DELETE /api/v1/chat/channels/{channelId}/messages/{messageId}`.
-5. Updated `ChatControllerTests` to inject mock `IChatRealtimeService` — all 283 tests pass.
-6. Published and redeployed on mint22. Server healthy at `https://mint22:15443/health`.
+**Task 1: REST endpoint SignalR broadcast (commit 7b8f757)**
+1. Injected `IChatRealtimeService` into `ChatController`.
+2. Added `BroadcastNewMessageAsync` / `BroadcastMessageEditedAsync` / `BroadcastMessageDeletedAsync` calls after REST send/edit/delete endpoints.
+3. REST API clients (Android) now trigger real-time updates to SignalR group members.
 
-These broadcast calls mirror exactly what `CoreHub` already does for SignalR-originated messages. Now REST API calls (from Android/Blazor) will also broadcast to connected SignalR group members.
+**Task 2: Blazor in-process real-time (this commit)**
+1. Created `IChatMessageNotifier` — lightweight in-process pub/sub singleton (`InProcessChatMessageNotifier`). Events: `MessageReceived`, `MessageEdited`, `MessageDeleted`.
+2. Registered in `ChatServiceRegistration.cs` as singleton.
+3. `ChatPageLayout.razor.cs`:
+   - Injects `IChatRealtimeService` + `IChatMessageNotifier`.
+   - After send/edit/delete: calls `BroadcastNewMessageAsync` (for SignalR/Android) AND `NotifyMessageReceived` (for other Blazor circuits).
+   - Subscribes to `IChatMessageNotifier` events in `OnInitializedAsync`; unsubscribes in `Dispose`.
+   - On receive: checks channelId match, deduplicates by message ID, calls `InvokeAsync(StateHasChanged)`.
+4. `ChatController`: also publishes to `IChatMessageNotifier` after REST operations so Blazor users see messages from REST clients.
+5. All 283 chat tests pass. Deployed and healthy on mint22.
+
+**Complete real-time matrix now works:**
+| Source | → Android (SignalR) | → Blazor (in-process) |
+|--------|--------------------|-----------------------|
+| REST API (Android) | ✓ via `IChatRealtimeService` | ✓ via `IChatMessageNotifier` |
+| Blazor `ChatPageLayout` | ✓ via `IChatRealtimeService` | ✓ via `IChatMessageNotifier` |
+| SignalR Hub (`CoreHub`) | ✓ (already worked) | ✗ (hub doesn't publish to notifier — follow-up) |
 
 #### Verification Steps for monolith
 
 1. Pull latest `main`.
 2. Build Android app, deploy to emulator.
-3. **Test 1 — Android sends, Blazor receives:** Open a channel in both Android app and Blazor web UI (`https://mint22:15443/`). Send a message from Android. The message should appear in Blazor **without refresh**.
-4. **Test 2 — Blazor sends, Android receives:** Send a message from Blazor web UI. If `ChatPageLayout` doesn't broadcast (Task 2 from prior handoff was optional), this may not work yet. Report findings.
-5. **Test 3 — Edit/Delete propagation:** Edit or delete a message from Android. Verify the change is visible in other connected clients in real time.
-
-#### Notes
-
-- Task 2 (Blazor `ChatPageLayout` in-process broadcast) was not done in this cycle — it's server-side Blazor calling `MessageService` directly without going through REST, so no SignalR broadcast happens for Blazor-originated messages. This can be a follow-up if needed.
-- The server is running current binaries (PID 101610, started 2026-03-17 04:08:48 CDT).
+3. **Test 1 — Android sends, Blazor receives:** Open same channel in Android + Blazor web UI. Send from Android. Message should appear in Blazor without refresh.
+4. **Test 2 — Blazor sends, Android receives:** Send from Blazor. Message should appear in Android app in real time.
+5. **Test 3 — Blazor sends, Blazor receives:** Open same channel in two Blazor browser tabs. Send from one. Message should appear in the other without refresh.
+6. **Test 4 — Edit/Delete:** Edit or delete a message from any client. Verify the change propagates in real time.
 
 #### Request Back
 

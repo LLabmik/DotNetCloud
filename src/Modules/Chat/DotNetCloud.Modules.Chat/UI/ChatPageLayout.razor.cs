@@ -14,7 +14,7 @@ namespace DotNetCloud.Modules.Chat.UI;
 /// Manages channel selection, message loading, message sending, reactions,
 /// member management, search, typing indicators, and announcements.
 /// </summary>
-public partial class ChatPageLayout : ComponentBase
+public partial class ChatPageLayout : ComponentBase, IDisposable
 {
     private const int MessagePageSize = 50;
     private const int SearchPageSize = 25;
@@ -27,6 +27,8 @@ public partial class ChatPageLayout : ComponentBase
     [Inject] private IAnnouncementService AnnouncementService { get; set; } = default!;
     [Inject] private IChannelInviteService InviteService { get; set; } = default!;
     [Inject] private IUserDirectory UserDirectory { get; set; } = default!;
+    [Inject] private IChatRealtimeService ChatRealtimeService { get; set; } = default!;
+    [Inject] private IChatMessageNotifier ChatMessageNotifier { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
 
     // Channel state
@@ -93,8 +95,61 @@ public partial class ChatPageLayout : ComponentBase
     {
         var caller = await GetCallerContextAsync();
         _currentUserId = caller.UserId;
+
+        ChatMessageNotifier.MessageReceived += OnRemoteMessageReceived;
+        ChatMessageNotifier.MessageEdited += OnRemoteMessageEdited;
+        ChatMessageNotifier.MessageDeleted += OnRemoteMessageDeleted;
+
         await LoadChannelsAsync();
         await LoadAnnouncementsAsync();
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        ChatMessageNotifier.MessageReceived -= OnRemoteMessageReceived;
+        ChatMessageNotifier.MessageEdited -= OnRemoteMessageEdited;
+        ChatMessageNotifier.MessageDeleted -= OnRemoteMessageDeleted;
+    }
+
+    private void OnRemoteMessageReceived(Guid channelId, MessageDto message)
+    {
+        if (_selectedChannel is null || _selectedChannel.Id != channelId) return;
+        if (_messages.Any(m => m.Id == message.Id)) return;
+
+        InvokeAsync(() =>
+        {
+            _messages.Add(ToMessageViewModel(message));
+            StateHasChanged();
+        });
+    }
+
+    private void OnRemoteMessageEdited(Guid channelId, MessageDto message)
+    {
+        if (_selectedChannel is null || _selectedChannel.Id != channelId) return;
+
+        InvokeAsync(() =>
+        {
+            var idx = _messages.FindIndex(m => m.Id == message.Id);
+            if (idx >= 0)
+            {
+                _messages[idx] = ToMessageViewModel(message);
+                StateHasChanged();
+            }
+        });
+    }
+
+    private void OnRemoteMessageDeleted(Guid channelId, Guid messageId)
+    {
+        if (_selectedChannel is null || _selectedChannel.Id != channelId) return;
+
+        InvokeAsync(() =>
+        {
+            if (_messages.RemoveAll(m => m.Id == messageId) > 0)
+            {
+                StateHasChanged();
+            }
+        });
     }
 
     // ── Channel Operations ──────────────────────────────────────────
@@ -406,6 +461,9 @@ public partial class ChatPageLayout : ComponentBase
             await ResolveDisplayNamesAsync([sent]);
             _messages.Add(ToMessageViewModel(sent));
             _replyToMessage = null;
+
+            await ChatRealtimeService.BroadcastNewMessageAsync(_selectedChannel.Id, sent);
+            ChatMessageNotifier.NotifyMessageReceived(_selectedChannel.Id, sent);
         }
         catch (Exception ex)
         {
@@ -431,6 +489,12 @@ public partial class ChatPageLayout : ComponentBase
                 _messages[idx] = ToMessageViewModel(edited);
             }
             _editingMessage = null;
+
+            if (_selectedChannel is not null)
+            {
+                await ChatRealtimeService.BroadcastMessageEditedAsync(_selectedChannel.Id, edited);
+                ChatMessageNotifier.NotifyMessageEdited(_selectedChannel.Id, edited);
+            }
         }
         catch (Exception ex)
         {
@@ -446,6 +510,12 @@ public partial class ChatPageLayout : ComponentBase
             var caller = await GetCallerContextAsync();
             await MessageService.DeleteMessageAsync(messageId, caller);
             _messages.RemoveAll(m => m.Id == messageId);
+
+            if (_selectedChannel is not null)
+            {
+                await ChatRealtimeService.BroadcastMessageDeletedAsync(_selectedChannel.Id, messageId);
+                ChatMessageNotifier.NotifyMessageDeleted(_selectedChannel.Id, messageId);
+            }
         }
         catch (Exception ex)
         {

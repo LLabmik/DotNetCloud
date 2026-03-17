@@ -25,6 +25,7 @@ public static class ChatServiceRegistration
         services.AddScoped<IPinService, PinService>();
         services.AddSingleton<ITypingIndicatorService, TypingIndicatorService>();
         services.AddSingleton<IChatRealtimeService, ChatRealtimeService>();
+        services.AddSingleton<IChatMessageNotifier, InProcessChatMessageNotifier>();
         services.AddScoped<IAnnouncementService, AnnouncementService>();
         services.AddScoped<IChannelInviteService, ChannelInviteService>();
         services.AddScoped<IMentionNotificationService, MentionNotificationService>();
