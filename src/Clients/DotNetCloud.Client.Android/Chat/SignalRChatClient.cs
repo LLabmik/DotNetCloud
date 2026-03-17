@@ -15,11 +15,21 @@ internal sealed record UnreadCountUpdatedPayload(
     [property: JsonPropertyName("count")] int Count);
 
 /// <summary>
+/// Lightweight client-side mirror of the server's MessageDto for SignalR deserialization.
+/// Only includes the fields needed for real-time display; full message is fetched on scroll-back.
+/// </summary>
+internal sealed record SignalRMessageDto(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("content")] string Content,
+    [property: JsonPropertyName("senderUserId")] Guid SenderUserId,
+    [property: JsonPropertyName("sentAt")] DateTime SentAt);
+
+/// <summary>
 /// Server payload for new messages: { channelId, message }.
 /// </summary>
 internal sealed record NewMessagePayload(
     [property: JsonPropertyName("channelId")] string ChannelId,
-    [property: JsonPropertyName("message")] string Message);
+    [property: JsonPropertyName("message")] SignalRMessageDto Message);
 
 /// <summary>
 /// <see cref="IChatSignalRClient"/> implementation that maintains a persistent SignalR
@@ -82,7 +92,14 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
             OnUnreadCountUpdated?.Invoke(this, new ChatUnreadCountUpdatedEventArgs(payload.ChannelId, payload.Count, false)));
 
         _hub.On<NewMessagePayload>("NewMessage", payload =>
-            OnNewChatMessage?.Invoke(this, new ChatMessageReceivedEventArgs(payload.ChannelId, string.Empty, string.Empty, payload.Message, false)));
+            OnNewChatMessage?.Invoke(this, new ChatMessageReceivedEventArgs(
+                payload.ChannelId,
+                string.Empty,
+                payload.Message.SenderUserId.ToString(),
+                payload.Message.Content,
+                payload.Message.Id,
+                payload.Message.SentAt,
+                false)));
 
         _hub.Reconnected += async connectionId =>
         {

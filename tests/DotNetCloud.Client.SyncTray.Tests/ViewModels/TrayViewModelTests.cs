@@ -256,6 +256,8 @@ public sealed class TrayViewModelTests
                 "General",
                 "Alice",
                 "Hello from chat",
+                Guid.NewGuid(),
+                DateTime.UtcNow,
                 false));
 
         notifMock.Verify(
@@ -282,6 +284,8 @@ public sealed class TrayViewModelTests
                 "Engineering",
                 "Bob",
                 "@you please check this",
+                Guid.NewGuid(),
+                DateTime.UtcNow,
                 true));
 
         notifMock.Verify(
@@ -309,6 +313,8 @@ public sealed class TrayViewModelTests
                 "General",
                 "Carol",
                 "Muted message",
+                Guid.NewGuid(),
+                DateTime.UtcNow,
                 false));
 
         notifMock.Verify(
@@ -338,6 +344,8 @@ public sealed class TrayViewModelTests
                 "General",
                 "Dana",
                 "Click me",
+                Guid.NewGuid(),
+                DateTime.UtcNow,
                 false));
 
         notifMock.Verify(

@@ -51,10 +51,14 @@ public sealed record ChatUnreadCountUpdatedEventArgs(string ChannelId, int Unrea
 /// <param name="ChannelDisplayName">Display name of the channel.</param>
 /// <param name="SenderDisplayName">Display name of the sender.</param>
 /// <param name="MessagePreview">Short message preview.</param>
+/// <param name="MessageId">Server-assigned message identifier.</param>
+/// <param name="SentAt">Server timestamp when the message was sent (UTC).</param>
 /// <param name="IsMention">Whether the message contains a mention for the current user.</param>
 public sealed record ChatMessageReceivedEventArgs(
     string ChannelId,
     string ChannelDisplayName,
     string SenderDisplayName,
     string MessagePreview,
+    Guid MessageId,
+    DateTime SentAt,
     bool IsMention);

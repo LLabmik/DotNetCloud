@@ -375,7 +375,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
 
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            var vm = new MessageItemViewModel(Guid.NewGuid(), e.SenderDisplayName, e.MessagePreview, DateTimeOffset.UtcNow);
+            var vm = new MessageItemViewModel(e.MessageId, e.SenderDisplayName, e.MessagePreview, new DateTimeOffset(e.SentAt, TimeSpan.Zero));
             Messages.Add(vm);
         });
     }
