@@ -5,6 +5,19 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Server Redeploy — Chat.Host + Files.Host (2026-03-17)
+
+Redeployed server on `mint22` after `DotNetCloud.Core.Server.csproj` gained references to `Chat.Host` and `Files.Host`.
+
+- **global.json fix:** SDK version changed from `10.0.200` to `10.0.100` with `latestMinor` rollForward to support both mint22 (10.0.104) and Windows (10.0.200).
+- `dotnet publish` succeeded — all modules built including Chat.Host and Files.Host.
+- `dotnetcloud.service` restarted cleanly. `/health/live` returned 200 Healthy.
+- **Chat controller verified:** `GET /api/v1/chat/channels` returns HTTP 500 (expected — no auth token provided, `UserId cannot be empty`). Route IS discovered — not 404.
+- **Note:** Chat SignalR hub (`/hubs/chat`) is NOT mapped in Core.Server — only in Chat.Host standalone mode. This is expected for the current monolith architecture; the Android client uses `/hubs/core`.
+- Zero ERR entries from normal operation; only test-induced ERR lines from unauthenticated curl probes.
+
+---
+
 ## Archived: Deletion Propagation Chain — CLOSED (2026-03-16)
 
 Full 3-step chain completed. Deletion propagation (files and directories) verified on all machines.

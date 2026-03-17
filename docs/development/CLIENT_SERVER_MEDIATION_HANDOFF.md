@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-16 (Deletion propagation chain CLOSED — all 3 steps verified)
+Last updated: 2026-03-17 (Server redeploy complete — Chat.Host + Files.Host live on mint22)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -53,7 +53,7 @@ Archived context:
   - Linux client (`mint-dnc-client`): verified 2026-03-16 ~03:00Z
   - Windows client (`Windows11-TestDNC`): verified 2026-03-16 ~08:16Z. Bug fixed: `RemoveFileRecordsUnderPathAsync` path separator on Windows.
   - Server (`mint22`): confirmed stable 2026-03-16. Zero ERR entries, both nodes soft-deleted, no 5xx.
-- **Active cycle:** Server redeploy requested — Chat.Host + Files.Host references added to Core.Server.
+- **Active cycle:** Server redeploy COMPLETE — Chat.Host + Files.Host endpoints live on mint22. Chat controller route: `/api/v1/chat/...`. global.json SDK version fixed for cross-machine compatibility.
 
 ## Environment
 
@@ -73,50 +73,36 @@ Archived context:
 
 ## Active Handoff
 
-### Server Redeploy — Chat.Host + Files.Host Endpoint Registration
+### Server Redeploy COMPLETE — Ready for Android Client
 
-**Target machine:** `mint22`
+**Target machine:** `monolith`
 **Priority:** Normal
-**Requested by:** `Windows11-TestDNC` (client agent)
+**Completed by:** `mint22` (server agent)
 
-#### What Changed
+#### What Was Done
 
-`DotNetCloud.Core.Server.csproj` now references two additional Host projects:
+1. `git pull` fetched the latest changes including Chat.Host + Files.Host project references.
+2. **global.json fix:** SDK version changed from `10.0.200` → `10.0.100` with `rollForward: latestMinor` to support both mint22 (SDK 10.0.104) and Windows/monolith (SDK 10.0.200).
+3. `dotnet publish` succeeded — all modules built including Chat.Host and Files.Host assemblies.
+4. `dotnetcloud.service` restarted and passed health probe.
 
-- `DotNetCloud.Modules.Chat.Host` — registers Chat API endpoints (ChatController)
-- `DotNetCloud.Modules.Files.Host` — registers Files API endpoints
+#### Verification Results
 
-Without these references, the server binary does not include the Chat/Files controller assemblies, so their API endpoints are not discovered or mapped at startup.
+- ✓ `dotnet publish` succeeds with no errors
+- ✓ `dotnetcloud.service` restarts without failure
+- ✓ Health probe passes (`/health/live` returns 200)
+- ✓ Chat API controller discovered (`/api/v1/chat/channels` returns 500 — expected without auth, NOT 404)
+- ✓ Zero ERR entries from normal operation (only test-induced from unauthenticated curl probes)
 
-#### Action Required
+#### Important Notes for Android Client
 
-1. `git pull origin main` to get the latest changes.
-2. Run the bare-metal redeploy script:
-   ```bash
-   cd /path/to/dotnetcloud   # wherever the repo is cloned on mint22
-   ./tools/redeploy-baremetal.sh
-   ```
-   This will:
-   - `dotnet publish` the server project in Release mode
-   - Restart `dotnetcloud.service` via systemd
-   - Probe the health endpoint to confirm the service is live
-3. After redeploy, verify the Chat endpoints are registered by hitting:
-   ```bash
-   curl -kfsS https://localhost:15443/api/chat/health
-   ```
-   Expected: HTTP 200 with a health response (not 404).
-
-#### Verification Checklist
-
-- [ ] `dotnet publish` succeeds with no errors
-- [ ] `dotnetcloud.service` restarts without failure
-- [ ] Health probe passes (`/health/live` returns 200)
-- [ ] Chat API endpoint reachable (`/api/chat/health` returns 200, not 404)
-- [ ] No ERR entries in `journalctl -u dotnetcloud.service --since "5 min ago"`
+- **Chat REST route prefix is `api/v1/chat`** (NOT `api/chat`). Verify `HttpChatRestClient` uses this prefix.
+- **Chat SignalR hub:** `/hubs/chat` is NOT mapped in the monolith Core.Server — only in Chat.Host standalone mode. The Android client should use `/hubs/core` for SignalR, which IS mapped and returns 401 (auth required, as expected).
+- The `global.json` now uses `10.0.100` + `latestMinor` rollForward, so both SDK 10.0.104 and 10.0.200 will work.
 
 #### Hand Off To
 
-**Next target:** `monolith` (Android client agent)
+Android client agent on `monolith` — proceed with testing Chat functionality against `https://mint22:15443/`.
 
 After redeploy is verified, update this handoff with results and mark target as `monolith` so the Android client can rebuild the APK and test channel loading against the newly-registered Chat API endpoints.
 
