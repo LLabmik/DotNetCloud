@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Serialization;
 using DotNetCloud.Client.Core.Auth;
 using Microsoft.Maui.ApplicationModel;
 
@@ -139,8 +140,13 @@ internal sealed class MauiOAuth2Service : IOAuth2Service
 
     private sealed class TokenResponse
     {
+        [JsonPropertyName("access_token")]
         public string AccessToken { get; init; } = string.Empty;
+
+        [JsonPropertyName("refresh_token")]
         public string RefreshToken { get; init; } = string.Empty;
+
+        [JsonPropertyName("expires_in")]
         public int ExpiresIn { get; init; }
     }
 }

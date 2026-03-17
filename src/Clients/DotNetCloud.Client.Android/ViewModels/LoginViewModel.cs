@@ -1,3 +1,5 @@
+using System.Text;
+using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DotNetCloud.Client.Android.Auth;
@@ -54,6 +56,14 @@ public sealed partial class LoginViewModel : ObservableObject
             var result = await _oauth.AuthenticateAsync(normalizedUrl, ct);
 
             await _tokenStore.SaveTokensAsync(normalizedUrl, result.AccessToken, result.RefreshToken, ct);
+
+            var email = ExtractClaimFromToken(result.AccessToken, "email")
+                        ?? ExtractClaimFromToken(result.AccessToken, "preferred_username")
+                        ?? ExtractClaimFromToken(result.AccessToken, "name")
+                        ?? new Uri(normalizedUrl).Host;
+            var displayName = ExtractClaimFromToken(result.AccessToken, "name")
+                              ?? new Uri(normalizedUrl).Host;
+            _serverStore.Save(new ServerConnection(normalizedUrl, displayName, email));
             _serverStore.SetActive(normalizedUrl);
 
             _logger.LogInformation("Login succeeded for {ServerUrl}.", normalizedUrl);
@@ -82,5 +92,24 @@ public sealed partial class LoginViewModel : ObservableObject
         if (!url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
             url = "https://" + url;
         return url.TrimEnd('/');
+    }
+
+    private static string? ExtractClaimFromToken(string accessToken, string claimName)
+    {
+        try
+        {
+            var parts = accessToken.Split('.');
+            if (parts.Length < 2) return null;
+
+            var payload = parts[1].Replace('-', '+').Replace('_', '/');
+            payload = payload.PadRight(payload.Length + (4 - payload.Length % 4) % 4, '=');
+            var json = Encoding.UTF8.GetString(Convert.FromBase64String(payload));
+            using var doc = JsonDocument.Parse(json);
+            return doc.RootElement.TryGetProperty(claimName, out var val) ? val.GetString() : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

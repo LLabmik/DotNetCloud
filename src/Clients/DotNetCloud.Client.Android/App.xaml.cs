@@ -12,6 +12,9 @@ public partial class App : Application
     {
         InitializeComponent();
         _serverStore = serverStore;
+
+        // Force dark mode across the entire app
+        UserAppTheme = AppTheme.Dark;
     }
 
     /// <inheritdoc />

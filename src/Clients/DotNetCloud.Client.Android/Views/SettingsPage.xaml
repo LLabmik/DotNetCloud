@@ -3,54 +3,131 @@
     x:Class="DotNetCloud.Client.Android.Views.SettingsPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-    Title="Settings">
+    Title="Settings"
+    BackgroundColor="#0F172A">
 
     <ScrollView>
-        <VerticalStackLayout Padding="24" Spacing="20">
+        <VerticalStackLayout Padding="12,12" Spacing="8">
 
-            <!-- Account section -->
+            <!-- Account card -->
+            <Border
+                BackgroundColor="#1E293B"
+                StrokeThickness="0"
+                StrokeShape="RoundRectangle 16"
+                Padding="20,20">
+
+                <VerticalStackLayout Spacing="4">
+                    <Label
+                        FontAttributes="Bold"
+                        FontSize="12"
+                        TextColor="#64748B"
+                        Text="ACCOUNT"
+                        TextTransform="Uppercase"
+                        Margin="0,0,0,12" />
+
+                    <HorizontalStackLayout Spacing="14">
+                        <!-- Account avatar -->
+                        <Border
+                            BackgroundColor="#0EA5E9"
+                            HeightRequest="48"
+                            WidthRequest="48"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 24">
+                            <Label
+                                FontSize="20"
+                                FontAttributes="Bold"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center"
+                                TextColor="White"
+                                Text="👤" />
+                        </Border>
+                        <VerticalStackLayout VerticalOptions="Center" Spacing="2">
+                            <Label
+                                FontAttributes="Bold"
+                                FontSize="16"
+                                TextColor="#F1F5F9"
+                                Text="{Binding AccountEmail}" />
+                            <Label
+                                FontSize="13"
+                                TextColor="#64748B"
+                                Text="{Binding ServerBaseUrl}" />
+                        </VerticalStackLayout>
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Server card -->
+            <Border
+                BackgroundColor="#1E293B"
+                StrokeThickness="0"
+                StrokeShape="RoundRectangle 16"
+                Padding="20,20">
+
+                <VerticalStackLayout Spacing="4">
+                    <Label
+                        FontAttributes="Bold"
+                        FontSize="12"
+                        TextColor="#64748B"
+                        Text="SERVER"
+                        TextTransform="Uppercase"
+                        Margin="0,0,0,12" />
+
+                    <HorizontalStackLayout Spacing="14">
+                        <Border
+                            BackgroundColor="#334155"
+                            HeightRequest="48"
+                            WidthRequest="48"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 24">
+                            <Label
+                                FontSize="20"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center"
+                                TextColor="#94A3B8"
+                                Text="🖥" />
+                        </Border>
+                        <VerticalStackLayout VerticalOptions="Center" Spacing="2">
+                            <Label
+                                FontSize="15"
+                                TextColor="#F1F5F9"
+                                Text="{Binding ServerDisplayName}" />
+                            <Label
+                                FontSize="13"
+                                TextColor="#64748B"
+                                Text="{Binding ServerBaseUrl}" />
+                        </VerticalStackLayout>
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Actions card -->
+            <Border
+                BackgroundColor="#1E293B"
+                StrokeThickness="0"
+                StrokeShape="RoundRectangle 16"
+                Padding="0"
+                Margin="0,8,0,0">
+
+                <Grid Padding="20,16">
+                    <Label
+                        FontSize="15"
+                        TextColor="#EF4444"
+                        VerticalOptions="Center"
+                        Text="Log Out" />
+                    <Grid.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding LogOutCommand}" />
+                    </Grid.GestureRecognizers>
+                </Grid>
+            </Border>
+
+            <!-- App info -->
             <Label
-                FontAttributes="Bold"
-                FontSize="13"
-                Opacity="0.6"
-                Text="ACCOUNT" />
-
-            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
-                <Label Grid.Row="0" Grid.Column="0"
-                    FontAttributes="Bold"
-                    FontSize="16"
-                    Text="{Binding AccountEmail}" />
-                <Label Grid.Row="1" Grid.Column="0"
-                    FontSize="13"
-                    Opacity="0.6"
-                    Text="{Binding ServerBaseUrl}" />
-            </Grid>
-
-            <BoxView HeightRequest="1" Opacity="0.2" Color="{AppThemeBinding Light=Black, Dark=White}" />
-
-            <!-- Server section -->
-            <Label
-                FontAttributes="Bold"
-                FontSize="13"
-                Opacity="0.6"
-                Text="SERVER" />
-
-            <Label
-                FontSize="15"
-                Text="{Binding ServerDisplayName}" />
-            <Label
-                FontSize="13"
-                Opacity="0.6"
-                Text="{Binding ServerBaseUrl}" />
-
-            <BoxView HeightRequest="1" Opacity="0.2" Color="{AppThemeBinding Light=Black, Dark=White}" />
-
-            <!-- Actions -->
-            <Button
-                Command="{Binding LogOutCommand}"
-                IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBool}}"
-                Text="Log Out"
-                TextColor="Red" />
+                FontSize="12"
+                HorizontalOptions="Center"
+                HorizontalTextAlignment="Center"
+                TextColor="#475569"
+                Margin="0,20,0,0"
+                Text="DotNetCloud for Android" />
 
         </VerticalStackLayout>
     </ScrollView>

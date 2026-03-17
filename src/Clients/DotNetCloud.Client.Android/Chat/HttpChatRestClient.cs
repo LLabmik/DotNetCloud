@@ -153,7 +153,9 @@ internal sealed class HttpChatRestClient : IChatRestClient
             d.LastMessageAt ?? (d.LastActivityAt.HasValue ? new DateTimeOffset(d.LastActivityAt.Value, TimeSpan.Zero) : null));
 
     private static ChatMessage ToChatMessage(ChatMessageDto d) =>
-        new(d.Id, d.ChannelId, d.SenderName, d.Content, d.SentAt, d.IsEdited);
+        new(d.Id, d.ChannelId, d.SenderUserId,
+            string.IsNullOrWhiteSpace(d.SenderName) ? string.Empty : d.SenderName,
+            d.Content, d.SentAt, d.IsEdited);
 
     private static ChannelMemberSummary ToMemberSummary(ChannelMemberDto d) =>
         new(d.UserId, d.DisplayName, d.Role, d.IsOnline);
@@ -188,6 +190,7 @@ internal sealed class HttpChatRestClient : IChatRestClient
     {
         public Guid Id { get; init; }
         public Guid ChannelId { get; init; }
+        public Guid SenderUserId { get; init; }
         public string SenderName { get; init; } = string.Empty;
         public string Content { get; init; } = string.Empty;
         public DateTimeOffset SentAt { get; init; }

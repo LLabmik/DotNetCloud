@@ -40,8 +40,15 @@ public partial class ChannelDetailsPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        _vm.Prepare(_channelId, _channelDisplayName);
-        await _vm.LoadAsync();
+        try
+        {
+            _vm.Prepare(_channelId, _channelDisplayName);
+            await _vm.LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ChannelDetailsPage] OnAppearing error: {ex}");
+        }
     }
 
     private async void OnChannelLeft(object? sender, EventArgs e)

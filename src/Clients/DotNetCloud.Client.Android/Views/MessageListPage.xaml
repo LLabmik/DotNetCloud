@@ -4,7 +4,8 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:vm="clr-namespace:DotNetCloud.Client.Android.ViewModels"
-    Title="{Binding ChannelName}">
+    Title="{Binding ChannelName}"
+    BackgroundColor="#0F172A">
 
     <ContentPage.ToolbarItems>
         <ToolbarItem
@@ -20,7 +21,8 @@
         <RefreshView
             Grid.Row="0"
             Command="{Binding LoadMessagesCommand}"
-            IsRefreshing="{Binding IsLoading}">
+            IsRefreshing="{Binding IsLoading}"
+            RefreshColor="#0EA5E9">
 
             <CollectionView
                 x:Name="MessageList"
@@ -30,145 +32,259 @@
 
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="vm:MessageItemViewModel">
-                        <VerticalStackLayout Padding="16,8" Spacing="2">
-                            <Grid ColumnDefinitions="*,Auto">
+                        <Border
+                            BackgroundColor="#1E293B"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 10"
+                            Margin="12,3"
+                            Padding="14,10">
+
+                            <VerticalStackLayout Spacing="4">
+                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                                    <!-- Sender avatar -->
+                                    <Border
+                                        Grid.Column="0"
+                                        BackgroundColor="#334155"
+                                        HeightRequest="28"
+                                        WidthRequest="28"
+                                        StrokeThickness="0"
+                                        StrokeShape="RoundRectangle 14"
+                                        VerticalOptions="Center">
+                                        <Label
+                                            FontSize="12"
+                                            FontAttributes="Bold"
+                                            HorizontalOptions="Center"
+                                            VerticalOptions="Center"
+                                            TextColor="#94A3B8"
+                                            Text="{Binding SenderInitial}" />
+                                    </Border>
+
+                                    <Label
+                                        Grid.Column="1"
+                                        FontAttributes="Bold"
+                                        FontSize="13"
+                                        TextColor="#38BDF8"
+                                        VerticalOptions="Center"
+                                        Text="{Binding SenderName}" />
+                                    <Label
+                                        Grid.Column="2"
+                                        FontSize="11"
+                                        TextColor="#475569"
+                                        VerticalOptions="Center"
+                                        Text="{Binding SentAtDisplay}" />
+                                </Grid>
                                 <Label
-                                    Grid.Column="0"
-                                    FontAttributes="Bold"
-                                    FontSize="13"
-                                    Text="{Binding SenderName}" />
-                                <Label
-                                    Grid.Column="1"
-                                    FontSize="11"
-                                    Opacity="0.5"
-                                    Text="{Binding SentAtDisplay}" />
-                            </Grid>
-                            <Label
-                                FontSize="15"
-                                Text="{Binding Content}" />
-                        </VerticalStackLayout>
+                                    FontSize="15"
+                                    TextColor="#E2E8F0"
+                                    Margin="36,0,0,0"
+                                    Text="{Binding Content}" />
+                            </VerticalStackLayout>
+                        </Border>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
+
+                <CollectionView.Header>
+                    <BoxView HeightRequest="8" BackgroundColor="Transparent" />
+                </CollectionView.Header>
+
+                <CollectionView.Footer>
+                    <BoxView HeightRequest="4" BackgroundColor="Transparent" />
+                </CollectionView.Footer>
+
+                <CollectionView.EmptyView>
+                    <VerticalStackLayout
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center"
+                        Spacing="8"
+                        Padding="32">
+                        <Label
+                            FontSize="32"
+                            HorizontalOptions="Center"
+                            Text="👋" />
+                        <Label
+                            FontSize="14"
+                            TextColor="#64748B"
+                            HorizontalOptions="Center"
+                            HorizontalTextAlignment="Center"
+                            Text="No messages yet. Start the conversation!" />
+                    </VerticalStackLayout>
+                </CollectionView.EmptyView>
 
             </CollectionView>
         </RefreshView>
 
         <!-- Composer bar -->
-        <Grid
+        <Border
             Grid.Row="1"
-            ColumnDefinitions="Auto,*,Auto,Auto"
-            Padding="4,4"
-            BackgroundColor="{AppThemeBinding Light=#F5F5F5, Dark=#1E1E1E}">
+            BackgroundColor="#1E293B"
+            StrokeThickness="0"
+            StrokeShape="RoundRectangle 0"
+            Padding="6,6">
 
-            <!-- Attach file button -->
-            <Button
-                Grid.Column="0"
-                Command="{Binding AttachFileCommand}"
-                FontSize="18"
-                BackgroundColor="Transparent"
-                Text="📎"
-                Padding="8,0"
-                VerticalOptions="End"
-                ToolTipProperties.Text="Attach file" />
+            <Grid
+                ColumnDefinitions="Auto,*,Auto,Auto"
+                ColumnSpacing="4">
 
-            <!-- Message input with @mention hint -->
-            <Grid Grid.Column="1">
-                <Editor
-                    x:Name="ComposerEditor"
-                    AutoSize="TextChanges"
-                    MaximumHeightRequest="120"
-                    Placeholder="Message… (@ to mention)"
-                    Text="{Binding ComposerText}" />
-
-                <!-- @mention autocomplete overlay -->
+                <!-- Attach file button -->
                 <Border
-                    BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#2A2A2A}"
-                    IsVisible="{Binding ShowMentionSuggestions}"
-                    Stroke="{AppThemeBinding Light=#CCCCCC, Dark=#444444}"
-                    StrokeShape="RoundRectangle 6"
-                    VerticalOptions="End"
-                    Margin="0,0,0,42">
-                    <CollectionView
-                        ItemsSource="{Binding MentionSuggestions}"
-                        MaximumHeightRequest="160"
-                        SelectionMode="None">
-                        <CollectionView.ItemTemplate>
-                            <DataTemplate x:DataType="x:String">
-                                <Grid Padding="12,8">
-                                    <Label Text="{Binding .}" FontSize="14" />
-                                    <Grid.GestureRecognizers>
-                                        <TapGestureRecognizer
-                                            Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectMentionCommand}"
-                                            CommandParameter="{Binding .}" />
-                                    </Grid.GestureRecognizers>
-                                </Grid>
-                            </DataTemplate>
-                        </CollectionView.ItemTemplate>
-                    </CollectionView>
+                    Grid.Column="0"
+                    BackgroundColor="Transparent"
+                    StrokeThickness="0"
+                    Padding="10,0"
+                    VerticalOptions="End">
+                    <Label
+                        FontSize="20"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center"
+                        Text="📎" />
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding AttachFileCommand}" />
+                    </Border.GestureRecognizers>
                 </Border>
-            </Grid>
 
-            <!-- Emoji picker button -->
-            <Button
-                Grid.Column="2"
-                Command="{Binding ToggleEmojiPickerCommand}"
-                FontSize="18"
-                BackgroundColor="Transparent"
-                Text="😊"
-                Padding="8,0"
-                VerticalOptions="End"
-                ToolTipProperties.Text="Emoji" />
-
-            <!-- Send button -->
-            <Button
-                Grid.Column="3"
-                Command="{Binding SendCommand}"
-                FontSize="13"
-                IsEnabled="{Binding IsSending, Converter={StaticResource InvertBool}}"
-                Margin="0,0,4,0"
-                Padding="16,0"
-                Text="Send"
-                VerticalOptions="End" />
-
-        </Grid>
-
-        <!-- Emoji picker panel (shown when ToggleEmojiPickerCommand is invoked) -->
-        <ScrollView
-            Grid.Row="2"
-            x:Name="EmojiPickerPanel"
-            IsVisible="{Binding IsEmojiPickerOpen}"
-            HeightRequest="200"
-            BackgroundColor="{AppThemeBinding Light=#F9F9F9, Dark=#1A1A1A}">
-            <FlexLayout
-                Wrap="Wrap"
-                JustifyContent="Start"
-                Padding="8">
-                <BindableLayout.ItemsSource>
-                    <x:Array Type="{x:Type x:String}">
-                        <x:String>😀</x:String><x:String>😂</x:String><x:String>😍</x:String>
-                        <x:String>🤔</x:String><x:String>😎</x:String><x:String>😢</x:String>
-                        <x:String>😡</x:String><x:String>🎉</x:String><x:String>👍</x:String>
-                        <x:String>👎</x:String><x:String>❤️</x:String><x:String>🔥</x:String>
-                        <x:String>✅</x:String><x:String>❌</x:String><x:String>⚡</x:String>
-                        <x:String>🚀</x:String><x:String>💯</x:String><x:String>🙏</x:String>
-                        <x:String>👀</x:String><x:String>💪</x:String><x:String>🤝</x:String>
-                        <x:String>📎</x:String><x:String>📌</x:String><x:String>🔗</x:String>
-                    </x:Array>
-                </BindableLayout.ItemsSource>
-                <BindableLayout.ItemTemplate>
-                    <DataTemplate x:DataType="x:String">
-                        <Button
-                            Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.InsertEmojiCommand}"
-                            CommandParameter="{Binding .}"
+                <!-- Message input with @mention hint -->
+                <Grid Grid.Column="1">
+                    <Border
+                        BackgroundColor="#0F172A"
+                        StrokeShape="RoundRectangle 12"
+                        Stroke="#334155"
+                        StrokeThickness="1"
+                        Padding="4,0">
+                        <Editor
+                            x:Name="ComposerEditor"
+                            AutoSize="TextChanges"
+                            MaximumHeightRequest="120"
+                            Placeholder="Message…"
+                            PlaceholderColor="#475569"
+                            TextColor="#F1F5F9"
                             BackgroundColor="Transparent"
-                            FontSize="24"
-                            HeightRequest="44"
-                            Text="{Binding .}"
-                            WidthRequest="44" />
-                    </DataTemplate>
-                </BindableLayout.ItemTemplate>
-            </FlexLayout>
-        </ScrollView>
+                            Text="{Binding ComposerText}" />
+                    </Border>
+
+                    <!-- @mention autocomplete overlay -->
+                    <Border
+                        BackgroundColor="#334155"
+                        IsVisible="{Binding ShowMentionSuggestions}"
+                        Stroke="#475569"
+                        StrokeShape="RoundRectangle 10"
+                        StrokeThickness="1"
+                        VerticalOptions="End"
+                        Margin="0,0,0,48">
+                        <CollectionView
+                            ItemsSource="{Binding MentionSuggestions}"
+                            MaximumHeightRequest="160"
+                            SelectionMode="None">
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <Grid Padding="14,10">
+                                        <Label Text="{Binding .}" FontSize="14" TextColor="#F1F5F9" />
+                                        <Grid.GestureRecognizers>
+                                            <TapGestureRecognizer
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectMentionCommand}"
+                                                CommandParameter="{Binding .}" />
+                                        </Grid.GestureRecognizers>
+                                    </Grid>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+                    </Border>
+                </Grid>
+
+                <!-- Emoji picker button -->
+                <Border
+                    Grid.Column="2"
+                    BackgroundColor="Transparent"
+                    StrokeThickness="0"
+                    Padding="10,0"
+                    VerticalOptions="End">
+                    <Label
+                        FontSize="20"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center"
+                        Text="😊" />
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding ToggleEmojiPickerCommand}" />
+                    </Border.GestureRecognizers>
+                </Border>
+
+                <!-- Send button -->
+                <Border
+                    Grid.Column="3"
+                    BackgroundColor="#0EA5E9"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 10"
+                    Padding="0"
+                    Margin="0,0,4,0"
+                    HeightRequest="40"
+                    WidthRequest="40"
+                    VerticalOptions="End">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding SendCommand}" />
+                    </Border.GestureRecognizers>
+                    <Label
+                        FontSize="16"
+                        FontAttributes="Bold"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center"
+                        TextColor="White"
+                        Text="↑"
+                        IsEnabled="{Binding IsSending, Converter={StaticResource InvertBool}}" />
+                </Border>
+
+            </Grid>
+        </Border>
+
+        <!-- Emoji picker panel -->
+        <Border
+            Grid.Row="2"
+            IsVisible="{Binding IsEmojiPickerOpen}"
+            BackgroundColor="#1E293B"
+            StrokeThickness="0"
+            HeightRequest="220">
+            <ScrollView>
+                <FlexLayout
+                    Wrap="Wrap"
+                    JustifyContent="Start"
+                    AlignItems="Start"
+                    Padding="10,8">
+                    <BindableLayout.ItemsSource>
+                        <x:Array Type="{x:Type x:String}">
+                            <x:String>😀</x:String><x:String>😂</x:String><x:String>😍</x:String>
+                            <x:String>🤔</x:String><x:String>😎</x:String><x:String>😢</x:String>
+                            <x:String>😡</x:String><x:String>🎉</x:String><x:String>👍</x:String>
+                            <x:String>👎</x:String><x:String>❤️</x:String><x:String>🔥</x:String>
+                            <x:String>✅</x:String><x:String>❌</x:String><x:String>⚡</x:String>
+                            <x:String>🚀</x:String><x:String>💯</x:String><x:String>🙏</x:String>
+                            <x:String>👀</x:String><x:String>💪</x:String><x:String>🤝</x:String>
+                            <x:String>📎</x:String><x:String>📌</x:String><x:String>🔗</x:String>
+                        </x:Array>
+                    </BindableLayout.ItemsSource>
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                            <Border
+                                BackgroundColor="Transparent"
+                                StrokeThickness="0"
+                                HeightRequest="46"
+                                WidthRequest="46"
+                                Margin="2">
+                                <Label
+                                    FontSize="26"
+                                    HorizontalOptions="Center"
+                                    VerticalOptions="Center"
+                                    HorizontalTextAlignment="Center"
+                                    VerticalTextAlignment="Center"
+                                    Text="{Binding .}" />
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer
+                                        Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.InsertEmojiCommand}"
+                                        CommandParameter="{Binding .}" />
+                                </Border.GestureRecognizers>
+                            </Border>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </FlexLayout>
+            </ScrollView>
+        </Border>
 
     </Grid>
 

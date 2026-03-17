@@ -71,7 +71,7 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load channels.");
-            ErrorMessage = "Failed to load chat channels. Pull to refresh.";
+            ErrorMessage = $"Failed to load chat channels: {ex.GetType().Name}: {ex.Message}";
         }
         finally
         {
@@ -114,8 +114,9 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
     {
         var connection = _serverStore.GetActive()
                          ?? throw new InvalidOperationException("No active server connection.");
-        var token = await _tokenStore.GetAccessTokenAsync(connection.ServerBaseUrl, ct)
-                    ?? throw new InvalidOperationException("No access token found.");
+        var token = await _tokenStore.GetAccessTokenAsync(connection.ServerBaseUrl, ct);
+        if (string.IsNullOrWhiteSpace(token))
+            throw new InvalidOperationException("No access token found. Please log in again.");
         return (connection.ServerBaseUrl, token);
     }
 }

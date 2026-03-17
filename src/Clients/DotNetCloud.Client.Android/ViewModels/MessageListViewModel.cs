@@ -31,6 +31,9 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     // All channel member names for @mention autocomplete
     private IReadOnlyList<string> _allMemberNames = [];
 
+    // UserId → display name lookup for resolving sender names
+    private Dictionary<Guid, string> _memberLookup = [];
+
     // Typing indicator debounce
     private CancellationTokenSource _typingCts = new();
 
@@ -91,16 +94,33 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         _channelId = channelId;
         ChannelName = channelName;
 
-        var connection = _serverStore.GetActive()
-                         ?? throw new InvalidOperationException("No active server connection.");
-        _serverUrl = connection.ServerBaseUrl;
-        _accessToken = await _tokenStore.GetAccessTokenAsync(_serverUrl, ct)
-                       ?? throw new InvalidOperationException("No access token found.");
+        try
+        {
+            var connection = _serverStore.GetActive();
+            if (connection is null)
+            {
+                ErrorMessage = "No active server connection.";
+                return;
+            }
+            _serverUrl = connection.ServerBaseUrl;
 
-        await LoadMessagesAsync(ct);
+            _accessToken = await _tokenStore.GetAccessTokenAsync(_serverUrl, ct);
+            if (string.IsNullOrWhiteSpace(_accessToken))
+            {
+                ErrorMessage = "No access token found. Please log in again.";
+                return;
+            }
 
-        // Prefetch member names for @mention autocomplete
-        _ = LoadMemberNamesAsync(ct);
+            // Load members first so we can resolve sender names
+            await LoadMemberNamesAsync(ct);
+
+            await LoadMessagesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to initialize message list for channel {ChannelId}.", channelId);
+            ErrorMessage = $"Failed to load channel: {ex.Message}";
+        }
     }
 
     private async Task LoadMemberNamesAsync(CancellationToken ct)
@@ -109,11 +129,26 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         {
             var members = await _chatApi.GetChannelMembersAsync(_serverUrl!, _accessToken!, _channelId, ct);
             _allMemberNames = members.Select(m => m.DisplayName).ToList();
+            _memberLookup = members.ToDictionary(m => m.UserId, m => m.DisplayName);
         }
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "Could not prefetch member names for @mention.");
         }
+    }
+
+    /// <summary>Resolves a sender user ID to a display name using the channel member list.</summary>
+    private string ResolveSenderName(Guid senderUserId, string fallbackName)
+    {
+        if (_memberLookup.TryGetValue(senderUserId, out var displayName))
+            return displayName;
+
+        // If the server already provided a name, use it
+        if (!string.IsNullOrWhiteSpace(fallbackName))
+            return fallbackName;
+
+        // Abbreviate the GUID so it's not a giant string
+        return senderUserId == Guid.Empty ? "Unknown" : senderUserId.ToString()[..8];
     }
 
     /// <summary>Loads the message history, falling back to cache if offline.</summary>
@@ -122,22 +157,33 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     {
         IsLoading = true;
         Messages.Clear();
-
-        // Show cached messages while fetching
-        var cached = await _cache.GetRecentAsync(_channelId, ct: ct);
-        foreach (var m in cached)
-            Messages.Add(new MessageItemViewModel(m.Id, m.SenderName, m.Content, m.SentAt));
+        IReadOnlyList<CachedMessage> cached = [];
 
         try
         {
+            // Show cached messages while fetching from server
+            try
+            {
+                cached = await _cache.GetRecentAsync(_channelId, ct: ct);
+                foreach (var m in cached)
+                    Messages.Add(new MessageItemViewModel(m.Id, m.SenderName, m.Content, m.SentAt));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Local message cache unavailable for channel {ChannelId}; loading from server only.", _channelId);
+            }
+
             var messages = await _chatApi.GetMessagesAsync(_serverUrl!, _accessToken!, _channelId, ct: ct);
 
             Messages.Clear();
             foreach (var m in messages.OrderBy(m => m.SentAt))
-                Messages.Add(new MessageItemViewModel(m.Id, m.SenderName, m.Content, m.SentAt));
+            {
+                var senderName = ResolveSenderName(m.SenderUserId, m.SenderName);
+                Messages.Add(new MessageItemViewModel(m.Id, senderName, m.Content, m.SentAt));
+            }
 
             // Update cache in background
-            _ = _cache.UpsertAsync(messages.Select(m => new CachedMessage(m.Id, m.ChannelId, m.SenderName, m.Content, m.SentAt)));
+            _ = _cache.UpsertAsync(messages.Select(m => new CachedMessage(m.Id, m.ChannelId, ResolveSenderName(m.SenderUserId, m.SenderName), m.Content, m.SentAt)));
 
             // Mark latest message as read
             if (messages.Count > 0)
@@ -169,7 +215,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         try
         {
             var message = await _chatApi.SendMessageAsync(_serverUrl!, _accessToken!, _channelId, content, ct);
-            Messages.Add(new MessageItemViewModel(message.Id, message.SenderName, message.Content, message.SentAt));
+            Messages.Add(new MessageItemViewModel(message.Id, ResolveSenderName(message.SenderUserId, message.SenderName), message.Content, message.SentAt));
         }
         catch (Exception ex)
         {
@@ -228,7 +274,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             IsSending = true;
 
             var message = await _chatApi.SendMessageAsync(_serverUrl!, _accessToken!, _channelId, content, ct);
-            Messages.Add(new MessageItemViewModel(message.Id, message.SenderName, message.Content, message.SentAt));
+            Messages.Add(new MessageItemViewModel(message.Id, ResolveSenderName(message.SenderUserId, message.SenderName), message.Content, message.SentAt));
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -334,6 +380,9 @@ public sealed class MessageItemViewModel
 
     /// <summary>Display name of the sender.</summary>
     public string SenderName { get; }
+
+    /// <summary>First character of the sender name for avatar display.</summary>
+    public string SenderInitial => string.IsNullOrEmpty(SenderName) ? "?" : SenderName[..1].ToUpperInvariant();
 
     /// <summary>Message body text.</summary>
     public string Content { get; }

@@ -4,57 +4,150 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:vm="clr-namespace:DotNetCloud.Client.Android.ViewModels"
-    Title="Add Server">
+    Title="Add Server"
+    Shell.NavBarIsVisible="false"
+    BackgroundColor="#0F172A">
 
-    <ScrollView>
-        <VerticalStackLayout
-            Padding="32,64,32,32"
-            Spacing="24">
+    <Grid>
+        <!-- Subtle gradient accent at top -->
+        <BoxView
+            HeightRequest="280"
+            VerticalOptions="Start"
+            BackgroundColor="#0F172A">
+            <BoxView.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#0F172A" Offset="0.0" />
+                    <GradientStop Color="#0C4A6E" Offset="0.5" />
+                    <GradientStop Color="#0F172A" Offset="1.0" />
+                </LinearGradientBrush>
+            </BoxView.Background>
+        </BoxView>
 
-            <!-- Logo / title -->
-            <Label
-                FontSize="28"
-                FontAttributes="Bold"
-                HorizontalOptions="Center"
-                Text="DotNetCloud" />
+        <ScrollView>
+            <VerticalStackLayout
+                Padding="32,80,32,32"
+                Spacing="0"
+                VerticalOptions="Center">
 
-            <Label
-                FontSize="15"
-                HorizontalOptions="Center"
-                HorizontalTextAlignment="Center"
-                Opacity="0.7"
-                Text="Enter your server address to connect." />
+                <!-- Brand icon -->
+                <Border
+                    BackgroundColor="#0EA5E9"
+                    HeightRequest="72"
+                    WidthRequest="72"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 20"
+                    HorizontalOptions="Center"
+                    Margin="0,0,0,20">
+                    <Label
+                        FontSize="32"
+                        FontAttributes="Bold"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center"
+                        TextColor="White"
+                        Text="☁" />
+                </Border>
 
-            <!-- Server URL input -->
-            <Entry
-                x:Name="ServerUrlEntry"
-                AutomationId="ServerUrlEntry"
-                IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBool}}"
-                Keyboard="Url"
-                Placeholder="http://10.0.2.2:5080"
-                ReturnType="Go"
-                ReturnCommand="{Binding LoginCommand}"
-                Text="{Binding ServerUrl}" />
+                <!-- Title -->
+                <Label
+                    FontSize="28"
+                    FontAttributes="Bold"
+                    HorizontalOptions="Center"
+                    TextColor="#F1F5F9"
+                    Text="DotNetCloud" />
 
-            <!-- Error message -->
-            <Label
-                IsVisible="{Binding ErrorMessage, Converter={StaticResource IsNotNullOrEmpty}}"
-                Text="{Binding ErrorMessage}"
-                TextColor="{AppThemeBinding Light=Red, Dark=#FF6B6B}" />
+                <Label
+                    FontSize="15"
+                    HorizontalOptions="Center"
+                    HorizontalTextAlignment="Center"
+                    TextColor="#94A3B8"
+                    Margin="0,8,0,40"
+                    Text="Enter your server address to connect." />
 
-            <!-- Login button -->
-            <Button
-                Command="{Binding LoginCommand}"
-                IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBool}}"
-                Text="Connect" />
+                <!-- Login card -->
+                <Border
+                    BackgroundColor="#1E293B"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 16"
+                    Padding="24,28">
 
-            <!-- Activity indicator -->
-            <ActivityIndicator
-                IsRunning="{Binding IsBusy}"
-                IsVisible="{Binding IsBusy}"
-                HorizontalOptions="Center" />
+                    <VerticalStackLayout Spacing="16">
 
-        </VerticalStackLayout>
-    </ScrollView>
+                        <!-- Server URL label -->
+                        <Label
+                            FontSize="12"
+                            FontAttributes="Bold"
+                            TextColor="#64748B"
+                            Text="SERVER ADDRESS"
+                            TextTransform="Uppercase" />
+
+                        <!-- Server URL input -->
+                        <Border
+                            BackgroundColor="#0F172A"
+                            StrokeShape="RoundRectangle 10"
+                            Stroke="#334155"
+                            StrokeThickness="1"
+                            Padding="4,0">
+                            <Entry
+                                x:Name="ServerUrlEntry"
+                                AutomationId="ServerUrlEntry"
+                                IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBool}}"
+                                Keyboard="Url"
+                                Placeholder="https://your-server.example.com"
+                                ReturnType="Go"
+                                ReturnCommand="{Binding LoginCommand}"
+                                Text="{Binding ServerUrl}"
+                                BackgroundColor="Transparent"
+                                FontSize="15"
+                                TextColor="#F1F5F9"
+                                PlaceholderColor="#475569" />
+                        </Border>
+
+                        <!-- Error message -->
+                        <Border
+                            IsVisible="{Binding ErrorMessage, Converter={StaticResource IsNotNullOrEmpty}}"
+                            BackgroundColor="#7F1D1D"
+                            StrokeShape="RoundRectangle 8"
+                            StrokeThickness="0"
+                            Padding="12,10">
+                            <Label
+                                Text="{Binding ErrorMessage}"
+                                TextColor="#FCA5A5"
+                                FontSize="13" />
+                        </Border>
+
+                        <!-- Login button -->
+                        <Button
+                            Command="{Binding LoginCommand}"
+                            IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBool}}"
+                            BackgroundColor="#0EA5E9"
+                            TextColor="White"
+                            FontAttributes="Bold"
+                            FontSize="15"
+                            CornerRadius="10"
+                            HeightRequest="50"
+                            Text="Connect" />
+
+                        <!-- Activity indicator -->
+                        <ActivityIndicator
+                            IsRunning="{Binding IsBusy}"
+                            IsVisible="{Binding IsBusy}"
+                            HorizontalOptions="Center"
+                            Color="#0EA5E9" />
+
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Footer -->
+                <Label
+                    FontSize="12"
+                    HorizontalOptions="Center"
+                    HorizontalTextAlignment="Center"
+                    TextColor="#475569"
+                    Margin="0,32,0,0"
+                    Text="Self-hosted · Private · Secure" />
+
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
 
 </ContentPage>

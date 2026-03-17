@@ -36,7 +36,14 @@ public partial class MessageListPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        await _vm.InitializeAsync(_channelId, _channelDisplayName);
+        try
+        {
+            await _vm.InitializeAsync(_channelId, _channelDisplayName);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MessageListPage] OnAppearing error: {ex}");
+        }
     }
 
     private async void OnViewDetailsRequested(object? sender, EventArgs e)

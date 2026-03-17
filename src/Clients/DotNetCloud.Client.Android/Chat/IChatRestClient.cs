@@ -84,13 +84,15 @@ public sealed record ChannelSummary(
 /// <summary>A single chat message returned from the server.</summary>
 /// <param name="Id">Message ID.</param>
 /// <param name="ChannelId">Channel the message belongs to.</param>
-/// <param name="SenderName">Display name of the sender.</param>
+/// <param name="SenderUserId">User ID of the sender.</param>
+/// <param name="SenderName">Display name of the sender (resolved client-side from channel members).</param>
 /// <param name="Content">Plain-text message body.</param>
 /// <param name="SentAt">When the message was sent (UTC).</param>
 /// <param name="IsEdited">Whether the message has been edited.</param>
 public sealed record ChatMessage(
     Guid Id,
     Guid ChannelId,
+    Guid SenderUserId,
     string SenderName,
     string Content,
     DateTimeOffset SentAt,

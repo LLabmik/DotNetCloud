@@ -69,3 +69,18 @@ public sealed class MentionToBadgeColorConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotSupportedException();
 }
+
+/// <summary>Returns a green color when online, gray when offline.</summary>
+public sealed class OnlineStatusToColorConverter : IValueConverter
+{
+    private static readonly SolidColorBrush OnlineBrush = new(Color.FromArgb("#22C55E"));
+    private static readonly SolidColorBrush OfflineBrush = new(Color.FromArgb("#475569"));
+
+    /// <inheritdoc />
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is true ? OnlineBrush : OfflineBrush;
+
+    /// <inheritdoc />
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
