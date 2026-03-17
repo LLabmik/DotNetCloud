@@ -62,6 +62,7 @@ Archived context:
 | Server | `mint22` | `https://mint22:15443/` |
 | Client | `Windows11-TestDNC` | Sync dir: `C:\Users\benk\Documents\synctray` |
 | Client | `mint-dnc-client` | Linux Mint 22 validation host for desktop sync client implementation + E2E testing |
+| Android Client | `monolith` | Android MAUI app development + emulator testing (Windows 11) |
 
 ## Key Carry-Forward Contracts
 
@@ -112,6 +113,12 @@ Without these references, the server binary does not include the Chat/Files cont
 - [ ] Health probe passes (`/health/live` returns 200)
 - [ ] Chat API endpoint reachable (`/api/chat/health` returns 200, not 404)
 - [ ] No ERR entries in `journalctl -u dotnetcloud.service --since "5 min ago"`
+
+#### Hand Off To
+
+**Next target:** `monolith` (Android client agent)
+
+After redeploy is verified, update this handoff with results and mark target as `monolith` so the Android client can rebuild the APK and test channel loading against the newly-registered Chat API endpoints.
 
 #### Request Back
 
