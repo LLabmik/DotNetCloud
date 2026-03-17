@@ -207,7 +207,14 @@ public sealed class SignalRChatClientE2eTests
     {
         // Arrange
         var payload = new NewMessagePayloadDto("ch-004", "Test message content");
-        var eventArgs = new ChatMessageReceivedEventArgs(payload.ChannelId, string.Empty, string.Empty, payload.Message, false);
+        var eventArgs = new ChatMessageReceivedEventArgs(
+            payload.ChannelId,
+            string.Empty,
+            string.Empty,
+            payload.Message,
+            Guid.NewGuid(),
+            DateTime.UtcNow,
+            false);
 
         // Act & Assert
         Assert.AreEqual(payload.ChannelId, eventArgs.ChannelId);

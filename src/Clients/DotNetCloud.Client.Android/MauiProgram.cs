@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.DependencyInjection;
 using DotNetCloud.Client.Android.Auth;
 using DotNetCloud.Client.Android.Chat;
 using DotNetCloud.Client.Android.Files;
+using DotNetCloud.Client.Android.Platforms.Android;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Client.Android.ViewModels;
 using DotNetCloud.Client.Android.Views;
@@ -33,6 +34,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<IServerConnectionStore, PreferenceServerConnectionStore>();
         builder.Services.AddSingleton<ILocalMessageCache, SqliteMessageCache>();
         builder.Services.AddSingleton<IPendingMessageQueue, SqlitePendingMessageQueue>();
+        builder.Services.AddSingleton<IAppPreferences, MauiAppPreferences>();
 
         // ── Auth ──────────────────────────────────────────────────────
         builder.Services.AddSingleton<IOAuth2Service, MauiOAuth2Service>();
@@ -57,6 +59,9 @@ public static class MauiProgram
         builder.Services.AddHttpClient<IFileRestClient, HttpFileRestClient>()
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
         builder.Services.AddSingleton<IMediaAutoUploadService, MediaAutoUploadService>();
+
+        // ── Platform services ─────────────────────────────────────────
+        builder.Services.AddSingleton<IBatteryOptimizationService, AndroidBatteryOptimizationService>();
 
         // ── ViewModels ────────────────────────────────────────────────
         builder.Services.AddTransient<LoginViewModel>();

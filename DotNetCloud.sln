@@ -100,6 +100,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotNetCloud.Client.SyncTray
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotNetCloud.Client.Android", "src\Clients\DotNetCloud.Client.Android\DotNetCloud.Client.Android.csproj", "{E690EC81-2F95-41FE-9AF6-AFC9F1886308}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotNetCloud.Client.Android.Tests", "tests\DotNetCloud.Client.Android.Tests\DotNetCloud.Client.Android.Tests.csproj", "{C0A40EF8-909F-4F9A-955E-AB564DD2EDCD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -530,6 +532,18 @@ Global
 		{E690EC81-2F95-41FE-9AF6-AFC9F1886308}.Release|x64.Build.0 = Release|Any CPU
 		{E690EC81-2F95-41FE-9AF6-AFC9F1886308}.Release|x86.ActiveCfg = Release|Any CPU
 		{E690EC81-2F95-41FE-9AF6-AFC9F1886308}.Release|x86.Build.0 = Release|Any CPU
+		{C0A40EF8-909F-4F9A-955E-AB564DD2EDCD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C0A40EF8-909F-4F9A-955E-AB564DD2EDCD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C0A40EF8-909F-4F9A-955E-AB564DD2EDCD}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C0A40EF8-909F-4F9A-955E-AB564DD2EDCD}.Debug|x64.Build.0 = Debug|Any CPU
+		{C0A40EF8-909F-4F9A-955E-AB564DD2EDCD}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{C0A40EF8-909F-4F9A-955E-AB564DD2EDCD}.Debug|x86.Build.0 = Debug|Any CPU
+		{C0A40EF8-909F-4F9A-955E-AB564DD2EDCD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C0A40EF8-909F-4F9A-955E-AB564DD2EDCD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C0A40EF8-909F-4F9A-955E-AB564DD2EDCD}.Release|x64.ActiveCfg = Release|Any CPU
+		{C0A40EF8-909F-4F9A-955E-AB564DD2EDCD}.Release|x64.Build.0 = Release|Any CPU
+		{C0A40EF8-909F-4F9A-955E-AB564DD2EDCD}.Release|x86.ActiveCfg = Release|Any CPU
+		{C0A40EF8-909F-4F9A-955E-AB564DD2EDCD}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -578,6 +592,7 @@ Global
 		{EC0688F9-AD2A-44A6-B1B1-915D21BB0188} = {00B920E4-100F-D869-D8B1-04B3A2ED45DA}
 		{36C2BD0B-895E-4239-9A81-E3CBCA52E38E} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{E690EC81-2F95-41FE-9AF6-AFC9F1886308} = {00B920E4-100F-D869-D8B1-04B3A2ED45DA}
+		{C0A40EF8-909F-4F9A-955E-AB564DD2EDCD} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {54E6D1AE-D504-4776-81EB-21EFFFDA4627}
