@@ -5,6 +5,18 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Android Client SignalR Group Joining + Server Broadcast Request (2026-03-17)
+
+Android client on `monolith` completed client-side SignalR group join/leave wiring:
+- Added `JoinChannelGroupAsync` / `LeaveChannelGroupAsync` to `IChatSignalRClient` interface.
+- Implemented in `SignalRChatClient` — invokes hub's `JoinGroupAsync` / `LeaveGroupAsync` with `chat-channel-{channelId}` group name.
+- `MessageListViewModel.InitializeAsync` now joins the channel group after loading messages.
+- `MessageListViewModel.Dispose` leaves the channel group (fire-and-forget).
+- `NoOpChatSignalRClient` updated with no-op stubs.
+- Build passes. Handed off server-side broadcast work to `mint22`.
+
+---
+
 ## Archived: Server Redeploy — Chat.Host + Files.Host (2026-03-17)
 
 Redeployed server on `mint22` after `DotNetCloud.Core.Server.csproj` gained references to `Chat.Host` and `Files.Host`.

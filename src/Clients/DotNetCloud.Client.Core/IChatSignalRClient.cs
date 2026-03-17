@@ -20,6 +20,20 @@ public interface IChatSignalRClient
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task ConnectAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Joins the SignalR broadcast group for a channel so the client receives real-time messages.
+    /// </summary>
+    /// <param name="channelId">The channel to join.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task JoinChannelGroupAsync(Guid channelId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Leaves the SignalR broadcast group for a channel.
+    /// </summary>
+    /// <param name="channelId">The channel to leave.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task LeaveChannelGroupAsync(Guid channelId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

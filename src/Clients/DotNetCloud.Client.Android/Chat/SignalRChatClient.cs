@@ -137,6 +137,34 @@ internal sealed class SignalRChatClient : IChatSignalRClient, IAsyncDisposable
     }
 
     /// <inheritdoc />
+    public async Task JoinChannelGroupAsync(Guid channelId, CancellationToken cancellationToken = default)
+    {
+        if (_hub?.State is not HubConnectionState.Connected)
+        {
+            _logger.LogDebug("Cannot join channel group {ChannelId}: hub not connected.", channelId);
+            return;
+        }
+
+        var groupName = $"chat-channel-{channelId}";
+        await _hub.InvokeAsync("JoinGroupAsync", groupName, cancellationToken).ConfigureAwait(false);
+        _logger.LogDebug("Joined SignalR group {Group}.", groupName);
+    }
+
+    /// <inheritdoc />
+    public async Task LeaveChannelGroupAsync(Guid channelId, CancellationToken cancellationToken = default)
+    {
+        if (_hub?.State is not HubConnectionState.Connected)
+        {
+            _logger.LogDebug("Cannot leave channel group {ChannelId}: hub not connected.", channelId);
+            return;
+        }
+
+        var groupName = $"chat-channel-{channelId}";
+        await _hub.InvokeAsync("LeaveGroupAsync", groupName, cancellationToken).ConfigureAwait(false);
+        _logger.LogDebug("Left SignalR group {Group}.", groupName);
+    }
+
+    /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
         if (_hub is not null)

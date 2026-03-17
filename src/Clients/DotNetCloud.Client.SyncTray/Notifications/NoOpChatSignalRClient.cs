@@ -21,4 +21,12 @@ internal sealed class NoOpChatSignalRClient : IChatSignalRClient
         _ = OnNewChatMessage;
         return Task.CompletedTask;
     }
+
+    /// <inheritdoc/>
+    public Task JoinChannelGroupAsync(Guid channelId, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+
+    /// <inheritdoc/>
+    public Task LeaveChannelGroupAsync(Guid channelId, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
 }

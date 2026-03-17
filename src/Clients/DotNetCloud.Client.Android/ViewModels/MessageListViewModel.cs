@@ -115,6 +115,16 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
             await LoadMemberNamesAsync(ct);
 
             await LoadMessagesAsync(ct);
+
+            // Join the SignalR broadcast group so we receive real-time messages for this channel
+            try
+            {
+                await _signalR.JoinChannelGroupAsync(channelId, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to join SignalR group for channel {ChannelId}; real-time updates may not work.", channelId);
+            }
         }
         catch (Exception ex)
         {
@@ -349,6 +359,14 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
     {
         _signalR.OnNewChatMessage -= OnNewChatMessage;
         _typingCts.Dispose();
+
+        // Leave the SignalR broadcast group (best-effort, fire-and-forget)
+        if (_channelId != Guid.Empty)
+        {
+            _ = _signalR.LeaveChannelGroupAsync(_channelId).ContinueWith(
+                t => _logger.LogDebug(t.Exception, "Error leaving channel group on dispose."),
+                TaskContinuationOptions.OnlyOnFaulted);
+        }
     }
 
     private void OnNewChatMessage(object? sender, ChatMessageReceivedEventArgs e)

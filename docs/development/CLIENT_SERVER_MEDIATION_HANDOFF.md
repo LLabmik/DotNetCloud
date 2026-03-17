@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-17 (Server redeploy complete — Chat.Host + Files.Host live on mint22)
+Last updated: 2026-03-17 (Client-side SignalR group join/leave completed on monolith — server broadcast handoff to mint22)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -53,7 +53,7 @@ Archived context:
   - Linux client (`mint-dnc-client`): verified 2026-03-16 ~03:00Z
   - Windows client (`Windows11-TestDNC`): verified 2026-03-16 ~08:16Z. Bug fixed: `RemoveFileRecordsUnderPathAsync` path separator on Windows.
   - Server (`mint22`): confirmed stable 2026-03-16. Zero ERR entries, both nodes soft-deleted, no 5xx.
-- **Active cycle:** Server redeploy COMPLETE — Chat.Host + Files.Host endpoints live on mint22. Chat controller route: `/api/v1/chat/...`. global.json SDK version fixed for cross-machine compatibility.
+- **Active cycle:** Real-time chat message delivery fix in progress. Client-side (Android) SignalR group join/leave completed on `monolith`. Server-side broadcast changes needed on `mint22`.
 
 ## Environment
 
@@ -70,47 +70,89 @@ Archived context:
 - API envelope: middleware wraps responses; clients should unwrap via envelope helpers.
 - Sync flow: changes -> tree -> reconcile -> chunk manifest -> chunk download -> file assembly.
 - Desktop OAuth constant: `OAuthConstants.ClientId = "dotnetcloud-desktop"`.
+- **SignalR channel group naming:** `chat-channel-{channelId}` (used by `ChatRealtimeService.ChannelGroup()` and Android `SignalRChatClient`).
 
 ## Active Handoff
 
-### Server Redeploy COMPLETE — Ready for Android Client
+### Add SignalR Broadcast to ChatController REST Endpoints
 
-**Target machine:** `monolith`
-**Priority:** Normal
-**Completed by:** `mint22` (server agent)
+**Target machine:** `mint22`
+**Priority:** High
+**Requested by:** `monolith` (Android client agent)
 
-#### What Was Done
+#### Problem
 
-1. `git pull` fetched the latest changes including Chat.Host + Files.Host project references.
-2. **global.json fix:** SDK version changed from `10.0.200` → `10.0.100` with `rollForward: latestMinor` to support both mint22 (SDK 10.0.104) and Windows/monolith (SDK 10.0.200).
-3. `dotnet publish` succeeded — all modules built including Chat.Host and Files.Host assemblies.
-4. `dotnetcloud.service` restarted and passed health probe.
+Real-time chat message delivery does not work. When a client sends a message via REST API (Android or Blazor web), other connected clients do not receive the message in real time — they must manually refresh. The root cause has two parts:
 
-#### Verification Results
+1. **Server-side (this handoff):** `ChatController` REST message endpoints call `IMessageService` to persist but do NOT broadcast via SignalR. Compare with `CoreHub.SendMessageAsync` which correctly calls both `_messageService.SendMessageAsync()` AND `_chatRealtimeService.BroadcastNewMessageAsync()`.
 
-- ✓ `dotnet publish` succeeds with no errors
-- ✓ `dotnetcloud.service` restarts without failure
-- ✓ Health probe passes (`/health/live` returns 200)
-- ✓ Chat API controller discovered (`/api/v1/chat/channels` returns 500 — expected without auth, NOT 404)
-- ✓ Zero ERR entries from normal operation (only test-induced from unauthenticated curl probes)
+2. **Client-side (completed on `monolith`):** Android `SignalRChatClient` was not joining SignalR channel groups, so even if the server broadcast, the client wouldn't receive it. This is now fixed — `JoinChannelGroupAsync` / `LeaveChannelGroupAsync` are wired.
 
-#### Important Notes for Android Client
+#### What Was Done on monolith (Client-Side — COMPLETED)
 
-- **Chat REST route prefix is `api/v1/chat`** (NOT `api/chat`). Verify `HttpChatRestClient` uses this prefix.
-- **Chat SignalR hub:** `/hubs/chat` is NOT mapped in the monolith Core.Server — only in Chat.Host standalone mode. The Android client should use `/hubs/core` for SignalR, which IS mapped and returns 401 (auth required, as expected).
-- The `global.json` now uses `10.0.100` + `latestMinor` rollForward, so both SDK 10.0.104 and 10.0.200 will work.
+1. Added `JoinChannelGroupAsync(Guid channelId)` and `LeaveChannelGroupAsync(Guid channelId)` to `IChatSignalRClient` interface (`src\Clients\DotNetCloud.Client.Core\IChatSignalRClient.cs`).
+2. Implemented in `SignalRChatClient` (`src\Clients\DotNetCloud.Client.Android\Chat\SignalRChatClient.cs`) — invokes hub's `JoinGroupAsync` / `LeaveGroupAsync` with group name `chat-channel-{channelId}`.
+3. `MessageListViewModel.InitializeAsync` joins the channel group after loading messages.
+4. `MessageListViewModel.Dispose` leaves the channel group (fire-and-forget, best-effort).
+5. Updated `NoOpChatSignalRClient` with no-op stubs.
+6. Build passes cleanly.
 
-#### Hand Off To
+#### What Needs to Be Done on mint22 (Server-Side)
 
-Android client agent on `monolith` — proceed with testing Chat functionality against `https://mint22:15443/`.
+**Task 1: Add `IChatRealtimeService` to `ChatController` and broadcast after REST message operations.**
 
-After redeploy is verified, update this handoff with results and mark target as `monolith` so the Android client can rebuild the APK and test channel loading against the newly-registered Chat API endpoints.
+File: `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Controllers/ChatController.cs`
+
+The controller already injects `IRealtimeBroadcaster` but never uses it for message operations. Instead, inject `IChatRealtimeService` (from `DotNetCloud.Modules.Chat.Services`) which already has the correct group-naming logic.
+
+**Changes needed in constructor:**
+- Add `IChatRealtimeService chatRealtimeService` parameter.
+- Store as `private readonly IChatRealtimeService _chatRealtimeService`.
+
+**Changes needed in endpoints:**
+
+1. `SendMessageAsync` (line ~318): After `_messageService.SendMessageAsync()` returns `message`, add:
+   ```csharp
+   await _chatRealtimeService.BroadcastNewMessageAsync(channelId, message);
+   ```
+
+2. `EditMessageAsync` (line ~371): After `_messageService.EditMessageAsync()` returns `message`, add:
+   ```csharp
+   await _chatRealtimeService.BroadcastMessageEditedAsync(channelId, message);
+   ```
+
+3. `DeleteMessageAsync` (line ~389): After `_messageService.DeleteMessageAsync()`, add:
+   ```csharp
+   await _chatRealtimeService.BroadcastMessageDeletedAsync(channelId, messageId);
+   ```
+
+These are the same broadcast calls that `CoreHub` already makes (see lines 177, 201, 224 in `CoreHub.cs`).
+
+**Task 2 (Optional, follow-up): Blazor `ChatPageLayout` real-time updates.**
+
+File: `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChatPageLayout.razor.cs`
+
+`ChatPageLayout` runs in Blazor Server (`InteractiveServer`) mode. It calls `MessageService.SendMessageAsync()` directly — no SignalR broadcast occurs, so other Blazor users viewing the same channel see nothing until refresh.
+
+Options for the server agent:
+- A) After `HandleSendMessage` persists via `MessageService`, also call `IChatRealtimeService.BroadcastNewMessageAsync()` — this broadcasts to SignalR groups. Then add an `ISignalRChatService` subscription (or inject a thin in-process notifier) so other `ChatPageLayout` instances receive and display the message.
+- B) Create a simple `IChatMessageNotifier` in-process pub/sub (singleton) that `ChatPageLayout` subscribes to. Both `ChatController` and `ChatPageLayout.HandleSendMessage` publish through it. This keeps the Blazor-to-Blazor path independent of SignalR.
+
+The server agent should choose the approach that fits best. Task 1 is the critical fix; Task 2 is a nice-to-have for this cycle.
+
+#### Verification Steps (After Server Changes)
+
+1. `dotnet build` — must pass.
+2. `dotnet test` — all existing chat tests must pass.
+3. Redeploy on mint22: `dotnet publish`, restart `dotnetcloud.service`.
+4. Functional test: from Android emulator, send a message via REST. Open the same channel in the Blazor web UI. The message should appear in real time (without refresh) in the web UI.
+5. Reverse test: send from Blazor web UI, message should appear in Android app (if connected to SignalR group).
 
 #### Request Back
 
-- Commit hash on mint22 after pull
-- Output of `curl -kfsS https://localhost:15443/api/chat/health`
-- Output of `systemctl status dotnetcloud.service --no-pager` (first 10 lines)
+- Commit hash after changes
+- `dotnet test` output summary (pass/fail counts)
+- `systemctl status dotnetcloud.service --no-pager` (first 10 lines)
 - Any errors from `journalctl -u dotnetcloud.service --since "5 min ago" | grep -i err`
 
 ## Relay Template
