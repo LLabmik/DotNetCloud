@@ -5,6 +5,14 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Duplicate Controller Fix — Deployed and Verified (2026-03-18)
+
+Duplicate controller fix deployed and verified on `mint22`. Files endpoint returns 401 (correct — unauthenticated), service healthy.
+- Commit: `b931eae`. Published, restarted, health check passed, zero real errors.
+- Carry-forward: Controller discovery contract enforced — no duplicate controllers in Core.Server.
+
+---
+
 ## Archived: Duplicate Controller Fix — Server Redeployment (2026-03-18)
 
 Redeployed server on `mint22` after duplicate controller removal (Files/Sync/WOPI controllers removed from Core.Server; canonical copies remain in Files.Host).
