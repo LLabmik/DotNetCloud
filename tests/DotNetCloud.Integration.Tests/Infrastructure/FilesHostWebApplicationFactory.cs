@@ -1,16 +1,20 @@
 extern alias FilesHost;
 
 using System.Security.Claims;
+using System.Text.Encodings.Web;
 using DotNetCloud.Modules.Files.Data;
 using FilesHost::DotNetCloud.Modules.Files.Host;
 using FilesHost::DotNetCloud.Modules.Files.Host.Protos;
 using Grpc.Net.Client;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace DotNetCloud.Integration.Tests.Infrastructure;
 
@@ -33,6 +37,16 @@ internal sealed class FilesHostWebApplicationFactory : WebApplicationFactory<Fil
 
             // Inject a deterministic test identity from request header for auth-bound gRPC checks.
             services.AddSingleton<IStartupFilter, TestUserStartupFilter>();
+
+            // Register test auth handler for the OpenIddict validation scheme
+            // required by FilesControllerBase [Authorize(AuthenticationSchemes = "OpenIddict...")].
+            // The standalone Files.Host process has no OpenIddict, so we register
+            // the test handler directly.
+            services.AddAuthentication()
+                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
+                    TestAuthHandler.SchemeName, _ => { })
+                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
+                    "OpenIddict.Validation.AspNetCore", _ => { });
         });
     }
 
@@ -87,6 +101,42 @@ internal sealed class FilesHostWebApplicationFactory : WebApplicationFactory<Fil
 
                 next(app);
             };
+        }
+    }
+
+    /// <summary>
+    /// Authentication handler for integration tests that reads x-test-user-id header.
+    /// </summary>
+    private sealed class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
+    {
+        public const string SchemeName = "IntegrationTest";
+
+        public TestAuthHandler(
+            IOptionsMonitor<AuthenticationSchemeOptions> options,
+            ILoggerFactory logger,
+            UrlEncoder encoder)
+            : base(options, logger, encoder)
+        {
+        }
+
+        protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+        {
+            if (Request.Headers.TryGetValue("x-test-user-id", out var userHeader) &&
+                Guid.TryParse(userHeader.ToString(), out var userId))
+            {
+                var identity = new ClaimsIdentity(
+                [
+                    new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+                    new Claim("sub", userId.ToString())
+                ],
+                authenticationType: SchemeName);
+
+                var principal = new ClaimsPrincipal(identity);
+                var ticket = new AuthenticationTicket(principal, SchemeName);
+                return Task.FromResult(AuthenticateResult.Success(ticket));
+            }
+
+            return Task.FromResult(AuthenticateResult.NoResult());
         }
     }
 }

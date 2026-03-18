@@ -356,7 +356,8 @@ public class FilesController : FilesControllerBase
             var stream = await _downloadService.DownloadVersionAsync(ver.Id, caller);
             _logger.LogInformation("file.downloaded {NodeId} {FileSize} {UserId} {Version}",
                 nodeId, ver.Size, caller.UserId, version.Value);
-            return File(stream, ver.MimeType ?? "application/octet-stream", versionedNode?.Name);
+            var versionMime = string.IsNullOrWhiteSpace(ver.MimeType) ? "application/octet-stream" : ver.MimeType;
+            return File(stream, versionMime, versionedNode?.Name);
         }
 
         var node = await _fileService.GetNodeAsync(nodeId, caller);
@@ -366,7 +367,8 @@ public class FilesController : FilesControllerBase
         var downloadStream = await _downloadService.DownloadCurrentAsync(nodeId, caller);
         _logger.LogInformation("file.downloaded {NodeId} {FileName} {FileSize} {UserId}",
             nodeId, node.Name, node.Size, caller.UserId);
-        return File(downloadStream, node.MimeType ?? "application/octet-stream", node.Name, enableRangeProcessing: true);
+        var currentMime = string.IsNullOrWhiteSpace(node.MimeType) ? "application/octet-stream" : node.MimeType;
+        return File(downloadStream, currentMime, node.Name, enableRangeProcessing: true);
     });
 
     /// <summary>

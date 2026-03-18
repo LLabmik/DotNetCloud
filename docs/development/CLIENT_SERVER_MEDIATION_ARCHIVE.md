@@ -2209,6 +2209,30 @@ Reference tracker: Phase 2.3 accepted and closed out; continue from `docs/MASTER
 5. Test suite: 2,095 passed / 0 failed / 13 skipped (env-gated).
 - Treat server APIs as stable for this sprint; any suspected server gap must include endpoint, payload, and raw error evidence before requesting server changes.
 
+## Archived: Server-Side Real-Time Chat Broadcast + Android Files 500 Fix (2026-03-18)
+
+**Context:** Server agent on `mint22` completed REST endpoint SignalR broadcast and Blazor in-process real-time chat. Client agent on `monolith` discovered Android "My Files" tab returning HTTP 500 (Internal Server Error) when opening file browser.
+
+**Root cause found on monolith:** Duplicate controller classes at identical routes in `Core.Server` and `Files.Host` assemblies:
+- `FilesController` at `[Route("api/v1/files")]`
+- `SyncController` at `[Route("api/v1/files/sync")]`
+- `WopiController` at `[Route("api/v1/wopi")]`
+
+ASP.NET Core's `ApplicationPartManager` auto-discovers controllers from referenced assemblies that depend on MVC packages. Since `Core.Server.csproj` references `Files.Host` (ProjectReference), and `Files.Host` references MVC, all Files.Host controllers were auto-discovered — creating duplicates with the Core.Server copies at the same routes → `AmbiguousMatchException` → HTTP 500.
+
+**Fix applied:**
+1. Removed 4 duplicate files from Core.Server: `FilesController.cs`, `SyncController.cs`, `WopiController.cs`, `FilesControllerBase.cs`.
+2. Updated Files.Host `FilesControllerBase` to use explicit OpenIddict auth scheme: `[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]`.
+3. Added `OpenIddict.Validation.AspNetCore` v7.2.0 package to `Files.Host.csproj`.
+4. Fixed MIME type fallback in Files.Host `DownloadAsync` — changed `??` to `string.IsNullOrWhiteSpace()` for empty/whitespace MIME types.
+5. Updated `FilesControllerTests` to reference Files.Host controller, added `IThumbnailService` and `ILogger` mocks, added `ServiceProvider` with logging.
+6. Updated `FilesHostWebApplicationFactory` with `TestAuthHandler` for the OpenIddict validation scheme.
+7. Updated `DotNetCloudWebApplicationFactory` with OpenIddict scheme for Core.Server-based integration tests.
+
+**Test results:** All 332 Core.Server tests pass, all 638 Files module tests pass, all 31 FilesControllerTests pass, all 16 FilesRestIsolationIntegrationTests pass. 20 pre-existing integration failures (ModuleUiRegistrationHostedService crash) and 2 pre-existing SyncTray failures (Linux-specific on Windows) are unrelated.
+
+**Server action required:** `mint22` must redeploy with the updated binaries to resolve the 500 error on Files/Sync/WOPI endpoints for all clients.
+
 **Send to client agent (copy/paste block):**
 Continue client-only implementation to align with completed server phases (2.5-2.10) using the alignment matrix above.
 

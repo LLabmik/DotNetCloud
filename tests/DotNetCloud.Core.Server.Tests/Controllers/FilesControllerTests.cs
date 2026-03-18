@@ -1,8 +1,10 @@
 using System.Security.Claims;
 using DotNetCloud.Core.Authorization;
-using DotNetCloud.Core.Server.Controllers;
+using DotNetCloud.Modules.Files.Host.Controllers;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Options;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.Http;
@@ -659,6 +661,8 @@ public sealed class FilesControllerTests
 
         public Mock<IShareService> ShareService { get; } = new();
 
+        public Mock<IThumbnailService> ThumbnailService { get; } = new();
+
         public FilesController CreateController(Guid? authenticatedUserId)
         {
             ClaimsPrincipal principal;
@@ -674,19 +678,26 @@ public sealed class FilesControllerTests
                 principal = new ClaimsPrincipal(new ClaimsIdentity());
             }
 
+            var services = new ServiceCollection();
+            services.AddLogging();
+            var serviceProvider = services.BuildServiceProvider();
+
             return new FilesController(
                 FileService.Object,
                 UploadService.Object,
                 DownloadService.Object,
                 VersionService.Object,
                 ShareService.Object,
+                ThumbnailService.Object,
+                Mock.Of<ILogger<FilesController>>(),
                 Options.Create(new FileSystemOptions()))
             {
                 ControllerContext = new ControllerContext
                 {
                     HttpContext = new DefaultHttpContext
                     {
-                        User = principal
+                        User = principal,
+                        RequestServices = serviceProvider
                     }
                 }
             };
