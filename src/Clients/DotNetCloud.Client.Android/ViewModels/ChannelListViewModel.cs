@@ -71,7 +71,7 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load channels.");
-            ErrorMessage = $"Failed to load chat channels: {ex.GetType().Name}: {ex.Message}";
+            ErrorMessage = ApiExceptionHelper.GetUserFriendlyMessage(ex);
         }
         finally
         {

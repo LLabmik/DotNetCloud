@@ -129,7 +129,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to initialize message list for channel {ChannelId}.", channelId);
-            ErrorMessage = $"Failed to load channel: {ex.Message}";
+            ErrorMessage = ApiExceptionHelper.GetUserFriendlyMessage(ex);
         }
     }
 
@@ -203,7 +203,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         {
             _logger.LogError(ex, "Failed to load messages for channel {ChannelId}.", _channelId);
             if (cached.Count == 0)
-                ErrorMessage = "Failed to load messages.";
+                ErrorMessage = ApiExceptionHelper.GetUserFriendlyMessage(ex);
         }
         finally
         {
@@ -231,7 +231,7 @@ public sealed partial class MessageListViewModel : ObservableObject, IDisposable
         {
             _logger.LogError(ex, "Failed to send message.");
             ComposerText = content; // restore on failure
-            ErrorMessage = "Failed to send message.";
+            ErrorMessage = ApiExceptionHelper.GetUserFriendlyMessage(ex);
         }
         finally
         {

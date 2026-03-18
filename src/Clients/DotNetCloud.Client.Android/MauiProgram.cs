@@ -38,10 +38,12 @@ public static class MauiProgram
 
         // ── Auth ──────────────────────────────────────────────────────
         builder.Services.AddSingleton<IOAuth2Service, MauiOAuth2Service>();
+        builder.Services.AddTransient<AuthenticatedHttpClientHandler>();
 
         // ── Chat / real-time ──────────────────────────────────────────
         builder.Services.AddSingleton<IChatSignalRClient, SignalRChatClient>();
         builder.Services.AddHttpClient<IChatRestClient, HttpChatRestClient>()
+            .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
 
         // ── Push notifications ────────────────────────────────────────
@@ -53,10 +55,12 @@ public static class MauiProgram
 
         // ── Photo auto-upload ─────────────────────────────────────────
         builder.Services.AddHttpClient<IPhotoAutoUploadService, PhotoAutoUploadService>()
+            .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
 
         // ── Files / media upload ────────────────────────────────────
         builder.Services.AddHttpClient<IFileRestClient, HttpFileRestClient>()
+            .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
         builder.Services.AddSingleton<IMediaAutoUploadService, MediaAutoUploadService>();
 

@@ -107,7 +107,7 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load files.");
-            ErrorMessage = $"Failed to load files: {ex.Message}";
+            ErrorMessage = ApiExceptionHelper.GetUserFriendlyMessage(ex);
         }
         finally
         {
@@ -193,7 +193,7 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to create folder.");
-            await Shell.Current.DisplayAlert("Error", $"Failed to create folder: {ex.Message}", "OK");
+            await Shell.Current.DisplayAlert("Error", ApiExceptionHelper.GetUserFriendlyMessage(ex), "OK");
         }
     }
 
@@ -216,7 +216,7 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogError(ex, "File upload failed.");
-            await Shell.Current.DisplayAlert("Error", $"Upload failed: {ex.Message}", "OK");
+            await Shell.Current.DisplayAlert("Error", ApiExceptionHelper.GetUserFriendlyMessage(ex), "OK");
         }
         finally
         {
@@ -247,7 +247,7 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogError(ex, "Photo capture upload failed.");
-            await Shell.Current.DisplayAlert("Error", $"Photo upload failed: {ex.Message}", "OK");
+            await Shell.Current.DisplayAlert("Error", ApiExceptionHelper.GetUserFriendlyMessage(ex), "OK");
         }
         finally
         {
@@ -278,7 +278,7 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogError(ex, "Video capture upload failed.");
-            await Shell.Current.DisplayAlert("Error", $"Video upload failed: {ex.Message}", "OK");
+            await Shell.Current.DisplayAlert("Error", ApiExceptionHelper.GetUserFriendlyMessage(ex), "OK");
         }
         finally
         {
@@ -307,7 +307,7 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to delete {NodeName}.", item.Name);
-            await Shell.Current.DisplayAlert("Error", $"Failed to delete: {ex.Message}", "OK");
+            await Shell.Current.DisplayAlert("Error", ApiExceptionHelper.GetUserFriendlyMessage(ex), "OK");
         }
     }
 
@@ -415,7 +415,7 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to download {FileName}.", item.Name);
-            await Shell.Current.DisplayAlert("Error", $"Download failed: {ex.Message}", "OK");
+            await Shell.Current.DisplayAlert("Error", ApiExceptionHelper.GetUserFriendlyMessage(ex), "OK");
         }
     }
 
