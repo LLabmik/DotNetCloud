@@ -5,6 +5,20 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Duplicate Controller Fix — Server Redeployment (2026-03-18)
+
+Redeployed server on `mint22` after duplicate controller removal (Files/Sync/WOPI controllers removed from Core.Server; canonical copies remain in Files.Host).
+
+- **Root cause:** `AmbiguousMatchException` from duplicate controllers at same routes in both `Core.Server` and `Files.Host` assemblies.
+- `dotnet publish` to `artifacts/publish/server-baremetal/` succeeded.
+- `dotnetcloud.service` restarted cleanly. PID 545172.
+- `/health` returned `Healthy` (all checks: self, startup, collabora_online, linux-resources).
+- **Files endpoint verified:** `GET /api/v1/files` returns HTTP `401` (correct — no auth token). Previously returned HTTP `500` (AmbiguousMatchException).
+- Zero real ERR entries in journal — only expected `missing_token` from unauthenticated test curl.
+- Commit: `b931eae`.
+
+---
+
 ## Archived: Android Client SignalR Group Joining + Server Broadcast Request (2026-03-17)
 
 Android client on `monolith` completed client-side SignalR group join/leave wiring:

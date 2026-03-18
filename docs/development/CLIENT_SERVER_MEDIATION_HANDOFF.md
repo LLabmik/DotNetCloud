@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-18 (Duplicate controller fix — removed Core.Server duplicates, server redeployment required on mint22)
+Last updated: 2026-03-18 (Duplicate controller fix deployed and verified on mint22 — Files endpoint returns 401, service healthy)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -53,7 +53,7 @@ Archived context:
   - Linux client (`mint-dnc-client`): verified 2026-03-16 ~03:00Z
   - Windows client (`Windows11-TestDNC`): verified 2026-03-16 ~08:16Z. Bug fixed: `RemoveFileRecordsUnderPathAsync` path separator on Windows.
   - Server (`mint22`): confirmed stable 2026-03-16. Zero ERR entries, both nodes soft-deleted, no 5xx.
-- **Active cycle:** Duplicate controller fix deployed from `monolith` — server redeployment required on `mint22` to resolve HTTP 500 on Files/Sync/WOPI endpoints.
+- **Active cycle:** Duplicate controller fix COMPLETE — deployed and verified on `mint22` (2026-03-18). Files endpoint returns 401, service healthy.
 
 ## Environment
 
@@ -75,87 +75,33 @@ Archived context:
 
 ## Active Handoff
 
-### Server Redeployment Required — Duplicate Controller Fix
+### Duplicate Controller Fix — Deployed and Verified ✅
 
-**Target machine:** `mint22`
-**Priority:** Critical
-**Completed by:** `monolith` (client agent)
+**Completed on:** `mint22` (2026-03-18)
+**Status:** DONE — no further action needed.
 
-#### Root Cause — HTTP 500 on All Files/Sync/WOPI Endpoints
+#### Deployment Results
 
-Android "My Files" tab returned `500 Internal Server Error` on `GET /api/v1/files`. Root cause: **duplicate controller classes** at identical routes in both `Core.Server` and `Files.Host` assemblies.
+1. **Published:** `dotnet publish -c Release -o artifacts/publish/server-baremetal` — succeeded, all 15 projects built.
+2. **Service restarted:** `sudo systemctl restart dotnetcloud.service` — active (running), PID 545172.
+3. **Health check:** `curl -k https://localhost:15443/health` → `Healthy` (all 4 checks passed: self, startup, collabora_online, linux-resources).
+4. **Files endpoint:** `curl -k -s -o /dev/null -w "%{http_code}" https://localhost:15443/api/v1/files` → **`401`** (correct — unauthenticated). Previously returned `500` (AmbiguousMatchException).
+5. **Journal errors:** Zero real errors. Only expected `missing_token` / `ID2000` entries from the unauthenticated test curl.
 
-ASP.NET Core's `ApplicationPartManager` auto-discovers controllers from referenced assemblies that depend on MVC packages. Since `Core.Server.csproj` references `Files.Host` (ProjectReference line 42), and `Files.Host` references MVC, all Files.Host controllers were auto-discovered — creating duplicates with the Core.Server copies at the same routes → `AmbiguousMatchException` → HTTP 500 for **every** Files/Sync/WOPI request.
+#### Service Status Output
+```
+● dotnetcloud.service - DotNetCloud Core Server
+     Loaded: loaded (/etc/systemd/system/dotnetcloud.service; enabled)
+     Active: active (running) since Tue 2026-03-17 23:37:57 CDT
+   Main PID: 545172 (dotnet)
+     Memory: 77.8M
+```
 
-**Why Chat worked but Files didn't:** `ChatController` only exists in `Chat.Host` (no duplicate in Core.Server), so it was the sole controller at `/api/v1/chat`. Files had duplicates at all three routes.
+#### Commit
+`b931eae` (pulled from monolith's push — no additional changes needed on mint22)
 
-#### What Was Done on monolith
-
-1. **Removed 4 duplicate controller files from Core.Server:**
-   - `src/Core/DotNetCloud.Core.Server/Controllers/FilesController.cs`
-   - `src/Core/DotNetCloud.Core.Server/Controllers/SyncController.cs`
-   - `src/Core/DotNetCloud.Core.Server/Controllers/WopiController.cs`
-   - `src/Core/DotNetCloud.Core.Server/Controllers/FilesControllerBase.cs`
-
-2. **Updated Files.Host `FilesControllerBase` auth scheme:**
-   - Changed `[Authorize]` to `[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]`
-   - Added `OpenIddict.Validation.AspNetCore` v7.2.0 package to `Files.Host.csproj`
-   - Reason: plain `[Authorize]` defaults to cookies (via `AddIdentity`), which won't work for bearer-token API clients
-
-3. **Fixed MIME type fallback bug in Files.Host `DownloadAsync`:**
-   - Changed `node.MimeType ?? "application/octet-stream"` to `string.IsNullOrWhiteSpace(node.MimeType) ? "application/octet-stream" : node.MimeType`
-   - Same for versioned downloads (`ver.MimeType`)
-   - The `??` operator only handles `null`, not empty/whitespace MIME types
-
-4. **Updated test infrastructure:**
-   - `FilesControllerTests.cs`: Updated using to `Files.Host.Controllers`, added `IThumbnailService` + `ILogger<FilesController>` mocks, added `ServiceProvider` with logging to `DefaultHttpContext.RequestServices`
-   - `FilesHostWebApplicationFactory.cs`: Added `TestAuthHandler` for `"OpenIddict.Validation.AspNetCore"` scheme
-   - `DotNetCloudWebApplicationFactory.cs`: Added OpenIddict scheme registration for Core.Server integration tests
-
-#### Test Results on monolith
-
-| Suite | Passed | Failed | Notes |
-|-------|--------|--------|-------|
-| Core.Server.Tests | 332 | 0 | 1 skipped (Linux-only) |
-| Modules.Files.Tests | 638 | 0 | |
-| Modules.Chat.Tests | 283 | 0 | |
-| FilesControllerTests | 31 | 0 | All download/upload/CRUD tests pass |
-| FilesRestIsolationIntegrationTests | 16 | 0 | All Files integration tests pass |
-| Client.Core.Tests | 182 | 0 | |
-| Core.Auth.Tests | 85 | 0 | |
-| Core.Data.Tests | 176 | 0 | |
-| CLI.Tests | 118 | 0 | |
-| Client.SyncService.Tests | 27 | 0 | |
-| Modules.Example.Tests | 51 | 0 | |
-| Integration.Tests (other) | 112 | 20 | Pre-existing: `ModuleUiRegistrationHostedService` crash |
-| Client.SyncTray.Tests | 75 | 2 | Pre-existing: Linux-specific tests on Windows |
-
-#### Action Required on mint22
-
-1. `git pull origin main`
-2. Rebuild and redeploy:
-   ```bash
-   cd /opt/dotnetcloud
-   dotnet publish src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release -o /opt/dotnetcloud/publish
-   sudo systemctl restart dotnetcloud.service
-   ```
-3. Verify the service is healthy:
-   ```bash
-   systemctl status dotnetcloud.service --no-pager | head -10
-   curl -k https://localhost:15443/health
-   ```
-4. Test Files endpoint responds (should return 401 Unauthorized, NOT 500):
-   ```bash
-   curl -k -s -o /dev/null -w "%{http_code}" https://localhost:15443/api/v1/files
-   ```
-   Expected: `401` (no auth token). Previously returned `500` (AmbiguousMatchException).
-
-#### Request Back
-
-- Commit hash after redeployment
-- `systemctl status dotnetcloud.service --no-pager` (first 10 lines)
-- `curl -k -s -o /dev/null -w "%{http_code}" https://localhost:15443/api/v1/files` output
-- Any errors from `journalctl -u dotnetcloud.service --since "5 min ago" | grep -i err`
+#### Carry-Forward Note
+The **Controller discovery** contract in Key Carry-Forward Contracts is now enforced: Core.Server references Files.Host and Chat.Host via ProjectReference, ASP.NET Core auto-discovers controllers from those assemblies. No duplicate controllers should ever be created in Core.Server for routes already in module Host assemblies.
 
 ## Relay Template
 
