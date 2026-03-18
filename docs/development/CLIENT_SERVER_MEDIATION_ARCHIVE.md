@@ -5,9 +5,14 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
-## Archived: Chat Auth Enforcement — Code Changes Complete (2026-03-18)
+## Archived: Chat Auth Enforcement — CLOSED (2026-03-18)
 
-Server-side chat auth enforcement deployed on `mint22`; Android client code cleanup completed on `monolith`. E2E verification pending (deploy to emulator + test chat ops against mint22).
+Server-side chat auth enforcement deployed on `mint22`; Android client code cleanup completed on `monolith`. E2E verified on Android emulator against `mint22:15443`.
+
+**E2E verification result:**
+- Initial 401 errors caused by stale pre-auth-enforcement token. Resolved by logging out and back in from Settings page.
+- All chat operations (list channels, send message, message history) work with bearer-only auth.
+- **Lesson learned:** after server auth changes, users must log out and log back in to get a fresh token.
 
 **Server side (mint22):**
 - `ChatControllerBase` added with `[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]`

@@ -34,8 +34,45 @@
                     </ImageButton.Source>
                 </ImageButton>
 
-                <!-- Spacer -->
-                <BoxView Grid.Column="1" BackgroundColor="Transparent" />
+                <!-- Breadcrumb navigation -->
+                <ScrollView
+                    Grid.Column="1"
+                    Orientation="Horizontal"
+                    HorizontalScrollBarVisibility="Never"
+                    VerticalOptions="Center">
+                    <CollectionView
+                        ItemsSource="{Binding Breadcrumbs}"
+                        ItemsLayout="HorizontalList"
+                        SelectionMode="None"
+                        VerticalOptions="Center"
+                        HeightRequest="32">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="vm:BreadcrumbItem">
+                                <HorizontalStackLayout VerticalOptions="Center" Spacing="0">
+                                    <Label
+                                        FontSize="13"
+                                        TextColor="#475569"
+                                        VerticalOptions="Center"
+                                        Text=" › "
+                                        IsVisible="{Binding FolderId, Converter={StaticResource IsNotNull}}" />
+                                    <Label
+                                        FontSize="13"
+                                        TextColor="#94A3B8"
+                                        VerticalOptions="Center"
+                                        Text="{Binding Name}"
+                                        LineBreakMode="TailTruncation"
+                                        MaxLines="1">
+                                        <Label.GestureRecognizers>
+                                            <TapGestureRecognizer
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.NavigateToBreadcrumbCommand}"
+                                                CommandParameter="{Binding .}" />
+                                        </Label.GestureRecognizers>
+                                    </Label>
+                                </HorizontalStackLayout>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </ScrollView>
 
                 <!-- New folder button -->
                 <Border

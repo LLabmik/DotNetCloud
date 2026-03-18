@@ -77,6 +77,9 @@ public sealed partial class FileBrowserViewModel : ObservableObject
     /// <summary>Current folder ID (null = root).</summary>
     private Guid? CurrentFolderId => _navigationStack.Count > 0 ? _navigationStack.Peek().FolderId : null;
 
+    /// <summary>Breadcrumb trail from root to current folder.</summary>
+    public ObservableCollection<BreadcrumbItem> Breadcrumbs { get; } = [new(null, "My Files")];
+
     /// <summary>Loads file items for the current folder.</summary>
     [RelayCommand]
     private async Task LoadFilesAsync(CancellationToken ct)
@@ -121,6 +124,7 @@ public sealed partial class FileBrowserViewModel : ObservableObject
             _navigationStack.Push((item.Id, item.Name));
             CurrentFolderName = item.Name;
             CanGoBack = _navigationStack.Count > 1;
+            UpdateBreadcrumbs();
             await LoadFilesAsync(ct);
         }
         else
@@ -140,7 +144,34 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         var current = _navigationStack.Peek();
         CurrentFolderName = current.Name;
         CanGoBack = _navigationStack.Count > 1;
+        UpdateBreadcrumbs();
         await LoadFilesAsync(ct);
+    }
+
+    /// <summary>Navigates to a specific breadcrumb in the path.</summary>
+    [RelayCommand]
+    private async Task NavigateToBreadcrumbAsync(BreadcrumbItem crumb, CancellationToken ct)
+    {
+        // Pop the stack until we reach the target breadcrumb
+        while (_navigationStack.Count > 0 && _navigationStack.Peek().FolderId != crumb.FolderId)
+            _navigationStack.Pop();
+
+        if (_navigationStack.Count == 0)
+            _navigationStack.Push((null, "My Files"));
+
+        var current = _navigationStack.Peek();
+        CurrentFolderName = current.Name;
+        CanGoBack = _navigationStack.Count > 1;
+        UpdateBreadcrumbs();
+        await LoadFilesAsync(ct);
+    }
+
+    /// <summary>Rebuilds the breadcrumb collection from the current navigation stack.</summary>
+    private void UpdateBreadcrumbs()
+    {
+        Breadcrumbs.Clear();
+        foreach (var entry in _navigationStack.Reverse())
+            Breadcrumbs.Add(new BreadcrumbItem(entry.FolderId, entry.Name));
     }
 
     /// <summary>Prompts the user to create a new folder in the current directory.</summary>
@@ -516,3 +547,8 @@ public sealed partial class FileItemViewModel : ObservableObject
         _ => $"{bytes / (1024.0 * 1024 * 1024):F2} GB"
     };
 }
+
+/// <summary>Represents a single segment in the breadcrumb navigation trail.</summary>
+/// <param name="FolderId">Folder ID (null for root).</param>
+/// <param name="Name">Display name.</param>
+public sealed record BreadcrumbItem(Guid? FolderId, string Name);

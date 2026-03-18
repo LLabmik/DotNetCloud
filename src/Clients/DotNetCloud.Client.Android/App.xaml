@@ -14,6 +14,7 @@
             <!-- Shared value converters used throughout the app -->
             <converters:InvertBoolConverter x:Key="InvertBool" />
             <converters:IsNotNullOrEmptyConverter x:Key="IsNotNullOrEmpty" />
+            <converters:IsNotNullConverter x:Key="IsNotNull" />
             <converters:IsNotZeroConverter x:Key="IsNotZero" />
             <converters:UnreadToBoldConverter x:Key="UnreadToBold" />
             <converters:MentionToBadgeColorConverter x:Key="MentionToBadgeColor" />

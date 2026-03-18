@@ -165,7 +165,8 @@ internal sealed class FileService : IFileService
             .ThenBy(n => n.Name)
             .ToListAsync(cancellationToken);
 
-        return children.Select(n => ToDto(n)).ToList();
+        var childCounts = await GetChildCountsAsync(children, cancellationToken);
+        return children.Select(n => ToDto(n, childCounts.GetValueOrDefault(n.Id))).ToList();
     }
 
     /// <inheritdoc />
@@ -181,7 +182,8 @@ internal sealed class FileService : IFileService
             .ThenBy(n => n.Name)
             .ToListAsync(cancellationToken);
 
-        return roots.Select(n => ToDto(n)).ToList();
+        var childCounts = await GetChildCountsAsync(roots, cancellationToken);
+        return roots.Select(n => ToDto(n, childCounts.GetValueOrDefault(n.Id))).ToList();
     }
 
     /// <inheritdoc />
@@ -609,6 +611,29 @@ internal sealed class FileService : IFileService
 
         if (node.OwnerId != caller.UserId)
             throw new ForbiddenException("You do not have permission to modify this node.");
+    }
+
+    /// <summary>Batch-fetches child counts for all folder nodes in a single query.</summary>
+    private async Task<Dictionary<Guid, int>> GetChildCountsAsync(List<FileNode> nodes, CancellationToken ct)
+    {
+        var folderIds = nodes
+            .Where(n => n.NodeType == FileNodeType.Folder)
+            .Select(n => n.Id)
+            .ToList();
+
+        if (folderIds.Count == 0)
+            return [];
+
+        // Materialize parent IDs first, then group in memory.
+        // Avoids GroupBy translation issues with some EF Core providers.
+        var parentIds = await _db.FileNodes
+            .Where(n => n.ParentId != null && folderIds.Contains(n.ParentId.Value))
+            .Select(n => n.ParentId!.Value)
+            .ToListAsync(ct);
+
+        return parentIds
+            .GroupBy(id => id)
+            .ToDictionary(g => g.Key, g => g.Count());
     }
 
     private static FileNodeDto ToDto(FileNode node, int? childCount = null) => new()

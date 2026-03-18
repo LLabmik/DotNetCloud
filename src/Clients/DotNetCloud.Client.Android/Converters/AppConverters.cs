@@ -26,12 +26,24 @@ public sealed class IsNotNullOrEmptyConverter : IValueConverter
         throw new NotSupportedException();
 }
 
-/// <summary>Returns <c>true</c> when the integer value is not zero.</summary>
+/// <summary>Returns <c>true</c> when the value is not zero.</summary>
 public sealed class IsNotZeroConverter : IValueConverter
 {
     /// <inheritdoc />
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         value is int i && i != 0;
+
+    /// <inheritdoc />
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>Returns <c>true</c> when the value is not null.</summary>
+public sealed class IsNotNullConverter : IValueConverter
+{
+    /// <inheritdoc />
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is not null;
 
     /// <inheritdoc />
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>

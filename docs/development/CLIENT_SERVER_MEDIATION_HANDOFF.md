@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-18 (Chat auth enforcement — code complete, pending E2E verification on emulator)
+Last updated: 2026-03-18 (File browser fixes — child count, breadcrumbs; server redeploy needed)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -54,7 +54,7 @@ Archived context:
   - Windows client (`Windows11-TestDNC`): verified 2026-03-16 ~08:16Z. Bug fixed: `RemoveFileRecordsUnderPathAsync` path separator on Windows.
   - Server (`mint22`): confirmed stable 2026-03-16. Zero ERR entries, both nodes soft-deleted, no 5xx.
 - Duplicate controller fix: CLOSED (2026-03-18). Deployed and verified on `mint22`. Files endpoint returns 401, service healthy.
-- **Active cycle:** Chat auth enforcement — code changes complete (server `mint22` + Android client `monolith`). **Pending E2E verification:** Android app must be deployed to emulator and chat operations tested against `mint22:15443` with bearer-only auth before story can be closed.
+- **Active cycle:** File browser fixes — folder child count fix (server-side `FileService.cs`), breadcrumb navigation (Android client). Server redeploy needed on `mint22` before child counts appear correctly.
 
 ## Environment
 
@@ -76,33 +76,40 @@ Archived context:
 
 ## Active Handoff
 
-### No Active Handoff
+### File Browser Fixes — Server Redeploy Required (for `mint22`)
 
-### Chat Auth — Pending E2E Verification (for `monolith`)
-
-**Target:** `monolith`
-**Status:** CODE COMPLETE — AWAITING DEPLOY + MANUAL TEST
+**Target:** `mint22`
+**Status:** CODE COMMITTED — AWAITING REDEPLOY
 **Priority:** P1
 
-#### What's Done
+#### What Changed (server-side)
 
-- Server (`mint22`): all chat endpoints enforce bearer token auth, `?userId=` query params removed
-- Android client (`monolith`): `?userId=` query params removed from 7 `HttpChatRestClient` methods, `AccessTokenUserIdExtractor` removed from those methods, bearer header is sole auth mechanism
-- `LeaveChannelAsync` retains `AccessTokenUserIdExtractor` for `{targetUserId}` route segment (server route `DELETE /channels/{channelId}/members/{targetUserId}` requires it)
-- Build: 0 errors
+**Bug fix: folder child count always 0 in list responses**
 
-#### What's Pending
+`FileService.cs` — `ListChildrenAsync` and `ListRootAsync` were calling `ToDto(n)` without computing child counts. Added `GetChildCountsAsync()` helper that batch-queries child parent IDs, then groups in memory to produce counts. Passes counts to `ToDto(n, childCount)`. All 34 FileService tests pass.
 
-Deploy Android app to emulator and verify chat operations work against `mint22:15443`:
-- List channels → 200 (not 401)
-- Send a message → 200/201
-- Load message history → 200
-- Without Bearer header → 401
+Files changed:
+- `src/Modules/Files/DotNetCloud.Modules.Files.Data/Services/FileService.cs`
 
-Once verified, story can be closed.
+#### What Changed (client-side, already on `monolith`)
 
-**Potential follow-up items (not yet started):**
-- Push notification endpoints (`/api/v1/notifications/devices/`) still accept `?userId=` query params in `FcmPushService` and `UnifiedPushService`. If/when the notification controller enforces auth the same way as `ChatController`, these will need the same cleanup.
+- **Breadcrumb navigation:** Added `BreadcrumbItem` record, `Breadcrumbs` observable collection, `NavigateToBreadcrumbCommand`, and breadcrumb UI (horizontal scrolling trail) in `FileBrowserPage.xaml` toolbar. Users can tap any breadcrumb segment to navigate directly to that folder.
+- **IsNotNull converter:** Added `IsNotNullConverter` to `AppConverters.cs` and registered in `App.xaml`.
+
+Files changed:
+- `src/Clients/DotNetCloud.Client.Android/ViewModels/FileBrowserViewModel.cs`
+- `src/Clients/DotNetCloud.Client.Android/Views/FileBrowserPage.xaml`
+- `src/Clients/DotNetCloud.Client.Android/Converters/AppConverters.cs`
+- `src/Clients/DotNetCloud.Client.Android/App.xaml`
+
+#### Action Required on `mint22`
+
+1. `git pull`
+2. `dotnet publish` server
+3. Restart `dotnetcloud.service`
+4. Verify: `curl -H "Authorization: Bearer <token>" https://mint22:15443/api/v1/files` — folder nodes should have non-zero `childCount`
+
+**Note for future UX:** After server-side auth changes, stale tokens cause 401. Users should be prompted to log out and log back in. This was observed during chat auth E2E testing.
 
 ## Relay Template
 
