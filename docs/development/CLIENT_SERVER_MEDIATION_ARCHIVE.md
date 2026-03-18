@@ -5,6 +5,26 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Chat Auth Enforcement — Full Cycle Complete (2026-03-18)
+
+Server-side chat auth enforcement deployed on `mint22`; Android client cleanup completed on `monolith`.
+
+**Server side (mint22):**
+- `ChatControllerBase` added with `[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]`
+- All 35+ chat endpoints enforce bearer token auth; `[FromQuery] Guid userId` removed
+- User identity extracted from bearer token claims (`sub`/`NameIdentifier`)
+- All chat unit and integration tests updated and passing
+
+**Client side (monolith):**
+- Removed `?userId=` query params from 7 methods in `HttpChatRestClient` (GetChannels, GetMessages, SendMessage, MarkRead, NotifyTyping, GetChannelMembers, SendFileMessage)
+- Removed `AccessTokenUserIdExtractor` calls from those 7 methods
+- `LeaveChannelAsync` retains `AccessTokenUserIdExtractor` — server's `RemoveMemberAsync` route (`DELETE /channels/{channelId}/members/{targetUserId}`) still requires `targetUserId` as a path segment
+- `FcmPushService`/`UnifiedPushService` `?userId=` on `/api/v1/notifications/` endpoints left as-is (different controller, out of scope)
+- Bearer header via `SetAuth(accessToken)` is the sole auth mechanism
+- Build: 0 errors, 12 pre-existing warnings
+
+---
+
 ## Archived: Duplicate Controller Fix — Deployed and Verified (2026-03-18)
 
 Duplicate controller fix deployed and verified on `mint22`. Files endpoint returns 401 (correct — unauthenticated), service healthy.

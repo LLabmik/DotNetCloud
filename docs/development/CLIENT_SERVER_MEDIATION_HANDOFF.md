@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-18 (Chat auth enforcement — server-side COMPLETED on mint22; handoff to monolith for Android client cleanup)
+Last updated: 2026-03-18 (Chat auth enforcement — COMPLETE. Server + Android client both done.)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -54,7 +54,7 @@ Archived context:
   - Windows client (`Windows11-TestDNC`): verified 2026-03-16 ~08:16Z. Bug fixed: `RemoveFileRecordsUnderPathAsync` path separator on Windows.
   - Server (`mint22`): confirmed stable 2026-03-16. Zero ERR entries, both nodes soft-deleted, no 5xx.
 - Duplicate controller fix: CLOSED (2026-03-18). Deployed and verified on `mint22`. Files endpoint returns 401, service healthy.
-- **Active cycle:** Chat auth enforcement — server-side COMPLETED on `mint22`. All chat endpoints now return 401 without bearer token. Handoff to `monolith` for Android client cleanup (remove `?userId=` query params from all chat API URLs).
+- **Active cycle:** Chat auth enforcement — **CLOSED** (2026-03-18). Server enforces bearer token auth on all chat endpoints (`mint22`). Android client cleaned up: removed `?userId=` query params from 7 methods in `HttpChatRestClient`, bearer header is sole auth mechanism. `LeaveChannelAsync` retains `AccessTokenUserIdExtractor` for `{targetUserId}` route param (server route requires it). Push notification endpoints (`/api/v1/notifications/`) still send `?userId=` — separate controller, future cleanup.
 
 ## Environment
 
@@ -76,54 +76,15 @@ Archived context:
 
 ## Active Handoff
 
-### Chat Auth Client Cleanup — Android (for `monolith`)
+### No Active Handoff
 
-**Target:** `monolith`
-**Status:** READY FOR CLIENT AGENT
-**Priority:** P1 — required for chat to work against auth-enforced server
+All current work items are complete. Chat auth enforcement story is closed.
 
-#### Context
+**Last completed:** Chat auth enforcement — full cycle (server + Android client). See archive for details.
 
-Server-side chat auth enforcement is deployed and verified on `mint22`. All chat endpoints now require a valid OpenIddict bearer token and return **401** without one. The server no longer reads `[FromQuery] Guid userId` — user identity comes exclusively from the bearer token's `sub`/`NameIdentifier` claim.
-
-#### Required Android Client Changes
-
-**1. Remove `?userId=` query params from all chat API URLs in `HttpChatRestClient`**
-
-The server ignores these now — they're dead weight. Leaving them is harmless but creates confusion and sends unnecessary PII in URLs.
-
-Search for all instances of `?userId=` or `&userId=` in the Android chat client code and remove them.
-
-**2. Remove `AccessTokenUserIdExtractor` usage in chat client (if any)**
-
-The chat client previously extracted `userId` from the access token to send as a query param. This is no longer needed — the server extracts identity from the bearer token directly. The `SetAuth(accessToken)` Bearer header is the only auth mechanism needed.
-
-**3. Verify all chat operations still work against `mint22:15443`**
-
-After removing `?userId=` params:
-- List channels
-- Send a message
-- Load message history
-- Create a channel
-- Push notifications (register/unregister device)
-
-All should work if `SetAuth(accessToken)` is correctly setting the Bearer header (which it already is).
-
-#### Verification
-
-1. Build Android app: `dotnet build` succeeds
-2. Run chat-related tests: all pass
-3. E2E smoke test against `mint22:15443`:
-   - `GET /api/v1/chat/channels` with Bearer header → 200 (not 401)
-   - `POST /api/v1/chat/channels` with Bearer header → 200/201
-   - Without Bearer header → 401
-
-#### Server-Side Reference (already deployed)
-
-- `ChatControllerBase` uses `[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]`
-- User identity read from `ClaimTypes.NameIdentifier` / `"sub"` claim
-- No query params needed for user identity
-- All 35+ endpoints enforce auth uniformly
+**Potential follow-up items (not yet started):**
+- Push notification endpoints (`/api/v1/notifications/devices/`) still accept `?userId=` query params in `FcmPushService` and `UnifiedPushService`. If/when the notification controller enforces auth the same way as `ChatController`, these will need the same cleanup.
+- E2E smoke test against `mint22:15443` to verify chat operations work end-to-end with bearer-only auth (requires running Android emulator).
 
 ## Relay Template
 
