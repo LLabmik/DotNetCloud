@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-18 (Chat auth enforcement — handoff to mint22 for server-side ChatController auth hardening)
+Last updated: 2026-03-18 (Chat auth enforcement — server-side COMPLETED on mint22; handoff to monolith for Android client cleanup)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -54,7 +54,7 @@ Archived context:
   - Windows client (`Windows11-TestDNC`): verified 2026-03-16 ~08:16Z. Bug fixed: `RemoveFileRecordsUnderPathAsync` path separator on Windows.
   - Server (`mint22`): confirmed stable 2026-03-16. Zero ERR entries, both nodes soft-deleted, no 5xx.
 - Duplicate controller fix: CLOSED (2026-03-18). Deployed and verified on `mint22`. Files endpoint returns 401, service healthy.
-- **Active cycle:** Chat auth enforcement — `ChatController` has zero `[Authorize]` and trusts client-supplied `?userId=` query params. Security vulnerability. Handoff to `mint22` for server-side fix.
+- **Active cycle:** Chat auth enforcement — server-side COMPLETED on `mint22`. All chat endpoints now return 401 without bearer token. Handoff to `monolith` for Android client cleanup (remove `?userId=` query params from all chat API URLs).
 
 ## Environment
 
@@ -76,90 +76,54 @@ Archived context:
 
 ## Active Handoff
 
-### Chat Auth Enforcement — Server-Side (for `mint22`)
+### Chat Auth Client Cleanup — Android (for `monolith`)
 
-**Target:** `mint22`
-**Status:** READY FOR SERVER AGENT
-**Priority:** P0 — security vulnerability
+**Target:** `monolith`
+**Status:** READY FOR CLIENT AGENT
+**Priority:** P1 — required for chat to work against auth-enforced server
 
-#### Problem
+#### Context
 
-`ChatController` (`src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Controllers/ChatController.cs`) has **zero authentication enforcement**. Every endpoint accepts an unauthenticated `[FromQuery] Guid userId` parameter that the client supplies — any caller can impersonate any user.
+Server-side chat auth enforcement is deployed and verified on `mint22`. All chat endpoints now require a valid OpenIddict bearer token and return **401** without one. The server no longer reads `[FromQuery] Guid userId` — user identity comes exclusively from the bearer token's `sub`/`NameIdentifier` claim.
 
-By contrast, `FilesControllerBase` correctly uses:
-```csharp
-[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-```
-and extracts the caller identity from bearer token claims via `ClaimTypes.NameIdentifier` / `"sub"`.
+#### Required Android Client Changes
 
-#### Root Cause Analysis (done on monolith)
+**1. Remove `?userId=` query params from all chat API URLs in `HttpChatRestClient`**
 
-| | ChatController (BROKEN) | FilesControllerBase (CORRECT) |
-|---|---|---|
-| `[Authorize]` | ❌ None | ✅ `OpenIddictValidation` scheme |
-| User identity | `[FromQuery] Guid userId` — client-supplied, unverified | Extracted from bearer token claims (`sub` / `NameIdentifier`) |
-| Token validation | Never checked by middleware | Validated by OpenIddict middleware |
-| Base class | `ControllerBase` | Custom `FilesControllerBase` |
+The server ignores these now — they're dead weight. Leaving them is harmless but creates confusion and sends unnecessary PII in URLs.
 
-Chat "works" from the Android app only because the server never checks auth — it trusts whatever `userId` the client passes in the URL.
+Search for all instances of `?userId=` or `&userId=` in the Android chat client code and remove them.
 
-#### Required Server-Side Changes
+**2. Remove `AccessTokenUserIdExtractor` usage in chat client (if any)**
 
-**1. Add OpenIddict package to Chat.Host** (`DotNetCloud.Modules.Chat.Host.csproj`):
-```xml
-<PackageReference Include="OpenIddict.Validation.AspNetCore" Version="7.2.0" />
-```
+The chat client previously extracted `userId` from the access token to send as a query param. This is no longer needed — the server extracts identity from the bearer token directly. The `SetAuth(accessToken)` Bearer header is the only auth mechanism needed.
 
-**2. Create `ChatControllerBase`** (`src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Controllers/ChatControllerBase.cs`):
-- Mirror `FilesControllerBase` pattern exactly
-- `[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]`
-- `GetAuthenticatedCaller()` method that reads `ClaimTypes.NameIdentifier` / `"sub"` from `User` claims and returns `CallerContext`
-- `Envelope()` and `ErrorEnvelope()` helpers (already exist as private methods in ChatController — promote to base)
+**3. Verify all chat operations still work against `mint22:15443`**
 
-**3. Refactor `ChatController`** to:
-- Inherit `ChatControllerBase` instead of `ControllerBase`
-- Remove `[FromQuery] Guid userId` from ALL action parameters (35+ occurrences)
-- Replace `ToCaller(userId)` calls with `GetAuthenticatedCaller()`
-- Remove the private `ToCaller(Guid userId)`, `Envelope()`, and `ErrorEnvelope()` helper methods (now in base)
-- The `using` for `DotNetCloud.Core.Capabilities` can likely be removed (was only needed for `CallerType` used in the old `ToCaller`)
+After removing `?userId=` params:
+- List channels
+- Send a message
+- Load message history
+- Create a channel
+- Push notifications (register/unregister device)
 
-**4. Update `ChatHostWebApplicationFactory`** (`tests/DotNetCloud.Integration.Tests/Infrastructure/ChatHostWebApplicationFactory.cs`):
-- Add test auth handler for OpenIddict scheme (same pattern as `FilesHostWebApplicationFactory`)
-- Register `TestAuthHandler` for `"OpenIddict.Validation.AspNetCore"` scheme
-- Add `IStartupFilter` middleware that reads `x-test-user-id` header and sets `ClaimsPrincipal`
-- Update `CreateApiClient()` → `CreateAuthenticatedApiClient(Guid authenticatedUserId)` to inject the header
-- See `FilesHostWebApplicationFactory.cs` for exact implementation reference
+All should work if `SetAuth(accessToken)` is correctly setting the Bearer header (which it already is).
 
-**5. Update `ChatRestApiIntegrationTests`** (`tests/DotNetCloud.Integration.Tests/Api/ChatRestApiIntegrationTests.cs`):
-- Use `_factory.CreateAuthenticatedApiClient(UserA)` instead of `_factory.CreateApiClient()`
-- Remove `?userId=` query params from ALL test URLs
-- Add a test verifying unauthenticated requests return `401`
+#### Verification
 
-**6. Update `ChatControllerTests`** (`tests/DotNetCloud.Modules.Chat.Tests/ChatControllerTests.cs`):
-- Unit tests instantiate `ChatController` directly — they will need to set up `HttpContext` with a `ClaimsPrincipal` on the controller since `GetAuthenticatedCaller()` reads from `User`
-- See how Files controller unit tests handle this (set `ControllerContext` with mock `ClaimsPrincipal`)
+1. Build Android app: `dotnet build` succeeds
+2. Run chat-related tests: all pass
+3. E2E smoke test against `mint22:15443`:
+   - `GET /api/v1/chat/channels` with Bearer header → 200 (not 401)
+   - `POST /api/v1/chat/channels` with Bearer header → 200/201
+   - Without Bearer header → 401
 
-#### Files to Reference (correct patterns already in codebase)
+#### Server-Side Reference (already deployed)
 
-- `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/FilesControllerBase.cs` — the gold standard
-- `tests/DotNetCloud.Integration.Tests/Infrastructure/FilesHostWebApplicationFactory.cs` — test auth handler + `x-test-user-id` pattern
-- `tests/DotNetCloud.Core.Server.Tests/Controllers/FilesControllerTests.cs` — unit test ClaimsPrincipal setup
-
-#### Post-Fix: Android Client Update (monolith will handle)
-
-Once the server enforces auth and stops reading `[FromQuery] userId`, the Android `HttpChatRestClient` needs to:
-- Remove `?userId=` query params from all chat API URLs
-- Keep `SetAuth(accessToken)` (Bearer header) — this is already correct
-- The `AccessTokenUserIdExtractor` usage in chat client can be removed (server reads from claims now)
-
-**monolith will do this client-side update after mint22 confirms the server changes are deployed and verified.**
-
-#### Verification Steps (for mint22 after deployment)
-
-1. `curl -k -s -o /dev/null -w "%{http_code}" https://localhost:15443/api/v1/chat/channels` → should return `401` (currently returns `200` with empty data)
-2. `dotnet test` — all Chat unit and integration tests must pass
-3. Health check still `Healthy`
-4. Report back to monolith with commit hash for client-side follow-up
+- `ChatControllerBase` uses `[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]`
+- User identity read from `ClaimTypes.NameIdentifier` / `"sub"` claim
+- No query params needed for user identity
+- All 35+ endpoints enforce auth uniformly
 
 ## Relay Template
 

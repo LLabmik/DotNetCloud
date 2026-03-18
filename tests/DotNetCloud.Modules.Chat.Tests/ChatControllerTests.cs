@@ -4,9 +4,11 @@ using DotNetCloud.Modules.Chat.DTOs;
 using DotNetCloud.Modules.Chat.Host.Controllers;
 using DotNetCloud.Modules.Chat.Models;
 using DotNetCloud.Modules.Chat.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using System.Security.Claims;
 using System.Text.Json;
 
 namespace DotNetCloud.Modules.Chat.Tests;
@@ -72,7 +74,18 @@ public class ChatControllerTests
             _chatMessageNotifier.Object,
             _pushNotificationService.Object,
             _notificationPreferenceStore.Object,
-            NullLogger<ChatController>.Instance);
+            NullLogger<ChatController>.Instance)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(
+                        [new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString())],
+                        authenticationType: "TestAuth"))
+                }
+            }
+        };
     }
 
     [TestMethod]
@@ -82,7 +95,7 @@ public class ChatControllerTests
             .Setup(s => s.AddReactionAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new UnauthorizedAccessException("forbidden"));
 
-        var result = await _controller.AddReactionAsync(Guid.NewGuid(), new AddReactionDto { Emoji = "👍" }, Guid.NewGuid());
+        var result = await _controller.AddReactionAsync(Guid.NewGuid(), new AddReactionDto { Emoji = "👍" });
 
         Assert.IsInstanceOfType<ForbidResult>(result);
     }
@@ -94,7 +107,7 @@ public class ChatControllerTests
             .Setup(s => s.PinMessageAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new UnauthorizedAccessException("forbidden"));
 
-        var result = await _controller.PinMessageAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        var result = await _controller.PinMessageAsync(Guid.NewGuid(), Guid.NewGuid());
 
         Assert.IsInstanceOfType<ForbidResult>(result);
     }
@@ -106,7 +119,7 @@ public class ChatControllerTests
             .Setup(s => s.RemoveMemberAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new UnauthorizedAccessException("forbidden"));
 
-        var result = await _controller.RemoveMemberAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        var result = await _controller.RemoveMemberAsync(Guid.NewGuid(), Guid.NewGuid());
 
         Assert.IsInstanceOfType<ForbidResult>(result);
     }
@@ -118,7 +131,7 @@ public class ChatControllerTests
             .Setup(s => s.NotifyTypingAsync(It.IsAny<Guid>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new ArgumentException("Channel id is required."));
 
-        var result = await _controller.NotifyTypingAsync(Guid.NewGuid(), Guid.NewGuid());
+        var result = await _controller.NotifyTypingAsync(Guid.NewGuid());
 
         Assert.IsInstanceOfType<BadRequestObjectResult>(result);
     }
@@ -130,7 +143,7 @@ public class ChatControllerTests
             .Setup(s => s.GetPinnedMessagesAsync(It.IsAny<Guid>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("Channel not found."));
 
-        var result = await _controller.GetPinnedMessagesAsync(Guid.NewGuid(), Guid.NewGuid());
+        var result = await _controller.GetPinnedMessagesAsync(Guid.NewGuid());
 
         Assert.IsInstanceOfType<NotFoundObjectResult>(result);
     }
@@ -142,7 +155,7 @@ public class ChatControllerTests
             .Setup(s => s.AddReactionAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var result = await _controller.AddReactionAsync(Guid.NewGuid(), new AddReactionDto { Emoji = "👍" }, Guid.NewGuid());
+        var result = await _controller.AddReactionAsync(Guid.NewGuid(), new AddReactionDto { Emoji = "👍" });
 
         var ok = result as OkObjectResult;
         Assert.IsNotNull(ok);
@@ -159,7 +172,7 @@ public class ChatControllerTests
             .Setup(s => s.RemoveReactionAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("Message not found."));
 
-        var result = await _controller.RemoveReactionAsync(Guid.NewGuid(), "👍", Guid.NewGuid());
+        var result = await _controller.RemoveReactionAsync(Guid.NewGuid(), "👍");
 
         Assert.IsInstanceOfType<NotFoundObjectResult>(result);
     }
@@ -171,7 +184,7 @@ public class ChatControllerTests
             .Setup(s => s.MarkAsReadAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new UnauthorizedAccessException("forbidden"));
 
-        var result = await _controller.MarkAsReadAsync(Guid.NewGuid(), new MarkReadDto { MessageId = Guid.NewGuid() }, Guid.NewGuid());
+        var result = await _controller.MarkAsReadAsync(Guid.NewGuid(), new MarkReadDto { MessageId = Guid.NewGuid() });
 
         Assert.IsInstanceOfType<ForbidResult>(result);
     }
@@ -185,7 +198,7 @@ public class ChatControllerTests
                 new UnreadCountDto { ChannelId = Guid.NewGuid(), UnreadCount = 3, MentionCount = 1 }
             ]);
 
-        var result = await _controller.GetUnreadCountsAsync(Guid.NewGuid());
+        var result = await _controller.GetUnreadCountsAsync();
 
         var ok = result as OkObjectResult;
         Assert.IsNotNull(ok);
@@ -216,8 +229,7 @@ public class ChatControllerTests
             .ReturnsAsync([announcement]);
 
         var result = await _controller.CreateAnnouncementAsync(
-            new CreateAnnouncementDto { Title = "maintenance", Content = "Tonight", OrganizationId = announcement.OrganizationId },
-            Guid.NewGuid());
+            new CreateAnnouncementDto { Title = "maintenance", Content = "Tonight", OrganizationId = announcement.OrganizationId });
 
         Assert.IsInstanceOfType<CreatedAtActionResult>(result);
         _realtimeBroadcaster.Verify(
@@ -249,8 +261,7 @@ public class ChatControllerTests
             .ReturnsAsync([announcement]);
 
         await _controller.CreateAnnouncementAsync(
-            new CreateAnnouncementDto { Title = "urgent maintenance", Content = "Now", OrganizationId = announcement.OrganizationId, Priority = "Urgent" },
-            Guid.NewGuid());
+            new CreateAnnouncementDto { Title = "urgent maintenance", Content = "Now", OrganizationId = announcement.OrganizationId, Priority = "Urgent" });
 
         _realtimeBroadcaster.Verify(
             b => b.BroadcastAsync("announcements", "UrgentAnnouncement", announcement, It.IsAny<CancellationToken>()),
@@ -264,7 +275,7 @@ public class ChatControllerTests
             .Setup(s => s.GetAsync(It.IsAny<Guid>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((AnnouncementDto?)null);
 
-        var result = await _controller.GetAnnouncementAsync(Guid.NewGuid(), Guid.NewGuid());
+        var result = await _controller.GetAnnouncementAsync(Guid.NewGuid());
 
         Assert.IsInstanceOfType<NotFoundObjectResult>(result);
     }
@@ -276,7 +287,7 @@ public class ChatControllerTests
             .Setup(s => s.AcknowledgeAsync(It.IsAny<Guid>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var result = await _controller.AcknowledgeAnnouncementAsync(Guid.NewGuid(), Guid.NewGuid());
+        var result = await _controller.AcknowledgeAnnouncementAsync(Guid.NewGuid());
 
         var ok = result as OkObjectResult;
         Assert.IsNotNull(ok);
@@ -289,19 +300,18 @@ public class ChatControllerTests
     [TestMethod]
     public async Task RegisterPushDeviceAsync_WhenValid_ThenRegistersDevice()
     {
-        var userId = Guid.NewGuid();
         var request = new RegisterDeviceRequestDto
         {
             DeviceToken = "token-123",
             Provider = "FCM"
         };
 
-        var result = await _controller.RegisterPushDeviceAsync(request, userId);
+        var result = await _controller.RegisterPushDeviceAsync(request);
 
         Assert.IsInstanceOfType<OkObjectResult>(result);
         _pushNotificationService.Verify(
             p => p.RegisterDeviceAsync(
-                userId,
+                It.IsAny<Guid>(),
                 It.Is<DeviceRegistration>(d => d.Token == "token-123" && d.Provider == PushProvider.FCM),
                 It.IsAny<CancellationToken>()),
             Times.Once);
@@ -311,8 +321,7 @@ public class ChatControllerTests
     public async Task RegisterPushDeviceAsync_WhenProviderInvalid_ThenReturnsBadRequest()
     {
         var result = await _controller.RegisterPushDeviceAsync(
-            new RegisterDeviceRequestDto { DeviceToken = "token-123", Provider = "UnknownProvider" },
-            Guid.NewGuid());
+            new RegisterDeviceRequestDto { DeviceToken = "token-123", Provider = "UnknownProvider" });
 
         Assert.IsInstanceOfType<BadRequestObjectResult>(result);
     }
@@ -320,20 +329,17 @@ public class ChatControllerTests
     [TestMethod]
     public async Task UnregisterPushDeviceAsync_WhenCalled_ThenUnregistersDevice()
     {
-        var userId = Guid.NewGuid();
-
-        var result = await _controller.UnregisterPushDeviceAsync("token-123", userId);
+        var result = await _controller.UnregisterPushDeviceAsync("token-123");
 
         Assert.IsInstanceOfType<OkObjectResult>(result);
         _pushNotificationService.Verify(
-            p => p.UnregisterDeviceAsync(userId, "token-123", It.IsAny<CancellationToken>()),
+            p => p.UnregisterDeviceAsync(It.IsAny<Guid>(), "token-123", It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
     [TestMethod]
     public void UpdateNotificationPreferencesAsync_WhenCalled_ThenReturnsOkAndStoresPreferences()
     {
-        var userId = Guid.NewGuid();
         var mutedChannel = Guid.NewGuid();
 
         var result = _controller.UpdateNotificationPreferencesAsync(
@@ -342,13 +348,12 @@ public class ChatControllerTests
                 PushEnabled = true,
                 DoNotDisturb = true,
                 MutedChannelIds = [mutedChannel, mutedChannel]
-            },
-            userId);
+            });
 
         Assert.IsInstanceOfType<OkObjectResult>(result);
         _notificationPreferenceStore.Verify(
             s => s.Update(
-                userId,
+                It.IsAny<Guid>(),
                 It.Is<UserNotificationPreferences>(p =>
                     p.PushEnabled
                     && p.DoNotDisturb
@@ -360,11 +365,10 @@ public class ChatControllerTests
     [TestMethod]
     public void GetNotificationPreferencesAsync_WhenCalled_ThenReturnsStoreValues()
     {
-        var userId = Guid.NewGuid();
         var mutedChannel = Guid.NewGuid();
 
         _notificationPreferenceStore
-            .Setup(s => s.Get(userId))
+            .Setup(s => s.Get(It.IsAny<Guid>()))
             .Returns(new UserNotificationPreferences
             {
                 PushEnabled = false,
@@ -372,7 +376,7 @@ public class ChatControllerTests
                 MutedChannelIds = new HashSet<Guid> { mutedChannel }
             });
 
-        var result = _controller.GetNotificationPreferencesAsync(userId);
+        var result = _controller.GetNotificationPreferencesAsync();
 
         var ok = result as OkObjectResult;
         Assert.IsNotNull(ok);

@@ -2872,3 +2872,35 @@ Upload hardening story fully closed. All three machines (Windows, Linux, Server)
 - **Server (`mint22`):** Zero errors/exceptions in journalctl since closeout window. Only normal token refreshes, device identity resolution, and health check logs. Windows closeout upload confirmed server-side (session `84ec9aac-d60f-489e-9a57-91976048f9de`, file `718929be-1cfc-449a-92c1-9f9828f69e6d`).
 
 **Upload hardening story: CLOSED.**
+
+---
+
+### Chat Auth Enforcement — Server-Side on `mint22` (COMPLETED 2026-03-18)
+
+**Handoff from:** Client agent (`monolith`)
+**Executed by:** Server agent (`mint22`)
+**Priority:** P0 — security vulnerability
+
+**Problem:** `ChatController` had zero `[Authorize]` attributes. Every endpoint accepted an unauthenticated `[FromQuery] Guid userId` parameter — any caller could impersonate any user.
+
+**Server-side changes applied:**
+
+1. **Added `OpenIddict.Validation.AspNetCore` 7.2.0** to `Chat.Host.csproj`.
+2. **Created `ChatControllerBase.cs`** — mirrors `FilesControllerBase` pattern: `[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]`, `GetAuthenticatedCaller()` reads `ClaimTypes.NameIdentifier`/`"sub"` from bearer token claims, plus `Envelope()`/`ErrorEnvelope()` helpers.
+3. **Refactored `ChatController`** — changed base class to `ChatControllerBase`, removed `[FromQuery] Guid userId` from all 35+ endpoints, replaced `ToCaller(userId)` with `GetAuthenticatedCaller()`, removed private helper methods (now in base).
+4. **Rewrote `ChatHostWebApplicationFactory`** — added `TestAuthHandler` + `TestUserStartupFilter` (reads `x-test-user-id` header → sets `ClaimsPrincipal`), replaced `CreateApiClient()` with `CreateAuthenticatedApiClient(Guid)`.
+5. **Updated `ChatRestApiIntegrationTests`** — uses `CreateAuthenticatedApiClient()`, removed `?userId=` from all URLs, added `_clientB` for multi-user tests, added `Unauthenticated_Request_Returns401` test.
+6. **Updated `ChatControllerTests`** — added `ControllerContext` with authenticated `ClaimsPrincipal`, removed `userId` params from all method calls.
+7. **Updated `ChatFilesFlowIntegrationTests`** — switched to `CreateAuthenticatedApiClient()`, removed `?userId=` query params.
+
+**Test results:**
+- Chat unit tests: 283 passed / 0 failed
+- Chat integration tests: 55 passed / 0 failed
+- Files integration tests: 33 passed / 0 failed (no regression)
+
+**Deployment verification:**
+- `curl -k -s -o /dev/null -w "%{http_code}" https://localhost:15443/api/v1/chat/channels` → **401** (was 200)
+- `curl -k -s -o /dev/null -w "%{http_code}" https://localhost:15443/api/v1/chat/channels/{id}/messages` → **401**
+- Health check: **Healthy**
+
+**Chat auth enforcement (server-side): CLOSED.**

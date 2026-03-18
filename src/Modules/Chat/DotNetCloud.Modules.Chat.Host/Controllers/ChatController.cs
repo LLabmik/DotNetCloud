@@ -1,4 +1,3 @@
-using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Modules.Chat.DTOs;
 using DotNetCloud.Modules.Chat.Models;
@@ -13,9 +12,8 @@ namespace DotNetCloud.Modules.Chat.Host.Controllers;
 /// REST API controller for chat channel and message operations.
 /// Provides CRUD, messaging, reactions, pins, member management, and search.
 /// </summary>
-[ApiController]
 [Route("api/v1/chat")]
-public class ChatController : ControllerBase
+public class ChatController : ChatControllerBase
 {
     private readonly IChannelService _channelService;
     private readonly IChannelMemberService _memberService;
@@ -67,24 +65,15 @@ public class ChatController : ControllerBase
         _logger = logger;
     }
 
-    // ── helpers ──────────────────────────────────────────────────────
-
-    private static CallerContext ToCaller(Guid userId)
-        => new(userId, ["user"], CallerType.User);
-
-    private static object Envelope(object data) => new { success = true, data };
-    private static object ErrorEnvelope(string code, string message)
-        => new { success = false, error = new { code, message } };
-
     // ── Channel Endpoints ───────────────────────────────────────────
 
     /// <summary>Creates a new channel.</summary>
     [HttpPost("channels")]
-    public async Task<IActionResult> CreateChannelAsync([FromBody] CreateChannelDto dto, [FromQuery] Guid userId)
+    public async Task<IActionResult> CreateChannelAsync([FromBody] CreateChannelDto dto)
     {
         try
         {
-            var channel = await _channelService.CreateChannelAsync(dto, ToCaller(userId));
+            var channel = await _channelService.CreateChannelAsync(dto, GetAuthenticatedCaller());
             return CreatedAtAction("GetChannel", new { channelId = channel.Id }, Envelope(channel));
         }
         catch (ValidationException ex)
@@ -99,17 +88,17 @@ public class ChatController : ControllerBase
 
     /// <summary>Lists channels the caller belongs to.</summary>
     [HttpGet("channels")]
-    public async Task<IActionResult> ListChannelsAsync([FromQuery] Guid userId)
+    public async Task<IActionResult> ListChannelsAsync()
     {
-        var channels = await _channelService.ListChannelsAsync(ToCaller(userId));
+        var channels = await _channelService.ListChannelsAsync(GetAuthenticatedCaller());
         return Ok(Envelope(channels));
     }
 
     /// <summary>Gets a channel by ID.</summary>
     [HttpGet("channels/{channelId:guid}")]
-    public async Task<IActionResult> GetChannelAsync(Guid channelId, [FromQuery] Guid userId)
+    public async Task<IActionResult> GetChannelAsync(Guid channelId)
     {
-        var channel = await _channelService.GetChannelAsync(channelId, ToCaller(userId));
+        var channel = await _channelService.GetChannelAsync(channelId, GetAuthenticatedCaller());
         if (channel is null)
             return NotFound(ErrorEnvelope("CHAT_CHANNEL_NOT_FOUND", "Channel not found."));
 
@@ -118,11 +107,11 @@ public class ChatController : ControllerBase
 
     /// <summary>Updates a channel.</summary>
     [HttpPut("channels/{channelId:guid}")]
-    public async Task<IActionResult> UpdateChannelAsync(Guid channelId, [FromBody] UpdateChannelDto dto, [FromQuery] Guid userId)
+    public async Task<IActionResult> UpdateChannelAsync(Guid channelId, [FromBody] UpdateChannelDto dto)
     {
         try
         {
-            var channel = await _channelService.UpdateChannelAsync(channelId, dto, ToCaller(userId));
+            var channel = await _channelService.UpdateChannelAsync(channelId, dto, GetAuthenticatedCaller());
             return Ok(Envelope(channel));
         }
         catch (ValidationException ex)
@@ -141,11 +130,11 @@ public class ChatController : ControllerBase
 
     /// <summary>Deletes a channel (soft-delete).</summary>
     [HttpDelete("channels/{channelId:guid}")]
-    public async Task<IActionResult> DeleteChannelAsync(Guid channelId, [FromQuery] Guid userId)
+    public async Task<IActionResult> DeleteChannelAsync(Guid channelId)
     {
         try
         {
-            await _channelService.DeleteChannelAsync(channelId, ToCaller(userId));
+            await _channelService.DeleteChannelAsync(channelId, GetAuthenticatedCaller());
             return Ok(Envelope(new { deleted = true }));
         }
         catch (InvalidOperationException)
@@ -160,11 +149,11 @@ public class ChatController : ControllerBase
 
     /// <summary>Archives a channel.</summary>
     [HttpPost("channels/{channelId:guid}/archive")]
-    public async Task<IActionResult> ArchiveChannelAsync(Guid channelId, [FromQuery] Guid userId)
+    public async Task<IActionResult> ArchiveChannelAsync(Guid channelId)
     {
         try
         {
-            await _channelService.ArchiveChannelAsync(channelId, ToCaller(userId));
+            await _channelService.ArchiveChannelAsync(channelId, GetAuthenticatedCaller());
             return Ok(Envelope(new { archived = true }));
         }
         catch (InvalidOperationException)
@@ -179,9 +168,9 @@ public class ChatController : ControllerBase
 
     /// <summary>Gets or creates a DM channel with another user.</summary>
     [HttpPost("channels/dm/{otherUserId:guid}")]
-    public async Task<IActionResult> GetOrCreateDmAsync(Guid otherUserId, [FromQuery] Guid userId)
+    public async Task<IActionResult> GetOrCreateDmAsync(Guid otherUserId)
     {
-        var channel = await _channelService.GetOrCreateDirectMessageAsync(otherUserId, ToCaller(userId));
+        var channel = await _channelService.GetOrCreateDirectMessageAsync(otherUserId, GetAuthenticatedCaller());
         return Ok(Envelope(channel));
     }
 
@@ -189,11 +178,11 @@ public class ChatController : ControllerBase
 
     /// <summary>Adds a member to a channel.</summary>
     [HttpPost("channels/{channelId:guid}/members")]
-    public async Task<IActionResult> AddMemberAsync(Guid channelId, [FromBody] AddChannelMemberDto dto, [FromQuery] Guid userId)
+    public async Task<IActionResult> AddMemberAsync(Guid channelId, [FromBody] AddChannelMemberDto dto)
     {
         try
         {
-            await _memberService.AddMemberAsync(channelId, dto.UserId, ToCaller(userId));
+            await _memberService.AddMemberAsync(channelId, dto.UserId, GetAuthenticatedCaller());
             return Ok(Envelope(new { added = true }));
         }
         catch (InvalidOperationException ex)
@@ -208,11 +197,11 @@ public class ChatController : ControllerBase
 
     /// <summary>Removes a member from a channel.</summary>
     [HttpDelete("channels/{channelId:guid}/members/{targetUserId:guid}")]
-    public async Task<IActionResult> RemoveMemberAsync(Guid channelId, Guid targetUserId, [FromQuery] Guid userId)
+    public async Task<IActionResult> RemoveMemberAsync(Guid channelId, Guid targetUserId)
     {
         try
         {
-            await _memberService.RemoveMemberAsync(channelId, targetUserId, ToCaller(userId));
+            await _memberService.RemoveMemberAsync(channelId, targetUserId, GetAuthenticatedCaller());
             return Ok(Envelope(new { removed = true }));
         }
         catch (InvalidOperationException ex)
@@ -227,11 +216,11 @@ public class ChatController : ControllerBase
 
     /// <summary>Lists members of a channel.</summary>
     [HttpGet("channels/{channelId:guid}/members")]
-    public async Task<IActionResult> GetMembersAsync(Guid channelId, [FromQuery] Guid userId)
+    public async Task<IActionResult> GetMembersAsync(Guid channelId)
     {
         try
         {
-            var members = await _memberService.ListMembersAsync(channelId, ToCaller(userId));
+            var members = await _memberService.ListMembersAsync(channelId, GetAuthenticatedCaller());
             return Ok(Envelope(members));
         }
         catch (InvalidOperationException ex)
@@ -247,14 +236,14 @@ public class ChatController : ControllerBase
     /// <summary>Updates a member's role in a channel.</summary>
     [HttpPut("channels/{channelId:guid}/members/{targetUserId:guid}/role")]
     public async Task<IActionResult> UpdateMemberRoleAsync(
-        Guid channelId, Guid targetUserId, [FromBody] UpdateMemberRoleDto dto, [FromQuery] Guid userId)
+        Guid channelId, Guid targetUserId, [FromBody] UpdateMemberRoleDto dto)
     {
         if (!Enum.TryParse<ChannelMemberRole>(dto.Role, ignoreCase: true, out var role))
             return BadRequest(ErrorEnvelope("VALIDATION_ERROR", "Invalid role."));
 
         try
         {
-            await _memberService.UpdateMemberRoleAsync(channelId, targetUserId, role, ToCaller(userId));
+            await _memberService.UpdateMemberRoleAsync(channelId, targetUserId, role, GetAuthenticatedCaller());
             return Ok(Envelope(new { updated = true }));
         }
         catch (InvalidOperationException ex)
@@ -270,14 +259,14 @@ public class ChatController : ControllerBase
     /// <summary>Updates the caller's notification preference for a channel.</summary>
     [HttpPut("channels/{channelId:guid}/notifications")]
     public async Task<IActionResult> UpdateNotificationPreferenceAsync(
-        Guid channelId, [FromBody] UpdateNotificationPrefDto dto, [FromQuery] Guid userId)
+        Guid channelId, [FromBody] UpdateNotificationPrefDto dto)
     {
         if (!Enum.TryParse<NotificationPreference>(dto.Preference, ignoreCase: true, out var pref))
             return BadRequest(ErrorEnvelope("VALIDATION_ERROR", "Invalid notification preference."));
 
         try
         {
-            await _memberService.UpdateNotificationPreferenceAsync(channelId, pref, ToCaller(userId));
+            await _memberService.UpdateNotificationPreferenceAsync(channelId, pref, GetAuthenticatedCaller());
             return Ok(Envelope(new { updated = true }));
         }
         catch (InvalidOperationException ex)
@@ -292,11 +281,11 @@ public class ChatController : ControllerBase
 
     /// <summary>Marks a channel as read up to a message.</summary>
     [HttpPost("channels/{channelId:guid}/read")]
-    public async Task<IActionResult> MarkAsReadAsync(Guid channelId, [FromBody] MarkReadDto dto, [FromQuery] Guid userId)
+    public async Task<IActionResult> MarkAsReadAsync(Guid channelId, [FromBody] MarkReadDto dto)
     {
         try
         {
-            await _memberService.MarkAsReadAsync(channelId, dto.MessageId, ToCaller(userId));
+            await _memberService.MarkAsReadAsync(channelId, dto.MessageId, GetAuthenticatedCaller());
             return Ok(Envelope(new { marked = true }));
         }
         catch (InvalidOperationException ex)
@@ -311,9 +300,9 @@ public class ChatController : ControllerBase
 
     /// <summary>Gets unread counts for all channels the caller belongs to.</summary>
     [HttpGet("unread")]
-    public async Task<IActionResult> GetUnreadCountsAsync([FromQuery] Guid userId)
+    public async Task<IActionResult> GetUnreadCountsAsync()
     {
-        var unread = await _memberService.GetUnreadCountsAsync(ToCaller(userId));
+        var unread = await _memberService.GetUnreadCountsAsync(GetAuthenticatedCaller());
         return Ok(Envelope(unread));
     }
 
@@ -321,11 +310,11 @@ public class ChatController : ControllerBase
 
     /// <summary>Sends a message to a channel.</summary>
     [HttpPost("channels/{channelId:guid}/messages")]
-    public async Task<IActionResult> SendMessageAsync(Guid channelId, [FromBody] SendMessageDto dto, [FromQuery] Guid userId)
+    public async Task<IActionResult> SendMessageAsync(Guid channelId, [FromBody] SendMessageDto dto)
     {
         try
         {
-            var message = await _messageService.SendMessageAsync(channelId, dto, ToCaller(userId));
+            var message = await _messageService.SendMessageAsync(channelId, dto, GetAuthenticatedCaller());
             await _chatRealtimeService.BroadcastNewMessageAsync(channelId, message);
             _chatMessageNotifier.NotifyMessageReceived(channelId, message);
             return Ok(Envelope(message));
@@ -344,11 +333,10 @@ public class ChatController : ControllerBase
     [HttpGet("channels/{channelId:guid}/messages")]
     public async Task<IActionResult> GetMessagesAsync(
         Guid channelId,
-        [FromQuery] Guid userId,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50)
     {
-        var result = await _messageService.GetMessagesAsync(channelId, page, pageSize, ToCaller(userId));
+        var result = await _messageService.GetMessagesAsync(channelId, page, pageSize, GetAuthenticatedCaller());
         return Ok(new
         {
             success = true,
@@ -365,9 +353,9 @@ public class ChatController : ControllerBase
 
     /// <summary>Gets a single message by ID.</summary>
     [HttpGet("channels/{channelId:guid}/messages/{messageId:guid}")]
-    public async Task<IActionResult> GetMessageAsync(Guid channelId, Guid messageId, [FromQuery] Guid userId)
+    public async Task<IActionResult> GetMessageAsync(Guid channelId, Guid messageId)
     {
-        var message = await _messageService.GetMessageAsync(messageId, ToCaller(userId));
+        var message = await _messageService.GetMessageAsync(messageId, GetAuthenticatedCaller());
         if (message is null)
             return NotFound(ErrorEnvelope("CHAT_MESSAGE_NOT_FOUND", "Message not found."));
 
@@ -376,11 +364,11 @@ public class ChatController : ControllerBase
 
     /// <summary>Edits a message.</summary>
     [HttpPut("channels/{channelId:guid}/messages/{messageId:guid}")]
-    public async Task<IActionResult> EditMessageAsync(Guid channelId, Guid messageId, [FromBody] EditMessageDto dto, [FromQuery] Guid userId)
+    public async Task<IActionResult> EditMessageAsync(Guid channelId, Guid messageId, [FromBody] EditMessageDto dto)
     {
         try
         {
-            var message = await _messageService.EditMessageAsync(messageId, dto, ToCaller(userId));
+            var message = await _messageService.EditMessageAsync(messageId, dto, GetAuthenticatedCaller());
             await _chatRealtimeService.BroadcastMessageEditedAsync(channelId, message);
             _chatMessageNotifier.NotifyMessageEdited(channelId, message);
             return Ok(Envelope(message));
@@ -397,11 +385,11 @@ public class ChatController : ControllerBase
 
     /// <summary>Deletes a message (soft-delete).</summary>
     [HttpDelete("channels/{channelId:guid}/messages/{messageId:guid}")]
-    public async Task<IActionResult> DeleteMessageAsync(Guid channelId, Guid messageId, [FromQuery] Guid userId)
+    public async Task<IActionResult> DeleteMessageAsync(Guid channelId, Guid messageId)
     {
         try
         {
-            await _messageService.DeleteMessageAsync(messageId, ToCaller(userId));
+            await _messageService.DeleteMessageAsync(messageId, GetAuthenticatedCaller());
             await _chatRealtimeService.BroadcastMessageDeletedAsync(channelId, messageId);
             _chatMessageNotifier.NotifyMessageDeleted(channelId, messageId);
             return Ok(Envelope(new { deleted = true }));
@@ -421,14 +409,13 @@ public class ChatController : ControllerBase
     public async Task<IActionResult> SearchMessagesAsync(
         Guid channelId,
         [FromQuery] string q,
-        [FromQuery] Guid userId,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50)
     {
         if (string.IsNullOrWhiteSpace(q))
             return BadRequest(ErrorEnvelope("VALIDATION_ERROR", "Search query is required."));
 
-        var result = await _messageService.SearchMessagesAsync(channelId, q, page, pageSize, ToCaller(userId));
+        var result = await _messageService.SearchMessagesAsync(channelId, q, page, pageSize, GetAuthenticatedCaller());
         return Ok(new
         {
             success = true,
@@ -447,11 +434,11 @@ public class ChatController : ControllerBase
 
     /// <summary>Adds a reaction to a message.</summary>
     [HttpPost("messages/{messageId:guid}/reactions")]
-    public async Task<IActionResult> AddReactionAsync(Guid messageId, [FromBody] AddReactionDto dto, [FromQuery] Guid userId)
+    public async Task<IActionResult> AddReactionAsync(Guid messageId, [FromBody] AddReactionDto dto)
     {
         try
         {
-            await _reactionService.AddReactionAsync(messageId, dto.Emoji, ToCaller(userId));
+            await _reactionService.AddReactionAsync(messageId, dto.Emoji, GetAuthenticatedCaller());
             return Ok(Envelope(new { added = true }));
         }
         catch (InvalidOperationException)
@@ -470,11 +457,11 @@ public class ChatController : ControllerBase
 
     /// <summary>Removes a reaction from a message.</summary>
     [HttpDelete("messages/{messageId:guid}/reactions/{emoji}")]
-    public async Task<IActionResult> RemoveReactionAsync(Guid messageId, string emoji, [FromQuery] Guid userId)
+    public async Task<IActionResult> RemoveReactionAsync(Guid messageId, string emoji)
     {
         try
         {
-            await _reactionService.RemoveReactionAsync(messageId, emoji, ToCaller(userId));
+            await _reactionService.RemoveReactionAsync(messageId, emoji, GetAuthenticatedCaller());
             return Ok(Envelope(new { removed = true }));
         }
         catch (InvalidOperationException)
@@ -503,11 +490,11 @@ public class ChatController : ControllerBase
 
     /// <summary>Pins a message in a channel.</summary>
     [HttpPost("channels/{channelId:guid}/pins/{messageId:guid}")]
-    public async Task<IActionResult> PinMessageAsync(Guid channelId, Guid messageId, [FromQuery] Guid userId)
+    public async Task<IActionResult> PinMessageAsync(Guid channelId, Guid messageId)
     {
         try
         {
-            await _pinService.PinMessageAsync(channelId, messageId, ToCaller(userId));
+            await _pinService.PinMessageAsync(channelId, messageId, GetAuthenticatedCaller());
             return Ok(Envelope(new { pinned = true }));
         }
         catch (InvalidOperationException ex)
@@ -522,11 +509,11 @@ public class ChatController : ControllerBase
 
     /// <summary>Unpins a message from a channel.</summary>
     [HttpDelete("channels/{channelId:guid}/pins/{messageId:guid}")]
-    public async Task<IActionResult> UnpinMessageAsync(Guid channelId, Guid messageId, [FromQuery] Guid userId)
+    public async Task<IActionResult> UnpinMessageAsync(Guid channelId, Guid messageId)
     {
         try
         {
-            await _pinService.UnpinMessageAsync(channelId, messageId, ToCaller(userId));
+            await _pinService.UnpinMessageAsync(channelId, messageId, GetAuthenticatedCaller());
             return Ok(Envelope(new { unpinned = true }));
         }
         catch (InvalidOperationException ex)
@@ -541,11 +528,11 @@ public class ChatController : ControllerBase
 
     /// <summary>Gets pinned messages in a channel.</summary>
     [HttpGet("channels/{channelId:guid}/pins")]
-    public async Task<IActionResult> GetPinnedMessagesAsync(Guid channelId, [FromQuery] Guid userId)
+    public async Task<IActionResult> GetPinnedMessagesAsync(Guid channelId)
     {
         try
         {
-            var pins = await _pinService.GetPinnedMessagesAsync(channelId, ToCaller(userId));
+            var pins = await _pinService.GetPinnedMessagesAsync(channelId, GetAuthenticatedCaller());
             return Ok(Envelope(pins));
         }
         catch (InvalidOperationException ex)
@@ -562,11 +549,11 @@ public class ChatController : ControllerBase
 
     /// <summary>Notifies that the caller is typing in a channel.</summary>
     [HttpPost("channels/{channelId:guid}/typing")]
-    public async Task<IActionResult> NotifyTypingAsync(Guid channelId, [FromQuery] Guid userId)
+    public async Task<IActionResult> NotifyTypingAsync(Guid channelId)
     {
         try
         {
-            await _typingService.NotifyTypingAsync(channelId, ToCaller(userId));
+            await _typingService.NotifyTypingAsync(channelId, GetAuthenticatedCaller());
             return Ok(Envelope(new { typing = true }));
         }
         catch (ArgumentException ex)
@@ -595,11 +582,11 @@ public class ChatController : ControllerBase
     /// <summary>Attaches a file to an existing message.</summary>
     [HttpPost("channels/{channelId:guid}/messages/{messageId:guid}/attachments")]
     public async Task<IActionResult> AddAttachmentAsync(
-        Guid channelId, Guid messageId, [FromBody] CreateAttachmentDto dto, [FromQuery] Guid userId)
+        Guid channelId, Guid messageId, [FromBody] CreateAttachmentDto dto)
     {
         try
         {
-            var attachment = await _messageService.AddAttachmentAsync(channelId, messageId, dto, ToCaller(userId));
+            var attachment = await _messageService.AddAttachmentAsync(channelId, messageId, dto, GetAuthenticatedCaller());
             return Ok(Envelope(attachment));
         }
         catch (ArgumentException ex)
@@ -618,10 +605,10 @@ public class ChatController : ControllerBase
 
     /// <summary>Lists files shared in a channel (via message attachments).</summary>
     [HttpGet("channels/{channelId:guid}/files")]
-    public async Task<IActionResult> GetChannelFilesAsync(Guid channelId, [FromQuery] Guid userId)
+    public async Task<IActionResult> GetChannelFilesAsync(Guid channelId)
     {
         // Retrieve messages with attachments for this channel
-        var result = await _messageService.GetMessagesAsync(channelId, 1, 100, ToCaller(userId));
+        var result = await _messageService.GetMessagesAsync(channelId, 1, 100, GetAuthenticatedCaller());
         var attachments = result.Items
             .SelectMany(m => m.Attachments)
             .ToList();
@@ -632,11 +619,11 @@ public class ChatController : ControllerBase
 
     /// <summary>Creates an organization-wide announcement.</summary>
     [HttpPost("~/api/v1/announcements")]
-    public async Task<IActionResult> CreateAnnouncementAsync([FromBody] CreateAnnouncementDto dto, [FromQuery] Guid userId)
+    public async Task<IActionResult> CreateAnnouncementAsync([FromBody] CreateAnnouncementDto dto)
     {
         try
         {
-            var announcement = await _announcementService.CreateAsync(dto, ToCaller(userId));
+            var announcement = await _announcementService.CreateAsync(dto, GetAuthenticatedCaller());
             await _realtimeBroadcaster.BroadcastAsync("announcements", "AnnouncementCreated", announcement);
 
             if (string.Equals(announcement.Priority, "Urgent", StringComparison.OrdinalIgnoreCase))
@@ -644,7 +631,7 @@ public class ChatController : ControllerBase
                 await _realtimeBroadcaster.BroadcastAsync("announcements", "UrgentAnnouncement", announcement);
             }
 
-            var announcementCount = (await _announcementService.ListAsync(ToCaller(userId))).Count;
+            var announcementCount = (await _announcementService.ListAsync(GetAuthenticatedCaller())).Count;
             await _realtimeBroadcaster.BroadcastAsync(
                 "announcements",
                 "AnnouncementBadgeUpdated",
@@ -660,17 +647,17 @@ public class ChatController : ControllerBase
 
     /// <summary>Lists active announcements for the caller.</summary>
     [HttpGet("~/api/v1/announcements")]
-    public async Task<IActionResult> ListAnnouncementsAsync([FromQuery] Guid userId)
+    public async Task<IActionResult> ListAnnouncementsAsync()
     {
-        var announcements = await _announcementService.ListAsync(ToCaller(userId));
+        var announcements = await _announcementService.ListAsync(GetAuthenticatedCaller());
         return Ok(Envelope(announcements));
     }
 
     /// <summary>Gets a single announcement by ID.</summary>
     [HttpGet("~/api/v1/announcements/{id:guid}")]
-    public async Task<IActionResult> GetAnnouncementAsync(Guid id, [FromQuery] Guid userId)
+    public async Task<IActionResult> GetAnnouncementAsync(Guid id)
     {
-        var announcement = await _announcementService.GetAsync(id, ToCaller(userId));
+        var announcement = await _announcementService.GetAsync(id, GetAuthenticatedCaller());
         if (announcement is null)
             return NotFound(ErrorEnvelope("ANNOUNCEMENT_NOT_FOUND", "Announcement not found."));
 
@@ -679,11 +666,11 @@ public class ChatController : ControllerBase
 
     /// <summary>Updates an announcement.</summary>
     [HttpPut("~/api/v1/announcements/{id:guid}")]
-    public async Task<IActionResult> UpdateAnnouncementAsync(Guid id, [FromBody] UpdateAnnouncementDto dto, [FromQuery] Guid userId)
+    public async Task<IActionResult> UpdateAnnouncementAsync(Guid id, [FromBody] UpdateAnnouncementDto dto)
     {
         try
         {
-            await _announcementService.UpdateAsync(id, dto, ToCaller(userId));
+            await _announcementService.UpdateAsync(id, dto, GetAuthenticatedCaller());
             return Ok(Envelope(new { updated = true }));
         }
         catch (InvalidOperationException ex)
@@ -694,11 +681,11 @@ public class ChatController : ControllerBase
 
     /// <summary>Deletes an announcement (soft-delete).</summary>
     [HttpDelete("~/api/v1/announcements/{id:guid}")]
-    public async Task<IActionResult> DeleteAnnouncementAsync(Guid id, [FromQuery] Guid userId)
+    public async Task<IActionResult> DeleteAnnouncementAsync(Guid id)
     {
         try
         {
-            await _announcementService.DeleteAsync(id, ToCaller(userId));
+            await _announcementService.DeleteAsync(id, GetAuthenticatedCaller());
             return Ok(Envelope(new { deleted = true }));
         }
         catch (InvalidOperationException ex)
@@ -709,17 +696,17 @@ public class ChatController : ControllerBase
 
     /// <summary>Acknowledges an announcement for the caller.</summary>
     [HttpPost("~/api/v1/announcements/{id:guid}/acknowledge")]
-    public async Task<IActionResult> AcknowledgeAnnouncementAsync(Guid id, [FromQuery] Guid userId)
+    public async Task<IActionResult> AcknowledgeAnnouncementAsync(Guid id)
     {
-        await _announcementService.AcknowledgeAsync(id, ToCaller(userId));
+        await _announcementService.AcknowledgeAsync(id, GetAuthenticatedCaller());
         return Ok(Envelope(new { acknowledged = true }));
     }
 
     /// <summary>Gets announcement acknowledgements.</summary>
     [HttpGet("~/api/v1/announcements/{id:guid}/acknowledgements")]
-    public async Task<IActionResult> GetAnnouncementAcknowledgementsAsync(Guid id, [FromQuery] Guid userId)
+    public async Task<IActionResult> GetAnnouncementAcknowledgementsAsync(Guid id)
     {
-        var acknowledgements = await _announcementService.GetAcknowledgementsAsync(id, ToCaller(userId));
+        var acknowledgements = await _announcementService.GetAcknowledgementsAsync(id, GetAuthenticatedCaller());
         return Ok(Envelope(acknowledgements));
     }
 
@@ -729,11 +716,11 @@ public class ChatController : ControllerBase
 
     /// <summary>Sends an invitation for a single user to join a private channel.</summary>
     [HttpPost("channels/{channelId:guid}/invites")]
-    public async Task<IActionResult> CreateInviteAsync(Guid channelId, [FromBody] CreateChannelInviteDto dto, [FromQuery] Guid userId)
+    public async Task<IActionResult> CreateInviteAsync(Guid channelId, [FromBody] CreateChannelInviteDto dto)
     {
         try
         {
-            var invite = await _inviteService.CreateInviteAsync(channelId, dto, ToCaller(userId));
+            var invite = await _inviteService.CreateInviteAsync(channelId, dto, GetAuthenticatedCaller());
             return Ok(Envelope(invite));
         }
         catch (InvalidOperationException ex)
@@ -748,19 +735,19 @@ public class ChatController : ControllerBase
 
     /// <summary>Lists pending invitations for the calling user.</summary>
     [HttpGet("invites")]
-    public async Task<IActionResult> ListMyInvitesAsync([FromQuery] Guid userId)
+    public async Task<IActionResult> ListMyInvitesAsync()
     {
-        var invites = await _inviteService.ListMyInvitesAsync(ToCaller(userId));
+        var invites = await _inviteService.ListMyInvitesAsync(GetAuthenticatedCaller());
         return Ok(Envelope(invites));
     }
 
     /// <summary>Lists pending invitations for a channel.</summary>
     [HttpGet("channels/{channelId:guid}/invites")]
-    public async Task<IActionResult> ListChannelInvitesAsync(Guid channelId, [FromQuery] Guid userId)
+    public async Task<IActionResult> ListChannelInvitesAsync(Guid channelId)
     {
         try
         {
-            var invites = await _inviteService.ListChannelInvitesAsync(channelId, ToCaller(userId));
+            var invites = await _inviteService.ListChannelInvitesAsync(channelId, GetAuthenticatedCaller());
             return Ok(Envelope(invites));
         }
         catch (UnauthorizedAccessException)
@@ -771,11 +758,11 @@ public class ChatController : ControllerBase
 
     /// <summary>Accepts a pending channel invitation.</summary>
     [HttpPost("invites/{inviteId:guid}/accept")]
-    public async Task<IActionResult> AcceptInviteAsync(Guid inviteId, [FromQuery] Guid userId)
+    public async Task<IActionResult> AcceptInviteAsync(Guid inviteId)
     {
         try
         {
-            var invite = await _inviteService.AcceptInviteAsync(inviteId, ToCaller(userId));
+            var invite = await _inviteService.AcceptInviteAsync(inviteId, GetAuthenticatedCaller());
             return Ok(Envelope(invite));
         }
         catch (InvalidOperationException ex)
@@ -790,11 +777,11 @@ public class ChatController : ControllerBase
 
     /// <summary>Declines a pending channel invitation.</summary>
     [HttpPost("invites/{inviteId:guid}/decline")]
-    public async Task<IActionResult> DeclineInviteAsync(Guid inviteId, [FromQuery] Guid userId)
+    public async Task<IActionResult> DeclineInviteAsync(Guid inviteId)
     {
         try
         {
-            var invite = await _inviteService.DeclineInviteAsync(inviteId, ToCaller(userId));
+            var invite = await _inviteService.DeclineInviteAsync(inviteId, GetAuthenticatedCaller());
             return Ok(Envelope(invite));
         }
         catch (InvalidOperationException ex)
@@ -809,11 +796,11 @@ public class ChatController : ControllerBase
 
     /// <summary>Revokes a pending channel invitation.</summary>
     [HttpDelete("invites/{inviteId:guid}")]
-    public async Task<IActionResult> RevokeInviteAsync(Guid inviteId, [FromQuery] Guid userId)
+    public async Task<IActionResult> RevokeInviteAsync(Guid inviteId)
     {
         try
         {
-            await _inviteService.RevokeInviteAsync(inviteId, ToCaller(userId));
+            await _inviteService.RevokeInviteAsync(inviteId, GetAuthenticatedCaller());
             return Ok(Envelope(new { revoked = true }));
         }
         catch (InvalidOperationException ex)
@@ -828,7 +815,7 @@ public class ChatController : ControllerBase
 
     /// <summary>Registers the caller device for push notifications.</summary>
     [HttpPost("~/api/v1/notifications/devices/register")]
-    public async Task<IActionResult> RegisterPushDeviceAsync([FromBody] RegisterDeviceRequestDto dto, [FromQuery] Guid userId)
+    public async Task<IActionResult> RegisterPushDeviceAsync([FromBody] RegisterDeviceRequestDto dto)
     {
         if (string.IsNullOrWhiteSpace(dto.DeviceToken))
             return BadRequest(ErrorEnvelope("VALIDATION_ERROR", "Device token is required."));
@@ -836,7 +823,8 @@ public class ChatController : ControllerBase
         if (!Enum.TryParse<PushProvider>(dto.Provider, ignoreCase: true, out var provider))
             return BadRequest(ErrorEnvelope("VALIDATION_ERROR", "Invalid push provider."));
 
-        await _pushNotificationService.RegisterDeviceAsync(userId, new DeviceRegistration
+        var caller = GetAuthenticatedCaller();
+        await _pushNotificationService.RegisterDeviceAsync(caller.UserId, new DeviceRegistration
         {
             Token = dto.DeviceToken,
             Provider = provider,
@@ -848,17 +836,19 @@ public class ChatController : ControllerBase
 
     /// <summary>Unregisters the caller device from push notifications.</summary>
     [HttpDelete("~/api/v1/notifications/devices/{deviceToken}")]
-    public async Task<IActionResult> UnregisterPushDeviceAsync(string deviceToken, [FromQuery] Guid userId)
+    public async Task<IActionResult> UnregisterPushDeviceAsync(string deviceToken)
     {
-        await _pushNotificationService.UnregisterDeviceAsync(userId, deviceToken);
+        var caller = GetAuthenticatedCaller();
+        await _pushNotificationService.UnregisterDeviceAsync(caller.UserId, deviceToken);
         return Ok(Envelope(new { unregistered = true }));
     }
 
     /// <summary>Gets caller-level push notification preferences.</summary>
     [HttpGet("~/api/v1/notifications/preferences")]
-    public IActionResult GetNotificationPreferencesAsync([FromQuery] Guid userId)
+    public IActionResult GetNotificationPreferencesAsync()
     {
-        var preferences = _notificationPreferenceStore.Get(userId);
+        var caller = GetAuthenticatedCaller();
+        var preferences = _notificationPreferenceStore.Get(caller.UserId);
         var dto = new NotificationPreferencesDto
         {
             PushEnabled = preferences.PushEnabled,
@@ -871,9 +861,10 @@ public class ChatController : ControllerBase
 
     /// <summary>Updates caller-level push notification preferences.</summary>
     [HttpPut("~/api/v1/notifications/preferences")]
-    public IActionResult UpdateNotificationPreferencesAsync([FromBody] NotificationPreferencesDto dto, [FromQuery] Guid userId)
+    public IActionResult UpdateNotificationPreferencesAsync([FromBody] NotificationPreferencesDto dto)
     {
-        _notificationPreferenceStore.Update(userId, new UserNotificationPreferences
+        var caller = GetAuthenticatedCaller();
+        _notificationPreferenceStore.Update(caller.UserId, new UserNotificationPreferences
         {
             PushEnabled = dto.PushEnabled,
             DoNotDisturb = dto.DoNotDisturb,

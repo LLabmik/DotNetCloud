@@ -45,7 +45,7 @@ public sealed class ChatFilesFlowIntegrationTests
     private static async Task<Guid> CreateChannelAsync(HttpClient client, string name)
     {
         var body = new { name, type = "Public", description = $"Test channel {name}" };
-        var response = await client.PostAsJsonAsync($"/api/v1/chat/channels?userId={UserA}", body);
+        var response = await client.PostAsJsonAsync($"/api/v1/chat/channels", body);
         response.EnsureSuccessStatusCode();
 
         var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
@@ -56,7 +56,7 @@ public sealed class ChatFilesFlowIntegrationTests
     private static async Task<Guid> SendMessageAsync(HttpClient client, Guid channelId, string content)
     {
         var body = new { content };
-        var response = await client.PostAsJsonAsync($"/api/v1/chat/channels/{channelId}/messages?userId={UserA}", body);
+        var response = await client.PostAsJsonAsync($"/api/v1/chat/channels/{channelId}/messages", body);
         response.EnsureSuccessStatusCode();
 
         var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
@@ -82,14 +82,14 @@ public sealed class ChatFilesFlowIntegrationTests
         };
 
         return await client.PostAsJsonAsync(
-            $"/api/v1/chat/channels/{channelId}/messages/{messageId}/attachments?userId={UserA}",
+            $"/api/v1/chat/channels/{channelId}/messages/{messageId}/attachments",
             body);
     }
 
     /// <summary>Gets the list of files in a channel.</summary>
     private static async Task<HttpResponseMessage> GetChannelFilesAsync(HttpClient client, Guid channelId)
     {
-        return await client.GetAsync($"/api/v1/chat/channels/{channelId}/files?userId={UserA}");
+        return await client.GetAsync($"/api/v1/chat/channels/{channelId}/files");
     }
 
     /// <summary>Reads the data element from a success envelope.</summary>
@@ -107,7 +107,7 @@ public sealed class ChatFilesFlowIntegrationTests
     [TestMethod]
     public async Task AttachFilesToMessage_CreatesAttachments()
     {
-        using var client = _factory.CreateApiClient();
+        using var client = _factory.CreateAuthenticatedApiClient(UserA);
 
         var channelId = await CreateChannelAsync(client, "file-attach-ch");
         var messageId = await SendMessageAsync(client, channelId, "Message with files");
@@ -126,7 +126,7 @@ public sealed class ChatFilesFlowIntegrationTests
     [TestMethod]
     public async Task AttachMultipleFilesToMessage_Succeeds()
     {
-        using var client = _factory.CreateApiClient();
+        using var client = _factory.CreateAuthenticatedApiClient(UserA);
 
         var channelId = await CreateChannelAsync(client, "multi-attach-ch");
         var messageId = await SendMessageAsync(client, channelId, "Multiple attachments");
@@ -165,7 +165,7 @@ public sealed class ChatFilesFlowIntegrationTests
     [TestMethod]
     public async Task GetChannelFiles_ReturnsAttachedFiles()
     {
-        using var client = _factory.CreateApiClient();
+        using var client = _factory.CreateAuthenticatedApiClient(UserA);
 
         var channelId = await CreateChannelAsync(client, "get-files-ch");
         var messageId = await SendMessageAsync(client, channelId, "Files for listing");
@@ -214,7 +214,7 @@ public sealed class ChatFilesFlowIntegrationTests
     [TestMethod]
     public async Task AttachFileWithNodeId_LinksToFilesModule()
     {
-        using var client = _factory.CreateApiClient();
+        using var client = _factory.CreateAuthenticatedApiClient(UserA);
 
         var channelId = await CreateChannelAsync(client, "linked-file-ch");
         var messageId = await SendMessageAsync(client, channelId, "Message with linked file");
@@ -234,7 +234,7 @@ public sealed class ChatFilesFlowIntegrationTests
 
         // Retrieve the message to verify attachment has fileNodeId
         var messageResponse = await client.GetAsync(
-            $"/api/v1/chat/channels/{channelId}/messages/{messageId}?userId={UserA}");
+            $"/api/v1/chat/channels/{channelId}/messages/{messageId}");
         Assert.AreEqual(HttpStatusCode.OK, messageResponse.StatusCode);
 
         var msgData = await DataAsync(messageResponse);
@@ -263,7 +263,7 @@ public sealed class ChatFilesFlowIntegrationTests
     [TestMethod]
     public async Task EmptyChannel_GetChannelFiles_ReturnsEmpty()
     {
-        using var client = _factory.CreateApiClient();
+        using var client = _factory.CreateAuthenticatedApiClient(UserA);
 
         var channelId = await CreateChannelAsync(client, "empty-files-ch");
 
@@ -282,7 +282,7 @@ public sealed class ChatFilesFlowIntegrationTests
     [TestMethod]
     public async Task AttachmentMetadata_PreservesMimeTypeAndSize()
     {
-        using var client = _factory.CreateApiClient();
+        using var client = _factory.CreateAuthenticatedApiClient(UserA);
 
         var channelId = await CreateChannelAsync(client, "metadata-ch");
         var messageId = await SendMessageAsync(client, channelId, "Attachment metadata test");
@@ -316,7 +316,7 @@ public sealed class ChatFilesFlowIntegrationTests
     [TestMethod]
     public async Task MultipleMessagesWithAttachments_AllAppearInChannelFiles()
     {
-        using var client = _factory.CreateApiClient();
+        using var client = _factory.CreateAuthenticatedApiClient(UserA);
 
         var channelId = await CreateChannelAsync(client, "multi-msg-files-ch");
 

@@ -15,6 +15,7 @@ public sealed class ChatRestApiIntegrationTests
 {
     private static ChatHostWebApplicationFactory _factory = null!;
     private static HttpClient _client = null!;
+    private static HttpClient _clientB = null!;
 
     private static readonly Guid UserA = Guid.Parse("00000000-0000-0000-0000-000000000001");
     private static readonly Guid UserB = Guid.Parse("00000000-0000-0000-0000-000000000002");
@@ -28,12 +29,14 @@ public sealed class ChatRestApiIntegrationTests
     public static void ClassInit(TestContext _)
     {
         _factory = new ChatHostWebApplicationFactory();
-        _client = _factory.CreateApiClient();
+        _client = _factory.CreateAuthenticatedApiClient(UserA);
+        _clientB = _factory.CreateAuthenticatedApiClient(UserB);
     }
 
     [ClassCleanup]
     public static void ClassCleanup()
     {
+        _clientB.Dispose();
         _client.Dispose();
         _factory.Dispose();
     }
@@ -43,9 +46,9 @@ public sealed class ChatRestApiIntegrationTests
     /// <summary>Creates a public channel and returns its ID.</summary>
     private static async Task<Guid> CreateChannelAsync(string name, Guid? userId = null)
     {
-        var uid = userId ?? UserA;
+        var client = (userId.HasValue && userId.Value == UserB) ? _clientB : _client;
         var body = new { name, type = "Public", description = $"Test channel {name}" };
-        var response = await _client.PostAsJsonAsync($"/api/v1/chat/channels?userId={uid}", body);
+        var response = await client.PostAsJsonAsync("/api/v1/chat/channels", body);
         response.EnsureSuccessStatusCode();
 
         var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
@@ -55,9 +58,9 @@ public sealed class ChatRestApiIntegrationTests
     /// <summary>Sends a message and returns its ID.</summary>
     private static async Task<Guid> SendMessageAsync(Guid channelId, string content, Guid? userId = null)
     {
-        var uid = userId ?? UserA;
+        var client = (userId.HasValue && userId.Value == UserB) ? _clientB : _client;
         var body = new { content };
-        var response = await _client.PostAsJsonAsync($"/api/v1/chat/channels/{channelId}/messages?userId={uid}", body);
+        var response = await client.PostAsJsonAsync($"/api/v1/chat/channels/{channelId}/messages", body);
         response.EnsureSuccessStatusCode();
 
         var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
@@ -81,6 +84,24 @@ public sealed class ChatRestApiIntegrationTests
     }
 
     // ══════════════════════════════════════════════════════════════════
+    //  Auth Enforcement
+    // ══════════════════════════════════════════════════════════════════
+
+    [TestMethod]
+    public async Task Unauthenticated_Request_Returns401()
+    {
+        // Create a bare client with NO x-test-user-id header
+        using var unauthClient = _factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+        });
+
+        var response = await unauthClient.GetAsync("/api/v1/chat/channels");
+
+        Assert.AreEqual(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    // ══════════════════════════════════════════════════════════════════
     //  Channel CRUD
     // ══════════════════════════════════════════════════════════════════
 
@@ -88,7 +109,7 @@ public sealed class ChatRestApiIntegrationTests
     public async Task CreateChannel_Returns201_WithEnvelope()
     {
         var body = new { name = "int-create-ch", type = "Public", description = "Integration test channel" };
-        var response = await _client.PostAsJsonAsync($"/api/v1/chat/channels?userId={UserA}", body);
+        var response = await _client.PostAsJsonAsync($"/api/v1/chat/channels", body);
 
         Assert.AreEqual(HttpStatusCode.Created, response.StatusCode);
         var data = await DataAsync(response);
@@ -100,9 +121,9 @@ public sealed class ChatRestApiIntegrationTests
     public async Task CreateChannel_DuplicateName_ReturnsConflict()
     {
         var body = new { name = "int-dup-ch", type = "Public" };
-        await _client.PostAsJsonAsync($"/api/v1/chat/channels?userId={UserA}", body);
+        await _client.PostAsJsonAsync($"/api/v1/chat/channels", body);
 
-        var duplicate = await _client.PostAsJsonAsync($"/api/v1/chat/channels?userId={UserA}", body);
+        var duplicate = await _client.PostAsJsonAsync($"/api/v1/chat/channels", body);
 
         Assert.AreEqual(HttpStatusCode.Conflict, duplicate.StatusCode);
         var error = await ErrorAsync(duplicate);
@@ -114,7 +135,7 @@ public sealed class ChatRestApiIntegrationTests
     {
         var channelId = await CreateChannelAsync("int-list-ch");
 
-        var response = await _client.GetAsync($"/api/v1/chat/channels?userId={UserA}");
+        var response = await _client.GetAsync($"/api/v1/chat/channels");
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
         var data = await DataAsync(response);
@@ -126,7 +147,7 @@ public sealed class ChatRestApiIntegrationTests
     {
         var channelId = await CreateChannelAsync("int-get-ch");
 
-        var response = await _client.GetAsync($"/api/v1/chat/channels/{channelId}?userId={UserA}");
+        var response = await _client.GetAsync($"/api/v1/chat/channels/{channelId}");
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
         var data = await DataAsync(response);
@@ -136,7 +157,7 @@ public sealed class ChatRestApiIntegrationTests
     [TestMethod]
     public async Task GetChannel_NonExistent_Returns404()
     {
-        var response = await _client.GetAsync($"/api/v1/chat/channels/{Guid.NewGuid()}?userId={UserA}");
+        var response = await _client.GetAsync($"/api/v1/chat/channels/{Guid.NewGuid()}");
 
         Assert.AreEqual(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -147,7 +168,7 @@ public sealed class ChatRestApiIntegrationTests
         var channelId = await CreateChannelAsync("int-upd-ch");
         var body = new { name = "int-upd-ch-new", description = "Updated" };
 
-        var response = await _client.PutAsJsonAsync($"/api/v1/chat/channels/{channelId}?userId={UserA}", body);
+        var response = await _client.PutAsJsonAsync($"/api/v1/chat/channels/{channelId}", body);
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
         var data = await DataAsync(response);
@@ -159,7 +180,7 @@ public sealed class ChatRestApiIntegrationTests
     {
         var channelId = await CreateChannelAsync("int-del-ch");
 
-        var response = await _client.DeleteAsync($"/api/v1/chat/channels/{channelId}?userId={UserA}");
+        var response = await _client.DeleteAsync($"/api/v1/chat/channels/{channelId}");
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
         var data = await DataAsync(response);
@@ -171,7 +192,7 @@ public sealed class ChatRestApiIntegrationTests
     {
         var channelId = await CreateChannelAsync("int-arch-ch");
 
-        var response = await _client.PostAsync($"/api/v1/chat/channels/{channelId}/archive?userId={UserA}", null);
+        var response = await _client.PostAsync($"/api/v1/chat/channels/{channelId}/archive", null);
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
         var data = await DataAsync(response);
@@ -181,7 +202,7 @@ public sealed class ChatRestApiIntegrationTests
     [TestMethod]
     public async Task GetOrCreateDm_ReturnsChannel()
     {
-        var response = await _client.PostAsync($"/api/v1/chat/channels/dm/{UserB}?userId={UserA}", null);
+        var response = await _client.PostAsync($"/api/v1/chat/channels/dm/{UserB}", null);
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
         var data = await DataAsync(response);
@@ -198,7 +219,7 @@ public sealed class ChatRestApiIntegrationTests
         var channelId = await CreateChannelAsync("int-member-add");
         var body = new { userId = UserB };
 
-        var response = await _client.PostAsJsonAsync($"/api/v1/chat/channels/{channelId}/members?userId={UserA}", body);
+        var response = await _client.PostAsJsonAsync($"/api/v1/chat/channels/{channelId}/members", body);
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
         var data = await DataAsync(response);
@@ -210,9 +231,9 @@ public sealed class ChatRestApiIntegrationTests
     {
         var channelId = await CreateChannelAsync("int-member-list");
         var body = new { userId = UserB };
-        await _client.PostAsJsonAsync($"/api/v1/chat/channels/{channelId}/members?userId={UserA}", body);
+        await _client.PostAsJsonAsync($"/api/v1/chat/channels/{channelId}/members", body);
 
-        var response = await _client.GetAsync($"/api/v1/chat/channels/{channelId}/members?userId={UserA}");
+        var response = await _client.GetAsync($"/api/v1/chat/channels/{channelId}/members");
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
         var data = await DataAsync(response);
@@ -223,10 +244,10 @@ public sealed class ChatRestApiIntegrationTests
     public async Task UpdateMemberRole_ReturnsOk()
     {
         var channelId = await CreateChannelAsync("int-role-upd");
-        await _client.PostAsJsonAsync($"/api/v1/chat/channels/{channelId}/members?userId={UserA}", new { userId = UserB });
+        await _client.PostAsJsonAsync($"/api/v1/chat/channels/{channelId}/members", new { userId = UserB });
         var body = new { role = "Admin" };
 
-        var response = await _client.PutAsJsonAsync($"/api/v1/chat/channels/{channelId}/members/{UserB}/role?userId={UserA}", body);
+        var response = await _client.PutAsJsonAsync($"/api/v1/chat/channels/{channelId}/members/{UserB}/role", body);
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
     }
@@ -235,9 +256,9 @@ public sealed class ChatRestApiIntegrationTests
     public async Task RemoveMember_ReturnsOk()
     {
         var channelId = await CreateChannelAsync("int-member-rm");
-        await _client.PostAsJsonAsync($"/api/v1/chat/channels/{channelId}/members?userId={UserA}", new { userId = UserB });
+        await _client.PostAsJsonAsync($"/api/v1/chat/channels/{channelId}/members", new { userId = UserB });
 
-        var response = await _client.DeleteAsync($"/api/v1/chat/channels/{channelId}/members/{UserB}?userId={UserA}");
+        var response = await _client.DeleteAsync($"/api/v1/chat/channels/{channelId}/members/{UserB}");
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
         var data = await DataAsync(response);
@@ -250,7 +271,7 @@ public sealed class ChatRestApiIntegrationTests
         var channelId = await CreateChannelAsync("int-notif-pref");
         var body = new { preference = "Mentions" };
 
-        var response = await _client.PutAsJsonAsync($"/api/v1/chat/channels/{channelId}/notifications?userId={UserA}", body);
+        var response = await _client.PutAsJsonAsync($"/api/v1/chat/channels/{channelId}/notifications", body);
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
     }
@@ -258,7 +279,7 @@ public sealed class ChatRestApiIntegrationTests
     [TestMethod]
     public async Task GetUnreadCounts_ReturnsOk()
     {
-        var response = await _client.GetAsync($"/api/v1/chat/unread?userId={UserA}");
+        var response = await _client.GetAsync($"/api/v1/chat/unread");
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
     }
@@ -273,7 +294,7 @@ public sealed class ChatRestApiIntegrationTests
         var channelId = await CreateChannelAsync("int-msg-send");
         var body = new { content = "Hello, integration tests!" };
 
-        var response = await _client.PostAsJsonAsync($"/api/v1/chat/channels/{channelId}/messages?userId={UserA}", body);
+        var response = await _client.PostAsJsonAsync($"/api/v1/chat/channels/{channelId}/messages", body);
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
         var data = await DataAsync(response);
@@ -287,7 +308,7 @@ public sealed class ChatRestApiIntegrationTests
         await SendMessageAsync(channelId, "msg1");
         await SendMessageAsync(channelId, "msg2");
 
-        var response = await _client.GetAsync($"/api/v1/chat/channels/{channelId}/messages?userId={UserA}&page=1&pageSize=10");
+        var response = await _client.GetAsync($"/api/v1/chat/channels/{channelId}/messages?page=1&pageSize=10");
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
         var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
@@ -302,7 +323,7 @@ public sealed class ChatRestApiIntegrationTests
         var channelId = await CreateChannelAsync("int-msg-get");
         var messageId = await SendMessageAsync(channelId, "find me");
 
-        var response = await _client.GetAsync($"/api/v1/chat/channels/{channelId}/messages/{messageId}?userId={UserA}");
+        var response = await _client.GetAsync($"/api/v1/chat/channels/{channelId}/messages/{messageId}");
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
         var data = await DataAsync(response);
@@ -316,7 +337,7 @@ public sealed class ChatRestApiIntegrationTests
         var messageId = await SendMessageAsync(channelId, "original");
         var body = new { content = "edited" };
 
-        var response = await _client.PutAsJsonAsync($"/api/v1/chat/channels/{channelId}/messages/{messageId}?userId={UserA}", body);
+        var response = await _client.PutAsJsonAsync($"/api/v1/chat/channels/{channelId}/messages/{messageId}", body);
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
         var data = await DataAsync(response);
@@ -330,7 +351,7 @@ public sealed class ChatRestApiIntegrationTests
         var channelId = await CreateChannelAsync("int-msg-del");
         var messageId = await SendMessageAsync(channelId, "delete me");
 
-        var response = await _client.DeleteAsync($"/api/v1/chat/channels/{channelId}/messages/{messageId}?userId={UserA}");
+        var response = await _client.DeleteAsync($"/api/v1/chat/channels/{channelId}/messages/{messageId}");
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
         var data = await DataAsync(response);
@@ -342,7 +363,7 @@ public sealed class ChatRestApiIntegrationTests
     {
         var channelId = await CreateChannelAsync("int-msg-del-404");
 
-        var response = await _client.DeleteAsync($"/api/v1/chat/channels/{channelId}/messages/{Guid.NewGuid()}?userId={UserA}");
+        var response = await _client.DeleteAsync($"/api/v1/chat/channels/{channelId}/messages/{Guid.NewGuid()}");
 
         Assert.AreEqual(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -354,7 +375,7 @@ public sealed class ChatRestApiIntegrationTests
         await SendMessageAsync(channelId, "The quick brown fox integration");
         await SendMessageAsync(channelId, "Another message");
 
-        var response = await _client.GetAsync($"/api/v1/chat/channels/{channelId}/messages/search?userId={UserA}&q=fox");
+        var response = await _client.GetAsync($"/api/v1/chat/channels/{channelId}/messages/search?q=fox");
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
         var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
@@ -366,7 +387,7 @@ public sealed class ChatRestApiIntegrationTests
     {
         var channelId = await CreateChannelAsync("int-msg-search-empty");
 
-        var response = await _client.GetAsync($"/api/v1/chat/channels/{channelId}/messages/search?userId={UserA}&q=");
+        var response = await _client.GetAsync($"/api/v1/chat/channels/{channelId}/messages/search?q=");
 
         Assert.AreEqual(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -382,7 +403,7 @@ public sealed class ChatRestApiIntegrationTests
         var messageId = await SendMessageAsync(channelId, "react to me");
         var body = new { emoji = "👍" };
 
-        var response = await _client.PostAsJsonAsync($"/api/v1/chat/messages/{messageId}/reactions?userId={UserA}", body);
+        var response = await _client.PostAsJsonAsync($"/api/v1/chat/messages/{messageId}/reactions", body);
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
     }
@@ -392,7 +413,7 @@ public sealed class ChatRestApiIntegrationTests
     {
         var channelId = await CreateChannelAsync("int-react-get");
         var messageId = await SendMessageAsync(channelId, "react to me too");
-        await _client.PostAsJsonAsync($"/api/v1/chat/messages/{messageId}/reactions?userId={UserA}", new { emoji = "🎉" });
+        await _client.PostAsJsonAsync($"/api/v1/chat/messages/{messageId}/reactions", new { emoji = "🎉" });
 
         var response = await _client.GetAsync($"/api/v1/chat/messages/{messageId}/reactions");
 
@@ -406,9 +427,9 @@ public sealed class ChatRestApiIntegrationTests
     {
         var channelId = await CreateChannelAsync("int-react-rm");
         var messageId = await SendMessageAsync(channelId, "react then remove");
-        await _client.PostAsJsonAsync($"/api/v1/chat/messages/{messageId}/reactions?userId={UserA}", new { emoji = "✅" });
+        await _client.PostAsJsonAsync($"/api/v1/chat/messages/{messageId}/reactions", new { emoji = "✅" });
 
-        var response = await _client.DeleteAsync($"/api/v1/chat/messages/{messageId}/reactions/✅?userId={UserA}");
+        var response = await _client.DeleteAsync($"/api/v1/chat/messages/{messageId}/reactions/✅");
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
     }
@@ -423,7 +444,7 @@ public sealed class ChatRestApiIntegrationTests
         var channelId = await CreateChannelAsync("int-pin-add");
         var messageId = await SendMessageAsync(channelId, "pin this");
 
-        var response = await _client.PostAsync($"/api/v1/chat/channels/{channelId}/pins/{messageId}?userId={UserA}", null);
+        var response = await _client.PostAsync($"/api/v1/chat/channels/{channelId}/pins/{messageId}", null);
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
     }
@@ -433,9 +454,9 @@ public sealed class ChatRestApiIntegrationTests
     {
         var channelId = await CreateChannelAsync("int-pin-list");
         var messageId = await SendMessageAsync(channelId, "pin me too");
-        await _client.PostAsync($"/api/v1/chat/channels/{channelId}/pins/{messageId}?userId={UserA}", null);
+        await _client.PostAsync($"/api/v1/chat/channels/{channelId}/pins/{messageId}", null);
 
-        var response = await _client.GetAsync($"/api/v1/chat/channels/{channelId}/pins?userId={UserA}");
+        var response = await _client.GetAsync($"/api/v1/chat/channels/{channelId}/pins");
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
         var data = await DataAsync(response);
@@ -447,9 +468,9 @@ public sealed class ChatRestApiIntegrationTests
     {
         var channelId = await CreateChannelAsync("int-pin-rm");
         var messageId = await SendMessageAsync(channelId, "pin then unpin");
-        await _client.PostAsync($"/api/v1/chat/channels/{channelId}/pins/{messageId}?userId={UserA}", null);
+        await _client.PostAsync($"/api/v1/chat/channels/{channelId}/pins/{messageId}", null);
 
-        var response = await _client.DeleteAsync($"/api/v1/chat/channels/{channelId}/pins/{messageId}?userId={UserA}");
+        var response = await _client.DeleteAsync($"/api/v1/chat/channels/{channelId}/pins/{messageId}");
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
     }
@@ -463,7 +484,7 @@ public sealed class ChatRestApiIntegrationTests
     {
         var channelId = await CreateChannelAsync("int-typing");
 
-        var response = await _client.PostAsync($"/api/v1/chat/channels/{channelId}/typing?userId={UserA}", null);
+        var response = await _client.PostAsync($"/api/v1/chat/channels/{channelId}/typing", null);
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
     }
@@ -489,7 +510,7 @@ public sealed class ChatRestApiIntegrationTests
         var messageId = await SendMessageAsync(channelId, "attach here");
         var body = new { fileName = "test.png", mimeType = "image/png", fileSize = 1024L };
 
-        var response = await _client.PostAsJsonAsync($"/api/v1/chat/channels/{channelId}/messages/{messageId}/attachments?userId={UserA}", body);
+        var response = await _client.PostAsJsonAsync($"/api/v1/chat/channels/{channelId}/messages/{messageId}/attachments", body);
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
     }
@@ -500,10 +521,10 @@ public sealed class ChatRestApiIntegrationTests
         var channelId = await CreateChannelAsync("int-files-list");
         var messageId = await SendMessageAsync(channelId, "has file");
         await _client.PostAsJsonAsync(
-            $"/api/v1/chat/channels/{channelId}/messages/{messageId}/attachments?userId={UserA}",
+            $"/api/v1/chat/channels/{channelId}/messages/{messageId}/attachments",
             new { fileName = "doc.pdf", mimeType = "application/pdf", fileSize = 2048L });
 
-        var response = await _client.GetAsync($"/api/v1/chat/channels/{channelId}/files?userId={UserA}");
+        var response = await _client.GetAsync($"/api/v1/chat/channels/{channelId}/files");
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
     }
@@ -517,7 +538,7 @@ public sealed class ChatRestApiIntegrationTests
     {
         var body = new { title = "int-announce", content = "Integration announcement", priority = "Normal" };
 
-        var response = await _client.PostAsJsonAsync($"/api/v1/announcements?userId={UserA}", body);
+        var response = await _client.PostAsJsonAsync($"/api/v1/announcements", body);
 
         Assert.AreEqual(HttpStatusCode.Created, response.StatusCode);
         var data = await DataAsync(response);
@@ -527,10 +548,10 @@ public sealed class ChatRestApiIntegrationTests
     [TestMethod]
     public async Task ListAnnouncements_ReturnsOk()
     {
-        await _client.PostAsJsonAsync($"/api/v1/announcements?userId={UserA}",
+        await _client.PostAsJsonAsync($"/api/v1/announcements",
             new { title = "int-list-announce", content = "Listed", priority = "Normal" });
 
-        var response = await _client.GetAsync($"/api/v1/announcements?userId={UserA}");
+        var response = await _client.GetAsync($"/api/v1/announcements");
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
     }
@@ -538,7 +559,7 @@ public sealed class ChatRestApiIntegrationTests
     [TestMethod]
     public async Task GetAnnouncement_NonExistent_Returns404()
     {
-        var response = await _client.GetAsync($"/api/v1/announcements/{Guid.NewGuid()}?userId={UserA}");
+        var response = await _client.GetAsync($"/api/v1/announcements/{Guid.NewGuid()}");
 
         Assert.AreEqual(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -547,11 +568,11 @@ public sealed class ChatRestApiIntegrationTests
     public async Task UpdateAnnouncement_ReturnsOk()
     {
         var createBody = new { title = "int-upd-announce", content = "Before update", priority = "Normal" };
-        var createResponse = await _client.PostAsJsonAsync($"/api/v1/announcements?userId={UserA}", createBody);
+        var createResponse = await _client.PostAsJsonAsync($"/api/v1/announcements", createBody);
         var id = (await DataAsync(createResponse)).GetProperty("id").GetGuid();
 
         var updateBody = new { title = "int-upd-announce-new", content = "After update", priority = "Normal" };
-        var response = await _client.PutAsJsonAsync($"/api/v1/announcements/{id}?userId={UserA}", updateBody);
+        var response = await _client.PutAsJsonAsync($"/api/v1/announcements/{id}", updateBody);
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
     }
@@ -560,10 +581,10 @@ public sealed class ChatRestApiIntegrationTests
     public async Task DeleteAnnouncement_ReturnsOk()
     {
         var createBody = new { title = "int-del-announce", content = "Delete me", priority = "Normal" };
-        var createResponse = await _client.PostAsJsonAsync($"/api/v1/announcements?userId={UserA}", createBody);
+        var createResponse = await _client.PostAsJsonAsync($"/api/v1/announcements", createBody);
         var id = (await DataAsync(createResponse)).GetProperty("id").GetGuid();
 
-        var response = await _client.DeleteAsync($"/api/v1/announcements/{id}?userId={UserA}");
+        var response = await _client.DeleteAsync($"/api/v1/announcements/{id}");
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
     }
@@ -572,10 +593,10 @@ public sealed class ChatRestApiIntegrationTests
     public async Task AcknowledgeAnnouncement_ReturnsOk()
     {
         var createBody = new { title = "int-ack-announce", content = "Ack me", priority = "Normal" };
-        var createResponse = await _client.PostAsJsonAsync($"/api/v1/announcements?userId={UserA}", createBody);
+        var createResponse = await _client.PostAsJsonAsync($"/api/v1/announcements", createBody);
         var id = (await DataAsync(createResponse)).GetProperty("id").GetGuid();
 
-        var response = await _client.PostAsync($"/api/v1/announcements/{id}/acknowledge?userId={UserA}", null);
+        var response = await _client.PostAsync($"/api/v1/announcements/{id}/acknowledge", null);
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
     }
@@ -584,11 +605,11 @@ public sealed class ChatRestApiIntegrationTests
     public async Task GetAcknowledgements_ReturnsOk()
     {
         var createBody = new { title = "int-ack-list", content = "Check acks", priority = "Normal" };
-        var createResponse = await _client.PostAsJsonAsync($"/api/v1/announcements?userId={UserA}", createBody);
+        var createResponse = await _client.PostAsJsonAsync($"/api/v1/announcements", createBody);
         var id = (await DataAsync(createResponse)).GetProperty("id").GetGuid();
-        await _client.PostAsync($"/api/v1/announcements/{id}/acknowledge?userId={UserA}", null);
+        await _client.PostAsync($"/api/v1/announcements/{id}/acknowledge", null);
 
-        var response = await _client.GetAsync($"/api/v1/announcements/{id}/acknowledgements?userId={UserA}");
+        var response = await _client.GetAsync($"/api/v1/announcements/{id}/acknowledgements");
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
     }
@@ -602,7 +623,7 @@ public sealed class ChatRestApiIntegrationTests
     {
         var body = new { deviceToken = "test-token-12345", provider = "Fcm" };
 
-        var response = await _client.PostAsJsonAsync($"/api/v1/notifications/devices/register?userId={UserA}", body);
+        var response = await _client.PostAsJsonAsync($"/api/v1/notifications/devices/register", body);
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
         var data = await DataAsync(response);
@@ -614,7 +635,7 @@ public sealed class ChatRestApiIntegrationTests
     {
         var body = new { deviceToken = "", provider = "Fcm" };
 
-        var response = await _client.PostAsJsonAsync($"/api/v1/notifications/devices/register?userId={UserA}", body);
+        var response = await _client.PostAsJsonAsync($"/api/v1/notifications/devices/register", body);
 
         Assert.AreEqual(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -624,7 +645,7 @@ public sealed class ChatRestApiIntegrationTests
     {
         var body = new { deviceToken = "token", provider = "NotReal" };
 
-        var response = await _client.PostAsJsonAsync($"/api/v1/notifications/devices/register?userId={UserA}", body);
+        var response = await _client.PostAsJsonAsync($"/api/v1/notifications/devices/register", body);
 
         Assert.AreEqual(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -639,7 +660,7 @@ public sealed class ChatRestApiIntegrationTests
         var channelId = await CreateChannelAsync("int-mark-read");
         var messageId = await SendMessageAsync(channelId, "read this");
 
-        var response = await _client.PostAsJsonAsync($"/api/v1/chat/channels/{channelId}/read?userId={UserA}",
+        var response = await _client.PostAsJsonAsync($"/api/v1/chat/channels/{channelId}/read",
             new { messageId });
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
@@ -682,27 +703,27 @@ public sealed class ChatRestApiIntegrationTests
         var channelId = await CreateChannelAsync("int-full-flow");
 
         // 2. Add second member
-        await _client.PostAsJsonAsync($"/api/v1/chat/channels/{channelId}/members?userId={UserA}", new { userId = UserB });
+        await _client.PostAsJsonAsync($"/api/v1/chat/channels/{channelId}/members", new { userId = UserB });
 
         // 3. Send messages from both users
         var msg1 = await SendMessageAsync(channelId, "Hello from A", UserA);
         var msg2 = await SendMessageAsync(channelId, "Hello from B", UserB);
 
         // 4. React to message
-        var reactResponse = await _client.PostAsJsonAsync($"/api/v1/chat/messages/{msg1}/reactions?userId={UserB}", new { emoji = "❤️" });
+        var reactResponse = await _clientB.PostAsJsonAsync($"/api/v1/chat/messages/{msg1}/reactions", new { emoji = "❤️" });
         Assert.AreEqual(HttpStatusCode.OK, reactResponse.StatusCode);
 
         // 5. Pin message
-        var pinResponse = await _client.PostAsync($"/api/v1/chat/channels/{channelId}/pins/{msg1}?userId={UserA}", null);
+        var pinResponse = await _client.PostAsync($"/api/v1/chat/channels/{channelId}/pins/{msg1}", null);
         Assert.AreEqual(HttpStatusCode.OK, pinResponse.StatusCode);
 
         // 6. Mark read
-        var readResponse = await _client.PostAsJsonAsync($"/api/v1/chat/channels/{channelId}/read?userId={UserB}",
+        var readResponse = await _clientB.PostAsJsonAsync($"/api/v1/chat/channels/{channelId}/read",
             new { messageId = msg2 });
         Assert.AreEqual(HttpStatusCode.OK, readResponse.StatusCode);
 
         // 7. Verify pinned messages
-        var pinsResponse = await _client.GetAsync($"/api/v1/chat/channels/{channelId}/pins?userId={UserA}");
+        var pinsResponse = await _client.GetAsync($"/api/v1/chat/channels/{channelId}/pins");
         Assert.AreEqual(HttpStatusCode.OK, pinsResponse.StatusCode);
         var pins = await DataAsync(pinsResponse);
         Assert.IsTrue(pins.GetArrayLength() >= 1);
