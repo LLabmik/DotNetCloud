@@ -135,14 +135,14 @@ You have a **massive token budget** (1,000,000 tokens). Use it. Don't artificial
 Before:
 ```markdown
 | Phase | Steps | Completed | In Progress | Pending |
-|-------|-------|-----------|-------------|---------|
+|-------|-------|-----------|-------------|
 | Phase 0.1 | 11 | 3 | 0 | 8 |
 ```
 
 After (targeted edit):
 ```markdown
 | Phase | Steps | Completed | In Progress | Pending |
-|-------|-------|-----------|-------------|---------|
+|-------|-------|-----------|-------------|
 | Phase 0.1 | 11 | 7 | 0 | 4 |
 ```
 
@@ -342,14 +342,14 @@ Change to:
 Find this table row:
 ```markdown
 | Phase | Steps | Completed | In Progress | Pending |
-|-------|-------|-----------|-------------|---------|
+|-------|-------|-----------|-------------|
 | Phase 0.1 | 11 | 3 | 0 | 8 |
 ```
 
 Change to:
 ```markdown
 | Phase | Steps | Completed | In Progress | Pending |
-|-------|-------|-----------|-------------|---------|
+|-------|-------|-----------|-------------|
 | Phase 0.1 | 11 | 4 | 0 | 7 |
 ```
 
@@ -483,3 +483,9 @@ For local Android emulator testing in this workspace, use the DHCP-provided DNS 
 ## Git Instruction Modification Protocol
 
 If `.github/copilot-instructions.md` or any instruction/configuration file shows as modified in `git status`, NEVER restore or discard changes silently. Always run `git diff` on the file FIRST, show the user the full diff, and ask whether the changes should be kept or discarded. The user must make the decision about instruction file modifications.
+
+---
+
+## Android MAUI App Work
+
+**IMPORTANT:** On monolith (Windows 11), only do Android MAUI app work. Server-side code changes must be handed off to mint22 via the CLIENT_SERVER_MEDIATION_HANDOFF.md document. Respect the role separation defined in the Environment table of the handoff document.

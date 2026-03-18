@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-18 (Chat auth enforcement — COMPLETE. Server + Android client both done.)
+Last updated: 2026-03-18 (Chat auth enforcement — code complete, pending E2E verification on emulator)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -54,7 +54,7 @@ Archived context:
   - Windows client (`Windows11-TestDNC`): verified 2026-03-16 ~08:16Z. Bug fixed: `RemoveFileRecordsUnderPathAsync` path separator on Windows.
   - Server (`mint22`): confirmed stable 2026-03-16. Zero ERR entries, both nodes soft-deleted, no 5xx.
 - Duplicate controller fix: CLOSED (2026-03-18). Deployed and verified on `mint22`. Files endpoint returns 401, service healthy.
-- **Active cycle:** Chat auth enforcement — **CLOSED** (2026-03-18). Server enforces bearer token auth on all chat endpoints (`mint22`). Android client cleaned up: removed `?userId=` query params from 7 methods in `HttpChatRestClient`, bearer header is sole auth mechanism. `LeaveChannelAsync` retains `AccessTokenUserIdExtractor` for `{targetUserId}` route param (server route requires it). Push notification endpoints (`/api/v1/notifications/`) still send `?userId=` — separate controller, future cleanup.
+- **Active cycle:** Chat auth enforcement — code changes complete (server `mint22` + Android client `monolith`). **Pending E2E verification:** Android app must be deployed to emulator and chat operations tested against `mint22:15443` with bearer-only auth before story can be closed.
 
 ## Environment
 
@@ -78,13 +78,31 @@ Archived context:
 
 ### No Active Handoff
 
-All current work items are complete. Chat auth enforcement story is closed.
+### Chat Auth — Pending E2E Verification (for `monolith`)
 
-**Last completed:** Chat auth enforcement — full cycle (server + Android client). See archive for details.
+**Target:** `monolith`
+**Status:** CODE COMPLETE — AWAITING DEPLOY + MANUAL TEST
+**Priority:** P1
+
+#### What's Done
+
+- Server (`mint22`): all chat endpoints enforce bearer token auth, `?userId=` query params removed
+- Android client (`monolith`): `?userId=` query params removed from 7 `HttpChatRestClient` methods, `AccessTokenUserIdExtractor` removed from those methods, bearer header is sole auth mechanism
+- `LeaveChannelAsync` retains `AccessTokenUserIdExtractor` for `{targetUserId}` route segment (server route `DELETE /channels/{channelId}/members/{targetUserId}` requires it)
+- Build: 0 errors
+
+#### What's Pending
+
+Deploy Android app to emulator and verify chat operations work against `mint22:15443`:
+- List channels → 200 (not 401)
+- Send a message → 200/201
+- Load message history → 200
+- Without Bearer header → 401
+
+Once verified, story can be closed.
 
 **Potential follow-up items (not yet started):**
 - Push notification endpoints (`/api/v1/notifications/devices/`) still accept `?userId=` query params in `FcmPushService` and `UnifiedPushService`. If/when the notification controller enforces auth the same way as `ChatController`, these will need the same cleanup.
-- E2E smoke test against `mint22:15443` to verify chat operations work end-to-end with bearer-only auth (requires running Android emulator).
 
 ## Relay Template
 
