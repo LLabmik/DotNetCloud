@@ -25,3 +25,9 @@ The same asset is used as:
 - Refer to the mascot as **Dot** (she/her)
 - Do not distort, recolor, or crop the logo
 - When used inline with text, maintain reasonable padding around the image
+
+### License
+
+**© 2026 Ben P Kimball dba LLabmik Software Development**
+
+The DotNetCloud logo and mascot "Dot" are licensed under [CC BY-ND 4.0](https://creativecommons.org/licenses/by-nd/4.0/) — you may use and share the image freely (including as part of DotNetCloud deployments), but you must give credit and may not create modified versions. See [LICENSE](LICENSE) for details.

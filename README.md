@@ -230,6 +230,7 @@ See `CONTRIBUTING.md` for full commit guidance and examples.
 - **Server & first-party modules:** [AGPL-3.0](LICENSE)
 - **DotNetCloud.Core SDK (interfaces):** [Apache-2.0](src/Core/DotNetCloud.Core/LICENSE)
 - **Documentation:** [CC BY-SA 4.0](docs/LICENSE)
+- **Logo & mascot (Dot):** [CC BY-ND 4.0](assets/LICENSE) — © 2026 Ben P Kimball dba LLabmik Software Development
 
 ---
 
