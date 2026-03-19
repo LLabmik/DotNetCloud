@@ -7,136 +7,173 @@
     Title="Chat"
     BackgroundColor="#0F172A">
 
-    <RefreshView
-        Command="{Binding LoadChannelsCommand}"
-        IsRefreshing="{Binding IsLoading}"
-        RefreshColor="#0EA5E9">
-
-        <CollectionView
-            ItemsSource="{Binding Channels}"
-            SelectionMode="None">
-
-            <CollectionView.ItemTemplate>
-                <DataTemplate x:DataType="vm:ChannelItemViewModel">
-                    <Border
-                        BackgroundColor="#1E293B"
-                        StrokeThickness="0"
-                        StrokeShape="RoundRectangle 12"
-                        Margin="12,4"
-                        Padding="0">
-
-                        <Grid
-                            ColumnDefinitions="Auto,*,Auto"
-                            Padding="14,14">
-
-                            <!-- Channel icon -->
-                            <Border
-                                Grid.Column="0"
-                                BackgroundColor="#334155"
-                                HeightRequest="44"
-                                WidthRequest="44"
-                                StrokeThickness="0"
-                                StrokeShape="RoundRectangle 12"
-                                Margin="0,0,12,0">
-                                <Label
-                                    FontSize="18"
-                                    HorizontalOptions="Center"
-                                    VerticalOptions="Center"
-                                    TextColor="#94A3B8"
-                                    Text="#" />
-                            </Border>
-
-                            <!-- Channel info -->
-                            <VerticalStackLayout
-                                Grid.Column="1"
-                                VerticalOptions="Center"
-                                Spacing="2">
-                                <Label
-                                    FontAttributes="{Binding UnreadCount, Converter={StaticResource UnreadToBold}}"
-                                    FontSize="15"
-                                    TextColor="#F1F5F9"
-                                    Text="{Binding Name}" />
-                                <Label
-                                    FontSize="13"
-                                    IsVisible="{Binding LastMessagePreview, Converter={StaticResource IsNotNullOrEmpty}}"
-                                    LineBreakMode="TailTruncation"
-                                    MaxLines="1"
-                                    TextColor="#64748B"
-                                    Text="{Binding LastMessagePreview}" />
-                            </VerticalStackLayout>
-
-                            <!-- Unread badge -->
-                            <Border
-                                Grid.Column="2"
-                                BackgroundColor="#0EA5E9"
-                                IsVisible="{Binding UnreadCount, Converter={StaticResource IsNotZero}}"
-                                HeightRequest="24"
-                                MinimumWidthRequest="24"
-                                Padding="8,0"
-                                StrokeThickness="0"
-                                StrokeShape="RoundRectangle 12"
-                                VerticalOptions="Center">
-                                <Label
-                                    FontSize="11"
-                                    FontAttributes="Bold"
-                                    HorizontalOptions="Center"
-                                    VerticalOptions="Center"
-                                    Text="{Binding UnreadCount}"
-                                    TextColor="White" />
-                            </Border>
-
-                            <Grid.GestureRecognizers>
-                                <TapGestureRecognizer
-                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectChannelCommand}"
-                                    CommandParameter="{Binding .}" />
-                            </Grid.GestureRecognizers>
-
-                        </Grid>
-                    </Border>
-                </DataTemplate>
-            </CollectionView.ItemTemplate>
-
-            <CollectionView.Header>
-                <BoxView HeightRequest="8" BackgroundColor="Transparent" />
-            </CollectionView.Header>
-
-            <CollectionView.Footer>
-                <BoxView HeightRequest="8" BackgroundColor="Transparent" />
-            </CollectionView.Footer>
-
-            <!-- Empty state -->
-            <CollectionView.EmptyView>
-                <VerticalStackLayout
+    <Grid>
+        <!-- Loading / initial state overlay -->
+        <VerticalStackLayout
+            HorizontalOptions="Center"
+            VerticalOptions="Center"
+            Spacing="16"
+            IsVisible="{Binding HasCompletedInitialLoad, Converter={StaticResource InvertBool}}">
+            <Grid
+                HorizontalOptions="Center"
+                WidthRequest="120"
+                HeightRequest="120">
+                <ActivityIndicator
+                    IsRunning="{Binding IsLoading}"
+                    Color="#7C3AED"
                     HorizontalOptions="Center"
-                    Padding="32"
-                    Spacing="12"
-                    VerticalOptions="Center">
-                    <Label
-                        FontSize="40"
-                        HorizontalOptions="Center"
-                        Text="💬" />
-                    <Label
-                        FontSize="16"
-                        FontAttributes="Bold"
-                        HorizontalOptions="Center"
-                        TextColor="#F1F5F9"
-                        Text="No channels yet" />
-                    <Label
-                        FontSize="13"
-                        HorizontalOptions="Center"
-                        HorizontalTextAlignment="Center"
-                        TextColor="#64748B"
-                        Text="Channels will appear here once you join a conversation." />
-                    <Label
-                        FontSize="13"
-                        HorizontalOptions="Center"
-                        IsVisible="{Binding ErrorMessage, Converter={StaticResource IsNotNullOrEmpty}}"
-                        TextColor="#FCA5A5"
-                        Text="{Binding ErrorMessage}" />
-                </VerticalStackLayout>
-            </CollectionView.EmptyView>
+                    VerticalOptions="Center"
+                    HeightRequest="120"
+                    WidthRequest="120" />
+                <Image
+                    Source="app_logo.png"
+                    HeightRequest="64"
+                    WidthRequest="64"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center" />
+            </Grid>
+            <Label
+                FontSize="13"
+                HorizontalOptions="Center"
+                HorizontalTextAlignment="Center"
+                Padding="24,0"
+                IsVisible="{Binding ShowInitialLoadError, FallbackValue=False}"
+                TextColor="#FCA5A5"
+                Text="{Binding ErrorMessage}" />
+        </VerticalStackLayout>
 
-        </CollectionView>
-    </RefreshView>
+        <RefreshView
+            Command="{Binding LoadChannelsCommand}"
+            IsRefreshing="{Binding IsLoading}"
+            IsVisible="{Binding HasCompletedInitialLoad}"
+            RefreshColor="#0EA5E9">
+
+            <CollectionView
+                ItemsSource="{Binding Channels}"
+                SelectionMode="None">
+
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ChannelItemViewModel">
+                        <Border
+                            BackgroundColor="#1E293B"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 12"
+                            Margin="12,4"
+                            Padding="0">
+
+                            <Grid
+                                ColumnDefinitions="Auto,*,Auto"
+                                Padding="14,14">
+
+                                <!-- Channel icon -->
+                                <Border
+                                    Grid.Column="0"
+                                    BackgroundColor="#334155"
+                                    HeightRequest="44"
+                                    WidthRequest="44"
+                                    StrokeThickness="0"
+                                    StrokeShape="RoundRectangle 12"
+                                    Margin="0,0,12,0">
+                                    <Label
+                                        FontSize="18"
+                                        HorizontalOptions="Center"
+                                        VerticalOptions="Center"
+                                        TextColor="#94A3B8"
+                                        Text="#" />
+                                </Border>
+
+                                <!-- Channel info -->
+                                <VerticalStackLayout
+                                    Grid.Column="1"
+                                    VerticalOptions="Center"
+                                    Spacing="2">
+                                    <Label
+                                        FontAttributes="{Binding UnreadCount, Converter={StaticResource UnreadToBold}}"
+                                        FontSize="15"
+                                        TextColor="#F1F5F9"
+                                        Text="{Binding Name}" />
+                                    <Label
+                                        FontSize="13"
+                                        IsVisible="{Binding LastMessagePreview, Converter={StaticResource IsNotNullOrEmpty}}"
+                                        LineBreakMode="TailTruncation"
+                                        MaxLines="1"
+                                        TextColor="#64748B"
+                                        Text="{Binding LastMessagePreview}" />
+                                </VerticalStackLayout>
+
+                                <!-- Unread badge -->
+                                <Border
+                                    Grid.Column="2"
+                                    BackgroundColor="#0EA5E9"
+                                    IsVisible="{Binding UnreadCount, Converter={StaticResource IsNotZero}}"
+                                    HeightRequest="24"
+                                    MinimumWidthRequest="24"
+                                    Padding="8,0"
+                                    StrokeThickness="0"
+                                    StrokeShape="RoundRectangle 12"
+                                    VerticalOptions="Center">
+                                    <Label
+                                        FontSize="11"
+                                        FontAttributes="Bold"
+                                        HorizontalOptions="Center"
+                                        VerticalOptions="Center"
+                                        Text="{Binding UnreadCount}"
+                                        TextColor="White" />
+                                </Border>
+
+                                <Grid.GestureRecognizers>
+                                    <TapGestureRecognizer
+                                        Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectChannelCommand}"
+                                        CommandParameter="{Binding .}" />
+                                </Grid.GestureRecognizers>
+
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+
+                <CollectionView.Header>
+                    <BoxView HeightRequest="8" BackgroundColor="Transparent" />
+                </CollectionView.Header>
+
+                <CollectionView.Footer>
+                    <BoxView HeightRequest="8" BackgroundColor="Transparent" />
+                </CollectionView.Footer>
+
+                <!-- Empty state (shown only after successful load returns no channels) -->
+                <CollectionView.EmptyView>
+                    <VerticalStackLayout
+                        HorizontalOptions="Center"
+                        Padding="32"
+                        Spacing="12"
+                        VerticalOptions="Center">
+                        <Label
+                            FontSize="40"
+                            HorizontalOptions="Center"
+                            Text="💬" />
+                        <Label
+                            FontSize="16"
+                            FontAttributes="Bold"
+                            HorizontalOptions="Center"
+                            TextColor="#F1F5F9"
+                            Text="No channels yet" />
+                        <Label
+                            FontSize="13"
+                            HorizontalOptions="Center"
+                            HorizontalTextAlignment="Center"
+                            TextColor="#64748B"
+                            Text="Channels will appear here once you join a conversation." />
+                        <Label
+                            FontSize="13"
+                            HorizontalOptions="Center"
+                            IsVisible="{Binding ShowInitialLoadError, FallbackValue=False}"
+                            TextColor="#FCA5A5"
+                            Text="{Binding ErrorMessage}" />
+                    </VerticalStackLayout>
+                </CollectionView.EmptyView>
+
+            </CollectionView>
+        </RefreshView>
+    </Grid>
 
 </ContentPage>

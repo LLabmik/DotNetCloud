@@ -38,10 +38,21 @@ public sealed partial class FileBrowserViewModel : ObservableObject
     public ObservableCollection<FileItemViewModel> Items { get; } = [];
 
     [ObservableProperty]
-    private bool _isLoading;
+    [NotifyPropertyChangedFor(nameof(ShowInitialLoadError))]
+    private bool _isLoading = true;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowInitialLoadError))]
     private string? _errorMessage;
+
+    /// <summary>True when a load attempt has finished and failed (not while still loading).</summary>
+    public bool ShowInitialLoadError => !IsLoading && !string.IsNullOrEmpty(ErrorMessage);
+
+    [ObservableProperty]
+    private bool _hasCompletedInitialLoad;
+
+    /// <summary>Whether the page is currently visible. Prevents background loads from setting ErrorMessage after the page disappears.</summary>
+    internal bool IsActive { get; set; }
 
     [ObservableProperty]
     private string _currentFolderName = "My Files";
@@ -86,28 +97,66 @@ public sealed partial class FileBrowserViewModel : ObservableObject
     {
         IsLoading = true;
         ErrorMessage = null;
-        Items.Clear();
 
         try
         {
-            var (serverUrl, token) = await GetCredentialsAsync(ct);
-            var items = await _fileApi.ListChildrenAsync(serverUrl, token, CurrentFolderId, ct);
+            // On cold start the first HTTP request may timeout while the connection pool
+            // warms up. Retry silently so the error label never flashes before data arrives.
+            var maxAttempts = HasCompletedInitialLoad ? 1 : 3;
+            Exception? lastException = null;
 
-            // Sort: folders first, then by name
-            var sorted = items
-                .OrderByDescending(i => string.Equals(i.NodeType, "Folder", StringComparison.OrdinalIgnoreCase))
-                .ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase);
+            for (var attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                try
+                {
+                    if (attempt > 1)
+                        await Task.Delay(800, ct);
 
-            foreach (var item in sorted)
-                Items.Add(new FileItemViewModel(item));
+                    var (serverUrl, token) = await GetCredentialsAsync(ct);
+                    var items = await FetchWithRetryAsync(
+                        () => _fileApi.ListChildrenAsync(serverUrl, token, CurrentFolderId, ct), ct);
 
-            // Load quota in background
-            _ = LoadQuotaAsync(serverUrl, token, ct);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to load files.");
-            ErrorMessage = ApiExceptionHelper.GetUserFriendlyMessage(ex);
+                    // Sort: folders first, then by name
+                    var sorted = items
+                        .OrderByDescending(i => string.Equals(i.NodeType, "Folder", StringComparison.OrdinalIgnoreCase))
+                        .ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+
+                    Items.Clear();
+                    foreach (var item in sorted)
+                        Items.Add(new FileItemViewModel(item));
+
+                    HasCompletedInitialLoad = true;
+
+                    // Load quota in background
+                    _ = LoadQuotaAsync(serverUrl, token, ct);
+                    return;
+                }
+                catch (Exception ex) when ((ex is TaskCanceledException or OperationCanceledException) && Items.Count > 0)
+                {
+                    _logger.LogDebug(ex, "Transient timeout during file reload; keeping existing data.");
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    lastException = ex;
+                    if (attempt < maxAttempts)
+                        _logger.LogDebug(ex, "Initial load attempt {Attempt} of {MaxAttempts} failed; retrying.", attempt, maxAttempts);
+                }
+            }
+
+            if (lastException is not null)
+            {
+                if (IsActive)
+                {
+                    _logger.LogError(lastException, "Failed to load files.");
+                    ErrorMessage = ApiExceptionHelper.GetUserFriendlyMessage(lastException);
+                }
+                else
+                {
+                    _logger.LogDebug(lastException, "Load failed while page inactive; suppressing error display.");
+                }
+            }
         }
         finally
         {
@@ -447,6 +496,20 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         var token = await _tokenStore.GetAccessTokenAsync(connection.ServerBaseUrl, ct)
             ?? throw new InvalidOperationException("No access token available.");
         return (connection.ServerBaseUrl, token);
+    }
+
+    private static async Task<T> FetchWithRetryAsync<T>(Func<Task<T>> fetchFunc, CancellationToken ct)
+    {
+        try
+        {
+            return await fetchFunc();
+        }
+        catch (Exception ex) when ((ex is TaskCanceledException or OperationCanceledException) && !ct.IsCancellationRequested)
+        {
+            // Single silent retry for transient timeout (not explicit cancellation)
+            await Task.Delay(500, ct);
+            return await fetchFunc();
+        }
     }
 
     private static string FormatSize(long bytes) => bytes switch

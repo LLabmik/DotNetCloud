@@ -18,7 +18,17 @@ public partial class FileBrowserPage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
+        _vm.IsActive = true;
+        _vm.ErrorMessage = null;
         if (_vm.LoadFilesCommand.CanExecute(null))
             _vm.LoadFilesCommand.Execute(null);
+    }
+
+    /// <inheritdoc />
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        _vm.IsActive = false;
+        _vm.ErrorMessage = null;
     }
 }

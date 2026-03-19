@@ -20,8 +20,18 @@ public partial class ChannelListPage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
+        _vm.IsActive = true;
+        _vm.ErrorMessage = null;
         if (_vm.LoadChannelsCommand.CanExecute(null))
             _vm.LoadChannelsCommand.Execute(null);
+    }
+
+    /// <inheritdoc />
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        _vm.IsActive = false;
+        _vm.ErrorMessage = null;
     }
 
     private async void OnChannelSelected(object? sender, (Guid ChannelId, string Name) e)

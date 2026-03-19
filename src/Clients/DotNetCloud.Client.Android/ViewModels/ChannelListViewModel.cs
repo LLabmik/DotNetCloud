@@ -47,10 +47,21 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
     public ObservableCollection<ChannelItemViewModel> Channels { get; } = [];
 
     [ObservableProperty]
-    private bool _isLoading;
+    [NotifyPropertyChangedFor(nameof(ShowInitialLoadError))]
+    private bool _isLoading = true;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowInitialLoadError))]
     private string? _errorMessage;
+
+    /// <summary>True when a load attempt has finished and failed (not while still loading).</summary>
+    public bool ShowInitialLoadError => !IsLoading && !string.IsNullOrEmpty(ErrorMessage);
+
+    [ObservableProperty]
+    private bool _hasCompletedInitialLoad;
+
+    /// <summary>Whether the page is currently visible. Prevents background loads from setting ErrorMessage after the page disappears.</summary>
+    internal bool IsActive { get; set; }
 
     /// <summary>Loads channels from the server.</summary>
     [RelayCommand]
@@ -58,20 +69,57 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
     {
         IsLoading = true;
         ErrorMessage = null;
-        Channels.Clear();
 
         try
         {
-            var (serverUrl, token) = await GetActiveCredentialsAsync(ct);
-            var channels = await _chatApi.GetChannelsAsync(serverUrl, token, ct);
+            // On cold start the first HTTP request may timeout while the connection pool
+            // warms up. Retry silently so the error label never flashes before data arrives.
+            var maxAttempts = HasCompletedInitialLoad ? 1 : 3;
+            Exception? lastException = null;
 
-            foreach (var ch in channels)
-                Channels.Add(new ChannelItemViewModel(ch.Id, ch.Name, ch.UnreadCount, ch.HasMention, ch.LastMessagePreview));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to load channels.");
-            ErrorMessage = ApiExceptionHelper.GetUserFriendlyMessage(ex);
+            for (var attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                try
+                {
+                    if (attempt > 1)
+                        await Task.Delay(800, ct);
+
+                    var (serverUrl, token) = await GetActiveCredentialsAsync(ct);
+                    var channels = await FetchWithRetryAsync(
+                        () => _chatApi.GetChannelsAsync(serverUrl, token, ct), ct);
+
+                    Channels.Clear();
+                    foreach (var ch in channels)
+                        Channels.Add(new ChannelItemViewModel(ch.Id, ch.Name, ch.UnreadCount, ch.HasMention, ch.LastMessagePreview));
+
+                    HasCompletedInitialLoad = true;
+                    return;
+                }
+                catch (Exception ex) when ((ex is TaskCanceledException or OperationCanceledException) && Channels.Count > 0)
+                {
+                    _logger.LogDebug(ex, "Transient timeout during channel reload; keeping existing data.");
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    lastException = ex;
+                    if (attempt < maxAttempts)
+                        _logger.LogDebug(ex, "Initial load attempt {Attempt} of {MaxAttempts} failed; retrying.", attempt, maxAttempts);
+                }
+            }
+
+            if (lastException is not null)
+            {
+                if (IsActive)
+                {
+                    _logger.LogError(lastException, "Failed to load channels.");
+                    ErrorMessage = ApiExceptionHelper.GetUserFriendlyMessage(lastException);
+                }
+                else
+                {
+                    _logger.LogDebug(lastException, "Load failed while page inactive; suppressing error display.");
+                }
+            }
         }
         finally
         {
@@ -118,6 +166,20 @@ public sealed partial class ChannelListViewModel : ObservableObject, IDisposable
         if (string.IsNullOrWhiteSpace(token))
             throw new InvalidOperationException("No access token found. Please log in again.");
         return (connection.ServerBaseUrl, token);
+    }
+
+    private static async Task<T> FetchWithRetryAsync<T>(Func<Task<T>> fetchFunc, CancellationToken ct)
+    {
+        try
+        {
+            return await fetchFunc();
+        }
+        catch (Exception ex) when ((ex is TaskCanceledException or OperationCanceledException) && !ct.IsCancellationRequested)
+        {
+            // Single silent retry for transient timeout (not explicit cancellation)
+            await Task.Delay(500, ct);
+            return await fetchFunc();
+        }
     }
 }
 

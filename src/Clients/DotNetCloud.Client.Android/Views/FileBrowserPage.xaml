@@ -161,11 +161,47 @@
             </Grid>
         </Border>
 
+        <!-- Loading / initial state overlay -->
+        <VerticalStackLayout
+            Grid.Row="1"
+            HorizontalOptions="Center"
+            VerticalOptions="Center"
+            Spacing="16"
+            IsVisible="{Binding HasCompletedInitialLoad, Converter={StaticResource InvertBool}}">
+            <Grid
+                HorizontalOptions="Center"
+                WidthRequest="120"
+                HeightRequest="120">
+                <ActivityIndicator
+                    IsRunning="{Binding IsLoading}"
+                    Color="#7C3AED"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center"
+                    HeightRequest="120"
+                    WidthRequest="120" />
+                <Image
+                    Source="app_logo.png"
+                    HeightRequest="64"
+                    WidthRequest="64"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center" />
+            </Grid>
+            <Label
+                FontSize="13"
+                HorizontalOptions="Center"
+                HorizontalTextAlignment="Center"
+                Padding="24,0"
+                IsVisible="{Binding ShowInitialLoadError, FallbackValue=False}"
+                TextColor="#FCA5A5"
+                Text="{Binding ErrorMessage}" />
+        </VerticalStackLayout>
+
         <!-- File list with pull-to-refresh -->
         <RefreshView
             Grid.Row="1"
             Command="{Binding LoadFilesCommand}"
             IsRefreshing="{Binding IsLoading}"
+            IsVisible="{Binding HasCompletedInitialLoad}"
             RefreshColor="#0EA5E9">
 
             <CollectionView
@@ -268,7 +304,7 @@
                     <BoxView HeightRequest="4" BackgroundColor="Transparent" />
                 </CollectionView.Footer>
 
-                <!-- Empty state -->
+                <!-- Empty state (shown only after successful load returns no items) -->
                 <CollectionView.EmptyView>
                     <VerticalStackLayout
                         HorizontalOptions="Center"
@@ -294,7 +330,7 @@
                         <Label
                             FontSize="13"
                             HorizontalOptions="Center"
-                            IsVisible="{Binding ErrorMessage, Converter={StaticResource IsNotNullOrEmpty}}"
+                            IsVisible="{Binding ShowInitialLoadError, FallbackValue=False}"
                             TextColor="#FCA5A5"
                             Text="{Binding ErrorMessage}" />
                     </VerticalStackLayout>
