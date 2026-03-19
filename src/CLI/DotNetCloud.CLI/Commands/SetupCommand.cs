@@ -282,11 +282,11 @@ internal static class SetupCommand
         // Step 7: Module selection
         // ───────────────────────────────────────────────
         ConsoleOutput.WriteStep(7, TotalSteps, "Module Selection");
-        ConsoleOutput.WriteInfo("Select modules to enable (more can be enabled later):");
-        var availableModules = new[]
+
+        // Files and Chat are required core modules — always enabled.
+        var requiredModules = new[] { "dotnetcloud.files", "dotnetcloud.chat" };
+        var optionalModules = new[]
         {
-            "dotnetcloud.files",
-            "dotnetcloud.chat",
             "dotnetcloud.contacts",
             "dotnetcloud.calendar",
             "dotnetcloud.notes",
@@ -296,16 +296,24 @@ internal static class SetupCommand
         var previouslyEnabled = config.EnabledModules.ToHashSet(StringComparer.OrdinalIgnoreCase);
         config.EnabledModules.Clear();
 
-        foreach (var moduleId in availableModules)
+        foreach (var moduleId in requiredModules)
         {
-            // Default to previously enabled state, or files+chat on first run.
-            var wasEnabled = previouslyEnabled.Count > 0
-                ? previouslyEnabled.Contains(moduleId)
-                : moduleId is "dotnetcloud.files" or "dotnetcloud.chat";
+            config.EnabledModules.Add(moduleId);
+        }
 
-            if (ConsoleOutput.PromptConfirm($"  Enable {moduleId}?", defaultValue: wasEnabled))
+        ConsoleOutput.WriteInfo("Required modules (always enabled): dotnetcloud.files, dotnetcloud.chat");
+
+        if (optionalModules.Length > 0)
+        {
+            ConsoleOutput.WriteInfo("Select optional modules to enable (more can be enabled later):");
+            foreach (var moduleId in optionalModules)
             {
-                config.EnabledModules.Add(moduleId);
+                var wasEnabled = previouslyEnabled.Contains(moduleId);
+
+                if (ConsoleOutput.PromptConfirm($"  Enable {moduleId}?", defaultValue: wasEnabled))
+                {
+                    config.EnabledModules.Add(moduleId);
+                }
             }
         }
 
