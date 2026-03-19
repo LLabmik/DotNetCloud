@@ -1,0 +1,41 @@
+{
+  "solution": {
+    "path": "DotNetCloud.sln",
+    "projects": [
+      "src\\CLI\\DotNetCloud.CLI\\DotNetCloud.CLI.csproj",
+      "src\\Clients\\DotNetCloud.Client.Core\\DotNetCloud.Client.Core.csproj",
+      "src\\Clients\\DotNetCloud.Client.SyncService\\DotNetCloud.Client.SyncService.csproj",
+      "src\\Clients\\DotNetCloud.Client.SyncTray\\DotNetCloud.Client.SyncTray.csproj",
+      "src\\Core\\DotNetCloud.Core\\DotNetCloud.Core.csproj",
+      "src\\Core\\DotNetCloud.Core.Auth\\DotNetCloud.Core.Auth.csproj",
+      "src\\Core\\DotNetCloud.Core.Data\\DotNetCloud.Core.Data.csproj",
+      "src\\Core\\DotNetCloud.Core.Grpc\\DotNetCloud.Core.Grpc.csproj",
+      "src\\Core\\DotNetCloud.Core.Server\\DotNetCloud.Core.Server.csproj",
+      "src\\Core\\DotNetCloud.Core.ServiceDefaults\\DotNetCloud.Core.ServiceDefaults.csproj",
+      "src\\Modules\\Chat\\DotNetCloud.Modules.Chat\\DotNetCloud.Modules.Chat.csproj",
+      "src\\Modules\\Chat\\DotNetCloud.Modules.Chat.Data\\DotNetCloud.Modules.Chat.Data.csproj",
+      "src\\Modules\\Chat\\DotNetCloud.Modules.Chat.Host\\DotNetCloud.Modules.Chat.Host.csproj",
+      "src\\Modules\\Example\\DotNetCloud.Modules.Example\\DotNetCloud.Modules.Example.csproj",
+      "src\\Modules\\Example\\DotNetCloud.Modules.Example.Data\\DotNetCloud.Modules.Example.Data.csproj",
+      "src\\Modules\\Example\\DotNetCloud.Modules.Example.Host\\DotNetCloud.Modules.Example.Host.csproj",
+      "src\\Modules\\Files\\DotNetCloud.Modules.Files\\DotNetCloud.Modules.Files.csproj",
+      "src\\Modules\\Files\\DotNetCloud.Modules.Files.Data\\DotNetCloud.Modules.Files.Data.csproj",
+      "src\\Modules\\Files\\DotNetCloud.Modules.Files.Host\\DotNetCloud.Modules.Files.Host.csproj",
+      "src\\UI\\DotNetCloud.UI.Shared\\DotNetCloud.UI.Shared.csproj",
+      "src\\UI\\DotNetCloud.UI.Web\\DotNetCloud.UI.Web.csproj",
+      "src\\UI\\DotNetCloud.UI.Web.Client\\DotNetCloud.UI.Web.Client.csproj",
+      "tests\\DotNetCloud.CLI.Tests\\DotNetCloud.CLI.Tests.csproj",
+      "tests\\DotNetCloud.Client.Core.Tests\\DotNetCloud.Client.Core.Tests.csproj",
+      "tests\\DotNetCloud.Client.SyncService.Tests\\DotNetCloud.Client.SyncService.Tests.csproj",
+      "tests\\DotNetCloud.Client.SyncTray.Tests\\DotNetCloud.Client.SyncTray.Tests.csproj",
+      "tests\\DotNetCloud.Core.Auth.Tests\\DotNetCloud.Core.Auth.Tests.csproj",
+      "tests\\DotNetCloud.Core.Data.Tests\\DotNetCloud.Core.Data.Tests.csproj",
+      "tests\\DotNetCloud.Core.Server.Tests\\DotNetCloud.Core.Server.Tests.csproj",
+      "tests\\DotNetCloud.Core.Tests\\DotNetCloud.Core.Tests.csproj",
+      "tests\\DotNetCloud.Integration.Tests\\DotNetCloud.Integration.Tests.csproj",
+      "tests\\DotNetCloud.Modules.Chat.Tests\\DotNetCloud.Modules.Chat.Tests.csproj",
+      "tests\\DotNetCloud.Modules.Example.Tests\\DotNetCloud.Modules.Example.Tests.csproj",
+      "tests\\DotNetCloud.Modules.Files.Tests\\DotNetCloud.Modules.Files.Tests.csproj"
+    ]
+  }
+}
