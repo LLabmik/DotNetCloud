@@ -1,6 +1,10 @@
-# DotNetCloud
+<p align="center">
+  <img src="assets/logo.png" alt="DotNetCloud" width="128" />
+</p>
 
-**A self-hosted, open-source cloud platform built on .NET 10/C#.**
+<h1 align="center">DotNetCloud</h1>
+
+<p align="center"><strong>A self-hosted, open-source cloud platform built on .NET 10/C#.</strong></p>
 
 DotNetCloud is a modern alternative to NextCloud and OwnCloud, designed to leverage .NET's async, multithreaded capabilities to provide a comprehensive, extensible cloud solution that anyone can install on their own server.
 

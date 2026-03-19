@@ -752,7 +752,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Implement light/dark mode toggle
 - ✓ Create responsive layout components
 - ✓ Build reusable navigation components
-- ☐ Set up brand assets/logos
+- ✓ Set up brand assets/logos
 
 #### Error & Notification UI
 - ✓ Create error boundary component

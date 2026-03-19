@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="../../assets/logo.png" alt="DotNetCloud" width="64" />
+</p>
+
 # DotNetCloud — Architecture Document
 
 > **Version:** 1.0  

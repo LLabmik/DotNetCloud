@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.png" alt="DotNetCloud" width="64" />
+</p>
+
 # Contributing to DotNetCloud
 
 Thank you for your interest in contributing to DotNetCloud! This document provides guidelines and instructions for contributing to the project.
