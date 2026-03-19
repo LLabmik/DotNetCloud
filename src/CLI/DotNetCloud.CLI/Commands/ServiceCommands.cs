@@ -116,6 +116,13 @@ internal static class ServiceCommands
                 }
             };
 
+            // Pass TLS certificate path/password when configured
+            if (!string.IsNullOrEmpty(config.TlsCertificatePath))
+            {
+                psi.Environment["Kestrel__CertificatePath"] = config.TlsCertificatePath;
+                psi.Environment["Kestrel__CertificatePassword"] = "";
+            }
+
             var process = Process.Start(psi);
             if (process is null)
             {

@@ -152,12 +152,25 @@ public static class KestrelConfiguration
     {
         if (!string.IsNullOrEmpty(config.CertificatePath))
         {
-            listenOptions.UseHttps(config.CertificatePath, config.CertificatePassword);
+            if (!File.Exists(config.CertificatePath))
+            {
+                throw new FileNotFoundException(
+                    $"TLS certificate not found at '{config.CertificatePath}'. " +
+                    "Provide a valid certificate path or run 'dotnetcloud setup' to reconfigure HTTPS.");
+            }
+
+            listenOptions.UseHttps(config.CertificatePath, config.CertificatePassword ?? string.Empty);
         }
         else if (environment.IsDevelopment())
         {
             // Use the development certificate in development mode
             listenOptions.UseHttps();
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                "HTTPS is enabled but no TLS certificate path is configured. " +
+                "Set Kestrel:CertificatePath in appsettings.json or run 'dotnetcloud setup' to configure HTTPS.");
         }
     }
 
