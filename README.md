@@ -1,8 +1,10 @@
 <p align="center">
-  <img src="assets/logo.png" alt="DotNetCloud" width="128" />
+  <img src="assets/logo.png" alt="Dot — the DotNetCloud mascot" width="128" />
 </p>
 
 <h1 align="center">DotNetCloud</h1>
+
+<p align="center"><em>Meet <strong>Dot</strong> — a smiling cloud with a net wrapped around her, and the mascot who completes the name <strong>Dot</strong>NetCloud.</em></p>
 
 <p align="center"><strong>A self-hosted, open-source cloud platform built on .NET 10/C#.</strong></p>
 
