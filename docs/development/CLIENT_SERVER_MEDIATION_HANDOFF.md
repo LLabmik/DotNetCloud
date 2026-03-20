@@ -76,81 +76,85 @@ Archived context:
 
 ## Active Handoff
 
-### Windows IIS + Service Validation (Option 2) (for `Windows11-TestDNC`)
+### Windows IIS + Service Validation Option 2 — PostgreSQL + URL Rewrite Prereqs (for `Windows11-TestDNC`)
 
-**Target:** `Windows11-TestDNC`
-**Status:** BLOCKED (EXECUTED ON `Windows11-TestDNC`, FAIL)
+**Target:** `Windows11-TestDNC`  
+**Status:** REQUIRES USER ACTION (prerequisites missing)  
 **Priority:** P1
 
-#### Goal
+#### Summary
 
-Validate the new Windows Option 2 deployment path end-to-end:
+The Windows11-TestDNC validation cannot proceed because **two prerequisites are missing and require elevation**:
 
-- IIS is public edge.
-- DotNetCloud core server runs as a native Windows Service.
-- IIS reverse proxies to `http://localhost:5080`.
+1. **PostgreSQL not installed/running** (CRITICAL BLOCKER) — prevents app startup entirely
+2. **IIS URL Rewrite module not installed** (blocks reverse proxy setup)
 
-#### Relevant Code/Docs to Pull
+Both require escalated privileges that the agent cannot use.
 
-- `tools/install-windows.ps1`
-- `docs/admin/server/WINDOWS_IIS_INSTALL_GUIDE.md`
-- `docs/admin/server/WINDOWS_SERVICE_ARCHITECTURE_NOTES.md`
-- `src/Core/DotNetCloud.Core.Server/Program.cs`
-- `src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj`
+#### Required User Actions (Moderator/User on Windows11-TestDNC)
 
-#### Required Execution Steps on `Windows11-TestDNC`
+**Option A: Use Chocolatey/Winget (Recommended)**
 
-1. Pull latest `main`.
-2. Open elevated PowerShell.
-3. Run installer (beginner path):
+Open **elevated PowerShell** and run:
 
-  ```powershell
-  pwsh -ExecutionPolicy Bypass -File .\tools\install-windows.ps1 -SourcePath .\artifacts\publish -Beginner
-  ```
+```powershell
+# Option A1: Chocolatey (if installed)
+choco install postgresql -y
+choco install urlrewrite -y
 
-4. Confirm installer behavior for reverse-proxy prerequisites:
-  - It should auto-attempt URL Rewrite + ARR install via `winget` when missing.
-  - If auto-install fails, manually install URL Rewrite + ARR and rerun installer.
-5. Confirm service and IIS runtime state:
+# Option A2: Winget (Windows 11 built-in)
+winget install "PostgreSQL" --accept-source-agreements
+winget install "IIS URL Rewrite Module" --accept-source-agreements
+```
 
-  ```powershell
-  Get-Service DotNetCloud
-  Import-Module WebAdministration
-  Get-WebGlobalModule | Where-Object { $_.Name -in @('RewriteModule','ApplicationRequestRouting') }
-  Get-Website -Name DotNetCloud
-  Get-WebAppPoolState -Name DotNetCloud
-  Invoke-WebRequest http://localhost:5080/health/live -UseBasicParsing
-  Invoke-WebRequest http://localhost/health/live -UseBasicParsing
-  ```
+**Option B: Manual MSI Install**
 
-6. Reboot Windows host once, then re-check `Get-Service DotNetCloud` and both health endpoints.
+1. **PostgreSQL:**  
+   - Download: https://www.postgresql.org/download/windows/
+   - During install, set password for `postgres` user to `postgres` (matches default connection string)
+   - Accept default port `5432`
+   - Let it auto-start as a Windows service
 
-#### Pass Criteria
+2. **IIS URL Rewrite:**  
+   - Download: https://www.iis.net/downloads/microsoft/url-rewrite
+   - Run the MSI installer
+   - Accept default installation location
 
-- DotNetCloud service exists, is `Running`, and survives reboot.
-- IIS site/app pool exist and are started.
-- Both modules present: `RewriteModule`, `ApplicationRequestRouting`.
-- Local app health works: `http://localhost:5080/health/live`.
-- IIS-proxied health works: `http://localhost/health/live` (or configured host header URL).
+**Option C: Check If PostgreSQL Is Already Running**
 
-#### If Blocked
+If PostgreSQL was installed previously, just start the service:
 
-Capture and return exact errors for:
+```powershell
+# Elevated PowerShell:
+Start-Service PostgreSQL-x64-16  # (or appropriate version number)
+Get-Service PostgreSQL*  # Find the exact name if unsure
+```
 
-- installer output lines around failure
-- `Get-WinEvent` snippets from Application/System logs
-- `sc.exe qc DotNetCloud`
-- resulting `web.config` under installed server path
+#### After Prerequisites Are Installed
 
-#### Request Back (MANDATORY)
+1. PostgreSQL should be running and listening on `localhost:5432`
+2. URL Rewrite module should be loaded in IIS
+3. **Re-run the installer with elevated PowerShell:**
 
-- commit hash used
-- exact command run
-- raw command outputs for all verification commands above
-- whether IIS features were auto-installed or manually installed
-- whether URL Rewrite/ARR were auto-installed or manually installed
-- service status before and after reboot
-- final verdict: PASS/FAIL with first failing step
+```powershell
+pwsh -ExecutionPolicy Bypass -File .\tools\install-windows.ps1 -SourcePath .\artifacts\publish -Beginner
+```
+
+4. The setup wizard will create the `dotnetcloud` database and configure everything
+5. Report back in handoff with:
+   - Installation success/failure
+   - Service status: `Get-Service DotNetCloud`
+   - Health check: `Invoke-WebRequest http://localhost:5080/health/live -UseBasicParsing`
+   - IIS site status: `Get-Website DotNetCloud`
+
+#### Request Back (MANDATORY after user completes prerequisites)
+
+- PostgreSQL version installed and port `5432` confirmed open: `Test-NetConnection -ComputerName localhost -Port 5432`
+- URL Rewrite installed confirmation: `Get-WebGlobalModule | Where-Object { $_.Name -eq 'RewriteModule' }`
+- Installer re-ran successfully (output from installer)
+- Service status after re-install: `Get-Service DotNetCloud`
+- Health endpoint result: `Invoke-WebRequest http://localhost:5080/health/live -UseBasicParsing`
+- IIS site and app pool status
 
 #### Validation Run Result (2026-03-20, `Windows11-TestDNC`)
 
@@ -198,14 +202,13 @@ Get-WinEvent -LogName System -MaxEvents 100 | Where-Object { $_.ProviderName -eq
 
 - Step 5 (service/runtime state verification). Service never reaches Running due to startup blockers.
 
-**Current blocker summary:**
+**Root cause analysis (2026-03-20, diagnostics by agent):**
 
-1. URL Rewrite + ARR not confirmed installed (installer reports both missing).
-2. Service startup blocked by runtime prerequisites:
-   - writable OIDC key path requires service env wiring to `DOTNETCLOUD_DATA_DIR`/`DOTNETCLOUD_CONFIG_DIR`
-   - database endpoint `localhost:5432` unreachable on `Windows11-TestDNC`
+1. **PostgreSQL NOT INSTALLED** (CRITICAL): Port 5432 is unreachable. The default connection string expects `Host=localhost;Database=dotnetcloud;Username=postgres;Password=postgres`. The setup wizard (`dotnetcloud setup --beginner`) will detect this and stop with instructions to install PostgreSQL first. This is the PRIMARY blocker preventing the service from starting.
+2. **URL Rewrite module missing** (ISSUE): File scan shows only ARR installed; URL Rewrite not found. Requires manual MSI download + elevated install. Blocks IIS reverse proxy configuration but NOT the service itself.
+3. **OIDC keys directory** (SECONDARY): Directory `C:\Program Files\DotNetCloud\server\oidc-keys` doesn't exist yet; service needs to create it on first run. Requires service startup to succeed first (blocked by PostgreSQL).
 
-**Verdict:** **FAIL**
+**Verdict:** **FAIL** — PostgreSQL prerequisite missing. Windows11-TestDNC cannot complete startup sequence until database is available.
 
 ## Relay Template
 
