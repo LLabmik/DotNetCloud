@@ -293,12 +293,20 @@ internal static class SetupCommand
                     "Hostname/IP for private certificate (LAN name or local IP)",
                     defaultSelfSignedHost);
 
-                if (string.IsNullOrWhiteSpace(config.TlsCertificatePath))
-                {
-                    var certDir = CliConfiguration.IsSystemInstall
-                        ? Path.Combine(CliConfiguration.GetConfigDirectory(), "certs")
-                        : Path.Combine(config.DataDirectory, "certs");
+                var certDir = CliConfiguration.IsSystemInstall
+                    ? Path.Combine(CliConfiguration.GetConfigDirectory(), "certs")
+                    : Path.Combine(config.DataDirectory, "certs");
 
+                // Normalize stale/legacy defaults that point to a relative appsettings path.
+                var shouldNormalizePath = string.IsNullOrWhiteSpace(config.TlsCertificatePath)
+                    || !Path.IsPathRooted(config.TlsCertificatePath)
+                    || string.Equals(
+                        Path.GetFileName(config.TlsCertificatePath),
+                        "dotnetcloud-localhost.pfx",
+                        StringComparison.OrdinalIgnoreCase);
+
+                if (shouldNormalizePath)
+                {
                     config.TlsCertificatePath = Path.Combine(certDir, "dotnetcloud-selfsigned.pfx");
                 }
             }
@@ -498,6 +506,7 @@ internal static class SetupCommand
         // Save & post-setup
         // ═══════════════════════════════════════════════
         config.SetupCompletedAt = DateTime.UtcNow;
+        config.ConfigSchemaVersion = CliConfiguration.CurrentConfigSchemaVersion;
 
         try
         {

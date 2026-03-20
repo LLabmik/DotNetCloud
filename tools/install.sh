@@ -27,6 +27,7 @@ LOG_DIR="/var/log/dotnetcloud"
 RUN_DIR="/run/dotnetcloud"
 SERVICE_USER="dotnetcloud"
 SERVICE_GROUP="dotnetcloud"
+REQUIRED_CONFIG_SCHEMA_VERSION=2
 
 # --- State (set during execution) ---
 IS_UPGRADE=false
@@ -281,6 +282,17 @@ install_dotnetcloud() {
     $SUDO tar -xzf "$TEMP_FILE" -C "$INSTALL_DIR" --strip-components=1 \
         || fatal "Extraction failed. The archive may be corrupted — try running the installer again."
 
+    # Ensure the packaged development fallback certificate is in the server runtime path.
+    # Some existing configs still reference certs/dotnetcloud-localhost.pfx (relative to
+    # ${INSTALL_DIR}/server), while release packaging stores this cert under publish/certs.
+    # Copy it into server/certs so upgrades cannot crash-loop on missing cert files.
+    if [[ -f "${INSTALL_DIR}/publish/certs/dotnetcloud-localhost.pfx" ]]; then
+        $SUDO mkdir -p "${INSTALL_DIR}/server/certs"
+        $SUDO install -m 640 -o root -g "${SERVICE_GROUP}" \
+            "${INSTALL_DIR}/publish/certs/dotnetcloud-localhost.pfx" \
+            "${INSTALL_DIR}/server/certs/dotnetcloud-localhost.pfx"
+    fi
+
     # Ensure module discovery path matches runtime expectations.
     # Core server discovers modules from ${INSTALL_DIR}/server/modules, while
     # release archives place module payloads under ${INSTALL_DIR}/modules.
@@ -479,6 +491,109 @@ post_upgrade() {
         warn "Service may have failed to start. Check with:"
         echo "  sudo systemctl status dotnetcloud"
         echo "  sudo journalctl -u dotnetcloud -f"
+    fi
+}
+
+# --- Upgrade config migration: normalize legacy relative TLS cert paths ---
+migrate_legacy_tls_certificate_path() {
+    local config_file="${CONFIG_DIR}/config.json"
+    if [[ ! -f "$config_file" ]]; then
+        return
+    fi
+
+    local tls_path
+    tls_path=$(grep -oP '"(?:tlsCertificatePath|TlsCertificatePath)"\s*:\s*"\K[^"]+' "$config_file" 2>/dev/null | head -n1 || true)
+    if [[ -z "$tls_path" ]]; then
+        return
+    fi
+
+    # Already absolute; nothing to do.
+    if [[ "$tls_path" = /* ]]; then
+        return
+    fi
+
+    local self_signed_enabled
+    self_signed_enabled=$(grep -oP '"(?:useSelfSignedTls|UseSelfSignedTls)"\s*:\s*\K(true|false)' "$config_file" 2>/dev/null | head -n1 || true)
+
+    local preferred_selfsigned="${CONFIG_DIR}/certs/dotnetcloud-selfsigned.pfx"
+    local resolved_path=""
+
+    # Prefer persisted setup-generated self-signed cert for self-signed installs.
+    if [[ "$self_signed_enabled" == "true" && -f "$preferred_selfsigned" ]]; then
+        resolved_path="$preferred_selfsigned"
+    # Otherwise resolve relative path against server working directory.
+    elif [[ -f "${INSTALL_DIR}/server/${tls_path}" ]]; then
+        resolved_path="${INSTALL_DIR}/server/${tls_path}"
+    fi
+
+    if [[ -z "$resolved_path" ]]; then
+        warn "Legacy relative tlsCertificatePath '${tls_path}' detected in ${config_file}, but no resolvable file was found."
+        warn "Run 'sudo dotnetcloud setup' to regenerate or reconfigure TLS certificate paths."
+        return
+    fi
+
+    local escaped_old
+    local escaped_new
+    escaped_old=$(printf '%s' "$tls_path" | sed 's/[.[\*^$()+?{|]/\\&/g; s#/#\\/#g')
+    escaped_new=$(printf '%s' "$resolved_path" | sed 's/[&/]/\\&/g')
+
+    if $SUDO sed -E -i "s#(\"(?:tlsCertificatePath|TlsCertificatePath)\"\s*:\s*\")${escaped_old}(\")#\1${escaped_new}\2#" "$config_file"; then
+        ok "Migrated legacy TLS certificate path in ${config_file}: ${tls_path} -> ${resolved_path}"
+    else
+        warn "Failed to migrate legacy TLS certificate path in ${config_file}."
+    fi
+}
+
+# --- Upgrade gate: run setup when config schema is outdated ---
+maybe_run_setup_on_schema_upgrade() {
+    local config_file="${CONFIG_DIR}/config.json"
+    local setup_required_marker="${CONFIG_DIR}/.setup-required"
+
+    if [[ ! -f "$config_file" ]]; then
+        return
+    fi
+
+    local current_schema
+    current_schema=$(grep -oP '"(?:configSchemaVersion|ConfigSchemaVersion)"\s*:\s*\K[0-9]+' "$config_file" 2>/dev/null | head -n1 || true)
+    if [[ -z "$current_schema" ]]; then
+        current_schema=0
+    fi
+
+    if (( current_schema >= REQUIRED_CONFIG_SCHEMA_VERSION )); then
+        rm -f "$setup_required_marker" 2>/dev/null || true
+        return
+    fi
+
+    warn "Configuration schema update detected: ${current_schema} -> ${REQUIRED_CONFIG_SCHEMA_VERSION}"
+    warn "This upgrade may include settings that need confirmation in the setup wizard."
+
+    if [[ -t 0 ]]; then
+        local response
+        read -r -p "Run setup wizard now to confirm/update settings? [Y/n]: " response
+        if [[ -z "$response" || "$response" =~ ^[Yy]$ ]]; then
+            info "Running setup wizard..."
+            if $SUDO "${INSTALL_DIR}/dotnetcloud" setup; then
+                rm -f "$setup_required_marker" 2>/dev/null || true
+            else
+                warn "Setup wizard did not complete successfully."
+                warn "Please run: sudo dotnetcloud setup"
+                $SUDO touch "$setup_required_marker"
+                $SUDO chown root:"${SERVICE_GROUP}" "$setup_required_marker" 2>/dev/null || true
+                $SUDO chmod 640 "$setup_required_marker" 2>/dev/null || true
+            fi
+        else
+            warn "Skipping setup wizard by user choice."
+            warn "Run 'sudo dotnetcloud setup' before relying on new configuration options."
+            $SUDO touch "$setup_required_marker"
+            $SUDO chown root:"${SERVICE_GROUP}" "$setup_required_marker" 2>/dev/null || true
+            $SUDO chmod 640 "$setup_required_marker" 2>/dev/null || true
+        fi
+    else
+        warn "Non-interactive upgrade: cannot run setup wizard prompt."
+        warn "Run 'sudo dotnetcloud setup' after upgrade to confirm new settings."
+        $SUDO touch "$setup_required_marker"
+        $SUDO chown root:"${SERVICE_GROUP}" "$setup_required_marker" 2>/dev/null || true
+        $SUDO chmod 640 "$setup_required_marker" 2>/dev/null || true
     fi
 }
 
@@ -780,6 +895,8 @@ main() {
         stop_existing_service
         install_dotnetcloud
         install_service
+        migrate_legacy_tls_certificate_path
+        maybe_run_setup_on_schema_upgrade
         post_upgrade
         maybe_install_collabora
 

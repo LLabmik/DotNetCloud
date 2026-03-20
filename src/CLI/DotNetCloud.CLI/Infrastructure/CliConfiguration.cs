@@ -11,6 +11,8 @@ namespace DotNetCloud.CLI.Infrastructure;
 /// </summary>
 internal static class CliConfiguration
 {
+    internal const int CurrentConfigSchemaVersion = 2;
+
     private const string ConfigFileName = "config.json";
     private const string SystemConfigDir = "/etc/dotnetcloud";
 
@@ -139,6 +141,11 @@ internal static class CliConfiguration
 /// </summary>
 internal sealed class CliConfig
 {
+    /// <summary>
+    /// Schema version for config compatibility and upgrade migrations.
+    /// </summary>
+    public int ConfigSchemaVersion { get; set; } = CliConfiguration.CurrentConfigSchemaVersion;
+
     /// <summary>
     /// The database provider name (PostgreSQL, SqlServer, MariaDB).
     /// </summary>
