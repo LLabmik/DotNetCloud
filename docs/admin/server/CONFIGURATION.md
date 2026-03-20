@@ -172,6 +172,48 @@ When running without a reverse proxy:
 }
 ```
 
+### Setup Wizard HTTPS Modes (System Installs)
+
+When you run `dotnetcloud setup`, HTTPS mode choices are persisted in `/etc/dotnetcloud/config.json` (Linux system installs).
+
+#### Public internet mode (Let's Encrypt)
+
+```json
+{
+  "enableHttps": true,
+  "useLetsEncrypt": true,
+  "letsEncryptDomain": "cloud.example.com"
+}
+```
+
+#### Private testing mode (self-signed)
+
+```json
+{
+  "enableHttps": true,
+  "useSelfSignedTls": true,
+  "selfSignedTlsHost": "mint22",
+  "tlsCertificatePath": "/etc/dotnetcloud/certs/dotnetcloud-selfsigned.pfx"
+}
+```
+
+Behavior:
+
+- The setup wizard generates the self-signed PFX certificate automatically.
+- DotNetCloud then binds HTTPS using `tlsCertificatePath`.
+- Browsers/clients must trust the certificate to avoid warnings.
+
+#### Existing certificate file mode
+
+```json
+{
+  "enableHttps": true,
+  "useLetsEncrypt": false,
+  "useSelfSignedTls": false,
+  "tlsCertificatePath": "/path/to/your/certificate.pfx"
+}
+```
+
 ---
 
 ## Authentication

@@ -296,8 +296,12 @@ install_dotnetcloud() {
     fi
 
     # Verify critical files were extracted
-    if [[ ! -f "${INSTALL_DIR}/dotnetcloud" ]] && [[ ! -f "${INSTALL_DIR}/DotNetCloud.Core.Server" ]]; then
-        fatal "Extraction succeeded but expected binaries are missing. The release archive may have an unexpected layout."
+    if [[ ! -f "${INSTALL_DIR}/dotnetcloud" ]]; then
+        fatal "Extraction succeeded but CLI binary (${INSTALL_DIR}/dotnetcloud) is missing. The release archive may be corrupted or have an unexpected layout."
+    fi
+
+    if [[ ! -f "${INSTALL_DIR}/server/DotNetCloud.Core.Server" ]] && [[ ! -f "${INSTALL_DIR}/DotNetCloud.Core.Server" ]]; then
+        fatal "Extraction succeeded but server binary is missing (${INSTALL_DIR}/server/DotNetCloud.Core.Server). The release archive may be corrupted or have an unexpected layout."
     fi
 
     info "Setting permissions..."
@@ -318,6 +322,13 @@ install_dotnetcloud() {
     # Also check the server/ subdirectory layout
     if [[ -f "${INSTALL_DIR}/server/DotNetCloud.Core.Server" ]]; then
         $SUDO chmod 755 "${INSTALL_DIR}/server/DotNetCloud.Core.Server"
+    fi
+
+    # Ensure module host binaries are executable in packaged module directories
+    if [[ -d "${INSTALL_DIR}/modules" ]]; then
+        $SUDO find "${INSTALL_DIR}/modules" -maxdepth 2 -type f -name 'dotnetcloud.*' \
+            ! -name '*.dll' ! -name '*.json' ! -name '*.xml' ! -name '*.pdb' \
+            -exec chmod 755 {} +
     fi
 
     # Symlink CLI to PATH
@@ -801,12 +812,23 @@ main() {
         # password, etc.) would abort the entire script before we can handle it
         # gracefully. The '||' makes it a compound command that set -e ignores.
         SETUP_EXIT=0
+        SETUP_SKIPPED_NONINTERACTIVE=false
         if [[ -t 0 ]]; then
             # stdin is already a terminal (script was downloaded then run)
             $SUDO "${INSTALL_DIR}/dotnetcloud" setup || SETUP_EXIT=$?
         else
-            # stdin is a pipe (curl | bash) — redirect from the controlling terminal
-            $SUDO "${INSTALL_DIR}/dotnetcloud" setup < /dev/tty || SETUP_EXIT=$?
+            # stdin is a pipe (curl | bash) — try redirecting from the controlling terminal
+            if { exec 3</dev/tty; } 2>/dev/null; then
+                $SUDO "${INSTALL_DIR}/dotnetcloud" setup <&3 || SETUP_EXIT=$?
+                exec 3<&-
+            else
+                SETUP_EXIT=1
+                SETUP_SKIPPED_NONINTERACTIVE=true
+                warn "No interactive terminal detected (stdin is piped and /dev/tty is unavailable)."
+                info "Skipping setup wizard in non-interactive environment."
+                info "Run the setup wizard manually in an interactive shell:"
+                echo "  sudo dotnetcloud setup"
+            fi
         fi
 
         # Ensure config is readable by the service user (setup writes as root)
@@ -847,9 +869,15 @@ main() {
             fi
         else
             echo ""
-            warn "Setup did not complete (exit code: $SETUP_EXIT)."
-            info "You can re-run it at any time:"
-            echo "  sudo dotnetcloud setup"
+            if [[ "$SETUP_SKIPPED_NONINTERACTIVE" == true ]]; then
+                warn "Setup wizard was skipped because no interactive terminal is available."
+                info "Re-run setup from an interactive shell:"
+                echo "  sudo dotnetcloud setup"
+            else
+                warn "Setup did not complete (exit code: $SETUP_EXIT)."
+                info "You can re-run it at any time:"
+                echo "  sudo dotnetcloud setup"
+            fi
         fi
         echo ""
     fi

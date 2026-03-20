@@ -1,5 +1,7 @@
 using System.CommandLine;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using DotNetCloud.CLI.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -256,18 +258,56 @@ internal static class SetupCommand
                 ConsoleOutput.Prompt("HTTPS port", config.HttpsPort.ToString()),
                 out var httpsPort) ? httpsPort : 5443;
 
-            config.UseLetsEncrypt = ConsoleOutput.PromptConfirm(
-                "Use Let's Encrypt for automatic certificates?",
-                defaultValue: config.UseLetsEncrypt);
+            var tlsModeDefaultIndex = config.UseLetsEncrypt
+                ? 0
+                : config.UseSelfSignedTls ? 1 : 2;
 
-            if (config.UseLetsEncrypt)
+            var tlsModeChoice = ConsoleOutput.PromptChoice(
+                "TLS certificate mode:",
+                [
+                    "Public internet (Let's Encrypt automatic certificates)",
+                    "Private testing (generate self-signed certificate)",
+                    "Use existing certificate file (PFX/PEM)"
+                ],
+                defaultIndex: tlsModeDefaultIndex);
+
+            if (tlsModeChoice == 0)
             {
+                config.UseLetsEncrypt = true;
+                config.UseSelfSignedTls = false;
                 config.LetsEncryptDomain = ConsoleOutput.Prompt(
                     "Domain name (e.g., cloud.example.com)",
                     config.LetsEncryptDomain);
             }
+            else if (tlsModeChoice == 1)
+            {
+                config.UseLetsEncrypt = false;
+                config.UseSelfSignedTls = true;
+                config.LetsEncryptDomain = null;
+
+                var defaultSelfSignedHost = !string.IsNullOrWhiteSpace(config.SelfSignedTlsHost)
+                    ? config.SelfSignedTlsHost
+                    : Environment.MachineName;
+
+                config.SelfSignedTlsHost = ConsoleOutput.Prompt(
+                    "Hostname/IP for private certificate (LAN name or local IP)",
+                    defaultSelfSignedHost);
+
+                if (string.IsNullOrWhiteSpace(config.TlsCertificatePath))
+                {
+                    var certDir = CliConfiguration.IsSystemInstall
+                        ? Path.Combine(CliConfiguration.GetConfigDirectory(), "certs")
+                        : Path.Combine(config.DataDirectory, "certs");
+
+                    config.TlsCertificatePath = Path.Combine(certDir, "dotnetcloud-selfsigned.pfx");
+                }
+            }
             else
             {
+                config.UseLetsEncrypt = false;
+                config.UseSelfSignedTls = false;
+                config.LetsEncryptDomain = null;
+                config.SelfSignedTlsHost = null;
                 config.TlsCertificatePath = ConsoleOutput.Prompt(
                     "Path to TLS certificate (PFX or PEM)",
                     config.TlsCertificatePath ?? "");
@@ -427,6 +467,13 @@ internal static class SetupCommand
         ConsoleOutput.WriteDetail("Admin Login", config.AdminEmail ?? "(not set)");
         ConsoleOutput.WriteDetail("Organization", config.OrganizationName ?? "(not set)");
         ConsoleOutput.WriteDetail("HTTPS", config.EnableHttps ? $"Enabled (port {config.HttpsPort})" : "Disabled");
+        if (config.EnableHttps)
+        {
+            var tlsMode = config.UseLetsEncrypt
+                ? "Let's Encrypt (public)"
+                : config.UseSelfSignedTls ? "Self-signed (private testing)" : "Existing certificate";
+            ConsoleOutput.WriteDetail("TLS Mode", tlsMode);
+        }
         ConsoleOutput.WriteDetail("HTTP Port", config.HttpPort.ToString());
         ConsoleOutput.WriteDetail("Modules", config.EnabledModules.Count > 0
             ? string.Join(", ", config.EnabledModules) : "(none)");
@@ -505,6 +552,11 @@ internal static class SetupCommand
         }
 
         ConsoleOutput.WriteSuccess("Data directories created.");
+
+        if (!EnsureTlsCertificateIfNeeded(config))
+        {
+            return 1;
+        }
 
         // Harden the systemd service now that setup is complete.
         if (SystemdServiceHelper.ApplyHardening())
@@ -880,11 +932,91 @@ internal static class SetupCommand
                 : $"https://{config.LetsEncryptDomain}:{config.HttpsPort}";
         }
 
+        if (config.EnableHttps && config.UseSelfSignedTls
+            && !string.IsNullOrWhiteSpace(config.SelfSignedTlsHost))
+        {
+            return $"https://{config.SelfSignedTlsHost}:{config.HttpsPort}";
+        }
+
         if (config.EnableHttps)
         {
             return $"https://localhost:{config.HttpsPort}";
         }
 
         return $"http://localhost:{config.HttpPort}";
+    }
+
+    private static bool EnsureTlsCertificateIfNeeded(CliConfig config)
+    {
+        if (!config.EnableHttps || !config.UseSelfSignedTls)
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(config.TlsCertificatePath))
+        {
+            ConsoleOutput.WriteError("Self-signed TLS mode selected, but certificate path is empty.");
+            return false;
+        }
+
+        try
+        {
+            var certPath = config.TlsCertificatePath;
+            var certDir = Path.GetDirectoryName(certPath);
+            if (!string.IsNullOrWhiteSpace(certDir))
+            {
+                Directory.CreateDirectory(certDir);
+            }
+
+            var host = string.IsNullOrWhiteSpace(config.SelfSignedTlsHost)
+                ? "localhost"
+                : config.SelfSignedTlsHost.Trim();
+
+            using var rsa = RSA.Create(2048);
+            var request = new CertificateRequest(
+                $"CN={host}",
+                rsa,
+                HashAlgorithmName.SHA256,
+                RSASignaturePadding.Pkcs1);
+
+            request.CertificateExtensions.Add(
+                new X509BasicConstraintsExtension(false, false, 0, false));
+            request.CertificateExtensions.Add(
+                new X509KeyUsageExtension(
+                    X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyEncipherment,
+                    false));
+            request.CertificateExtensions.Add(
+                new X509SubjectKeyIdentifierExtension(request.PublicKey, false));
+
+            var sanBuilder = new SubjectAlternativeNameBuilder();
+            sanBuilder.AddDnsName(host);
+            sanBuilder.AddDnsName("localhost");
+            sanBuilder.AddIpAddress(System.Net.IPAddress.Loopback);
+            sanBuilder.AddIpAddress(System.Net.IPAddress.IPv6Loopback);
+            request.CertificateExtensions.Add(sanBuilder.Build());
+
+            using var cert = request.CreateSelfSigned(
+                DateTimeOffset.UtcNow.AddMinutes(-5),
+                DateTimeOffset.UtcNow.AddYears(1));
+
+            var pfxBytes = cert.Export(X509ContentType.Pfx, string.Empty);
+            File.WriteAllBytes(certPath, pfxBytes);
+
+            if (!OperatingSystem.IsWindows())
+            {
+                File.SetUnixFileMode(certPath,
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            }
+
+            ConsoleOutput.WriteSuccess($"Generated self-signed TLS certificate: {certPath}");
+            ConsoleOutput.WriteInfo("Browsers/devices will show a trust warning unless this certificate is explicitly trusted.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ConsoleOutput.WriteError($"Failed to generate self-signed TLS certificate: {ex.Message}");
+            ConsoleOutput.WriteInfo("You can switch to an existing certificate path or rerun setup.");
+            return false;
+        }
     }
 }

@@ -175,9 +175,19 @@ internal sealed class CliConfig
     public bool UseLetsEncrypt { get; set; }
 
     /// <summary>
+    /// Whether a private self-signed TLS certificate should be generated and used.
+    /// </summary>
+    public bool UseSelfSignedTls { get; set; }
+
+    /// <summary>
     /// The domain name for Let's Encrypt (e.g., "cloud.example.com").
     /// </summary>
     public string? LetsEncryptDomain { get; set; }
+
+    /// <summary>
+    /// Hostname or IP used as the primary subject/SAN when generating a self-signed TLS certificate.
+    /// </summary>
+    public string? SelfSignedTlsHost { get; set; }
 
     /// <summary>
     /// The organization name created during setup.

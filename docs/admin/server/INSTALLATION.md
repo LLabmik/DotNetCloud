@@ -687,9 +687,10 @@ docker exec -it dotnetcloud dotnetcloud setup
    - Optional description
 
 4. **TLS Configuration**
-   - Enable/disable HTTPS on Kestrel
-   - Let's Encrypt automatic certificate (optional)
-   - Custom certificate path
+  - Enable/disable HTTPS on Kestrel
+  - Public internet mode: Let's Encrypt automatic certificate
+  - Private testing mode: generate a self-signed certificate automatically
+  - Existing certificate mode: specify a custom certificate path
 
 5. **Module Selection**
    - Files module (recommended)
@@ -897,6 +898,21 @@ sudo systemctl restart apache2
 
 ## TLS / Let's Encrypt
 
+### Setup Wizard TLS Modes
+
+The setup wizard now supports three HTTPS certificate modes:
+
+1. **Public internet (Let's Encrypt)**
+  - Use when your server is publicly reachable and has a real DNS name.
+2. **Private testing (self-signed)**
+  - Use for LAN/private environments where you do not want to expose the server publicly.
+  - The wizard generates a self-signed PFX certificate and configures DotNetCloud to use it.
+  - Default system install path: `/etc/dotnetcloud/certs/dotnetcloud-selfsigned.pfx`
+3. **Existing certificate file**
+  - Use your own PFX/PEM certificate path.
+
+> Note: Browsers and clients will show trust warnings for self-signed certificates until you trust the certificate on each device.
+
 ### Linux with Certbot
 
 ```bash
@@ -938,6 +954,66 @@ For small deployments without a reverse proxy, configure Kestrel directly:
   }
 }
 ```
+
+### Private Testing TLS (Self-Signed, No Public Exposure)
+
+If you choose **Private testing (self-signed)** in the setup wizard:
+
+1. Enter a private hostname or LAN IP (for example `mint22` or `192.168.0.14`).
+2. The wizard generates a self-signed PFX certificate.
+3. DotNetCloud binds HTTPS using that generated certificate.
+
+Recommended verification:
+
+```bash
+sudo ls -l /etc/dotnetcloud/certs/dotnetcloud-selfsigned.pfx
+curl -kfsS https://localhost:5443/health/live
+```
+
+Use `-k` only for local testing when the certificate is not trusted yet.
+
+### Trusting the Self-Signed Certificate (Private Testing)
+
+For day-to-day private testing, import the generated certificate into each client trust store instead of using `-k`.
+
+#### Linux Clients (system trust store)
+
+On the DotNetCloud server, export the certificate from PFX to CRT:
+
+```bash
+sudo openssl pkcs12 \
+  -in /etc/dotnetcloud/certs/dotnetcloud-selfsigned.pfx \
+  -clcerts -nokeys \
+  -out /tmp/dotnetcloud-selfsigned.crt \
+  -passin pass:
+```
+
+Copy `dotnetcloud-selfsigned.crt` to each Linux client, then install:
+
+```bash
+sudo cp dotnetcloud-selfsigned.crt /usr/local/share/ca-certificates/
+sudo update-ca-certificates
+```
+
+#### Windows Clients (Trusted Root)
+
+1. Export `dotnetcloud-selfsigned.crt` as shown above.
+2. Open `certlm.msc` as Administrator.
+3. Go to `Trusted Root Certification Authorities` → `Certificates`.
+4. Import `dotnetcloud-selfsigned.crt`.
+5. Restart browsers/clients.
+
+#### Android Devices / Emulators
+
+1. Export `dotnetcloud-selfsigned.crt` as shown above.
+2. Transfer the `.crt` file to the Android device/emulator.
+3. Open `Settings` → `Security` (or `Security & privacy`) → `Encryption & credentials` → `Install a certificate` → `CA certificate`.
+4. Select `dotnetcloud-selfsigned.crt` and confirm installation.
+
+Notes:
+
+- Some Android apps do not trust user-installed CAs unless explicitly configured.
+- For browser testing and debugging, this is usually sufficient.
 
 ---
 
