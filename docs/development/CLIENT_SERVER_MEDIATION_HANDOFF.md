@@ -76,40 +76,81 @@ Archived context:
 
 ## Active Handoff
 
-### File Browser Fixes — Server Redeploy Required (for `mint22`)
+### Windows IIS + Service Validation (Option 2) (for `Windows11-TestDNC`)
 
-**Target:** `mint22`
-**Status:** CODE COMMITTED — AWAITING REDEPLOY
+**Target:** `Windows11-TestDNC`
+**Status:** READY FOR EXECUTION
 **Priority:** P1
 
-#### What Changed (server-side)
+#### Goal
 
-**Bug fix: folder child count always 0 in list responses**
+Validate the new Windows Option 2 deployment path end-to-end:
 
-`FileService.cs` — `ListChildrenAsync` and `ListRootAsync` were calling `ToDto(n)` without computing child counts. Added `GetChildCountsAsync()` helper that batch-queries child parent IDs, then groups in memory to produce counts. Passes counts to `ToDto(n, childCount)`. All 34 FileService tests pass.
+- IIS is public edge.
+- DotNetCloud core server runs as a native Windows Service.
+- IIS reverse proxies to `http://localhost:5080`.
 
-Files changed:
-- `src/Modules/Files/DotNetCloud.Modules.Files.Data/Services/FileService.cs`
+#### Relevant Code/Docs to Pull
 
-#### What Changed (client-side, already on `monolith`)
+- `tools/install-windows.ps1`
+- `docs/admin/server/WINDOWS_IIS_INSTALL_GUIDE.md`
+- `docs/admin/server/WINDOWS_SERVICE_ARCHITECTURE_NOTES.md`
+- `src/Core/DotNetCloud.Core.Server/Program.cs`
+- `src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj`
 
-- **Breadcrumb navigation:** Added `BreadcrumbItem` record, `Breadcrumbs` observable collection, `NavigateToBreadcrumbCommand`, and breadcrumb UI (horizontal scrolling trail) in `FileBrowserPage.xaml` toolbar. Users can tap any breadcrumb segment to navigate directly to that folder.
-- **IsNotNull converter:** Added `IsNotNullConverter` to `AppConverters.cs` and registered in `App.xaml`.
+#### Required Execution Steps on `Windows11-TestDNC`
 
-Files changed:
-- `src/Clients/DotNetCloud.Client.Android/ViewModels/FileBrowserViewModel.cs`
-- `src/Clients/DotNetCloud.Client.Android/Views/FileBrowserPage.xaml`
-- `src/Clients/DotNetCloud.Client.Android/Converters/AppConverters.cs`
-- `src/Clients/DotNetCloud.Client.Android/App.xaml`
+1. Pull latest `main`.
+2. Open elevated PowerShell.
+3. Run installer (beginner path):
 
-#### Action Required on `mint22`
+  ```powershell
+  PowerShell -ExecutionPolicy Bypass -File .\tools\install-windows.ps1 -SourcePath .\artifacts\publish -Beginner
+  ```
 
-1. `git pull`
-2. `dotnet publish` server
-3. Restart `dotnetcloud.service`
-4. Verify: `curl -H "Authorization: Bearer <token>" https://mint22:15443/api/v1/files` — folder nodes should have non-zero `childCount`
+4. Confirm installer behavior for reverse-proxy prerequisites:
+  - It should auto-attempt URL Rewrite + ARR install via `winget` when missing.
+  - If auto-install fails, manually install URL Rewrite + ARR and rerun installer.
+5. Confirm service and IIS runtime state:
 
-**Note for future UX:** After server-side auth changes, stale tokens cause 401. Users should be prompted to log out and log back in. This was observed during chat auth E2E testing.
+  ```powershell
+  Get-Service DotNetCloud
+  Import-Module WebAdministration
+  Get-WebGlobalModule | Where-Object { $_.Name -in @('RewriteModule','ApplicationRequestRouting') }
+  Get-Website -Name DotNetCloud
+  Get-WebAppPoolState -Name DotNetCloud
+  Invoke-WebRequest http://localhost:5080/health/live -UseBasicParsing
+  Invoke-WebRequest http://localhost/health/live -UseBasicParsing
+  ```
+
+6. Reboot Windows host once, then re-check `Get-Service DotNetCloud` and both health endpoints.
+
+#### Pass Criteria
+
+- DotNetCloud service exists, is `Running`, and survives reboot.
+- IIS site/app pool exist and are started.
+- Both modules present: `RewriteModule`, `ApplicationRequestRouting`.
+- Local app health works: `http://localhost:5080/health/live`.
+- IIS-proxied health works: `http://localhost/health/live` (or configured host header URL).
+
+#### If Blocked
+
+Capture and return exact errors for:
+
+- installer output lines around failure
+- `Get-WinEvent` snippets from Application/System logs
+- `sc.exe qc DotNetCloud`
+- resulting `web.config` under installed server path
+
+#### Request Back (MANDATORY)
+
+- commit hash used
+- exact command run
+- raw command outputs for all verification commands above
+- whether IIS features were auto-installed or manually installed
+- whether URL Rewrite/ARR were auto-installed or manually installed
+- service status before and after reboot
+- final verdict: PASS/FAIL with first failing step
 
 ## Relay Template
 

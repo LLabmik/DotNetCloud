@@ -26,6 +26,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting.WindowsServices;
 using System.Net.Http;
 using System.Net.Security;
 using Yarp.ReverseProxy.Forwarder;
@@ -156,6 +157,14 @@ public class Program
     /// </summary>
     public static void ConfigureServices(WebApplicationBuilder builder)
     {
+        if (OperatingSystem.IsWindows())
+        {
+            builder.Services.AddWindowsService(options =>
+            {
+                options.ServiceName = "DotNetCloud Core Server";
+            });
+        }
+
         // Configure Kestrel (HTTPS/TLS, HTTP/2, listener addresses, limits)
         builder.ConfigureKestrel();
 

@@ -5,6 +5,48 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: File Browser Fixes — Server Redeploy Required (2026-03-20)
+
+Archived from Active Handoff on 2026-03-20 when the active slot was reassigned to Windows Option 2 IIS + Service validation for `Windows11-TestDNC`.
+
+**Original target:** `mint22`
+**Original status:** CODE COMMITTED — AWAITING REDEPLOY
+
+### Server-side change (committed)
+
+Folder child count bug fix in `FileService.cs`:
+- `ListChildrenAsync` and `ListRootAsync` previously called `ToDto(n)` without computed child counts.
+- Added `GetChildCountsAsync()` to batch-query child parent IDs and group counts in-memory.
+- Updated mappings to pass `ToDto(n, childCount)`.
+- FileService tests passed at handoff time.
+
+Files changed:
+- `src/Modules/Files/DotNetCloud.Modules.Files.Data/Services/FileService.cs`
+
+### Client-side companion changes (already on `monolith`)
+
+- Breadcrumb navigation in Android file browser:
+    - `BreadcrumbItem` record
+    - `Breadcrumbs` observable collection
+    - `NavigateToBreadcrumbCommand`
+    - toolbar breadcrumb UI with horizontal scrolling
+- Added `IsNotNullConverter` and registered in app resources.
+
+Files changed:
+- `src/Clients/DotNetCloud.Client.Android/ViewModels/FileBrowserViewModel.cs`
+- `src/Clients/DotNetCloud.Client.Android/Views/FileBrowserPage.xaml`
+- `src/Clients/DotNetCloud.Client.Android/Converters/AppConverters.cs`
+- `src/Clients/DotNetCloud.Client.Android/App.xaml`
+
+### Original execution note for `mint22`
+
+1. `git pull`
+2. publish server
+3. restart `dotnetcloud.service`
+4. verify folder nodes return non-zero `childCount` via files endpoint
+
+Carry-forward note: after server auth changes, stale tokens may cause 401 until logout/login refresh.
+
 ## Archived: Chat Auth Enforcement — CLOSED (2026-03-18)
 
 Server-side chat auth enforcement deployed on `mint22`; Android client code cleanup completed on `monolith`. E2E verified on Android emulator against `mint22:15443`.

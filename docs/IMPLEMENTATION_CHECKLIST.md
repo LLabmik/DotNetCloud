@@ -1091,6 +1091,8 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Split beginner setup into the two real first-install cases: private/local test installs and public-domain installs, with different end summaries and honest reverse-proxy guidance for public domains
 - ✓ Expand beginner setup to cover all three real deployment shapes: private/local, public behind a reverse proxy, and public direct on DotNetCloud itself, while explicitly explaining why a reverse proxy is still recommended for most public installs
 - ✓ Add a dedicated beginner reverse-proxy guide with Apache-first walkthrough, Caddy alternative, and setup-summary links for public-domain users who need help
+- ✓ Add a separate Windows + IIS beginner installation path with a PowerShell installer (`tools/install-windows.ps1`) and Windows IIS guide (`docs/admin/server/WINDOWS_IIS_INSTALL_GUIDE.md`)
+- ✓ Align Windows IIS path with a true service-backed architecture by running the core server as a native Windows Service host (not `dotnetcloud serve`), ensuring machine-level config/data env propagation during setup/runtime, and documenting the rationale in `docs/admin/server/WINDOWS_SERVICE_ARCHITECTURE_NOTES.md`
 - ✓ Add repository commit template (`.gitmessage`) and CONTRIBUTING guidance for detailed AI-assisted commit messages
 - ✓ Add README developer quick setup note for commit template configuration (`git config commit.template .gitmessage`)
 - ✓ Running tests documentation (`docs/development/RUNNING_TESTS.md`)
