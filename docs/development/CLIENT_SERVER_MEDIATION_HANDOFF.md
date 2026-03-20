@@ -76,85 +76,75 @@ Archived context:
 
 ## Active Handoff
 
-### Windows IIS + Service Validation Option 2 — PostgreSQL + URL Rewrite Prereqs (for `Windows11-TestDNC`)
+### Windows IIS + Service Validation Option 2 — DB Credential Alignment Blocker (for `Windows11-TestDNC`)
 
 **Target:** `Windows11-TestDNC`  
-**Status:** REQUIRES USER ACTION (prerequisites missing)  
+**Status:** BLOCKED (installer rerun completed; service still fails to start)  
 **Priority:** P1
 
 #### Summary
 
-The Windows11-TestDNC validation cannot proceed because **two prerequisites are missing and require elevation**:
+Prerequisites are now installed and setup runs end-to-end, but the service still fails startup due to database credential mismatch.
 
-1. **PostgreSQL not installed/running** (CRITICAL BLOCKER) — prevents app startup entirely
-2. **IIS URL Rewrite module not installed** (blocks reverse proxy setup)
+#### Latest Validation Outcome (2026-03-20)
 
-Both require escalated privileges that the agent cannot use.
-
-#### Required User Actions (Moderator/User on Windows11-TestDNC)
-
-**Option A: Use Chocolatey/Winget (Recommended)**
-
-Open **elevated PowerShell** and run:
+Command executed (elevated):
 
 ```powershell
-# Option A1: Chocolatey (if installed)
-choco install postgresql -y
-choco install urlrewrite -y
-
-# Option A2: Winget (Windows 11 built-in)
-winget install "PostgreSQL" --accept-source-agreements
-winget install "IIS URL Rewrite Module" --accept-source-agreements
+pwsh -ExecutionPolicy Bypass -File .\tools\install-windows.ps1 -SourcePath .\artifacts\publish -Beginner -SkipFirewall
 ```
 
-**Option B: Manual MSI Install**
+Observed results:
 
-1. **PostgreSQL:**  
-   - Download: https://www.postgresql.org/download/windows/
-   - During install, set password for `postgres` user to `postgres` (matches default connection string)
-   - Accept default port `5432`
-   - Let it auto-start as a Windows service
+- IIS checks passed: URL Rewrite + ARR detected.
+- `dotnetcloud setup --beginner` completed and wrote config.
+- Setup emitted: `Could not sync selected modules to the module registry: 28P01: password authentication failed for user "dotnetcloud"`.
+- Service install/update succeeded.
+- Service start failed: `Cannot start service 'DotNetCloud' on computer '.'`.
+- SCM still reports `7009/7000` timeout sequence.
 
-2. **IIS URL Rewrite:**  
-   - Download: https://www.iis.net/downloads/microsoft/url-rewrite
-   - Run the MSI installer
-   - Accept default installation location
+Critical finding:
 
-**Option C: Check If PostgreSQL Is Already Running**
+- Saved config now uses a generated password for DB user `dotnetcloud` in `C:\ProgramData\DotNetCloud\config\config.json`.
+- PostgreSQL was installed with `postgres` password `SqlMilk01!`.
+- Most likely root cause: DB role/user password mismatch (`dotnetcloud` user not created with the password stored in config, or role missing).
 
-If PostgreSQL was installed previously, just start the service:
+#### Required Next Actions on `Windows11-TestDNC`
+
+1. Verify PostgreSQL service + listener:
 
 ```powershell
-# Elevated PowerShell:
-Start-Service PostgreSQL-x64-16  # (or appropriate version number)
-Get-Service PostgreSQL*  # Find the exact name if unsure
+Get-Service PostgreSQL*
+Test-NetConnection -ComputerName localhost -Port 5432
 ```
 
-#### After Prerequisites Are Installed
-
-1. PostgreSQL should be running and listening on `localhost:5432`
-2. URL Rewrite module should be loaded in IIS
-3. **Re-run the installer with elevated PowerShell:**
+2. Align DB credentials for app user `dotnetcloud` (recommended path):
 
 ```powershell
-pwsh -ExecutionPolicy Bypass -File .\tools\install-windows.ps1 -SourcePath .\artifacts\publish -Beginner
+# Adjust service name/version as installed
+& "C:\Program Files\PostgreSQL\16\bin\psql.exe" -h localhost -U postgres -d postgres -c "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='dotnetcloud') THEN CREATE ROLE dotnetcloud LOGIN PASSWORD '<CONFIG_PASSWORD>'; ELSE ALTER ROLE dotnetcloud WITH LOGIN PASSWORD '<CONFIG_PASSWORD>'; END IF; END $$;"
+& "C:\Program Files\PostgreSQL\16\bin\psql.exe" -h localhost -U postgres -d postgres -c "SELECT 'CREATE DATABASE dotnetcloud OWNER dotnetcloud' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'dotnetcloud')\gexec"
 ```
 
-4. The setup wizard will create the `dotnetcloud` database and configure everything
-5. Report back in handoff with:
-   - Installation success/failure
-   - Service status: `Get-Service DotNetCloud`
-   - Health check: `Invoke-WebRequest http://localhost:5080/health/live -UseBasicParsing`
-   - IIS site status: `Get-Website DotNetCloud`
+Replace `<CONFIG_PASSWORD>` with the password currently stored in `C:\ProgramData\DotNetCloud\config\config.json`.
 
-#### Request Back (MANDATORY after user completes prerequisites)
+3. Restart and verify:
 
-- PostgreSQL version installed and port `5432` confirmed open: `Test-NetConnection -ComputerName localhost -Port 5432`
-- URL Rewrite installed confirmation: `Get-WebGlobalModule | Where-Object { $_.Name -eq 'RewriteModule' }`
-- Installer re-ran successfully (output from installer)
-- Service status after re-install: `Get-Service DotNetCloud`
-- Health endpoint result: `Invoke-WebRequest http://localhost:5080/health/live -UseBasicParsing`
-- IIS site and app pool status
+```powershell
+Restart-Service DotNetCloud
+Get-Service DotNetCloud
+Invoke-WebRequest http://localhost:5080/health/live -UseBasicParsing
+Invoke-WebRequest http://localhost/health/live -UseBasicParsing
+```
+
+#### Request Back (MANDATORY)
+
+- Output of `Get-Service PostgreSQL*` and `Test-NetConnection -ComputerName localhost -Port 5432`
+- Output of SQL role/database alignment commands
+- `Get-Service DotNetCloud`
+- `Invoke-WebRequest http://localhost:5080/health/live -UseBasicParsing`
+- `Invoke-WebRequest http://localhost/health/live -UseBasicParsing`
+- If still failing: `Get-WinEvent` SCM entries + server startup exception text
 
 #### Validation Run Result (2026-03-20, `Windows11-TestDNC`)
 
