@@ -67,6 +67,185 @@ cleanup_on_error() {
 }
 trap cleanup_on_error EXIT
 
+# --- Diagnostics: show recent systemd logs for startup failures ---
+show_recent_service_logs() {
+    if command -v journalctl >/dev/null 2>&1; then
+        warn "Recent dotnetcloud service logs (last 30 lines):"
+        $SUDO journalctl -u dotnetcloud -n 30 --no-pager 2>/dev/null || true
+    else
+        warn "journalctl is not available on this system."
+    fi
+}
+
+get_runtime_config_file() {
+    local config_file="${CONFIG_DIR}/config.json"
+    if [[ -f "$config_file" ]]; then
+        echo "$config_file"
+        return 0
+    fi
+
+    config_file="/root/.config/dotnetcloud/config.json"
+    if [[ -f "$config_file" ]]; then
+        echo "$config_file"
+        return 0
+    fi
+
+    return 1
+}
+
+build_local_health_probe_urls() {
+    local enable_https="true"
+    local https_port="5443"
+    local http_port="5080"
+    local config_file=""
+
+    if config_file=$(get_runtime_config_file); then
+        local parsed_enable_https
+        parsed_enable_https=$(grep -oP '"(?:enableHttps|EnableHttps)"\s*:\s*\K(true|false)' "$config_file" 2>/dev/null | head -n1 || true)
+        local parsed_https_port
+        parsed_https_port=$(grep -oP '"(?:httpsPort|HttpsPort)"\s*:\s*\K[0-9]+' "$config_file" 2>/dev/null | head -n1 || true)
+        local parsed_http_port
+        parsed_http_port=$(grep -oP '"(?:httpPort|HttpPort)"\s*:\s*\K[0-9]+' "$config_file" 2>/dev/null | head -n1 || true)
+
+        if [[ -n "$parsed_enable_https" ]]; then
+            enable_https="$parsed_enable_https"
+        fi
+        if [[ -n "$parsed_https_port" ]]; then
+            https_port="$parsed_https_port"
+        fi
+        if [[ -n "$parsed_http_port" ]]; then
+            http_port="$parsed_http_port"
+        fi
+    fi
+
+    if [[ "$enable_https" == "true" ]]; then
+        echo "https://localhost:${https_port}/health/live"
+    fi
+
+    echo "http://localhost:${http_port}/health/live"
+}
+
+build_local_access_urls() {
+    local enable_https="true"
+    local https_port="5443"
+    local http_port="5080"
+    local config_file=""
+
+    if config_file=$(get_runtime_config_file); then
+        local parsed_enable_https
+        parsed_enable_https=$(grep -oP '"(?:enableHttps|EnableHttps)"\s*:\s*\K(true|false)' "$config_file" 2>/dev/null | head -n1 || true)
+        local parsed_https_port
+        parsed_https_port=$(grep -oP '"(?:httpsPort|HttpsPort)"\s*:\s*\K[0-9]+' "$config_file" 2>/dev/null | head -n1 || true)
+        local parsed_http_port
+        parsed_http_port=$(grep -oP '"(?:httpPort|HttpPort)"\s*:\s*\K[0-9]+' "$config_file" 2>/dev/null | head -n1 || true)
+
+        if [[ -n "$parsed_enable_https" ]]; then
+            enable_https="$parsed_enable_https"
+        fi
+        if [[ -n "$parsed_https_port" ]]; then
+            https_port="$parsed_https_port"
+        fi
+        if [[ -n "$parsed_http_port" ]]; then
+            http_port="$parsed_http_port"
+        fi
+    fi
+
+    if [[ "$enable_https" == "true" ]]; then
+        echo "https://localhost:${https_port}"
+    fi
+
+    echo "http://localhost:${http_port}"
+}
+
+print_runtime_endpoint_summary() {
+    local access_urls=()
+    local health_urls=()
+    mapfile -t access_urls < <(build_local_access_urls)
+    mapfile -t health_urls < <(build_local_health_probe_urls)
+
+    info "Direct local access endpoints:"
+    local url
+    for url in "${access_urls[@]}"; do
+        echo "  ${url}"
+    done
+    echo ""
+
+    info "Local health probe endpoints:"
+    for url in "${health_urls[@]}"; do
+        echo "  ${url}"
+    done
+    echo ""
+
+    info "Port note: 5080/5443 are DotNetCloud's internal Kestrel ports."
+    info "If you use a reverse proxy, the public HTTPS port can differ (for example 15443)."
+}
+
+upgrade_requires_setup_review() {
+    [[ -f "${CONFIG_DIR}/.setup-required" ]]
+}
+
+print_upgrade_summary() {
+    echo ""
+    ok "Upgrade complete! v${INSTALLED_VERSION} → v${LATEST_VERSION}"
+    echo ""
+    info "Your existing DotNetCloud data and configuration were preserved."
+
+    if systemctl is-active --quiet dotnetcloud.service 2>/dev/null; then
+        info "DotNetCloud service status: running"
+    else
+        warn "DotNetCloud service status: not confirmed running"
+    fi
+
+    if upgrade_requires_setup_review; then
+        warn "This upgrade introduced new settings that still need your review."
+        info "Run this once to confirm the new options using your existing values as defaults:"
+        echo "  sudo dotnetcloud setup"
+    else
+        info "No additional setup steps are required for this upgrade."
+    fi
+
+    echo ""
+    print_runtime_endpoint_summary
+    echo ""
+
+    if systemctl is-active --quiet dotnetcloud.service 2>/dev/null; then
+        info "Next step: open one of the direct local access URLs above, or use your normal reverse-proxy/public URL if you already have one."
+    else
+        warn "If DotNetCloud is not responding yet, check:"
+        echo "  sudo systemctl status dotnetcloud"
+        echo "  sudo journalctl -u dotnetcloud -f"
+    fi
+}
+
+probe_health_url() {
+    local url="$1"
+    if [[ "$url" == https://* ]]; then
+        curl -ksf "$url" >/dev/null 2>&1
+    else
+        curl -sf "$url" >/dev/null 2>&1
+    fi
+}
+
+wait_for_local_health() {
+    local max_retries="${1:-15}"
+    local retries=0
+    mapfile -t health_urls < <(build_local_health_probe_urls)
+
+    while [[ $retries -lt $max_retries ]]; do
+        local url
+        for url in "${health_urls[@]}"; do
+            if probe_health_url "$url"; then
+                return 0
+            fi
+        done
+
+        sleep 2
+        retries=$((retries + 1))
+    done
+
+    return 1
+}
+
 # --- Pre-flight checks ---
 check_prerequisites() {
     info "Checking prerequisites..."
@@ -472,16 +651,10 @@ post_upgrade() {
 
     # Wait for the service to become healthy before declaring success
     info "Waiting for service to become healthy..."
-    local RETRIES=0
     local HEALTHY=false
-    while [[ $RETRIES -lt 15 ]]; do
-        if curl -sf http://localhost:5080/health/live >/dev/null 2>&1; then
-            HEALTHY=true
-            break
-        fi
-        sleep 2
-        RETRIES=$((RETRIES + 1))
-    done
+    if wait_for_local_health 15; then
+        HEALTHY=true
+    fi
 
     if [[ "$HEALTHY" == true ]]; then
         ok "Service is healthy."
@@ -491,6 +664,7 @@ post_upgrade() {
         warn "Service may have failed to start. Check with:"
         echo "  sudo systemctl status dotnetcloud"
         echo "  sudo journalctl -u dotnetcloud -f"
+        show_recent_service_logs
     fi
 }
 
@@ -565,11 +739,11 @@ maybe_run_setup_on_schema_upgrade() {
     fi
 
     warn "Configuration schema update detected: ${current_schema} -> ${REQUIRED_CONFIG_SCHEMA_VERSION}"
-    warn "This upgrade may include settings that need confirmation in the setup wizard."
+    warn "Your existing settings are still in place, but this upgrade adds new options that should be reviewed once in the setup wizard."
 
     if [[ -t 0 ]]; then
         local response
-        read -r -p "Run setup wizard now to confirm/update settings? [Y/n]: " response
+        read -r -p "Run setup wizard now to review the new settings? [Y/n]: " response
         if [[ -z "$response" || "$response" =~ ^[Yy]$ ]]; then
             info "Running setup wizard..."
             if $SUDO "${INSTALL_DIR}/dotnetcloud" setup; then
@@ -582,15 +756,15 @@ maybe_run_setup_on_schema_upgrade() {
                 $SUDO chmod 640 "$setup_required_marker" 2>/dev/null || true
             fi
         else
-            warn "Skipping setup wizard by user choice."
-            warn "Run 'sudo dotnetcloud setup' before relying on new configuration options."
+            warn "Skipping setup wizard for now."
+            warn "Run 'sudo dotnetcloud setup' later to review the new configuration options."
             $SUDO touch "$setup_required_marker"
             $SUDO chown root:"${SERVICE_GROUP}" "$setup_required_marker" 2>/dev/null || true
             $SUDO chmod 640 "$setup_required_marker" 2>/dev/null || true
         fi
     else
-        warn "Non-interactive upgrade: cannot run setup wizard prompt."
-        warn "Run 'sudo dotnetcloud setup' after upgrade to confirm new settings."
+        warn "Non-interactive upgrade: the setup review step cannot be shown automatically."
+        warn "Run 'sudo dotnetcloud setup' after the upgrade to review the new settings once."
         $SUDO touch "$setup_required_marker"
         $SUDO chown root:"${SERVICE_GROUP}" "$setup_required_marker" 2>/dev/null || true
         $SUDO chmod 640 "$setup_required_marker" 2>/dev/null || true
@@ -899,15 +1073,7 @@ main() {
         maybe_run_setup_on_schema_upgrade
         post_upgrade
         maybe_install_collabora
-
-        echo ""
-        ok "Upgrade complete! v${INSTALLED_VERSION} → v${LATEST_VERSION}"
-        echo ""
-        info "Verify the upgrade:"
-        echo "  dotnetcloud --version"
-        echo "  sudo systemctl status dotnetcloud"
-        echo "  curl -s http://localhost:5080/health"
-        echo ""
+        print_upgrade_summary
     else
         install_dotnetcloud
         install_service
@@ -932,19 +1098,19 @@ main() {
         SETUP_SKIPPED_NONINTERACTIVE=false
         if [[ -t 0 ]]; then
             # stdin is already a terminal (script was downloaded then run)
-            $SUDO "${INSTALL_DIR}/dotnetcloud" setup || SETUP_EXIT=$?
+            $SUDO "${INSTALL_DIR}/dotnetcloud" setup --beginner || SETUP_EXIT=$?
         else
             # stdin is a pipe (curl | bash) — try redirecting from the controlling terminal
             if { exec 3</dev/tty; } 2>/dev/null; then
-                $SUDO "${INSTALL_DIR}/dotnetcloud" setup <&3 || SETUP_EXIT=$?
+                $SUDO "${INSTALL_DIR}/dotnetcloud" setup --beginner <&3 || SETUP_EXIT=$?
                 exec 3<&-
             else
                 SETUP_EXIT=1
                 SETUP_SKIPPED_NONINTERACTIVE=true
                 warn "No interactive terminal detected (stdin is piped and /dev/tty is unavailable)."
                 info "Skipping setup wizard in non-interactive environment."
-                info "Run the setup wizard manually in an interactive shell:"
-                echo "  sudo dotnetcloud setup"
+                info "Run the beginner-friendly setup wizard manually in an interactive shell:"
+                echo "  sudo dotnetcloud setup --beginner"
             fi
         fi
 
@@ -962,42 +1128,46 @@ main() {
             # The setup wizard calls 'systemctl enable --now' and waits for
             # the health check. Double-check here for the user's peace of mind.
             info "Verifying service is running..."
-            local RETRIES=0
             local HEALTHY=false
-            while [[ $RETRIES -lt 15 ]]; do
-                if curl -sf http://localhost:5080/health/live >/dev/null 2>&1; then
-                    HEALTHY=true
-                    break
-                fi
-                sleep 2
-                RETRIES=$((RETRIES + 1))
-            done
+            if wait_for_local_health 15; then
+                HEALTHY=true
+            fi
 
             if [[ "$HEALTHY" == true ]]; then
                 ok "DotNetCloud is installed, configured, and running."
                 echo ""
                 info "Open your browser to access DotNetCloud."
+                echo ""
+                print_runtime_endpoint_summary
             elif systemctl is-active --quiet dotnetcloud.service 2>/dev/null; then
                 ok "DotNetCloud is running (health check not yet responding — may still be initializing)."
+                echo ""
+                print_runtime_endpoint_summary
             else
                 warn "Service may still be starting. Check with:"
                 echo "  sudo systemctl status dotnetcloud"
                 echo "  sudo journalctl -u dotnetcloud -f"
+                echo "  sudo dotnetcloud setup"
+                show_recent_service_logs
             fi
         else
             echo ""
             if [[ "$SETUP_SKIPPED_NONINTERACTIVE" == true ]]; then
                 warn "Setup wizard was skipped because no interactive terminal is available."
                 info "Re-run setup from an interactive shell:"
-                echo "  sudo dotnetcloud setup"
+                echo "  sudo dotnetcloud setup --beginner"
             else
                 warn "Setup did not complete (exit code: $SETUP_EXIT)."
                 info "You can re-run it at any time:"
-                echo "  sudo dotnetcloud setup"
+                echo "  sudo dotnetcloud setup --beginner"
             fi
         fi
         echo ""
     fi
+
+    info "If setup did not complete or the service is not running, run:"
+    echo "  sudo dotnetcloud setup --beginner"
+    echo ""
 
     info "Documentation: https://github.com/${REPO}"
     echo ""

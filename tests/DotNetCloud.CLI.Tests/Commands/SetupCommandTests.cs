@@ -86,4 +86,13 @@ public class SetupCommandTests
         var command = SetupCommand.Create();
         Assert.IsFalse(string.IsNullOrWhiteSpace(command.Description));
     }
+
+    [TestMethod]
+    public void Create_HasBeginnerOption()
+    {
+        var command = SetupCommand.Create();
+        var option = command.Options.FirstOrDefault(o => o.Name == "--beginner");
+
+        Assert.IsNotNull(option, "Expected --beginner option");
+    }
 }

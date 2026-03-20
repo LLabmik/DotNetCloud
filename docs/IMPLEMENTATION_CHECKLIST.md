@@ -1084,6 +1084,13 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Add one-command bare-metal redeploy helper script (`tools/redeploy-baremetal.sh`) and document usage in server install guide
 - ✓ Clarify local-server workflow: prefer source redeploy helper for local changes and keep `tools/install.sh` in parity for fresh-machine installs
 - ✓ Ensure redeploy helper health probe parity with installer defaults (auto-tries HTTPS `:15443` and HTTP `:5080`)
+- ✓ Align installer and `dotnetcloud setup` local health probes with configured Kestrel ports, including self-signed HTTPS checks; clarify that `5080`/`5443` are internal defaults while `15443` is a reverse-proxy/public deployment port
+- ✓ Make installer print explicit direct local access URLs, health probe URLs, and the internal-Kestrel-vs-reverse-proxy port distinction at completion
+- ✓ Add beginner-friendly setup mode and fresh-install default flow that auto-selects the recommended local PostgreSQL + self-signed HTTPS path and ends with a plain-language summary of chosen settings and next steps
+- ✓ Make upgrade runs preserve the same beginner-friendly clarity by printing a plain-language upgrade summary, stating whether setup review is required, and re-showing access URLs plus next steps
+- ✓ Split beginner setup into the two real first-install cases: private/local test installs and public-domain installs, with different end summaries and honest reverse-proxy guidance for public domains
+- ✓ Expand beginner setup to cover all three real deployment shapes: private/local, public behind a reverse proxy, and public direct on DotNetCloud itself, while explicitly explaining why a reverse proxy is still recommended for most public installs
+- ✓ Add a dedicated beginner reverse-proxy guide with Apache-first walkthrough, Caddy alternative, and setup-summary links for public-domain users who need help
 - ✓ Add repository commit template (`.gitmessage`) and CONTRIBUTING guidance for detailed AI-assisted commit messages
 - ✓ Add README developer quick setup note for commit template configuration (`git config commit.template .gitmessage`)
 - ✓ Running tests documentation (`docs/development/RUNNING_TESTS.md`)

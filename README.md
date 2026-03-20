@@ -76,16 +76,30 @@ See [ROADMAP.md](ROADMAP.md) for the full phased implementation plan. Detailed s
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/LLabmik/DotNetCloud/main/tools/install.sh | bash
-dotnetcloud setup
-dotnetcloud serve
 ```
+
+The installer now runs the beginner-friendly setup automatically on a fresh install.
+If you need to run it again later, use:
+
+```sh
+sudo dotnetcloud setup --beginner
+```
+
+During beginner setup, DotNetCloud now asks one simple deployment question:
+
+- private home/LAN or local test install: uses self-signed HTTPS on DotNetCloud directly
+- public internet with a real domain name behind a reverse proxy: keeps DotNetCloud on local HTTP and tells you to put nginx, Apache, Caddy, or another reverse proxy with TLS in front of it
+- public internet directly on the DotNetCloud server: lets DotNetCloud serve HTTPS itself when you already have a public certificate file, while still explaining why a reverse proxy is usually the better public setup
+
+If you choose the reverse-proxy option and want a beginner-friendly walkthrough, see:
+
+- [docs/admin/server/REVERSE_PROXY_BEGINNER_GUIDE.md](docs/admin/server/REVERSE_PROXY_BEGINNER_GUIDE.md)
 
 ### Windows
 
 ```powershell
 winget install DotNetCloud
-dotnetcloud setup
-dotnetcloud serve
+dotnetcloud setup --beginner
 ```
 
 ### Docker
