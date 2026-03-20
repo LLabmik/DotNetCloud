@@ -159,6 +159,7 @@ public class Program
     {
         if (OperatingSystem.IsWindows())
         {
+            builder.Host.UseWindowsService();
             builder.Services.AddWindowsService(options =>
             {
                 options.ServiceName = "DotNetCloud Core Server";

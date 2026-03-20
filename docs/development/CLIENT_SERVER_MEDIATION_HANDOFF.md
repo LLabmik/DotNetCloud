@@ -79,7 +79,7 @@ Archived context:
 ### Windows IIS + Service Validation (Option 2) (for `Windows11-TestDNC`)
 
 **Target:** `Windows11-TestDNC`
-**Status:** READY FOR EXECUTION
+**Status:** BLOCKED (EXECUTED ON `Windows11-TestDNC`, FAIL)
 **Priority:** P1
 
 #### Goal
@@ -105,7 +105,7 @@ Validate the new Windows Option 2 deployment path end-to-end:
 3. Run installer (beginner path):
 
   ```powershell
-  PowerShell -ExecutionPolicy Bypass -File .\tools\install-windows.ps1 -SourcePath .\artifacts\publish -Beginner
+  pwsh -ExecutionPolicy Bypass -File .\tools\install-windows.ps1 -SourcePath .\artifacts\publish -Beginner
   ```
 
 4. Confirm installer behavior for reverse-proxy prerequisites:
@@ -151,6 +151,61 @@ Capture and return exact errors for:
 - whether URL Rewrite/ARR were auto-installed or manually installed
 - service status before and after reboot
 - final verdict: PASS/FAIL with first failing step
+
+#### Validation Run Result (2026-03-20, `Windows11-TestDNC`)
+
+**Commit used:** `8e5d61f`
+
+**Commands run (elevated):**
+
+```powershell
+pwsh -ExecutionPolicy Bypass -File .\tools\install-windows.ps1 -SourcePath .\artifacts\publish -Beginner -SkipFirewall -SkipFeatureInstall
+```
+
+```powershell
+Start-Service DotNetCloud
+Get-Service DotNetCloud
+sc.exe qc DotNetCloud
+Get-WinEvent -LogName System -MaxEvents 100 | Where-Object { $_.ProviderName -eq 'Service Control Manager' -and $_.Message -match 'DotNetCloud' } | Select-Object -First 5 | Format-List TimeCreated, Id, Message
+```
+
+**Raw output excerpts:**
+
+- Installer precheck:
+  - `[WARN] Missing IIS modules: URL Rewrite, Application Request Routing`
+  - `Install the missing IIS modules above, then re-run this script.`
+- Service start:
+  - `Start-Service : Service 'DotNetCloud Core Server (DotNetCloud)' cannot be started...`
+  - `Get-Service DotNetCloud` -> `Stopped`
+- Service config:
+  - `BINARY_PATH_NAME   : C:\Program Files\DotNetCloud\server\DotNetCloud.Core.Server.exe`
+  - `SERVICE_START_NAME : LocalSystem`
+- SCM errors:
+  - `Id 7009: A timeout was reached (30000 milliseconds) while waiting for the DotNetCloud Core Server service to connect.`
+  - `Id 7000: The DotNetCloud Core Server service failed to start ... The service did not respond to the start or control request in a timely fashion.`
+
+**Interactive server diagnostics from installed binary:**
+
+- Initial run failure:
+  - `System.UnauthorizedAccessException: Access to the path 'C:\Program Files\DotNetCloud\server\oidc-keys' is denied.`
+- Run with expected service env vars set:
+  - Server proceeds past OIDC key path issue.
+  - Then fails on DB connect:
+  - `Npgsql.NpgsqlException: Failed to connect to 127.0.0.1:5432`
+  - `SocketException (10061): No connection could be made because the target machine actively refused it.`
+
+**First failing step:**
+
+- Step 5 (service/runtime state verification). Service never reaches Running due to startup blockers.
+
+**Current blocker summary:**
+
+1. URL Rewrite + ARR not confirmed installed (installer reports both missing).
+2. Service startup blocked by runtime prerequisites:
+   - writable OIDC key path requires service env wiring to `DOTNETCLOUD_DATA_DIR`/`DOTNETCLOUD_CONFIG_DIR`
+   - database endpoint `localhost:5432` unreachable on `Windows11-TestDNC`
+
+**Verdict:** **FAIL**
 
 ## Relay Template
 

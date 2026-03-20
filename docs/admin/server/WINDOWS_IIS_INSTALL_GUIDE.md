@@ -69,7 +69,7 @@ Open an elevated PowerShell window in the repository root or in the folder where
 Run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\install-windows.ps1 -SourcePath .\artifacts\publish -Beginner
+powershell.exe -ExecutionPolicy Bypass -File .\tools\install-windows.ps1 -SourcePath .\artifacts\publish -Beginner
 ```
 
 That script will:
@@ -89,7 +89,7 @@ That script will:
 If you want to control the site name, host name, install paths, or similar settings, run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\install-windows.ps1 -SourcePath .\artifacts\publish -Advanced -SiteName "DotNetCloud" -AppPoolName "DotNetCloud" -HostName "cloud.example.com"
+pwsh -ExecutionPolicy Bypass -File .\tools\install-windows.ps1 -SourcePath .\artifacts\publish -Advanced -SiteName "DotNetCloud" -AppPoolName "DotNetCloud" -HostName "cloud.example.com"
 ```
 
 Advanced mode still uses the same Windows install path, but it avoids forcing the beginner defaults inside the DotNetCloud setup wizard.

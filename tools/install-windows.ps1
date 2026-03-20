@@ -1,4 +1,4 @@
-<#
+﻿<#
 DotNetCloud - Windows + IIS Install Script
 
 This script installs DotNetCloud on Windows with IIS acting as a reverse proxy
@@ -201,10 +201,10 @@ function Ensure-HostingBundle {
         return
     }
 
-    Write-Warn "ASP.NET Core Hosting Bundle was not detected."
-    Write-Host "Install it from:" -ForegroundColor Yellow
-    Write-Host "  $Script:HostingBundleDownloadUrl" -ForegroundColor Yellow
-    throw "Install the .NET 10 ASP.NET Core Hosting Bundle, then re-run this script."
+    Write-Warn "ASP.NET Core Hosting Bundle (ANCM) was not detected."
+    Write-Warn "For the Windows Service + IIS reverse proxy model, ANCM is not required."
+    Write-Warn "IIS forwards requests to the DotNetCloud Kestrel service via ARR -- no in-process hosting."
+    Write-Host "Optional: install from $Script:HostingBundleDownloadUrl" -ForegroundColor Yellow
 }
 
 function Test-IisModuleInstalled {
@@ -465,7 +465,7 @@ function Remove-DefaultSiteBindingIfNeeded {
         return
     }
 
-    if (($defaultSite.Bindings.Collection | Where-Object { $_.bindingInformation -like "*:$PublicHttpPort:*" }).Count -gt 0) {
+    if (($defaultSite.Bindings.Collection | Where-Object { $_.bindingInformation -like "*:${PublicHttpPort}:*" }).Count -gt 0) {
         Write-Warn "The Default Web Site is bound to port $PublicHttpPort."
         throw "Free port $PublicHttpPort in IIS or re-run this script with a different -PublicHttpPort."
     }
@@ -496,10 +496,10 @@ function Ensure-IisSite {
 
     $physicalPath = $Script:ServerRoot
     $bindingInformation = if ([string]::IsNullOrWhiteSpace($HostName)) {
-        "*:$PublicHttpPort:"
+        "*:${PublicHttpPort}:"
     }
     else {
-        "*:$PublicHttpPort:$HostName"
+        "*:${PublicHttpPort}:$HostName"
     }
 
     $site = Get-Website -Name $SiteName -ErrorAction SilentlyContinue
@@ -513,7 +513,7 @@ function Ensure-IisSite {
         New-WebBinding -Name $SiteName -Protocol http -Port $PublicHttpPort -HostHeader $HostName | Out-Null
     }
 
-    $rewriteRules = @'
+    $rewriteRules = (@'
 <configuration>
   <system.webServer>
     <rewrite>
@@ -527,9 +527,9 @@ function Ensure-IisSite {
           <serverVariables>
             <set name="HTTP_X_FORWARDED_PROTO" value="http" />
             <set name="HTTP_X_FORWARDED_HOST" value="{HTTP_HOST}" />
-            <set name="HTTP_X_FORWARDED_PORT" value="$PublicHttpPort" />
+            <set name="HTTP_X_FORWARDED_PORT" value="__PUBLIC_PORT__" />
           </serverVariables>
-          <action type="Rewrite" url="http://localhost:$KestrelHttpPort/{R:1}" logRewrittenUrl="true" />
+          <action type="Rewrite" url="http://localhost:__KESTREL_PORT__/{R:1}" logRewrittenUrl="true" />
         </rule>
       </rules>
     </rewrite>
@@ -537,7 +537,7 @@ function Ensure-IisSite {
     <proxy enabled="true" preserveHostHeader="true" reverseRewriteHostInResponseHeaders="false" />
   </system.webServer>
 </configuration>
-'@
+'@) -replace '__PUBLIC_PORT__', $PublicHttpPort -replace '__KESTREL_PORT__', $KestrelHttpPort
 
     Set-Content -Path (Join-Path $Script:ServerRoot "web.config") -Value $rewriteRules -Encoding UTF8
     Write-Ok "IIS site '$SiteName' now reverse proxies to http://localhost:$KestrelHttpPort."
@@ -611,6 +611,19 @@ function Print-Summary {
     Write-Host "  2. If you want HTTPS, either add an IIS self-signed certificate or use win-acme for a real certificate."
     Write-Host "  3. If the site does not load, check the Windows Service, Event Viewer, and the DotNetCloud logs under '$Script:LogsRoot'."
     Write-Host ""
+
+    if ($Beginner.IsPresent) {
+        Write-Host "Optional -- Collabora CODE (browser document editing):" -ForegroundColor Cyan
+        Write-Host "  Requires Docker Desktop for Windows."
+        Write-Host "  Run once to start Collabora:"
+        Write-Host '  docker run -d --name collabora --restart unless-stopped -p 9980:9980 `'
+        Write-Host "    -e ""aliasgroup1=http://localhost"" collabora/code"
+        Write-Host "  Then in config.json set:"
+        Write-Host '    "Files": { "Collabora": { "Enabled": true, "UseBuiltInCollabora": false,'
+        Write-Host '      "ServerUrl": "http://localhost:9980", "WopiBaseUrl": "http://localhost" } }'
+        Write-Host "  See docs/admin/COLLABORA.md for details."
+        Write-Host ""
+    }
 }
 
 Assert-Administrator
