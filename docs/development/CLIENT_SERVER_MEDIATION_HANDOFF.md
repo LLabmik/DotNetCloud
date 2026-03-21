@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-21 (File browser child count fix — DEPLOYED on mint22)
+Last updated: 2026-03-21 (Server deployed — handoff to Windows11-TestDNC to resume client work)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -55,7 +55,7 @@ Archived context:
   - Server (`mint22`): confirmed stable 2026-03-16. Zero ERR entries, both nodes soft-deleted, no 5xx.
 - Duplicate controller fix: CLOSED (2026-03-18). Deployed and verified on `mint22`. Files endpoint returns 401, service healthy.
 - Windows IIS + Service Validation: **SERVICE RUNNING** (2026-03-21). Three blockers resolved. Kestrel healthy on :5080. IIS proxy deferred P2. Archived.
-- **Active cycle:** File browser child count fix — DEPLOYED on `mint22` (2026-03-21). Service running.
+- **Active cycle:** Server deployed with child count fix. Handoff to `Windows11-TestDNC` to resume client work.
 
 ## Environment
 
@@ -77,40 +77,28 @@ Archived context:
 
 ## Active Handoff
 
-### File Browser Child Count Fix — DEPLOYED (on `mint22`)
+### Server Deployed — Resume Client Work (for `Windows11-TestDNC`)
 
-**Target:** `mint22`  
-**Status:** COMPLETE ✅  
+**Target:** `Windows11-TestDNC`  
+**Status:** READY FOR CLIENT  
 **Priority:** P1
 
 #### Summary
 
-Folder child count bug fix deployed and service running on `mint22`. The fix ensures `ListChildrenAsync` and `ListRootAsync` return correct `childCount` values for folder nodes (previously always 0).
+The file browser child count fix has been deployed on `mint22`. Server is running and stable. The `childCount` values for folder nodes are now correct (previously always 0). Resume whatever client-side work was in progress.
 
-#### What was deployed
+#### Server status on `mint22`
 
-- `src/Modules/Files/DotNetCloud.Modules.Files.Data/Services/FileService.cs`
-- Added `GetChildCountsAsync()` to batch-query child parent IDs and group counts in-memory.
-- `ListChildrenAsync` and `ListRootAsync` now pass computed child counts to `ToDto(n, childCount)`.
+- Service: `active (running)` — verified stable
+- HTTPS: `https://mint22:15443/` — Kestrel serving on ports 5080 (HTTP) / 5443 (HTTPS)
+- File browser API: folder nodes now return correct `childCount > 0`
+- TLS cert was regenerated — clients may need to re-trust or use `-k` flag; stale tokens may 401 until logout/login refresh
 
-#### Deployment Steps Completed
+#### Action for `Windows11-TestDNC`
 
-1. ✓ `git pull`
-2. ✓ `dotnet publish` to `/opt/dotnetcloud/server`
-3. ✓ Fixed file ownership: `chown -R dotnetcloud:dotnetcloud /opt/dotnetcloud/server/`
-4. ✓ Fixed TLS cert permissions: `/etc/dotnetcloud/certs/dotnetcloud-selfsigned.pfx` → `root:dotnetcloud 0640`
-5. ✓ `sudo systemctl restart dotnetcloud.service`
-6. ✓ Service verified stable: `active (running)` for 20+ seconds, PID stable, no crash-loop
-
-#### Root cause of TLS crash
-
-The certificate at `/etc/dotnetcloud/certs/dotnetcloud-selfsigned.pfx` was owned by `root:root 0600`. The service runs as `dotnetcloud:dotnetcloud` — couldn't read it. OpenSSL surfaced this as a misleading `BIO routines::system lib` error rather than a clear permission denied.
-
-**Fix:** `chown root:dotnetcloud` + `chmod 640` on the cert file.
-
-#### Post-deploy note
-
-After server cert change, clients may need fresh tokens (logout/login). The self-signed cert CN changed from the original, so `curl -k` or trust store update may be needed for verification.
+1. `git pull`
+2. Resume client-side work that was blocked on the server deploy
+3. Verify file browser shows correct folder child counts from the API
 
 ## Relay Template
 

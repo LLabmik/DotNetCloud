@@ -5,6 +5,26 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: File Browser Child Count Fix — Deployed on mint22 (2026-03-21)
+
+Archived from Active Handoff on 2026-03-21. Server redeployed with child count fix; service stable.
+
+**Original target:** `mint22`
+**Original status:** COMPLETE ✅
+
+### What was deployed
+- `FileService.cs` — `GetChildCountsAsync()` batch-queries child parent IDs and groups counts in-memory.
+- `ListChildrenAsync` and `ListRootAsync` now return correct `childCount` for folder nodes (previously always 0).
+
+### Deployment steps
+1. `git pull` + `dotnet publish` to `/opt/dotnetcloud/server`
+2. Fixed file ownership: `chown -R dotnetcloud:dotnetcloud /opt/dotnetcloud/server/`
+3. Fixed TLS cert permissions: `/etc/dotnetcloud/certs/dotnetcloud-selfsigned.pfx` → `root:dotnetcloud 0640`
+4. Service verified stable after restart.
+
+### TLS crash root cause
+Certificate owned `root:root 0600` — service user `dotnetcloud` couldn't read. OpenSSL gave misleading `BIO routines::system lib` error. Fix: `chown root:dotnetcloud` + `chmod 640`.
+
 ## Archived: Windows Service RUNNING — IIS Proxy P2 (2026-03-21)
 
 Archived from Active Handoff on 2026-03-21. Windows Service startup blockers resolved; IIS reverse proxy deferred as P2.
