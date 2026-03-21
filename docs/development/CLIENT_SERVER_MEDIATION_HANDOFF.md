@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-21 (File browser child count fix — server redeploy needed on mint22)
+Last updated: 2026-03-21 (File browser child count fix — DEPLOYED on mint22)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -55,7 +55,7 @@ Archived context:
   - Server (`mint22`): confirmed stable 2026-03-16. Zero ERR entries, both nodes soft-deleted, no 5xx.
 - Duplicate controller fix: CLOSED (2026-03-18). Deployed and verified on `mint22`. Files endpoint returns 401, service healthy.
 - Windows IIS + Service Validation: **SERVICE RUNNING** (2026-03-21). Three blockers resolved. Kestrel healthy on :5080. IIS proxy deferred P2. Archived.
-- **Active cycle:** File browser child count fix — server redeploy on `mint22` required. Code committed, awaiting deploy.
+- **Active cycle:** File browser child count fix — DEPLOYED on `mint22` (2026-03-21). Service running.
 
 ## Environment
 
@@ -77,59 +77,40 @@ Archived context:
 
 ## Active Handoff
 
-### File Browser Child Count Fix — Server Redeploy (for `mint22`)
+### File Browser Child Count Fix — DEPLOYED (on `mint22`)
 
 **Target:** `mint22`  
-**Status:** DEPLOYMENT BLOCKED ON TLS CERTIFICATE ERROR  
+**Status:** COMPLETE ✅  
 **Priority:** P1
 
 #### Summary
 
-Folder child count bug fix in `FileService.cs` was committed but deployment is blocked by TLS certificate issue. The fix ensures `ListChildrenAsync` and `ListRootAsync` return correct `childCount` values for folder nodes (previously always 0).
+Folder child count bug fix deployed and service running on `mint22`. The fix ensures `ListChildrenAsync` and `ListRootAsync` return correct `childCount` values for folder nodes (previously always 0).
 
-#### Server-side change (committed on `main`)
+#### What was deployed
 
 - `src/Modules/Files/DotNetCloud.Modules.Files.Data/Services/FileService.cs`
 - Added `GetChildCountsAsync()` to batch-query child parent IDs and group counts in-memory.
 - `ListChildrenAsync` and `ListRootAsync` now pass computed child counts to `ToDto(n, childCount)`.
 
-#### Deployment Actions Completed
+#### Deployment Steps Completed
 
 1. ✓ `git pull`
-2. ✓ Publish succeeded: `dotnet publish` completed without errors to `/opt/dotnetcloud/server`
-    - All binaries compiled and published correctly
-    - No build-time errors
+2. ✓ `dotnet publish` to `/opt/dotnetcloud/server`
+3. ✓ Fixed file ownership: `chown -R dotnetcloud:dotnetcloud /opt/dotnetcloud/server/`
+4. ✓ Fixed TLS cert permissions: `/etc/dotnetcloud/certs/dotnetcloud-selfsigned.pfx` → `root:dotnetcloud 0640`
+5. ✓ `sudo systemctl restart dotnetcloud.service`
+6. ✓ Service verified stable: `active (running)` for 20+ seconds, PID stable, no crash-loop
 
-#### Blocker: TLS Certificate Issue
+#### Root cause of TLS crash
 
-Service crashes immediately on startup with:
-```
-Interop+Crypto+OpenSslCryptographicException: error:10080002:BIO routines::system lib
-  at System.Security.Cryptography.X509Certificates.OpenSslX509CertificateReader.FromFile()
-  at KestrelConfiguration.ConfigureTls() line 162
-```
+The certificate at `/etc/dotnetcloud/certs/dotnetcloud-selfsigned.pfx` was owned by `root:root 0600`. The service runs as `dotnetcloud:dotnetcloud` — couldn't read it. OpenSSL surfaced this as a misleading `BIO routines::system lib` error rather than a clear permission denied.
 
-**Diagnosis:**
-- Certificate file exists: `/opt/dotnetcloud/server/certs/dotnetcloud-localhost.pfx`
-- File permissions: `644` (readable by all)
-- OpenSSL cannot parse it (likely corrupted during publish or binary/cert incompatibility)
-- Tried: Copying working cert from `/opt/dotnetcloud/publish/certs/` — still crashes with same error
-- All revisions of the certificate fail with identical OpenSSL error
+**Fix:** `chown root:dotnetcloud` + `chmod 640` on the cert file.
 
-**Investigation:**
-- ✓ Ran setup wizard — certificate not regenerated (unchanged timestamp)
-- ✓ Manually created fresh self-signed cert with OpenSSL: `openssl req -x509` → `pkcs12 -export`
-- ✗ Service still crashes with identical error on fresh certificate
+#### Post-deploy note
 
-**Root Cause Analysis (TBD):**
-This is NOT a certificate file corruption issue. Even a freshly-minted certificate fails with identical OpenSSL error. Possible causes:
-1. .NET 10 OpenSSL runtime incompatibility on Linux/Mint22
-2. Kestrel TLS configuration bug in newly-deployed code
-3. System OpenSSL library version mismatch
-4. Environment-specific issue (specific to this machine)
-
-**Next Step:**
-Try running server in development mode or HTTP-only to isolate if issue is TLS-layer specific or elsewhere in startup pipeline. Requires code configuration change to test.
+After server cert change, clients may need fresh tokens (logout/login). The self-signed cert CN changed from the original, so `curl -k` or trust store update may be needed for verification.
 
 ## Relay Template
 
