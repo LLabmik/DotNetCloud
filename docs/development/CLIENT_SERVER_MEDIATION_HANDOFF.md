@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-21 (IIS reverse proxy configured and verified on Windows11-TestDNC; child count fix deployed on mint22)
+Last updated: 2026-03-21 (IIS HTTPS + HTTP reverse proxy complete on Windows11-TestDNC; child count fix deployed on mint22)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -54,7 +54,7 @@ Archived context:
   - Windows client (`Windows11-TestDNC`): verified 2026-03-16 ~08:16Z. Bug fixed: `RemoveFileRecordsUnderPathAsync` path separator on Windows.
   - Server (`mint22`): confirmed stable 2026-03-16. Zero ERR entries, both nodes soft-deleted, no 5xx.
 - Duplicate controller fix: CLOSED (2026-03-18). Deployed and verified on `mint22`. Files endpoint returns 401, service healthy.
-- Windows IIS + Service Validation: **COMPLETE** (2026-03-21). Three startup blockers resolved. IIS reverse proxy configured and verified (URL Rewrite + ARR). `http://localhost/health/live` returns 200 through IIS.
+- Windows IIS + Service Validation: **COMPLETE** (2026-03-21). Three startup blockers resolved. IIS reverse proxy configured and verified (URL Rewrite + ARR). HTTP (port 80) and HTTPS (port 443) both proxy to Kestrel :5080. Self-signed localhost cert bound.
 - File browser child count fix: **DEPLOYED** (2026-03-21). `mint22` redeployed; service stable.
 - **Active cycle:** No pending handoff. All current tasks complete.
 
@@ -84,8 +84,9 @@ No active handoff. All current tasks complete.
 
 1. **IIS Reverse Proxy** — configured on `Windows11-TestDNC`
    - URL Rewrite 2.1 + Application Request Routing 3.0 installed
-   - `web.config` rewrite rule proxies all requests from IIS (port 80) → Kestrel (port 5080)
-   - Verified: `http://localhost/health/live` → 200 OK, `"status": "Healthy"`
+   - `web.config` rewrite rule proxies all requests from IIS → Kestrel (port 5080)
+   - HTTP (port 80): verified `http://localhost/health/live` → 200 OK
+   - HTTPS (port 443): self-signed localhost cert (thumbprint `C0DB23E...`), verified `https://localhost/health/live` → 200 OK, `Server: Microsoft-IIS/10.0`
 2. **File browser child count fix** — deployed on `mint22` by server agent
 
 ## Relay Template
