@@ -109,6 +109,53 @@ Critical finding:
 - PostgreSQL was installed with `postgres` password `SqlMilk01!`.
 - Most likely root cause: DB role/user password mismatch (`dotnetcloud` user not created with the password stored in config, or role missing).
 
+#### Latest Validation Outcome (2026-03-21)
+
+Commands executed:
+
+```powershell
+Get-Service PostgreSQL*
+Test-NetConnection -ComputerName localhost -Port 5432
+```
+
+Observed results:
+
+- `postgresql-x64-18` service is `Running`.
+- `Test-NetConnection` shows `TcpTestSucceeded : True` for `localhost:5432`.
+
+Config inspection:
+
+- `C:\ProgramData\DotNetCloud\config\config.json` uses:
+  - `Host=localhost;Database=dotnetcloud;Username=dotnetcloud;Password=<generated>`
+
+Credential/database alignment run:
+
+- `CREATE ROLE dotnetcloud LOGIN PASSWORD '<config-password>';` -> `CREATE ROLE`
+- `ALTER ROLE dotnetcloud WITH LOGIN PASSWORD '<config-password>';` -> `ALTER ROLE`
+- Conditional DB check/create path emitted `DATABASE_CREATED`.
+
+Post-alignment runtime verification:
+
+```powershell
+Restart-Service DotNetCloud
+Get-Service DotNetCloud
+```
+
+- `Restart-Service DotNetCloud` failed from current session due service-control access (`Cannot open 'DotNetCloud' service on computer '.'`).
+- `Get-Service DotNetCloud` reports `Stopped`.
+- Health checks via .NET HttpClient equivalent:
+  - `http://localhost:5080/health/live` -> connection refused
+  - `http://localhost/health/live` -> HTTP 404
+
+SCM evidence after retry:
+
+- `Id 7009`: timeout waiting for DotNetCloud service to connect (45000 ms).
+- `Id 7000`: service did not respond to start/control request in a timely fashion.
+
+Additional note:
+
+- Latest logs in `C:\Users\benk\AppData\Roaming\dotnetcloud\logs` are sync-client logs (`sync-service*.log`) and do not include Core Server startup exception traces.
+
 #### Required Next Actions on `Windows11-TestDNC`
 
 1. Verify PostgreSQL service + listener:
@@ -128,13 +175,20 @@ Test-NetConnection -ComputerName localhost -Port 5432
 
 Replace `<CONFIG_PASSWORD>` with the password currently stored in `C:\ProgramData\DotNetCloud\config\config.json`.
 
-3. Restart and verify:
+3. Restart and verify (must be elevated):
 
 ```powershell
 Restart-Service DotNetCloud
 Get-Service DotNetCloud
 Invoke-WebRequest http://localhost:5080/health/live -UseBasicParsing
 Invoke-WebRequest http://localhost/health/live -UseBasicParsing
+```
+
+4. If service remains stopped after DB alignment, collect Core Server startup exception from service runtime logs (not sync-service logs):
+
+```powershell
+Get-ChildItem "C:\Program Files\DotNetCloud\server" -Recurse -File | Where-Object { $_.Name -match 'log|txt' } | Sort-Object LastWriteTime -Descending | Select-Object -First 20 FullName, LastWriteTime
+Get-WinEvent -LogName Application -MaxEvents 200 | Where-Object { $_.Message -match 'DotNetCloud|DotNetCloud.Core.Server|Npgsql|OpenIddict|Kestrel' } | Select-Object -First 20 TimeCreated, Id, ProviderName, Message | Format-List
 ```
 
 #### Request Back (MANDATORY)
