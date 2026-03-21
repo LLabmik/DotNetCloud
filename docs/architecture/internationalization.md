@@ -167,9 +167,41 @@ Blazor automatically uses `CultureInfo.CurrentCulture` for `@bind` formatting. N
 - Use the formal register for user-facing text
 - Do not translate brand names (`DotNetCloud`)
 
-### Future: Weblate Integration
+### Translation Workflow
 
-A self-hosted [Weblate](https://weblate.org/) instance may be set up for community translations. The `.resx` files will be synced via Git integration. See project roadmap for timeline.
+DotNetCloud uses a **Git-based translation workflow**. All translations live as `.resx` resource files in the repository and are contributed via standard pull requests.
+
+#### Workflow Steps
+
+1. **Fork & branch:** Create a branch named `i18n/{language-tag}` (e.g. `i18n/fr-FR`).
+2. **Copy the baseline:** Duplicate `SharedResources.resx` → `SharedResources.{tag}.resx`.
+3. **Translate:** Edit `<data>` values in the new file. Keep all `name` attributes identical to the English baseline.
+4. **Register the culture** (new languages only):
+   - Add the BCP-47 tag to `SupportedCultures.All` in `src/Core/DotNetCloud.Core/Localization/SupportedCultures.cs`
+   - Add a native display name to the `DisplayNames` dictionary
+5. **Verify:**
+   - `dotnet build` — ensures the `.resx` compiles
+   - Run the app and switch locale in the UI to confirm strings render
+   - Run `dotnet test tests/DotNetCloud.Core.Tests/` — `SupportedCulturesTests` validates all registered cultures
+6. **Submit PR:** Title: `i18n: Add {Language} translation`. Reviewers with that language proficiency will verify string quality.
+
+#### Review Criteria
+
+- All keys from the English baseline must be present (no missing strings)
+- Placeholders (`{0}`, `{1}`) must be preserved
+- No HTML or markup injected into translation values
+- Brand names (`DotNetCloud`) must not be translated
+- Formal register used for user-facing text
+
+#### Module-Specific Resources
+
+Modules that need their own translations follow the same pattern:
+- File: `src/Modules/{Module}/Resources/{Module}Resources.{tag}.resx`
+- Each module manages its own resource files independently
+
+#### Future: Weblate Integration
+
+When the contributor community grows, a self-hosted [Weblate](https://weblate.org/) instance may be added for browser-based translation editing. The `.resx` files will sync with this repository via Weblate's Git integration — the Git workflow above will remain the source of truth.
 
 ---
 

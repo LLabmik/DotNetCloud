@@ -32,7 +32,7 @@
 | Phase 0.13 | 20 | 20 | 0 | 0 |
 | Phase 0.14 | 18 | 18 | 0 | 0 |
 | Phase 0.15 | 12 | 12 | 0 | 0 |
-| Phase 0.16 | 12 | 11 | 0 | 1 |
+| Phase 0.16 | 12 | 12 | 0 | 0 |
 | Phase 0.17 | 10 | 10 | 0 | 0 |
 | Phase 0.18 | 8 | 8 | 0 | 0 |
 | Phase 0.19 | 11 | 11 | 0 | 0 |
@@ -1185,12 +1185,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - Task-level checklist: `docs/IMPLEMENTATION_CHECKLIST.md` (Phase 1.1-1.16 sections)
 - Completion verification plan: `docs/PHASE_1_COMPLETION_PLAN.md`
 
-**Deferred items (non-blocking for launch):**
-- Right-click context menu (Phase 1.6) — actions available via buttons/selection mode
-- Paste image upload (Phase 1.15) — standard file upload works
-- Additional UI polish items (drag-and-drop, upload queue management, upload size client-side validation)
-
-**Notes:** All Files endpoints functional, upload/download/sync verified across 3 machines (mint22, Windows11-TestDNC, mint-dnc-client). Collabora/WOPI integration operational. Desktop sync clients working on Windows (service + SyncTray) and Linux. 638 Files module tests + 182 Client.Core tests + 27 SyncService tests + 77 SyncTray tests = 924 tests covering Files/Sync.
+**Notes:** All Files endpoints functional, upload/download/sync verified across 3 machines (mint22, Windows11-TestDNC, mint-dnc-client). Collabora/WOPI integration operational. Desktop sync clients working on Windows (service + SyncTray) and Linux. Share notifications (public link access, expiry warnings) and sync debounce all implemented. 644 Files module tests + 182 Client.Core tests + 27 SyncService tests + 77 SyncTray tests = 930 tests covering Files/Sync.
 
 ---
 

@@ -408,6 +408,29 @@ Refs:
 - none
 ```
 
+## Contributing Translations
+
+DotNetCloud supports multiple languages. Translations are contributed via pull requests with `.resx` resource files.
+
+### Quick Start
+
+1. **Branch:** Create `i18n/{language-tag}` (e.g. `i18n/fr-FR`)
+2. **Copy:** `SharedResources.resx` → `SharedResources.{tag}.resx` in `src/UI/DotNetCloud.UI.Shared/Resources/`
+3. **Translate:** Edit `<data>` values — keep `name` attributes identical to English
+4. **Register** (new languages): Add to `SupportedCultures.All` and `DisplayNames` in `src/Core/DotNetCloud.Core/Localization/SupportedCultures.cs`
+5. **Test:** `dotnet build` and verify in the UI
+6. **PR:** Title: `i18n: Add {Language} translation`
+
+### Rules
+
+- Translate all keys — no missing strings
+- Preserve `{0}`, `{1}` placeholders
+- Don't translate brand names (`DotNetCloud`)
+- Use formal register for user-facing text
+- No HTML or markup in translation values
+
+For full details, see [docs/architecture/internationalization.md](docs/architecture/internationalization.md#translation-workflow).
+
 ## Documentation
 
 When contributing code, also update documentation:

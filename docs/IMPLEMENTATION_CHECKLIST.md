@@ -998,7 +998,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Create error message strings
 - ✓ Create validation message strings
 - ✓ Create module strings (namespace per module)
-- ☐ Set up translation workflow (Weblate or similar)
+- ✓ Set up translation workflow (Git-based PR workflow documented; Weblate planned for future)
 
 ### Unit Tests
 
