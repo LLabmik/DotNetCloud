@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-21 (Server deployed — handoff to Windows11-TestDNC to resume client work)
+Last updated: 2026-03-21 (IIS reverse proxy configured and verified on Windows11-TestDNC; child count fix deployed on mint22)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -54,8 +54,9 @@ Archived context:
   - Windows client (`Windows11-TestDNC`): verified 2026-03-16 ~08:16Z. Bug fixed: `RemoveFileRecordsUnderPathAsync` path separator on Windows.
   - Server (`mint22`): confirmed stable 2026-03-16. Zero ERR entries, both nodes soft-deleted, no 5xx.
 - Duplicate controller fix: CLOSED (2026-03-18). Deployed and verified on `mint22`. Files endpoint returns 401, service healthy.
-- Windows IIS + Service Validation: **SERVICE RUNNING** (2026-03-21). Three blockers resolved. Kestrel healthy on :5080. IIS proxy deferred P2. Archived.
-- **Active cycle:** Server deployed with child count fix. Handoff to `Windows11-TestDNC` to resume client work.
+- Windows IIS + Service Validation: **COMPLETE** (2026-03-21). Three startup blockers resolved. IIS reverse proxy configured and verified (URL Rewrite + ARR). `http://localhost/health/live` returns 200 through IIS.
+- File browser child count fix: **DEPLOYED** (2026-03-21). `mint22` redeployed; service stable.
+- **Active cycle:** No pending handoff. All current tasks complete.
 
 ## Environment
 
@@ -77,28 +78,15 @@ Archived context:
 
 ## Active Handoff
 
-### Server Deployed — Resume Client Work (for `Windows11-TestDNC`)
+No active handoff. All current tasks complete.
 
-**Target:** `Windows11-TestDNC`  
-**Status:** READY FOR CLIENT  
-**Priority:** P1
+### Completed This Session (2026-03-21)
 
-#### Summary
-
-The file browser child count fix has been deployed on `mint22`. Server is running and stable. The `childCount` values for folder nodes are now correct (previously always 0). Resume whatever client-side work was in progress.
-
-#### Server status on `mint22`
-
-- Service: `active (running)` — verified stable
-- HTTPS: `https://mint22:15443/` — Kestrel serving on ports 5080 (HTTP) / 5443 (HTTPS)
-- File browser API: folder nodes now return correct `childCount > 0`
-- TLS cert was regenerated — clients may need to re-trust or use `-k` flag; stale tokens may 401 until logout/login refresh
-
-#### Action for `Windows11-TestDNC`
-
-1. `git pull`
-2. Resume client-side work that was blocked on the server deploy
-3. Verify file browser shows correct folder child counts from the API
+1. **IIS Reverse Proxy** — configured on `Windows11-TestDNC`
+   - URL Rewrite 2.1 + Application Request Routing 3.0 installed
+   - `web.config` rewrite rule proxies all requests from IIS (port 80) → Kestrel (port 5080)
+   - Verified: `http://localhost/health/live` → 200 OK, `"status": "Healthy"`
+2. **File browser child count fix** — deployed on `mint22` by server agent
 
 ## Relay Template
 
