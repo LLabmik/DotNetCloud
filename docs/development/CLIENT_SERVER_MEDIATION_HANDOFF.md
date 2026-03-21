@@ -79,7 +79,7 @@ Archived context:
 ### Windows IIS + Service Validation — Service Restart Needed (for `Windows11-TestDNC`)
 
 **Target:** `Windows11-TestDNC`  
-**Status:** AWAITING ELEVATED RESTART — DB credentials aligned; service restart requires elevated terminal  
+**Status:** AWAITING ELEVATED RESTART — re-validated 2026-03-21; non-elevated shell cannot control service  
 **Priority:** P1
 
 #### Summary
@@ -94,6 +94,20 @@ DB credential mismatch is now resolved. PostgreSQL role and database are correct
 - Database `dotnetcloud` confirmed to exist and is owned by `dotnetcloud` role.
 - Service account confirmed: `LocalSystem`.
 - Direct exe run from non-elevated terminal produced `UnauthorizedAccessException: Access to path 'C:\Program Files\DotNetCloud\server\oidc-keys' is denied` — **this is expected when running as normal user**; service runs as `LocalSystem` which has full write access, so this should not affect the service start.
+
+#### Latest Validation Snapshot (2026-03-21, non-elevated terminal)
+
+- `git pull` result: `Already up to date.`
+- `Get-Service DotNetCloud` => `Status: Stopped`, `StartType: Automatic`.
+- `Restart-Service DotNetCloud` failed with access error (`Cannot open 'DotNetCloud' service on computer '.'`) confirming elevated PowerShell is still required.
+- `Test-NetConnection -ComputerName localhost -Port 5080` => `TcpTestSucceeded: False`.
+- `Test-NetConnection -ComputerName localhost -Port 80` => `TcpTestSucceeded: True`.
+- Recent SCM entries (System log):
+  - `Id 7009`: timeout waiting 45000 ms for DotNetCloud service to connect.
+  - `Id 7000`: DotNetCloud service did not respond to start/control request in a timely fashion.
+- Recent Application log entries for `DotNetCloud.Core.Server.exe` include:
+  - `UnauthorizedAccessException` on `C:\Program Files\DotNetCloud\server\oidc-keys` (non-service interactive run).
+  - historical `Npgsql` failures (`password authentication failed for user \"postgres\"` and earlier `connection refused`), now superseded by credential alignment work above.
 
 #### Required Next Action — MODERATOR (Elevated PowerShell required)
 
