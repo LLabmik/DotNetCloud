@@ -80,39 +80,56 @@ Archived context:
 ### File Browser Child Count Fix — Server Redeploy (for `mint22`)
 
 **Target:** `mint22`  
-**Status:** CODE COMMITTED — AWAITING REDEPLOY  
+**Status:** DEPLOYMENT BLOCKED ON TLS CERTIFICATE ERROR  
 **Priority:** P1
 
 #### Summary
 
-Folder child count bug fix in `FileService.cs` was committed but never deployed on `mint22`. The fix ensures `ListChildrenAsync` and `ListRootAsync` return correct `childCount` values for folder nodes (previously always 0).
+Folder child count bug fix in `FileService.cs` was committed but deployment is blocked by TLS certificate issue. The fix ensures `ListChildrenAsync` and `ListRootAsync` return correct `childCount` values for folder nodes (previously always 0).
 
-#### Server-side change (already committed on `main`)
+#### Server-side change (committed on `main`)
 
 - `src/Modules/Files/DotNetCloud.Modules.Files.Data/Services/FileService.cs`
 - Added `GetChildCountsAsync()` to batch-query child parent IDs and group counts in-memory.
 - `ListChildrenAsync` and `ListRootAsync` now pass computed child counts to `ToDto(n, childCount)`.
 
-#### Required Actions on `mint22`
+#### Deployment Actions Completed
 
-1. `git pull`
-2. Publish server:
-   ```bash
-   dotnet publish src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release -o /opt/dotnetcloud/server
-   ```
-3. Restart service:
-   ```bash
-   sudo systemctl restart dotnetcloud.service
-   ```
-4. Verify folder nodes return non-zero `childCount`:
-   ```bash
-   # Authenticate and hit the files endpoint, check that folder entries have childCount > 0
-   curl -k https://mint22:15443/api/files/roots -H "Authorization: Bearer <token>"
-   ```
+1. ✓ `git pull`
+2. ✓ Publish succeeded: `dotnet publish` completed without errors to `/opt/dotnetcloud/server`
+    - All binaries compiled and published correctly
+    - No build-time errors
 
-#### Post-deploy note
+#### Blocker: TLS Certificate Issue
 
-After server auth changes, stale tokens may cause 401 until logout/login refresh on clients.
+Service crashes immediately on startup with:
+```
+Interop+Crypto+OpenSslCryptographicException: error:10080002:BIO routines::system lib
+  at System.Security.Cryptography.X509Certificates.OpenSslX509CertificateReader.FromFile()
+  at KestrelConfiguration.ConfigureTls() line 162
+```
+
+**Diagnosis:**
+- Certificate file exists: `/opt/dotnetcloud/server/certs/dotnetcloud-localhost.pfx`
+- File permissions: `644` (readable by all)
+- OpenSSL cannot parse it (likely corrupted during publish or binary/cert incompatibility)
+- Tried: Copying working cert from `/opt/dotnetcloud/publish/certs/` — still crashes with same error
+- All revisions of the certificate fail with identical OpenSSL error
+
+**Next Steps (MANUAL INTERVENTION REQUIRED):**
+
+Option A: Regenerate certificate on mint22
+```bash
+sudo systemctl stop dotnetcloud.service
+# Run interactive setup (note: this is an interactive prompt):
+sudo dotnetcloud setup
+# Follow prompts, regenerate cert when asked
+sudo systemctl start dotnetcloud.service
+```
+
+Option B: Revert to known-good binary (requires archival/versioning review — not yet implemented)
+
+**AWAITING USER DECISION:** Choose Option A (regenerate cert interactively) or provide alternative resolution.
 
 ## Relay Template
 
