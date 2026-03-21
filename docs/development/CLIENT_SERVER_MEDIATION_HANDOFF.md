@@ -56,7 +56,7 @@ Archived context:
 - Duplicate controller fix: CLOSED (2026-03-18). Deployed and verified on `mint22`. Files endpoint returns 401, service healthy.
 - Windows IIS + Service Validation: **COMPLETE** (2026-03-21). Three startup blockers resolved. IIS reverse proxy configured and verified (URL Rewrite + ARR). HTTP (port 80) and HTTPS (port 443) both proxy to Kestrel :5080. Self-signed localhost cert bound.
 - File browser child count fix: **DEPLOYED** (2026-03-21). `mint22` redeployed; service stable.
-- **Active cycle:** Handoff to `mint22` — verify Phase 1 & Phase 2 completion.
+- **Active cycle:** Phase 1 & Phase 2 completion verified on `mint22`. Docs cleaned up, all 2,242 tests pass.
 
 ## Environment
 
@@ -78,31 +78,33 @@ Archived context:
 
 ## Active Handoff
 
-**Target: `mint22`**
+**Target: none (verification complete)**
 
-### Task: Verify Phase 1 and Phase 2 Completion
+### Task: Phase 1 & Phase 2 Completion Verification — DONE
 
-Pull latest `main` and verify that Phase 1 (Files + Desktop Sync Client) and Phase 2 (Chat & Notifications & Android) are truly complete.
+**Results (2026-03-21, mint22):**
 
-**Phase 1 — Files (Public Launch)**
-- According to MASTER_PROJECT_PLAN.md: 18/20 steps complete, 2 minor deferred UI items (right-click context menu, paste image upload)
-- Verify: all files endpoints return correct responses, upload/download works, sync client connects, Collabora integration operational, versioning/trash/quotas functional
-- Run `dotnet test` across all Files-related test projects
-- Confirm the 2 deferred items are genuinely non-blocking for launch
-
-**Phase 2 — Chat & Notifications & Android**
-- According to MASTER_PROJECT_PLAN.md: 13/13 steps complete (100%)
-- Verify: chat endpoints working, SignalR real-time messaging functional, push notifications configured, announcements working
-- Run `dotnet test` across all Chat-related test projects
-- Confirm all 803+ tests pass
-
-**What to do:**
-1. `git pull origin main`
-2. `dotnet build`
-3. `dotnet test` (full suite)
-4. Review MASTER_PROJECT_PLAN.md and IMPLEMENTATION_CHECKLIST.md for any inaccuracies
-5. If any tests fail or statuses are wrong, fix and update the tracking docs
-6. Commit findings, push, and provide relay message back
+1. **Build:** `dotnet build DotNetCloud.CI.slnf` — 0 errors, 0 warnings
+2. **Tests:** `dotnet test DotNetCloud.CI.slnf` — **2,242 passed, 0 failed, 2 skipped** across 12 test projects:
+   - Core.Tests: 138 passed
+   - CLI.Tests: 119 passed
+   - Core.Server.Tests: 331 passed (2 skipped)
+   - Modules.Example.Tests: 51 passed
+   - Core.Data.Tests: 176 passed
+   - Core.Auth.Tests: 85 passed
+   - Client.SyncService.Tests: 27 passed
+   - Modules.Chat.Tests: 283 passed
+   - Modules.Files.Tests: 638 passed
+   - Client.Core.Tests: 182 passed
+   - Client.SyncTray.Tests: 77 passed
+   - Integration.Tests: 133 passed
+3. **Integration test fix:** 20 integration tests were failing due to duplicate OpenIddict auth scheme registration in `DotNetCloudWebApplicationFactory`. Fixed by forwarding existing scheme to `TestAuthHandler` instead of re-registering.
+4. **Doc cleanup:**
+   - MASTER_PROJECT_PLAN.md: renamed mislabeled "Phase 2: Files" → "Phase 2: Chat & Notifications & Android", added Phase 1 summary section, fixed phase-2.1/2.2 step titles from "Files" to "Chat", corrected "Files API Integration Tests" → "Chat API Integration Tests"
+   - Updated stale test counts: 803 → 2,242 across all tracking docs
+   - Added `storage/chunks` and `storage/files` to `.gitignore`
+5. **Phase 1 status:** 274/277 steps complete. 3 deferred items (right-click context menu, paste image upload, UI polish) are non-blocking for launch.
+6. **Phase 2 status:** 13/13 sub-phases complete (100%).
 
 ### Completed This Session (2026-03-21)
 
