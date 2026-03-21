@@ -26,6 +26,8 @@ param(
     [switch]$SkipHostingBundleInstall,
     [switch]$SkipIisConfiguration,
     [switch]$SkipServiceInstall,
+    [switch]$SkipDatabaseInstall,
+    [switch]$SkipHttps,
     [switch]$Force
 )
 
@@ -80,6 +82,18 @@ function Assert-Administrator {
     if (-not (Test-Administrator)) {
         throw "This script must be run from an elevated PowerShell session (Run as Administrator)."
     }
+}
+
+function Assert-DotNetRuntime {
+    $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
+    if (-not $dotnet) {
+        throw ".NET 10 runtime is not installed. Download from https://dotnet.microsoft.com/download/dotnet/10.0"
+    }
+    $runtimes = & dotnet --list-runtimes 2>&1 | Where-Object { $_ -match "Microsoft\.AspNetCore\.App 10\." }
+    if (-not $runtimes) {
+        throw "ASP.NET Core 10.0 runtime is required but not found. Download from https://dotnet.microsoft.com/download/dotnet/10.0"
+    }
+    Write-Ok "ASP.NET Core 10.0 runtime detected."
 }
 
 function Get-DefaultSourcePath {
@@ -287,6 +301,137 @@ function Ensure-IisModules {
     throw "Install the missing IIS modules above, then re-run this script."
 }
 
+function Find-PsqlExe {
+    $pgDirs = Get-ChildItem -Path "$env:ProgramFiles\PostgreSQL" -Directory -ErrorAction SilentlyContinue
+    foreach ($dir in ($pgDirs | Sort-Object Name -Descending)) {
+        $candidate = Join-Path $dir.FullName "bin\psql.exe"
+        if (Test-Path $candidate) {
+            return $candidate
+        }
+    }
+    return $null
+}
+
+function Ensure-PostgreSQL {
+    if ($SkipDatabaseInstall) {
+        Write-Warn "Skipping PostgreSQL installation because -SkipDatabaseInstall was specified."
+        return
+    }
+
+    # Check for a running PostgreSQL service
+    $pgService = Get-Service -Name "postgresql*" -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq "Running" }
+    if ($null -ne $pgService) {
+        Write-Ok "PostgreSQL is running (service: $($pgService.Name))."
+        return
+    }
+
+    # Check if PostgreSQL exists but is stopped
+    $pgStopped = Get-Service -Name "postgresql*" -ErrorAction SilentlyContinue
+    if ($null -ne $pgStopped) {
+        Write-Info "PostgreSQL service found but not running. Starting..."
+        Start-Service -Name $pgStopped.Name
+        Start-Sleep -Seconds 3
+        Write-Ok "PostgreSQL service started ($($pgStopped.Name))."
+        return
+    }
+
+    # Attempt auto-install via winget
+    if (Test-WingetAvailable) {
+        Write-Info "Installing PostgreSQL 17 via winget..."
+        try {
+            & winget install --id PostgreSQL.PostgreSQL.17 --accept-source-agreements --accept-package-agreements --silent --disable-interactivity 2>&1 | Out-Null
+
+            # Refresh PATH for the current session
+            $pgBin = Find-PsqlExe
+            if ($pgBin) {
+                $pgBinDir = Split-Path $pgBin -Parent
+                if ($env:PATH -notlike "*$pgBinDir*") {
+                    $env:PATH = "$pgBinDir;$env:PATH"
+                }
+            }
+
+            # Wait for the service to start
+            $retries = 0
+            while ($retries -lt 15) {
+                $pgService = Get-Service -Name "postgresql*" -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq "Running" }
+                if ($null -ne $pgService) {
+                    Write-Ok "PostgreSQL 17 is running."
+                    return
+                }
+                Start-Sleep -Seconds 2
+                $retries++
+            }
+
+            Write-Warn "PostgreSQL was installed but the service did not start automatically."
+            Write-Warn "Start it manually: Start-Service postgresql-x64-17"
+            throw "PostgreSQL service not running after install. Start the service and re-run."
+        }
+        catch {
+            Write-Fail "Automatic PostgreSQL install failed: $_"
+        }
+    }
+
+    Write-Fail "PostgreSQL is not installed and could not be installed automatically."
+    Write-Host ""
+    Write-Host "  Install PostgreSQL 17 manually:" -ForegroundColor Yellow
+    Write-Host "    1. Download from https://www.postgresql.org/download/windows/" -ForegroundColor Yellow
+    Write-Host "    2. Run the installer and complete the setup wizard" -ForegroundColor Yellow
+    Write-Host "    3. Ensure the PostgreSQL service is running" -ForegroundColor Yellow
+    Write-Host "    4. Re-run this install script" -ForegroundColor Yellow
+    Write-Host ""
+    throw "PostgreSQL is required. Install it and re-run this script."
+}
+
+function Ensure-Database {
+    if ($SkipDatabaseInstall) {
+        Write-Warn "Skipping database creation because -SkipDatabaseInstall was specified."
+        return
+    }
+
+    # Find psql.exe
+    $psqlExe = Find-PsqlExe
+    if (-not $psqlExe) {
+        # Also check PATH
+        $psqlCmd = Get-Command psql -ErrorAction SilentlyContinue
+        if ($psqlCmd) {
+            $psqlExe = $psqlCmd.Source
+        }
+    }
+
+    if (-not $psqlExe) {
+        throw "psql.exe not found. Ensure PostgreSQL is installed and its bin directory is in PATH."
+    }
+
+    Write-Info "Creating database user and database..."
+
+    # Generate a cryptographically random 32-character password
+    $bytes = New-Object byte[] 24
+    [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+    $Script:DbPassword = [Convert]::ToBase64String($bytes)
+
+    # Check if user exists
+    $userCheck = & $psqlExe -U postgres -h localhost -tAc "SELECT 1 FROM pg_roles WHERE rolname='dotnetcloud'" 2>&1
+    if ("$userCheck" -notmatch "^1") {
+        & $psqlExe -U postgres -h localhost -c "CREATE USER dotnetcloud WITH PASSWORD '$($Script:DbPassword)';" 2>&1 | Out-Null
+    }
+    else {
+        # User exists — update password
+        & $psqlExe -U postgres -h localhost -c "ALTER USER dotnetcloud WITH PASSWORD '$($Script:DbPassword)';" 2>&1 | Out-Null
+    }
+
+    # Check if database exists
+    $dbCheck = & $psqlExe -U postgres -h localhost -tAc "SELECT 1 FROM pg_database WHERE datname='dotnetcloud'" 2>&1
+    if ("$dbCheck" -notmatch "^1") {
+        & $psqlExe -U postgres -h localhost -c "CREATE DATABASE dotnetcloud OWNER dotnetcloud;" 2>&1 | Out-Null
+    }
+
+    # Grant privileges
+    & $psqlExe -U postgres -h localhost -c "GRANT ALL PRIVILEGES ON DATABASE dotnetcloud TO dotnetcloud;" 2>&1 | Out-Null
+
+    $Script:ConnectionString = "Host=localhost;Database=dotnetcloud;Username=dotnetcloud;Password=$($Script:DbPassword)"
+    Write-Ok "Database 'dotnetcloud' created with user 'dotnetcloud'."
+}
+
 function Copy-Binaries {
     param(
         [string]$ServerSource,
@@ -318,8 +463,94 @@ function Write-EnvironmentFile {
         "Kestrel__EnableHttps=false"
     )
 
+    if ($Script:ConnectionString) {
+        $contents += "ConnectionStrings__DefaultConnection=$Script:ConnectionString"
+    }
+
     Set-Content -Path $envFilePath -Value $contents -Encoding UTF8
     Write-Ok "Wrote environment file to '$envFilePath'."
+}
+
+function Read-AdminCredentials {
+    Write-Host ""
+    Write-Host "Create your administrator account" -ForegroundColor Cyan
+    Write-Host "You will use these credentials to log in to DotNetCloud." -ForegroundColor Gray
+    Write-Host ""
+
+    # Email
+    do {
+        $email = Read-Host "Admin email address"
+        if ($email -notmatch "^[^@]+@[^@]+\.[^@]+$") {
+            Write-Warn "Please enter a valid email address."
+        }
+    } while ($email -notmatch "^[^@]+@[^@]+\.[^@]+$")
+
+    # Password (masked)
+    do {
+        $securePass = Read-Host "Admin password (min 12 chars, mixed case + digit)" -AsSecureString
+        $secureConfirm = Read-Host "Confirm password" -AsSecureString
+        $pass = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
+            [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePass))
+        $confirm = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
+            [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureConfirm))
+
+        if ($pass -ne $confirm) {
+            Write-Warn "Passwords do not match. Try again."
+            continue
+        }
+        if ($pass.Length -lt 12 -or $pass -notmatch "[A-Z]" -or $pass -notmatch "[a-z]" -or $pass -notmatch "\d") {
+            Write-Warn "Password must be at least 12 characters with uppercase, lowercase, and a digit."
+            continue
+        }
+        break
+    } while ($true)
+
+    $Script:AdminEmail = $email
+    $Script:AdminPassword = $pass
+
+    Write-Ok "Admin account will be created on first server start."
+}
+
+function Write-ConfigFile {
+    Ensure-Directory $Script:ConfigRoot
+
+    $configPath = Join-Path $Script:ConfigRoot "config.json"
+
+    $config = @{}
+    if (Test-Path $configPath) {
+        try {
+            $config = Get-Content -Path $configPath -Raw | ConvertFrom-Json -AsHashtable
+        }
+        catch {
+            $config = @{}
+        }
+    }
+
+    # Set connection string
+    if (-not $config.ContainsKey("ConnectionStrings")) {
+        $config["ConnectionStrings"] = @{}
+    }
+    if ($Script:ConnectionString) {
+        $config["ConnectionStrings"]["DefaultConnection"] = $Script:ConnectionString
+    }
+
+    # Set admin email
+    if ($Script:AdminEmail) {
+        if (-not $config.ContainsKey("DotNetCloud")) {
+            $config["DotNetCloud"] = @{}
+        }
+        $config["DotNetCloud"]["AdminEmail"] = $Script:AdminEmail
+    }
+
+    $configJson = $config | ConvertTo-Json -Depth 10
+    Set-Content -Path $configPath -Value $configJson -Encoding UTF8
+    Write-Ok "Wrote config file to '$configPath'."
+
+    # Write one-time admin seed file for the AdminSeeder
+    if ($Script:AdminPassword) {
+        $seedPath = Join-Path $Script:ConfigRoot ".admin-seed"
+        Set-Content -Path $seedPath -Value $Script:AdminPassword -Encoding UTF8
+    }
 }
 
 function Invoke-SetupWizard {
@@ -401,14 +632,18 @@ function Install-WindowsService {
 
     $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$Script:ServiceName"
     New-ItemProperty -Path $regPath -Name "AppDirectory" -Value $Script:ServerRoot -PropertyType String -Force | Out-Null
-    New-ItemProperty -Path $regPath -Name "Environment" -Value @(
+    $envVars = @(
         "DOTNETCLOUD_CONFIG_DIR=$Script:ConfigRoot",
         "DOTNETCLOUD_DATA_DIR=$Script:DataRoot",
         "ASPNETCORE_ENVIRONMENT=Production",
         "DOTNET_ENVIRONMENT=Production",
         "Kestrel__HttpPort=$KestrelHttpPort",
         "Kestrel__EnableHttps=false"
-    ) -PropertyType MultiString -Force | Out-Null
+    )
+    if ($Script:ConnectionString) {
+        $envVars += "ConnectionStrings__DefaultConnection=$Script:ConnectionString"
+    }
+    New-ItemProperty -Path $regPath -Name "Environment" -Value $envVars -PropertyType MultiString -Force | Out-Null
 
     & sc.exe failure $Script:ServiceName reset= 86400 actions= restart/5000/restart/5000/restart/5000 | Out-Null
 
@@ -455,7 +690,12 @@ function Wait-ForHealth {
 function Ensure-IisReverseProxyEnabled {
     Import-Module WebAdministration -ErrorAction Stop
     Set-WebConfigurationProperty -PSPath "MACHINE/WEBROOT/APPHOST" -Filter "system.webServer/proxy" -Name enabled -Value True
-    Write-Ok "Enabled IIS proxy support for ARR."
+
+    # Prevent ARR from rewriting Location response headers (breaks OAuth, WebSocket upgrades, etc.)
+    $appcmd = "$env:windir\system32\inetsrv\appcmd.exe"
+    & $appcmd set config -section:system.webServer/proxy /reverseRewriteHostInResponseHeaders:false /commit:apphost 2>&1 | Out-Null
+
+    Write-Ok "Enabled IIS proxy support for ARR (response header rewriting disabled)."
 }
 
 function Remove-DefaultSiteBindingIfNeeded {
@@ -491,6 +731,18 @@ function Ensure-IisSite {
 
     Import-Module WebAdministration -ErrorAction Stop
     Ensure-IisReverseProxyEnabled
+
+    # Register allowed server variables at the machine (apphost) level (Task 5)
+    # Without this, the web.config <serverVariables> section causes a 500.52 error
+    $appcmd = "$env:windir\system32\inetsrv\appcmd.exe"
+    foreach ($varName in @("HTTP_X_FORWARDED_PROTO", "HTTP_X_FORWARDED_HOST", "HTTP_X_FORWARDED_PORT")) {
+        $existing = & $appcmd list config -section:system.webServer/rewrite/allowedServerVariables 2>&1
+        if ("$existing" -notmatch [regex]::Escape($varName)) {
+            & $appcmd set config -section:system.webServer/rewrite/allowedServerVariables /+"[name='$varName']" /commit:apphost 2>&1 | Out-Null
+        }
+    }
+    Write-Ok "IIS allowed server variables registered for X-Forwarded headers."
+
     Remove-DefaultSiteBindingIfNeeded
     Ensure-AppPool
 
@@ -513,6 +765,8 @@ function Ensure-IisSite {
         New-WebBinding -Name $SiteName -Protocol http -Port $PublicHttpPort -HostHeader $HostName | Out-Null
     }
 
+    $forwardedProto = if ($SkipHttps) { "http" } else { "https" }
+
     $rewriteRules = (@'
 <configuration>
   <system.webServer>
@@ -525,7 +779,7 @@ function Ensure-IisSite {
             <add input="{CACHE_URL}" pattern="^http(s)?://" />
           </conditions>
           <serverVariables>
-            <set name="HTTP_X_FORWARDED_PROTO" value="http" />
+            <set name="HTTP_X_FORWARDED_PROTO" value="__PROTO__" />
             <set name="HTTP_X_FORWARDED_HOST" value="{HTTP_HOST}" />
             <set name="HTTP_X_FORWARDED_PORT" value="__PUBLIC_PORT__" />
           </serverVariables>
@@ -537,10 +791,60 @@ function Ensure-IisSite {
     <proxy enabled="true" preserveHostHeader="true" reverseRewriteHostInResponseHeaders="false" />
   </system.webServer>
 </configuration>
-'@) -replace '__PUBLIC_PORT__', $PublicHttpPort -replace '__KESTREL_PORT__', $KestrelHttpPort
+'@) -replace '__PROTO__', $forwardedProto -replace '__PUBLIC_PORT__', $PublicHttpPort -replace '__KESTREL_PORT__', $KestrelHttpPort
 
     Set-Content -Path (Join-Path $Script:ServerRoot "web.config") -Value $rewriteRules -Encoding UTF8
     Write-Ok "IIS site '$SiteName' now reverse proxies to http://localhost:$KestrelHttpPort."
+}
+
+function Ensure-HttpsBinding {
+    if ($SkipHttps) {
+        Write-Warn "Skipping HTTPS configuration because -SkipHttps was specified."
+        return
+    }
+
+    if ($SkipIisConfiguration) {
+        return
+    }
+
+    Import-Module WebAdministration -ErrorAction Stop
+    $certSubject = if ([string]::IsNullOrWhiteSpace($HostName)) { "localhost" } else { $HostName }
+    $dnsNames = @($certSubject)
+    if ($certSubject -ne "localhost") { $dnsNames += "localhost" }
+
+    # Check for existing cert
+    $cert = Get-ChildItem Cert:\LocalMachine\My |
+        Where-Object { $_.Subject -eq "CN=$certSubject" -and $_.NotAfter -gt (Get-Date).AddDays(30) } |
+        Sort-Object NotAfter -Descending |
+        Select-Object -First 1
+
+    if (-not $cert) {
+        Write-Info "Creating self-signed certificate for '$certSubject'..."
+        $cert = New-SelfSignedCertificate `
+            -DnsName $dnsNames `
+            -CertStoreLocation Cert:\LocalMachine\My `
+            -NotAfter (Get-Date).AddYears(5) `
+            -FriendlyName "DotNetCloud Self-Signed"
+        Write-Ok "Created self-signed certificate (thumbprint: $($cert.Thumbprint))."
+    }
+    else {
+        Write-Ok "Using existing certificate (thumbprint: $($cert.Thumbprint), expires: $($cert.NotAfter.ToString('yyyy-MM-dd')))."
+    }
+
+    # Add HTTPS binding
+    $existingHttps = Get-WebBinding -Name $SiteName -Protocol https -ErrorAction SilentlyContinue
+    if (-not $existingHttps) {
+        New-WebBinding -Name $SiteName -Protocol https -Port 443 -HostHeader $HostName -SslFlags 0
+    }
+
+    # Bind cert via netsh for SNI-less binding
+    $bindingHash = $cert.Thumbprint
+    & netsh http delete sslcert ipport=0.0.0.0:443 2>&1 | Out-Null
+    & netsh http add sslcert ipport=0.0.0.0:443 certhash=$bindingHash appid='{4dc3e181-e14b-4a21-b022-59fc669b0914}' certstore=MY 2>&1 | Out-Null
+
+    Write-Ok "HTTPS binding configured on port 443 with certificate '$certSubject'."
+    Write-Warn "This is a self-signed certificate. Browsers will show a security warning."
+    Write-Warn "For a production domain, use win-acme to get a real certificate from Let's Encrypt."
 }
 
 function Ensure-FirewallRules {
@@ -573,11 +877,16 @@ function Ensure-FirewallRules {
 }
 
 function Get-AccessUrl {
+    $protocol = if ($SkipHttps) { "http" } else { "https" }
     if ([string]::IsNullOrWhiteSpace($HostName)) {
-        return "http://localhost:$PublicHttpPort"
+        $portSuffix = ""
+        if ($protocol -eq "http" -and $PublicHttpPort -ne 80) {
+            $portSuffix = ":$PublicHttpPort"
+        }
+        return "${protocol}://localhost${portSuffix}"
     }
 
-    return "http://$HostName"
+    return "${protocol}://$HostName"
 }
 
 function Print-Summary {
@@ -591,13 +900,18 @@ function Print-Summary {
     }
 
     Write-Host ""
-    Write-Host "DotNetCloud for Windows + IIS is set up." -ForegroundColor Green
+    Write-Host "DotNetCloud for Windows is set up." -ForegroundColor Green
     Write-Host ""
     Write-Host "Access URLs:" -ForegroundColor Cyan
-    Write-Host "  Public IIS URL:    $accessUrl"
-    Write-Host "  Internal app URL:  $internalUrl"
-    Write-Host "  Health check URL:  $internalUrl/health/live"
+    Write-Host "  Public URL:        $accessUrl"
+    Write-Host "  Health check:      $internalUrl/health/live"
     Write-Host ""
+
+    if ($Script:AdminEmail) {
+        Write-Host "Admin account:       $Script:AdminEmail" -ForegroundColor Cyan
+        Write-Host ""
+    }
+
     Write-Host "What was configured:" -ForegroundColor Cyan
     Write-Host "  IIS site:          $SiteName"
     Write-Host "  IIS app pool:      $AppPoolName"
@@ -607,12 +921,26 @@ function Print-Summary {
     Write-Host "  Config file:       $(Join-Path $Script:ConfigRoot 'config.json')"
     Write-Host ""
     Write-Host "Next steps:" -ForegroundColor Cyan
-    Write-Host "  1. Open the public IIS URL above in your browser."
-    Write-Host "  2. If you want HTTPS, either add an IIS self-signed certificate or use win-acme for a real certificate."
-    Write-Host "  3. If the site does not load, check the Windows Service, Event Viewer, and the DotNetCloud logs under '$Script:LogsRoot'."
+    Write-Host "  1. Open $accessUrl in your browser."
+
+    if ($Script:AdminEmail) {
+        Write-Host "  2. Log in with the admin credentials you just created."
+    }
+    else {
+        Write-Host "  2. Log in with the admin account created during setup."
+    }
+
+    if (-not $SkipHttps) {
+        Write-Host "  3. For a production domain, use win-acme to replace the self-signed certificate."
+    }
+    else {
+        Write-Host "  3. If you want HTTPS, re-run without -SkipHttps or add a certificate in IIS Manager."
+    }
+
+    Write-Host "  4. If the site does not load, check the Windows Service, Event Viewer, and logs under '$Script:LogsRoot'."
     Write-Host ""
 
-    if ($Beginner.IsPresent) {
+    if ($Beginner) {
         Write-Host "Optional -- Collabora CODE (browser document editing):" -ForegroundColor Cyan
         Write-Host "  Requires Docker Desktop for Windows."
         Write-Host "  Run once to start Collabora:"
@@ -627,6 +955,7 @@ function Print-Summary {
 }
 
 Assert-Administrator
+Assert-DotNetRuntime
 
 if ([string]::IsNullOrWhiteSpace($SourcePath)) {
     $SourcePath = Get-DefaultSourcePath
@@ -644,6 +973,12 @@ if (-not $Beginner.IsPresent -and -not $Advanced.IsPresent) {
     $Beginner = $true
 }
 
+# Script-level variables for data flow between functions
+$Script:ConnectionString = $null
+$Script:AdminEmail = $null
+$Script:AdminPassword = $null
+$Script:DbPassword = $null
+
 $layout = Resolve-PublishLayout -Root $SourcePath
 
 Write-Info "Windows installation source: $SourcePath"
@@ -653,12 +988,27 @@ Write-Info "Data root: $Script:DataRoot"
 Ensure-WindowsFeatures
 Ensure-HostingBundle
 Ensure-IisModules
+Ensure-PostgreSQL
+Ensure-Database
+
+if ($Beginner -and -not $Advanced) {
+    # Beginner mode: prompt for admin credentials directly, skip CLI wizard
+    Read-AdminCredentials
+}
+
 Copy-Binaries -ServerSource $layout.Server -CliSource $layout.Cli
 Write-EnvironmentFile
-Invoke-SetupWizard
+Write-ConfigFile
+
+if ($Advanced) {
+    # Advanced mode: run the full CLI setup wizard
+    Invoke-SetupWizard
+}
+
 Install-WindowsService
 Start-WindowsService
 Wait-ForHealth
 Ensure-IisSite
+Ensure-HttpsBinding
 Ensure-FirewallRules
 Print-Summary

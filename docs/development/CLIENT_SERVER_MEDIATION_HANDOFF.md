@@ -56,7 +56,7 @@ Archived context:
 - Duplicate controller fix: CLOSED (2026-03-18). Deployed and verified on `mint22`. Files endpoint returns 401, service healthy.
 - Windows IIS + Service Validation: **COMPLETE** (2026-03-21). Three startup blockers resolved. IIS reverse proxy configured and verified (URL Rewrite + ARR). HTTP (port 80) and HTTPS (port 443) both proxy to Kestrel :5080. Self-signed localhost cert bound.
 - File browser child count fix: **DEPLOYED** (2026-03-21). `mint22` redeployed; service stable.
-- **Active cycle:** No pending handoff. All current tasks complete.
+- **Active cycle:** Handoff to `mint22` — verify Phase 1 & Phase 2 completion.
 
 ## Environment
 
@@ -78,16 +78,47 @@ Archived context:
 
 ## Active Handoff
 
-No active handoff. All current tasks complete.
+**Target: `mint22`**
+
+### Task: Verify Phase 1 and Phase 2 Completion
+
+Pull latest `main` and verify that Phase 1 (Files + Desktop Sync Client) and Phase 2 (Chat & Notifications & Android) are truly complete.
+
+**Phase 1 — Files (Public Launch)**
+- According to MASTER_PROJECT_PLAN.md: 18/20 steps complete, 2 minor deferred UI items (right-click context menu, paste image upload)
+- Verify: all files endpoints return correct responses, upload/download works, sync client connects, Collabora integration operational, versioning/trash/quotas functional
+- Run `dotnet test` across all Files-related test projects
+- Confirm the 2 deferred items are genuinely non-blocking for launch
+
+**Phase 2 — Chat & Notifications & Android**
+- According to MASTER_PROJECT_PLAN.md: 13/13 steps complete (100%)
+- Verify: chat endpoints working, SignalR real-time messaging functional, push notifications configured, announcements working
+- Run `dotnet test` across all Chat-related test projects
+- Confirm all 803+ tests pass
+
+**What to do:**
+1. `git pull origin main`
+2. `dotnet build`
+3. `dotnet test` (full suite)
+4. Review MASTER_PROJECT_PLAN.md and IMPLEMENTATION_CHECKLIST.md for any inaccuracies
+5. If any tests fail or statuses are wrong, fix and update the tracking docs
+6. Commit findings, push, and provide relay message back
 
 ### Completed This Session (2026-03-21)
 
-1. **IIS Reverse Proxy** — configured on `Windows11-TestDNC`
+1. **Windows installer improvement plan** — implemented all 12 tasks in `tools/install-windows.ps1`:
+   - .NET runtime check, PostgreSQL auto-install, DB creation, admin credential prompts
+   - IIS `allowedServerVariables` registration, ARR `reverseRewriteHostInResponseHeaders` fix
+   - Self-signed HTTPS cert + binding, dynamic `X-Forwarded-Proto`
+   - Beginner mode skips CLI wizard, updated summary with HTTPS URLs
+   - Admin password minimum raised to 12 characters
+   - Updated `WINDOWS_IIS_INSTALL_GUIDE.md` and `INSTALLATION.md`
+2. **IIS Reverse Proxy** — configured on `Windows11-TestDNC`
    - URL Rewrite 2.1 + Application Request Routing 3.0 installed
    - `web.config` rewrite rule proxies all requests from IIS → Kestrel (port 5080)
    - HTTP (port 80): verified `http://localhost/health/live` → 200 OK
    - HTTPS (port 443): self-signed localhost cert (thumbprint `C0DB23E...`), verified `https://localhost/health/live` → 200 OK, `Server: Microsoft-IIS/10.0`
-2. **File browser child count fix** — deployed on `mint22` by server agent
+3. **File browser child count fix** — deployed on `mint22` by server agent
 
 ## Relay Template
 

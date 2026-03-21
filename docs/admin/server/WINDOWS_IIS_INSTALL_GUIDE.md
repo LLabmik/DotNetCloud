@@ -39,28 +39,31 @@ This means:
 
 This mirrors the reverse-proxy recommendation on Linux.
 
-## Prerequisites
+## What You Need Before Starting
 
-Before you run the script, make sure these are true:
+1. Windows Server 2022, Windows Server 2019, Windows 11, or Windows 10.
+2. An elevated PowerShell session (Run as Administrator).
+3. DotNetCloud server and CLI binaries on disk (e.g., from a published release ZIP or local build output).
+4. Internet access (for installing any missing dependencies).
 
-1. You are on Windows Server 2022, Windows Server 2019, Windows 11, or Windows 10.
-2. You can run PowerShell as Administrator.
-3. DotNetCloud server and CLI binaries are already present on disk.
-4. It is okay if IIS is not installed yet. The script can enable the required Windows features.
-5. You have internet access to install missing Windows dependencies if needed.
+That is it. The script handles everything else.
 
-### Required IIS Components
+## What The Installer Does Automatically
 
-The script checks for these pieces:
+The installer script takes care of all of these:
 
-- IIS Web Server
-- IIS WebSocket Protocol
-- URL Rewrite
-- Application Request Routing (ARR) for reverse proxy support
-- ASP.NET Core Hosting Bundle / ASP.NET Core Module (ANCM)
-
-If URL Rewrite, ARR, or the ASP.NET Core Hosting Bundle are missing, the script tells you exactly what to install and where to get it.
-For URL Rewrite and ARR specifically, the script now attempts an automatic install first (via `winget`) and falls back to manual install instructions if needed.
+- **.NET 10 runtime check** — verifies ASP.NET Core 10.0 runtime before starting
+- **IIS features** — enables IIS, WebSockets, and all required Windows features
+- **IIS modules** — installs URL Rewrite and Application Request Routing (ARR) via winget
+- **PostgreSQL** — installs PostgreSQL 17 via winget if not already present
+- **Database** — creates the `dotnetcloud` database and user with a random password
+- **Admin account** — prompts for email and password (beginner mode)
+- **Windows Service** — registers DotNetCloud as a Windows Service with auto-restart
+- **IIS reverse proxy** — creates the site, app pool, and rewrite rules
+- **HTTPS** — generates a self-signed certificate and configures port 443
+- **Firewall** — opens ports 80 and 443 in Windows Firewall
+- **IIS server variables** — registers `X-Forwarded-Proto/Host/Port` at the machine level
+- **ARR response headers** — disables `reverseRewriteHostInResponseHeaders` (prevents OAuth breakage)
 
 ## Beginner One-Command Install
 
@@ -72,17 +75,24 @@ Run:
 powershell.exe -ExecutionPolicy Bypass -File .\tools\install-windows.ps1 -SourcePath .\artifacts\publish -Beginner
 ```
 
-That script will:
+The script will:
 
 1. check that you are running as Administrator
-2. enable IIS and the required Windows features
-3. verify URL Rewrite, ARR, and the .NET 10 Hosting Bundle
-4. copy the DotNetCloud binaries into a machine-level install location
-5. run `dotnetcloud setup --beginner`
-6. create the DotNetCloud Windows Service
-7. create an IIS site and app pool that reverse proxy to `http://localhost:5080`
-8. optionally open Windows Firewall ports `80` and `443`
-9. print a plain-language summary with access URLs and next steps
+2. verify ASP.NET Core 10.0 runtime is installed
+3. enable IIS and the required Windows features
+4. install URL Rewrite, ARR, and check the Hosting Bundle
+5. install PostgreSQL 17 (if not already present)
+6. create the `dotnetcloud` database and user with a random password
+7. prompt you for an admin email and password (3 prompts total)
+8. copy the DotNetCloud binaries into a machine-level install location
+9. write the configuration file with connection string and admin credentials
+10. create and start the DotNetCloud Windows Service
+11. create an IIS site with reverse proxy to `http://localhost:5080`
+12. generate a self-signed HTTPS certificate and configure port 443
+13. optionally open Windows Firewall ports 80 and 443
+14. print a summary with the HTTPS access URL and next steps
+
+You will be asked exactly 3 questions: admin email, password, and confirm password. Everything else is automatic.
 
 ## Advanced Install
 
@@ -124,66 +134,53 @@ This matches the Linux guidance:
 - the app itself stays on a local-only port
 - HTTPS, host bindings, and public access are handled by the reverse proxy layer
 
-## TLS Options
+## TLS / HTTPS
 
-There are two beginner-friendly TLS approaches on Windows.
+The installer automatically creates a self-signed certificate and configures HTTPS on port 443.
 
-### Option 1: IIS Self-Signed Certificate
-
-This is the simplest local or private-network option.
-
-In IIS Manager:
-
-1. Open `Server Certificates`.
-2. Choose `Create Self-Signed Certificate...`.
-3. Give it a name like `DotNetCloud Local`.
-4. Open your DotNetCloud site.
-5. Add an `https` binding on port `443` and select that certificate.
-
-This works well for:
+This works immediately for:
 
 - local testing
 - home lab installs
 - private LAN access
 
-Your browser will likely warn that the certificate is not publicly trusted unless you install the certificate into the trusted root store on your client devices.
+Your browser will show a security warning because the certificate is not publicly trusted. This is normal for self-signed certificates.
 
-### Option 2: Real Certificate With win-acme
+To skip HTTPS during install, use `-SkipHttps`.
 
-If you have a public domain name pointing to your Windows server, use `win-acme`.
+### Upgrading to a Real Certificate
 
-Typical flow:
+For a public domain, replace the self-signed certificate with a real one using `win-acme`:
 
 1. Point `cloud.example.com` to your server.
-2. Make sure ports `80` and `443` are reachable.
+2. Make sure ports `80` and `443` are reachable from the internet.
 3. Install `win-acme`.
 4. Request a certificate for your IIS site.
 5. Let `win-acme` create or update the HTTPS binding.
 
-This is the recommended public-internet path for beginners on Windows because it keeps certificate issuance and renewal inside the normal IIS workflow.
+This is the recommended public-internet path because it keeps certificate issuance and renewal inside the normal IIS workflow.
 
 ## After The Script Finishes
 
-The script prints a summary similar to this:
+The script prints a summary showing:
 
-- public IIS URL
-- internal Kestrel URL
-- health endpoint URL
-- IIS site name
-- application pool name
+- public HTTPS URL
+- health check URL
+- admin email used
+- IIS site and app pool names
 - Windows Service state
 - config path
 - next steps
 
-If you used a host name, open the public site in your browser.
+If you used a host name, open the HTTPS site in your browser.
 
-If you did not use a host name, the local test URL is usually:
+If you did not use a host name, the local test URL is:
 
 ```text
-http://localhost
+https://localhost
 ```
 
-The internal health check is usually:
+The internal health check is:
 
 ```text
 http://localhost:5080/health/live
@@ -334,9 +331,9 @@ Check:
 
 After the site is live:
 
-1. sign in with the admin account created during setup
+1. open `https://localhost/` and sign in with the admin credentials you created during install
 2. confirm the app loads correctly through IIS
-3. add HTTPS on port `443`
+3. for a public domain, use win-acme to replace the self-signed certificate
 4. verify the reverse-proxy URL is the one you will use long-term
 5. back up `config.json` and the data directory
 

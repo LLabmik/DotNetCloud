@@ -363,19 +363,41 @@ After installation, the directory layout follows FHS conventions:
 
 ## Installation on Windows
 
-### Option A: MSI Installer (Recommended)
+### Option A: One-Command Install with IIS (Recommended)
 
-1. Download `DotNetCloud-1.0.0-win-x64.msi` from the releases page
-2. Run the installer as Administrator
-3. Follow the wizard:
-   - Accept the license agreement
-   - Choose installation directory (default: `C:\Program Files\DotNetCloud`)
-   - Select components (Core Server, CLI, Modules)
-4. The installer:
-   - Installs DotNetCloud binaries
-   - Registers the Windows Service
-   - Adds `dotnetcloud` to the system PATH
-   - Opens the setup wizard in your browser
+The Windows installer script handles everything: .NET runtime verification, PostgreSQL installation, database creation, admin account setup, IIS configuration, HTTPS, and Windows Service registration.
+
+Open an elevated PowerShell window and run:
+
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File .\tools\install-windows.ps1 -SourcePath .\artifacts\publish
+```
+
+You will be asked 3 questions: admin email, password, and confirm password. Everything else is automatic.
+
+The script:
+1. Verifies ASP.NET Core 10.0 runtime
+2. Enables IIS and required Windows features
+3. Installs URL Rewrite + ARR via winget
+4. Installs PostgreSQL 17 via winget (if not present)
+5. Creates the `dotnetcloud` database and user with a random password
+6. Prompts for admin email and password
+7. Copies binaries, writes config
+8. Creates and starts the DotNetCloud Windows Service
+9. Configures IIS reverse proxy to `http://localhost:5080`
+10. Generates a self-signed HTTPS certificate on port 443
+11. Opens firewall ports 80/443
+
+After completion, open `https://localhost/` and log in.
+
+**Optional flags:**
+- `-SkipDatabaseInstall` — skip PostgreSQL auto-install (bring your own DB)
+- `-SkipHttps` — skip self-signed certificate + HTTPS binding
+- `-Advanced` — use the full CLI setup wizard instead of the simplified prompts
+- `-HostName cloud.example.com` — set a specific hostname for the IIS site
+- `-SkipFirewall` — skip Windows Firewall configuration
+
+For detailed IIS-specific guidance, see [WINDOWS_IIS_INSTALL_GUIDE.md](WINDOWS_IIS_INSTALL_GUIDE.md).
 
 ### Option B: Manual Install
 
