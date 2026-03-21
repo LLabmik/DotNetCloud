@@ -245,9 +245,11 @@ public class ShareServiceTests
     public async Task IncrementDownloadCountAsync_IncrementsCount()
     {
         using var db = CreateContext();
+        var node = CreateFileNode(Guid.NewGuid());
+        db.FileNodes.Add(node);
         var share = new FileShare
         {
-            FileNodeId = Guid.NewGuid(),
+            FileNodeId = node.Id,
             ShareType = ShareType.PublicLink,
             LinkToken = "dl_token",
             DownloadCount = 5,
@@ -261,5 +263,67 @@ public class ShareServiceTests
 
         var updated = await db.FileShares.FindAsync(share.Id);
         Assert.AreEqual(6, updated!.DownloadCount);
+    }
+
+    [TestMethod]
+    public async Task IncrementDownloadCountAsync_FirstAccess_PublishesPublicLinkAccessedEvent()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        var node = CreateFileNode(userId);
+        db.FileNodes.Add(node);
+        var share = new FileShare
+        {
+            FileNodeId = node.Id,
+            ShareType = ShareType.PublicLink,
+            LinkToken = "first_access_token",
+            DownloadCount = 0,
+            CreatedByUserId = userId
+        };
+        db.FileShares.Add(share);
+        await db.SaveChangesAsync();
+
+        var eventBusMock = new Mock<IEventBus>();
+        var service = new ShareService(db, eventBusMock.Object,
+            NullLoggerFactory.Instance.CreateLogger<ShareService>(), new PermissionService(db));
+
+        await service.IncrementDownloadCountAsync(share.Id);
+
+        eventBusMock.Verify(e => e.PublishAsync(
+            It.Is<Files.Events.PublicLinkAccessedEvent>(evt =>
+                evt.ShareId == share.Id &&
+                evt.FileNodeId == node.Id &&
+                evt.CreatedByUserId == userId),
+            It.IsAny<CallerContext>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task IncrementDownloadCountAsync_SubsequentAccess_DoesNotPublishEvent()
+    {
+        using var db = CreateContext();
+        var node = CreateFileNode(Guid.NewGuid());
+        db.FileNodes.Add(node);
+        var share = new FileShare
+        {
+            FileNodeId = node.Id,
+            ShareType = ShareType.PublicLink,
+            LinkToken = "second_access_token",
+            DownloadCount = 1,
+            CreatedByUserId = Guid.NewGuid()
+        };
+        db.FileShares.Add(share);
+        await db.SaveChangesAsync();
+
+        var eventBusMock = new Mock<IEventBus>();
+        var service = new ShareService(db, eventBusMock.Object,
+            NullLoggerFactory.Instance.CreateLogger<ShareService>(), new PermissionService(db));
+
+        await service.IncrementDownloadCountAsync(share.Id);
+
+        eventBusMock.Verify(e => e.PublishAsync(
+            It.IsAny<Files.Events.PublicLinkAccessedEvent>(),
+            It.IsAny<CallerContext>(),
+            It.IsAny<CancellationToken>()), Times.Never);
     }
 }

@@ -41,7 +41,7 @@
 | Phase 1.3 | 15 | 15 | 0 | 0 |
 | Phase 1.4 | 15 | 15 | 0 | 0 |
 | Phase 1.5 | 10 | 10 | 0 | 0 |
-| Phase 1.6 | 9 | 8 | 0 | 1 |
+| Phase 1.6 | 9 | 9 | 0 | 0 |
 | Phase 1.7 | 11 | 11 | 0 | 0 |
 | Phase 1.8 | 8 | 8 | 0 | 0 |
 | Phase 1.9 | 14 | 14 | 0 | 0 |
@@ -50,7 +50,7 @@
 | Phase 1.12 | 17 | 17 | 0 | 0 |
 | Phase 1.13 | 4 | 4 | 0 | 0 |
 | Phase 1.14 | 32 | 32 | 0 | 0 |
-| Phase 1.15 | 25 | 23 | 0 | 2 |
+| Phase 1.15 | 25 | 25 | 0 | 0 |
 | Phase 1.16 | 20 | 20 | 0 | 0 |
 | Phase 1.17 | 25 | 25 | 0 | 0 |
 | Phase 1.18 | 6 | 6 | 0 | 0 |
@@ -1173,7 +1173,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ## Phase 1: Files (Public Launch)
 
-**STATUS:** ✅ COMPLETED (274/277 steps — 3 deferred post-launch)
+**STATUS:** ✅ COMPLETED (277/277 steps)
 
 **Goal:** File upload/download/browse/share + working desktop sync client.
 **Expected Duration:** 8-12 weeks (actual)

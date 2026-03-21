@@ -17,6 +17,8 @@ internal sealed class NotificationEventSubscriber : IHostedService
     private readonly ILoggerFactory _loggerFactory;
     private FileSharedNotificationHandler? _fileSharedHandler;
     private QuotaNotificationHandler? _quotaHandler;
+    private PublicLinkAccessedNotificationHandler? _publicLinkHandler;
+    private ShareExpiringNotificationHandler? _shareExpiringHandler;
 
     public NotificationEventSubscriber(
         IEventBus eventBus,
@@ -39,12 +41,22 @@ internal sealed class NotificationEventSubscriber : IHostedService
             _pushService,
             _loggerFactory.CreateLogger<QuotaNotificationHandler>());
 
+        _publicLinkHandler = new PublicLinkAccessedNotificationHandler(
+            _pushService,
+            _loggerFactory.CreateLogger<PublicLinkAccessedNotificationHandler>());
+
+        _shareExpiringHandler = new ShareExpiringNotificationHandler(
+            _pushService,
+            _loggerFactory.CreateLogger<ShareExpiringNotificationHandler>());
+
         await _eventBus.SubscribeAsync<FileSharedEvent>(_fileSharedHandler, cancellationToken);
         await _eventBus.SubscribeAsync<QuotaWarningEvent>(_quotaHandler, cancellationToken);
         await _eventBus.SubscribeAsync<QuotaCriticalEvent>(_quotaHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<PublicLinkAccessedEvent>(_publicLinkHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<ShareExpiringEvent>(_shareExpiringHandler, cancellationToken);
 
         _loggerFactory.CreateLogger<NotificationEventSubscriber>()
-            .LogInformation("Notification event handlers subscribed (FileShared, QuotaWarning, QuotaCritical)");
+            .LogInformation("Notification event handlers subscribed (FileShared, QuotaWarning, QuotaCritical, PublicLinkAccessed, ShareExpiring)");
     }
 
     /// <inheritdoc />
@@ -58,5 +70,11 @@ internal sealed class NotificationEventSubscriber : IHostedService
             await _eventBus.UnsubscribeAsync<QuotaWarningEvent>(_quotaHandler, cancellationToken);
             await _eventBus.UnsubscribeAsync<QuotaCriticalEvent>(_quotaHandler, cancellationToken);
         }
+
+        if (_publicLinkHandler is not null)
+            await _eventBus.UnsubscribeAsync<PublicLinkAccessedEvent>(_publicLinkHandler, cancellationToken);
+
+        if (_shareExpiringHandler is not null)
+            await _eventBus.UnsubscribeAsync<ShareExpiringEvent>(_shareExpiringHandler, cancellationToken);
     }
 }

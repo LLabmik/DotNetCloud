@@ -248,13 +248,28 @@ internal sealed class ShareService : IShareService
     public async Task IncrementDownloadCountAsync(Guid shareId, CancellationToken cancellationToken = default)
     {
         var share = await _db.FileShares
+            .Include(s => s.FileNode)
             .FirstOrDefaultAsync(s => s.Id == shareId, cancellationToken);
 
         if (share is null)
             return;
 
+        var wasFirstAccess = share.DownloadCount == 0;
         share.DownloadCount++;
         await _db.SaveChangesAsync(cancellationToken);
+
+        if (wasFirstAccess && share.FileNode is not null)
+        {
+            await _eventBus.PublishAsync(new PublicLinkAccessedEvent
+            {
+                EventId = Guid.NewGuid(),
+                CreatedAt = DateTime.UtcNow,
+                FileNodeId = share.FileNodeId,
+                FileName = share.FileNode.Name,
+                ShareId = share.Id,
+                CreatedByUserId = share.CreatedByUserId
+            }, CallerContext.CreateSystemContext(), cancellationToken);
+        }
     }
 
     private static string GenerateLinkToken()

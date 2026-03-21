@@ -103,6 +103,7 @@ public static class FilesServiceRegistration
         services.AddHostedService<QuotaRecalculationService>();
         services.AddHostedService<VersionCleanupService>();
         services.AddHostedService<TempFileCleanupService>();
+        services.AddHostedService<ShareExpiryNotificationService>();
 
         return services;
     }

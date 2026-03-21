@@ -57,6 +57,9 @@ public sealed class FileShare
     /// <summary>Expiration date for the share (null = never expires).</summary>
     public DateTime? ExpiresAt { get; set; }
 
+    /// <summary>When the expiry notification was sent (null = not yet sent).</summary>
+    public DateTime? ExpiryNotificationSentAt { get; set; }
+
     /// <summary>User who created this share.</summary>
     public Guid CreatedByUserId { get; set; }
 

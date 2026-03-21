@@ -89,6 +89,12 @@ public enum NotificationCategory
     /// <summary>Storage quota critical (near limit).</summary>
     QuotaCritical,
 
+    /// <summary>Someone accessed a public link for the first time.</summary>
+    PublicLinkAccessed,
+
+    /// <summary>A share is about to expire.</summary>
+    ShareExpiring,
+
     /// <summary>System notification.</summary>
     System
 }

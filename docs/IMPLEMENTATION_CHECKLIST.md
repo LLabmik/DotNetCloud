@@ -1774,8 +1774,8 @@ This phase implements the core Files module, which is the primary public-facing 
 
 #### Share Notifications
 - ✓ Notify users when files/folders are shared with them (via `FileSharedEvent`)
-- ☐ Notify share creator on first access of public link (deferred)
-- ☐ Send notification when share is about to expire (deferred)
+- ✓ Notify share creator on first access of public link
+- ✓ Send notification when share is about to expire
 
 ---
 
@@ -2224,7 +2224,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Schedule periodic full syncs
 - ✓ Handle file system watcher events
 - ✓ Rate-limit sync operations (avoid overwhelming server) — `sync-now` now returns a no-op payload (`started=false`, `reason="rate-limited"`) when called within cooldown
-- ☐ Batch small changes before syncing (debounce) — FileSystemWatcher events fire immediately; a short delay + coalescing timer should be added to `SyncEngine` in Phase 1.16 to avoid chatty syncs during rapid saves
+- ✓ Batch small changes before syncing (debounce) — implemented via semaphore + trailing pass coalescing in `SyncEngine.SyncAsync()`
 - ✓ Graceful shutdown (complete in-progress transfers, save state)
 
 #### Account Management
