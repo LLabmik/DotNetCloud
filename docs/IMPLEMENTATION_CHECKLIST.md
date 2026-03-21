@@ -1120,7 +1120,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 ### Functionality Verification
 
 - ✓ All projects compile without errors (20 projects, 0 warnings, 0 errors)
-- ✓ All unit tests pass (803 passed, 0 failed across 7 test projects)
+- ✓ All unit tests pass (2,242 passed, 0 failed across 12 test projects)
 - ✓ All integration tests pass against PostgreSQL (6/6 via Docker + WSL)
 - ✓ All integration tests pass against SQL Server (CI service containers + local SQL Server Express via Windows Auth)
 - ☐ All integration tests pass against MariaDB (Pomelo lacks .NET 10 support)

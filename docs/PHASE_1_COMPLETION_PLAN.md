@@ -96,7 +96,7 @@
 - ☐ Call `GET /api/v1/files/sync/tree` and verify complete folder tree with hashes `[verification-only]`
 
 ### 1.11 Integration Tests
-- ✓ Run `dotnet test tests/DotNetCloud.Integration.Tests/` against PostgreSQL — all 132 pass `[implemented]`
+- ✓ Run `dotnet test tests/DotNetCloud.Integration.Tests/` against PostgreSQL — all 133 pass `[implemented]`
 - ☐ Run integration tests against SQL Server — all pass `[verification-only]`
 
 ---

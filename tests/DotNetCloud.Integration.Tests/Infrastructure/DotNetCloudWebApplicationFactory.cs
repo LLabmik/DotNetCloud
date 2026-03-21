@@ -148,17 +148,20 @@ internal sealed class DotNetCloudWebApplicationFactory : WebApplicationFactory<D
             // to it when x-test-user-id header is present.  This allows
             // SignalR hub [Authorize(AuthenticationSchemes = "Identity.Application,...")]
             // to succeed in integration tests.
-            // Also register the test handler for the OpenIddict validation
-            // scheme so Files.Host [Authorize(AuthenticationSchemes = "OpenIddict...")]
-            // succeeds in tests.  Because AddScheme registers via Configure
-            // (runs before PostConfigure), OpenIddict's deferred registration
-            // sees the scheme already present and skips — no conflict.
+            // For OpenIddict.Validation.AspNetCore (registered by production
+            // AddDotNetCloudAuth), forward all requests to the test handler
+            // instead of re-registering the scheme (which would throw
+            // "Scheme already exists").
             // ---------------------------------------------------------------
             services.AddAuthentication()
                 .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
-                    TestAuthHandler.SchemeName, _ => { })
-                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
-                    "OpenIddict.Validation.AspNetCore", _ => { });
+                    TestAuthHandler.SchemeName, _ => { });
+
+            services.PostConfigure<AuthenticationSchemeOptions>(
+                "OpenIddict.Validation.AspNetCore", opts =>
+                {
+                    opts.ForwardDefault = TestAuthHandler.SchemeName;
+                });
 
             services.PostConfigure<CookieAuthenticationOptions>(
                 IdentityConstants.ApplicationScheme, opts =>

@@ -1145,7 +1145,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
   - ✓ Concurrency tokens configured
   - ✓ Default values configured
 
-- ✓ **Files API Integration Tests** — 47 tests via ChatHostWebApplicationFactory:
+- ✓ **Chat API Integration Tests** — 47 tests via ChatHostWebApplicationFactory:
   - ✓ Channel CRUD (create, duplicate-name conflict, list, get, get-404, update, delete, archive, DM)
   - ✓ Member management (add, list, update role, remove, notification preference, unread counts)
   - ✓ Message CRUD (send, paginated list, get, edit, delete, delete-404, search, search-empty-400)
@@ -1167,29 +1167,53 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - `tests/DotNetCloud.Modules.Chat.Tests/` (dotnet test -v diag --filter "FullyQualifiedName~Tests")
 - `tests/DotNetCloud.Modules.Files.Tests/` (dotnet test -v diag --filter "FullyQualifiedName~Tests")
 
-**Notes:** 803 tests pass across 7 test projects. 3 SQL Server Docker tests are skipped as expected. All critical functionality (sync, transfer, auth, notifications, billing) is covered by automated tests.
+**Notes:** 2,242 tests pass across 12 test projects (2 skipped — SQL Server Docker). All critical functionality (sync, transfer, auth, notifications, chat, files) is covered by automated tests.
 
 ---
 
-## Phase 2: Files (Public Launch)
+## Phase 1: Files (Public Launch)
+
+**STATUS:** ✅ COMPLETED (274/277 steps — 3 deferred post-launch)
 
 **Goal:** File upload/download/browse/share + working desktop sync client.
-**Expected Duration:** 8-12 weeks
+**Expected Duration:** 8-12 weeks (actual)
 **Milestone:** Full file management across web, desktop, with sync, sharing, and Collabora integration.
+
+**Sub-phases:** Phase 1.1-1.20 (see Quick Status Summary table above)
+
+**Detailed tracking:**
+- Task-level checklist: `docs/IMPLEMENTATION_CHECKLIST.md` (Phase 1.1-1.16 sections)
+- Completion verification plan: `docs/PHASE_1_COMPLETION_PLAN.md`
+
+**Deferred items (non-blocking for launch):**
+- Right-click context menu (Phase 1.6) — actions available via buttons/selection mode
+- Paste image upload (Phase 1.15) — standard file upload works
+- Additional UI polish items (drag-and-drop, upload queue management, upload size client-side validation)
+
+**Notes:** All Files endpoints functional, upload/download/sync verified across 3 machines (mint22, Windows11-TestDNC, mint-dnc-client). Collabora/WOPI integration operational. Desktop sync clients working on Windows (service + SyncTray) and Linux. 638 Files module tests + 182 Client.Core tests + 27 SyncService tests + 77 SyncTray tests = 924 tests covering Files/Sync.
 
 ---
 
-### Step: phase-2.1 - Files Core Abstractions & Data Models
+## Phase 2: Chat & Notifications & Android
+
+**STATUS:** ✅ COMPLETED (13/13 sub-phases)
+
+**Goal:** Real-time chat, push notifications, announcements, and Android MAUI app.
+**Expected Duration:** 6-10 weeks (actual)
+**Milestone:** Full chat functionality with web UI, real-time messaging, push notifications, and mobile Android app.
+
+---
+
+### Step: phase-2.1 - Chat Core Abstractions & Data Models
 **Status:** completed ✅
 **Duration:** ~1 week (actual)
-**Description:** Create Files module projects, domain models (FileNode, FileVersion, FileChunk, FileShare, FileTag, FileComment, FileQuota, ChunkedUploadSession, FileVersionChunk), DTOs, events, and FilesModuleManifest.
+**Description:** Create Chat module projects, domain models (Channel, ChannelMember, Message, MessageAttachment, Reaction, Mention, PinnedMessage), DTOs, events, and ChatModuleManifest.
 
 **Deliverables:**
-- ✓ Create project structure (Files, Files.Data, Files.Host, Files.Tests) — 4 projects added to solution
-- ✓ Create FilesModuleManifest implementing IModuleManifest (id: dotnetcloud.example, capabilities: INotificationService + IStorageProvider)
-- ✓ Create domain models (FileNode, FileVersion, FileChunk, FileShare, FileTag, FileComment, FileQuota, ChunkedUploadSession, FileVersionChunk) — 9 entities
-- ✓ Create enums (FileNodeType, ShareType, SharePermission, UploadSessionStatus) — 4 enums
-- ✓ Create DTOs for all entities (FileNodeDto, FileVersionDto, FileShareDto, etc.)
+- ✓ Create project structure (Chat, Chat.Data, Chat.Host, Chat.Tests) — 4 projects added to solution
+- ✓ Create ChatModuleManifest implementing IModuleManifest
+- ✓ Create domain models (Channel, ChannelMember, Message, MessageAttachment, Reaction, Mention, PinnedMessage) — 7 entities
+- ✓ Create DTOs for all entities (ChannelDto, MessageDto, ReactionDto, etc.)
 - ✓ Create events and event handlers (10 events: MessageSent/Edited/Deleted, ChannelCreated/Deleted/Archived, UserJoined/Left, ReactionAdded/Removed + 2 handlers)
 
 **Dependencies:** Phase 0 (complete), Phase 1 (FileNode reference for attachments)
@@ -1198,7 +1222,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
-### Step: phase-2.2 - Files Database & Data Access Layer
+### Step: phase-2.2 - Chat Database & Data Access Layer
 **Status:** completed ✅
 **Duration:** ~1 week
 **Description:** Create ChatDbContext, entity configurations, migrations, and database initialization.
