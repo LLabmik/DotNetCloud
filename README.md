@@ -22,7 +22,7 @@ DotNetCloud gives you full control of your data by running your own cloud server
 
 | Feature | Description | Status |
 |---|---|---|
-| 📁 **Files** | File sync and sharing with desktop client | 🔨 Phase 1 (near complete) |
+| 📁 **Files** | File sync and sharing with desktop client | ✅ Phase 1 |
 | 📝 **Document Editing** | Browser-based editing via Collabora Online (LibreOffice-based) | ✅ Phase 1 |
 | 💬 **Chat** | Real-time messaging, channels, direct messages | ✅ Phase 2 |
 | 📱 **Android App** | Mobile client with photo auto-upload | ✅ Phase 2 |
@@ -46,7 +46,7 @@ See [ROADMAP.md](ROADMAP.md) for the full phased implementation plan. Detailed s
 | Phase | Milestone | Status |
 |---|---|---|
 | **Phase 0** | Foundation — core platform, auth, module system, CLI, web shell, observability | ✅ Complete |
-| **Phase 1** | Files + Desktop Sync Client — file browser, upload/download, sharing, Collabora editing, bulk operations, trash, tags, versioning, Windows & Linux sync | 🔨 In Progress (near complete) |
+| **Phase 1** | Files + Desktop Sync Client — file browser, upload/download, sharing, Collabora editing, bulk operations, trash, tags, versioning, Windows & Linux sync | ✅ Complete |
 | **Phase 2** | Chat + Notifications + Android — real-time messaging, push notifications, Android MAUI client | ✅ Complete |
 | **Phase 3** | Contacts + Calendar + Notes + NextCloud Migration | ⬜ Planned |
 | **Phase 4** | Project Management (Deck) | ⬜ Planned |
