@@ -264,7 +264,10 @@ public sealed class SettingsViewModelTests
             Assert.IsTrue(File.Exists(desktopFilePath));
 
             var desktopFileContents = await File.ReadAllTextAsync(desktopFilePath);
-            StringAssert.Contains(desktopFileContents, trayExecutablePath);
+            var escapedExecPath = trayExecutablePath
+                .Replace("\\", "\\\\", StringComparison.Ordinal)
+                .Replace("\"", "\\\"", StringComparison.Ordinal);
+            StringAssert.Contains(desktopFileContents, $"Exec=\"{escapedExecPath}\"");
 
             var vm2 = new SettingsViewModel(
                 trayVm,
@@ -378,7 +381,10 @@ public sealed class SettingsViewModelTests
 
             var launcherContents = await File.ReadAllTextAsync(launcherPath);
             StringAssert.Contains(launcherContents, "Name=DotNetCloud Sync Client");
-            StringAssert.Contains(launcherContents, trayExecutablePath);
+            var escapedLauncherExecPath = trayExecutablePath
+                .Replace("\\", "\\\\", StringComparison.Ordinal)
+                .Replace("\"", "\\\"", StringComparison.Ordinal);
+            StringAssert.Contains(launcherContents, $"Exec=\"{escapedLauncherExecPath}\"");
         }
         finally
         {

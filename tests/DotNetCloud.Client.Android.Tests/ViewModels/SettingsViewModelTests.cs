@@ -166,6 +166,7 @@ public sealed class SettingsViewModelTests
     public void WifiOnlyEnabled_PersistsToPreferences()
     {
         // Arrange
+        _preferences.Setup(x => x.Get(SettingsViewModel.PrefWifiOnly, true)).Returns(true);
         var vm = CreateViewModel();
 
         // Act
@@ -179,6 +180,7 @@ public sealed class SettingsViewModelTests
     public void OrganizeByDate_PersistsToPreferences()
     {
         // Arrange
+        _preferences.Setup(x => x.Get(SettingsViewModel.PrefOrganizeByDate, true)).Returns(true);
         var vm = CreateViewModel();
 
         // Act

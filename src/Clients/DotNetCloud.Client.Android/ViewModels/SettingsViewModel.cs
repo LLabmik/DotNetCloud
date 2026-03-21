@@ -147,6 +147,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private async Task ChangeUploadFolderAsync()
     {
+        if (Shell.Current is null)
+            return;
+
         var name = await Shell.Current.DisplayPromptAsync(
             "Upload Folder", "Enter the server folder name for auto-uploads:",
             accept: "Save", cancel: "Cancel",
@@ -162,8 +165,11 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         if (!AutoUploadEnabled)
         {
-            await Shell.Current.DisplayAlert("Sync Disabled",
-                "Enable auto-upload first to sync files.", "OK");
+            if (Shell.Current is not null)
+            {
+                await Shell.Current.DisplayAlert("Sync Disabled",
+                    "Enable auto-upload first to sync files.", "OK");
+            }
             return;
         }
 
@@ -171,14 +177,20 @@ public sealed partial class SettingsViewModel : ObservableObject
         try
         {
             await _mediaUploadService.ScanAndUploadNowAsync(ct);
-            await Shell.Current.DisplayAlert("Sync Complete",
-                "All new media has been uploaded.", "OK");
+            if (Shell.Current is not null)
+            {
+                await Shell.Current.DisplayAlert("Sync Complete",
+                    "All new media has been uploaded.", "OK");
+            }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Manual sync failed.");
-            await Shell.Current.DisplayAlert("Sync Failed",
-                $"Could not complete sync: {ex.Message}", "OK");
+            if (Shell.Current is not null)
+            {
+                await Shell.Current.DisplayAlert("Sync Failed",
+                    $"Could not complete sync: {ex.Message}", "OK");
+            }
         }
         finally
         {

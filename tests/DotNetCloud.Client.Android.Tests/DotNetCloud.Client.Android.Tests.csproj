@@ -1,8 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0-android</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <UseMaui>true</UseMaui>
+    <ImplicitUsings>enable</ImplicitUsings>
     <IsTestProject>true</IsTestProject>
     <IsPackable>false</IsPackable>
     <Nullable>enable</Nullable>
@@ -14,10 +15,23 @@
     <PackageReference Include="MSTest.TestAdapter" Version="4.1.0" />
     <PackageReference Include="MSTest.TestFramework" Version="4.1.0" />
     <PackageReference Include="Moq" Version="4.20.72" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Microsoft.Maui.Controls" Version="10.0.20" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Clients\DotNetCloud.Client.Android\DotNetCloud.Client.Android.csproj" />
+    <ProjectReference Include="..\..\src\Clients\DotNetCloud.Client.Core\DotNetCloud.Client.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\ViewModels\SettingsViewModel.cs" Link="AndroidApp\ViewModels\SettingsViewModel.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Auth\ISecureTokenStore.cs" Link="AndroidApp\Auth\ISecureTokenStore.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IServerConnectionStore.cs" Link="AndroidApp\Services\IServerConnectionStore.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IMediaAutoUploadService.cs" Link="AndroidApp\Services\IMediaAutoUploadService.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IBatteryOptimizationService.cs" Link="AndroidApp\Services\IBatteryOptimizationService.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IAppPreferences.cs" Link="AndroidApp\Services\IAppPreferences.cs" />
   </ItemGroup>
 
 </Project>
