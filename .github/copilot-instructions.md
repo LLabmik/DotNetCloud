@@ -455,6 +455,13 @@ dotnet build src/Core/DotNetCloud.Core/DotNetCloud.Core.csproj
 
 When the user says the keyword **"remember"**, it means this information should be added to this instructions file for permanent reference across all future sessions.
 
+### Mediator Command Execution Rule (MANDATORY)
+
+When the assistant needs the mediator to run a command:
+- Provide the exact command first.
+- Stop and wait for the mediator to run that command.
+- Do not continue with dependent steps until mediator output is received.
+
 ### Git Push Responsibility
 
 - The assistant is responsible for pushing commits to remote by default.
