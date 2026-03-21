@@ -5,6 +5,25 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Windows Service RUNNING — IIS Proxy P2 (2026-03-21)
+
+Archived from Active Handoff on 2026-03-21. Windows Service startup blockers resolved; IIS reverse proxy deferred as P2.
+
+**Original target:** `Windows11-TestDNC`
+**Original status:** SERVICE RUNNING — Kestrel healthy on :5080; IIS proxy needs URL Rewrite module
+
+### Resolved blockers (elevated PowerShell, 2026-03-21)
+1. `oidc-keys` directory missing — created via `New-Item`.
+2. TLS cert not found — copied self-signed PFX to `certs/` dir.
+3. DB connection string wrong — updated credentials to match actual PostgreSQL role.
+
+### Verification
+- `Get-Service DotNetCloud` => `Status: Running`
+- `Invoke-WebRequest http://localhost:5080/health/live` => `200 OK`
+
+### Remaining (P2 — deferred)
+IIS reverse proxy requires URL Rewrite module + Application Request Routing. Service works on direct ports (5080/5443).
+
 ## Archived: File Browser Fixes — Server Redeploy Required (2026-03-20)
 
 Archived from Active Handoff on 2026-03-20 when the active slot was reassigned to Windows Option 2 IIS + Service validation for `Windows11-TestDNC`.

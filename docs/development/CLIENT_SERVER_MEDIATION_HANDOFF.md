@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-21 (Windows service startup fixed — running on port 5080; IIS proxy pending URL Rewrite module)
+Last updated: 2026-03-21 (File browser child count fix — server redeploy needed on mint22)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -54,8 +54,8 @@ Archived context:
   - Windows client (`Windows11-TestDNC`): verified 2026-03-16 ~08:16Z. Bug fixed: `RemoveFileRecordsUnderPathAsync` path separator on Windows.
   - Server (`mint22`): confirmed stable 2026-03-16. Zero ERR entries, both nodes soft-deleted, no 5xx.
 - Duplicate controller fix: CLOSED (2026-03-18). Deployed and verified on `mint22`. Files endpoint returns 401, service healthy.
-- Windows IIS + Service Validation: **SERVICE RUNNING** (2026-03-21). Three blockers resolved (oidc-keys dir, TLS cert path, DB credentials). Kestrel healthy on :5080. IIS reverse proxy still needs URL Rewrite module (P2).
-- **Active cycle:** File browser fixes — folder child count fix (server-side `FileService.cs`), breadcrumb navigation (Android client). Server redeploy needed on `mint22` before child counts appear correctly.
+- Windows IIS + Service Validation: **SERVICE RUNNING** (2026-03-21). Three blockers resolved. Kestrel healthy on :5080. IIS proxy deferred P2. Archived.
+- **Active cycle:** File browser child count fix — server redeploy on `mint22` required. Code committed, awaiting deploy.
 
 ## Environment
 
@@ -77,36 +77,42 @@ Archived context:
 
 ## Active Handoff
 
-### Windows Service RUNNING — IIS Reverse Proxy Not Yet Configured (for `Windows11-TestDNC`)
+### File Browser Child Count Fix — Server Redeploy (for `mint22`)
 
-**Target:** `Windows11-TestDNC`  
-**Status:** SERVICE RUNNING — Kestrel healthy on :5080; IIS proxy needs URL Rewrite module  
-**Priority:** P2
+**Target:** `mint22`  
+**Status:** CODE COMMITTED — AWAITING REDEPLOY  
+**Priority:** P1
 
 #### Summary
 
-DotNetCloud Core Server is now running as a Windows service on `Windows11-TestDNC`. Three startup blockers were resolved via elevated PowerShell on 2026-03-21:
+Folder child count bug fix in `FileService.cs` was committed but never deployed on `mint22`. The fix ensures `ListChildrenAsync` and `ListRootAsync` return correct `childCount` values for folder nodes (previously always 0).
 
-1. **`oidc-keys` directory missing** — `New-Item -ItemType Directory -Path "C:\Program Files\DotNetCloud\server\oidc-keys" -Force` created it; service auto-generated signing + encryption keys on next start.
-2. **TLS cert not found** — `certs/dotnetcloud-localhost.pfx` (relative path in appsettings.json `Kestrel:CertificatePath`) didn't exist. Created `certs/` dir and copied the self-signed PFX from `C:\Users\benk\AppData\Roaming\dotnetcloud\data\certs\dotnetcloud-selfsigned.pfx`.
-3. **DB connection string wrong** — `appsettings.json` had `Username=postgres;Password=postgres` but the actual PostgreSQL role is `dotnetcloud` with the password from `config.json`. Updated in-place via `-replace`.
+#### Server-side change (already committed on `main`)
 
-#### Verification (2026-03-21, elevated terminal)
+- `src/Modules/Files/DotNetCloud.Modules.Files.Data/Services/FileService.cs`
+- Added `GetChildCountsAsync()` to batch-query child parent IDs and group counts in-memory.
+- `ListChildrenAsync` and `ListRootAsync` now pass computed child counts to `ToDto(n, childCount)`.
 
-- `Get-Service DotNetCloud` => `Status: Running`
-- `Invoke-WebRequest http://localhost:5080/health/live` => `200 OK`
-- `Invoke-WebRequest http://localhost/health/live` => `404` (IIS serving static files from `C:\inetpub\wwwroot`, no reverse proxy configured)
+#### Required Actions on `mint22`
 
-#### Remaining: IIS Reverse Proxy
+1. `git pull`
+2. Publish server:
+   ```bash
+   dotnet publish src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release -o /opt/dotnetcloud/server
+   ```
+3. Restart service:
+   ```bash
+   sudo systemctl restart dotnetcloud.service
+   ```
+4. Verify folder nodes return non-zero `childCount`:
+   ```bash
+   # Authenticate and hit the files endpoint, check that folder entries have childCount > 0
+   curl -k https://mint22:15443/api/files/roots -H "Authorization: Bearer <token>"
+   ```
 
-IIS on port 80/443 is not proxying to Kestrel. The installer flagged missing **URL Rewrite** module. This is a known P2 — the service itself works fine on direct ports (5080/5443). To fix IIS proxy later:
-1. Install IIS URL Rewrite module (MSI download from Microsoft)
-2. Install Application Request Routing if not present
-3. Configure reverse proxy rule in IIS to forward to `http://localhost:5080`
+#### Post-deploy note
 
-#### Required Next Action — MODERATOR (Elevated PowerShell required)
-
-**Run the following in an elevated PowerShell on `Windows11-TestDNC`:**
+After server auth changes, stale tokens may cause 401 until logout/login refresh on clients.
 
 ## Relay Template
 
