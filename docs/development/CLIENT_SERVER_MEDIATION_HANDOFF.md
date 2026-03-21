@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-18 (File browser fixes — child count, breadcrumbs; server redeploy needed)
+Last updated: 2026-03-21 (Windows service startup fixed — running on port 5080; IIS proxy pending URL Rewrite module)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -54,6 +54,7 @@ Archived context:
   - Windows client (`Windows11-TestDNC`): verified 2026-03-16 ~08:16Z. Bug fixed: `RemoveFileRecordsUnderPathAsync` path separator on Windows.
   - Server (`mint22`): confirmed stable 2026-03-16. Zero ERR entries, both nodes soft-deleted, no 5xx.
 - Duplicate controller fix: CLOSED (2026-03-18). Deployed and verified on `mint22`. Files endpoint returns 401, service healthy.
+- Windows IIS + Service Validation: **SERVICE RUNNING** (2026-03-21). Three blockers resolved (oidc-keys dir, TLS cert path, DB credentials). Kestrel healthy on :5080. IIS reverse proxy still needs URL Rewrite module (P2).
 - **Active cycle:** File browser fixes — folder child count fix (server-side `FileService.cs`), breadcrumb navigation (Android client). Server redeploy needed on `mint22` before child counts appear correctly.
 
 ## Environment
@@ -76,124 +77,36 @@ Archived context:
 
 ## Active Handoff
 
-### Windows IIS + Service Validation — Service Restart Needed (for `Windows11-TestDNC`)
+### Windows Service RUNNING — IIS Reverse Proxy Not Yet Configured (for `Windows11-TestDNC`)
 
 **Target:** `Windows11-TestDNC`  
-**Status:** AWAITING ELEVATED RESTART — re-validated 2026-03-21; non-elevated shell cannot control service  
-**Priority:** P1
+**Status:** SERVICE RUNNING — Kestrel healthy on :5080; IIS proxy needs URL Rewrite module  
+**Priority:** P2
 
 #### Summary
 
-DB credential mismatch is now resolved. PostgreSQL role and database are correctly aligned. Service restart requires elevated PowerShell (moderator action).
+DotNetCloud Core Server is now running as a Windows service on `Windows11-TestDNC`. Three startup blockers were resolved via elevated PowerShell on 2026-03-21:
 
-#### Completed Actions (2026-03-21)
+1. **`oidc-keys` directory missing** — `New-Item -ItemType Directory -Path "C:\Program Files\DotNetCloud\server\oidc-keys" -Force` created it; service auto-generated signing + encryption keys on next start.
+2. **TLS cert not found** — `certs/dotnetcloud-localhost.pfx` (relative path in appsettings.json `Kestrel:CertificatePath`) didn't exist. Created `certs/` dir and copied the self-signed PFX from `C:\Users\benk\AppData\Roaming\dotnetcloud\data\certs\dotnetcloud-selfsigned.pfx`.
+3. **DB connection string wrong** — `appsettings.json` had `Username=postgres;Password=postgres` but the actual PostgreSQL role is `dotnetcloud` with the password from `config.json`. Updated in-place via `-replace`.
 
-- `postgresql-x64-18` running, port 5432 open.
-- Config password read from `C:\ProgramData\DotNetCloud\config\config.json` (password: `4773wfbFN6FCtG6Mja8Ot67m11sh9MQD`).
-- PostgreSQL role aligned: `ALTER ROLE dotnetcloud WITH LOGIN PASSWORD '4773wfbFN6FCtG6Mja8Ot67m11sh9MQD'` → `ALTER ROLE`
-- Database `dotnetcloud` confirmed to exist and is owned by `dotnetcloud` role.
-- Service account confirmed: `LocalSystem`.
-- Direct exe run from non-elevated terminal produced `UnauthorizedAccessException: Access to path 'C:\Program Files\DotNetCloud\server\oidc-keys' is denied` — **this is expected when running as normal user**; service runs as `LocalSystem` which has full write access, so this should not affect the service start.
+#### Verification (2026-03-21, elevated terminal)
 
-#### Latest Validation Snapshot (2026-03-21, non-elevated terminal)
+- `Get-Service DotNetCloud` => `Status: Running`
+- `Invoke-WebRequest http://localhost:5080/health/live` => `200 OK`
+- `Invoke-WebRequest http://localhost/health/live` => `404` (IIS serving static files from `C:\inetpub\wwwroot`, no reverse proxy configured)
 
-- `git pull` result: `Already up to date.`
-- `Get-Service DotNetCloud` => `Status: Stopped`, `StartType: Automatic`.
-- `Restart-Service DotNetCloud` failed with access error (`Cannot open 'DotNetCloud' service on computer '.'`) confirming elevated PowerShell is still required.
-- `Test-NetConnection -ComputerName localhost -Port 5080` => `TcpTestSucceeded: False`.
-- `Test-NetConnection -ComputerName localhost -Port 80` => `TcpTestSucceeded: True`.
-- Recent SCM entries (System log):
-  - `Id 7009`: timeout waiting 45000 ms for DotNetCloud service to connect.
-  - `Id 7000`: DotNetCloud service did not respond to start/control request in a timely fashion.
-- Recent Application log entries for `DotNetCloud.Core.Server.exe` include:
-  - `UnauthorizedAccessException` on `C:\Program Files\DotNetCloud\server\oidc-keys` (non-service interactive run).
-  - historical `Npgsql` failures (`password authentication failed for user \"postgres\"` and earlier `connection refused`), now superseded by credential alignment work above.
+#### Remaining: IIS Reverse Proxy
+
+IIS on port 80/443 is not proxying to Kestrel. The installer flagged missing **URL Rewrite** module. This is a known P2 — the service itself works fine on direct ports (5080/5443). To fix IIS proxy later:
+1. Install IIS URL Rewrite module (MSI download from Microsoft)
+2. Install Application Request Routing if not present
+3. Configure reverse proxy rule in IIS to forward to `http://localhost:5080`
 
 #### Required Next Action — MODERATOR (Elevated PowerShell required)
 
 **Run the following in an elevated PowerShell on `Windows11-TestDNC`:**
-
-```powershell
-Restart-Service DotNetCloud
-Start-Sleep -Seconds 15
-Get-Service DotNetCloud
-Invoke-WebRequest http://localhost:5080/health/live -UseBasicParsing
-Invoke-WebRequest http://localhost/health/live -UseBasicParsing
-```
-
-If the service fails again, capture the startup exception:
-
-```powershell
-Get-WinEvent -LogName Application -MaxEvents 100 | Where-Object { $_.ProviderName -match 'DotNetCloud' -or ($_.ProviderName -match 'Service Control Manager' -and $_.Message -match 'DotNetCloud') } | Select-Object -First 10 TimeCreated, Id, ProviderName, Message | Format-List
-```
-
-And check Windows Event Log for the actual .NET exception:
-
-```powershell
-Get-WinEvent -LogName Application -MaxEvents 200 | Where-Object { $_.Message -match 'DotNetCloud.Core.Server' } | Select-Object -First 5 TimeCreated, @{N='Msg';E={$_.Message}} | Format-List
-```
-
-#### Request Back (MANDATORY)
-
-- `Get-Service DotNetCloud` (after restart attempt)
-- `Invoke-WebRequest http://localhost:5080/health/live -UseBasicParsing`
-- `Invoke-WebRequest http://localhost/health/live -UseBasicParsing`
-- If still failing: full output of the WinEvent queries above
-- If still failing: `Get-WinEvent` SCM entries + server startup exception text
-
-#### Validation Run Result (2026-03-20, `Windows11-TestDNC`)
-
-**Commit used:** `8e5d61f`
-
-**Commands run (elevated):**
-
-```powershell
-pwsh -ExecutionPolicy Bypass -File .\tools\install-windows.ps1 -SourcePath .\artifacts\publish -Beginner -SkipFirewall -SkipFeatureInstall
-```
-
-```powershell
-Start-Service DotNetCloud
-Get-Service DotNetCloud
-sc.exe qc DotNetCloud
-Get-WinEvent -LogName System -MaxEvents 100 | Where-Object { $_.ProviderName -eq 'Service Control Manager' -and $_.Message -match 'DotNetCloud' } | Select-Object -First 5 | Format-List TimeCreated, Id, Message
-```
-
-**Raw output excerpts:**
-
-- Installer precheck:
-  - `[WARN] Missing IIS modules: URL Rewrite, Application Request Routing`
-  - `Install the missing IIS modules above, then re-run this script.`
-- Service start:
-  - `Start-Service : Service 'DotNetCloud Core Server (DotNetCloud)' cannot be started...`
-  - `Get-Service DotNetCloud` -> `Stopped`
-- Service config:
-  - `BINARY_PATH_NAME   : C:\Program Files\DotNetCloud\server\DotNetCloud.Core.Server.exe`
-  - `SERVICE_START_NAME : LocalSystem`
-- SCM errors:
-  - `Id 7009: A timeout was reached (30000 milliseconds) while waiting for the DotNetCloud Core Server service to connect.`
-  - `Id 7000: The DotNetCloud Core Server service failed to start ... The service did not respond to the start or control request in a timely fashion.`
-
-**Interactive server diagnostics from installed binary:**
-
-- Initial run failure:
-  - `System.UnauthorizedAccessException: Access to the path 'C:\Program Files\DotNetCloud\server\oidc-keys' is denied.`
-- Run with expected service env vars set:
-  - Server proceeds past OIDC key path issue.
-  - Then fails on DB connect:
-  - `Npgsql.NpgsqlException: Failed to connect to 127.0.0.1:5432`
-  - `SocketException (10061): No connection could be made because the target machine actively refused it.`
-
-**First failing step:**
-
-- Step 5 (service/runtime state verification). Service never reaches Running due to startup blockers.
-
-**Root cause analysis (2026-03-20, diagnostics by agent):**
-
-1. **PostgreSQL NOT INSTALLED** (CRITICAL): Port 5432 is unreachable. The default connection string expects `Host=localhost;Database=dotnetcloud;Username=postgres;Password=postgres`. The setup wizard (`dotnetcloud setup --beginner`) will detect this and stop with instructions to install PostgreSQL first. This is the PRIMARY blocker preventing the service from starting.
-2. **URL Rewrite module missing** (ISSUE): File scan shows only ARR installed; URL Rewrite not found. Requires manual MSI download + elevated install. Blocks IIS reverse proxy configuration but NOT the service itself.
-3. **OIDC keys directory** (SECONDARY): Directory `C:\Program Files\DotNetCloud\server\oidc-keys` doesn't exist yet; service needs to create it on first run. Requires service startup to succeed first (blocked by PostgreSQL).
-
-**Verdict:** **FAIL** — PostgreSQL prerequisite missing. Windows11-TestDNC cannot complete startup sequence until database is available.
 
 ## Relay Template
 
