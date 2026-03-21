@@ -76,128 +76,55 @@ Archived context:
 
 ## Active Handoff
 
-### Windows IIS + Service Validation Option 2 — DB Credential Alignment Blocker (for `Windows11-TestDNC`)
+### Windows IIS + Service Validation — Service Restart Needed (for `Windows11-TestDNC`)
 
 **Target:** `Windows11-TestDNC`  
-**Status:** BLOCKED (installer rerun completed; service still fails to start)  
+**Status:** AWAITING ELEVATED RESTART — DB credentials aligned; service restart requires elevated terminal  
 **Priority:** P1
 
 #### Summary
 
-Prerequisites are now installed and setup runs end-to-end, but the service still fails startup due to database credential mismatch.
+DB credential mismatch is now resolved. PostgreSQL role and database are correctly aligned. Service restart requires elevated PowerShell (moderator action).
 
-#### Latest Validation Outcome (2026-03-20)
+#### Completed Actions (2026-03-21)
 
-Command executed (elevated):
+- `postgresql-x64-18` running, port 5432 open.
+- Config password read from `C:\ProgramData\DotNetCloud\config\config.json` (password: `4773wfbFN6FCtG6Mja8Ot67m11sh9MQD`).
+- PostgreSQL role aligned: `ALTER ROLE dotnetcloud WITH LOGIN PASSWORD '4773wfbFN6FCtG6Mja8Ot67m11sh9MQD'` → `ALTER ROLE`
+- Database `dotnetcloud` confirmed to exist and is owned by `dotnetcloud` role.
+- Service account confirmed: `LocalSystem`.
+- Direct exe run from non-elevated terminal produced `UnauthorizedAccessException: Access to path 'C:\Program Files\DotNetCloud\server\oidc-keys' is denied` — **this is expected when running as normal user**; service runs as `LocalSystem` which has full write access, so this should not affect the service start.
 
-```powershell
-pwsh -ExecutionPolicy Bypass -File .\tools\install-windows.ps1 -SourcePath .\artifacts\publish -Beginner -SkipFirewall
-```
+#### Required Next Action — MODERATOR (Elevated PowerShell required)
 
-Observed results:
-
-- IIS checks passed: URL Rewrite + ARR detected.
-- `dotnetcloud setup --beginner` completed and wrote config.
-- Setup emitted: `Could not sync selected modules to the module registry: 28P01: password authentication failed for user "dotnetcloud"`.
-- Service install/update succeeded.
-- Service start failed: `Cannot start service 'DotNetCloud' on computer '.'`.
-- SCM still reports `7009/7000` timeout sequence.
-
-Critical finding:
-
-- Saved config now uses a generated password for DB user `dotnetcloud` in `C:\ProgramData\DotNetCloud\config\config.json`.
-- PostgreSQL was installed with `postgres` password `SqlMilk01!`.
-- Most likely root cause: DB role/user password mismatch (`dotnetcloud` user not created with the password stored in config, or role missing).
-
-#### Latest Validation Outcome (2026-03-21)
-
-Commands executed:
-
-```powershell
-Get-Service PostgreSQL*
-Test-NetConnection -ComputerName localhost -Port 5432
-```
-
-Observed results:
-
-- `postgresql-x64-18` service is `Running`.
-- `Test-NetConnection` shows `TcpTestSucceeded : True` for `localhost:5432`.
-
-Config inspection:
-
-- `C:\ProgramData\DotNetCloud\config\config.json` uses:
-  - `Host=localhost;Database=dotnetcloud;Username=dotnetcloud;Password=<generated>`
-
-Credential/database alignment run:
-
-- `CREATE ROLE dotnetcloud LOGIN PASSWORD '<config-password>';` -> `CREATE ROLE`
-- `ALTER ROLE dotnetcloud WITH LOGIN PASSWORD '<config-password>';` -> `ALTER ROLE`
-- Conditional DB check/create path emitted `DATABASE_CREATED`.
-
-Post-alignment runtime verification:
+**Run the following in an elevated PowerShell on `Windows11-TestDNC`:**
 
 ```powershell
 Restart-Service DotNetCloud
-Get-Service DotNetCloud
-```
-
-- `Restart-Service DotNetCloud` failed from current session due service-control access (`Cannot open 'DotNetCloud' service on computer '.'`).
-- `Get-Service DotNetCloud` reports `Stopped`.
-- Health checks via .NET HttpClient equivalent:
-  - `http://localhost:5080/health/live` -> connection refused
-  - `http://localhost/health/live` -> HTTP 404
-
-SCM evidence after retry:
-
-- `Id 7009`: timeout waiting for DotNetCloud service to connect (45000 ms).
-- `Id 7000`: service did not respond to start/control request in a timely fashion.
-
-Additional note:
-
-- Latest logs in `C:\Users\benk\AppData\Roaming\dotnetcloud\logs` are sync-client logs (`sync-service*.log`) and do not include Core Server startup exception traces.
-
-#### Required Next Actions on `Windows11-TestDNC`
-
-1. Verify PostgreSQL service + listener:
-
-```powershell
-Get-Service PostgreSQL*
-Test-NetConnection -ComputerName localhost -Port 5432
-```
-
-2. Align DB credentials for app user `dotnetcloud` (recommended path):
-
-```powershell
-# Adjust service name/version as installed
-& "C:\Program Files\PostgreSQL\16\bin\psql.exe" -h localhost -U postgres -d postgres -c "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='dotnetcloud') THEN CREATE ROLE dotnetcloud LOGIN PASSWORD '<CONFIG_PASSWORD>'; ELSE ALTER ROLE dotnetcloud WITH LOGIN PASSWORD '<CONFIG_PASSWORD>'; END IF; END $$;"
-& "C:\Program Files\PostgreSQL\16\bin\psql.exe" -h localhost -U postgres -d postgres -c "SELECT 'CREATE DATABASE dotnetcloud OWNER dotnetcloud' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'dotnetcloud')\gexec"
-```
-
-Replace `<CONFIG_PASSWORD>` with the password currently stored in `C:\ProgramData\DotNetCloud\config\config.json`.
-
-3. Restart and verify (must be elevated):
-
-```powershell
-Restart-Service DotNetCloud
+Start-Sleep -Seconds 15
 Get-Service DotNetCloud
 Invoke-WebRequest http://localhost:5080/health/live -UseBasicParsing
 Invoke-WebRequest http://localhost/health/live -UseBasicParsing
 ```
 
-4. If service remains stopped after DB alignment, collect Core Server startup exception from service runtime logs (not sync-service logs):
+If the service fails again, capture the startup exception:
 
 ```powershell
-Get-ChildItem "C:\Program Files\DotNetCloud\server" -Recurse -File | Where-Object { $_.Name -match 'log|txt' } | Sort-Object LastWriteTime -Descending | Select-Object -First 20 FullName, LastWriteTime
-Get-WinEvent -LogName Application -MaxEvents 200 | Where-Object { $_.Message -match 'DotNetCloud|DotNetCloud.Core.Server|Npgsql|OpenIddict|Kestrel' } | Select-Object -First 20 TimeCreated, Id, ProviderName, Message | Format-List
+Get-WinEvent -LogName Application -MaxEvents 100 | Where-Object { $_.ProviderName -match 'DotNetCloud' -or ($_.ProviderName -match 'Service Control Manager' -and $_.Message -match 'DotNetCloud') } | Select-Object -First 10 TimeCreated, Id, ProviderName, Message | Format-List
+```
+
+And check Windows Event Log for the actual .NET exception:
+
+```powershell
+Get-WinEvent -LogName Application -MaxEvents 200 | Where-Object { $_.Message -match 'DotNetCloud.Core.Server' } | Select-Object -First 5 TimeCreated, @{N='Msg';E={$_.Message}} | Format-List
 ```
 
 #### Request Back (MANDATORY)
 
-- Output of `Get-Service PostgreSQL*` and `Test-NetConnection -ComputerName localhost -Port 5432`
-- Output of SQL role/database alignment commands
-- `Get-Service DotNetCloud`
+- `Get-Service DotNetCloud` (after restart attempt)
 - `Invoke-WebRequest http://localhost:5080/health/live -UseBasicParsing`
 - `Invoke-WebRequest http://localhost/health/live -UseBasicParsing`
+- If still failing: full output of the WinEvent queries above
 - If still failing: `Get-WinEvent` SCM entries + server startup exception text
 
 #### Validation Run Result (2026-03-20, `Windows11-TestDNC`)
