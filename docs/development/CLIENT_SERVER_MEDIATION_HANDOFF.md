@@ -116,20 +116,20 @@ Interop+Crypto+OpenSslCryptographicException: error:10080002:BIO routines::syste
 - Tried: Copying working cert from `/opt/dotnetcloud/publish/certs/` — still crashes with same error
 - All revisions of the certificate fail with identical OpenSSL error
 
-**Next Steps (MANUAL INTERVENTION REQUIRED):**
+**Investigation:**
+- ✓ Ran setup wizard — certificate not regenerated (unchanged timestamp)
+- ✓ Manually created fresh self-signed cert with OpenSSL: `openssl req -x509` → `pkcs12 -export`
+- ✗ Service still crashes with identical error on fresh certificate
 
-Option A: Regenerate certificate on mint22
-```bash
-sudo systemctl stop dotnetcloud.service
-# Run interactive setup (note: this is an interactive prompt):
-sudo dotnetcloud setup
-# Follow prompts, regenerate cert when asked
-sudo systemctl start dotnetcloud.service
-```
+**Root Cause Analysis (TBD):**
+This is NOT a certificate file corruption issue. Even a freshly-minted certificate fails with identical OpenSSL error. Possible causes:
+1. .NET 10 OpenSSL runtime incompatibility on Linux/Mint22
+2. Kestrel TLS configuration bug in newly-deployed code
+3. System OpenSSL library version mismatch
+4. Environment-specific issue (specific to this machine)
 
-Option B: Revert to known-good binary (requires archival/versioning review — not yet implemented)
-
-**AWAITING USER DECISION:** Choose Option A (regenerate cert interactively) or provide alternative resolution.
+**Next Step:**
+Try running server in development mode or HTTP-only to isolate if issue is TLS-layer specific or elsewhere in startup pipeline. Requires code configuration change to test.
 
 ## Relay Template
 
