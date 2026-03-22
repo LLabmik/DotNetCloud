@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-22 (Windows interactive OAuth verification COMPLETE; no active handoff)
+Last updated: 2026-03-23 (Security audit handoff for desktop client)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -57,7 +57,7 @@ Archived context:
 - Windows IIS + Service Validation: **COMPLETE** (2026-03-21). Three startup blockers resolved. IIS reverse proxy configured and verified (URL Rewrite + ARR). HTTP (port 80) and HTTPS (port 443) both proxy to Kestrel :5080. Self-signed localhost cert bound.
 - File browser child count fix: **DEPLOYED** (2026-03-21). `mint22` redeployed; service stable.
 - `mint22` connectivity diagnosis: **COMPLETE** (2026-03-22). Current deployment listens directly on HTTPS `:5443`; no listener exists on `:15443`.
-- **Active cycle:** Windows interactive OAuth verification **COMPLETE** (2026-03-22). Add Account default URL correct, authorize URL targets `:5443`, login page reached.
+- **Active cycle:** Security audit — desktop client fixes handoff to `mint-dnc-client` (2026-03-23). 4 findings: hardcoded dev URL, Unix socket perms, symlink traversal, path escape.
 
 ## Environment
 
@@ -79,21 +79,57 @@ Archived context:
 
 ## Active Handoff
 
-**Target machine:** (none — no active handoff)
-**Status:** IDLE
+**Target machine:** `mint-dnc-client`
+**Status:** READY FOR PICKUP
 
-### Previous Cycle Complete
+### Security Audit — Desktop Client Fixes Required
 
-The Windows interactive OAuth verification cycle is **complete** as of 2026-03-22.
-All acceptance criteria met. Archived to `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
+Server-side security audit complete (commit `e5b5988`). Four client-side findings need fixing with tests.
 
-**Summary:**
-- Server URL: `https://mint22.kimball.home:5443/`
-- Authorize URL: `https://mint22.kimball.home:5443/connect/authorize?...`
-- Login page reached: Yes
-- Manual URL entry required: No (default was correct; user removed old persisted account with stale port)
-- Stale `:15443` in client source: None
-- MSIX version tested: `0.27.0-alpha`
+#### Finding 1: Hardcoded Dev URL (Low)
+**File:** `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/SettingsViewModel.cs` line 31
+**Issue:** `_addAccountServerUrl` defaults to `"https://mint22.kimball.home:5443/"` — leaks dev infra to end users.
+**Fix:** Change default to `""`. Existing validation at line ~403 already rejects blank/invalid URLs.
+
+#### Finding 2: Unix Socket Permissions (High)
+**File:** `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcServer.cs` lines 169–180
+**Issue:** `ListenUnixSocketAsync` creates socket via `Bind()` but never restricts permissions. Default umask gives `0755` — any local user can connect and send IPC commands.
+**Fix:** After `_unixSocket.Bind(...)`, add:
+```csharp
+File.SetUnixFileMode(UnixSocketPath, UnixFileMode.UserRead | UnixFileMode.UserWrite); // 0600
+```
+Note: Windows Named Pipe path already has correct `PipeSecurity` ACL.
+
+#### Finding 3: Symlink Target Directory Traversal (Critical)
+**File:** `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` lines 1194–1226
+**Issue:** `download.LinkTarget` from server is used directly in `File.CreateSymbolicLink()` without validation. Malicious server can create symlinks pointing outside sync folder (e.g., `../../../.ssh/authorized_keys`).
+**Fix:** Before `File.CreateSymbolicLink()`, validate resolved target stays within sync folder:
+```csharp
+var resolvedTarget = Path.GetFullPath(download.LinkTarget, Path.GetDirectoryName(download.LocalPath)!);
+if (!resolvedTarget.StartsWith(context.LocalFolderPath, StringComparison.OrdinalIgnoreCase))
+{
+    _logger.LogWarning("Blocked symlink {Path} → {Target}: escapes sync folder.", 
+        download.LocalPath, download.LinkTarget);
+    return;
+}
+```
+
+#### Finding 4: ResolveLocalPathAsync Path Escape (Critical)
+**File:** `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` lines 1424–1447
+**Issue:** `name` parameter comes from server. `Path.Combine(context.LocalFolderPath, name)` with `name = "../../etc/passwd"` produces path outside sync folder. Used for file creation/deletion.
+**Fix:** Before each return, validate the resolved path:
+```csharp
+var resolvedPath = Path.GetFullPath(result);
+if (!resolvedPath.StartsWith(Path.GetFullPath(context.LocalFolderPath), StringComparison.OrdinalIgnoreCase))
+    throw new InvalidOperationException($"Resolved path escapes sync folder: {resolvedPath}");
+return resolvedPath;
+```
+
+#### Acceptance Criteria
+- ☐ All 4 findings fixed
+- ☐ Tests for each fix (symlink blocked when target escapes, path traversal throws, socket permissions restricted)
+- ☐ `dotnet build` and `dotnet test` pass
+- ☐ Commit and push to main
 
 ## Relay Template
 
