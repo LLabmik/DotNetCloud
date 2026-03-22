@@ -3095,6 +3095,26 @@ Client-side retry and cleanup against the corrected HTTPS endpoint were complete
 - **Exact authorize URL opened for validation:**
     - `https://mint22.kimball.home:5443/connect/authorize?response_type=code&client_id=dotnetcloud-desktop&redirect_uri=http%3A%2F%2Flocalhost%3A52701%2Foauth%2Fcallback&scope=openid%20profile%20offline_access%20files%3Aread%20files%3Awrite&state=handoff-state-20260322&code_challenge=handoff-challenge-20260322&code_challenge_method=S256`
 - **Authorize endpoint result:** HTTPS request returned `HTTP/1.1 302 Found` with `Location: https://mint22.kimball.home/auth/login?returnUrl=...` (login redirect, no connection refused).
+- **Interactive desktop result:** Add Account completed successfully on `mint-dnc-client` after refreshing the installed client binaries from current source.
+- **Registered local context:**
+    - `ServerBaseUrl`: `https://mint22.kimball.home:5443`
+    - `DisplayName`: `testdude@llabmik.net @ mint22.kimball.home`
+    - `LocalFolderPath`: `/home/benk/synctray`
+    - `RegisteredAt`: `2026-03-22T07:11:32.6146715Z`
+
+#### Interactive runtime evidence
+
+- `sync-tray20260322.log` shows successful live flow on the corrected endpoint:
+    - `[02:11:08 INF] Starting OAuth2 flow for server https://mint22.kimball.home:5443.`
+    - `[02:11:08 INF] Start processing HTTP request GET https://mint22.kimball.home:5443/.well-known/openid-configuration`
+    - `[02:11:09 INF] Received HTTP response headers after 246.0145ms - 200`
+    - `[02:11:09 INF] Opening browser for OAuth2 authorization.`
+    - `[02:11:32 INF] Start processing HTTP request POST https://mint22.kimball.home:5443/connect/token`
+    - `[02:11:32 INF] Received HTTP response headers after 275.4956ms - 200`
+    - `[02:11:34 INF] Add-account IPC call completed successfully.`
+    - `[02:11:34 INF] RefreshAccounts: received 1 context(s) from SyncService.`
+- Browser login page was reached and the Add Account flow succeeded end-to-end on this machine.
+- Remaining limitation: the tray logs do not emit the full raw browser authorize URL with dynamic `state` and `code_challenge`, so the exact one-time URL string was not captured verbatim in logs.
 
 #### Code/docs updates applied
 
@@ -3117,4 +3137,4 @@ Client-side retry and cleanup against the corrected HTTPS endpoint were complete
 
 - **Desktop SyncTray add-account default source:** fixed.
 - **Desktop verification walkthrough examples:** fixed.
-- **Interactive tray/browser full pass on this run:** browser tooling can open the URL but cannot introspect page DOM in this environment; server-side redirect evidence confirms login route is reached.
+- **Interactive tray/browser full pass on this run:** completed successfully on `mint-dnc-client` using `https://mint22.kimball.home:5443`.

@@ -90,6 +90,7 @@ Archived context:
   - SyncTray Add Account default updated from `:15443` to `https://mint22.kimball.home:5443/`.
   - Related desktop tests/docs updated and passing.
   - OAuth authorize endpoint validated to return login redirect on `:5443`.
+  - Interactive Add Account now also succeeds end-to-end on `mint-dnc-client`, registering a context for `https://mint22.kimball.home:5443`.
 - Remaining required evidence is an interactive Windows tray/browser pass.
 
 ### Required actions on `Windows11-TestDNC` (execute autonomously)
