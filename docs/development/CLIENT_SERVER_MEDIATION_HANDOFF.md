@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-22 (mint-dnc-client retry/cleanup archived; Windows interactive OAuth verification active)
+Last updated: 2026-03-22 (Windows interactive OAuth verification COMPLETE; no active handoff)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -57,7 +57,7 @@ Archived context:
 - Windows IIS + Service Validation: **COMPLETE** (2026-03-21). Three startup blockers resolved. IIS reverse proxy configured and verified (URL Rewrite + ARR). HTTP (port 80) and HTTPS (port 443) both proxy to Kestrel :5080. Self-signed localhost cert bound.
 - File browser child count fix: **DEPLOYED** (2026-03-21). `mint22` redeployed; service stable.
 - `mint22` connectivity diagnosis: **COMPLETE** (2026-03-22). Current deployment listens directly on HTTPS `:5443`; no listener exists on `:15443`.
-- **Active cycle:** client-side retry and stale URL cleanup for desktop OAuth/connect flow using the corrected `mint22.kimball.home:5443` endpoint.
+- **Active cycle:** Windows interactive OAuth verification **COMPLETE** (2026-03-22). Add Account default URL correct, authorize URL targets `:5443`, login page reached.
 
 ## Environment
 
@@ -79,44 +79,21 @@ Archived context:
 
 ## Active Handoff
 
-**Target machine:** `Windows11-TestDNC`
-**Status:** READY FOR WINDOWS CLIENT RETRY
-**Priority:** P0 (final interactive confirmation for desktop SyncTray Add Account)
+**Target machine:** (none — no active handoff)
+**Status:** IDLE
 
-### Context
+### Previous Cycle Complete
 
-- `mint22` server endpoint diagnosis is complete: active HTTPS listener is `https://mint22.kimball.home:5443/`.
-- `mint-dnc-client` client-side cleanup is complete and archived in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`:
-  - SyncTray Add Account default updated from `:15443` to `https://mint22.kimball.home:5443/`.
-  - Related desktop tests/docs updated and passing.
-  - OAuth authorize endpoint validated to return login redirect on `:5443`.
-  - Interactive Add Account now also succeeds end-to-end on `mint-dnc-client`, registering a context for `https://mint22.kimball.home:5443`.
-- Remaining required evidence is an interactive Windows tray/browser pass.
+The Windows interactive OAuth verification cycle is **complete** as of 2026-03-22.
+All acceptance criteria met. Archived to `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
 
-### Required actions on `Windows11-TestDNC` (execute autonomously)
-
-1. Pull latest `main`.
-2. Launch desktop SyncTray and open `Settings -> Add Account`.
-3. Verify default/pre-filled server URL now shows `https://mint22.kimball.home:5443/`.
-4. Run Add Account OAuth flow and capture the exact authorize URL opened by the browser.
-5. Confirm browser reaches login page (not connection refused).
-6. If any stale `:15443` value still appears anywhere in the Windows flow (UI, persisted settings, logs), patch it and include directly related tests/docs in the same change.
-
-### Acceptance criteria
-
-- Add Account default URL on Windows uses `https://mint22.kimball.home:5443/` without manual correction.
-- Authorize URL opened by browser targets `https://mint22.kimball.home:5443/connect/authorize?...`.
-- Login page is reached on Windows flow without connection-refused.
-- Any remaining stale `:15443` source is fixed or precisely identified with file/path.
-
-### Required handback in this document
-
-- Commit hash.
-- Exact server URL used.
-- Exact authorize URL opened by the browser.
-- Whether Add Account reached the login page.
-- Whether manual URL entry was required.
-- Any stale `:15443` source still remaining if not fully fixed.
+**Summary:**
+- Server URL: `https://mint22.kimball.home:5443/`
+- Authorize URL: `https://mint22.kimball.home:5443/connect/authorize?...`
+- Login page reached: Yes
+- Manual URL entry required: No (default was correct; user removed old persisted account with stale port)
+- Stale `:15443` in client source: None
+- MSIX version tested: `0.27.0-alpha`
 
 ## Relay Template
 

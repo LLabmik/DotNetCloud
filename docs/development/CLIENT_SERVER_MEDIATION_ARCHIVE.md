@@ -5,6 +5,32 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Windows Interactive OAuth Verification — COMPLETE (2026-03-22)
+
+Archived from Active Handoff on 2026-03-22 after successful interactive verification on `Windows11-TestDNC`.
+
+**Target:** `Windows11-TestDNC`
+**Status:** COMPLETE ✅
+**MSIX version:** `0.27.0-alpha`
+
+### Verification Results
+
+- Default server URL in Settings → Add Account: `https://mint22.kimball.home:5443/` — correct, no manual entry required.
+- Authorize URL opened by browser: `https://mint22.kimball.home:5443/connect/authorize?...` — correct endpoint.
+- Login page reached successfully — no connection refused.
+- User had to remove a previously persisted account configured with the old `:15443` port. New accounts default correctly.
+- No stale `:15443` references found in any client source code (src/Clients/, src/CLI/).
+- Only `:15443` references remaining are in documentation/archive and one Android E2E test (monolith domain, not desktop client).
+
+### Acceptance Criteria — All Met
+
+- ✓ Add Account default URL uses `https://mint22.kimball.home:5443/` without manual correction.
+- ✓ Authorize URL targets `https://mint22.kimball.home:5443/connect/authorize?...`.
+- ✓ Login page reached on Windows flow without connection-refused.
+- ✓ No stale `:15443` source in desktop client code.
+
+---
+
 ## Archived: Linux Sync Toast Consolidation — COMPLETE (2026-03-22)
 
 Archived from Active Handoff on 2026-03-22 when the active slot was reassigned to server connectivity diagnostics for `mint22`.
