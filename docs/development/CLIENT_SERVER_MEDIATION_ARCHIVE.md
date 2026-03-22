@@ -5,6 +5,41 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Security Audit Desktop Client Fixes — COMPLETE on mint-dnc-client (2026-03-23)
+
+Archived from Active Handoff on 2026-03-23 after implementing and validating all four client-side security findings on `mint-dnc-client`.
+
+**Original target:** `mint-dnc-client`
+**Original status:** COMPLETE ✅
+
+### Delivered fixes
+
+- Finding 1 (Low) hardcoded dev URL removed:
+    - `SettingsViewModel` default add-account server URL now `string.Empty`.
+    - Added/kept unit coverage: `AddAccountServerUrl_DefaultsToEmptyString`.
+- Finding 2 (High) Unix socket permissions restricted:
+    - `IpcServer.ListenUnixSocketAsync` now applies `RestrictUnixSocketPermissions()` after bind.
+    - `RestrictUnixSocketPermissions` enforces `0600` via `File.SetUnixFileMode(... UserRead | UserWrite)`.
+    - Added test coverage: `RestrictUnixSocketPermissions_SetsSocketModeTo600OnLinux`.
+- Finding 3 (Critical) symlink traversal blocked:
+    - `SyncEngine` validates resolved symlink target remains under sync root before `File.CreateSymbolicLink`.
+    - Added test coverage: `SyncAsync_PendingSymlinkDownload_TargetEscapesSyncFolder_BlocksMaterialization`.
+- Finding 4 (Critical) path escape blocked:
+    - `ResolveLocalPathAsync` now validates all resolved paths via `ValidatePathWithinSyncRoot`.
+    - Escaping paths throw `InvalidOperationException` and do not queue operations.
+    - Added test coverage: `SyncAsync_RemoteChangeWithTraversalName_SetsErrorStateAndSkipsQueueing`.
+
+### Validation results
+
+- `dotnet test tests/DotNetCloud.Client.Core.Tests/DotNetCloud.Client.Core.Tests.csproj --no-build` → **184 passed, 0 failed**.
+- `dotnet test tests/DotNetCloud.Client.SyncService.Tests/DotNetCloud.Client.SyncService.Tests.csproj --no-build` → **28 passed, 0 failed**.
+- `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj --no-build` → **84 passed, 0 failed**.
+- `dotnet build` on this host is **environment-gated** by missing Android SDK (`XA5300` from `Microsoft.Android.Sdk.Linux`), while all non-Android desktop/server/client projects build successfully.
+
+### Carry-forward
+
+- Next machine should perform Windows runtime validation to confirm behavior parity for desktop client flows.
+
 ## Archived: Windows Interactive OAuth Verification — COMPLETE (2026-03-22)
 
 Archived from Active Handoff on 2026-03-22 after successful interactive verification on `Windows11-TestDNC`.

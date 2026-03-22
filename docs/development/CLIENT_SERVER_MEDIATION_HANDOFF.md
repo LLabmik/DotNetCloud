@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-23 (Security audit handoff for desktop client)
+Last updated: 2026-03-23 (Desktop security fixes complete on mint-dnc-client; Windows validation handoff)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -57,7 +57,7 @@ Archived context:
 - Windows IIS + Service Validation: **COMPLETE** (2026-03-21). Three startup blockers resolved. IIS reverse proxy configured and verified (URL Rewrite + ARR). HTTP (port 80) and HTTPS (port 443) both proxy to Kestrel :5080. Self-signed localhost cert bound.
 - File browser child count fix: **DEPLOYED** (2026-03-21). `mint22` redeployed; service stable.
 - `mint22` connectivity diagnosis: **COMPLETE** (2026-03-22). Current deployment listens directly on HTTPS `:5443`; no listener exists on `:15443`.
-- **Active cycle:** Security audit — desktop client fixes handoff to `mint-dnc-client` (2026-03-23). 4 findings: hardcoded dev URL, Unix socket perms, symlink traversal, path escape.
+- **Active cycle:** Security audit — Windows runtime/client parity validation handoff to `Windows11-TestDNC` (2026-03-23).
 
 ## Environment
 
@@ -79,57 +79,51 @@ Archived context:
 
 ## Active Handoff
 
-**Target machine:** `mint-dnc-client`
+**Target machine:** `Windows11-TestDNC`
 **Status:** READY FOR PICKUP
 
-### Security Audit — Desktop Client Fixes Required
+### Security Audit — Desktop Client Fixes Validation Required (Windows)
 
-Server-side security audit complete (commit `e5b5988`). Four client-side findings need fixing with tests.
+Server-side security audit complete (commit `e5b5988`). Linux desktop client implementation and tests are complete; Windows validation is required for runtime parity.
 
-#### Finding 1: Hardcoded Dev URL (Low)
-**File:** `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/SettingsViewModel.cs` line 31
-**Issue:** `_addAccountServerUrl` defaults to `"https://mint22.kimball.home:5443/"` — leaks dev infra to end users.
-**Fix:** Change default to `""`. Existing validation at line ~403 already rejects blank/invalid URLs.
+#### Implemented changes (already on main)
 
-#### Finding 2: Unix Socket Permissions (High)
-**File:** `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcServer.cs` lines 169–180
-**Issue:** `ListenUnixSocketAsync` creates socket via `Bind()` but never restricts permissions. Default umask gives `0755` — any local user can connect and send IPC commands.
-**Fix:** After `_unixSocket.Bind(...)`, add:
-```csharp
-File.SetUnixFileMode(UnixSocketPath, UnixFileMode.UserRead | UnixFileMode.UserWrite); // 0600
-```
-Note: Windows Named Pipe path already has correct `PipeSecurity` ACL.
+- `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/SettingsViewModel.cs`
+    - `_addAccountServerUrl` default changed to `string.Empty`.
+- `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcServer.cs`
+    - Unix socket permissions restricted to `0600` via `File.SetUnixFileMode`.
+- `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs`
+    - Symlink materialization blocked when resolved target escapes sync root.
+    - `ResolveLocalPathAsync` now validates resolved paths remain within sync root.
 
-#### Finding 3: Symlink Target Directory Traversal (Critical)
-**File:** `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` lines 1194–1226
-**Issue:** `download.LinkTarget` from server is used directly in `File.CreateSymbolicLink()` without validation. Malicious server can create symlinks pointing outside sync folder (e.g., `../../../.ssh/authorized_keys`).
-**Fix:** Before `File.CreateSymbolicLink()`, validate resolved target stays within sync folder:
-```csharp
-var resolvedTarget = Path.GetFullPath(download.LinkTarget, Path.GetDirectoryName(download.LocalPath)!);
-if (!resolvedTarget.StartsWith(context.LocalFolderPath, StringComparison.OrdinalIgnoreCase))
-{
-    _logger.LogWarning("Blocked symlink {Path} → {Target}: escapes sync folder.", 
-        download.LocalPath, download.LinkTarget);
-    return;
-}
-```
+#### Test coverage added
 
-#### Finding 4: ResolveLocalPathAsync Path Escape (Critical)
-**File:** `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs` lines 1424–1447
-**Issue:** `name` parameter comes from server. `Path.Combine(context.LocalFolderPath, name)` with `name = "../../etc/passwd"` produces path outside sync folder. Used for file creation/deletion.
-**Fix:** Before each return, validate the resolved path:
-```csharp
-var resolvedPath = Path.GetFullPath(result);
-if (!resolvedPath.StartsWith(Path.GetFullPath(context.LocalFolderPath), StringComparison.OrdinalIgnoreCase))
-    throw new InvalidOperationException($"Resolved path escapes sync folder: {resolvedPath}");
-return resolvedPath;
-```
+- `tests/DotNetCloud.Client.SyncTray.Tests/ViewModels/SettingsViewModelTests.cs`
+    - `AddAccountServerUrl_DefaultsToEmptyString`
+- `tests/DotNetCloud.Client.SyncService.Tests/IpcServerSecurityTests.cs`
+    - `RestrictUnixSocketPermissions_SetsSocketModeTo600OnLinux`
+- `tests/DotNetCloud.Client.Core.Tests/Sync/SyncEngineTests.cs`
+    - `SyncAsync_PendingSymlinkDownload_TargetEscapesSyncFolder_BlocksMaterialization`
+    - `SyncAsync_RemoteChangeWithTraversalName_SetsErrorStateAndSkipsQueueing`
+
+#### Linux validation evidence (mint-dnc-client)
+
+- `dotnet test tests/DotNetCloud.Client.Core.Tests/DotNetCloud.Client.Core.Tests.csproj --no-build` → 184 passed.
+- `dotnet test tests/DotNetCloud.Client.SyncService.Tests/DotNetCloud.Client.SyncService.Tests.csproj --no-build` → 28 passed.
+- `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj --no-build` → 84 passed.
+- `dotnet build` environment gate on Linux host: Android SDK missing (`XA5300`). Non-Android projects build successfully.
 
 #### Acceptance Criteria
-- ☐ All 4 findings fixed
-- ☐ Tests for each fix (symlink blocked when target escapes, path traversal throws, socket permissions restricted)
-- ☐ `dotnet build` and `dotnet test` pass
-- ☐ Commit and push to main
+- ☐ Pull latest `main` on `Windows11-TestDNC`.
+- ☐ Run targeted tests:
+    - `dotnet test tests/DotNetCloud.Client.Core.Tests/DotNetCloud.Client.Core.Tests.csproj --no-build`
+    - `dotnet test tests/DotNetCloud.Client.SyncService.Tests/DotNetCloud.Client.SyncService.Tests.csproj --no-build`
+    - `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj --no-build`
+- ☐ Perform runtime smoke validation on Windows desktop client:
+    - Add Account dialog default server URL is blank.
+    - Existing account add flow still succeeds with valid URL.
+    - No regression in sync cycle startup.
+- ☐ Report back with commit hash (if changes needed), raw command outputs, and any runtime log evidence.
 
 ## Relay Template
 
