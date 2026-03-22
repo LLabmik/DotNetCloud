@@ -1,6 +1,6 @@
 # Desktop Client — Setup & Installation
 
-> **Last Updated:** 2026-03-03
+> **Last Updated:** 2026-03-22
 
 ---
 
@@ -21,7 +21,7 @@
 
 ### Windows
 
-1. **Recommended (MSIX):** Download and install
+1. **Recommended (MSIX):** Download from [GitHub Releases](https://github.com/LLabmik/DotNetCloud/releases) and install
 
    - `dotnetcloud-sync-tray-win-x64-<version>.msix`
 

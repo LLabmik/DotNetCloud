@@ -1,6 +1,6 @@
 # Desktop Client — Troubleshooting
 
-> **Last Updated:** 2026-03-03
+> **Last Updated:** 2026-03-22
 
 ---
 
@@ -92,11 +92,23 @@ report (conflict - Ben - 2025-07-14).docx  ← local version
 
 **Fix:**
 
-1. Ensure the server URL is correct (include `https://`)
-2. Check that the server is reachable from your machine
+1. Ensure the server URL is correct — include `https://` and port if non-standard (e.g., `https://cloud.example.com:5443/`)
+2. Check that the server is reachable from your machine (try opening the URL in a browser)
 3. Ensure your browser is not blocking the localhost redirect
 4. Try clearing browser cookies for the DotNetCloud server
-5. If using a firewall, ensure the localhost callback port is open
+5. If using a firewall, ensure the localhost OAuth callback port is not blocked
+
+### Self-Signed Certificate Warnings
+
+**Cause:** Self-hosted servers often use self-signed TLS certificates that are not trusted by the OS.
+
+**Fix:**
+
+1. **Windows:** Import the server's certificate into the Trusted Root Certification Authorities store:
+   - Export the cert from the server (or download the `.crt` file from your admin)
+   - Double-click the `.crt` file → **Install Certificate** → **Local Machine** → "Place all certificates in the following store" → **Trusted Root Certification Authorities**
+2. **Linux:** Copy the `.crt` to `/usr/local/share/ca-certificates/` and run `sudo update-ca-certificates`
+3. After installing the cert, restart the sync service and try Add Account again
 
 ### SyncService Crashes on Startup
 
@@ -118,8 +130,8 @@ report (conflict - Ben - 2025-07-14).docx  ← local version
 
 The SyncService uses Serilog for structured logging.
 
-- **Windows:** Logs are written to `%ProgramData%\DotNetCloud\logs\sync-service-*.log`
-- **Linux:** Logs are written to `/var/log/dotnetcloud/sync-service-*.log`
+- **Windows:** `%ProgramData%\DotNetCloud\Sync\logs\sync-service*.log`
+- **Linux:** `/var/log/dotnetcloud/sync-service-*.log`
 
 Logs include:
 
@@ -134,7 +146,7 @@ Logs include:
 
 ```powershell
 # Windows — view recent log entries
-Get-Content "$env:ProgramData\DotNetCloud\logs\sync-service-*.log" -Tail 50
+Get-Content "$env:ProgramData\DotNetCloud\Sync\logs\sync-service*.log" -Tail 50
 ```
 
 ```bash
@@ -180,9 +192,23 @@ If SyncTray cannot connect to SyncService:
 If sync state becomes inconsistent:
 
 1. Stop SyncService
-2. Delete the SQLite state database for the affected context (path is in the sync context configuration)
+2. Delete the SQLite state database for the affected context:
+   - **Windows:** `%ProgramData%\DotNetCloud\Sync\{contextId}\state.db` (also `-wal` and `-shm` files)
+   - **Linux:** `/var/lib/dotnetcloud/sync/{contextId}/state.db`
 3. Start SyncService
 4. The next sync pass will do a full reconciliation
+
+To list existing sync contexts:
+
+```powershell
+# Windows
+Get-ChildItem "$env:ProgramData\DotNetCloud\Sync" -Directory | Where-Object { $_.Name -ne "logs" }
+```
+
+```bash
+# Linux
+ls -d /var/lib/dotnetcloud/sync/*/
+```
 
 **Warning:** This may re-download all files. Ensure you have sufficient bandwidth.
 

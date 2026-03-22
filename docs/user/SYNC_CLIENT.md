@@ -1,6 +1,6 @@
 # DotNetCloud Files — Desktop Sync Client
 
-> **Last Updated:** 2026-03-03
+> **Last Updated:** 2026-03-22
 
 ---
 
@@ -19,24 +19,35 @@ The DotNetCloud sync client keeps a folder on your computer automatically synchr
 
 ## Installation
 
-### Windows
+### Windows (Recommended: MSIX Package)
 
-1. Download the latest release from your DotNetCloud server or build from source
-2. Run the installer
-3. The sync service starts automatically as a Windows Service
-4. The tray icon appears in your system tray
+1. Download the latest `dotnetcloud-sync-tray-win-x64-<version>.msix` from [GitHub Releases](https://github.com/LLabmik/DotNetCloud/releases)
+2. Double-click the `.msix` file to launch the installer
+3. Click **Install** — this installs the SyncTray app and registers the background sync service
+4. After installation, the SyncTray icon appears in your system tray (bottom-right of your taskbar; click the `^` arrow if you don't see it)
+5. SyncTray starts automatically on login
+
+> **Note:** If the Install button is grayed out, your administrator may need to trust the signing certificate first. Contact your DotNetCloud server admin for the certificate file.
+
+### Windows (Alternative: ZIP Bundle)
+
+1. Download `dotnetcloud-desktop-client-win-x64-<version>.zip` from GitHub Releases
+2. Extract the zip to a folder
+3. Run `install.cmd` from an elevated Command Prompt to install the Windows Service
+4. Run SyncTray from the Start menu or the extracted folder
 
 ### Linux
 
-1. Download the latest release or build from source
-2. Install the systemd service:
+1. Download `dotnetcloud-desktop-client-linux-x64-<version>.tar.gz` from GitHub Releases
+2. Extract and install:
 
    ```bash
-   sudo systemctl enable dotnetcloud-sync
-   sudo systemctl start dotnetcloud-sync
+   tar -xzf dotnetcloud-desktop-client-linux-x64-<version>.tar.gz
+   cd linux-x64
+   sudo ./install.sh
    ```
 
-3. Launch the tray app from your applications menu
+3. Launch the tray app from your applications menu or run `dotnetcloud-sync-tray`
 
 ---
 
@@ -44,11 +55,23 @@ The DotNetCloud sync client keeps a folder on your computer automatically synchr
 
 1. **Right-click the tray icon** → click **"Settings..."**
 2. Click **"Add Account"**
-3. Enter your DotNetCloud server URL (e.g., `https://cloud.example.com`)
+3. Enter your DotNetCloud server URL:
+   - Standard: `https://cloud.example.com`
+   - With custom port: `https://cloud.example.com:5443/`
+   - Include `https://` and port number if your server uses a non-standard port
 4. Your web browser opens — log in with your DotNetCloud credentials
 5. After login, the browser redirects back and the account is connected
-6. Choose a local folder for syncing (default: `~/DotNetCloud/{server}`)
+6. Choose a local folder for syncing (defaults listed below)
 7. Click **Save** — syncing begins immediately
+
+> **Self-signed certificates:** If your server uses a self-signed certificate, you may need to install the certificate on your machine first. See the [Troubleshooting Guide](../clients/desktop/TROUBLESHOOTING.md#self-signed-certificate-warnings) for instructions.
+
+### Default Sync Folder Locations
+
+| Platform | Default Path | Example |
+|---|---|---|
+| Windows | `%USERPROFILE%\DotNetCloud\{server}` | `C:\Users\Ben\DotNetCloud\cloud.example.com` |
+| Linux | `~/DotNetCloud/{server}` | `/home/ben/DotNetCloud/cloud.example.com` |
 
 ---
 
@@ -189,7 +212,65 @@ Configure which notifications you receive in **Settings** → **General** → **
 2. Large files sync via 4 MB chunks — this is normal for big files
 3. Many small files may take longer due to per-file overhead
 
-For more details, see the [Troubleshooting Guide](../../clients/desktop/TROUBLESHOOTING.md).
+For more details, see the [Troubleshooting Guide](../clients/desktop/TROUBLESHOOTING.md).
+
+---
+
+## Updating the Client
+
+### Windows (MSIX)
+
+1. Download the new `.msix` file from GitHub Releases
+2. Double-click to install — it upgrades the existing installation in place
+3. Sync resumes automatically with the new version
+
+### Linux
+
+1. Download the new `.tar.gz` and re-run `sudo ./install.sh`
+2. The installer stops the service, replaces binaries, and restarts
+
+---
+
+## Uninstalling
+
+### Windows (MSIX)
+
+1. Open **Settings** → **Apps** → **Installed apps**
+2. Search for **DotNetCloud SyncTray**
+3. Click the three-dot menu → **Uninstall**
+
+Or via PowerShell:
+
+```powershell
+Get-AppxPackage -Name "DotNetCloud.SyncTray" | Remove-AppxPackage
+```
+
+### Windows (ZIP install)
+
+Run from an elevated Command Prompt:
+
+```cmd
+uninstall.cmd
+```
+
+### Linux
+
+```bash
+sudo ./uninstall.sh
+```
+
+> **Your files are safe:** Uninstalling removes the sync service and tray app but does **not** delete your local sync folder or any files on the server.
+
+---
+
+## Data & Log Locations
+
+| Item | Windows | Linux |
+|---|---|---|
+| Sync folder | `%USERPROFILE%\DotNetCloud\{server}` | `~/DotNetCloud/{server}` |
+| Sync state database | `%ProgramData%\DotNetCloud\Sync\{contextId}\state.db` | `/var/lib/dotnetcloud/sync/{contextId}/state.db` |
+| Service logs | `%ProgramData%\DotNetCloud\Sync\logs\` | `/var/log/dotnetcloud/` |
+| Tray app logs | `%LOCALAPPDATA%\DotNetCloud\logs\` | `~/.local/share/dotnetcloud/logs/` |
 
 ---
 
