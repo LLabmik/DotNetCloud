@@ -1183,6 +1183,17 @@ public sealed class SyncEngine : ISyncEngine
             // Issue #43: symlink materialisation — no content to download.
             if (download.LinkTarget is not null)
             {
+                var symlinkParentPath = Path.GetDirectoryName(download.LocalPath)!;
+                var resolvedTarget = Path.GetFullPath(download.LinkTarget, symlinkParentPath);
+                if (!IsPathWithinSyncRoot(context.LocalFolderPath, resolvedTarget))
+                {
+                    _logger.LogWarning(
+                        "Blocked symlink {Path} -> {Target}: escapes sync folder.",
+                        download.LocalPath,
+                        download.LinkTarget);
+                    return;
+                }
+
                 Directory.CreateDirectory(Path.GetDirectoryName(download.LocalPath)!);
 
                 // Windows symlink creation requires Developer Mode or admin; skip gracefully if unavailable.
@@ -1350,23 +1361,49 @@ public sealed class SyncEngine : ISyncEngine
     {
         var existing = await _stateDb.GetFileRecordByNodeIdAsync(context.StateDatabasePath, nodeId, cancellationToken);
         if (existing is not null)
-            return existing.LocalPath;
+            return ValidatePathWithinSyncRoot(context.LocalFolderPath, existing.LocalPath);
 
         // Use the tree-derived path map when available
         if (pathMap.TryGetValue(nodeId, out var relativePath))
-            return Path.Combine(context.LocalFolderPath, relativePath);
+            return ValidatePathWithinSyncRoot(context.LocalFolderPath, Path.Combine(context.LocalFolderPath, relativePath));
 
         // When this node is missing from the map (stale tree/page race), build from parent path
         // to avoid incorrectly materializing the file in sync-root.
         if (parentId.HasValue && pathMap.TryGetValue(parentId.Value, out var parentRelativePath))
-            return Path.Combine(context.LocalFolderPath, parentRelativePath, name);
+            return ValidatePathWithinSyncRoot(context.LocalFolderPath, Path.Combine(context.LocalFolderPath, parentRelativePath, name));
 
         _logger.LogWarning(
             "Could not resolve tree path for node {NodeId} ('{Name}'); falling back to sync-root path.",
             nodeId,
             name);
 
-        return Path.Combine(context.LocalFolderPath, name);
+        return ValidatePathWithinSyncRoot(context.LocalFolderPath, Path.Combine(context.LocalFolderPath, name));
+    }
+
+    private static string ValidatePathWithinSyncRoot(string syncRootPath, string path)
+    {
+        var fullPath = Path.GetFullPath(path);
+        if (!IsPathWithinSyncRoot(syncRootPath, fullPath))
+            throw new InvalidOperationException($"Resolved path escapes sync folder: {fullPath}");
+
+        return fullPath;
+    }
+
+    private static bool IsPathWithinSyncRoot(string syncRootPath, string candidatePath)
+    {
+        var root = Path.GetFullPath(syncRootPath);
+        var candidate = Path.GetFullPath(candidatePath);
+
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        var normalizedRoot = root.EndsWith(Path.DirectorySeparatorChar)
+            ? root
+            : root + Path.DirectorySeparatorChar;
+
+        return string.Equals(candidate, root, comparison)
+            || candidate.StartsWith(normalizedRoot, comparison);
     }
 
     private static bool IsFolderNodeType(string? nodeType) =>

@@ -2308,6 +2308,13 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Loading skeletons/states for `ChannelList` and `AnnouncementList`
 - ✓ Settings UI confirms `IsMuteChatNotifications` is wired in `SettingsWindow` (`CheckBox` binding + tooltip)
 
+#### Security Audit Remediation (2026-03-22)
+- ✓ Remove hardcoded development server URL default from SyncTray settings (`SettingsViewModel._addAccountServerUrl` now defaults to empty)
+- ✓ Restrict Linux/macOS Unix socket file mode to owner read/write only (`0600`) after bind in SyncService IPC server
+- ✓ Block symlink materialization when resolved symlink target escapes the configured sync root
+- ✓ Reject remote path resolution when resolved path escapes the configured sync root (prevents `../` traversal)
+- ✓ Add/extend security regression tests for all four findings (SyncTray, SyncService, SyncEngine)
+
 ---
 
 ## Phase 2: Chat & Notifications

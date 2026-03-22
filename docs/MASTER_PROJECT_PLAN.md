@@ -78,6 +78,7 @@
 | Sync Verification | 1 | 1 | 0 | 0 |
 | Sync Hardening P0 | 3 | 3 | 0 | 0 |
 | Sync Hardening P1–P2 | 6 | 6 | 0 | 0 |
+| Client Security Remediation | 1 | 1 | 0 | 0 |
 | Phase 3-9 | Summary | 0 | 0 | 1 |
 | Infrastructure | Summary | 0 | 0 | 1 |
 | Documentation | Summary | 0 | 0 | 1 |
@@ -1186,6 +1187,22 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - Completion verification plan: `docs/PHASE_1_COMPLETION_PLAN.md`
 
 **Notes:** All Files endpoints functional, upload/download/sync verified across 3 machines (mint22, Windows11-TestDNC, mint-dnc-client). Collabora/WOPI integration operational. Desktop sync clients working on Windows (service + SyncTray) and Linux. Share notifications (public link access, expiry warnings) and sync debounce all implemented. 644 Files module tests + 182 Client.Core tests + 27 SyncService tests + 77 SyncTray tests = 930 tests covering Files/Sync.
+
+### Step: client-security-remediation-2026-03-22 - Client Security Audit Follow-up
+**Status:** completed ✅
+**Duration:** ~1 hour
+**Description:** Implemented and validated client-side fixes from the cross-machine security audit handoff.
+
+**Deliverables:**
+- ✓ SyncTray default add-account server URL changed from hardcoded development host to empty value
+- ✓ SyncService Unix socket listener now forces socket file permissions to owner-only read/write (`0600`) after bind
+- ✓ SyncEngine now blocks symlink materialization when resolved link targets escape the sync root
+- ✓ SyncEngine now validates all resolved local paths stay within sync root and throws on traversal attempts
+- ✓ Regression tests added for all fixes in SyncTray, SyncService, and SyncEngine test suites
+
+**Dependencies:** Prior security audit handoff (`e5b5988`)
+**Blocking Issues:** None
+**Notes:** All remediation tests pass in targeted runs, including explicit traversal/symlink guard coverage and socket mode verification.
 
 ---
 

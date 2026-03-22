@@ -191,6 +191,7 @@ public sealed class IpcServer : IIpcServer, IAsyncDisposable
 
         _unixSocket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
         _unixSocket.Bind(new UnixDomainSocketEndPoint(UnixSocketPath));
+        RestrictUnixSocketPermissions(UnixSocketPath);
         _unixSocket.Listen(backlog: 10);
 
         while (!cancellationToken.IsCancellationRequested)
@@ -252,6 +253,14 @@ public sealed class IpcServer : IIpcServer, IAsyncDisposable
             "share",
             "DotNetCloud",
             "sync.sock");
+    }
+
+    internal static void RestrictUnixSocketPermissions(string socketPath)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(socketPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        }
     }
 
     // ── Client task management ────────────────────────────────────────────

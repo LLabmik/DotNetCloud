@@ -1181,6 +1181,72 @@ public class SyncEngineTests
         Assert.AreEqual(expectedMode, actualMode, $"Expected default mode 0o644 (420) but got {actualMode}.");
     }
 
+    [TestMethod]
+    public async Task SyncAsync_PendingSymlinkDownload_TargetEscapesSyncFolder_BlocksMaterialization()
+    {
+        var symlinkPath = Path.Combine(_tempDir, "links", "blocked-link");
+        var nodeId = Guid.NewGuid();
+
+        _stateDbMock.Setup(db => db.GetPendingOperationsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([new PendingDownload
+            {
+                Id = 1,
+                LocalPath = symlinkPath,
+                NodeId = nodeId,
+                LinkTarget = "../../../etc/passwd",
+            }]);
+        _stateDbMock.Setup(db => db.RemoveOperationAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        await _engine.StartAsync(_context);
+        await _engine.SyncAsync(_context);
+        await _engine.StopAsync();
+
+        Assert.IsFalse(File.Exists(symlinkPath), "Symlink should not be created when target escapes sync root.");
+        _stateDbMock.Verify(db => db.UpsertFileRecordAsync(
+            It.IsAny<string>(),
+            It.IsAny<LocalFileRecord>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task SyncAsync_RemoteChangeWithTraversalName_SetsErrorStateAndSkipsQueueing()
+    {
+        _apiMock.Setup(a => a.GetFolderTreeAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SyncTreeNodeResponse { NodeId = Guid.Empty, Name = "/", NodeType = "Folder" });
+        _apiMock.Setup(a => a.GetChangesSinceAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedSyncChangesResponse
+            {
+                Changes =
+                [
+                    new SyncChangeResponse
+                    {
+                        NodeId = Guid.NewGuid(),
+                        Name = "../../outside.txt",
+                        NodeType = "File",
+                        UpdatedAt = DateTime.UtcNow,
+                    },
+                ],
+                HasMore = false,
+                NextCursor = null,
+            });
+
+        await _engine.StartAsync(_context);
+        await _engine.SyncAsync(_context);
+
+        var status = await _engine.GetStatusAsync(_context);
+
+        await _engine.StopAsync();
+
+        Assert.AreEqual(SyncState.Error, status.State);
+        Assert.IsNotNull(status.LastError);
+        StringAssert.Contains(status.LastError, "escapes sync folder");
+        _stateDbMock.Verify(db => db.QueueOperationAsync(
+            It.IsAny<string>(),
+            It.IsAny<PendingOperationRecord>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     // ── Private helpers ─────────────────────────────────────────────────────
 
     private SyncEngine BuildEngine(IChunkedTransferClient? transfer = null) =>

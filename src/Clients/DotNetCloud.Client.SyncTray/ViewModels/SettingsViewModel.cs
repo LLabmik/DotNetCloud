@@ -28,7 +28,7 @@ public sealed class SettingsViewModel : ViewModelBase
     private readonly ILogger<SettingsViewModel> _logger;
     private readonly string _localSettingsPath;
 
-    private string _addAccountServerUrl = "https://mint22.kimball.home:5443/";
+    private string _addAccountServerUrl = string.Empty;
     private string _addAccountClientId = "dotnetcloud-desktop";
     private string _addAccountError = string.Empty;
     private bool _isAddingAccount;
