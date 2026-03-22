@@ -525,11 +525,13 @@ public class Program
 
         app.UseHttpsRedirection();
 
-        // Rate limiting
-        app.UseDotNetCloudRateLimiting();
-
         app.UseAuthentication();
         app.UseAuthorization();
+
+        // Rate limiting — MUST come after UseAuthentication so the GlobalLimiter
+        // can distinguish authenticated (200 req/60s per user) from anonymous
+        // (20 req/60s per IP) requests.
+        app.UseDotNetCloudRateLimiting();
 
         // Serve static files (Blazor wwwroot, CSS, JS, _framework/blazor.web.js)
         app.MapStaticAssets();

@@ -121,11 +121,29 @@ public static class RateLimitingConfiguration
             // Default global limiter applied to ALL endpoints that don't have
             // an explicit [EnableRateLimiting] attribute. This is the safety net
             // that ensures every endpoint is rate-limited by default.
+            // Authenticated requests get a higher limit (per user); anonymous
+            // requests get the strict global limit (per IP).
             limiterOptions.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
             {
+                var isAuthenticated = context.User?.Identity?.IsAuthenticated == true;
+
+                if (isAuthenticated)
+                {
+                    var userId = context.User!.FindFirst("sub")?.Value ?? GetClientIpAddress(context);
+                    return RateLimitPartition.GetFixedWindowLimiter(
+                        partitionKey: $"auth:{userId}",
+                        factory: _ => new FixedWindowRateLimiterOptions
+                        {
+                            PermitLimit = options.AuthenticatedPermitLimit,
+                            Window = TimeSpan.FromSeconds(options.AuthenticatedWindowSeconds),
+                            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                            QueueLimit = options.QueueLimit
+                        });
+                }
+
                 var clientIp = GetClientIpAddress(context);
                 return RateLimitPartition.GetFixedWindowLimiter(
-                    partitionKey: clientIp,
+                    partitionKey: $"anon:{clientIp}",
                     factory: _ => new FixedWindowRateLimiterOptions
                     {
                         PermitLimit = options.GlobalPermitLimit,
