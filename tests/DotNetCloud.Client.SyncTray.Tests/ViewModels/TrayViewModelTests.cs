@@ -108,7 +108,7 @@ public sealed class TrayViewModelTests
     // ── SyncError event ───────────────────────────────────────────────────
 
     [TestMethod]
-    public async Task OnSyncError_SetsErrorState_AndShowsNotification()
+    public async Task OnSyncError_SetsErrorState_AndBuffersError_NoImmediateToast()
     {
         var (vm, ipcMock, _, notifMock) = BuildVm();
         var contextId = Guid.NewGuid();
@@ -124,15 +124,224 @@ public sealed class TrayViewModelTests
         Assert.AreEqual("Error", account?.State);
         Assert.AreEqual("Network timeout", account?.LastError);
 
+        // No immediate toast — error is held until the sync cycle completes.
         notifMock.Verify(
             n => n.ShowNotification(
                 It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<NotificationType>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>()),
+            Times.Never);
+    }
+
+    // ── Toast coalescing: sync errors and successes ───────────────────────
+
+    [TestMethod]
+    public async Task OnSyncComplete_WithPriorError_ShowsSingleAggregatedErrorToast()
+    {
+        var (vm, ipcMock, _, notifMock) = BuildVm();
+        var contextId = Guid.NewGuid();
+
+        await SeedAccountAsync(vm, ipcMock, contextId, "Syncing");
+
+        ipcMock.Raise(
+            i => i.SyncErrorReceived += null,
+            ipcMock.Object,
+            new SyncErrorEventData { ContextId = contextId, Error = "Network timeout" });
+
+        ipcMock.Raise(
+            i => i.SyncCompleteReceived += null,
+            ipcMock.Object,
+            new SyncCompleteEventData { ContextId = contextId, Conflicts = 0, LastSyncedAt = DateTime.UtcNow });
+
+        notifMock.Verify(
+            n => n.ShowNotification(
+                "Sync failed",
                 It.Is<string>(b => b.Contains("Network timeout")),
+                NotificationType.Error,
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.Is<string?>(r => r != null && r.StartsWith("sync-cycle-"))),
+            Times.Once);
+
+        // No success toast when there are errors.
+        notifMock.Verify(
+            n => n.ShowNotification(
+                "Sync complete",
+                It.IsAny<string>(),
+                NotificationType.Info,
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>()),
+            Times.Never);
+    }
+
+    [TestMethod]
+    public async Task OnSyncComplete_WithMultipleErrors_ShowsSingleToastWithSummary()
+    {
+        var (vm, ipcMock, _, notifMock) = BuildVm();
+        var contextId = Guid.NewGuid();
+
+        await SeedAccountAsync(vm, ipcMock, contextId, "Syncing");
+
+        ipcMock.Raise(i => i.SyncErrorReceived += null, ipcMock.Object,
+            new SyncErrorEventData { ContextId = contextId, Error = "Error A" });
+        ipcMock.Raise(i => i.SyncErrorReceived += null, ipcMock.Object,
+            new SyncErrorEventData { ContextId = contextId, Error = "Error B" });
+        ipcMock.Raise(i => i.SyncErrorReceived += null, ipcMock.Object,
+            new SyncErrorEventData { ContextId = contextId, Error = "Error C" });
+
+        ipcMock.Raise(
+            i => i.SyncCompleteReceived += null,
+            ipcMock.Object,
+            new SyncCompleteEventData { ContextId = contextId, Conflicts = 0, LastSyncedAt = DateTime.UtcNow });
+
+        // Exactly one error toast containing the count.
+        notifMock.Verify(
+            n => n.ShowNotification(
+                "Sync failed",
+                It.Is<string>(b => b.Contains("3 error(s)")),
                 NotificationType.Error,
                 It.IsAny<string?>(),
                 It.IsAny<string?>(),
                 It.IsAny<string?>()),
             Times.Once);
+    }
+
+    [TestMethod]
+    public async Task OnSyncComplete_WithTransfersNoErrors_ShowsSuccessToast()
+    {
+        var (vm, ipcMock, _, notifMock) = BuildVm();
+        var contextId = Guid.NewGuid();
+
+        await SeedAccountAsync(vm, ipcMock, contextId, "Syncing");
+
+        // Two uploads and one download.
+        ipcMock.Raise(i => i.TransferCompleteReceived += null, ipcMock.Object,
+            new TransferCompleteEventData { ContextId = contextId, FileName = "a.txt", Direction = "upload", TotalBytes = 100 });
+        ipcMock.Raise(i => i.TransferCompleteReceived += null, ipcMock.Object,
+            new TransferCompleteEventData { ContextId = contextId, FileName = "b.txt", Direction = "upload", TotalBytes = 200 });
+        ipcMock.Raise(i => i.TransferCompleteReceived += null, ipcMock.Object,
+            new TransferCompleteEventData { ContextId = contextId, FileName = "c.txt", Direction = "download", TotalBytes = 300 });
+
+        ipcMock.Raise(
+            i => i.SyncCompleteReceived += null,
+            ipcMock.Object,
+            new SyncCompleteEventData { ContextId = contextId, Conflicts = 0, LastSyncedAt = DateTime.UtcNow });
+
+        notifMock.Verify(
+            n => n.ShowNotification(
+                "Sync complete",
+                It.Is<string>(b => b.Contains("2 uploaded") && b.Contains("1 downloaded")),
+                NotificationType.Info,
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.Is<string?>(r => r != null && r.StartsWith("sync-cycle-"))),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public async Task OnSyncComplete_WithNoActivityNoErrors_ShowsNoToast()
+    {
+        var (vm, ipcMock, _, notifMock) = BuildVm();
+        var contextId = Guid.NewGuid();
+
+        await SeedAccountAsync(vm, ipcMock, contextId, "Syncing");
+
+        ipcMock.Raise(
+            i => i.SyncCompleteReceived += null,
+            ipcMock.Object,
+            new SyncCompleteEventData { ContextId = contextId, Conflicts = 0, LastSyncedAt = DateTime.UtcNow });
+
+        // Nothing synced, nothing failed — no toast.
+        notifMock.Verify(
+            n => n.ShowNotification(
+                It.Is<string>(t => t == "Sync complete" || t == "Sync failed"),
+                It.IsAny<string>(),
+                It.IsAny<NotificationType>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>()),
+            Times.Never);
+    }
+
+    [TestMethod]
+    public async Task OnSyncComplete_MixedSuccessAndErrors_ShowsOnlyErrorToast()
+    {
+        var (vm, ipcMock, _, notifMock) = BuildVm();
+        var contextId = Guid.NewGuid();
+
+        await SeedAccountAsync(vm, ipcMock, contextId, "Syncing");
+
+        ipcMock.Raise(i => i.TransferCompleteReceived += null, ipcMock.Object,
+            new TransferCompleteEventData { ContextId = contextId, FileName = "ok.txt", Direction = "upload", TotalBytes = 100 });
+        ipcMock.Raise(i => i.SyncErrorReceived += null, ipcMock.Object,
+            new SyncErrorEventData { ContextId = contextId, Error = "Upload failed: permission denied" });
+
+        ipcMock.Raise(
+            i => i.SyncCompleteReceived += null,
+            ipcMock.Object,
+            new SyncCompleteEventData { ContextId = contextId, Conflicts = 0, LastSyncedAt = DateTime.UtcNow });
+
+        notifMock.Verify(
+            n => n.ShowNotification(
+                "Sync failed",
+                It.Is<string>(b => b.Contains("permission denied")),
+                NotificationType.Error,
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>()),
+            Times.Once);
+
+        notifMock.Verify(
+            n => n.ShowNotification(
+                "Sync complete",
+                It.IsAny<string>(),
+                NotificationType.Info,
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>()),
+            Times.Never);
+    }
+
+    [TestMethod]
+    public async Task NewSyncCycle_ResetsPriorCycleErrors()
+    {
+        var (vm, ipcMock, _, notifMock) = BuildVm();
+        var contextId = Guid.NewGuid();
+
+        await SeedAccountAsync(vm, ipcMock, contextId, "Idle");
+
+        // First cycle: triggers an error.
+        ipcMock.Raise(i => i.SyncProgressReceived += null, ipcMock.Object,
+            new SyncProgressEventData { ContextId = contextId, State = "Syncing" });
+        ipcMock.Raise(i => i.SyncErrorReceived += null, ipcMock.Object,
+            new SyncErrorEventData { ContextId = contextId, Error = "Old error" });
+
+        // Second cycle starts — should clear the pending error.
+        ipcMock.Raise(i => i.SyncProgressReceived += null, ipcMock.Object,
+            new SyncProgressEventData { ContextId = contextId, State = "Idle" });
+        ipcMock.Raise(i => i.SyncProgressReceived += null, ipcMock.Object,
+            new SyncProgressEventData { ContextId = contextId, State = "Syncing" });
+
+        // Cycle completes with no new errors and no transfers.
+        ipcMock.Raise(
+            i => i.SyncCompleteReceived += null,
+            ipcMock.Object,
+            new SyncCompleteEventData { ContextId = contextId, Conflicts = 0, LastSyncedAt = DateTime.UtcNow });
+
+        // Old error was cleared — no error toast.
+        notifMock.Verify(
+            n => n.ShowNotification(
+                "Sync failed",
+                It.IsAny<string>(),
+                NotificationType.Error,
+                It.IsAny<string?>(),
+                It.IsAny<string?>(),
+                It.IsAny<string?>()),
+            Times.Never);
     }
 
     // ── Aggregate state ───────────────────────────────────────────────────
@@ -368,6 +577,9 @@ public sealed class TrayViewModelTests
         ipcMock.SetupAdd(i => i.SyncCompleteReceived += It.IsAny<EventHandler<SyncCompleteEventData>>());
         ipcMock.SetupAdd(i => i.SyncErrorReceived += It.IsAny<EventHandler<SyncErrorEventData>>());
         ipcMock.SetupAdd(i => i.ConflictDetected += It.IsAny<EventHandler<SyncConflictEventData>>());
+        ipcMock.SetupAdd(i => i.ConflictAutoResolved += It.IsAny<EventHandler<ConflictAutoResolvedEventData>>());
+        ipcMock.SetupAdd(i => i.TransferProgressReceived += It.IsAny<EventHandler<TransferProgressEventData>>());
+        ipcMock.SetupAdd(i => i.TransferCompleteReceived += It.IsAny<EventHandler<TransferCompleteEventData>>());
         ipcMock.SetupAdd(i => i.ConnectionStateChanged += It.IsAny<EventHandler<bool>>());
 
         var chatMock = new Mock<IChatSignalRClient>();

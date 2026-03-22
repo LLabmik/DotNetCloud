@@ -47,6 +47,10 @@ public sealed class TrayViewModel : ViewModelBase
     private DateTime _lastConflictNotificationUtc = DateTime.MinValue;
     private Timer? _conflictReminderTimer;
 
+    // Per-sync-cycle notification aggregation keyed by context ID.
+    private readonly Dictionary<Guid, List<string>> _cycleErrors = [];
+    private readonly Dictionary<Guid, (int Uploads, int Downloads)> _cycleTransfers = [];
+
     // ── Properties ────────────────────────────────────────────────────────
 
     /// <summary>Aggregate tray state computed from all sync contexts.</summary>
@@ -313,6 +317,13 @@ public sealed class TrayViewModel : ViewModelBase
     {
         if (_accounts.TryGetValue(e.ContextId, out var vm))
         {
+            if (e.State == "Syncing" && vm.State != "Syncing")
+            {
+                // New sync cycle starting — reset per-cycle aggregation.
+                _cycleErrors.Remove(e.ContextId);
+                _cycleTransfers.Remove(e.ContextId);
+            }
+
             vm.State = e.State;
             vm.PendingUploads = e.PendingUploads;
             vm.PendingDownloads = e.PendingDownloads;
@@ -323,8 +334,10 @@ public sealed class TrayViewModel : ViewModelBase
 
     private void OnSyncComplete(object? sender, SyncCompleteEventData e)
     {
+        string? displayName = null;
         if (_accounts.TryGetValue(e.ContextId, out var vm))
         {
+            displayName = vm.DisplayName;
             vm.State = "Idle";
             vm.LastSyncedAt = e.LastSyncedAt;
             vm.PendingUploads = 0;
@@ -334,9 +347,39 @@ public sealed class TrayViewModel : ViewModelBase
             {
                 _notifications.ShowNotification(
                     "Sync conflict detected",
-                    $"{e.Conflicts} conflict(s) in {vm.DisplayName}. Conflict copies have been created.",
+                    $"{e.Conflicts} conflict(s) in {displayName}. Conflict copies have been created.",
                     NotificationType.Warning);
             }
+        }
+
+        // Emit one aggregated end-of-cycle toast.
+        _cycleErrors.Remove(e.ContextId, out var cycleErrors);
+        _cycleTransfers.Remove(e.ContextId, out var cycleTransfers);
+        displayName ??= e.ContextId.ToString();
+
+        if (cycleErrors is { Count: > 0 })
+        {
+            var summary = cycleErrors.Count == 1
+                ? cycleErrors[0]
+                : $"{cycleErrors.Count} error(s):\n" + string.Join("\n", cycleErrors.Select((err, i) => $"  {i + 1}. {err}"));
+            _notifications.ShowNotification(
+                "Sync failed",
+                $"{displayName}: {summary}",
+                NotificationType.Error,
+                replaceKey: $"sync-cycle-{e.ContextId}");
+        }
+        else if (cycleTransfers.Uploads > 0 || cycleTransfers.Downloads > 0)
+        {
+            var parts = new List<string>(2);
+            if (cycleTransfers.Uploads > 0)
+                parts.Add($"{cycleTransfers.Uploads} uploaded");
+            if (cycleTransfers.Downloads > 0)
+                parts.Add($"{cycleTransfers.Downloads} downloaded");
+            _notifications.ShowNotification(
+                "Sync complete",
+                string.Join(", ", parts),
+                NotificationType.Info,
+                replaceKey: $"sync-cycle-{e.ContextId}");
         }
 
         UpdateAggregateState();
@@ -349,10 +392,10 @@ public sealed class TrayViewModel : ViewModelBase
             vm.State = "Error";
             vm.LastError = e.Error;
 
-            _notifications.ShowNotification(
-                "Sync error",
-                $"{vm.DisplayName}: {e.Error}",
-                NotificationType.Error);
+            // Accumulate errors — the consolidated toast is emitted at cycle completion.
+            if (!_cycleErrors.TryGetValue(e.ContextId, out var errors))
+                _cycleErrors[e.ContextId] = errors = [];
+            errors.Add(e.Error);
         }
 
         UpdateAggregateState();
@@ -570,6 +613,13 @@ public sealed class TrayViewModel : ViewModelBase
         }
 
         vm.MarkComplete(e.TotalBytes);
+
+        // Count towards the current cycle aggregation.
+        _cycleTransfers.TryGetValue(e.ContextId, out var counts);
+        if (e.Direction == "upload")
+            _cycleTransfers[e.ContextId] = (counts.Uploads + 1, counts.Downloads);
+        else
+            _cycleTransfers[e.ContextId] = (counts.Uploads, counts.Downloads + 1);
 
         // Auto-dismiss after 5 seconds.
         _ = Task.Run(async () =>
