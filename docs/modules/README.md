@@ -111,7 +111,7 @@ Configuration is managed via `appsettings.json` sections:
 - [WOPI / Collabora Integration](WOPI.md)
 - [Desktop Sync Protocol](SYNC.md)
 - [Admin Configuration](../admin/CONFIGURATION.md)
-- [User Getting Started](../../user/files/GETTING_STARTED.md)
+- [User Getting Started](../user/GETTING_STARTED.md)
 
 ## Test Coverage
 
