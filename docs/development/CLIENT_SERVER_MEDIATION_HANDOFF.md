@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-22 (new Linux client UX handoff: aggregate sync toasts)
+Last updated: 2026-03-22 (new server handoff: mint22 connection refused diagnostics)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -56,7 +56,7 @@ Archived context:
 - Duplicate controller fix: CLOSED (2026-03-18). Deployed and verified on `mint22`. Files endpoint returns 401, service healthy.
 - Windows IIS + Service Validation: **COMPLETE** (2026-03-21). Three startup blockers resolved. IIS reverse proxy configured and verified (URL Rewrite + ARR). HTTP (port 80) and HTTPS (port 443) both proxy to Kestrel :5080. Self-signed localhost cert bound.
 - File browser child count fix: **DEPLOYED** (2026-03-21). `mint22` redeployed; service stable.
-- **Active cycle:** Linux client sync UX refinement on `mint-dnc-client` (toast consolidation).
+- **Active cycle:** server-side connectivity diagnosis on `mint22` for desktop OAuth/connect flow (`Connection refused` to `mint22.kimball.home:15443`).
 
 ## Environment
 
@@ -78,28 +78,50 @@ Archived context:
 
 ## Active Handoff
 
-**Status: COMPLETE — no pending work. Awaiting next task.**
+**Target machine:** `mint22`
+**Status:** IN PROGRESS — server-side investigation required
+**Priority:** P0 (blocks desktop SyncTray account-connect OAuth flow)
 
-### Completed: Linux Sync Toast Consolidation — `a725206` (mint-dnc-client, 2026-03-22)
+### Context from client machine (`mint-dnc-client`)
 
-**Files changed:**
-- `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/TrayViewModel.cs`
-- `tests/DotNetCloud.Client.SyncTray.Tests/ViewModels/TrayViewModelTests.cs`
+- User sees browser failure during account connect from SyncTray:
+  - URL attempted: `https://mint22.kimball.home:15443/connect/authorize?response_type=code&client_id=dotnetcloud-desktop&...`
+  - Browser error: **Unable to connect** / connection refused.
+- DNS resolution from client is correct:
+  - `mint22.kimball.home -> 192.168.0.112`
+- TCP probes from client fail with active refusal:
+  - `192.168.0.112:15443` -> connection refused
+  - common alternates (`80`, `443`, `5001`, `8080`) also closed from client at test time.
 
-**What was done:**
-- Added `_cycleErrors` and `_cycleTransfers` dictionaries to `TrayViewModel` for per-cycle aggregation.
-- `OnSyncError`: suppressed immediate toast; errors are accumulated in `_cycleErrors[contextId]`.
-- `OnTransferComplete`: increments `_cycleTransfers[contextId]` upload/download counts.
-- `OnSyncComplete`: emits exactly one aggregated toast:
-  - Errors present → single "Sync failed" toast listing all errors (count summary if >1). Uses `replaceKey` for dedup.
-  - No errors, transfers > 0 → single "Sync complete" toast (e.g. "2 uploaded, 1 downloaded"). Uses `replaceKey`.
-  - No errors, no transfers → no toast (idle cycle).
-- `OnSyncProgress`: resets per-cycle state when a new Syncing cycle begins (Idle/Error → Syncing transition).
-- Per-conflict toasts (`OnConflictDetected`) were confirmed OK by user — left unchanged.
+### Required actions on `mint22` (execute autonomously)
 
-**Tests: 83/83 pass** (`dotnet test tests/DotNetCloud.Client.SyncTray.Tests/`)
-- 1 existing test updated: `OnSyncError_SetsErrorState_AndBuffersError_NoImmediateToast`
-- 6 new tests added covering: single error, multiple errors (count summary), success with transfers, no-activity no-toast, mixed (error wins), new cycle resets prior errors.
+1. Verify what is actually listening and on which interfaces:
+   - `ss -ltnp | rg '15443|443|5001|8080|80|dotnetcloud|nginx|caddy|apache' || ss -ltnp`
+2. Verify service state and recent logs:
+   - `systemctl status dotnetcloud --no-pager`
+   - `journalctl -u dotnetcloud -n 120 --no-pager`
+3. Verify runtime binding configuration for external access:
+   - check effective `ASPNETCORE_URLS`, Kestrel endpoints, reverse-proxy front door, and TLS binding config.
+4. Verify firewall/reject rules:
+   - `ufw status verbose` (if used)
+   - `nft list ruleset` (or iptables equivalent) and confirm no reject/drop on intended external port.
+5. Fix and redeploy as needed so LAN clients can reach the intended HTTPS endpoint.
+
+### Acceptance criteria
+
+- From `mint22` itself: HTTPS listener confirmed on expected external interface (not localhost-only).
+- From `mint-dnc-client`: TCP connect succeeds to target host:port.
+- OAuth authorize URL loads from browser on client:
+  - `https://mint22.kimball.home:<port>/connect/authorize?...`
+- SyncTray Add Account flow can reach login page without connection-refused.
+
+### Required handback in this document
+
+- Commit hash and deployment command used.
+- Listener proof (`ss -ltnp` excerpt with bound address/port).
+- Service log proof around startup/bind.
+- Firewall rule proof if modified.
+- Exact externally reachable URL and port to be used by clients.
 
 ## Relay Template
 

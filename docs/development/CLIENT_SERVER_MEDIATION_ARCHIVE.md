@@ -5,6 +5,28 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Linux Sync Toast Consolidation — COMPLETE (2026-03-22)
+
+Archived from Active Handoff on 2026-03-22 when the active slot was reassigned to server connectivity diagnostics for `mint22`.
+
+**Original target:** `mint-dnc-client`
+**Original status:** COMPLETE ✅
+**Commit:** `a725206`
+
+### Files changed
+- `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/TrayViewModel.cs`
+- `tests/DotNetCloud.Client.SyncTray.Tests/ViewModels/TrayViewModelTests.cs`
+
+### What was delivered
+- Added per-cycle aggregation dictionaries (`_cycleErrors`, `_cycleTransfers`) in `TrayViewModel`.
+- Suppressed immediate error toasts; errors are buffered and emitted as one aggregated summary on sync completion.
+- Added transfer-count aggregation and success summary toast for cycles with real transfer activity.
+- Preserved no-toast behavior for idle/no-op cycles.
+- Preserved per-conflict notifications unchanged.
+
+### Test result
+- `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/` -> 83/83 passed.
+
 ## Archived: Phase 1 & Phase 2 Completion Verification — DONE (2026-03-22)
 
 Archived from Active Handoff on 2026-03-22 when the active slot was reassigned to Linux client toast consolidation work.
