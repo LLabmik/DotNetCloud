@@ -64,7 +64,8 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         // Ensure every uploader has a quota row before checking available space.
         await _quotaService.GetOrCreateQuotaAsync(caller.UserId, caller, cancellationToken);
 
-        if (!await _quotaService.HasSufficientQuotaAsync(caller.UserId, dto.TotalSize, cancellationToken))
+        // Atomically reserve the quota to prevent TOCTOU race conditions.
+        if (!await _quotaService.TryReserveQuotaAsync(caller.UserId, dto.TotalSize, cancellationToken))
             throw new Core.Errors.ValidationException("Quota", "Insufficient storage quota for this upload.");
 
         // Identify which chunks already exist (dedup)

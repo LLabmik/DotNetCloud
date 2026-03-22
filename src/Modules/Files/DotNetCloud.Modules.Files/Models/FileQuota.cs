@@ -16,6 +16,7 @@ public sealed class FileQuota
     public long MaxBytes { get; set; }
 
     /// <summary>Current storage used in bytes.</summary>
+    [System.ComponentModel.DataAnnotations.ConcurrencyCheck]
     public long UsedBytes { get; set; }
 
     /// <summary>When the quota was last recalculated (UTC).</summary>

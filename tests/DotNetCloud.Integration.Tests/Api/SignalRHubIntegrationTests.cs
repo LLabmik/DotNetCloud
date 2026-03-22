@@ -133,10 +133,12 @@ public sealed class SignalRHubIntegrationTests
     [TestMethod]
     public async Task JoinGroupAsync_Succeeds()
     {
-        await using var connection = await ConnectHubAsync(UserId1);
-        var groupName = $"test-group-{Guid.NewGuid()}";
+        var channelId = await CreateChannelAsync("JoinGroupTestChannel");
+        await AddMemberToChannelAsync(UserId1, channelId);
 
-        await connection.InvokeAsync("JoinGroupAsync", groupName);
+        await using var connection = await ConnectHubAsync(UserId1);
+
+        await connection.InvokeAsync("JoinGroupAsync", channelId.ToString());
 
         // No exception means success; SignalR doesn't return a value for group operations
         Assert.AreEqual(HubConnectionState.Connected, connection.State);

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using System.Security.Claims;
 using DotNetCloud.Core.Data.Entities.Identity;
 using OpenIddict.Abstractions;
@@ -154,11 +155,24 @@ public static class OpenIddictEndpointsExtensions
         // Sign out the user
         await context.SignOutAsync();
 
-        // Redirect to the post-logout redirect URI if provided
+        // Validate post-logout redirect URI to prevent open redirect attacks.
+        // Only allow local (relative) URIs — external redirects are blocked.
         var postLogoutRedirectUri = request.PostLogoutRedirectUri;
         if (!string.IsNullOrEmpty(postLogoutRedirectUri))
         {
-            return Results.Redirect(postLogoutRedirectUri);
+            // Only allow local paths (starts with /, does not start with // which is protocol-relative)
+            if (postLogoutRedirectUri.StartsWith("/", StringComparison.Ordinal)
+                && !postLogoutRedirectUri.StartsWith("//", StringComparison.Ordinal))
+            {
+                return Results.LocalRedirect(postLogoutRedirectUri);
+            }
+
+            // Log and reject external redirect attempts
+            var logger = context.RequestServices.GetService<ILoggerFactory>()
+                ?.CreateLogger("OpenIddict.Logout");
+            logger?.LogWarning(
+                "Blocked open redirect in post-logout URI: {RedirectUri}",
+                postLogoutRedirectUri);
         }
 
         return Results.Ok(new { message = "Logout successful" });

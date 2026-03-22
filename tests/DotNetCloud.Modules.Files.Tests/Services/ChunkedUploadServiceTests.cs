@@ -47,6 +47,8 @@ public class ChunkedUploadServiceTests
         var mock = new Mock<IQuotaService>();
         mock.Setup(q => q.HasSufficientQuotaAsync(It.IsAny<Guid>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(hasSufficientQuota);
+        mock.Setup(q => q.TryReserveQuotaAsync(It.IsAny<Guid>(), It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(hasSufficientQuota);
         return mock.Object;
     }
 

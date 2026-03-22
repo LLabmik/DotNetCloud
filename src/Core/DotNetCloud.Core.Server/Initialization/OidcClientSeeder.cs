@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using OpenIddict.Abstractions;
 using static OpenIddict.Abstractions.OpenIddictConstants;
@@ -6,17 +7,25 @@ namespace DotNetCloud.Core.Server.Initialization;
 
 /// <summary>
 /// Seeds required OAuth2/OIDC client applications used by first-party clients.
+/// Redirect URIs are configurable via <c>OidcClients:Desktop:RedirectUri</c> and
+/// <c>OidcClients:Mobile:RedirectUri</c> settings.
 /// </summary>
 internal sealed class OidcClientSeeder
 {
+    private const string DefaultDesktopRedirectUri = "http://localhost:52701/oauth/callback";
+    private const string DefaultMobileRedirectUri = "net.dotnetcloud.client://oauth2redirect";
+
     private readonly IOpenIddictApplicationManager _applicationManager;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<OidcClientSeeder> _logger;
 
     public OidcClientSeeder(
         IOpenIddictApplicationManager applicationManager,
+        IConfiguration configuration,
         ILogger<OidcClientSeeder> logger)
     {
         _applicationManager = applicationManager;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -27,6 +36,9 @@ internal sealed class OidcClientSeeder
     {
         _ = cancellationToken;
 
+        var desktopRedirectUri = _configuration["OidcClients:Desktop:RedirectUri"] ?? DefaultDesktopRedirectUri;
+        var mobileRedirectUri = _configuration["OidcClients:Mobile:RedirectUri"] ?? DefaultMobileRedirectUri;
+
         var desktopDescriptor = new OpenIddictApplicationDescriptor
         {
             ClientId = "dotnetcloud-desktop",
@@ -35,7 +47,7 @@ internal sealed class OidcClientSeeder
             ConsentType = ConsentTypes.Explicit,
             RedirectUris =
             {
-                new Uri("http://localhost:52701/oauth/callback"),
+                new Uri(desktopRedirectUri),
             },
             Permissions =
             {
@@ -65,7 +77,7 @@ internal sealed class OidcClientSeeder
             ConsentType = ConsentTypes.Explicit,
             RedirectUris =
             {
-                new Uri("net.dotnetcloud.client://oauth2redirect"),
+                new Uri(mobileRedirectUri),
             },
             Permissions =
             {

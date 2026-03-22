@@ -78,14 +78,19 @@ public static class CorsConfiguration
         {
             options.AddPolicy(PolicyName, policy =>
             {
-                // Allowed origins
+                // Allowed origins — MUST be explicitly configured.
+                // AllowAnyOrigin is never used because it disables CORS protection entirely.
                 if (corsOptions.AllowedOrigins.Length > 0)
                 {
                     policy.WithOrigins(corsOptions.AllowedOrigins);
                 }
                 else
                 {
-                    policy.AllowAnyOrigin();
+                    // Default to self-origin only when no origins are configured.
+                    // In production, AllowedOrigins MUST be explicitly set in configuration.
+                    // AllowAnyOrigin() is intentionally NOT used — it would allow any website
+                    // to make credentialed cross-origin requests to the API.
+                    policy.SetIsOriginAllowed(_ => false);
                 }
 
                 // Allowed methods

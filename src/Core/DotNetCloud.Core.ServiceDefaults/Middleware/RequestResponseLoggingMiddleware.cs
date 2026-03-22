@@ -78,10 +78,16 @@ public class RequestResponseLoggingMiddleware
         }
     }
 
+    private static readonly HashSet<string> SensitiveQueryParams = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "access_token", "token", "api_key", "apikey", "secret", "password",
+        "key", "refresh_token", "client_secret"
+    };
+
     private void LogRequest(HttpContext context)
     {
         var request = context.Request;
-        
+
         var headers = MaskSensitiveHeaders(request.Headers);
 
         _logger.LogInformation(
@@ -96,8 +102,34 @@ public class RequestResponseLoggingMiddleware
             request.Scheme,
             request.Host,
             request.Path,
-            request.QueryString,
+            SanitizeQueryString(request.QueryString),
             headers);
+    }
+
+    /// <summary>
+    /// Masks sensitive query string parameters (tokens, passwords, API keys) before logging.
+    /// </summary>
+    private static string SanitizeQueryString(QueryString queryString)
+    {
+        if (!queryString.HasValue)
+            return string.Empty;
+
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(queryString.Value);
+        var sanitized = new List<string>();
+
+        foreach (var (key, value) in query)
+        {
+            if (SensitiveQueryParams.Contains(key))
+            {
+                sanitized.Add($"{key}=***REDACTED***");
+            }
+            else
+            {
+                sanitized.Add($"{key}={value}");
+            }
+        }
+
+        return sanitized.Count > 0 ? "?" + string.Join("&", sanitized) : string.Empty;
     }
 
     private void LogResponse(HttpContext context, long elapsedMs)

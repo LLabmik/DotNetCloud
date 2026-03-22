@@ -8,6 +8,7 @@ using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -33,14 +34,15 @@ internal sealed class WopiTokenService : IWopiTokenService
         IPermissionService permissionService,
         ICollaboraDiscoveryService discoveryService,
         IOptions<CollaboraOptions> options,
-        ILogger<WopiTokenService> logger)
+        ILogger<WopiTokenService> logger,
+        IHostEnvironment? hostEnvironment = null)
     {
         _db = db;
         _permissionService = permissionService;
         _discoveryService = discoveryService;
         _options = options.Value;
         _logger = logger;
-        _signingKey = DeriveSigningKey(_options.TokenSigningKey);
+        _signingKey = DeriveSigningKey(_options.TokenSigningKey, hostEnvironment);
     }
 
     /// <inheritdoc />
@@ -207,13 +209,28 @@ internal sealed class WopiTokenService : IWopiTokenService
         return $"{url}?WOPISrc={Uri.EscapeDataString(wopiSrc)}&access_token={Uri.EscapeDataString(accessToken)}&access_token_ttl={ttl}";
     }
 
-    private static byte[] DeriveSigningKey(string configuredKey)
+    private static byte[] DeriveSigningKey(string configuredKey, IHostEnvironment? hostEnvironment)
     {
         if (!string.IsNullOrWhiteSpace(configuredKey) && configuredKey.Length >= 32)
             return SHA256.HashData(Encoding.UTF8.GetBytes(configuredKey));
 
-        // Use a process-stable random key if not configured (tokens won't survive restarts,
-        // but they remain valid across requests during the current process lifetime).
+        // SECURITY WARNING: Using ephemeral signing key — WOPI tokens will be invalidated
+        // on every server restart and cannot be verified across multiple server instances.
+        // In production, ALWAYS configure Files:Collabora:TokenSigningKey (≥ 32 characters).
+        // This fallback exists only for initial development/testing.
+        var isProduction = hostEnvironment is not null
+            ? hostEnvironment.IsProduction()
+            : string.Equals(
+                Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production",
+                "Production", StringComparison.OrdinalIgnoreCase);
+
+        if (isProduction)
+        {
+            throw new InvalidOperationException(
+                "WOPI TokenSigningKey is not configured. In production, set Files:Collabora:TokenSigningKey " +
+                "to a secure random string of at least 32 characters. Ephemeral keys are not allowed in production.");
+        }
+
         return EphemeralProcessSigningKey;
     }
 

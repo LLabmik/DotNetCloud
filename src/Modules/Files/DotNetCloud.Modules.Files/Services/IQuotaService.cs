@@ -24,6 +24,13 @@ public interface IQuotaService
     Task<bool> HasSufficientQuotaAsync(Guid userId, long requiredBytes, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Atomically checks whether a user has sufficient quota and reserves the space.
+    /// Returns true if the quota was successfully reserved; false if insufficient space.
+    /// This prevents TOCTOU race conditions with parallel uploads.
+    /// </summary>
+    Task<bool> TryReserveQuotaAsync(Guid userId, long requiredBytes, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Adjusts the used bytes for a user by <paramref name="delta"/> bytes.
     /// A positive delta increases usage; a negative delta decreases it.
     /// Publishes quota notification events when thresholds are crossed.

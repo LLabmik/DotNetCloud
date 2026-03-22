@@ -232,21 +232,31 @@ public class WopiTokenServiceTests
     [TestMethod]
     public async Task ValidateToken_MissingSigningKeyAcrossServiceInstances_StillValidatesWithinProcess()
     {
-        using var db = CreateContext();
-        var userId = Guid.NewGuid();
-        var node = new FileNode { Name = "doc.docx", NodeType = FileNodeType.File, OwnerId = userId };
-        db.FileNodes.Add(node);
-        await db.SaveChangesAsync();
+        // Set non-production environment so ephemeral keys are allowed (unit tests have no IHostEnvironment)
+        var previousEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
+        try
+        {
+            using var db = CreateContext();
+            var userId = Guid.NewGuid();
+            var node = new FileNode { Name = "doc.docx", NodeType = FileNodeType.File, OwnerId = userId };
+            db.FileNodes.Add(node);
+            await db.SaveChangesAsync();
 
-        var discovery = CreateMockDiscovery();
-        var generator = CreateTokenService(db, discovery, signingKey: "too-short");
-        var validator = CreateTokenService(db, discovery, signingKey: "too-short");
+            var discovery = CreateMockDiscovery();
+            var generator = CreateTokenService(db, discovery, signingKey: "too-short");
+            var validator = CreateTokenService(db, discovery, signingKey: "too-short");
 
-        var token = await generator.GenerateTokenAsync(node.Id, UserCaller(userId));
-        var context = validator.ValidateToken(token.AccessToken, node.Id);
+            var token = await generator.GenerateTokenAsync(node.Id, UserCaller(userId));
+            var context = validator.ValidateToken(token.AccessToken, node.Id);
 
-        Assert.IsNotNull(context);
-        Assert.AreEqual(userId, context.UserId);
+            Assert.IsNotNull(context);
+            Assert.AreEqual(userId, context.UserId);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", previousEnv);
+        }
     }
 
     [TestMethod]

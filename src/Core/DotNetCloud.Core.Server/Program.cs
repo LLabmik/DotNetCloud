@@ -338,13 +338,21 @@ public class Program
         builder.Services.AddHostedService<ModuleUiRegistrationHostedService>();
         builder.Services.AddHostedService<NotificationEventSubscriber>();
 
-        // Configure forwarded headers for reverse proxy support
+        // Configure forwarded headers for reverse proxy support.
+        // SECURITY: Only trust forwarded headers from known proxies to prevent IP spoofing.
+        // By default, ASP.NET Core only trusts loopback (127.0.0.1, ::1).
+        // Add your reverse proxy IPs to KnownProxies in production.
         builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(options =>
         {
             options.ForwardedHeaders =
                 Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
-                Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto |
-                Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedHost;
+                Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto;
+            // XForwardedHost is excluded — allowing attackers to set the Host header
+            // can lead to host header injection attacks (password reset link poisoning, etc.).
+            // Only enable it if your reverse proxy explicitly sets X-Forwarded-Host.
+
+            // Limit the number of proxy hops to prevent header injection chains.
+            options.ForwardLimit = 2;
         });
     }
 

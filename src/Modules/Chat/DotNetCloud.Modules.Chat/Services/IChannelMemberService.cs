@@ -15,6 +15,9 @@ public interface IChannelMemberService
     /// <summary>Removes a user from a channel.</summary>
     Task RemoveMemberAsync(Guid channelId, Guid userId, CallerContext caller, CancellationToken cancellationToken = default);
 
+    /// <summary>Checks whether the caller is a member of the specified channel.</summary>
+    Task<bool> IsMemberAsync(Guid channelId, CallerContext caller, CancellationToken cancellationToken = default);
+
     /// <summary>Lists members of a channel.</summary>
     Task<IReadOnlyList<ChannelMemberDto>> ListMembersAsync(Guid channelId, CallerContext caller, CancellationToken cancellationToken = default);
 

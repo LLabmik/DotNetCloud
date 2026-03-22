@@ -271,6 +271,14 @@ internal sealed class ChannelMemberService : IChannelMemberService
             throw new InvalidOperationException(ChannelNotFoundError);
     }
 
+    /// <inheritdoc />
+    public async Task<bool> IsMemberAsync(Guid channelId, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        return await _db.ChannelMembers
+            .AsNoTracking()
+            .AnyAsync(m => m.ChannelId == channelId && m.UserId == caller.UserId, cancellationToken);
+    }
+
     private async Task EnsureCallerCanAccessChannelAsync(Guid channelId, CallerContext caller, CancellationToken cancellationToken)
     {
         if (IsSystemCaller(caller))

@@ -114,39 +114,63 @@ internal sealed class CoreHub : Hub
     }
 
     /// <summary>
-    /// Joins the calling user to a broadcast group (e.g., a chat channel or room).
+    /// Joins the calling user to a channel group after verifying membership.
+    /// Only users who are members of the channel are allowed to join.
     /// </summary>
-    /// <param name="groupName">The group to join.</param>
-    public async Task JoinGroupAsync(string groupName)
+    /// <param name="channelId">The channel ID to join.</param>
+    public async Task JoinGroupAsync(string channelId)
     {
-        if (string.IsNullOrWhiteSpace(groupName))
+        if (string.IsNullOrWhiteSpace(channelId))
         {
-            throw new HubException("Group name cannot be empty.");
+            throw new HubException("Channel ID cannot be empty.");
         }
 
-        await Groups.AddToGroupAsync(Context.ConnectionId, groupName);
+        if (!Guid.TryParse(channelId, out var parsedChannelId))
+        {
+            throw new HubException("Invalid channel ID format.");
+        }
+
+        // Verify the user is a member of this channel before allowing group join
+        if (_channelMemberService is not null)
+        {
+            var caller = CreateUserCaller();
+            var isMember = await _channelMemberService.IsMemberAsync(
+                parsedChannelId, caller, Context.ConnectionAborted);
+
+            if (!isMember)
+            {
+                _logger.LogWarning(
+                    "User {UserId} denied group join for channel {ChannelId} — not a member",
+                    GetUserId(), channelId);
+                throw new HubException("You are not a member of this channel.");
+            }
+        }
+
+        await Groups.AddToGroupAsync(Context.ConnectionId, channelId);
+        _connectionTracker.AddGroupMembership(GetUserId(), channelId);
 
         _logger.LogDebug(
             "User {UserId} joined group {Group} via connection {ConnectionId}",
-            GetUserId(), groupName, Context.ConnectionId);
+            GetUserId(), channelId, Context.ConnectionId);
     }
 
     /// <summary>
-    /// Removes the calling user from a broadcast group.
+    /// Removes the calling user from a channel group.
     /// </summary>
-    /// <param name="groupName">The group to leave.</param>
-    public async Task LeaveGroupAsync(string groupName)
+    /// <param name="channelId">The channel ID to leave.</param>
+    public async Task LeaveGroupAsync(string channelId)
     {
-        if (string.IsNullOrWhiteSpace(groupName))
+        if (string.IsNullOrWhiteSpace(channelId))
         {
-            throw new HubException("Group name cannot be empty.");
+            throw new HubException("Channel ID cannot be empty.");
         }
 
-        await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, channelId);
+        _connectionTracker.RemoveGroupMembership(GetUserId(), channelId);
 
         _logger.LogDebug(
             "User {UserId} left group {Group} via connection {ConnectionId}",
-            GetUserId(), groupName, Context.ConnectionId);
+            GetUserId(), channelId, Context.ConnectionId);
     }
 
     /// <summary>
@@ -383,9 +407,23 @@ internal sealed class CoreHub : Hub
 
     private static bool TryConvertToHubException(Exception ex, out HubException hubException)
     {
-        if (ex is ArgumentException or InvalidOperationException or UnauthorizedAccessException)
+        if (ex is UnauthorizedAccessException)
         {
-            hubException = new HubException(ex.Message);
+            hubException = new HubException("Access denied.");
+            return true;
+        }
+
+        if (ex is ArgumentException)
+        {
+            hubException = new HubException("Invalid request parameters.");
+            return true;
+        }
+
+        if (ex is InvalidOperationException)
+        {
+            // Only pass through safe, expected messages (e.g., "not found").
+            // Avoid leaking internal details from unexpected InvalidOperationExceptions.
+            hubException = new HubException("The requested operation could not be completed.");
             return true;
         }
 

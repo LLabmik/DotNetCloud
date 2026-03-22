@@ -1,5 +1,7 @@
 using DotNetCloud.Core.Server.Middleware;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DotNetCloud.Core.Server.Tests.Middleware;
@@ -33,7 +35,8 @@ public class ResponseEnvelopeMiddlewareTests
                 await ctx.Response.WriteAsync(responseBody);
             },
             _options,
-            NullLogger<ResponseEnvelopeMiddleware>.Instance);
+            NullLogger<ResponseEnvelopeMiddleware>.Instance,
+            CreateHostEnvironment());
 
         await middleware.InvokeAsync(context);
 
@@ -54,7 +57,8 @@ public class ResponseEnvelopeMiddlewareTests
                 await ctx.Response.WriteAsync(responseBody);
             },
             _options,
-            NullLogger<ResponseEnvelopeMiddleware>.Instance);
+            NullLogger<ResponseEnvelopeMiddleware>.Instance,
+            CreateHostEnvironment());
 
         await middleware.InvokeAsync(context);
 
@@ -74,7 +78,8 @@ public class ResponseEnvelopeMiddlewareTests
                 return Task.CompletedTask;
             },
             _options,
-            NullLogger<ResponseEnvelopeMiddleware>.Instance);
+            NullLogger<ResponseEnvelopeMiddleware>.Instance,
+            CreateHostEnvironment());
 
         await middleware.InvokeAsync(context);
 
@@ -94,7 +99,8 @@ public class ResponseEnvelopeMiddlewareTests
                 await ctx.Response.WriteAsync(responseBody);
             },
             _options,
-            NullLogger<ResponseEnvelopeMiddleware>.Instance);
+            NullLogger<ResponseEnvelopeMiddleware>.Instance,
+            CreateHostEnvironment());
 
         await middleware.InvokeAsync(context);
 
@@ -116,7 +122,8 @@ public class ResponseEnvelopeMiddlewareTests
                 await ctx.Response.WriteAsync(responseBody);
             },
             _options,
-            NullLogger<ResponseEnvelopeMiddleware>.Instance);
+            NullLogger<ResponseEnvelopeMiddleware>.Instance,
+            CreateHostEnvironment());
 
         await middleware.InvokeAsync(context);
 
@@ -137,7 +144,8 @@ public class ResponseEnvelopeMiddlewareTests
                 await ctx.Response.Body.WriteAsync(expectedBytes);
             },
             _options,
-            NullLogger<ResponseEnvelopeMiddleware>.Instance);
+            NullLogger<ResponseEnvelopeMiddleware>.Instance,
+            CreateHostEnvironment());
 
         await middleware.InvokeAsync(context);
 
@@ -178,5 +186,18 @@ public class ResponseEnvelopeMiddlewareTests
         using var ms = new MemoryStream();
         context.Response.Body.CopyTo(ms);
         return ms.ToArray();
+    }
+
+    private static IHostEnvironment CreateHostEnvironment(string environmentName = "Development")
+    {
+        return new TestHostEnvironment { EnvironmentName = environmentName };
+    }
+
+    private sealed class TestHostEnvironment : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = "Development";
+        public string ApplicationName { get; set; } = "Test";
+        public string ContentRootPath { get; set; } = "";
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
     }
 }

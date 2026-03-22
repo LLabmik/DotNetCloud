@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DotNetCloud.Core.Errors;
+using Microsoft.Extensions.Hosting;
 
 namespace DotNetCloud.Core.Server.Middleware;
 
@@ -44,6 +45,7 @@ public sealed class ResponseEnvelopeMiddleware
     private readonly RequestDelegate _next;
     private readonly ResponseEnvelopeOptions _options;
     private readonly ILogger<ResponseEnvelopeMiddleware> _logger;
+    private readonly bool _isDevelopment;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -58,14 +60,17 @@ public sealed class ResponseEnvelopeMiddleware
     /// <param name="next">The next middleware in the pipeline.</param>
     /// <param name="options">The response envelope options.</param>
     /// <param name="logger">The logger.</param>
+    /// <param name="hostEnvironment">The hosting environment.</param>
     public ResponseEnvelopeMiddleware(
         RequestDelegate next,
         ResponseEnvelopeOptions options,
-        ILogger<ResponseEnvelopeMiddleware> logger)
+        ILogger<ResponseEnvelopeMiddleware> logger,
+        IHostEnvironment hostEnvironment)
     {
         _next = next ?? throw new ArgumentNullException(nameof(next));
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _isDevelopment = hostEnvironment.IsDevelopment();
     }
 
     /// <summary>
@@ -130,7 +135,7 @@ public sealed class ResponseEnvelopeMiddleware
         }
         else
         {
-            envelopedResponse = WrapErrorResponse(responseBody, statusCode, context.TraceIdentifier);
+            envelopedResponse = WrapErrorResponse(responseBody, statusCode, context.TraceIdentifier, _isDevelopment);
         }
 
         context.Response.ContentType = "application/json";
@@ -234,7 +239,7 @@ public sealed class ResponseEnvelopeMiddleware
         }
     }
 
-    private static string WrapErrorResponse(string responseBody, int statusCode, string traceId)
+    private static string WrapErrorResponse(string responseBody, int statusCode, string traceId, bool isDevelopment)
     {
         try
         {
@@ -249,12 +254,20 @@ public sealed class ResponseEnvelopeMiddleware
                 ? messageElement.GetString()
                 : MapStatusCodeToMessage(statusCode);
 
+            // In production, use generic error messages for 5xx to avoid leaking internals.
+            // In development, preserve the original message for debugging.
+            if (!isDevelopment && statusCode >= 500)
+            {
+                message = MapStatusCodeToMessage(statusCode);
+            }
+
             var envelope = new ApiErrorResponse(
                 code ?? MapStatusCodeToErrorCode(statusCode),
                 message ?? MapStatusCodeToMessage(statusCode))
             {
                 TraceId = traceId,
-                Details = root.TryGetProperty("details", out var detailsElement)
+                // Only include error details in development — never leak internals in production
+                Details = isDevelopment && root.TryGetProperty("details", out var detailsElement)
                     ? detailsElement
                     : null
             };

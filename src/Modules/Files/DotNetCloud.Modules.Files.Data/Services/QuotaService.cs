@@ -139,26 +139,96 @@ internal sealed class QuotaService : IQuotaService
     }
 
     /// <inheritdoc />
+    public async Task<bool> TryReserveQuotaAsync(Guid userId, long requiredBytes, CancellationToken cancellationToken = default)
+    {
+        if (requiredBytes <= 0)
+            return true;
+
+        // Retry loop for optimistic concurrency — if another upload wins the race,
+        // we re-read and try again rather than fail.
+        const int maxRetries = 3;
+        for (var attempt = 0; attempt < maxRetries; attempt++)
+        {
+            var quota = await _db.FileQuotas
+                .FirstOrDefaultAsync(q => q.UserId == userId, cancellationToken);
+
+            if (quota is null)
+                return false;
+
+            // Unlimited quota
+            if (quota.MaxBytes == 0)
+            {
+                quota.UsedBytes += requiredBytes;
+                quota.UpdatedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync(cancellationToken);
+                return true;
+            }
+
+            if (quota.UsedBytes + requiredBytes > quota.MaxBytes)
+                return false;
+
+            quota.UsedBytes += requiredBytes;
+            quota.UpdatedAt = DateTime.UtcNow;
+
+            try
+            {
+                await _db.SaveChangesAsync(cancellationToken);
+                _logger.LogDebug("Reserved {Bytes} bytes for user {UserId}", requiredBytes, userId);
+                return true;
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // Another concurrent operation modified UsedBytes — detach and retry.
+                _db.Entry(quota).State = EntityState.Detached;
+                _logger.LogDebug("Concurrency conflict reserving quota for user {UserId}, retry {Attempt}",
+                    userId, attempt + 1);
+            }
+        }
+
+        _logger.LogWarning("Failed to reserve quota for user {UserId} after {MaxRetries} attempts",
+            userId, maxRetries);
+        return false;
+    }
+
+    /// <inheritdoc />
     public async Task AdjustUsedBytesAsync(Guid userId, long delta, CancellationToken cancellationToken = default)
     {
         if (delta == 0)
             return;
 
-        var quota = await _db.FileQuotas
-            .FirstOrDefaultAsync(q => q.UserId == userId, cancellationToken);
+        // Retry loop for optimistic concurrency on UsedBytes.
+        const int maxRetries = 3;
+        for (var attempt = 0; attempt < maxRetries; attempt++)
+        {
+            var quota = await _db.FileQuotas
+                .FirstOrDefaultAsync(q => q.UserId == userId, cancellationToken);
 
-        if (quota is null)
-            return;
+            if (quota is null)
+                return;
 
-        quota.UsedBytes = Math.Max(0, quota.UsedBytes + delta);
-        quota.UpdatedAt = DateTime.UtcNow;
+            quota.UsedBytes = Math.Max(0, quota.UsedBytes + delta);
+            quota.UpdatedAt = DateTime.UtcNow;
 
-        await _db.SaveChangesAsync(cancellationToken);
+            try
+            {
+                await _db.SaveChangesAsync(cancellationToken);
 
-        await PublishQuotaNotificationAsync(quota, cancellationToken);
+                await PublishQuotaNotificationAsync(quota, cancellationToken);
 
-        _logger.LogDebug("Adjusted used bytes for user {UserId} by {Delta}: {UsedBytes}/{MaxBytes}",
-            userId, delta, quota.UsedBytes, quota.MaxBytes);
+                _logger.LogDebug("Adjusted used bytes for user {UserId} by {Delta}: {UsedBytes}/{MaxBytes}",
+                    userId, delta, quota.UsedBytes, quota.MaxBytes);
+                return;
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                _db.Entry(quota).State = EntityState.Detached;
+                _logger.LogDebug("Concurrency conflict adjusting quota for user {UserId}, retry {Attempt}",
+                    userId, attempt + 1);
+            }
+        }
+
+        _logger.LogWarning("Failed to adjust quota for user {UserId} after {MaxRetries} attempts",
+            userId, maxRetries);
     }
 
     /// <inheritdoc />
