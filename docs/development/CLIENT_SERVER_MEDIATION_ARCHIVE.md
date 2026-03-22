@@ -5,6 +5,35 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Security Audit Closeout + Merge Validation COMPLETE on mint22 (2026-03-23)
+
+Archived from Active Handoff on 2026-03-23 after server-side release-confidence validation on `mint22`.
+
+**Original target:** `mint22`
+**Original status:** COMPLETE ✅
+
+### Validation evidence
+
+- Pull/update:
+    - `git pull --no-rebase` -> fast-forward to `ee58142`.
+- Build scope:
+    - `dotnet build DotNetCloud.CI.slnf -v minimal` -> **succeeded** (11 existing warnings in chat module tests, 0 errors).
+- Security-relevant test scope:
+    - `dotnet test tests/DotNetCloud.Core.Server.Tests/DotNetCloud.Core.Server.Tests.csproj -v minimal`
+        - Initial run surfaced one stale expectation in `RateLimitingOptionsTests` (`GlobalPermitLimit` expected 100, actual 20).
+        - Updated test expectation to 20 to match current implementation defaults from split authenticated/anonymous rate limiting.
+        - Re-run result: **385 total, 0 failed, 383 passed, 2 skipped**.
+    - `dotnet test tests/DotNetCloud.Modules.Files.Tests/DotNetCloud.Modules.Files.Tests.csproj -v minimal` -> **669 total, 0 failed, 669 passed**.
+
+### Closeout decision
+
+- Security audit cycle status: **CLOSED**.
+- Rationale: commit line from `e5b5988` forward (plus Windows parity merge `ee58142`) now has passing release-confidence build/tests after reconciling a stale test default, with no remaining open server-side findings.
+
+### Carry-forward
+
+- Next active task moves to Windows runtime smoke on latest `main` for final post-closeout confirmation.
+
 ## Archived: Security Audit Desktop Client Fixes — Windows Validation COMPLETE (2026-03-23)
 
 Archived from Active Handoff on 2026-03-23 after Windows validation on `Windows11-TestDNC`.

@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-23 (Windows validation complete; server closeout handoff)
+Last updated: 2026-03-23 (Security audit closeout complete on mint22; Windows post-closeout smoke handoff)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -58,7 +58,8 @@ Archived context:
 - File browser child count fix: **DEPLOYED** (2026-03-21). `mint22` redeployed; service stable.
 - `mint22` connectivity diagnosis: **COMPLETE** (2026-03-22). Current deployment listens directly on HTTPS `:5443`; no listener exists on `:15443`.
 - Security audit desktop client validation on `Windows11-TestDNC`: **COMPLETE** (2026-03-23).
-- **Active cycle:** Security audit closeout + merge validation handoff to `mint22` (2026-03-23).
+- Security audit closeout + merge validation on `mint22`: **COMPLETE** (2026-03-23).
+- **Active cycle:** Post-closeout Windows runtime smoke on latest `main` (2026-03-23).
 
 ## Environment
 
@@ -80,42 +81,42 @@ Archived context:
 
 ## Active Handoff
 
-**Target machine:** `mint22`
+**Target machine:** `Windows11-TestDNC`
 **Status:** READY FOR PICKUP
 
-### Security Audit — Closeout Validation and Release Readiness
+### Security Audit — Post-Closeout Windows Runtime Smoke
 
-Windows validation is complete and archived in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
-Server agent should perform final closeout checks and either declare the security-audit cycle closed or publish the next active remediation task.
+Server closeout is complete and archived in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
+Windows agent should run final runtime smoke on latest `main` and confirm no regressions after merge.
 
-#### Completed validation evidence now on `main`
+#### Completed closeout evidence now on `main`
 
-- Windows targeted test suite pass:
-    - `DotNetCloud.Client.Core.Tests` → 182/182 passed.
-    - `DotNetCloud.Client.SyncService.Tests` → 27/27 passed.
-    - `DotNetCloud.Client.SyncTray.Tests` → 84/84 passed.
-- Windows-focused smoke coverage pass:
-    - Add Account default URL blank + valid add flow: 2/2 passed.
-    - Tray connection/sync-cycle smoke: 2/2 passed.
-- Cross-platform test robustness fix committed:
-    - `tests/DotNetCloud.Client.SyncTray.Tests/ViewModels/SettingsViewModelTests.cs`
-    - Normalized escaped backslashes when asserting Linux desktop entry `Exec=` values on Windows host.
+- Server release-confidence build passed: `dotnet build DotNetCloud.CI.slnf -v minimal`.
+- Server/module security test scope passed:
+    - `DotNetCloud.Core.Server.Tests` -> 385 total, 0 failed, 383 passed, 2 skipped.
+    - `DotNetCloud.Modules.Files.Tests` -> 669 total, 0 failed.
+- Stale test expectation reconciled:
+    - `tests/DotNetCloud.Core.Server.Tests/Configuration/RateLimitingOptionsTests.cs`
+    - Updated `GlobalPermitLimit` default expectation from 100 to 20.
+- Security audit cycle officially closed on server side.
 
-#### Requested closeout actions on `mint22`
+#### Requested actions on `Windows11-TestDNC`
 
 1. Pull latest `main`.
-2. Run server-side CI validation scope used for release confidence (at minimum `dotnet build` and security-relevant tests already part of current cycle).
-3. Confirm there are no remaining open findings from security audit commit line (`e5b5988` onward + Windows parity fix).
+2. Run targeted Windows smoke validation on latest build:
+    - Add-account/auth flow smoke (`AddAccountServerUrl_DefaultsToEmptyString|AddAccountAsync_ValidInputs_CallsOAuth2AndIpc`).
+    - Tray connection/sync smoke (`ConnectAsync_RaisesConnectionStateChangedOnConnect|OnSyncComplete_WithTransfersNoErrors_ShowsSuccessToast`).
+3. Confirm no runtime regressions in Windows add-account/login launch flow against `https://mint22.kimball.home:5443/`.
 4. Update this handoff doc:
-    - If fully complete: archive this active block and replace with next task.
-    - If incomplete: keep this active block and list concrete remaining actions.
+    - If fully complete: archive this block and set next single Active Handoff task.
+    - If incomplete: keep this block and list concrete remaining actions + blocker evidence.
 
 #### Acceptance Criteria
 
-- ☐ Pull latest `main` on `mint22`.
-- ☐ Validate server-side release confidence test/build scope and report raw outputs.
-- ☐ Confirm security audit cycle status (`closed` vs `remaining work`) with explicit rationale.
-- ☐ If closing: archive this block and set the next single Active Handoff task.
+- ☐ Pull latest `main` on `Windows11-TestDNC`.
+- ☐ Run targeted Windows smoke tests and report raw pass/fail counts.
+- ☐ Verify add-account/login launch path still targets and reaches `https://mint22.kimball.home:5443/`.
+- ☐ Archive this block if all checks pass; otherwise keep active with explicit blockers.
 
 ## Relay Template
 
