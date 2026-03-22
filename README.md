@@ -188,7 +188,7 @@ DotNetCloud is designed for extensibility. Third-party developers can build modu
 dotnet new dotnetcloud-module -n MyCustomModule
 ```
 
-See the [Module Development Guide](docs/module-development/) for the full walkthrough, including the [Example Module](src/Modules/DotNetCloud.Modules.Example/) as a working reference.
+See the [Module Development Guide](docs/modules/README.md) for the full walkthrough, including the [Example Module](src/Modules/Example/) as a working reference.
 
 ---
 
