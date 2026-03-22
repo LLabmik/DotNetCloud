@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-23 (Desktop security fixes complete on mint-dnc-client; Windows validation handoff)
+Last updated: 2026-03-23 (Windows validation complete; server closeout handoff)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -57,7 +57,8 @@ Archived context:
 - Windows IIS + Service Validation: **COMPLETE** (2026-03-21). Three startup blockers resolved. IIS reverse proxy configured and verified (URL Rewrite + ARR). HTTP (port 80) and HTTPS (port 443) both proxy to Kestrel :5080. Self-signed localhost cert bound.
 - File browser child count fix: **DEPLOYED** (2026-03-21). `mint22` redeployed; service stable.
 - `mint22` connectivity diagnosis: **COMPLETE** (2026-03-22). Current deployment listens directly on HTTPS `:5443`; no listener exists on `:15443`.
-- **Active cycle:** Security audit — Windows runtime/client parity validation handoff to `Windows11-TestDNC` (2026-03-23).
+- Security audit desktop client validation on `Windows11-TestDNC`: **COMPLETE** (2026-03-23).
+- **Active cycle:** Security audit closeout + merge validation handoff to `mint22` (2026-03-23).
 
 ## Environment
 
@@ -79,51 +80,42 @@ Archived context:
 
 ## Active Handoff
 
-**Target machine:** `Windows11-TestDNC`
+**Target machine:** `mint22`
 **Status:** READY FOR PICKUP
 
-### Security Audit — Desktop Client Fixes Validation Required (Windows)
+### Security Audit — Closeout Validation and Release Readiness
 
-Server-side security audit complete (commit `e5b5988`). Linux desktop client implementation and tests are complete; Windows validation is required for runtime parity.
+Windows validation is complete and archived in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
+Server agent should perform final closeout checks and either declare the security-audit cycle closed or publish the next active remediation task.
 
-#### Implemented changes (already on main)
+#### Completed validation evidence now on `main`
 
-- `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/SettingsViewModel.cs`
-    - `_addAccountServerUrl` default changed to `string.Empty`.
-- `src/Clients/DotNetCloud.Client.SyncService/Ipc/IpcServer.cs`
-    - Unix socket permissions restricted to `0600` via `File.SetUnixFileMode`.
-- `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs`
-    - Symlink materialization blocked when resolved target escapes sync root.
-    - `ResolveLocalPathAsync` now validates resolved paths remain within sync root.
+- Windows targeted test suite pass:
+    - `DotNetCloud.Client.Core.Tests` → 182/182 passed.
+    - `DotNetCloud.Client.SyncService.Tests` → 27/27 passed.
+    - `DotNetCloud.Client.SyncTray.Tests` → 84/84 passed.
+- Windows-focused smoke coverage pass:
+    - Add Account default URL blank + valid add flow: 2/2 passed.
+    - Tray connection/sync-cycle smoke: 2/2 passed.
+- Cross-platform test robustness fix committed:
+    - `tests/DotNetCloud.Client.SyncTray.Tests/ViewModels/SettingsViewModelTests.cs`
+    - Normalized escaped backslashes when asserting Linux desktop entry `Exec=` values on Windows host.
 
-#### Test coverage added
+#### Requested closeout actions on `mint22`
 
-- `tests/DotNetCloud.Client.SyncTray.Tests/ViewModels/SettingsViewModelTests.cs`
-    - `AddAccountServerUrl_DefaultsToEmptyString`
-- `tests/DotNetCloud.Client.SyncService.Tests/IpcServerSecurityTests.cs`
-    - `RestrictUnixSocketPermissions_SetsSocketModeTo600OnLinux`
-- `tests/DotNetCloud.Client.Core.Tests/Sync/SyncEngineTests.cs`
-    - `SyncAsync_PendingSymlinkDownload_TargetEscapesSyncFolder_BlocksMaterialization`
-    - `SyncAsync_RemoteChangeWithTraversalName_SetsErrorStateAndSkipsQueueing`
-
-#### Linux validation evidence (mint-dnc-client)
-
-- `dotnet test tests/DotNetCloud.Client.Core.Tests/DotNetCloud.Client.Core.Tests.csproj --no-build` → 184 passed.
-- `dotnet test tests/DotNetCloud.Client.SyncService.Tests/DotNetCloud.Client.SyncService.Tests.csproj --no-build` → 28 passed.
-- `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj --no-build` → 84 passed.
-- `dotnet build` environment gate on Linux host: Android SDK missing (`XA5300`). Non-Android projects build successfully.
+1. Pull latest `main`.
+2. Run server-side CI validation scope used for release confidence (at minimum `dotnet build` and security-relevant tests already part of current cycle).
+3. Confirm there are no remaining open findings from security audit commit line (`e5b5988` onward + Windows parity fix).
+4. Update this handoff doc:
+    - If fully complete: archive this active block and replace with next task.
+    - If incomplete: keep this active block and list concrete remaining actions.
 
 #### Acceptance Criteria
-- ☐ Pull latest `main` on `Windows11-TestDNC`.
-- ☐ Run targeted tests:
-    - `dotnet test tests/DotNetCloud.Client.Core.Tests/DotNetCloud.Client.Core.Tests.csproj --no-build`
-    - `dotnet test tests/DotNetCloud.Client.SyncService.Tests/DotNetCloud.Client.SyncService.Tests.csproj --no-build`
-    - `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj --no-build`
-- ☐ Perform runtime smoke validation on Windows desktop client:
-    - Add Account dialog default server URL is blank.
-    - Existing account add flow still succeeds with valid URL.
-    - No regression in sync cycle startup.
-- ☐ Report back with commit hash (if changes needed), raw command outputs, and any runtime log evidence.
+
+- ☐ Pull latest `main` on `mint22`.
+- ☐ Validate server-side release confidence test/build scope and report raw outputs.
+- ☐ Confirm security audit cycle status (`closed` vs `remaining work`) with explicit rationale.
+- ☐ If closing: archive this block and set the next single Active Handoff task.
 
 ## Relay Template
 

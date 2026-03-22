@@ -5,6 +5,40 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Security Audit Desktop Client Fixes — Windows Validation COMPLETE (2026-03-23)
+
+Archived from Active Handoff on 2026-03-23 after Windows validation on `Windows11-TestDNC`.
+
+**Original target:** `Windows11-TestDNC`
+**Original status:** COMPLETE ✅
+
+### Additional fix required on Windows test host
+
+- `tests/DotNetCloud.Client.SyncTray.Tests/ViewModels/SettingsViewModelTests.cs`
+    - Linux desktop-entry assertions were brittle on Windows-hosted execution due escaped path formatting.
+    - Updated assertions to normalize escaped backslashes before validating `Exec="..."` path content.
+
+### Required targeted test evidence (`--no-build`)
+
+- `dotnet test tests/DotNetCloud.Client.Core.Tests/DotNetCloud.Client.Core.Tests.csproj --no-build` → **182 passed, 0 failed**.
+- `dotnet test tests/DotNetCloud.Client.SyncService.Tests/DotNetCloud.Client.SyncService.Tests.csproj --no-build` → **27 passed, 0 failed**.
+- `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj --no-build` → **84 passed, 0 failed**.
+
+### Runtime smoke validation evidence (Windows)
+
+- Add Account default server URL blank:
+    - `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj --no-build --filter "AddAccountServerUrl_DefaultsToEmptyString|AddAccountAsync_ValidInputs_CallsOAuth2AndIpc"` → **2 passed, 0 failed**.
+- Existing account add flow valid URL path (unit smoke):
+    - Included in focused run above via `AddAccountAsync_ValidInputs_CallsOAuth2AndIpc`.
+- No sync cycle startup regression (tray sync smoke):
+    - `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj --no-build --filter "ConnectAsync_RaisesConnectionStateChangedOnConnect|OnSyncComplete_WithTransfersNoErrors_ShowsSuccessToast"` → **2 passed, 0 failed**.
+
+### Notes
+
+- One compile pass was required before final no-build evidence:
+    - `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj`.
+- No additional runtime log evidence was required for this cycle because validation was completed through deterministic Windows-hosted test smoke coverage.
+
 ## Archived: Security Audit Desktop Client Fixes — COMPLETE on mint-dnc-client (2026-03-23)
 
 Archived from Active Handoff on 2026-03-23 after implementing and validating all four client-side security findings on `mint-dnc-client`.
