@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-21 (IIS HTTPS + HTTP reverse proxy complete on Windows11-TestDNC; child count fix deployed on mint22)
+Last updated: 2026-03-22 (new Linux client UX handoff: aggregate sync toasts)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -56,7 +56,7 @@ Archived context:
 - Duplicate controller fix: CLOSED (2026-03-18). Deployed and verified on `mint22`. Files endpoint returns 401, service healthy.
 - Windows IIS + Service Validation: **COMPLETE** (2026-03-21). Three startup blockers resolved. IIS reverse proxy configured and verified (URL Rewrite + ARR). HTTP (port 80) and HTTPS (port 443) both proxy to Kestrel :5080. Self-signed localhost cert bound.
 - File browser child count fix: **DEPLOYED** (2026-03-21). `mint22` redeployed; service stable.
-- **Active cycle:** Phase 1 & Phase 2 completion verified on `mint22`. Docs cleaned up, all 2,242 tests pass.
+- **Active cycle:** Linux client sync UX refinement on `mint-dnc-client` (toast consolidation).
 
 ## Environment
 
@@ -78,49 +78,38 @@ Archived context:
 
 ## Active Handoff
 
-**Target: none (verification complete)**
+**Target: `mint-dnc-client`**
 
-### Task: Phase 1 & Phase 2 Completion Verification — DONE
+### Task: Linux Sync Toast Consolidation (success + failure aggregation)
 
-**Results (2026-03-21, mint22):**
+**Problem statement:**
+During sync, the Linux desktop client emits too many toast notifications. Users currently receive many toasts (for example one per synced item or one per failure), which is noisy.
 
-1. **Build:** `dotnet build DotNetCloud.CI.slnf` — 0 errors, 0 warnings
-2. **Tests:** `dotnet test DotNetCloud.CI.slnf` — **2,242 passed, 0 failed, 2 skipped** across 12 test projects:
-   - Core.Tests: 138 passed
-   - CLI.Tests: 119 passed
-   - Core.Server.Tests: 331 passed (2 skipped)
-   - Modules.Example.Tests: 51 passed
-   - Core.Data.Tests: 176 passed
-   - Core.Auth.Tests: 85 passed
-   - Client.SyncService.Tests: 27 passed
-   - Modules.Chat.Tests: 283 passed
-   - Modules.Files.Tests: 638 passed
-   - Client.Core.Tests: 182 passed
-   - Client.SyncTray.Tests: 77 passed
-   - Integration.Tests: 133 passed
-3. **Integration test fix:** 20 integration tests were failing due to duplicate OpenIddict auth scheme registration in `DotNetCloudWebApplicationFactory`. Fixed by forwarding existing scheme to `TestAuthHandler` instead of re-registering.
-4. **Doc cleanup:**
-   - MASTER_PROJECT_PLAN.md: renamed mislabeled "Phase 2: Files" → "Phase 2: Chat & Notifications & Android", added Phase 1 summary section, fixed phase-2.1/2.2 step titles from "Files" to "Chat", corrected "Files API Integration Tests" → "Chat API Integration Tests"
-   - Updated stale test counts: 803 → 2,242 across all tracking docs
-   - Added `storage/chunks` and `storage/files` to `.gitignore`
-5. **Phase 1 status:** 274/277 steps complete. 3 deferred items (right-click context menu, paste image upload, UI polish) are non-blocking for launch.
-6. **Phase 2 status:** 13/13 sub-phases complete (100%).
+**Required behavior:**
+1. If a sync cycle completes with no failures, show only one success toast at the end of that sync cycle.
+2. If one or more failures occur during a sync cycle, do not emit per-failure toasts. Show one consolidated failure toast at the end of the sync cycle that summarizes all failures.
 
-### Completed This Session (2026-03-21)
+**Implementation guidance:**
+1. Introduce per-sync-cycle notification aggregation in the Linux client sync UI path (SyncTray + any notification service layer it uses).
+2. Track counts/details during the cycle:
+   - success summary info (items uploaded/downloaded/applied)
+   - failures collection (filename/path + short reason)
+3. Emit toasts only on cycle completion:
+   - success-only cycle: one success toast
+   - failure cycle: one failure toast with multi-line summary (count + concise list)
+4. Add safeguards to avoid duplicate end-of-cycle toasts for the same cycle ID.
 
-1. **Windows installer improvement plan** — implemented all 12 tasks in `tools/install-windows.ps1`:
-   - .NET runtime check, PostgreSQL auto-install, DB creation, admin credential prompts
-   - IIS `allowedServerVariables` registration, ARR `reverseRewriteHostInResponseHeaders` fix
-   - Self-signed HTTPS cert + binding, dynamic `X-Forwarded-Proto`
-   - Beginner mode skips CLI wizard, updated summary with HTTPS URLs
-   - Admin password minimum raised to 12 characters
-   - Updated `WINDOWS_IIS_INSTALL_GUIDE.md` and `INSTALLATION.md`
-2. **IIS Reverse Proxy** — configured on `Windows11-TestDNC`
-   - URL Rewrite 2.1 + Application Request Routing 3.0 installed
-   - `web.config` rewrite rule proxies all requests from IIS → Kestrel (port 5080)
-   - HTTP (port 80): verified `http://localhost/health/live` → 200 OK
-   - HTTPS (port 443): self-signed localhost cert (thumbprint `C0DB23E...`), verified `https://localhost/health/live` → 200 OK, `Server: Microsoft-IIS/10.0`
-3. **File browser child count fix** — deployed on `mint22` by server agent
+**Acceptance criteria:**
+1. Running a sync with multiple successful file operations shows exactly one toast total for that cycle.
+2. Running a sync with multiple failures shows exactly one toast total for that cycle and includes all failed items in the summary.
+3. Mixed cycle (successes + failures) still emits only one final failure-summary toast.
+4. Existing tests pass and new/updated tests cover toast coalescing behavior.
+
+**Validation to include in report back:**
+1. Commit hash.
+2. Files changed.
+3. Test command(s) run + pass/fail summary.
+4. Short runtime evidence from logs or UI traces proving one-toast-per-cycle behavior for success and failure scenarios.
 
 ## Relay Template
 

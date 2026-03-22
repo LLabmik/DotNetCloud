@@ -5,6 +5,29 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Phase 1 & Phase 2 Completion Verification — DONE (2026-03-22)
+
+Archived from Active Handoff on 2026-03-22 when the active slot was reassigned to Linux client toast consolidation work.
+
+**Original target:** none (verification complete)
+**Original status:** COMPLETE ✅
+
+### Results (2026-03-21, mint22)
+1. Build: `dotnet build DotNetCloud.CI.slnf` - 0 errors, 0 warnings.
+2. Tests: `dotnet test DotNetCloud.CI.slnf` - 2,242 passed, 0 failed, 2 skipped across 12 test projects.
+3. Integration test fix: resolved duplicate OpenIddict auth scheme registration in `DotNetCloudWebApplicationFactory` by forwarding existing scheme to `TestAuthHandler`.
+4. Doc cleanup:
+    - MASTER_PROJECT_PLAN phase naming/title corrections for Phase 1 and Phase 2 sections.
+    - Tracking docs test counts updated from 803 to 2,242.
+    - Added `storage/chunks` and `storage/files` to `.gitignore`.
+5. Phase 1 status: 274/277 steps complete; 3 deferred non-blocking launch items.
+6. Phase 2 status: 13/13 sub-phases complete (100%).
+
+### Completed same session (2026-03-21)
+1. Windows installer improvement plan implemented in `tools/install-windows.ps1` (12 tasks).
+2. IIS reverse proxy configured and verified on `Windows11-TestDNC` for HTTP and HTTPS.
+3. File browser child count fix deployed on `mint22` by server agent.
+
 ## Archived: File Browser Child Count Fix — Deployed on mint22 (2026-03-21)
 
 Archived from Active Handoff on 2026-03-21. Server redeployed with child count fix; service stable.
