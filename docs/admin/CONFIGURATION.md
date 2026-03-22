@@ -313,5 +313,5 @@ GET /health
 
 - [Collabora Administration](COLLABORA.md)
 - [Backup & Restore](BACKUP.md)
-- [Module Overview](../../modules/files/README.md)
-- [REST API Reference](../../modules/files/API.md)
+- [Module Overview](../modules/README.md)
+- [REST API Reference](../modules/API.md)

@@ -553,7 +553,7 @@ When Collabora is enabled, the Content-Security-Policy must allow framing from t
 
 ## Files Module
 
-See [Files Module Configuration](../files/CONFIGURATION.md) for the complete reference. Key settings:
+See [Files Module Configuration](../CONFIGURATION.md) for the complete reference. Key settings:
 
 ```json
 {
@@ -621,7 +621,7 @@ Quick reference for the most common settings configured via environment variable
 
 - [Installation Guide](INSTALLATION.md)
 - [Upgrading DotNetCloud](UPGRADING.md)
-- [Files Module Configuration](../files/CONFIGURATION.md)
-- [Collabora Administration](../files/COLLABORA.md)
+- [Files Module Configuration](../CONFIGURATION.md)
+- [Collabora Administration](../COLLABORA.md)
 - [Architecture Overview](../../architecture/ARCHITECTURE.md)
 - [Observability Guide](../../architecture/observability.md)

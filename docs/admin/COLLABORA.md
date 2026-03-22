@@ -314,6 +314,6 @@ GET /health
 
 ## Related Documentation
 
-- [WOPI Integration Details](../../modules/files/WOPI.md)
+- [WOPI Integration Details](../modules/WOPI.md)
 - [Admin Configuration](CONFIGURATION.md)
 - [Reverse Proxy Setup](../../development/REVERSE_PROXY.md)

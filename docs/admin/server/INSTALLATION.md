@@ -1163,11 +1163,11 @@ Get-Content "C:\DotNetCloud\logs\dotnetcloud-$(Get-Date -Format 'yyyyMMdd').log"
 After a successful installation:
 
 1. **[Configure the server](CONFIGURATION.md)** — tune Kestrel, logging, rate limiting, CORS, and more
-2. **[Set up Collabora](../files/COLLABORA.md)** — enable browser-based document editing
-3. **[Configure file storage](../files/CONFIGURATION.md)** — quotas, trash retention, version limits
-4. **[Set up backups](../files/BACKUP.md)** — schedule automatic database and file backups
+2. **[Set up Collabora](../COLLABORA.md)** — enable browser-based document editing
+3. **[Configure file storage](../CONFIGURATION.md)** — quotas, trash retention, version limits
+4. **[Set up backups](../BACKUP.md)** — schedule automatic database and file backups
 5. **[Upgrade procedures](UPGRADING.md)** — how to update DotNetCloud to newer versions
-6. **[Install the sync client](../../user/files/SYNC_CLIENT.md)** — sync files to desktops
+6. **[Install the sync client](../../user/SYNC_CLIENT.md)** — sync files to desktops
 
 ---
 
@@ -1222,7 +1222,7 @@ dotnetcloud module restart files
 - [Server Configuration Reference](CONFIGURATION.md)
 - [Upgrading DotNetCloud](UPGRADING.md)
 - [Docker Beginner Guide](DOCKER_BEGINNER_GUIDE.md)
-- [Files Module Configuration](../files/CONFIGURATION.md)
-- [Collabora Administration](../files/COLLABORA.md)
-- [Backup & Restore](../files/BACKUP.md)
+- [Files Module Configuration](../CONFIGURATION.md)
+- [Collabora Administration](../COLLABORA.md)
+- [Backup & Restore](../BACKUP.md)
 - [Architecture Overview](../../architecture/ARCHITECTURE.md)

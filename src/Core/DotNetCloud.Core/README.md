@@ -361,7 +361,7 @@ src/Core/DotNetCloud.Core/
 
 - **[Core Abstractions Guide](../../docs/architecture/core-abstractions.md)** — Detailed design patterns and examples
 - **[Architecture Overview](../../docs/architecture/ARCHITECTURE.md)** — System-wide architecture
-- **[Module Development Guide](../../docs/development/MODULE_DEVELOPMENT.md)** — Step-by-step module creation
+- **[Module Development Guide](../../docs/guides/MODULE_DEVELOPMENT.md)** — Step-by-step module creation
 
 ---
 

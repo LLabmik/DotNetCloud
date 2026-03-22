@@ -383,4 +383,4 @@ When a new DotNetCloud major version requires a newer .NET runtime, the release 
 
 - [Installation Guide](INSTALLATION.md)
 - [Configuration Reference](CONFIGURATION.md)
-- [Backup & Restore](../files/BACKUP.md)
+- [Backup & Restore](../BACKUP.md)
