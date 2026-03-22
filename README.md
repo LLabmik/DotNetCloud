@@ -210,6 +210,7 @@ Imports users, files, calendars, contacts, and bookmarks. Available starting in 
 
 - [Installation Guide](docs/admin/server/INSTALLATION.md) — one-line install, manual install, build from source, Docker, non-interactive setup
 - [Windows + IIS Install Guide](docs/admin/server/WINDOWS_IIS_INSTALL_GUIDE.md) — beginner-friendly IIS reverse-proxy setup
+- [Docker Beginner Guide](docs/admin/server/DOCKER_BEGINNER_GUIDE.md) — deploy DotNetCloud with Docker from scratch
 - [Reverse Proxy Beginner Guide](docs/admin/server/REVERSE_PROXY_BEGINNER_GUIDE.md) — Apache-first walkthrough with Caddy alternative
 - [Server Configuration](docs/admin/server/CONFIGURATION.md) — Kestrel, TLS, auth, logging, rate limiting, CORS, telemetry
 - [Upgrading](docs/admin/server/UPGRADING.md) — update, rollback, version compatibility

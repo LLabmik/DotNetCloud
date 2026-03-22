@@ -608,6 +608,8 @@ C:\DotNetCloud\
 
 ## Docker Installation
 
+> **New to Docker?** See the [Docker Beginner Guide](DOCKER_BEGINNER_GUIDE.md) for a step-by-step walkthrough that explains everything from installing Docker to managing your deployment.
+
 ### Docker Compose (Recommended)
 
 Create a `docker-compose.yml`:
@@ -1219,6 +1221,7 @@ dotnetcloud module restart files
 
 - [Server Configuration Reference](CONFIGURATION.md)
 - [Upgrading DotNetCloud](UPGRADING.md)
+- [Docker Beginner Guide](DOCKER_BEGINNER_GUIDE.md)
 - [Files Module Configuration](../files/CONFIGURATION.md)
 - [Collabora Administration](../files/COLLABORA.md)
 - [Backup & Restore](../files/BACKUP.md)
