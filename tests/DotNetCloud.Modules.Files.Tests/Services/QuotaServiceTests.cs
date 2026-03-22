@@ -389,4 +389,111 @@ public class QuotaServiceTests
         var quota = await db.FileQuotas.FirstAsync(q => q.UserId == userId);
         Assert.AreEqual(600, quota.UsedBytes); // both files counted
     }
+
+    // ─── TryReserveQuotaAsync (Security: TOCTOU race condition fix) ────────────
+
+    [TestMethod]
+    public async Task TryReserveQuotaAsync_WithinLimits_ReservesAndReturnsTrue()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 1000, UsedBytes = 200 });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.TryReserveQuotaAsync(userId, 500);
+
+        Assert.IsTrue(result);
+        var quota = await db.FileQuotas.FirstAsync(q => q.UserId == userId);
+        Assert.AreEqual(700, quota.UsedBytes);
+    }
+
+    [TestMethod]
+    public async Task TryReserveQuotaAsync_ExceedsLimit_ReturnsFalseAndDoesNotReserve()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 1000, UsedBytes = 800 });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.TryReserveQuotaAsync(userId, 500);
+
+        Assert.IsFalse(result);
+        var quota = await db.FileQuotas.FirstAsync(q => q.UserId == userId);
+        Assert.AreEqual(800, quota.UsedBytes, "UsedBytes must not change when reservation fails");
+    }
+
+    [TestMethod]
+    public async Task TryReserveQuotaAsync_ExactlyAtLimit_ReservesAndReturnsTrue()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 1000, UsedBytes = 500 });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.TryReserveQuotaAsync(userId, 500);
+
+        Assert.IsTrue(result, "Reservation should succeed when exactly at limit");
+        var quota = await db.FileQuotas.FirstAsync(q => q.UserId == userId);
+        Assert.AreEqual(1000, quota.UsedBytes);
+    }
+
+    [TestMethod]
+    public async Task TryReserveQuotaAsync_OneByteOverLimit_ReturnsFalse()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 1000, UsedBytes = 500 });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.TryReserveQuotaAsync(userId, 501);
+
+        Assert.IsFalse(result);
+    }
+
+    [TestMethod]
+    public async Task TryReserveQuotaAsync_UnlimitedQuota_AlwaysSucceeds()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 0, UsedBytes = 0 });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.TryReserveQuotaAsync(userId, long.MaxValue / 2);
+
+        Assert.IsTrue(result, "Unlimited quota (MaxBytes=0) must always succeed");
+    }
+
+    [TestMethod]
+    public async Task TryReserveQuotaAsync_ZeroOrNegativeBytes_ReturnsTrue()
+    {
+        using var db = CreateContext();
+        var userId = Guid.NewGuid();
+        db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 1000, UsedBytes = 999 });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+
+        Assert.IsTrue(await service.TryReserveQuotaAsync(userId, 0));
+        Assert.IsTrue(await service.TryReserveQuotaAsync(userId, -1));
+
+        // UsedBytes should not change for zero/negative reservation
+        var quota = await db.FileQuotas.FirstAsync(q => q.UserId == userId);
+        Assert.AreEqual(999, quota.UsedBytes);
+    }
+
+    [TestMethod]
+    public async Task TryReserveQuotaAsync_NoQuotaRecord_ReturnsFalse()
+    {
+        using var db = CreateContext();
+        var service = CreateService(db);
+
+        var result = await service.TryReserveQuotaAsync(Guid.NewGuid(), 100);
+
+        Assert.IsFalse(result, "Must return false when no quota record exists for user");
+    }
 }
