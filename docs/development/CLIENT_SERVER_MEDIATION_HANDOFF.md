@@ -78,38 +78,28 @@ Archived context:
 
 ## Active Handoff
 
-**Target: `mint-dnc-client`**
+**Status: COMPLETE — no pending work. Awaiting next task.**
 
-### Task: Linux Sync Toast Consolidation (success + failure aggregation)
+### Completed: Linux Sync Toast Consolidation — `a725206` (mint-dnc-client, 2026-03-22)
 
-**Problem statement:**
-During sync, the Linux desktop client emits too many toast notifications. Users currently receive many toasts (for example one per synced item or one per failure), which is noisy.
+**Files changed:**
+- `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/TrayViewModel.cs`
+- `tests/DotNetCloud.Client.SyncTray.Tests/ViewModels/TrayViewModelTests.cs`
 
-**Required behavior:**
-1. If a sync cycle completes with no failures, show only one success toast at the end of that sync cycle.
-2. If one or more failures occur during a sync cycle, do not emit per-failure toasts. Show one consolidated failure toast at the end of the sync cycle that summarizes all failures.
+**What was done:**
+- Added `_cycleErrors` and `_cycleTransfers` dictionaries to `TrayViewModel` for per-cycle aggregation.
+- `OnSyncError`: suppressed immediate toast; errors are accumulated in `_cycleErrors[contextId]`.
+- `OnTransferComplete`: increments `_cycleTransfers[contextId]` upload/download counts.
+- `OnSyncComplete`: emits exactly one aggregated toast:
+  - Errors present → single "Sync failed" toast listing all errors (count summary if >1). Uses `replaceKey` for dedup.
+  - No errors, transfers > 0 → single "Sync complete" toast (e.g. "2 uploaded, 1 downloaded"). Uses `replaceKey`.
+  - No errors, no transfers → no toast (idle cycle).
+- `OnSyncProgress`: resets per-cycle state when a new Syncing cycle begins (Idle/Error → Syncing transition).
+- Per-conflict toasts (`OnConflictDetected`) were confirmed OK by user — left unchanged.
 
-**Implementation guidance:**
-1. Introduce per-sync-cycle notification aggregation in the Linux client sync UI path (SyncTray + any notification service layer it uses).
-2. Track counts/details during the cycle:
-   - success summary info (items uploaded/downloaded/applied)
-   - failures collection (filename/path + short reason)
-3. Emit toasts only on cycle completion:
-   - success-only cycle: one success toast
-   - failure cycle: one failure toast with multi-line summary (count + concise list)
-4. Add safeguards to avoid duplicate end-of-cycle toasts for the same cycle ID.
-
-**Acceptance criteria:**
-1. Running a sync with multiple successful file operations shows exactly one toast total for that cycle.
-2. Running a sync with multiple failures shows exactly one toast total for that cycle and includes all failed items in the summary.
-3. Mixed cycle (successes + failures) still emits only one final failure-summary toast.
-4. Existing tests pass and new/updated tests cover toast coalescing behavior.
-
-**Validation to include in report back:**
-1. Commit hash.
-2. Files changed.
-3. Test command(s) run + pass/fail summary.
-4. Short runtime evidence from logs or UI traces proving one-toast-per-cycle behavior for success and failure scenarios.
+**Tests: 83/83 pass** (`dotnet test tests/DotNetCloud.Client.SyncTray.Tests/`)
+- 1 existing test updated: `OnSyncError_SetsErrorState_AndBuffersError_NoImmediateToast`
+- 6 new tests added covering: single error, multiple errors (count summary), success with transfers, no-activity no-toast, mixed (error wins), new cycle resets prior errors.
 
 ## Relay Template
 
