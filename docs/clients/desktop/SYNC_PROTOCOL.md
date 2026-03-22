@@ -6,7 +6,7 @@
 
 ## Overview
 
-This document describes the internal sync protocol used by `DotNetCloud.Client.Core.Sync.SyncEngine`. For a higher-level overview, see [Desktop Sync Architecture](../../modules/files/SYNC.md).
+This document describes the internal sync protocol used by `DotNetCloud.Client.Core.Sync.SyncEngine`. For a higher-level overview, see [Desktop Sync Architecture](../../modules/SYNC.md).
 
 ---
 

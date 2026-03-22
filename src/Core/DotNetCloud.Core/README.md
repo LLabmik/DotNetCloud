@@ -375,7 +375,7 @@ When adding new abstractions to DotNetCloud.Core:
 4. **Add unit tests** — Test interfaces with mock implementations
 5. **Follow naming conventions** — Interfaces start with `I`, events end with `Event`
 
-See [CONTRIBUTING.md](../../../CONTRIBUTING.md) for full guidelines.
+See [CONTRIBUTING.md](../../CONTRIBUTING.md) for full guidelines.
 
 ---
 

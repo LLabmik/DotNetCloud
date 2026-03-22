@@ -106,7 +106,7 @@ public interface IUserManager : ICapabilityInterface
 
 **Use Case:** Operations that are fundamentally incompatible with the module security model. Core modules may expose safe subsets through specific capability interfaces.
 
-See [ForbiddenInterfaces.md](./DotNetCloud.Core/Capabilities/ForbiddenInterfaces.md) for the complete forbidden list.
+See [ForbiddenInterfaces.md](../../src/Core/DotNetCloud.Core/Capabilities/ForbiddenInterfaces.md) for the complete forbidden list.
 
 ### Capability Enforcement
 
