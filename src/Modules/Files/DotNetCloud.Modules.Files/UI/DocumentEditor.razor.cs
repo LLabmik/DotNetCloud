@@ -1,8 +1,6 @@
 using System.Net.Http.Json;
-using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Authorization;
 
 namespace DotNetCloud.Modules.Files.UI;
 
@@ -18,9 +16,6 @@ public partial class DocumentEditor : ComponentBase
     /// <summary>The file name (for display).</summary>
     [Parameter] public string FileName { get; set; } = string.Empty;
 
-    /// <summary>The current user ID (for token generation).</summary>
-    [Parameter] public Guid UserId { get; set; }
-
     /// <summary>Base URL for the Files API (e.g., "https://cloud.example.com").</summary>
     [Parameter] public string ApiBaseUrl { get; set; } = string.Empty;
 
@@ -32,9 +27,6 @@ public partial class DocumentEditor : ComponentBase
 
     /// <summary>Injected HttpClient for calling the WOPI token endpoint.</summary>
     [Inject] private HttpClient Http { get; set; } = default!;
-
-    /// <summary>Injected authentication state provider for resolving current user identity.</summary>
-    [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
 
     /// <summary>The editor iframe URL (set after successful token generation).</summary>
     protected string? EditorUrl { get; set; }
@@ -69,8 +61,7 @@ public partial class DocumentEditor : ComponentBase
 
         try
         {
-            var effectiveUserId = await ResolveEffectiveUserIdAsync();
-            var tokenEndpoint = BuildApiEndpoint($"/api/v1/wopi/token/{FileId}?userId={effectiveUserId}");
+            var tokenEndpoint = BuildApiEndpoint($"/api/v1/wopi/token/{FileId}");
             var response = await Http.PostAsync(tokenEndpoint, content: null);
 
             if (!response.IsSuccessStatusCode)
@@ -130,8 +121,7 @@ public partial class DocumentEditor : ComponentBase
         {
             try
             {
-                var effectiveUserId = await ResolveEffectiveUserIdAsync();
-                await Http.DeleteAsync(BuildApiEndpoint($"/api/v1/wopi/token/{FileId}?userId={effectiveUserId}"));
+                await Http.DeleteAsync(BuildApiEndpoint($"/api/v1/wopi/token/{FileId}"));
             }
             catch (HttpRequestException)
             {
@@ -191,19 +181,6 @@ public partial class DocumentEditor : ComponentBase
             return $"{absolute.Scheme}://{absolute.Authority}{relativePath}";
 
         return relativePath;
-    }
-
-    private async Task<Guid> ResolveEffectiveUserIdAsync()
-    {
-        if (UserId != Guid.Empty)
-            return UserId;
-
-        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        var principal = authState.User;
-        var claim = principal.FindFirstValue(ClaimTypes.NameIdentifier)
-                   ?? principal.FindFirstValue("sub");
-
-        return Guid.TryParse(claim, out var parsed) ? parsed : Guid.Empty;
     }
 
     private static async Task<string?> TryReadApiErrorMessageAsync(HttpResponseMessage response)

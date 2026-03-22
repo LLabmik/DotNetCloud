@@ -24,9 +24,9 @@ public class ShareController : FilesControllerBase
     /// Lists all shares for a file or folder.
     /// </summary>
     [HttpGet]
-    public Task<IActionResult> ListAsync(Guid nodeId, [FromQuery] Guid userId) => ExecuteAsync(async () =>
+    public Task<IActionResult> ListAsync(Guid nodeId) => ExecuteAsync(async () =>
     {
-        var shares = await _shareService.GetSharesAsync(nodeId, ToCaller(userId));
+        var shares = await _shareService.GetSharesAsync(nodeId, GetAuthenticatedCaller());
         return Ok(Envelope(shares));
     });
 
@@ -34,9 +34,9 @@ public class ShareController : FilesControllerBase
     /// Creates a new share for a file or folder.
     /// </summary>
     [HttpPost]
-    public Task<IActionResult> CreateAsync(Guid nodeId, [FromBody] CreateShareDto dto, [FromQuery] Guid userId) => ExecuteAsync(async () =>
+    public Task<IActionResult> CreateAsync(Guid nodeId, [FromBody] CreateShareDto dto) => ExecuteAsync(async () =>
     {
-        var share = await _shareService.CreateShareAsync(nodeId, dto, ToCaller(userId));
+        var share = await _shareService.CreateShareAsync(nodeId, dto, GetAuthenticatedCaller());
         return Created($"/api/v1/files/{nodeId}/shares/{share.Id}", Envelope(share));
     });
 
@@ -44,9 +44,9 @@ public class ShareController : FilesControllerBase
     /// Updates an existing share.
     /// </summary>
     [HttpPut("{shareId:guid}")]
-    public Task<IActionResult> UpdateAsync(Guid nodeId, Guid shareId, [FromBody] UpdateShareDto dto, [FromQuery] Guid userId) => ExecuteAsync(async () =>
+    public Task<IActionResult> UpdateAsync(Guid nodeId, Guid shareId, [FromBody] UpdateShareDto dto) => ExecuteAsync(async () =>
     {
-        var share = await _shareService.UpdateShareAsync(shareId, dto, ToCaller(userId));
+        var share = await _shareService.UpdateShareAsync(shareId, dto, GetAuthenticatedCaller());
         return Ok(Envelope(share));
     });
 
@@ -54,9 +54,9 @@ public class ShareController : FilesControllerBase
     /// Revokes (deletes) a share.
     /// </summary>
     [HttpDelete("{shareId:guid}")]
-    public Task<IActionResult> RevokeAsync(Guid nodeId, Guid shareId, [FromQuery] Guid userId) => ExecuteAsync(async () =>
+    public Task<IActionResult> RevokeAsync(Guid nodeId, Guid shareId) => ExecuteAsync(async () =>
     {
-        await _shareService.DeleteShareAsync(shareId, ToCaller(userId));
+        await _shareService.DeleteShareAsync(shareId, GetAuthenticatedCaller());
         return Ok(Envelope(new { deleted = true }));
     });
 }

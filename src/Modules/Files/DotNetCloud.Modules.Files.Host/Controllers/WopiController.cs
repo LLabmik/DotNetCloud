@@ -175,9 +175,9 @@ public class WopiController : FilesControllerBase
     /// Returns the token, editor URL, and expiry information.
     /// </summary>
     [HttpPost("token/{fileId:guid}")]
-    public Task<IActionResult> GenerateTokenAsync(Guid fileId, [FromQuery] Guid userId) => ExecuteAsync(async () =>
+    public Task<IActionResult> GenerateTokenAsync(Guid fileId) => ExecuteAsync(async () =>
     {
-        var token = await _tokenService.GenerateTokenAsync(fileId, ToCaller(userId));
+        var token = await _tokenService.GenerateTokenAsync(fileId, GetAuthenticatedCaller());
         return Ok(Envelope(token));
     });
 
@@ -186,9 +186,10 @@ public class WopiController : FilesControllerBase
     /// Called by the DotNetCloud UI when the editor is closed.
     /// </summary>
     [HttpDelete("token/{fileId:guid}")]
-    public IActionResult EndSessionAsync(Guid fileId, [FromQuery] Guid userId)
+    public IActionResult EndSessionAsync(Guid fileId)
     {
-        _sessionTracker.EndSession(fileId, userId);
+        var caller = GetAuthenticatedCaller();
+        _sessionTracker.EndSession(fileId, caller.UserId);
         return NoContent();
     }
 

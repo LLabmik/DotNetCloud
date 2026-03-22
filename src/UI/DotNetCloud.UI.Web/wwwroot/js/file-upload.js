@@ -106,7 +106,7 @@ window.dotnetcloudUpload = (function () {
             };
 
             const initResp = await fetch(
-                `${apiBase}/upload/initiate?userId=${encodeURIComponent(userId)}`,
+                `${apiBase}/upload/initiate`,
                 {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -133,7 +133,7 @@ window.dotnetcloudUpload = (function () {
                 if (!missingSet.has(chunk.hash)) continue;
 
                 const putResp = await fetch(
-                    `${apiBase}/upload/${sessionId}/chunks/${chunk.hash}?userId=${encodeURIComponent(userId)}`,
+                    `${apiBase}/upload/${sessionId}/chunks/${chunk.hash}`,
                     {
                         method: "PUT",
                         headers: { "Content-Type": "application/octet-stream" },
@@ -157,7 +157,7 @@ window.dotnetcloudUpload = (function () {
             await dotNetRef.invokeMethodAsync("OnJsUploadProgress", fileIndex, 95, "Finalizing...");
 
             const completeResp = await fetch(
-                `${apiBase}/upload/${sessionId}/complete?userId=${encodeURIComponent(userId)}`,
+                `${apiBase}/upload/${sessionId}/complete`,
                 {
                     method: "POST",
                     credentials: "same-origin"
@@ -306,8 +306,8 @@ window.dotnetcloudUpload = (function () {
         }
 
         const query = parentId
-            ? `?parentId=${encodeURIComponent(parentId)}&userId=${encodeURIComponent(userId)}`
-            : `?userId=${encodeURIComponent(userId)}`;
+            ? `?parentId=${encodeURIComponent(parentId)}`
+            : ``;
         const response = await fetch(`${apiBase}${query}`, {
             method: "GET",
             credentials: "same-origin"
@@ -341,7 +341,7 @@ window.dotnetcloudUpload = (function () {
             return children.get(key);
         }
 
-        const createResponse = await fetch(`${apiBase}/folders?userId=${encodeURIComponent(userId)}`, {
+        const createResponse = await fetch(`${apiBase}/folders`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "same-origin",

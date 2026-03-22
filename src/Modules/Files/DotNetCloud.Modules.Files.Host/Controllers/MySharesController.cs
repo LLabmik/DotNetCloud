@@ -23,9 +23,9 @@ public class MySharesController : FilesControllerBase
     /// Lists all files and folders that have been shared with the calling user.
     /// </summary>
     [HttpGet]
-    public Task<IActionResult> GetAsync([FromQuery] Guid userId) => ExecuteAsync(async () =>
+    public Task<IActionResult> GetAsync() => ExecuteAsync(async () =>
     {
-        var shares = await _shareService.GetSharedWithMeAsync(ToCaller(userId));
+        var shares = await _shareService.GetSharedWithMeAsync(GetAuthenticatedCaller());
         return Ok(Envelope(shares));
     });
 }

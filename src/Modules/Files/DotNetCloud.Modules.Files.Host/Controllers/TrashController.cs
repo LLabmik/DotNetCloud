@@ -20,12 +20,12 @@ public class TrashController : FilesControllerBase
     }
 
     /// <summary>
-    /// Lists all items in the trash bin for a user.
+    /// Lists all items in the trash bin for the authenticated user.
     /// </summary>
     [HttpGet]
-    public Task<IActionResult> ListAsync([FromQuery] Guid userId) => ExecuteAsync(async () =>
+    public Task<IActionResult> ListAsync() => ExecuteAsync(async () =>
     {
-        var items = await _trashService.ListTrashAsync(ToCaller(userId));
+        var items = await _trashService.ListTrashAsync(GetAuthenticatedCaller());
         return Ok(Envelope(items));
     });
 
@@ -33,9 +33,9 @@ public class TrashController : FilesControllerBase
     /// Gets the total size of items in the trash.
     /// </summary>
     [HttpGet("size")]
-    public Task<IActionResult> GetSizeAsync([FromQuery] Guid userId) => ExecuteAsync(async () =>
+    public Task<IActionResult> GetSizeAsync() => ExecuteAsync(async () =>
     {
-        var size = await _trashService.GetTrashSizeAsync(ToCaller(userId));
+        var size = await _trashService.GetTrashSizeAsync(GetAuthenticatedCaller());
         return Ok(Envelope(new { sizeBytes = size }));
     });
 
@@ -43,9 +43,9 @@ public class TrashController : FilesControllerBase
     /// Restores a trashed item to its original location.
     /// </summary>
     [HttpPost("{nodeId:guid}/restore")]
-    public Task<IActionResult> RestoreAsync(Guid nodeId, [FromQuery] Guid userId) => ExecuteAsync(async () =>
+    public Task<IActionResult> RestoreAsync(Guid nodeId) => ExecuteAsync(async () =>
     {
-        var node = await _trashService.RestoreAsync(nodeId, ToCaller(userId));
+        var node = await _trashService.RestoreAsync(nodeId, GetAuthenticatedCaller());
         return Ok(Envelope(node));
     });
 
@@ -53,19 +53,19 @@ public class TrashController : FilesControllerBase
     /// Permanently deletes a trashed item.
     /// </summary>
     [HttpDelete("{nodeId:guid}")]
-    public Task<IActionResult> PurgeAsync(Guid nodeId, [FromQuery] Guid userId) => ExecuteAsync(async () =>
+    public Task<IActionResult> PurgeAsync(Guid nodeId) => ExecuteAsync(async () =>
     {
-        await _trashService.PermanentDeleteAsync(nodeId, ToCaller(userId));
+        await _trashService.PermanentDeleteAsync(nodeId, GetAuthenticatedCaller());
         return Ok(Envelope(new { deleted = true }));
     });
 
     /// <summary>
-    /// Empties the entire trash bin for a user.
+    /// Empties the entire trash bin for the authenticated user.
     /// </summary>
     [HttpDelete]
-    public Task<IActionResult> EmptyAsync([FromQuery] Guid userId) => ExecuteAsync(async () =>
+    public Task<IActionResult> EmptyAsync() => ExecuteAsync(async () =>
     {
-        await _trashService.EmptyTrashAsync(ToCaller(userId));
+        await _trashService.EmptyTrashAsync(GetAuthenticatedCaller());
         return Ok(Envelope(new { emptied = true }));
     });
 }

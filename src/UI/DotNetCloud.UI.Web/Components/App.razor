@@ -49,6 +49,13 @@
             CookieRequestCultureProvider.MakeCookieValue(
                 new RequestCulture(
                     CultureInfo.CurrentCulture,
-                    CultureInfo.CurrentUICulture)));
+                    CultureInfo.CurrentUICulture)),
+            new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.Lax,
+                MaxAge = TimeSpan.FromDays(365),
+            });
     }
 }
