@@ -208,12 +208,14 @@ Imports users, files, calendars, contacts, and bookmarks. Available starting in 
 
 ### Server Administration
 
-- [Installation Guide](docs/admin/server/INSTALLATION.md) — Linux, Windows, and Docker installation
+- [Installation Guide](docs/admin/server/INSTALLATION.md) — one-line install, manual install, build from source, Docker, non-interactive setup
 - [Windows + IIS Install Guide](docs/admin/server/WINDOWS_IIS_INSTALL_GUIDE.md) — beginner-friendly IIS reverse-proxy setup
 - [Reverse Proxy Beginner Guide](docs/admin/server/REVERSE_PROXY_BEGINNER_GUIDE.md) — Apache-first walkthrough with Caddy alternative
-- [Server Configuration](docs/admin/server/CONFIGURATION.md) — Kestrel, logging, rate limiting, CORS
-- [Upgrading](docs/admin/server/UPGRADING.md) — update to newer versions
+- [Server Configuration](docs/admin/server/CONFIGURATION.md) — Kestrel, TLS, auth, logging, rate limiting, CORS, telemetry
+- [Upgrading](docs/admin/server/UPGRADING.md) — update, rollback, version compatibility
 - [Backup & Restore](docs/admin/BACKUP.md)
+- [Collabora Administration](docs/admin/COLLABORA.md) — browser-based document editing setup
+- [Files Module Configuration](docs/admin/CONFIGURATION.md) — storage, quotas, trash retention
 
 ### Clients
 
