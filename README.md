@@ -41,7 +41,7 @@ DotNetCloud gives you full control of your data by running your own cloud server
 
 ### Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for the full phased implementation plan. Detailed status is tracked in [MASTER_PROJECT_PLAN.md](docs/MASTER_PROJECT_PLAN.md).
+See [MASTER_PROJECT_PLAN.md](docs/MASTER_PROJECT_PLAN.md) for the full phased implementation plan with detailed status tracking.
 
 | Phase | Milestone | Status |
 |---|---|---|
