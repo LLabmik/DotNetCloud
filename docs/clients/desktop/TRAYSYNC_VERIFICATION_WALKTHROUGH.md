@@ -1,6 +1,6 @@
 # TraySync Client Build, Install, and Verification Walkthrough
 
-> **Last Updated:** 2026-03-06
+> **Last Updated:** 2026-03-22
 
 This guide walks you through building, installing, and validating DotNetCloud desktop tray sync across your test machines.
 
@@ -9,7 +9,7 @@ This guide walks you through building, installing, and validating DotNetCloud de
 - **DotNetCloud server:** `mint22`
 - **Linux client:** `mint-dnc-client`
 - **Windows client:** `Windows11-TestDNC`
-- **Server URL used in examples:** `https://mint22:15443`
+- **Server URL used in examples:** `https://mint22.kimball.home:5443`
 
 ## What You Will Validate
 
@@ -22,7 +22,7 @@ This guide walks you through building, installing, and validating DotNetCloud de
 
 ## Prerequisites
 
-- Network connectivity from both clients to `mint22:15443`
+- Network connectivity from both clients to `mint22.kimball.home:5443`
 - DotNetCloud account credentials for `mint22`
 - Desktop session available on each client to run tray app
 - Access to GitHub Releases for downloading installer bundles
@@ -132,7 +132,7 @@ Perform on both `mint-dnc-client` and `Windows11-TestDNC`:
 
 1. Launch SyncTray.
 2. Open tray menu -> `Settings...` -> `Add Account`.
-3. Enter server URL: `https://mint22:15443`.
+3. Enter server URL: `https://mint22.kimball.home:5443`.
 4. Complete browser login.
 5. Choose local sync root:
    - Linux: `~/DotNetCloud/mint22`
@@ -146,14 +146,14 @@ Perform on both `mint-dnc-client` and `Windows11-TestDNC`:
 ```bash
 systemctl is-active dotnetcloud-sync
 ls -l /run/dotnetcloud/sync.sock
-curl -k -I https://mint22:15443
+curl -k -I https://mint22.kimball.home:5443
 ```
 
 ### Windows (`Windows11-TestDNC`)
 
 ```powershell
 Get-Service DotNetCloudSync
-Test-NetConnection mint22 -Port 15443
+Test-NetConnection mint22.kimball.home -Port 5443
 ```
 
 ## 5) Cross-Machine Verification Matrix

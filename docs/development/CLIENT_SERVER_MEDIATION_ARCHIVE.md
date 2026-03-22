@@ -3079,3 +3079,42 @@ No server outage or localhost-only bind was present on `mint22`. The active refu
 **Externally reachable HTTPS endpoint for clients:** `https://mint22.kimball.home:5443/`
 
 **Result:** server-side connectivity diagnosis complete. Follow-up moved to client machines to retry OAuth against `:5443` and remove stale `:15443` assumptions from client defaults/docs.
+
+---
+
+### Archived: 2026-03-22 — `mint-dnc-client` Desktop OAuth Retry + Stale URL Cleanup
+
+**Machines involved:** `mint-dnc-client` (desktop client patch + validation), `mint22` (endpoint target)
+
+#### Summary
+
+Client-side retry and cleanup against the corrected HTTPS endpoint were completed on `mint-dnc-client`.
+
+- **TCP connectivity (acceptance check):** `nc -vz mint22.kimball.home 5443` succeeded.
+- **Exact server URL used:** `https://mint22.kimball.home:5443/`
+- **Exact authorize URL opened for validation:**
+    - `https://mint22.kimball.home:5443/connect/authorize?response_type=code&client_id=dotnetcloud-desktop&redirect_uri=http%3A%2F%2Flocalhost%3A52701%2Foauth%2Fcallback&scope=openid%20profile%20offline_access%20files%3Aread%20files%3Awrite&state=handoff-state-20260322&code_challenge=handoff-challenge-20260322&code_challenge_method=S256`
+- **Authorize endpoint result:** HTTPS request returned `HTTP/1.1 302 Found` with `Location: https://mint22.kimball.home/auth/login?returnUrl=...` (login redirect, no connection refused).
+
+#### Code/docs updates applied
+
+- SyncTray Add Account default URL updated to `https://mint22.kimball.home:5443/` in `src/Clients/DotNetCloud.Client.SyncTray/ViewModels/SettingsViewModel.cs`.
+- Added regression test asserting the new default endpoint in `tests/DotNetCloud.Client.SyncTray.Tests/ViewModels/SettingsViewModelTests.cs`.
+- Updated related desktop IPC sample URL in `tests/DotNetCloud.Client.SyncTray.Tests/Ipc/IpcClientTests.cs`.
+- Updated desktop verification walkthrough examples/checks from `:15443` to `mint22.kimball.home:5443` in `docs/clients/desktop/TRAYSYNC_VERIFICATION_WALKTHROUGH.md`.
+
+#### Validation
+
+- Full SyncTray test project passed:
+    - `dotnet test tests/DotNetCloud.Client.SyncTray.Tests/DotNetCloud.Client.SyncTray.Tests.csproj`
+    - Result: 84 passed / 0 failed / 0 skipped.
+- Focused checks also passed during edit loop:
+    - `tests/DotNetCloud.Client.SyncTray.Tests/ViewModels/SettingsViewModelTests.cs`
+    - `tests/DotNetCloud.Client.SyncTray.Tests/Ipc/IpcClientTests.cs`
+    - Result: 19 passed / 0 failed.
+
+#### Remaining stale `:15443` source status
+
+- **Desktop SyncTray add-account default source:** fixed.
+- **Desktop verification walkthrough examples:** fixed.
+- **Interactive tray/browser full pass on this run:** browser tooling can open the URL but cannot introspect page DOM in this environment; server-side redirect evidence confirms login route is reached.

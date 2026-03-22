@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-22 (server diagnosis archived; client retry on corrected HTTPS port active)
+Last updated: 2026-03-22 (mint-dnc-client retry/cleanup archived; Windows interactive OAuth verification active)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -79,41 +79,34 @@ Archived context:
 
 ## Active Handoff
 
-**Target machine:** `mint-dnc-client`
-**Status:** READY FOR CLIENT RETRY
-**Priority:** P0 (blocks desktop SyncTray account-connect OAuth flow)
+**Target machine:** `Windows11-TestDNC`
+**Status:** READY FOR WINDOWS CLIENT RETRY
+**Priority:** P0 (final interactive confirmation for desktop SyncTray Add Account)
 
-### Context from server investigation (`mint22`)
+### Context
 
-- Root cause of the connection-refused report is confirmed on `mint22`: the current deployment listens on HTTPS `:5443`, not `:15443`.
-- Listener proof from `mint22`:
-  - `ss -ltnp` shows `*:5080`, `*:5443`, `*:9980`
-  - `/opt/dotnetcloud/dotnetcloud status` shows `HTTPS Port: 5443`, `HTTPS Listener: Running`
-  - `journalctl -u dotnetcloud -n 120 --no-pager` shows `Now listening on: https://[::]:5443`
-  - `nc -vz 192.168.0.112 5443` succeeds
-  - `nc -vz 127.0.0.1 15443` returns `Connection refused`
-- Installed runtime config also matches `5443`:
-  - `/opt/dotnetcloud/server/appsettings.json` → `Kestrel.HttpsPort = 5443`
-  - `/opt/dotnetcloud/publish/appsettings.json` → `Kestrel.HttpsPort = 5443`
-- No reverse proxy is active on `mint22` for `15443`, `443`, or `80`.
-- Correct external HTTPS endpoint for clients is:
-  - `https://mint22.kimball.home:5443/`
+- `mint22` server endpoint diagnosis is complete: active HTTPS listener is `https://mint22.kimball.home:5443/`.
+- `mint-dnc-client` client-side cleanup is complete and archived in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`:
+  - SyncTray Add Account default updated from `:15443` to `https://mint22.kimball.home:5443/`.
+  - Related desktop tests/docs updated and passing.
+  - OAuth authorize endpoint validated to return login redirect on `:5443`.
+- Remaining required evidence is an interactive Windows tray/browser pass.
 
-### Required actions on `mint-dnc-client` (execute autonomously)
+### Required actions on `Windows11-TestDNC` (execute autonomously)
 
-1. Retry the desktop Add Account flow using `https://mint22.kimball.home:5443/`.
-2. Capture the actual authorize URL opened by the browser and confirm it now targets `:5443`.
-3. Verify the browser reaches the login page instead of failing with connection refused.
-4. If SyncTray still pre-fills or persists `:15443`, patch the client default/server URL source and any directly related stale test expectations or docs in the same change.
-5. Hand back the exact result, including whether manual URL entry was required and any remaining error text/query params.
+1. Pull latest `main`.
+2. Launch desktop SyncTray and open `Settings -> Add Account`.
+3. Verify default/pre-filled server URL now shows `https://mint22.kimball.home:5443/`.
+4. Run Add Account OAuth flow and capture the exact authorize URL opened by the browser.
+5. Confirm browser reaches login page (not connection refused).
+6. If any stale `:15443` value still appears anywhere in the Windows flow (UI, persisted settings, logs), patch it and include directly related tests/docs in the same change.
 
 ### Acceptance criteria
 
-- From `mint-dnc-client`: TCP connect succeeds to `mint22.kimball.home:5443`.
-- OAuth authorize URL loads from browser on client:
-  - `https://mint22.kimball.home:5443/connect/authorize?...`
-- SyncTray Add Account flow reaches login page without connection-refused.
-- If client code or defaults still point to `:15443`, they are updated or the exact remaining source is identified.
+- Add Account default URL on Windows uses `https://mint22.kimball.home:5443/` without manual correction.
+- Authorize URL opened by browser targets `https://mint22.kimball.home:5443/connect/authorize?...`.
+- Login page is reached on Windows flow without connection-refused.
+- Any remaining stale `:15443` source is fixed or precisely identified with file/path.
 
 ### Required handback in this document
 
@@ -121,6 +114,7 @@ Archived context:
 - Exact server URL used.
 - Exact authorize URL opened by the browser.
 - Whether Add Account reached the login page.
+- Whether manual URL entry was required.
 - Any stale `:15443` source still remaining if not fully fixed.
 
 ## Relay Template

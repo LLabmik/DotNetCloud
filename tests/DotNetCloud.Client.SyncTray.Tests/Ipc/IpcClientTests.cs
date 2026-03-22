@@ -210,7 +210,7 @@ public sealed class IpcClientTests
                     {
                         id = Guid.NewGuid(),
                         displayName = "testdude@llabmik.net @ mint22",
-                        serverBaseUrl = "https://mint22:15443",
+                        serverBaseUrl = "https://mint22.kimball.home:5443",
                         localFolderPath = "/home/benk/synctray",
                         state = "Idle",
                         pendingUploads = 0,

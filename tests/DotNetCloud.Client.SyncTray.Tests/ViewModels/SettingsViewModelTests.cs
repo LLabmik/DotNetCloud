@@ -27,6 +27,14 @@ public sealed class SettingsViewModelTests
     }
 
     [TestMethod]
+    public void AddAccountServerUrl_DefaultsToCurrentMint22Endpoint()
+    {
+        var (vm, _, _, _) = BuildVm();
+
+        Assert.AreEqual("https://mint22.kimball.home:5443/", vm.AddAccountServerUrl);
+    }
+
+    [TestMethod]
     public async Task AddAccountAsync_InvalidServerUrl_SetsError()
     {
         var (vm, _, _, _) = BuildVm();
