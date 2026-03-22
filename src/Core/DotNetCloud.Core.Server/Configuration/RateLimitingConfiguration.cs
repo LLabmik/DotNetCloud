@@ -22,9 +22,9 @@ public sealed class RateLimitingOptions
     public bool Enabled { get; set; } = true;
 
     /// <summary>
-    /// Gets or sets the global rate limit (requests per window). Defaults to 100.
+    /// Gets or sets the global rate limit (requests per window). Defaults to 20.
     /// </summary>
-    public int GlobalPermitLimit { get; set; } = 100;
+    public int GlobalPermitLimit { get; set; } = 20;
 
     /// <summary>
     /// Gets or sets the global rate limit window in seconds. Defaults to 60.
@@ -113,9 +113,29 @@ public static class RateLimitingConfiguration
             return services;
         }
 
+        // Track repeated violations per IP to escalate Retry-After delays.
+        var violationTracker = new ConcurrentDictionary<string, ViolationRecord>();
+
         services.AddRateLimiter(limiterOptions =>
         {
-            // Global fixed window rate limiter (per IP)
+            // Default global limiter applied to ALL endpoints that don't have
+            // an explicit [EnableRateLimiting] attribute. This is the safety net
+            // that ensures every endpoint is rate-limited by default.
+            limiterOptions.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+            {
+                var clientIp = GetClientIpAddress(context);
+                return RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: clientIp,
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = options.GlobalPermitLimit,
+                        Window = TimeSpan.FromSeconds(options.GlobalWindowSeconds),
+                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                        QueueLimit = options.QueueLimit
+                    });
+            });
+
+            // Named global policy (for explicit [EnableRateLimiting("global")] use)
             limiterOptions.AddPolicy(GlobalPolicy, context =>
             {
                 var clientIp = GetClientIpAddress(context);
@@ -177,16 +197,40 @@ public static class RateLimitingConfiguration
                 });
             }
 
-            // Configure rejection response
+            // Configure rejection response with escalating penalties
             limiterOptions.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             limiterOptions.OnRejected = async (context, cancellationToken) =>
             {
                 context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
                 context.HttpContext.Response.ContentType = "application/json";
 
-                var retryAfter = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfterValue)
-                    ? retryAfterValue
-                    : TimeSpan.FromSeconds(options.GlobalWindowSeconds);
+                var clientIp = GetClientIpAddress(context.HttpContext);
+                var now = DateTimeOffset.UtcNow;
+
+                // Track violations and escalate the retry delay.
+                // Each violation within 10 minutes doubles the delay (60s, 120s, 240s, 480s, capped at 900s).
+                var record = violationTracker.AddOrUpdate(
+                    clientIp,
+                    _ => new ViolationRecord(1, now),
+                    (_, existing) =>
+                    {
+                        var elapsed = now - existing.LastViolation;
+                        if (elapsed.TotalMinutes > 10)
+                        {
+                            // Reset after 10 minutes of good behavior
+                            return new ViolationRecord(1, now);
+                        }
+
+                        return new ViolationRecord(existing.Count + 1, now);
+                    });
+
+                // Escalate: base window * 2^(violations-1), capped at 15 minutes
+                var baseDelay = options.GlobalWindowSeconds;
+                var multiplier = Math.Min(record.Count, 5); // Cap at 2^4 = 16x
+                var escalatedSeconds = baseDelay * (int)Math.Pow(2, multiplier - 1);
+                escalatedSeconds = Math.Min(escalatedSeconds, 900); // 15 min max
+
+                var retryAfter = TimeSpan.FromSeconds(escalatedSeconds);
 
                 if (options.IncludeHeaders)
                 {
@@ -239,4 +283,6 @@ public static class RateLimitingConfiguration
 
         return context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
     }
+
+    private sealed record ViolationRecord(int Count, DateTimeOffset LastViolation);
 }

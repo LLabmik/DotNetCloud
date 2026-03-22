@@ -62,14 +62,25 @@ public class SecurityHeadersMiddleware
             context.Response.Headers["Permissions-Policy"] = _options.PermissionsPolicy;
         }
 
-        if (_options.RemoveServerHeader)
+        // Remove info-leak headers via OnStarting callback so the removal
+        // happens just before the response is sent, after Kestrel/other
+        // middleware may have added them.
+        if (_options.RemoveServerHeader || _options.RemoveXPoweredBy)
         {
-            context.Response.Headers.Remove("Server");
-        }
+            context.Response.OnStarting(() =>
+            {
+                if (_options.RemoveServerHeader)
+                {
+                    context.Response.Headers.Remove("Server");
+                }
 
-        if (_options.RemoveXPoweredBy)
-        {
-            context.Response.Headers.Remove("X-Powered-By");
+                if (_options.RemoveXPoweredBy)
+                {
+                    context.Response.Headers.Remove("X-Powered-By");
+                }
+
+                return Task.CompletedTask;
+            });
         }
 
         await _next(context);

@@ -87,6 +87,9 @@ public static class KestrelConfiguration
 
         builder.WebHost.ConfigureKestrel(options =>
         {
+            // Suppress the "Server: Kestrel" header to avoid leaking server technology.
+            options.AddServerHeader = false;
+
             ConfigureEndpoints(options, kestrelOptions, builder.Environment);
             ConfigureLimits(options, kestrelOptions);
         });

@@ -83,29 +83,9 @@ public static class ServiceDefaultsExtensions
             .AddCheck<StartupHealthCheck>("startup",
                 tags: ["ready"]);
 
-        // Add CORS
-        builder.Services.AddCors(options =>
-        {
-            options.AddDefaultPolicy(policy =>
-            {
-                var allowedOrigins = builder.Configuration
-                    .GetSection("Cors:AllowedOrigins")
-                    .Get<string[]>() ?? Array.Empty<string>();
-
-                if (allowedOrigins.Length > 0)
-                {
-                    policy.WithOrigins(allowedOrigins)
-                          .AllowCredentials();
-                }
-                else
-                {
-                    policy.AllowAnyOrigin();
-                }
-
-                policy.AllowAnyMethod()
-                      .AllowAnyHeader();
-            });
-        });
+        // CORS is configured by the server via AddDotNetCloudCors() — not here.
+        // ServiceDefaults must NOT register its own default CORS policy because
+        // AllowAnyOrigin() would override the server's restrictive named policy.
 
         return builder;
     }
