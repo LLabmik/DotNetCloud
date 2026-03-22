@@ -79,19 +79,24 @@
    sudo ./install.sh
    ```
 
-4. **Verify service is running:**
+4. **Verify the installed background service is running:**
 
    ```bash
    sudo systemctl status dotnetcloud-sync --no-pager
    ```
 
-5. **Run SyncTray** in your desktop session:
+5. **Launch SyncTray in your desktop session:**
 
    ```bash
    dotnetcloud-sync-tray
    ```
 
 6. **Auto-start SyncTray on login:** Open SyncTray, go to `Settings -> General`, and enable `Start DotNetCloud Sync at graphical login`. This writes `~/.config/autostart/dotnetcloud-sync-tray.desktop` (or `$XDG_CONFIG_HOME/autostart/...`).
+
+7. **Know which install model you are using:**
+
+   - Official Linux release installer: installs a system service named `dotnetcloud-sync` and stores service data under `/var/lib/dotnetcloud/sync`.
+   - Local/source or non-root development runs may instead use per-user paths under `~/.local/share/DotNetCloud` and a per-user IPC socket under `$XDG_RUNTIME_DIR/dotnetcloud/sync.sock`.
 
 ## Updating to a New Client Version
 
@@ -165,14 +170,17 @@ Output artifacts:
 8. Choose a local folder for syncing (default: `~/DotNetCloud/{server-name}`)
 9. Click **"Save"** — syncing will begin automatically
 
-### Managing Multiple Accounts
+### Current Account Limit
 
-You can connect to multiple DotNetCloud servers:
+The current desktop client supports **one account per OS user install**.
 
-1. Open **Settings** → **Accounts** tab
-2. Click **"Add Account"** for each additional server
-3. Each account gets its own sync folder, state database, and authentication tokens
-4. Switch the default account by clicking **"Set Default"**
+If you need to connect this machine to a different DotNetCloud server today:
+
+1. Open **Settings** → **Accounts**
+2. Remove the existing account
+3. Add the new server account
+
+If multiple people share the same machine, use separate OS user accounts so each person has their own SyncTray, tokens, and sync folder.
 
 ### Removing an Account
 

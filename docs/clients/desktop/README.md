@@ -24,7 +24,7 @@ Both components use the shared `DotNetCloud.Client.Core` library for sync logic,
 - **Delta sync** — only changed chunks are transferred
 - **Conflict detection** — conflict copies preserve both versions
 - **Selective sync** — choose which folders to sync
-- **Multi-account** — connect to multiple DotNetCloud servers
+- **Single-account today** — one desktop client account per OS user install (multi-account support is not yet available)
 - **Resume** — interrupted transfers resume automatically
 - **Cross-platform** — Windows (Service + tray) and Linux (systemd + tray)
 

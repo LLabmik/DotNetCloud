@@ -21,10 +21,16 @@
   Start-Service DotNetCloudSync
   ```
 
-- **Linux:** Check the systemd service:
+- **Linux (official release installer):** Check the system service:
   ```bash
   sudo systemctl status dotnetcloud-sync
   sudo systemctl start dotnetcloud-sync
+  ```
+
+- **Linux (local/source install):** If you are running a local publish or development install instead of the release installer, you may be using a per-user service:
+  ```bash
+  systemctl --user status dotnetcloud-sync.service
+  systemctl --user restart dotnetcloud-sync.service
   ```
 
 ### Tray Icon Shows Error (Red Exclamation)
@@ -116,7 +122,8 @@ report (conflict - Ben - 2025-07-14).docx  ← local version
 
 1. Check the service logs:
    - **Windows:** Event Viewer → Application log
-   - **Linux:** `journalctl -u dotnetcloud-sync`
+   - **Linux (official release installer):** `sudo journalctl -u dotnetcloud-sync --no-pager -n 200`
+   - **Linux (local/source install):** `journalctl --user -u dotnetcloud-sync.service --no-pager -n 200`
 2. Common causes:
    - Missing .NET runtime
    - Invalid configuration file
@@ -131,7 +138,8 @@ report (conflict - Ben - 2025-07-14).docx  ← local version
 The SyncService uses Serilog for structured logging.
 
 - **Windows:** `%ProgramData%\DotNetCloud\Sync\logs\sync-service*.log`
-- **Linux:** `/var/log/dotnetcloud/sync-service-*.log`
+- **Linux (official release installer):** `/var/lib/dotnetcloud/sync/logs/sync-service*.log`
+- **Linux (local/source install):** `~/.local/share/DotNetCloud/logs/sync-service*.log`
 
 Logs include:
 
@@ -150,16 +158,19 @@ Get-Content "$env:ProgramData\DotNetCloud\Sync\logs\sync-service*.log" -Tail 50
 ```
 
 ```bash
-# Linux — view recent log entries
-tail -50 /var/log/dotnetcloud/sync-service-*.log
+# Linux official release install — view recent log entries
+tail -50 /var/lib/dotnetcloud/sync/logs/sync-service*.log
+
+# Linux local/source install — view recent log entries
+tail -50 ~/.local/share/DotNetCloud/logs/sync-service*.log
 ```
 
 ### SyncTray Logs
 
 SyncTray logs to the console (when run from a terminal) and to a file:
 
-- **Windows:** `%LOCALAPPDATA%\DotNetCloud\logs\sync-tray-*.log`
-- **Linux:** `~/.local/share/dotnetcloud/logs/sync-tray-*.log`
+- **Windows:** `%LOCALAPPDATA%\DotNetCloud\logs\sync-tray*.log`
+- **Linux:** `~/.local/share/DotNetCloud/logs/sync-tray*.log`
 
 ---
 
@@ -182,9 +193,14 @@ If SyncTray cannot connect to SyncService:
   Get-ChildItem \\.\pipe\ | Where-Object Name -like "*dotnetcloud*"
   ```
 
-- **Linux:** Verify the Unix socket exists:
+- **Linux (official release installer):** Verify the Unix socket exists:
   ```bash
-  ls -la /tmp/dotnetcloud-sync.sock
+  sudo ls -la /run/dotnetcloud/sync.sock
+  ```
+
+- **Linux (local/source install):** Verify the per-user Unix socket exists:
+  ```bash
+  ls -la "$XDG_RUNTIME_DIR/dotnetcloud/sync.sock"
   ```
 
 ### Force Full Resync
@@ -194,7 +210,8 @@ If sync state becomes inconsistent:
 1. Stop SyncService
 2. Delete the SQLite state database for the affected context:
    - **Windows:** `%ProgramData%\DotNetCloud\Sync\{contextId}\state.db` (also `-wal` and `-shm` files)
-   - **Linux:** `/var/lib/dotnetcloud/sync/{contextId}/state.db`
+   - **Linux (official release installer):** `/var/lib/dotnetcloud/sync/{contextId}/state.db`
+   - **Linux (local/source install):** `~/.local/share/DotNetCloud/Sync/{contextId}/state.db`
 3. Start SyncService
 4. The next sync pass will do a full reconciliation
 
@@ -206,8 +223,11 @@ Get-ChildItem "$env:ProgramData\DotNetCloud\Sync" -Directory | Where-Object { $_
 ```
 
 ```bash
-# Linux
+# Linux official release install
 ls -d /var/lib/dotnetcloud/sync/*/
+
+# Linux local/source install
+ls -d ~/.local/share/DotNetCloud/Sync/*/
 ```
 
 **Warning:** This may re-download all files. Ensure you have sufficient bandwidth.

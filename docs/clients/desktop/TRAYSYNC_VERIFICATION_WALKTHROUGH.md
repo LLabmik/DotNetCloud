@@ -226,15 +226,15 @@ Record each test as you run it:
 ```bash
 sudo systemctl status dotnetcloud-sync --no-pager
 sudo journalctl -u dotnetcloud-sync --no-pager -n 200
-tail -50 /var/log/dotnetcloud/sync-service-*.log
+tail -50 /var/lib/dotnetcloud/sync/logs/sync-service*.log
 ```
 
 ### Windows
 
 ```powershell
 Get-Service DotNetCloudSync
-Get-Content "$env:ProgramData\DotNetCloud\logs\sync-service-*.log" -Tail 50
-Get-Content "$env:LOCALAPPDATA\DotNetCloud\logs\sync-tray-*.log" -Tail 50
+Get-Content "$env:ProgramData\DotNetCloud\Sync\logs\sync-service*.log" -Tail 50
+Get-Content "$env:LOCALAPPDATA\DotNetCloud\logs\sync-tray*.log" -Tail 50
 ```
 
 ## 8) Quick Uninstall / Reset (If Needed)
