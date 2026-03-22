@@ -171,6 +171,8 @@ The sync client keeps your files synchronized between your devices and your DotN
 - **Conflict resolution** — Both versions are kept with a clear notification to resolve
 - **Selective sync** — Choose which folders sync to which devices
 
+**Get started:** [Installation & Setup](docs/clients/desktop/SETUP.md) · [User Guide](docs/user/SYNC_CLIENT.md) · [Troubleshooting](docs/clients/desktop/TROUBLESHOOTING.md)
+
 ---
 
 ## Building Modules
