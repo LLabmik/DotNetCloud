@@ -3055,3 +3055,27 @@ Upload hardening story fully closed. All three machines (Windows, Linux, Server)
 - Health check: **Healthy**
 
 **Chat auth enforcement (server-side): CLOSED.**
+
+---
+
+### Archived: 2026-03-22 — `mint22` Connectivity Diagnosis for Desktop OAuth
+
+**Machines involved:** `mint22` (server diagnosis), `mint-dnc-client` (reporting client)
+
+#### Summary
+
+No server outage or localhost-only bind was present on `mint22`. The active refusal on `mint22.kimball.home:15443` was caused by the client using the wrong HTTPS port.
+
+- **Deployed runtime state:** `/opt/dotnetcloud/dotnetcloud status` reported `Server: Running`, `HTTP Port: 5080`, `HTTPS Port: 5443`, `HTTPS Listener: Running`.
+- **Listener proof:** `ss -ltnp` showed listeners on `*:5080`, `*:5443`, and `*:9980`; there was no listener on `15443`, `443`, or `80`.
+- **Startup/bind proof:** `journalctl -u dotnetcloud -n 120 --no-pager` logged `HTTP Port: 5080`, `HTTPS Port: 5443`, `Now listening on: http://[::]:5080`, and `Now listening on: https://[::]:5443`.
+- **LAN-address proof:** `nc -vz 192.168.0.112 5443` succeeded, while `nc -vz 127.0.0.1 15443` returned `Connection refused`.
+- **Installed config proof:** `/opt/dotnetcloud/server/appsettings.json` and `/opt/dotnetcloud/publish/appsettings.json` both set `Kestrel:HttpsPort` to `5443`.
+- **Reverse-proxy finding:** no nginx/apache/caddy listener was present, so there is no front door translating `15443` to the app.
+- **Firewall changes:** none. Non-root `ufw status verbose` is permission-gated on `mint22`, and no firewall modification was needed for the confirmed `5443` listener.
+
+**Deployment command used:** none. No redeploy was required because the currently running service already matches the installed `5443` configuration.
+
+**Externally reachable HTTPS endpoint for clients:** `https://mint22.kimball.home:5443/`
+
+**Result:** server-side connectivity diagnosis complete. Follow-up moved to client machines to retry OAuth against `:5443` and remove stale `:15443` assumptions from client defaults/docs.

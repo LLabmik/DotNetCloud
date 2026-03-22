@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-22 (new server handoff: mint22 connection refused diagnostics)
+Last updated: 2026-03-22 (server diagnosis archived; client retry on corrected HTTPS port active)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -56,13 +56,14 @@ Archived context:
 - Duplicate controller fix: CLOSED (2026-03-18). Deployed and verified on `mint22`. Files endpoint returns 401, service healthy.
 - Windows IIS + Service Validation: **COMPLETE** (2026-03-21). Three startup blockers resolved. IIS reverse proxy configured and verified (URL Rewrite + ARR). HTTP (port 80) and HTTPS (port 443) both proxy to Kestrel :5080. Self-signed localhost cert bound.
 - File browser child count fix: **DEPLOYED** (2026-03-21). `mint22` redeployed; service stable.
-- **Active cycle:** server-side connectivity diagnosis on `mint22` for desktop OAuth/connect flow (`Connection refused` to `mint22.kimball.home:15443`).
+- `mint22` connectivity diagnosis: **COMPLETE** (2026-03-22). Current deployment listens directly on HTTPS `:5443`; no listener exists on `:15443`.
+- **Active cycle:** client-side retry and stale URL cleanup for desktop OAuth/connect flow using the corrected `mint22.kimball.home:5443` endpoint.
 
 ## Environment
 
 | Role | Machine | Detail |
 |---|---|---|
-| Server | `mint22` | `https://mint22:15443/` |
+| Server | `mint22` | `https://mint22:5443/` |
 | Client | `Windows11-TestDNC` | Sync dir: `C:\Users\benk\Documents\synctray` |
 | Client | `mint-dnc-client` | Linux Mint 22 validation host for desktop sync client implementation + E2E testing |
 | Android Client | `monolith` | Android MAUI app development + emulator testing (Windows 11) |
@@ -78,50 +79,49 @@ Archived context:
 
 ## Active Handoff
 
-**Target machine:** `mint22`
-**Status:** IN PROGRESS — server-side investigation required
+**Target machine:** `mint-dnc-client`
+**Status:** READY FOR CLIENT RETRY
 **Priority:** P0 (blocks desktop SyncTray account-connect OAuth flow)
 
-### Context from client machine (`mint-dnc-client`)
+### Context from server investigation (`mint22`)
 
-- User sees browser failure during account connect from SyncTray:
-  - URL attempted: `https://mint22.kimball.home:15443/connect/authorize?response_type=code&client_id=dotnetcloud-desktop&...`
-  - Browser error: **Unable to connect** / connection refused.
-- DNS resolution from client is correct:
-  - `mint22.kimball.home -> 192.168.0.112`
-- TCP probes from client fail with active refusal:
-  - `192.168.0.112:15443` -> connection refused
-  - common alternates (`80`, `443`, `5001`, `8080`) also closed from client at test time.
+- Root cause of the connection-refused report is confirmed on `mint22`: the current deployment listens on HTTPS `:5443`, not `:15443`.
+- Listener proof from `mint22`:
+  - `ss -ltnp` shows `*:5080`, `*:5443`, `*:9980`
+  - `/opt/dotnetcloud/dotnetcloud status` shows `HTTPS Port: 5443`, `HTTPS Listener: Running`
+  - `journalctl -u dotnetcloud -n 120 --no-pager` shows `Now listening on: https://[::]:5443`
+  - `nc -vz 192.168.0.112 5443` succeeds
+  - `nc -vz 127.0.0.1 15443` returns `Connection refused`
+- Installed runtime config also matches `5443`:
+  - `/opt/dotnetcloud/server/appsettings.json` → `Kestrel.HttpsPort = 5443`
+  - `/opt/dotnetcloud/publish/appsettings.json` → `Kestrel.HttpsPort = 5443`
+- No reverse proxy is active on `mint22` for `15443`, `443`, or `80`.
+- Correct external HTTPS endpoint for clients is:
+  - `https://mint22.kimball.home:5443/`
 
-### Required actions on `mint22` (execute autonomously)
+### Required actions on `mint-dnc-client` (execute autonomously)
 
-1. Verify what is actually listening and on which interfaces:
-   - `ss -ltnp | rg '15443|443|5001|8080|80|dotnetcloud|nginx|caddy|apache' || ss -ltnp`
-2. Verify service state and recent logs:
-   - `systemctl status dotnetcloud --no-pager`
-   - `journalctl -u dotnetcloud -n 120 --no-pager`
-3. Verify runtime binding configuration for external access:
-   - check effective `ASPNETCORE_URLS`, Kestrel endpoints, reverse-proxy front door, and TLS binding config.
-4. Verify firewall/reject rules:
-   - `ufw status verbose` (if used)
-   - `nft list ruleset` (or iptables equivalent) and confirm no reject/drop on intended external port.
-5. Fix and redeploy as needed so LAN clients can reach the intended HTTPS endpoint.
+1. Retry the desktop Add Account flow using `https://mint22.kimball.home:5443/`.
+2. Capture the actual authorize URL opened by the browser and confirm it now targets `:5443`.
+3. Verify the browser reaches the login page instead of failing with connection refused.
+4. If SyncTray still pre-fills or persists `:15443`, patch the client default/server URL source and any directly related stale test expectations or docs in the same change.
+5. Hand back the exact result, including whether manual URL entry was required and any remaining error text/query params.
 
 ### Acceptance criteria
 
-- From `mint22` itself: HTTPS listener confirmed on expected external interface (not localhost-only).
-- From `mint-dnc-client`: TCP connect succeeds to target host:port.
+- From `mint-dnc-client`: TCP connect succeeds to `mint22.kimball.home:5443`.
 - OAuth authorize URL loads from browser on client:
-  - `https://mint22.kimball.home:<port>/connect/authorize?...`
-- SyncTray Add Account flow can reach login page without connection-refused.
+  - `https://mint22.kimball.home:5443/connect/authorize?...`
+- SyncTray Add Account flow reaches login page without connection-refused.
+- If client code or defaults still point to `:15443`, they are updated or the exact remaining source is identified.
 
 ### Required handback in this document
 
-- Commit hash and deployment command used.
-- Listener proof (`ss -ltnp` excerpt with bound address/port).
-- Service log proof around startup/bind.
-- Firewall rule proof if modified.
-- Exact externally reachable URL and port to be used by clients.
+- Commit hash.
+- Exact server URL used.
+- Exact authorize URL opened by the browser.
+- Whether Add Account reached the login page.
+- Any stale `:15443` source still remaining if not fully fixed.
 
 ## Relay Template
 
