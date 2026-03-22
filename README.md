@@ -72,6 +72,8 @@ See [ROADMAP.md](ROADMAP.md) for the full phased implementation plan. Detailed s
 
 ## Quick Start
 
+> **Full installation guide:** [docs/admin/server/INSTALLATION.md](docs/admin/server/INSTALLATION.md) — covers Linux, Windows, and Docker with manual and automated install paths, reverse proxy setup, TLS, and troubleshooting.
+
 ### Linux (Debian/Ubuntu/Mint)
 
 ```sh
@@ -101,6 +103,8 @@ If you choose the reverse-proxy option and want a beginner-friendly walkthrough,
 winget install DotNetCloud
 dotnetcloud setup --beginner
 ```
+
+For a one-command IIS reverse-proxy install, see the [Windows + IIS Install Guide](docs/admin/server/WINDOWS_IIS_INSTALL_GUIDE.md).
 
 ### Docker
 
@@ -197,6 +201,31 @@ dotnetcloud migrate --from nextcloud --data-dir /var/www/nextcloud
 ```
 
 Imports users, files, calendars, contacts, and bookmarks. Available starting in Phase 3.
+
+---
+
+## Documentation
+
+### Server Administration
+
+- [Installation Guide](docs/admin/server/INSTALLATION.md) — Linux, Windows, and Docker installation
+- [Windows + IIS Install Guide](docs/admin/server/WINDOWS_IIS_INSTALL_GUIDE.md) — beginner-friendly IIS reverse-proxy setup
+- [Reverse Proxy Beginner Guide](docs/admin/server/REVERSE_PROXY_BEGINNER_GUIDE.md) — Apache-first walkthrough with Caddy alternative
+- [Server Configuration](docs/admin/server/CONFIGURATION.md) — Kestrel, logging, rate limiting, CORS
+- [Upgrading](docs/admin/server/UPGRADING.md) — update to newer versions
+- [Backup & Restore](docs/admin/BACKUP.md)
+
+### Clients
+
+- [Desktop Sync Client Setup](docs/clients/desktop/SETUP.md) · [User Guide](docs/user/SYNC_CLIENT.md) · [Troubleshooting](docs/clients/desktop/TROUBLESHOOTING.md)
+- [Android Client](docs/clients/android/README.md)
+
+### Developer
+
+- [Architecture](docs/architecture/ARCHITECTURE.md) — system design and module architecture
+- [API Reference](docs/api/README.md) — REST API, authentication, response format
+- [Module Development](docs/modules/README.md) — build your own modules
+- [Development Workflow](docs/development/DEVELOPMENT_WORKFLOW.md)
 
 ---
 
