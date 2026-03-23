@@ -278,6 +278,106 @@ DELETE /api/v1/contacts/shares/{shareId}
 
 ---
 
+## Avatars & Attachments
+
+### Upload Avatar
+
+```
+PUT /api/v1/contacts/{contactId}/avatar
+```
+
+**Content-Type:** `multipart/form-data`
+
+| Parameter | Type | Description |
+|---|---|---|
+| `file` | IFormFile | Image file (JPEG, PNG, GIF, WebP, SVG) |
+
+**Constraints:**
+- Maximum file size: 5 MB
+- Allowed types: `image/jpeg`, `image/png`, `image/gif`, `image/webp`, `image/svg+xml`
+
+**Response:** Updated `ContactDto` with `avatarUrl` populated
+
+**Errors:** `400` VALIDATION_ERROR (invalid type/size), `404` CONTACT_NOT_FOUND, `403` not the owner
+
+---
+
+### Download Avatar
+
+```
+GET /api/v1/contacts/{contactId}/avatar
+```
+
+**Response:** Binary image data with appropriate `Content-Type` header
+
+**Errors:** `404` if contact has no avatar
+
+---
+
+### Delete Avatar
+
+```
+DELETE /api/v1/contacts/{contactId}/avatar
+```
+
+**Response:** `204` No Content
+
+---
+
+### List Attachments
+
+```
+GET /api/v1/contacts/{contactId}/attachments
+```
+
+**Response:** Array of `ContactAttachmentDto`
+
+---
+
+### Upload Attachment
+
+```
+POST /api/v1/contacts/{contactId}/attachments?description={text}
+```
+
+**Content-Type:** `multipart/form-data`
+
+| Parameter | Type | Description |
+|---|---|---|
+| `file` | IFormFile | Any file |
+| `description` | string (query) | Optional description |
+
+**Constraints:**
+- Maximum file size: 25 MB
+
+**Response:** `201` with created `ContactAttachmentDto`
+
+---
+
+### Download Attachment
+
+```
+GET /api/v1/contacts/attachments/{attachmentId}
+```
+
+**Response:** Binary file data with appropriate `Content-Type` and `Content-Disposition` headers
+
+**Errors:** `404` attachment not found
+
+---
+
+### Delete Attachment
+
+```
+DELETE /api/v1/contacts/attachments/{attachmentId}
+```
+
+**Response:** `204` No Content
+
+**Errors:** `404` attachment not found, `403` not the owner
+
+---
+
 ## vCard Import / Export
 
 ### Export Single Contact as vCard
@@ -296,6 +396,7 @@ N:Smith;Jane;;;
 ORG:Acme Corp
 EMAIL;TYPE=WORK:jane@acme.com
 TEL;TYPE=CELL:+15551234567
+PHOTO;ENCODING=b;TYPE=JPEG:<base64-encoded-image-data>
 END:VCARD
 ```
 
@@ -320,6 +421,8 @@ POST /api/v1/contacts/import
 **Request Body:** Raw vCard text (`text/plain` or `text/vcard`)
 
 **Response:** Array of created contact GUIDs
+
+**Note:** If a vCard contains a `PHOTO` property with base64-encoded image data, the avatar is automatically saved to the contact.
 
 ---
 
@@ -370,7 +473,20 @@ POST /api/v1/contacts/import
   "groupIds": ["..."],
   "customFields": {
     "twitter": "@janesmith"
-  }
+  },
+  "attachments": [
+    {
+      "id": "...",
+      "contactId": "...",
+      "fileName": "resume.pdf",
+      "contentType": "application/pdf",
+      "fileSizeBytes": 204800,
+      "isAvatar": false,
+      "description": "Latest resume",
+      "createdAt": "2026-03-20T10:00:00Z",
+      "updatedAt": "2026-03-20T10:00:00Z"
+    }
+  ]
 }
 ```
 
@@ -385,6 +501,7 @@ POST /api/v1/contacts/import
 | `CONTACT_GROUP_NOT_FOUND` | 404 | Group does not exist |
 | `CONTACT_INVALID_EMAIL` | 400 | Invalid email format |
 | `CONTACT_SHARE_NOT_FOUND` | 404 | Share does not exist |
+| `VALIDATION_ERROR` | 400 | Invalid file type, size, or missing data |
 
 ---
 

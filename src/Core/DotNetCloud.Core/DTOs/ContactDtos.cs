@@ -136,6 +136,11 @@ public sealed record ContactDto
     public IReadOnlyList<ContactAddressDto> Addresses { get; init; } = [];
 
     /// <summary>
+    /// File attachments (including avatar) for this contact.
+    /// </summary>
+    public IReadOnlyList<ContactAttachmentDto> Attachments { get; init; } = [];
+
+    /// <summary>
     /// Group IDs this contact belongs to.
     /// </summary>
     public IReadOnlyList<Guid> GroupIds { get; init; } = [];
@@ -461,4 +466,55 @@ public sealed record UpdateContactDto
     /// Replacement custom fields. Null means no change.
     /// </summary>
     public IReadOnlyDictionary<string, string>? CustomFields { get; init; }
+}
+
+/// <summary>
+/// Metadata for a file attachment associated with a contact.
+/// </summary>
+public sealed record ContactAttachmentDto
+{
+    /// <summary>
+    /// Unique identifier for the attachment.
+    /// </summary>
+    public required Guid Id { get; init; }
+
+    /// <summary>
+    /// The contact this attachment belongs to.
+    /// </summary>
+    public required Guid ContactId { get; init; }
+
+    /// <summary>
+    /// Original file name.
+    /// </summary>
+    public required string FileName { get; init; }
+
+    /// <summary>
+    /// MIME content type (e.g., "image/jpeg").
+    /// </summary>
+    public required string ContentType { get; init; }
+
+    /// <summary>
+    /// File size in bytes.
+    /// </summary>
+    public long FileSizeBytes { get; init; }
+
+    /// <summary>
+    /// Whether this attachment is the contact's avatar image.
+    /// </summary>
+    public bool IsAvatar { get; init; }
+
+    /// <summary>
+    /// Optional description or label for the attachment.
+    /// </summary>
+    public string? Description { get; init; }
+
+    /// <summary>
+    /// When the attachment was created (UTC).
+    /// </summary>
+    public required DateTime CreatedAt { get; init; }
+
+    /// <summary>
+    /// When the attachment was last modified (UTC).
+    /// </summary>
+    public required DateTime UpdatedAt { get; init; }
 }

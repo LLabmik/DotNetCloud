@@ -22,6 +22,22 @@ public static class ContactsServiceRegistration
         services.AddScoped<IVCardService, VCardService>();
         services.AddScoped<IImportProvider, ContactsImportProvider>();
 
+        // Avatar/attachment storage path
+        var storagePath = configuration.GetValue<string>("Contacts:StoragePath");
+        if (string.IsNullOrWhiteSpace(storagePath))
+        {
+            var dataDir = System.Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
+            storagePath = !string.IsNullOrWhiteSpace(dataDir)
+                ? System.IO.Path.Combine(dataDir, "contacts")
+                : System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "storage", "contacts");
+        }
+
+        services.AddScoped<IContactAvatarService>(sp =>
+            new ContactAvatarService(
+                sp.GetRequiredService<ContactsDbContext>(),
+                sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ContactAvatarService>>(),
+                storagePath));
+
         return services;
     }
 }

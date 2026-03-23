@@ -10,21 +10,23 @@ namespace DotNetCloud.Modules.Contacts.Data.Services;
 
 /// <summary>
 /// Database-backed implementation of <see cref="IVCardService"/>.
-/// Supports vCard 3.0 (RFC 2426) import/export.
+/// Supports vCard 3.0 (RFC 2426) import/export with PHOTO support.
 /// </summary>
 public sealed class VCardService : IVCardService
 {
     private readonly ContactsDbContext _db;
     private readonly IContactService _contactService;
+    private readonly IContactAvatarService _avatarService;
     private readonly ILogger<VCardService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="VCardService"/> class.
     /// </summary>
-    public VCardService(ContactsDbContext db, IContactService contactService, ILogger<VCardService> logger)
+    public VCardService(ContactsDbContext db, IContactService contactService, IContactAvatarService avatarService, ILogger<VCardService> logger)
     {
         _db = db;
         _contactService = contactService;
+        _avatarService = avatarService;
         _logger = logger;
     }
 
@@ -39,7 +41,9 @@ public sealed class VCardService : IVCardService
             .FirstOrDefaultAsync(c => c.Id == contactId && c.OwnerId == caller.UserId, cancellationToken)
             ?? throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.ContactNotFound, "Contact not found.");
 
-        return SerializeVCard(contact);
+        var avatarData = await _avatarService.GetAvatarBytesAsync(contactId, caller, cancellationToken);
+
+        return SerializeVCard(contact, avatarData?.Data, avatarData?.ContentType);
     }
 
     /// <inheritdoc />
@@ -50,10 +54,23 @@ public sealed class VCardService : IVCardService
         var vcards = ParseVCards(vCardText);
         var createdIds = new List<Guid>();
 
-        foreach (var dto in vcards)
+        foreach (var (dto, photoData, photoContentType) in vcards)
         {
             var created = await _contactService.CreateContactAsync(dto, caller, cancellationToken);
             createdIds.Add(created.Id);
+
+            // Import avatar if PHOTO data was present
+            if (photoData is not null && photoContentType is not null)
+            {
+                try
+                {
+                    await _avatarService.SaveAvatarFromBytesAsync(created.Id, photoData, photoContentType, caller, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to import avatar for contact {ContactId}", created.Id);
+                }
+            }
         }
 
         _logger.LogInformation("Imported {Count} vCards for user {UserId}", createdIds.Count, caller.UserId);
@@ -75,13 +92,14 @@ public sealed class VCardService : IVCardService
         var sb = new StringBuilder();
         foreach (var contact in contacts)
         {
-            sb.Append(SerializeVCard(contact));
+            var avatarData = await _avatarService.GetAvatarBytesAsync(contact.Id, caller, cancellationToken);
+            sb.Append(SerializeVCard(contact, avatarData?.Data, avatarData?.ContentType));
         }
 
         return sb.ToString();
     }
 
-    private static string SerializeVCard(Contact contact)
+    private static string SerializeVCard(Contact contact, byte[]? avatarData = null, string? avatarContentType = null)
     {
         var sb = new StringBuilder();
         sb.AppendLine("BEGIN:VCARD");
@@ -156,6 +174,21 @@ public sealed class VCardService : IVCardService
         if (contact.Notes is not null)
             sb.Append("NOTE:").AppendLine(EscapeVCardValue(contact.Notes));
 
+        // PHOTO property (base64-encoded inline image)
+        if (avatarData is not null && avatarContentType is not null)
+        {
+            var imageType = avatarContentType.ToUpperInvariant() switch
+            {
+                "IMAGE/JPEG" => "JPEG",
+                "IMAGE/PNG" => "PNG",
+                "IMAGE/GIF" => "GIF",
+                "IMAGE/WEBP" => "WEBP",
+                _ => "JPEG"
+            };
+            var base64 = Convert.ToBase64String(avatarData);
+            sb.Append("PHOTO;ENCODING=b;TYPE=").Append(imageType).Append(':').AppendLine(base64);
+        }
+
         sb.Append("UID:").AppendLine(contact.Id.ToString());
         sb.Append("REV:").AppendLine(contact.UpdatedAt.ToString("yyyyMMddTHHmmssZ"));
         sb.AppendLine("END:VCARD");
@@ -163,9 +196,9 @@ public sealed class VCardService : IVCardService
         return sb.ToString();
     }
 
-    private static IReadOnlyList<CreateContactDto> ParseVCards(string text)
+    private static IReadOnlyList<(CreateContactDto Dto, byte[]? PhotoData, string? PhotoContentType)> ParseVCards(string text)
     {
-        var results = new List<CreateContactDto>();
+        var results = new List<(CreateContactDto, byte[]?, string?)>();
         var lines = text.Split('\n', StringSplitOptions.TrimEntries);
 
         string? displayName = null;
@@ -180,6 +213,8 @@ public sealed class VCardService : IVCardService
         string? notes = null;
         string? websiteUrl = null;
         DateOnly? birthday = null;
+        byte[]? photoData = null;
+        string? photoContentType = null;
         var emails = new List<ContactEmailDto>();
         var phones = new List<ContactPhoneDto>();
         var addresses = new List<ContactAddressDto>();
@@ -193,6 +228,7 @@ public sealed class VCardService : IVCardService
                 displayName = null; firstName = null; lastName = null; middleName = null;
                 prefix = null; suffix = null; org = null; dept = null; jobTitle = null;
                 notes = null; websiteUrl = null; birthday = null;
+                photoData = null; photoContentType = null;
                 emails = []; phones = []; addresses = [];
                 continue;
             }
@@ -201,7 +237,7 @@ public sealed class VCardService : IVCardService
             {
                 if (inVCard && displayName is not null)
                 {
-                    results.Add(new CreateContactDto
+                    results.Add((new CreateContactDto
                     {
                         ContactType = ContactType.Person,
                         DisplayName = displayName,
@@ -219,7 +255,7 @@ public sealed class VCardService : IVCardService
                         Emails = emails,
                         PhoneNumbers = phones,
                         Addresses = addresses
-                    });
+                    }, photoData, photoContentType));
                 }
                 inVCard = false;
                 continue;
@@ -319,6 +355,33 @@ public sealed class VCardService : IVCardService
             else if (line.StartsWith("NOTE:", StringComparison.OrdinalIgnoreCase))
             {
                 notes = UnescapeVCardValue(line[5..]);
+            }
+            else if (line.StartsWith("PHOTO", StringComparison.OrdinalIgnoreCase))
+            {
+                // Parse PHOTO;ENCODING=b;TYPE=JPEG:base64data
+                var colonIdx = line.IndexOf(':');
+                if (colonIdx >= 0)
+                {
+                    var paramPart = line[..colonIdx].ToUpperInvariant();
+                    var data = line[(colonIdx + 1)..];
+
+                    // Only handle base64-encoded photos
+                    if (paramPart.Contains("ENCODING=B") || paramPart.Contains("ENCODING=BASE64"))
+                    {
+                        try
+                        {
+                            photoData = Convert.FromBase64String(data);
+                            photoContentType = paramPart.Contains("TYPE=PNG") ? "image/png"
+                                : paramPart.Contains("TYPE=GIF") ? "image/gif"
+                                : paramPart.Contains("TYPE=WEBP") ? "image/webp"
+                                : "image/jpeg";
+                        }
+                        catch (FormatException)
+                        {
+                            // Invalid base64; skip the photo
+                        }
+                    }
+                }
             }
         }
 

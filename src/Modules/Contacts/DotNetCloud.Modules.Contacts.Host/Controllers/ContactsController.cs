@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace DotNetCloud.Modules.Contacts.Host.Controllers;
 
 /// <summary>
-/// REST API controller for contact CRUD, search, groups, sharing, and vCard import/export.
+/// REST API controller for contact CRUD, search, groups, sharing, avatars, attachments, and vCard import/export.
 /// </summary>
 [Route("api/v1/contacts")]
 public class ContactsController : ContactsControllerBase
@@ -16,6 +16,7 @@ public class ContactsController : ContactsControllerBase
     private readonly IContactGroupService _groupService;
     private readonly IContactShareService _shareService;
     private readonly IVCardService _vcardService;
+    private readonly IContactAvatarService _avatarService;
     private readonly ILogger<ContactsController> _logger;
 
     /// <summary>
@@ -26,12 +27,14 @@ public class ContactsController : ContactsControllerBase
         IContactGroupService groupService,
         IContactShareService shareService,
         IVCardService vcardService,
+        IContactAvatarService avatarService,
         ILogger<ContactsController> logger)
     {
         _contactService = contactService;
         _groupService = groupService;
         _shareService = shareService;
         _vcardService = vcardService;
+        _avatarService = avatarService;
         _logger = logger;
     }
 
@@ -267,6 +270,127 @@ public class ContactsController : ContactsControllerBase
         var caller = GetAuthenticatedCaller();
         await _shareService.RemoveShareAsync(shareId, caller);
         return NoContent();
+    }
+
+    // ─── Avatars ───────────────────────────────────────────────────────
+
+    /// <summary>Uploads or replaces the avatar for a contact.</summary>
+    [HttpPut("{contactId:guid}/avatar")]
+    public async Task<IActionResult> UploadAvatarAsync(Guid contactId, IFormFile file)
+    {
+        var caller = GetAuthenticatedCaller();
+
+        if (file is null || file.Length == 0)
+            return BadRequest(ErrorEnvelope(ErrorCodes.ValidationError, "No file provided."));
+
+        try
+        {
+            using var stream = file.OpenReadStream();
+            var result = await _avatarService.UploadAvatarAsync(
+                contactId, stream, file.FileName, file.ContentType, caller);
+            return Ok(Envelope(result));
+        }
+        catch (ValidationException ex)
+        {
+            return ex.ErrorCode == ErrorCodes.ContactNotFound
+                ? NotFound(ErrorEnvelope(ex.ErrorCode, ex.Message))
+                : BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+        }
+    }
+
+    /// <summary>Gets the avatar image for a contact.</summary>
+    [HttpGet("{contactId:guid}/avatar")]
+    public async Task<IActionResult> GetAvatarAsync(Guid contactId)
+    {
+        var caller = GetAuthenticatedCaller();
+        var avatar = await _avatarService.GetAvatarAsync(contactId, caller);
+
+        if (avatar is null)
+            return NotFound(ErrorEnvelope(ErrorCodes.ContactNotFound, "No avatar found."));
+
+        return File(avatar.Value.Stream, avatar.Value.ContentType, avatar.Value.FileName);
+    }
+
+    /// <summary>Deletes the avatar for a contact.</summary>
+    [HttpDelete("{contactId:guid}/avatar")]
+    public async Task<IActionResult> DeleteAvatarAsync(Guid contactId)
+    {
+        var caller = GetAuthenticatedCaller();
+
+        try
+        {
+            await _avatarService.DeleteAvatarAsync(contactId, caller);
+            return NoContent();
+        }
+        catch (ValidationException ex)
+        {
+            return NotFound(ErrorEnvelope(ex.ErrorCode, ex.Message));
+        }
+    }
+
+    // ─── Attachments ──────────────────────────────────────────────────
+
+    /// <summary>Lists attachments for a contact.</summary>
+    [HttpGet("{contactId:guid}/attachments")]
+    public async Task<IActionResult> ListAttachmentsAsync(Guid contactId)
+    {
+        var caller = GetAuthenticatedCaller();
+        var attachments = await _avatarService.ListAttachmentsAsync(contactId, caller);
+        return Ok(Envelope(attachments));
+    }
+
+    /// <summary>Uploads an attachment to a contact.</summary>
+    [HttpPost("{contactId:guid}/attachments")]
+    public async Task<IActionResult> AddAttachmentAsync(Guid contactId, IFormFile file, [FromQuery] string? description = null)
+    {
+        var caller = GetAuthenticatedCaller();
+
+        if (file is null || file.Length == 0)
+            return BadRequest(ErrorEnvelope(ErrorCodes.ValidationError, "No file provided."));
+
+        try
+        {
+            using var stream = file.OpenReadStream();
+            var result = await _avatarService.AddAttachmentAsync(
+                contactId, stream, file.FileName, file.ContentType, description, caller);
+            return Created($"/api/v1/contacts/attachments/{result.Id}", Envelope(result));
+        }
+        catch (ValidationException ex)
+        {
+            return ex.ErrorCode == ErrorCodes.ContactNotFound
+                ? NotFound(ErrorEnvelope(ex.ErrorCode, ex.Message))
+                : BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+        }
+    }
+
+    /// <summary>Downloads an attachment by ID.</summary>
+    [HttpGet("attachments/{attachmentId:guid}")]
+    public async Task<IActionResult> GetAttachmentAsync(Guid attachmentId)
+    {
+        var caller = GetAuthenticatedCaller();
+        var attachment = await _avatarService.GetAttachmentAsync(attachmentId, caller);
+
+        if (attachment is null)
+            return NotFound(ErrorEnvelope(ErrorCodes.ContactNotFound, "Attachment not found."));
+
+        return File(attachment.Value.Stream, attachment.Value.ContentType, attachment.Value.FileName);
+    }
+
+    /// <summary>Deletes an attachment by ID.</summary>
+    [HttpDelete("attachments/{attachmentId:guid}")]
+    public async Task<IActionResult> DeleteAttachmentAsync(Guid attachmentId)
+    {
+        var caller = GetAuthenticatedCaller();
+
+        try
+        {
+            await _avatarService.DeleteAttachmentAsync(attachmentId, caller);
+            return NoContent();
+        }
+        catch (ValidationException ex)
+        {
+            return NotFound(ErrorEnvelope(ex.ErrorCode, ex.Message));
+        }
     }
 
     // ─── vCard Import/Export ──────────────────────────────────────────────

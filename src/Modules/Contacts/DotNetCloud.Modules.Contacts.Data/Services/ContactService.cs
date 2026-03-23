@@ -295,6 +295,7 @@ public sealed class ContactService : IContactService
             .Include(c => c.CustomFields)
             .Include(c => c.GroupMemberships)
             .Include(c => c.Shares)
+            .Include(c => c.Attachments)
             .AsNoTracking();
     }
 
@@ -349,6 +350,18 @@ public sealed class ContactService : IContactService
             }).ToList(),
             GroupIds = c.GroupMemberships.Select(m => m.GroupId).ToList(),
             CustomFields = c.CustomFields.ToDictionary(f => f.Key, f => f.Value),
+            Attachments = c.Attachments.OrderBy(a => a.CreatedAt).Select(a => new ContactAttachmentDto
+            {
+                Id = a.Id,
+                ContactId = a.ContactId,
+                FileName = a.FileName,
+                ContentType = a.ContentType,
+                FileSizeBytes = a.FileSizeBytes,
+                IsAvatar = a.IsAvatar,
+                Description = a.Description,
+                CreatedAt = a.CreatedAt,
+                UpdatedAt = a.UpdatedAt
+            }).ToList(),
             ETag = c.ETag
         };
     }

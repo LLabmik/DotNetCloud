@@ -1311,10 +1311,10 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Data model + EF configurations (8 entities, 8 configs)
 - ✓ REST API endpoints (CRUD, bulk import/export, search)
 - ✓ CardDAV endpoints (principal discovery, vCard get/put/delete, sync token)
-- ☐ Contact avatar and attachment support
+- ✓ Contact avatar and attachment support
 - ✓ Contact sharing model
 
-**Notes:** Full 3-tier module created with 8 entity models (Contact, ContactEmail, ContactPhone, ContactAddress, ContactCustomField, ContactGroup, ContactGroupMember, ContactShare), 4 service implementations (ContactService, ContactGroupService, ContactShareService, VCardService), REST API controller, CardDAV controller with PROPFIND/REPORT WebDAV methods, gRPC service + lifecycle service, health check, InProcessEventBus, proto definition. 32/32 tests pass. Remaining: avatar upload support.
+**Notes:** Full 3-tier module with 9 entity models (Contact, ContactEmail, ContactPhone, ContactAddress, ContactCustomField, ContactGroup, ContactGroupMember, ContactShare, ContactAttachment), 5 service implementations (ContactService, ContactGroupService, ContactShareService, VCardService, ContactAvatarService), REST API controller with avatar/attachment endpoints, CardDAV controller with PROPFIND/REPORT WebDAV methods, gRPC service + lifecycle service, health check, InProcessEventBus, proto definition. 105 tests pass. Avatar upload/download/delete, attachment CRUD, VCard PHOTO serialization/parsing all complete.
 
 ---
 

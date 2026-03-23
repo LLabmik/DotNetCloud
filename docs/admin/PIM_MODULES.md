@@ -100,6 +100,7 @@ These options may be added in future releases:
 ```json
 {
   "Contacts": {
+    "StoragePath": "/var/lib/dotnetcloud/contacts",
     "MaxImportBatchSize": 1000,
     "VCardExportThrottlePerMinute": 60
   },
@@ -113,6 +114,25 @@ These options may be added in future releases:
   }
 }
 ```
+
+### Contacts File Storage
+
+Contact avatars and attachments are stored on disk. The storage location is resolved in the following order:
+
+1. `Contacts:StoragePath` in `appsettings.json`
+2. `DOTNETCLOUD_DATA_DIR` environment variable (files stored under `contacts/` subdirectory)
+3. Default: `./data` (relative to the working directory)
+
+**File size limits:**
+
+| Type | Maximum Size |
+|---|---|
+| Avatar | 5 MB |
+| Attachment | 25 MB |
+
+**Allowed avatar formats:** JPEG, PNG, GIF, WebP, SVG
+
+Ensure the configured storage directory has appropriate read/write permissions for the application process.
 
 ---
 

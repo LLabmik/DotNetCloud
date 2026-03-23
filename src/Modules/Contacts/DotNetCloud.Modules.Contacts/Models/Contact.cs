@@ -94,4 +94,7 @@ public sealed class Contact
 
     /// <summary>Shares granting access to this contact.</summary>
     public ICollection<ContactShare> Shares { get; set; } = [];
+
+    /// <summary>File attachments (including avatar) for this contact.</summary>
+    public ICollection<ContactAttachment> Attachments { get; set; } = [];
 }

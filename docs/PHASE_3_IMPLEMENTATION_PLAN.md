@@ -72,7 +72,7 @@
   - ✓ Principal + addressbook discovery
   - ✓ vCard get/put/delete
   - ✓ Sync token/change tracking
-- ☐ Contact avatar support and attachment metadata.
+- ✓ Contact avatar support and attachment metadata.
 - ✓ Contact-sharing model (user/team scoped permissions).
 
 ### Exit Criteria

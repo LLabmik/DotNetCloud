@@ -3150,7 +3150,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Sync token and change tracking
 
 #### Features
-- ☐ Contact avatar upload and attachment metadata
+- ✓ Contact avatar upload and attachment metadata
 - ✓ Contact sharing model (user/team scoped permissions)
 
 ### Phase 3.3: Calendar Module

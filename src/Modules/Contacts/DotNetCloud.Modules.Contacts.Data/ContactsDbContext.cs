@@ -42,6 +42,9 @@ public class ContactsDbContext : DbContext
     /// <summary>Contact sharing grants.</summary>
     public DbSet<ContactShare> ContactShares => Set<ContactShare>();
 
+    /// <summary>Contact file attachments (including avatars).</summary>
+    public DbSet<ContactAttachment> ContactAttachments => Set<ContactAttachment>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -55,5 +58,6 @@ public class ContactsDbContext : DbContext
         modelBuilder.ApplyConfiguration(new ContactGroupConfiguration());
         modelBuilder.ApplyConfiguration(new ContactGroupMemberConfiguration());
         modelBuilder.ApplyConfiguration(new ContactShareConfiguration());
+        modelBuilder.ApplyConfiguration(new ContactAttachmentConfiguration());
     }
 }

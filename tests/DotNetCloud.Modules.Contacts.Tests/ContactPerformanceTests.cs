@@ -4,6 +4,7 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Contacts.Data;
 using DotNetCloud.Modules.Contacts.Data.Services;
+using DotNetCloud.Modules.Contacts.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -32,7 +33,7 @@ public class ContactPerformanceTests
         _db = new ContactsDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
         _contactService = new ContactService(_db, _eventBusMock.Object, NullLogger<ContactService>.Instance);
-        _vcardService = new VCardService(_db, _contactService, NullLogger<VCardService>.Instance);
+        _vcardService = new VCardService(_db, _contactService, new Mock<IContactAvatarService>().Object, NullLogger<VCardService>.Instance);
         _caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
     }
 

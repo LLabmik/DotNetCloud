@@ -140,7 +140,7 @@ DotNetCloud accepts vCard 3.0 format files. Most contact applications (Google Co
 - You can import a single vCard or a file containing multiple vCards
 - The system detects duplicates by primary email address
 - Use **dry-run mode** first to check for errors before importing large files
-- Photo/avatar data in vCards is noted but not imported (planned in a future release)
+- If a vCard contains a `PHOTO` property, the avatar is automatically imported and saved to the contact
 
 ---
 
@@ -158,7 +158,59 @@ DotNetCloud accepts vCard 3.0 format files. Most contact applications (Google Co
 2. Click **Export as vCard**
 3. The contact downloads as a `.vcf` file
 
-Exported vCards use version 3.0 format compatible with all major contact applications.
+Exported vCards use version 3.0 format compatible with all major contact applications. If a contact has an avatar, it is included in the vCard as a `PHOTO` property.
+
+---
+
+## Contact Avatars
+
+You can add a profile photo to any contact.
+
+### Uploading an Avatar
+
+1. Open a contact
+2. Click the avatar area (or the **Change Photo** button)
+3. Select an image file (JPEG, PNG, GIF, WebP, or SVG)
+4. The avatar is saved immediately
+
+**Limits:** Maximum file size is 5 MB.
+
+### Removing an Avatar
+
+1. Open the contact
+2. Click the avatar area
+3. Click **Remove Photo**
+
+### Avatar & vCard Sync
+
+- When you export a contact as vCard, the avatar is embedded as a `PHOTO` property
+- When you import a vCard with a `PHOTO` property, the avatar is automatically saved
+- CardDAV clients (DAVx5, Thunderbird, iOS/macOS) sync avatars automatically
+
+---
+
+## Contact Attachments
+
+You can attach files to a contact for reference (documents, contracts, business cards, etc.).
+
+### Adding an Attachment
+
+1. Open a contact
+2. Scroll to the **Attachments** section
+3. Click **Add Attachment**
+4. Select a file (maximum 25 MB)
+5. Optionally add a description
+
+### Viewing Attachments
+
+Attachments are listed in the contact detail view with file name, size, and date. Click an attachment to download it.
+
+### Removing an Attachment
+
+1. Open the contact
+2. In the **Attachments** section, click the delete button next to the attachment
+
+Only the contact owner can add or remove attachments.
 
 ---
 
