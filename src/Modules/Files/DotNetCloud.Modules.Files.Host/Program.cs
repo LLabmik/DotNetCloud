@@ -4,6 +4,7 @@ using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Host.Services;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -48,6 +49,18 @@ builder.Services.AddControllers(options =>
 builder.Services.AddHealthChecks()
     .AddCheck<FilesHealthCheck>("files_module");
 
+// OpenAPI document generation
+builder.Services.AddOpenApi("v1", options =>
+{
+    options.AddDocumentTransformer((document, context, ct) =>
+    {
+        document.Info.Title = "DotNetCloud Files API";
+        document.Info.Version = "1.0.0";
+        document.Info.Description = "Files module REST API — upload, download, share, version, and manage files and folders.";
+        return Task.CompletedTask;
+    });
+});
+
 var app = builder.Build();
 
 // --- Middleware ---
@@ -61,6 +74,18 @@ app.MapControllers();
 
 // Health check endpoint
 app.MapHealthChecks("/health");
+
+// OpenAPI + Scalar interactive docs (development only)
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    app.MapScalarApiReference(options =>
+    {
+        options
+            .WithTitle("DotNetCloud Files API Documentation")
+            .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
+    });
+}
 
 // Minimal info endpoint
 app.MapGet("/", () => Results.Ok(new

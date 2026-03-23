@@ -690,7 +690,8 @@ public sealed class FilesControllerTests
                 ShareService.Object,
                 ThumbnailService.Object,
                 Mock.Of<ILogger<FilesController>>(),
-                Options.Create(new FileSystemOptions()))
+                Options.Create(new FileSystemOptions()),
+                Options.Create(new FileUploadOptions()))
             {
                 ControllerContext = new ControllerContext
                 {

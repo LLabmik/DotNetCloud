@@ -34,7 +34,8 @@ public class FilesControllerChunkDownloadTests
             Mock.Of<IShareService>(),
             Mock.Of<IThumbnailService>(),
             NullLogger<FilesController>.Instance,
-            Microsoft.Extensions.Options.Options.Create(new DotNetCloud.Modules.Files.Options.FileSystemOptions()));
+            Microsoft.Extensions.Options.Options.Create(new DotNetCloud.Modules.Files.Options.FileSystemOptions()),
+            Microsoft.Extensions.Options.Options.Create(new DotNetCloud.Modules.Files.Options.FileUploadOptions()));
 
         // Set up a minimal authenticated HttpContext
         var httpContext = new DefaultHttpContext();

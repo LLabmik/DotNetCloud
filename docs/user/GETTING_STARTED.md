@@ -36,6 +36,14 @@ The upload progress panel shows:
 
 You can minimize the progress panel and continue browsing while files upload.
 
+### Paste Image Upload
+
+While in the file browser, press **Ctrl+V** to paste an image from your clipboard. The image is uploaded automatically with a generated filename (e.g., `paste-2025-07-09-143022.png`). The same size validation applies — oversized images are rejected before upload.
+
+### Upload Size Limits
+
+The server configures a maximum upload file size (default: 15 GB). If you select a file that exceeds this limit, the upload is rejected immediately with a clear error message showing the maximum allowed size. No data is sent to the server for rejected files.
+
 ---
 
 ## Browsing Files
@@ -93,6 +101,22 @@ Folders can be nested to any depth.
 2. Click **Move** (or right-click → Move to...)
 3. Choose the destination folder
 4. Click **Move**
+
+**Drag-and-drop move:** You can also drag any file or folder and drop it onto a folder to move it. The target folder highlights when you hover over it. This only applies to internal moves — dragging files from your desktop triggers an upload instead.
+
+### Right-Click Context Menu
+
+Right-click any file or folder to open a context menu with quick access to:
+
+- **Open** — open the file or folder
+- **Rename** — rename inline
+- **Move** — move to another folder
+- **Copy** — duplicate the item
+- **Share** — share with users or create a public link
+- **Download** — download the file
+- **Delete** — move to trash
+
+The context menu is keyboard-dismissible (press **Escape**) and closes when clicking elsewhere.
 
 ### Copy
 

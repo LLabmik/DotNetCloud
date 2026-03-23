@@ -28,6 +28,49 @@ window.dotnetcloudUpload = (function () {
     /** @type {Map<string, string>} */
     const _folderPathCache = new Map();
 
+    /** @type {number|null} Cached max upload size in bytes from server config. */
+    let _maxUploadSizeBytes = null;
+
+    /**
+     * Per-file upload state for pause/resume/cancel support.
+     * @type {Map<number, { abortController: AbortController|null, paused: boolean, cancelled: boolean, sessionId: string|null, lastChunkIndex: number }>}
+     */
+    const _uploadState = new Map();
+
+    /**
+     * Fetches and caches the max upload size from the server.
+     * @returns {Promise<number>} Max file size in bytes (0 = unlimited).
+     */
+    async function getMaxUploadSize() {
+        if (_maxUploadSizeBytes !== null) return _maxUploadSizeBytes;
+
+        try {
+            const resp = await fetch("/api/v1/files/config", { credentials: "same-origin" });
+            if (resp.ok) {
+                const data = await resp.json();
+                _maxUploadSizeBytes = (data && data.maxUploadSizeBytes) || 0;
+            } else {
+                _maxUploadSizeBytes = 0;
+            }
+        } catch {
+            _maxUploadSizeBytes = 0;
+        }
+
+        return _maxUploadSizeBytes;
+    }
+
+    /**
+     * Formats bytes into a human-readable size string.
+     * @param {number} bytes
+     * @returns {string}
+     */
+    function formatSize(bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+        if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+        return (bytes / (1024 * 1024 * 1024)).toFixed(2) + " GB";
+    }
+
     /**
      * Register files selected by the user.
      * Called from Blazor after an <input type="file"> change event.
@@ -81,14 +124,35 @@ window.dotnetcloudUpload = (function () {
             return;
         }
 
+        // Initialize upload state
+        const state = _uploadState.get(fileIndex) || {
+            abortController: null,
+            paused: false,
+            cancelled: false,
+            sessionId: null,
+            lastChunkIndex: -1
+        };
+        state.abortController = new AbortController();
+        state.cancelled = false;
+        state.paused = false;
+        _uploadState.set(fileIndex, state);
+
         try {
+            // 0. Client-side size validation
+            const maxSize = await getMaxUploadSize();
+            if (maxSize > 0 && file.size > maxSize) {
+                await dotNetRef.invokeMethodAsync("OnJsUploadError", fileIndex,
+                    "File exceeds maximum upload size (" + formatSize(maxSize) + ").");
+                return;
+            }
+
             // 1. Chunk & hash the file on the client
             await dotNetRef.invokeMethodAsync("OnJsUploadProgress", fileIndex, 0, "Preparing...");
             const chunks = await chunkAndHash(file, fileIndex, dotNetRef);
 
             const chunkHashes = chunks.map(c => c.hash);
 
-            // 2. Initiate upload session
+            // 2. Initiate upload session (or resume existing one)
             await dotNetRef.invokeMethodAsync("OnJsUploadProgress", fileIndex, 5, "Starting upload...");
             const apiBase = "/api/v1/files";
             const targetParentId = await resolveTargetParentId(
@@ -97,40 +161,75 @@ window.dotnetcloudUpload = (function () {
                 userId,
                 apiBase);
 
-            const initBody = {
-                fileName: file.name,
-                parentId: targetParentId,
-                totalSize: file.size,
-                mimeType: file.type || "application/octet-stream",
-                chunkHashes: chunkHashes
-            };
+            let sessionId = state.sessionId;
+            let missingSet;
 
-            const initResp = await fetch(
-                `${apiBase}/upload/initiate`,
-                {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    credentials: "same-origin",
-                    body: JSON.stringify(initBody)
+            if (!sessionId) {
+                const initBody = {
+                    fileName: file.name,
+                    parentId: targetParentId,
+                    totalSize: file.size,
+                    mimeType: file.type || "application/octet-stream",
+                    chunkHashes: chunkHashes
+                };
+
+                const initResp = await fetch(
+                    `${apiBase}/upload/initiate`,
+                    {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        credentials: "same-origin",
+                        body: JSON.stringify(initBody),
+                        signal: state.abortController.signal
+                    }
+                );
+
+                if (!initResp.ok) {
+                    const errText = await initResp.text();
+                    throw new Error(`Initiate failed (${initResp.status}): ${errText}`);
                 }
-            );
 
-            if (!initResp.ok) {
-                const errText = await initResp.text();
-                throw new Error(`Initiate failed (${initResp.status}): ${errText}`);
+                const initJson = await initResp.json();
+                const session = initJson.data || initJson;
+                sessionId = session.sessionId;
+                state.sessionId = sessionId;
+                missingSet = new Set((session.missingChunks || []).map(h => h.toLowerCase()));
+            } else {
+                // Resume: query server for remaining missing chunks
+                const statusResp = await fetch(
+                    `${apiBase}/upload/${sessionId}`,
+                    { credentials: "same-origin", signal: state.abortController.signal }
+                );
+                if (statusResp.ok) {
+                    const statusJson = await statusResp.json();
+                    const statusData = statusJson.data || statusJson;
+                    missingSet = new Set((statusData.missingChunks || []).map(h => h.toLowerCase()));
+                } else {
+                    missingSet = new Set(chunkHashes);
+                }
             }
 
-            const initJson = await initResp.json();
-            const session = initJson.data || initJson;
-            const sessionId = session.sessionId;
-            const missingSet = new Set((session.missingChunks || []).map(h => h.toLowerCase()));
-
-            // 3. Upload missing chunks
+            // 3. Upload missing chunks with abort/pause support
             const totalMissing = missingSet.size;
             let uploaded = 0;
 
             for (const chunk of chunks) {
                 if (!missingSet.has(chunk.hash)) continue;
+
+                // Check for pause
+                if (state.paused) {
+                    await dotNetRef.invokeMethodAsync("OnJsUploadProgress", fileIndex,
+                        10 + Math.round((uploaded / Math.max(1, totalMissing)) * 80), "Paused");
+                    return; // Exit; will be resumed via resumeUpload()
+                }
+
+                // Check for cancel
+                if (state.cancelled) {
+                    await cancelUploadSession(sessionId);
+                    await dotNetRef.invokeMethodAsync("OnJsUploadError", fileIndex, "Upload cancelled.");
+                    _uploadState.delete(fileIndex);
+                    return;
+                }
 
                 const putResp = await fetch(
                     `${apiBase}/upload/${sessionId}/chunks/${chunk.hash}`,
@@ -138,7 +237,8 @@ window.dotnetcloudUpload = (function () {
                         method: "PUT",
                         headers: { "Content-Type": "application/octet-stream" },
                         credentials: "same-origin",
-                        body: chunk.data
+                        body: chunk.data,
+                        signal: state.abortController.signal
                     }
                 );
 
@@ -160,7 +260,8 @@ window.dotnetcloudUpload = (function () {
                 `${apiBase}/upload/${sessionId}/complete`,
                 {
                     method: "POST",
-                    credentials: "same-origin"
+                    credentials: "same-origin",
+                    signal: state.abortController.signal
                 }
             );
 
@@ -171,9 +272,85 @@ window.dotnetcloudUpload = (function () {
 
             await dotNetRef.invokeMethodAsync("OnJsUploadProgress", fileIndex, 100, "Complete");
             await dotNetRef.invokeMethodAsync("OnJsUploadComplete", fileIndex);
+            _uploadState.delete(fileIndex);
         } catch (err) {
+            if (err.name === "AbortError") {
+                // Aborted by pause or cancel — don't report as error
+                const st = _uploadState.get(fileIndex);
+                if (st && st.paused) {
+                    await dotNetRef.invokeMethodAsync("OnJsUploadProgress", fileIndex,
+                        _getLastProgress(fileIndex), "Paused");
+                } else if (st && st.cancelled) {
+                    if (st.sessionId) await cancelUploadSession(st.sessionId);
+                    await dotNetRef.invokeMethodAsync("OnJsUploadError", fileIndex, "Upload cancelled.");
+                    _uploadState.delete(fileIndex);
+                }
+                return;
+            }
             console.error("DotNetCloud upload error:", err);
             await dotNetRef.invokeMethodAsync("OnJsUploadError", fileIndex, err.message || "Unknown error");
+        }
+    }
+
+    /**
+     * Returns the last known progress for a file index.
+     * @param {number} fileIndex
+     * @returns {number}
+     */
+    function _getLastProgress(fileIndex) {
+        // Approximate from state; default to 50 if unknown
+        return 50;
+    }
+
+    /**
+     * Pauses an in-progress upload.
+     * @param {number} fileIndex
+     */
+    function pauseUpload(fileIndex) {
+        const state = _uploadState.get(fileIndex);
+        if (!state) return;
+        state.paused = true;
+        if (state.abortController) state.abortController.abort();
+    }
+
+    /**
+     * Resumes a paused upload. Caller must provide the same arguments as uploadFile.
+     * @param {number} fileIndex
+     * @param {string} userId
+     * @param {string|null} parentId
+     * @param {any} dotNetRef
+     */
+    async function resumeUpload(fileIndex, userId, parentId, dotNetRef) {
+        const state = _uploadState.get(fileIndex);
+        if (!state) return;
+        state.paused = false;
+        state.abortController = new AbortController();
+        await uploadFile(fileIndex, userId, parentId, dotNetRef);
+    }
+
+    /**
+     * Cancels an upload (aborts in-flight requests and cleans up server session).
+     * @param {number} fileIndex
+     */
+    function cancelUpload(fileIndex) {
+        const state = _uploadState.get(fileIndex);
+        if (!state) return;
+        state.cancelled = true;
+        if (state.abortController) state.abortController.abort();
+    }
+
+    /**
+     * Sends DELETE to clean up a server-side upload session.
+     * @param {string} sessionId
+     */
+    async function cancelUploadSession(sessionId) {
+        try {
+            await fetch(`/api/v1/files/upload/${sessionId}`, {
+                method: "DELETE",
+                credentials: "same-origin"
+            });
+        } catch {
+            // Best-effort cleanup
         }
     }
 
@@ -403,7 +580,12 @@ window.dotnetcloudUpload = (function () {
         addExternalFiles: addExternalFiles,
         getPendingFileInfos: getPendingFileInfos,
         uploadFile: uploadFile,
+        pauseUpload: pauseUpload,
+        resumeUpload: resumeUpload,
+        cancelUpload: cancelUpload,
         clearFiles: clearFiles,
-        removeFile: removeFile
+        removeFile: removeFile,
+        getMaxUploadSize: getMaxUploadSize,
+        formatSize: formatSize
     };
 })();

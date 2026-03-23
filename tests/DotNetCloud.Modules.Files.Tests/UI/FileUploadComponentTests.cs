@@ -35,6 +35,7 @@ public sealed class FileUploadComponentTests
     [TestMethod]
     [DataRow(UploadStatus.Complete, "progress-bar-fill--success")]
     [DataRow(UploadStatus.Failed, "progress-bar-fill--error")]
+    [DataRow(UploadStatus.Paused, "progress-bar-fill--paused")]
     [DataRow(UploadStatus.Uploading, "")]
     [DataRow(UploadStatus.Pending, "")]
     public void GetProgressClass_ReturnsExpectedCssClass(UploadStatus status, string expected)

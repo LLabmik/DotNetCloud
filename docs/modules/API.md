@@ -22,6 +22,8 @@
 12. [WOPI Endpoints](#wopi-endpoints)
 13. [Storage Metrics Endpoints](#storage-metrics-endpoints)
 14. [Public Share Endpoints](#public-share-endpoints)
+15. [Configuration Endpoint](#configuration-endpoint)
+16. [Interactive API Explorer](#interactive-api-explorer)
 
 ---
 
@@ -741,3 +743,45 @@ All endpoints return errors in the standard envelope format:
 | `FILES_SHARE_PASSWORD_REQUIRED` | 401 | Public link requires a password |
 | `FILES_UPLOAD_SESSION_EXPIRED` | 410 | Upload session has expired |
 | `FILES_CHUNK_HASH_MISMATCH` | 400 | Uploaded chunk hash does not match expected hash |
+
+---
+
+## Configuration Endpoint
+
+### Get Upload Configuration
+
+```
+GET /api/v1/files/config
+```
+
+**No authentication required.** Returns the current upload configuration for client-side validation.
+
+**Response:**
+
+```json
+{
+  "maxUploadSizeBytes": 16106127360
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `maxUploadSizeBytes` | `long` | Maximum allowed file size in bytes (default: 15 GB) |
+
+The web UI calls this endpoint on page load to enforce size validation before uploading.
+
+---
+
+## Interactive API Explorer
+
+When the Files module host is running in development mode, an interactive API explorer is available at:
+
+```
+https://localhost:{files-port}/scalar/v1
+```
+
+The explorer is powered by [Scalar](https://github.com/scalar/scalar) and auto-generated from controller XML documentation. It provides a try-it-out interface for all 80+ Files API endpoints.
+
+The raw OpenAPI specification is available at `/openapi/v1.json`.
+
+> **Note:** The API explorer is only available when `ASPNETCORE_ENVIRONMENT=Development`.

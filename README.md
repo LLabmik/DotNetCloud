@@ -22,7 +22,7 @@ DotNetCloud gives you full control of your data by running your own cloud server
 
 | Feature | Description | Status |
 |---|---|---|
-| 📁 **Files** | File sync and sharing with desktop client | ✅ Phase 1 |
+| 📁 **Files** | File sync and sharing with desktop client, browser UI with context menus, drag-drop move, upload queue management, and paste-to-upload | ✅ Phase 1 |
 | 📝 **Document Editing** | Browser-based editing via Collabora Online (LibreOffice-based) | ✅ Phase 1 |
 | 💬 **Chat** | Real-time messaging, channels, direct messages | ✅ Phase 2 |
 | 📱 **Android App** | Mobile client with photo auto-upload | ✅ Phase 2 |

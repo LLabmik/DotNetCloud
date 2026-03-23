@@ -253,6 +253,49 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
         await JS!.InvokeVoidAsync("dotnetcloudUpload.clearFiles");
     }
 
+    /// <summary>Pauses an in-progress upload at the current chunk boundary.</summary>
+    protected async Task PauseUpload(int fileIndex)
+    {
+        if (fileIndex < 0 || fileIndex >= _files.Count) return;
+        var file = _files[fileIndex];
+        if (file.Status != UploadStatus.Uploading) return;
+
+        await JS!.InvokeVoidAsync("dotnetcloudUpload.pauseUpload", fileIndex);
+        file.Status = UploadStatus.Paused;
+        file.StatusText = "Paused";
+        StateHasChanged();
+    }
+
+    /// <summary>Resumes a paused upload from where it left off.</summary>
+    protected async Task ResumeUpload(int fileIndex)
+    {
+        if (fileIndex < 0 || fileIndex >= _files.Count) return;
+        var file = _files[fileIndex];
+        if (file.Status != UploadStatus.Paused) return;
+
+        file.Status = UploadStatus.Uploading;
+        file.StatusText = "Resuming...";
+        StateHasChanged();
+
+        _jsRef ??= DotNetObjectReference.Create(this);
+        var userId = await GetUserIdAsync();
+        var parentIdStr = ParentId?.ToString();
+        await JS!.InvokeVoidAsync("dotnetcloudUpload.resumeUpload", fileIndex, userId, parentIdStr, _jsRef);
+    }
+
+    /// <summary>Cancels an upload and cleans up the server-side session.</summary>
+    protected async Task CancelUpload(int fileIndex)
+    {
+        if (fileIndex < 0 || fileIndex >= _files.Count) return;
+        var file = _files[fileIndex];
+        if (file.Status is not (UploadStatus.Uploading or UploadStatus.Paused)) return;
+
+        await JS!.InvokeVoidAsync("dotnetcloudUpload.cancelUpload", fileIndex);
+        file.Status = UploadStatus.Failed;
+        file.StatusText = "Cancelled";
+        StateHasChanged();
+    }
+
     /// <summary>Formats a byte count as a human-readable size string.</summary>
     protected static string FormatSize(long bytes)
     {
@@ -277,6 +320,7 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
     {
         UploadStatus.Complete => "progress-bar-fill--success",
         UploadStatus.Failed => "progress-bar-fill--error",
+        UploadStatus.Paused => "progress-bar-fill--paused",
         _ => string.Empty
     };
 

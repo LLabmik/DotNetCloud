@@ -26,6 +26,12 @@ The Files module is the primary storage and file management component of DotNetC
 | **Tags & Comments** | Organize files with colored tags; threaded comment discussions per file |
 | **Bulk Operations** | Move, copy, or delete multiple files/folders in a single request |
 | **Thumbnail Generation** | Automatic thumbnail creation for image files using ImageSharp |
+| **Right-Click Context Menu** | Context menu on file/folder items for rename, move, copy, share, download, and delete |
+| **Drag-and-Drop Move** | Drag files or folders onto a folder to move them; visual drop-target highlighting |
+| **Upload Queue Control** | Per-file pause, resume, and cancel with chunk-level `AbortController` support |
+| **Paste Image Upload** | Paste images from clipboard (Ctrl+V) — auto-generates timestamped filenames |
+| **Upload Size Validation** | Client-side file size check before upload; configurable maximum via server settings |
+| **OpenAPI Documentation** | Interactive Scalar API explorer at `/scalar/v1` (development mode) |
 
 ## Architecture
 
@@ -101,6 +107,7 @@ Configuration is managed via `appsettings.json` sections:
 | `Files:TrashRetention` | `TrashRetentionOptions` | Trash auto-cleanup interval and retention period |
 | `Files:VersionRetention` | `VersionRetentionOptions` | Max versions per file, time-based retention |
 | `Files:Collabora` | `CollaboraOptions` | Collabora CODE server URL, token settings, session limits |
+| `FileUpload` | `FileUploadOptions` | Maximum upload file size (`MaxFileSizeBytes`, default 15 GB) |
 
 ## Related Documentation
 

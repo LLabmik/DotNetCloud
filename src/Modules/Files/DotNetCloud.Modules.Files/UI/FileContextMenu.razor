@@ -1,0 +1,71 @@
+@namespace DotNetCloud.Modules.Files.UI
+
+@*
+    Floating context menu for file/folder items. Appears on right-click with
+    actions: Open, Rename, Move, Copy, Share, Download, Delete.
+    Dismissed on click-outside, Escape, or scroll.
+*@
+
+@if (IsVisible)
+{
+    <div class="file-context-menu"
+         style="left: @(X)px; top: @(Y)px;"
+         role="menu"
+         aria-label="File actions"
+         @onkeydown="HandleKeyDown">
+
+        @if (NodeType == "Folder")
+        {
+            <button class="context-menu-item" role="menuitem" @onclick="HandleOpen">
+                <span class="context-menu-icon" aria-hidden="true">📂</span>
+                <span>Open</span>
+            </button>
+        }
+        else
+        {
+            <button class="context-menu-item" role="menuitem" @onclick="HandleOpen">
+                <span class="context-menu-icon" aria-hidden="true">📄</span>
+                <span>Open</span>
+            </button>
+        }
+
+        <div class="context-menu-separator" role="separator"></div>
+
+        <button class="context-menu-item" role="menuitem" @onclick="HandleRename">
+            <span class="context-menu-icon" aria-hidden="true">✏️</span>
+            <span>Rename</span>
+        </button>
+
+        <button class="context-menu-item" role="menuitem" @onclick="HandleMove">
+            <span class="context-menu-icon" aria-hidden="true">📁</span>
+            <span>Move to…</span>
+        </button>
+
+        <button class="context-menu-item" role="menuitem" @onclick="HandleCopy">
+            <span class="context-menu-icon" aria-hidden="true">📋</span>
+            <span>Copy to…</span>
+        </button>
+
+        <div class="context-menu-separator" role="separator"></div>
+
+        <button class="context-menu-item" role="menuitem" @onclick="HandleShare">
+            <span class="context-menu-icon" aria-hidden="true">🔗</span>
+            <span>Share</span>
+        </button>
+
+        @if (NodeType != "Folder")
+        {
+            <button class="context-menu-item" role="menuitem" @onclick="HandleDownload">
+                <span class="context-menu-icon" aria-hidden="true">⬇</span>
+                <span>Download</span>
+            </button>
+        }
+
+        <div class="context-menu-separator" role="separator"></div>
+
+        <button class="context-menu-item context-menu-item--danger" role="menuitem" @onclick="HandleDelete">
+            <span class="context-menu-icon" aria-hidden="true">🗑️</span>
+            <span>Delete</span>
+        </button>
+    </div>
+}

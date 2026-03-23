@@ -281,6 +281,8 @@ else
             @foreach (var node in SortedNodes)
             {
                 <div class="file-item @(IsSelected(node.Id) ? "selected" : "") @(_selectionMode ? "selection-mode" : "")"
+                     data-node-id="@node.Id"
+                     data-node-type="@node.NodeType"
                      @onclick="() => HandleNodeClick(node)">
 
                     @if (_selectionMode)
@@ -374,6 +376,31 @@ else
     @if (IsShowShareDialog && ShareTargetNode is not null)
     {
         <ShareDialog Node="ShareTargetNode" OnClose="HideShareDialog" />
+    }
+
+    <FileContextMenu
+        IsVisible="_showContextMenu"
+        X="_contextMenuX"
+        Y="_contextMenuY"
+        NodeId="_contextMenuNodeId"
+        NodeType="_contextMenuNodeType"
+        OnOpen="HandleContextOpen"
+        OnRename="HandleContextRename"
+        OnMove="HandleContextMove"
+        OnCopy="HandleContextCopy"
+        OnShare="HandleContextShare"
+        OnDownload="HandleContextDownload"
+        OnDelete="HandleContextDelete"
+        OnDismiss="DismissContextMenu" />
+
+    @if (_showRenameDialog && _renameNode is not null)
+    {
+        <div class="create-folder-dialog">
+            <input type="text" @bind="_renameNewName" placeholder="New name"
+                   @onkeydown="HandleRenameKeyDown" autofocus />
+            <button class="btn btn-primary btn-sm" @onclick="ConfirmRename">Rename</button>
+            <button class="btn btn-sm" @onclick="CancelRename">Cancel</button>
+        </div>
     }
 
     @if (IsShowPreview && PreviewNode is not null)

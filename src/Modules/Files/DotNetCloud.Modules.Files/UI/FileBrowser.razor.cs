@@ -121,6 +121,21 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     private readonly string _browserDropInputId = $"files-drop-input-{Guid.NewGuid():N}";
     private bool _hasDroppedFiles;
     private DotNetObjectReference<FileBrowser>? _dropBridgeRef;
+    private DotNetObjectReference<FileBrowser>? _pasteRef;
+    private DotNetObjectReference<FileBrowser>? _contextMenuRef;
+    private DotNetObjectReference<FileBrowser>? _dragMoveRef;
+
+    // Context menu state
+    private bool _showContextMenu;
+    private double _contextMenuX;
+    private double _contextMenuY;
+    private Guid _contextMenuNodeId;
+    private string _contextMenuNodeType = "File";
+
+    // Inline rename dialog
+    private bool _showRenameDialog;
+    private FileNodeViewModel? _renameNode;
+    private string _renameNewName = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -234,6 +249,24 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         // The bridge is idempotent and can be called multiple times safely.
         _dropBridgeRef ??= DotNetObjectReference.Create(this);
         await Js.InvokeVoidAsync("dotnetcloudFilesDrop.init", ".files-browser", _dropBridgeRef);
+
+        // Initialize paste image handler for the file browser
+        if (firstRender)
+        {
+            _pasteRef ??= DotNetObjectReference.Create(this);
+            await Js.InvokeVoidAsync("dotnetcloudFilePaste.init", ".files-browser", _pasteRef);
+
+            _contextMenuRef ??= DotNetObjectReference.Create(this);
+            await Js.InvokeVoidAsync("dotnetcloudContextMenu.init", ".files-browser", _contextMenuRef);
+
+            _dragMoveRef ??= DotNetObjectReference.Create(this);
+            await Js.InvokeVoidAsync("dotnetcloudDragMove.init", ".files-browser", _dragMoveRef);
+        }
+        else
+        {
+            // Refresh draggable attributes after content changes (navigation, etc.)
+            await Js.InvokeVoidAsync("dotnetcloudDragMove.refresh");
+        }
     }
 
     /// <summary>Updates the quota display with fresh data from the API.</summary>
@@ -462,6 +495,188 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         InvokeAsync(StateHasChanged);
     }
 
+    /// <summary>Called from JS when an image is pasted from the clipboard. Opens the upload dialog.</summary>
+    [JSInvokable]
+    public void OnImagePasted(string fileName, long fileSize)
+    {
+        _hasDroppedFiles = true;
+        _showUploadDialog = true;
+        InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Called from JS when a pasted image exceeds the max upload size.</summary>
+    [JSInvokable]
+    public void OnPasteError(string errorMessage)
+    {
+        // Error is surfaced when the upload dialog opens; for now log it
+        InvokeAsync(StateHasChanged);
+    }
+
+    // ── Context menu ─────────────────────────────────────────────────────────
+
+    /// <summary>Called from JS when the user right-clicks a file item.</summary>
+    [JSInvokable]
+    public void OnContextMenu(string nodeId, string nodeType, double x, double y)
+    {
+        if (Guid.TryParse(nodeId, out var id))
+        {
+            _contextMenuNodeId = id;
+            _contextMenuNodeType = nodeType;
+            _contextMenuX = x;
+            _contextMenuY = y;
+            _showContextMenu = true;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    /// <summary>Called from JS to dismiss the context menu.</summary>
+    [JSInvokable]
+    public void OnContextMenuDismiss()
+    {
+        _showContextMenu = false;
+        InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Dismisses the context menu (Blazor-side).</summary>
+    protected void DismissContextMenu()
+    {
+        _showContextMenu = false;
+    }
+
+    /// <summary>Context menu: Open file or folder.</summary>
+    protected async Task HandleContextOpen(Guid nodeId)
+    {
+        _showContextMenu = false;
+        var node = _nodes.FirstOrDefault(n => n.Id == nodeId);
+        if (node is null) return;
+
+        if (node.NodeType == "Folder")
+            OpenFolder(node);
+        else
+            await OpenNodeAsync(node);
+    }
+
+    /// <summary>Context menu: Show inline rename dialog.</summary>
+    protected void HandleContextRename(Guid nodeId)
+    {
+        _showContextMenu = false;
+        var node = _nodes.FirstOrDefault(n => n.Id == nodeId);
+        if (node is null) return;
+
+        _renameNode = node;
+        _renameNewName = node.Name;
+        _showRenameDialog = true;
+    }
+
+    /// <summary>Context menu: Show move folder picker for a single item.</summary>
+    protected async Task HandleContextMove(Guid nodeId)
+    {
+        _showContextMenu = false;
+        _selectedNodes.Clear();
+        _selectedNodes.Add(nodeId);
+        _folderPickerMode = FolderPickerMode.Move;
+        await OpenFolderPicker();
+    }
+
+    /// <summary>Context menu: Show copy folder picker for a single item.</summary>
+    protected async Task HandleContextCopy(Guid nodeId)
+    {
+        _showContextMenu = false;
+        _selectedNodes.Clear();
+        _selectedNodes.Add(nodeId);
+        _folderPickerMode = FolderPickerMode.Copy;
+        await OpenFolderPicker();
+    }
+
+    /// <summary>Context menu: Open share dialog for a node.</summary>
+    protected void HandleContextShare(Guid nodeId)
+    {
+        _showContextMenu = false;
+        var node = _nodes.FirstOrDefault(n => n.Id == nodeId);
+        if (node is not null)
+            ShowShareDialog(node);
+    }
+
+    /// <summary>Context menu: Download a file.</summary>
+    protected async Task HandleContextDownload(Guid nodeId)
+    {
+        _showContextMenu = false;
+        var node = _nodes.FirstOrDefault(n => n.Id == nodeId);
+        if (node is not null)
+            await DownloadNodeAsync(node);
+    }
+
+    /// <summary>Context menu: Delete (trash) a node.</summary>
+    protected async Task HandleContextDelete(Guid nodeId)
+    {
+        _showContextMenu = false;
+        var caller = await GetCallerContextAsync();
+        await FileService.DeleteAsync(nodeId, caller);
+        await LoadCurrentFolderAsync();
+        await LoadTrashCountAsync();
+    }
+
+    // ── Inline rename ────────────────────────────────────────────────────────
+
+    /// <summary>Confirms the inline rename operation.</summary>
+    protected async Task ConfirmRename()
+    {
+        if (_renameNode is null || string.IsNullOrWhiteSpace(_renameNewName)) return;
+
+        var caller = await GetCallerContextAsync();
+        await FileService.RenameAsync(_renameNode.Id, new RenameNodeDto { Name = _renameNewName.Trim() }, caller);
+
+        _showRenameDialog = false;
+        _renameNode = null;
+        _renameNewName = string.Empty;
+        await LoadCurrentFolderAsync();
+    }
+
+    /// <summary>Cancels the rename operation.</summary>
+    protected void CancelRename()
+    {
+        _showRenameDialog = false;
+        _renameNode = null;
+        _renameNewName = string.Empty;
+    }
+
+    /// <summary>Handles keyboard events in the rename dialog.</summary>
+    protected async Task HandleRenameKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await ConfirmRename();
+        if (e.Key == "Escape") CancelRename();
+    }
+
+    // ── Drag-and-drop move ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// JS callback: user dragged a node onto a folder to move it.
+    /// </summary>
+    [JSInvokable]
+    public async Task OnDragMoveNode(string sourceNodeId, string targetFolderId)
+    {
+        if (!Guid.TryParse(sourceNodeId, out var sourceId) ||
+            !Guid.TryParse(targetFolderId, out var targetId))
+            return;
+
+        // Don't move a folder into itself
+        if (sourceId == targetId) return;
+
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            await FileService.MoveAsync(sourceId, new MoveNodeDto { TargetParentId = targetId }, caller);
+            await LoadCurrentFolderAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception)
+        {
+            // Move failed — reload to show current state
+            await LoadCurrentFolderAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
     /// <summary>Legacy handler kept for the hidden InputFile (fallback). Opens upload dialog.</summary>
     protected void HandleBrowserFileDrop(InputFileChangeEventArgs e)
     {
@@ -470,10 +685,23 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         _showUploadDialog = true;
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _dropBridgeRef?.Dispose();
-        return ValueTask.CompletedTask;
+        _pasteRef?.Dispose();
+        _contextMenuRef?.Dispose();
+        _dragMoveRef?.Dispose();
+
+        try
+        {
+            await Js.InvokeVoidAsync("dotnetcloudFilePaste.dispose");
+            await Js.InvokeVoidAsync("dotnetcloudContextMenu.dispose");
+            await Js.InvokeVoidAsync("dotnetcloudDragMove.dispose");
+        }
+        catch (JSDisconnectedException)
+        {
+            // Circuit may already be disconnected during disposal
+        }
     }
 
     protected async Task DeleteSelected()

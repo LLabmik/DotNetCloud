@@ -1625,3 +1625,87 @@ code { background: var(--color-bg); padding: 2px 6px; border-radius: 4px; font-s
     .module-cards { grid-template-columns: 1fr; }
     .detail-list { grid-template-columns: 1fr; }
 }
+
+/* ── Context Menu ──────────────────────────────────────────────────────── */
+
+.file-context-menu {
+    position: fixed;
+    z-index: 1000;
+    min-width: 180px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    padding: 4px 0;
+    animation: context-menu-in 0.12s ease-out;
+}
+
+@keyframes context-menu-in {
+    from { opacity: 0; transform: scale(0.95); }
+    to   { opacity: 1; transform: scale(1); }
+}
+
+.context-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 14px;
+    border: none;
+    background: none;
+    color: var(--color-text);
+    font-size: 13px;
+    cursor: pointer;
+    text-align: left;
+    line-height: 1.4;
+}
+
+.context-menu-item:hover,
+.context-menu-item:focus-visible {
+    background: var(--color-primary);
+    color: #fff;
+    outline: none;
+}
+
+.context-menu-item:focus-visible .context-menu-icon {
+    filter: brightness(10);
+}
+
+.context-menu-item--danger:hover,
+.context-menu-item--danger:focus-visible {
+    background: var(--color-danger);
+    color: #fff;
+}
+
+.context-menu-icon {
+    flex-shrink: 0;
+    width: 18px;
+    text-align: center;
+    font-size: 14px;
+}
+
+.context-menu-separator {
+    height: 1px;
+    background: var(--color-border);
+    margin: 4px 8px;
+}
+
+/* ── Drag-Move Visual Feedback ─────────────────────────────────────────── */
+
+.file-item[draggable="true"] {
+    cursor: grab;
+}
+
+.file-item[draggable="true"]:active {
+    cursor: grabbing;
+}
+
+.file-item.drag-over-target {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -2px;
+    background: rgba(59, 130, 246, 0.08);
+}
+
+.file-item.dragging {
+    opacity: 0.5;
+}

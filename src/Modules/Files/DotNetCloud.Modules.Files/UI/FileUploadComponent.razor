@@ -45,12 +45,31 @@
             @if (IsUploading)
             {
                 <div class="upload-panel-files" style="margin: 0.5rem 0;">
-                    @foreach (var file in Files)
+                    @for (var i = 0; i < Files.Count; i++)
                     {
+                        var idx = i;
+                        var file = Files[idx];
                         <div class="upload-panel-file @(file.Status == UploadStatus.Failed ? "upload-panel-file--error" : "")">
                             <div class="upload-file-header">
                                 <span class="upload-file-name" title="@file.Name">@TruncateName(file.Name)</span>
-                                <span class="upload-file-status-label">@file.StatusText</span>
+                                <div class="upload-file-controls">
+                                    @if (file.Status == UploadStatus.Uploading)
+                                    {
+                                        <button class="btn-icon btn-xs" @onclick="() => PauseUpload(idx)"
+                                                title="Pause">⏸</button>
+                                    }
+                                    else if (file.Status == UploadStatus.Paused)
+                                    {
+                                        <button class="btn-icon btn-xs" @onclick="() => ResumeUpload(idx)"
+                                                title="Resume">▶</button>
+                                    }
+                                    @if (file.Status is UploadStatus.Uploading or UploadStatus.Paused)
+                                    {
+                                        <button class="btn-icon btn-xs" @onclick="() => CancelUpload(idx)"
+                                                title="Cancel">✕</button>
+                                    }
+                                    <span class="upload-file-status-label">@file.StatusText</span>
+                                </div>
                             </div>
                             <div class="upload-file-progress">
                                 <div class="progress-bar-track progress-bar-track--sm">

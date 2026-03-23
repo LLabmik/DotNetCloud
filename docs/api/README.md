@@ -429,15 +429,18 @@ const connection = new signalR.HubConnectionBuilder()
 
 ## Interactive API Explorer
 
-When running in development mode, an interactive OpenAPI/Swagger UI is available:
+When running in development mode, interactive API explorers are available via [Scalar](https://github.com/scalar/scalar):
 
-```
-https://localhost:5001/swagger
-```
+| Service | URL | Description |
+|---|---|---|
+| **Core Server** | `https://localhost:5001/scalar/v1` | Core platform endpoints (auth, users, admin, health) |
+| **Files Module** | `https://localhost:{files-port}/scalar/v1` | Files module endpoints (80+ endpoints for file operations) |
 
-This UI is auto-generated from controller XML documentation comments and provides a try-it-out interface for all endpoints.
+The Scalar UI is auto-generated from controller XML documentation and provides an interactive try-it-out interface for all endpoints.
 
-> **Note:** The Swagger UI is disabled in production for security.
+You can also access the raw OpenAPI JSON at `/openapi/v1.json` on each service.
+
+> **Note:** The API explorer is only available in development mode (`ASPNETCORE_ENVIRONMENT=Development`).
 
 ---
 
@@ -450,6 +453,7 @@ This UI is auto-generated from controller XML documentation comments and provide
 
 ### Module API References
 
+- [Files API](../modules/API.md) — REST endpoints for file/folder operations, upload, sharing, versioning, and more
 - [Contacts API](CONTACTS.md) — REST + CardDAV endpoints for contact management
 - [Calendar API](CALENDAR.md) — REST + CalDAV endpoints for calendar and event management
 - [Notes API](NOTES.md) — REST endpoints for note, folder, tag, and version management

@@ -1063,7 +1063,7 @@ All dependencies are open source with permissive or compatible licenses. Zero co
 **Goal:** File upload/download/browse/share + working desktop sync client.
 
 - Files module (upload, download, browse, share, quotas, trash, versioning)
-- File browser UI (grid/list, drag-drop upload, sharing, preview)
+- File browser UI (grid/list, drag-drop upload, context menus, drag-drop move, upload queue management with pause/resume/cancel, paste-to-upload, client-side size validation, sharing, preview)
 - Collabora CODE integration (WOPI host in Files module, managed component, browser-based document editing)
 - Client.Core (sync engine, chunked upload, conflict detection)
 - Client.SyncService + Client.SyncTray

@@ -18,10 +18,10 @@
 | Category | Items | Effort | Status |
 |---|---|---|---|
 | Sprint 1: End-to-End Verification | 24 items | Manual testing against live deployment | Mostly `[verification-only]` (code present; live validation pending) |
-| Sprint 2: Deferred UI Features | 6 items | JS interop + Blazor component work | 2.6 `[implemented]`; 2.1-2.5 mostly `[missing]` and deferrable |
+| Sprint 2: Deferred UI Features | 6 items | JS interop + Blazor component work | 2.1-2.6 `[implemented]` |
 | Sprint 3: Deferred Backend Features | 4 items | Service-layer additions | Mostly `[implemented]`; range tests remain `[verification-only]` |
 | Sprint 4: Desktop Sync Hardening | 2 items | SyncEngine + SyncTray improvements | Debounce `[implemented]`; E2E checklist `[verification-only]` |
-| Sprint 5: Module Integration Verification | 7 items | Live deployment checks | Health/logging mostly `[implemented]`; Files-host OpenAPI `[missing]` |
+| Sprint 5: Module Integration Verification | 7 items | Live deployment checks | Health/logging mostly `[implemented]`; Files-host OpenAPI `[implemented]` |
 | Sprint 6: Security Verification | 7 items | Security audit + live testing | Core controls mostly `[implemented]`; attack/rate-limit validation pending |
 | External Blockers (skip for now) | 1 item | MariaDB migration (Pomelo .NET 10) | Blocked — waiting for Pomelo release |
 
@@ -106,32 +106,32 @@
 **What:** UI enhancements that were deferred during initial implementation because they require JS interop wiring.
 
 ### 2.1 Right-Click Context Menu
-- ☐ Create JS interop for floating context menu positioning (`contextmenu` event) `[missing]`
-- ☐ Create `FileContextMenu.razor` component with actions: Rename, Move, Copy, Share, Delete, Download `[missing]`
-- ☐ Wire context menu to file items in both grid and list views `[missing]`
-- ☐ Dismiss menu on click-outside or Escape `[missing]`
+- ✓ Create JS interop for floating context menu positioning (`contextmenu` event) `[implemented]`
+- ✓ Create `FileContextMenu.razor` component with actions: Open, Rename, Move, Copy, Share, Download, Delete `[implemented]`
+- ✓ Wire context menu to file items in both grid and list views `[implemented]`
+- ✓ Dismiss menu on click-outside or Escape `[implemented]`
 
 ### 2.2 Drag-and-Drop Move to Folder
-- ☐ Create JS interop bridge for `dragstart`, `dragover`, `drop` events `[missing]`
-- ☐ Add drag handles to file items `[missing]`
-- ☐ Highlight drop-target folders during drag `[missing]`
-- ☐ Call `MoveAsync` on drop `[missing]`
-- ☐ Show error toast if move fails (permission, name conflict) `[missing]`
+- ✓ Create JS interop bridge for `dragstart`, `dragover`, `drop` events (`file-drag-move.js`) `[implemented]`
+- ✓ All file items marked draggable automatically `[implemented]`
+- ✓ Highlight drop-target folders during drag (`.drag-over-target` CSS) `[implemented]`
+- ✓ Call `MoveAsync` on drop via `OnDragMoveNode` JSInvokable `[implemented]`
+- ✓ Reload folder on error to show current state `[implemented]`
 
 ### 2.3 Upload Queue Management
-- ☐ Add chunk-level cancellation tokens to `ChunkedUploadService` `[missing]`
-- ☐ Create JS interop to abort in-flight `fetch` requests `[missing]`
-- ☐ Wire Pause/Resume/Cancel per-file in `UploadProgressPanel` to actual chunk-level control `[missing]`
+- ✓ Per-file `AbortController` in `file-upload.js` with `_uploadState` Map `[implemented]`
+- ✓ Chunk-level pause/resume/cancel with `AbortError` handling `[implemented]`
+- ✓ Wire Pause/Resume/Cancel buttons in `FileUploadComponent.razor` to JS interop `[implemented]`
 
 ### 2.4 Paste Image Upload
-- ☐ Create JS interop for `window.paste` event to capture clipboard images `[missing]`
-- ☐ Auto-generate filename from timestamp (e.g., `paste-2026-03-16-143022.png`) `[missing]`
-- ☐ Trigger upload flow with pasted image data `[missing]`
+- ✓ Create JS interop (`file-paste.js`) for `paste` event to capture clipboard images `[implemented]`
+- ✓ Auto-generate filename from timestamp (e.g., `paste-2026-03-16-143022.png`) `[implemented]`
+- ✓ Trigger upload flow with pasted image data via `addExternalFiles` `[implemented]`
 
 ### 2.5 Upload Size Validation
-- ☐ Expose `MaxUploadSize` from server config to the UI layer (API endpoint or Blazor cascade) `[missing]`
-- ☐ Validate file size before starting upload `[missing]`
-- ☐ Show clear error message for oversized files `[missing]`
+- ✓ Expose `MaxUploadSize` via `GET /api/v1/files/config` endpoint `[implemented]`
+- ✓ Validate file size before starting upload (client-side check in `file-upload.js`) `[implemented]`
+- ✓ Show clear error message for oversized files with formatted size `[implemented]`
 
 ### 2.6 Share Dialog — Existing Shares List
 - ✓ `ShareDialog.razor` already loads and displays `ExistingShares` on open `[implemented]`
@@ -208,7 +208,7 @@
 - ☐ Verify OpenTelemetry traces include Files operations (check Jaeger/OTLP output if configured) `[verification-only]`
 
 ### 5.3 Documentation & API
-- ☐ Verify OpenAPI/Swagger documentation is generated for Files API endpoints `[missing]`
+- ✓ OpenAPI documentation generated for Files API endpoints (Scalar UI at `/scalar/v1`) `[implemented]`
 - ☐ Verify internationalization works for Files UI strings (switch locale, check UI labels) `[verification-only]`
 
 ---
@@ -252,7 +252,7 @@ Recommended sequence for maximum efficiency:
 3. **Sprint 5** (Module Integration) — Quick verification, do alongside Sprint 1.
 4. **Sprint 3** (Backend) — Notifications wiring + version retention. Moderate effort.
 5. **Sprint 4** (Sync) — End-to-end sync testing requires Windows + Linux clients.
-6. **Sprint 2** (UI) — Deferred UI features. Most effort. Can be deprioritized if Phase 1 launch doesn't require context menus or paste upload.
+6. **Sprint 2** (UI) — All deferred UI features now `[implemented]`: context menu, drag-drop move, upload queue management, paste upload, size validation.
 
 ---
 
@@ -262,11 +262,11 @@ These items are nice-to-have and won't block a usable Phase 1 release:
 
 | Item | Reason to Defer |
 |---|---|
-| Right-click context menu | Actions already available via buttons and selection mode (`[deferred]`) |
+| Right-click context menu | `[implemented]` — context-menu.js + FileContextMenu.razor |
 | Drag-and-drop move to folder | Move available via selection mode + folder picker (`[deferred]`) |
-| Paste image upload | Standard file upload works fine (`[deferred]`) |
-| Upload queue management | Basic pause/cancel exists; chunk-level control is polish (`[deferred]`) |
-| Upload size validation | Server already rejects oversized files; client-side is UX polish (`[deferred]`) |
+| Paste image upload | `[implemented]` — file-paste.js with timestamp filenames |
+| Upload queue management | `[implemented]` — AbortController per-file, chunk-level pause/resume/cancel |
+| Upload size validation | `[implemented]` — client-side check via /api/v1/files/config |
 | Share expiration notifications | Not critical for launch (`[deferred]`) |
 | Share creator first-access notification | Not critical for launch (`[deferred]`) |
 | Admin retention per organization | Single-instance config sufficient for launch |

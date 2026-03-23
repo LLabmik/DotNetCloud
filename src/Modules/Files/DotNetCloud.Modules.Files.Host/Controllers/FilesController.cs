@@ -23,6 +23,7 @@ public class FilesController : FilesControllerBase
     private readonly IThumbnailService _thumbnailService;
     private readonly ILogger<FilesController> _logger;
     private readonly FileSystemOptions _fileSystemOptions;
+    private readonly FileUploadOptions _uploadOptions;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FilesController"/> class.
@@ -35,7 +36,8 @@ public class FilesController : FilesControllerBase
         IShareService shareService,
         IThumbnailService thumbnailService,
         ILogger<FilesController> logger,
-        IOptions<FileSystemOptions> fileSystemOptions)
+        IOptions<FileSystemOptions> fileSystemOptions,
+        IOptions<FileUploadOptions> uploadOptions)
     {
         _fileService = fileService;
         _uploadService = uploadService;
@@ -45,6 +47,17 @@ public class FilesController : FilesControllerBase
         _thumbnailService = thumbnailService;
         _logger = logger;
         _fileSystemOptions = fileSystemOptions.Value;
+        _uploadOptions = uploadOptions.Value;
+    }
+
+    /// <summary>
+    /// Returns client-relevant configuration for the Files module.
+    /// </summary>
+    [HttpGet("config")]
+    [AllowAnonymous]
+    public IActionResult GetConfig()
+    {
+        return Ok(new { maxUploadSizeBytes = _uploadOptions.MaxFileSizeBytes });
     }
 
     /// <summary>

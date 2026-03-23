@@ -188,7 +188,23 @@ Each version references chunks. Due to deduplication, a small edit to a large fi
 
 ### Maximum File Size
 
-There is no built-in maximum file size limit — the chunked upload protocol handles files of any size. However, you can configure limits at the reverse proxy level:
+The maximum upload file size is configurable via the `FileUpload` section:
+
+```json
+{
+  "FileUpload": {
+    "MaxFileSizeBytes": 16106127360
+  }
+}
+```
+
+| Setting | Default | Description |
+|---|---|---|
+| `MaxFileSizeBytes` | `16106127360` (15 GB) | Maximum file size allowed for upload. The web UI validates this client-side before uploading, showing a user-friendly error with the formatted size limit. The server also enforces this limit. |
+
+The client retrieves this limit from `GET /api/v1/files/config` on page load and rejects oversized files immediately with a clear error message.
+
+You can also configure limits at the reverse proxy level:
 
 **nginx:**
 

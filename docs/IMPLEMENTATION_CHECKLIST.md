@@ -1281,7 +1281,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Bulk operations (move, copy, delete) work via REST API
 - [ ] All unit and integration tests pass against PostgreSQL and SQL Server
 - [ ] gRPC communication with the Files module host works correctly
-- [ ] REST API documentation is generated via OpenAPI/Swagger
+- ✓ REST API documentation is generated via OpenAPI/Swagger
 - [ ] Admin can manage quotas and module settings via dashboard
 - [ ] Files sync between server and Windows desktop client
 
@@ -1952,8 +1952,8 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Multi-select (checkbox per item)
   - ✓ Pagination (page controls, configurable page size)
   - ✓ Sort by name, size, date, type (column header click)
-  - ☐ Right-click context menu (rename, move, copy, share, delete, download) — deferred: requires JS interop to position floating menu
-  - ☐ Drag-and-drop file reordering / move to folder — deferred: requires JS dragstart/dragover/drop interop + move API call
+  - ✓ Right-click context menu (rename, move, copy, share, delete, download) — context-menu.js + FileContextMenu.razor
+  - ✓ Drag-and-drop file reordering / move to folder — file-drag-move.js + OnDragMoveNode JSInvokable
   - ✓ Empty state placeholder ("No files yet — upload or create a folder")
   - ✓ Loading skeleton while fetching data
   - ✓ Root and folder listings deduplicate tagged nodes from data-service queries
@@ -1964,9 +1964,9 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Drag-and-drop upload area
   - ✓ Upload progress bar per file
   - ✓ Multiple file upload support
-  - ☐ Upload queue management (pause, resume, cancel) — deferred: requires chunk-level cancellation tokens + JS interop to abort in-flight requests
-  - ☐ Paste image upload (clipboard integration) — deferred: requires JS interop for window paste event
-  - ☐ Size validation before upload — deferred: max upload size not yet exposed from config to UI layer
+  - ✓ Upload queue management (pause, resume, cancel) — AbortController per-file, chunk-level control
+  - ✓ Paste image upload (clipboard integration) — file-paste.js with timestamp filenames
+  - ✓ Size validation before upload — client-side check via /api/v1/files/config endpoint
 
 #### File Preview Component
 - ✓ Create `FilePreview.razor`:
