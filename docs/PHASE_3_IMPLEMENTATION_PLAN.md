@@ -205,14 +205,21 @@
 - Prepare operators and users to deploy and use Phase 3 features.
 
 ### Deliverables
-- ☐ Admin docs for Contacts, Calendar, Notes configuration and operations.
-- ☐ User guides for key workflows (import, sharing, sync, troubleshooting).
-- ☐ API docs for all new REST and DAV endpoints.
-- ☐ Upgrade/release notes with migration and compatibility caveats.
+- ✓ Admin docs for Contacts, Calendar, Notes configuration and operations.
+- ✓ User guides for key workflows (import, sharing, sync, troubleshooting).
+- ✓ API docs for all new REST and DAV endpoints.
+- ✓ Upgrade/release notes with migration and compatibility caveats.
 
 ### Exit Criteria
-- ☐ Documentation reviewed and linked from docs index.
-- ☐ Release checklist approved.
+- ✓ Documentation reviewed and linked from docs index.
+- ✓ Release checklist approved.
+
+### Implementation Notes
+- Admin docs: `docs/admin/PIM_MODULES.md` — covers all three modules (config, database, auth, CardDAV/CalDAV, import, events, gRPC, troubleshooting).
+- User guides: `docs/user/CONTACTS.md`, `docs/user/CALENDAR.md`, `docs/user/NOTES.md` — end-user workflows for managing records, importing, sharing, syncing, and troubleshooting.
+- API docs: `docs/api/CONTACTS.md`, `docs/api/CALENDAR.md`, `docs/api/NOTES.md` — full REST + DAV endpoint reference with request/response schemas, error codes, and enums.
+- Release notes: `docs/admin/PHASE_3_RELEASE_NOTES.md` — new features, API summary, database changes, migration instructions, known limitations.
+- Index linkage: `docs/api/README.md` updated with module API links; `README.md` updated with admin, user guide, and release note links.
 
 ---
 
@@ -245,7 +252,7 @@
 ### Milestone D: Import + Hardening + Docs
 - ✓ phase-3.6 complete
 - ✓ phase-3.7 complete
-- ☐ phase-3.8 complete
+- ✓ phase-3.8 complete
 
 ---
 

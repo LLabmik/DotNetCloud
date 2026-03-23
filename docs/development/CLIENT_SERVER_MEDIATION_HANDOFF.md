@@ -60,7 +60,7 @@ Archived context:
 - Security audit desktop client validation on `Windows11-TestDNC`: **COMPLETE** (2026-03-23).
 - Security audit closeout + merge validation on `mint22`: **COMPLETE** (2026-03-23).
 - Post-closeout Windows runtime smoke: **COMPLETE** (2026-03-23). 4/4 targeted tests passed; login launch path verified reachable.
-- **Active cycle:** Phase 3.7 Testing And Quality Gates complete. Phase 3.8 Documentation And Release Readiness next.
+- **Active cycle:** Phase 3.8 Documentation And Release Readiness complete. Milestone D (Import + Hardening + Docs) fully closed.
 
 ## Environment
 
@@ -85,38 +85,32 @@ Archived context:
 **Target machine:** mint22
 **Status:** COMPLETE
 
-### Phase 3.7: Testing And Quality Gates — DONE
+### Phase 3.8: Documentation And Release Readiness — DONE
 
-Comprehensive test suite for all three PIM modules (Contacts, Calendar, Notes). 224 new tests across 8 new test files. All 2,700 CI tests pass (0 failures).
+All four Phase 3.8 deliverables created. 8 new documentation files, 5 existing files updated. CI build passes, all tests green.
 
-**New test files:**
-- `tests/DotNetCloud.Modules.Contacts.Tests/ContactShareServiceTests.cs` — 9 tests: share CRUD, owner/non-owner authorization, team shares
-- `tests/DotNetCloud.Modules.Contacts.Tests/ContactSecurityTests.cs` — 8 tests: tenant isolation (get/list/update/delete/search), group isolation, share authorization
-- `tests/DotNetCloud.Modules.Contacts.Tests/CardDavInteropTests.cs` — 13 tests: vCard 3.0 format compliance (BEGIN/END, VERSION, FN, N, ORG, EMAIL, TEL), round-trip, multi-vCard import, PHOTO/extended field tolerance
-- `tests/DotNetCloud.Modules.Contacts.Tests/ContactPerformanceTests.cs` — 4 tests: 500-record creation, 200-list, search, export benchmarks with timing thresholds
-- `tests/DotNetCloud.Modules.Calendar.Tests/CalendarShareServiceTests.cs` — 8 tests: share CRUD, owner/non-owner authorization, team shares
-- `tests/DotNetCloud.Modules.Calendar.Tests/CalendarSecurityTests.cs` — 10 tests: calendar+event tenant isolation, search isolation, share authorization
-- `tests/DotNetCloud.Modules.Calendar.Tests/CalDavInteropTests.cs` — 12 tests: iCal RFC 5545 compliance (VCALENDAR/VEVENT structure, VERSION:2.0, SUMMARY, DTSTART/DTEND, DESCRIPTION, LOCATION), round-trip, multi-event import, timezone/RRULE/VALARM/all-day tolerance
-- `tests/DotNetCloud.Modules.Calendar.Tests/CalendarPerformanceTests.cs` — 4 tests: 200-event creation, list, search, export benchmarks
-- `tests/DotNetCloud.Modules.Notes.Tests/NoteSecurityTests.cs` — 13 tests: tenant isolation (get/list/update/delete/search/folders), share authorization, XSS content storage validation (script, img onerror, iframe, javascript: URL, event handlers)
+**New documentation files:**
+- `docs/admin/PIM_MODULES.md` — admin operations guide for Contacts, Calendar, Notes (config, auth, DAV, import, gRPC, troubleshooting)
+- `docs/user/CONTACTS.md` — user guide: contact CRUD, groups, sharing, vCard import/export, CardDAV sync (DAVx5/Thunderbird/iOS)
+- `docs/user/CALENDAR.md` — user guide: calendars, events, invitations/RSVP, reminders, recurring events, sharing, iCalendar import/export, CalDAV sync
+- `docs/user/NOTES.md` — user guide: Markdown notes, folders, tags, version history, cross-module links, sharing, import
+- `docs/api/CONTACTS.md` — REST + CardDAV API reference (all endpoints, schemas, error codes)
+- `docs/api/CALENDAR.md` — REST + CalDAV API reference (all endpoints, schemas, enums, error codes)
+- `docs/api/NOTES.md` — REST API reference (notes, folders, versions, sharing — all endpoints, schemas, error codes)
+- `docs/admin/PHASE_3_RELEASE_NOTES.md` — release notes (features, API summary, DB changes, upgrade instructions, known limitations)
 
-**Coverage summary by Phase 3.7 deliverable:**
-- ✓ Unit test suites: ContactShareService (9), CalendarShareService (8) — filled the last untested services
-- ✓ Integration tests: CardDavInteropTests (13), CalDavInteropTests (12) — vCard/iCal format, round-trip, client compatibility
-- ✓ Security tests: ContactSecurityTests (8), CalendarSecurityTests (10), NoteSecurityTests (13) — authz bypass, tenant isolation, XSS
-- ✓ Performance baselines: ContactPerformanceTests (4), CalendarPerformanceTests (4) — large dataset thresholds
+**Updated files:**
+- `docs/api/README.md` — added module API reference links
+- `README.md` — Phase 3 status updated to 🔧 In Progress, added PIM admin/user/release doc links
+- Tracking docs: `IMPLEMENTATION_CHECKLIST.md`, `MASTER_PROJECT_PLAN.md`, `PHASE_3_IMPLEMENTATION_PLAN.md` — all Phase 3.8 items marked ✓, Milestone D closed
 
-**XSS note:** Content is stored as-is (no server-side sanitization). Tests document this behavior. Markdown sanitization pipeline is deferred to Phase 3.4 exit criteria / future work.
-
-**Deferred items (carried from Phase 3.5):**
+**Deferred items (carried from prior phases):**
 - CreatedByUserId/UpdatedByUserId audit fields (requires EF migrations)
 - Markdown sanitization pipeline
-
-#### Next actionable work
-1. Begin **phase-3.8** (Documentation And Release Readiness) — admin docs, user guides, API docs, upgrade/release notes.
+- Phase 3.5 UI integration (unified navigation, cross-links in UI, shared notification patterns)
 
 #### Previous cycle summary
-- Phase 3.6 Migration Foundation complete (51 tests). Archived.
+- Phase 3.7 Testing And Quality Gates complete (224 tests). Archived.
 
 ## Relay Template
 

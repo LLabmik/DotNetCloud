@@ -5,6 +5,30 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Phase 3.8 Documentation And Release Readiness COMPLETE on mint22 (2026-03-23)
+
+**Original target:** mint22
+**Original status:** COMPLETE ✅
+
+All Phase 3.8 documentation deliverables created. 8 new doc files, 5 existing files updated.
+
+**New files:**
+- `docs/admin/PIM_MODULES.md` — admin configuration guide covering all three PIM modules (database, auth, CardDAV/CalDAV, import, gRPC, events, troubleshooting)
+- `docs/user/CONTACTS.md` — user guide: contact management, groups, sharing, vCard import/export, CardDAV sync setup
+- `docs/user/CALENDAR.md` — user guide: calendars, events, invitations/RSVP, reminders, recurring events, sharing, iCalendar import/export, CalDAV sync setup
+- `docs/user/NOTES.md` — user guide: Markdown notes, folders, tags, version history, cross-module links, sharing, import
+- `docs/api/CONTACTS.md` — full REST + CardDAV API reference with schemas, error codes, DTOs
+- `docs/api/CALENDAR.md` — full REST + CalDAV API reference with schemas, enums, error codes
+- `docs/api/NOTES.md` — full REST API reference with version history, folder, sharing endpoints
+- `docs/admin/PHASE_3_RELEASE_NOTES.md` — release notes with features, API summary, DB changes, migration instructions, known limitations
+
+**Updated files:**
+- `docs/api/README.md` — added module API reference links
+- `README.md` — updated Phase 3 status, added PIM doc links (admin, user guides, release notes)
+- `docs/IMPLEMENTATION_CHECKLIST.md` — marked Phase 3.8 items ✓
+- `docs/MASTER_PROJECT_PLAN.md` — Phase 3.8 status completed, deliverables marked ✓
+- `docs/PHASE_3_IMPLEMENTATION_PLAN.md` — Phase 3.8 deliverables/exit criteria marked ✓, Milestone D complete
+
 ## Archived: Phase 3.7 Testing And Quality Gates COMPLETE on mint22 (2026-03-25)
 
 **Original target:** mint22

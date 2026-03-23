@@ -3252,7 +3252,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 ### Phase 3.8: Documentation And Release Readiness
 
-- ☐ Admin docs for Contacts, Calendar, Notes configuration
-- ☐ User guides for import, sharing, sync, troubleshooting
-- ☐ API docs for all new REST and DAV endpoints
-- ☐ Upgrade/release notes with migration caveats
+- ✓ Admin docs for Contacts, Calendar, Notes configuration
+- ✓ User guides for import, sharing, sync, troubleshooting
+- ✓ API docs for all new REST and DAV endpoints
+- ✓ Upgrade/release notes with migration caveats

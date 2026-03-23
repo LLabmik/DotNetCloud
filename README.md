@@ -48,7 +48,7 @@ See [MASTER_PROJECT_PLAN.md](docs/MASTER_PROJECT_PLAN.md) for the full phased im
 | **Phase 0** | Foundation — core platform, auth, module system, CLI, web shell, observability | ✅ Complete |
 | **Phase 1** | Files + Desktop Sync Client — file browser, upload/download, sharing, Collabora editing, bulk operations, trash, tags, versioning, Windows & Linux sync | ✅ Complete |
 | **Phase 2** | Chat + Notifications + Android — real-time messaging, push notifications, Android MAUI client | ✅ Complete |
-| **Phase 3** | Contacts + Calendar + Notes + NextCloud Migration | 🔜 Up Next |
+| **Phase 3** | Contacts + Calendar + Notes + NextCloud Migration | � In Progress |
 | **Phase 4** | Project Management (Deck) | ⬜ Planned |
 | **Phase 5** | Photos + Music | ⬜ Planned |
 | **Phase 6** | Email + Bookmarks | ⬜ Planned |
@@ -217,6 +217,15 @@ Imports users, files, calendars, contacts, and bookmarks. Available starting in 
 - [Backup & Restore](docs/admin/BACKUP.md)
 - [Collabora Administration](docs/admin/COLLABORA.md) — browser-based document editing setup
 - [Files Module Configuration](docs/admin/CONFIGURATION.md) — storage, quotas, trash retention
+- [PIM Module Administration](docs/admin/PIM_MODULES.md) — Contacts, Calendar, Notes configuration and operations
+- [Phase 3 Release Notes](docs/admin/PHASE_3_RELEASE_NOTES.md) — PIM suite release notes and upgrade instructions
+
+### User Guides
+
+- [Getting Started with Files](docs/user/GETTING_STARTED.md)
+- [Contacts](docs/user/CONTACTS.md) — manage contacts, groups, CardDAV sync, vCard import/export
+- [Calendar](docs/user/CALENDAR.md) — calendars, events, reminders, CalDAV sync, iCalendar import/export
+- [Notes](docs/user/NOTES.md) — Markdown notes, folders, tags, version history, sharing
 
 ### Clients
 

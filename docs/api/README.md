@@ -447,3 +447,9 @@ This UI is auto-generated from controller XML documentation comments and provide
 - [Response Format](RESPONSE_FORMAT.md)
 - [Error Handling](ERROR_HANDLING.md)
 - [Module Development Guide](../guides/MODULE_DEVELOPMENT.md)
+
+### Module API References
+
+- [Contacts API](CONTACTS.md) — REST + CardDAV endpoints for contact management
+- [Calendar API](CALENDAR.md) — REST + CalDAV endpoints for calendar and event management
+- [Notes API](NOTES.md) — REST endpoints for note, folder, tag, and version management
