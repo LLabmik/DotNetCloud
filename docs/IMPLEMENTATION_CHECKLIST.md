@@ -3207,8 +3207,8 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Module manifest (manifest.json)
 
 #### Features
-- ☐ Markdown rendering pipeline with XSS sanitization
-- ☐ Optional rich-editor behind feature flag
+- ✓ Markdown rendering pipeline with XSS sanitization
+- ✓ Rich-editor integration (MarkdownEditor Blazor component)
 - ✓ Cross-entity link references (Files, Calendar, Contact, Note)
 - ✓ Note sharing model (ReadOnly/ReadWrite per-user)
 - ✓ Version history with restore

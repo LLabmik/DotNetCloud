@@ -1,0 +1,228 @@
+@namespace DotNetCloud.Modules.Notes.UI
+
+@*
+    Markdown editor component with toolbar and live preview.
+    Provides formatting buttons for common Markdown syntax
+    and a split-pane view with live-rendered preview.
+*@
+
+<div class="markdown-editor @(PreviewOnly ? "preview-only" : "")">
+    <div class="markdown-editor-toolbar">
+        <div class="toolbar-group">
+            <button type="button" class="toolbar-btn" title="Bold (Ctrl+B)" @onclick="InsertBold">
+                <strong>B</strong>
+            </button>
+            <button type="button" class="toolbar-btn" title="Italic (Ctrl+I)" @onclick="InsertItalic">
+                <em>I</em>
+            </button>
+            <button type="button" class="toolbar-btn" title="Strikethrough" @onclick="InsertStrikethrough">
+                <s>S</s>
+            </button>
+        </div>
+        <div class="toolbar-separator"></div>
+        <div class="toolbar-group">
+            <button type="button" class="toolbar-btn" title="Heading 1" @onclick="() => InsertHeading(1)">
+                H1
+            </button>
+            <button type="button" class="toolbar-btn" title="Heading 2" @onclick="() => InsertHeading(2)">
+                H2
+            </button>
+            <button type="button" class="toolbar-btn" title="Heading 3" @onclick="() => InsertHeading(3)">
+                H3
+            </button>
+        </div>
+        <div class="toolbar-separator"></div>
+        <div class="toolbar-group">
+            <button type="button" class="toolbar-btn" title="Unordered list" @onclick="InsertUnorderedList">
+                &bull; List
+            </button>
+            <button type="button" class="toolbar-btn" title="Ordered list" @onclick="InsertOrderedList">
+                1. List
+            </button>
+            <button type="button" class="toolbar-btn" title="Task list" @onclick="InsertTaskList">
+                ☑ Task
+            </button>
+        </div>
+        <div class="toolbar-separator"></div>
+        <div class="toolbar-group">
+            <button type="button" class="toolbar-btn" title="Link" @onclick="InsertLink">
+                🔗
+            </button>
+            <button type="button" class="toolbar-btn" title="Image" @onclick="InsertImage">
+                🖼
+            </button>
+            <button type="button" class="toolbar-btn" title="Code block" @onclick="InsertCodeBlock">
+                &lt;/&gt;
+            </button>
+            <button type="button" class="toolbar-btn" title="Blockquote" @onclick="InsertBlockquote">
+                ❝
+            </button>
+            <button type="button" class="toolbar-btn" title="Horizontal rule" @onclick="InsertHorizontalRule">
+                ―
+            </button>
+            <button type="button" class="toolbar-btn" title="Table" @onclick="InsertTable">
+                ⊞
+            </button>
+        </div>
+        <div class="toolbar-separator"></div>
+        <div class="toolbar-group toolbar-group-right">
+            <button type="button"
+                    class="toolbar-btn @(_activeView == EditorView.Edit ? "active" : "")"
+                    title="Edit"
+                    @onclick="() => SetView(EditorView.Edit)">
+                ✏ Edit
+            </button>
+            <button type="button"
+                    class="toolbar-btn @(_activeView == EditorView.Split ? "active" : "")"
+                    title="Split view"
+                    @onclick="() => SetView(EditorView.Split)">
+                ⬓ Split
+            </button>
+            <button type="button"
+                    class="toolbar-btn @(_activeView == EditorView.Preview ? "active" : "")"
+                    title="Preview"
+                    @onclick="() => SetView(EditorView.Preview)">
+                👁 Preview
+            </button>
+        </div>
+    </div>
+
+    <div class="markdown-editor-body view-@_activeView.ToString().ToLowerInvariant()">
+        @if (_activeView != EditorView.Preview)
+        {
+            <div class="editor-pane">
+                <textarea class="editor-textarea"
+                          placeholder="Write your note in Markdown…"
+                          @bind="Content"
+                          @bind:event="oninput"
+                          @bind:after="OnContentChanged"
+                          spellcheck="true"></textarea>
+            </div>
+        }
+        @if (_activeView != EditorView.Edit)
+        {
+            <div class="preview-pane">
+                <div class="preview-content markdown-body">
+                    @((MarkupString)_renderedHtml)
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private string _renderedHtml = string.Empty;
+    private EditorView _activeView = EditorView.Split;
+
+    /// <summary>
+    /// The raw Markdown content being edited.
+    /// </summary>
+    [Parameter]
+    public string Content { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Callback fired when the content changes.
+    /// </summary>
+    [Parameter]
+    public EventCallback<string> ContentChanged { get; set; }
+
+    /// <summary>
+    /// The Markdown renderer service injected from DI.
+    /// </summary>
+    [Parameter]
+    public IMarkdownRenderer? Renderer { get; set; }
+
+    /// <summary>
+    /// When true, hides the editor pane and toolbar and shows only the rendered preview.
+    /// </summary>
+    [Parameter]
+    public bool PreviewOnly { get; set; }
+
+    /// <inheritdoc />
+    protected override void OnParametersSet()
+    {
+        if (PreviewOnly)
+        {
+            _activeView = EditorView.Preview;
+        }
+        RenderPreview();
+    }
+
+    private void SetView(EditorView view)
+    {
+        if (PreviewOnly) return;
+        _activeView = view;
+        if (view != EditorView.Edit)
+        {
+            RenderPreview();
+        }
+    }
+
+    private async Task OnContentChanged()
+    {
+        RenderPreview();
+        await ContentChanged.InvokeAsync(Content);
+    }
+
+    private void RenderPreview()
+    {
+        if (Renderer is not null && !string.IsNullOrEmpty(Content))
+        {
+            _renderedHtml = Renderer.RenderToHtml(Content);
+        }
+        else
+        {
+            _renderedHtml = string.Empty;
+        }
+    }
+
+    // ─── Toolbar actions ─────────────────────────────────────────────
+    // These insert Markdown syntax at the end of content.
+    // Full cursor-position insertion requires JS interop,
+    // which can be added as a progressive enhancement.
+
+    private Task InsertBold() => InsertText("**bold text**");
+    private Task InsertItalic() => InsertText("*italic text*");
+    private Task InsertStrikethrough() => InsertText("~~strikethrough~~");
+
+    private Task InsertHeading(int level) =>
+        InsertText($"\n{new string('#', level)} Heading\n");
+
+    private Task InsertUnorderedList() =>
+        InsertText("\n- Item 1\n- Item 2\n- Item 3\n");
+
+    private Task InsertOrderedList() =>
+        InsertText("\n1. Item 1\n2. Item 2\n3. Item 3\n");
+
+    private Task InsertTaskList() =>
+        InsertText("\n- [ ] Task 1\n- [ ] Task 2\n- [x] Completed task\n");
+
+    private Task InsertLink() => InsertText("[link text](https://example.com)");
+    private Task InsertImage() => InsertText("![alt text](image-url)");
+
+    private Task InsertCodeBlock() =>
+        InsertText("\n```\ncode here\n```\n");
+
+    private Task InsertBlockquote() =>
+        InsertText("\n> Quoted text\n");
+
+    private Task InsertHorizontalRule() =>
+        InsertText("\n---\n");
+
+    private Task InsertTable() =>
+        InsertText("\n| Header 1 | Header 2 | Header 3 |\n|----------|----------|----------|\n| Cell 1   | Cell 2   | Cell 3   |\n");
+
+    private async Task InsertText(string text)
+    {
+        Content += text;
+        RenderPreview();
+        await ContentChanged.InvokeAsync(Content);
+    }
+
+    private enum EditorView
+    {
+        Edit,
+        Split,
+        Preview
+    }
+}

@@ -16,6 +16,7 @@ public static class NotesServiceRegistration
     /// </summary>
     public static IServiceCollection AddNotesServices(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddSingleton<IMarkdownRenderer, MarkdownRenderer>();
         services.AddScoped<INoteService, NoteService>();
         services.AddScoped<INoteFolderService, NoteFolderService>();
         services.AddScoped<INoteShareService, NoteShareService>();

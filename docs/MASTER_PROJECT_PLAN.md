@@ -1342,14 +1342,14 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Data model (notes, versions, folders, tags, links, sharing — 6 entities, 6 EF configurations)
 - ✓ REST API endpoints (~25 endpoints: CRUD, tagging, search, version history, folders, sharing)
 - ✓ gRPC service (10 RPCs) + lifecycle service
-- ☐ Markdown rendering pipeline with sanitization
-- ☐ Optional rich-editor behind feature flag
+- ✓ Markdown rendering pipeline with sanitization (Markdig + HtmlSanitizer)
+- ✓ Rich-editor integration (MarkdownEditor Blazor component with toolbar + live preview)
 - ✓ Cross-entity link references (Files, Calendar, Contact, Note)
 - ✓ Note sharing (ReadOnly/ReadWrite per-user permissions)
 - ✓ Version history with restore + optimistic concurrency
 - ✓ 50 passing tests (module lifecycle, CRUD, search, versioning, folders, sharing)
 
-**Notes:** Notes module complete following Calendar/Contacts 3-tier pattern. REST+gRPC implemented with full CRUD, search, version history, folder management, and sharing. Remaining: Markdown sanitization pipeline and rich-editor integration. Ready for Phase 3.5 (Cross-Module Integration).
+**Notes:** Notes module fully complete. Markdown rendering pipeline implemented using Markdig (advanced extensions, task lists, emoji) + Ganss.Xss HtmlSanitizer for XSS prevention. MarkdownEditor Blazor component provides toolbar (bold, italic, headings, lists, code, tables, etc.) with split-pane live preview. API endpoints added: GET /api/v1/notes/{id}/preview (rendered note) and POST /api/v1/notes/render (live preview). 40 new MarkdownRenderer tests cover rendering, sanitization, and 15 XSS attack vectors. Total: 121 Notes tests passing.
 
 ---
 

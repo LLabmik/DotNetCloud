@@ -1,8 +1,10 @@
+using System.ComponentModel.DataAnnotations;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Notes.Models;
 using DotNetCloud.Modules.Notes.Services;
 using Microsoft.AspNetCore.Mvc;
+using ValidationException = DotNetCloud.Core.Errors.ValidationException;
 
 namespace DotNetCloud.Modules.Notes.Host.Controllers;
 
@@ -15,6 +17,7 @@ public class NotesController : NotesControllerBase
     private readonly INoteService _noteService;
     private readonly INoteFolderService _folderService;
     private readonly INoteShareService _shareService;
+    private readonly IMarkdownRenderer _markdownRenderer;
     private readonly ILogger<NotesController> _logger;
 
     /// <summary>
@@ -24,11 +27,13 @@ public class NotesController : NotesControllerBase
         INoteService noteService,
         INoteFolderService folderService,
         INoteShareService shareService,
+        IMarkdownRenderer markdownRenderer,
         ILogger<NotesController> logger)
     {
         _noteService = noteService;
         _folderService = folderService;
         _shareService = shareService;
+        _markdownRenderer = markdownRenderer;
         _logger = logger;
     }
 
@@ -295,6 +300,50 @@ public class NotesController : NotesControllerBase
             return NotFound(ErrorEnvelope(ex.ErrorCode, ex.Message));
         }
     }
+
+    // ─── Markdown Rendering ───────────────────────────────────────────────
+
+    /// <summary>Renders a saved note's Markdown content to sanitized HTML.</summary>
+    [HttpGet("{noteId:guid}/preview")]
+    public async Task<IActionResult> PreviewNoteAsync(Guid noteId)
+    {
+        var caller = GetAuthenticatedCaller();
+        var note = await _noteService.GetNoteAsync(noteId, caller);
+
+        if (note is null)
+        {
+            return NotFound(ErrorEnvelope(ErrorCodes.NoteNotFound, "Note not found."));
+        }
+
+        var html = note.Format == NoteContentFormat.Markdown
+            ? _markdownRenderer.RenderToHtml(note.Content)
+            : _markdownRenderer.SanitizeHtml(note.Content);
+
+        return Ok(Envelope(new NotePreviewResponse
+        {
+            NoteId = note.Id,
+            Title = note.Title,
+            RenderedHtml = html,
+            Format = note.Format,
+            Version = note.Version,
+        }));
+    }
+
+    /// <summary>Renders raw Markdown to sanitized HTML for live preview without saving.</summary>
+    [HttpPost("render")]
+    public IActionResult RenderMarkdownAsync([FromBody] RenderMarkdownRequest request)
+    {
+        if (string.IsNullOrEmpty(request.Content))
+        {
+            return Ok(Envelope(new { html = string.Empty }));
+        }
+
+        var html = request.Format == NoteContentFormat.Markdown
+            ? _markdownRenderer.RenderToHtml(request.Content)
+            : _markdownRenderer.SanitizeHtml(request.Content);
+
+        return Ok(Envelope(new { html }));
+    }
 }
 
 /// <summary>Request body for sharing a note.</summary>
@@ -305,4 +354,34 @@ public sealed record ShareNoteRequest
 
     /// <summary>Permission level to grant.</summary>
     public NoteSharePermission Permission { get; init; }
+}
+
+/// <summary>Response for a rendered note preview.</summary>
+public sealed record NotePreviewResponse
+{
+    /// <summary>The note ID.</summary>
+    public required Guid NoteId { get; init; }
+
+    /// <summary>Note title.</summary>
+    public required string Title { get; init; }
+
+    /// <summary>Sanitized HTML output.</summary>
+    public required string RenderedHtml { get; init; }
+
+    /// <summary>Original content format.</summary>
+    public NoteContentFormat Format { get; init; }
+
+    /// <summary>Note version at render time.</summary>
+    public int Version { get; init; }
+}
+
+/// <summary>Request body for rendering Markdown to HTML.</summary>
+public sealed record RenderMarkdownRequest
+{
+    /// <summary>Raw content to render.</summary>
+    [Required]
+    public required string Content { get; init; }
+
+    /// <summary>Content format (defaults to Markdown).</summary>
+    public NoteContentFormat Format { get; init; } = NoteContentFormat.Markdown;
 }
