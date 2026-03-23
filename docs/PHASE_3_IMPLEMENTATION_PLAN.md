@@ -40,21 +40,21 @@
 - Keep interfaces capability-driven and aligned with existing DotNetCloud.Core patterns.
 
 ### Deliverables
-- ☐ Core DTOs and contracts for:
-  - ☐ Contacts (person/org/group, phone/email/address, metadata)
-  - ☐ Calendars (calendar, event, attendee, recurrence, reminders)
-  - ☐ Notes (note document, folder, tag, note metadata)
-- ☐ Event contracts:
-  - ☐ ContactCreated/Updated/DeletedEvent
-  - ☐ CalendarEventCreated/Updated/DeletedEvent
-  - ☐ NoteCreated/Updated/DeletedEvent
-- ☐ Capability interfaces and tier mapping for each module.
-- ☐ Validation and error code extensions for new module domains.
+- ✓ Core DTOs and contracts for:
+  - ✓ Contacts (person/org/group, phone/email/address, metadata)
+  - ✓ Calendars (calendar, event, attendee, recurrence, reminders)
+  - ✓ Notes (note document, folder, tag, note metadata)
+- ✓ Event contracts:
+  - ✓ ContactCreated/Updated/DeletedEvent
+  - ✓ CalendarEventCreated/Updated/DeletedEvent
+  - ✓ NoteCreated/Updated/DeletedEvent
+- ✓ Capability interfaces and tier mapping for each module.
+- ✓ Validation and error code extensions for new module domains.
 
 ### Exit Criteria
-- ☐ Contracts compile in shared abstractions.
-- ☐ Public XML docs are present for all new public interfaces/types.
-- ☐ Contract tests pass.
+- ✓ Contracts compile in shared abstractions.
+- ✓ Public XML docs are present for all new public interfaces/types.
+- ✓ Contract tests pass.
 
 ## 3.2 Contacts Module (phase-3.2)
 

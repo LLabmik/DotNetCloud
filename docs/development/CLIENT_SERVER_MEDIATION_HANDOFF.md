@@ -83,21 +83,35 @@ Archived context:
 ## Active Handoff
 
 **Target machine:** mint22
-**Status:** PLANNING
+**Status:** COMPLETE
 
-### Phase 3: Contacts, Calendar & Notes — Implementation Planning
+### Phase 3.1: Architecture And Contracts — DONE
 
-Phase 3 implementation plan created and tracked:
-- **Plan doc:** `docs/PHASE_3_IMPLEMENTATION_PLAN.md` — full WBS with 8 sub-phases, milestones, risks.
-- **Master plan:** `docs/MASTER_PROJECT_PLAN.md` — Phase 3.1–3.8 rows added to Quick Status Summary + step detail sections appended after Phase 2.
-- **Checklist:** `docs/IMPLEMENTATION_CHECKLIST.md` — Phase 3 task breakdown appended (Contacts, Calendar, Notes, integration, migration, testing, docs).
-- **README:** Phase 3 status updated to 🔜 Up Next in roadmap table.
+All shared contracts for Contacts, Calendar, and Notes implemented in `DotNetCloud.Core`:
+
+**DTOs (src/Core/DotNetCloud.Core/DTOs/):**
+- `ContactDtos.cs` — ContactDto, ContactType, ContactEmailDto, ContactPhoneDto, ContactAddressDto, ContactGroupDto, CreateContactDto, UpdateContactDto
+- `CalendarDtos.cs` — CalendarDto, CalendarEventDto, CalendarEventStatus, EventAttendeeDto, AttendeeRole, AttendeeStatus, EventReminderDto, ReminderMethod, CreateCalendarDto, UpdateCalendarDto, CreateCalendarEventDto, UpdateCalendarEventDto, EventRsvpDto
+- `NoteDtos.cs` — NoteDto, NoteContentFormat, NoteLinkDto, NoteLinkType, NoteFolderDto, NoteVersionDto, CreateNoteDto, UpdateNoteDto, CreateNoteFolderDto, UpdateNoteFolderDto
+
+**Events (src/Core/DotNetCloud.Core/Events/):**
+- `ContactEvents.cs` — ContactCreatedEvent, ContactUpdatedEvent, ContactDeletedEvent
+- `CalendarEvents.cs` — CalendarEventCreatedEvent, CalendarEventUpdatedEvent, CalendarEventDeletedEvent, CalendarEventRsvpEvent, CalendarReminderTriggeredEvent
+- `NoteEvents.cs` — NoteCreatedEvent, NoteUpdatedEvent, NoteDeletedEvent
+
+**Capabilities (src/Core/DotNetCloud.Core/Capabilities/):**
+- `IContactDirectory.cs` — Public tier, read-only contact lookup + search
+- `ICalendarDirectory.cs` — Public tier, event summary + upcoming events query (includes CalendarEventSummary record)
+- `INoteDirectory.cs` — Public tier, note title lookup + search
+
+**Error Codes (src/Core/DotNetCloud.Core/Errors/ErrorCodes.cs):**
+- CONTACT_* (6 codes), CALENDAR_* (8 codes), NOTE_* (6 codes) added
+
+**Tests:** 197/197 Core tests pass (including new contact, calendar, note DTO tests + event tests + capability tests).
 
 #### Next actionable work
-1. Begin **phase-3.1** (Architecture And Contracts) — define shared DTOs, event contracts, capability interfaces in `DotNetCloud.Core`.
-2. After contracts compile and pass review, proceed to **phase-3.2** (Contacts Module).
-
-No blockers. All Phase 0–2 foundation is stable.
+1. Begin **phase-3.2** (Contacts Module) — create module projects, EF data model, REST API, CardDAV endpoints.
+2. Reference existing Files/Chat module patterns for project structure.
 
 #### Previous cycle summary
 - Security audit cycle fully closed (2026-03-23). All machines validated. See archive.

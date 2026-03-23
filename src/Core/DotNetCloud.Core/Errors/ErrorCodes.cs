@@ -218,6 +218,69 @@ public static class ErrorCodes
     /// <summary>Error code for user already enabled.</summary>
     public const string UserAlreadyEnabled = "USER_ALREADY_ENABLED";
 
+    // Contacts
+    /// <summary>Error code for contact not found.</summary>
+    public const string ContactNotFound = "CONTACT_NOT_FOUND";
+
+    /// <summary>Error code for contact already exists (duplicate detection).</summary>
+    public const string ContactAlreadyExists = "CONTACT_ALREADY_EXISTS";
+
+    /// <summary>Error code for contact group not found.</summary>
+    public const string ContactGroupNotFound = "CONTACT_GROUP_NOT_FOUND";
+
+    /// <summary>Error code for contact group already exists.</summary>
+    public const string ContactGroupAlreadyExists = "CONTACT_GROUP_ALREADY_EXISTS";
+
+    /// <summary>Error code for invalid vCard data.</summary>
+    public const string InvalidVCardData = "CONTACT_INVALID_VCARD";
+
+    /// <summary>Error code for CardDAV sync token expired or invalid.</summary>
+    public const string ContactSyncTokenInvalid = "CONTACT_SYNC_TOKEN_INVALID";
+
+    // Calendar
+    /// <summary>Error code for calendar not found.</summary>
+    public const string CalendarNotFound = "CALENDAR_NOT_FOUND";
+
+    /// <summary>Error code for calendar already exists.</summary>
+    public const string CalendarAlreadyExists = "CALENDAR_ALREADY_EXISTS";
+
+    /// <summary>Error code for calendar event not found.</summary>
+    public const string CalendarEventNotFound = "CALENDAR_EVENT_NOT_FOUND";
+
+    /// <summary>Error code for invalid recurrence rule.</summary>
+    public const string InvalidRecurrenceRule = "CALENDAR_INVALID_RRULE";
+
+    /// <summary>Error code for invalid event time range (end before start).</summary>
+    public const string InvalidEventTimeRange = "CALENDAR_INVALID_TIME_RANGE";
+
+    /// <summary>Error code for invalid iCalendar data.</summary>
+    public const string InvalidICalendarData = "CALENDAR_INVALID_ICALENDAR";
+
+    /// <summary>Error code for CalDAV sync token expired or invalid.</summary>
+    public const string CalendarSyncTokenInvalid = "CALENDAR_SYNC_TOKEN_INVALID";
+
+    /// <summary>Error code for attendee not found on event.</summary>
+    public const string AttendeeNotFound = "CALENDAR_ATTENDEE_NOT_FOUND";
+
+    // Notes
+    /// <summary>Error code for note not found.</summary>
+    public const string NoteNotFound = "NOTE_NOT_FOUND";
+
+    /// <summary>Error code for note folder not found.</summary>
+    public const string NoteFolderNotFound = "NOTE_FOLDER_NOT_FOUND";
+
+    /// <summary>Error code for note folder already exists.</summary>
+    public const string NoteFolderAlreadyExists = "NOTE_FOLDER_ALREADY_EXISTS";
+
+    /// <summary>Error code for note version conflict (optimistic concurrency).</summary>
+    public const string NoteVersionConflict = "NOTE_VERSION_CONFLICT";
+
+    /// <summary>Error code for note version not found.</summary>
+    public const string NoteVersionNotFound = "NOTE_VERSION_NOT_FOUND";
+
+    /// <summary>Error code for unsafe Markdown content detected.</summary>
+    public const string NoteUnsafeContent = "NOTE_UNSAFE_CONTENT";
+
     // General
     /// <summary>Error code for unknown error.</summary>
     public const string UnknownError = "UNKNOWN_ERROR";

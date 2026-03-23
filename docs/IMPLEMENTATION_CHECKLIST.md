@@ -3114,18 +3114,18 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase 3.1: Architecture And Contracts
 
 #### Core DTOs & Contracts
-- ☐ Contact DTOs (person/org/group, phone/email/address, metadata)
-- ☐ Calendar DTOs (calendar, event, attendee, recurrence, reminders)
-- ☐ Note DTOs (note document, folder, tag, note metadata)
+- ✓ Contact DTOs (person/org/group, phone/email/address, metadata)
+- ✓ Calendar DTOs (calendar, event, attendee, recurrence, reminders)
+- ✓ Note DTOs (note document, folder, tag, note metadata)
 
 #### Event Contracts
-- ☐ ContactCreated/Updated/DeletedEvent
-- ☐ CalendarEventCreated/Updated/DeletedEvent
-- ☐ NoteCreated/Updated/DeletedEvent
+- ✓ ContactCreated/Updated/DeletedEvent
+- ✓ CalendarEventCreated/Updated/DeletedEvent
+- ✓ NoteCreated/Updated/DeletedEvent
 
 #### Capability & Validation
-- ☐ Capability interfaces and tier mapping for Contacts, Calendar, Notes
-- ☐ Validation rules and error code extensions for new domains
+- ✓ Capability interfaces and tier mapping for Contacts, Calendar, Notes
+- ✓ Validation rules and error code extensions for new domains
 
 ### Phase 3.2: Contacts Module
 

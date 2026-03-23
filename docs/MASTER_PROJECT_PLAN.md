@@ -79,7 +79,7 @@
 | Sync Hardening P0 | 3 | 3 | 0 | 0 |
 | Sync Hardening P1–P2 | 6 | 6 | 0 | 0 |
 | Client Security Remediation | 1 | 1 | 0 | 0 |
-| Phase 3.1 | 4 | 0 | 0 | 4 |
+| Phase 3.1 | 4 | 4 | 0 | 0 |
 | Phase 3.2 | 6 | 0 | 0 | 6 |
 | Phase 3.3 | 6 | 0 | 0 | 6 |
 | Phase 3.4 | 6 | 0 | 0 | 6 |
@@ -1293,12 +1293,14 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 > **Detailed plan:** `docs/PHASE_3_IMPLEMENTATION_PLAN.md`
 
 ### Section: Phase 3.1 - Architecture And Contracts
-**STATUS:** pending
+**STATUS:** completed ✅
 **DELIVERABLES:**
-- ☐ Core DTOs and contracts for Contacts, Calendar, Notes
-- ☐ Event contracts (Created/Updated/Deleted events for each domain)
-- ☐ Capability interfaces and tier mapping
-- ☐ Validation and error code extensions
+- ✓ Core DTOs and contracts for Contacts, Calendar, Notes
+- ✓ Event contracts (Created/Updated/Deleted events for each domain)
+- ✓ Capability interfaces and tier mapping
+- ✓ Validation and error code extensions
+
+**Notes:** All Phase 3.1 contracts added to DotNetCloud.Core. DTOs: ContactDtos.cs, CalendarDtos.cs, NoteDtos.cs. Events: ContactEvents.cs, CalendarEvents.cs, NoteEvents.cs. Capabilities: IContactDirectory, ICalendarDirectory, INoteDirectory (all Public tier). Error codes added for CONTACT_, CALENDAR_, NOTE_ domains. 197/197 Core tests pass. Ready for phase-3.2 (Contacts Module).
 
 ---
 
