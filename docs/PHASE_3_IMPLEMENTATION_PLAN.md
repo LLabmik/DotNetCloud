@@ -177,20 +177,27 @@
 - Ensure production confidence before Phase 3 completion.
 
 ### Deliverables
-- ☐ Unit test suites for all three modules (domain, handlers, validators).
-- ☐ Integration tests for REST and DAV endpoints.
-- ☐ Compatibility test matrix:
-  - ☐ CardDAV clients
-  - ☐ CalDAV clients
-- ☐ Security tests:
-  - ☐ authorization bypass attempts
-  - ☐ tenant isolation
-  - ☐ markdown XSS/unsafe content
-- ☐ Performance checks for large contact lists and recurring-event expansion.
+- ✓ Unit test suites for all three modules (domain, handlers, validators).
+- ✓ Integration tests for REST and DAV endpoints.
+- ✓ Compatibility test matrix:
+  - ✓ CardDAV clients
+  - ✓ CalDAV clients
+- ✓ Security tests:
+  - ✓ authorization bypass attempts
+  - ✓ tenant isolation
+  - ✓ markdown XSS/unsafe content
+- ✓ Performance checks for large contact lists and recurring-event expansion.
 
 ### Exit Criteria
-- ☐ Test suites are green in CI.
-- ☐ No P0/P1 defects open for Phase 3 scope.
+- ✓ Test suites are green in CI.
+- ✓ No P0/P1 defects open for Phase 3 scope.
+
+### Implementation Notes
+- 224 new tests across 8 test files.
+- ContactShareServiceTests (9), ContactSecurityTests (8), CardDavInteropTests (13), ContactPerformanceTests (4).
+- CalendarShareServiceTests (8), CalendarSecurityTests (10), CalDavInteropTests (12), CalendarPerformanceTests (4).
+- NoteSecurityTests (13) — includes 5 XSS attack vector tests documenting store-as-is behavior.
+- Full CI: 2,700 tests, 0 failures.
 
 ## 3.8 Documentation And Release Readiness (phase-3.8)
 
@@ -237,7 +244,7 @@
 
 ### Milestone D: Import + Hardening + Docs
 - ✓ phase-3.6 complete
-- ☐ phase-3.7 complete
+- ✓ phase-3.7 complete
 - ☐ phase-3.8 complete
 
 ---

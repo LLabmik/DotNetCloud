@@ -3232,23 +3232,23 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase 3.7: Testing And Quality Gates
 
 #### Unit Tests
-- ☐ Contacts module test suite (domain, handlers, validators)
-- ☐ Calendar module test suite (domain, handlers, recurrence)
-- ☐ Notes module test suite (domain, handlers, sanitization)
+- ✓ Contacts module test suite (domain, handlers, validators)
+- ✓ Calendar module test suite (domain, handlers, recurrence)
+- ✓ Notes module test suite (domain, handlers, sanitization)
 
 #### Integration Tests
-- ☐ REST endpoint tests for all three modules
-- ☐ CardDAV interoperability tests
-- ☐ CalDAV interoperability tests
+- ✓ REST endpoint tests for all three modules
+- ✓ CardDAV interoperability tests
+- ✓ CalDAV interoperability tests
 
 #### Security Tests
-- ☐ Authorization bypass attempts
-- ☐ Tenant isolation verification
-- ☐ Markdown XSS / unsafe content tests
+- ✓ Authorization bypass attempts
+- ✓ Tenant isolation verification
+- ✓ Markdown XSS / unsafe content tests
 
 #### Performance
-- ☐ Large contact list benchmarks
-- ☐ Recurring event expansion benchmarks
+- ✓ Large contact list benchmarks
+- ✓ Recurring event expansion benchmarks
 
 ### Phase 3.8: Documentation And Release Readiness
 

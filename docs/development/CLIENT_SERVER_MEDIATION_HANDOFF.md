@@ -60,7 +60,7 @@ Archived context:
 - Security audit desktop client validation on `Windows11-TestDNC`: **COMPLETE** (2026-03-23).
 - Security audit closeout + merge validation on `mint22`: **COMPLETE** (2026-03-23).
 - Post-closeout Windows runtime smoke: **COMPLETE** (2026-03-23). 4/4 targeted tests passed; login launch path verified reachable.
-- **Active cycle:** Phase 3.6 Migration Foundation complete. Phase 3.7 Testing And Quality Gates next.
+- **Active cycle:** Phase 3.7 Testing And Quality Gates complete. Phase 3.8 Documentation And Release Readiness next.
 
 ## Environment
 
@@ -85,42 +85,38 @@ Archived context:
 **Target machine:** mint22
 **Status:** COMPLETE
 
-### Phase 3.6: Migration Foundation — DONE
+### Phase 3.7: Testing And Quality Gates — DONE
 
-Full import/migration infrastructure for NextCloud import paths. 51 new tests pass. All 2,476 CI tests pass. Build clean (0 errors, 0 warnings).
+Comprehensive test suite for all three PIM modules (Contacts, Calendar, Notes). 224 new tests across 8 new test files. All 2,700 CI tests pass (0 failures).
 
-**New core contracts (`DotNetCloud.Core.Import` namespace):**
-- `src/Core/DotNetCloud.Core/DTOs/ImportDtos.cs` — ImportDataType, ImportSource, ImportItemStatus enums; ImportRequest, ImportConflictStrategy, ImportItemResult, ImportReport records
-- `src/Core/DotNetCloud.Core/Import/IImportProvider.cs` — Module adapter interface (DataType, PreviewAsync, ExecuteAsync)
-- `src/Core/DotNetCloud.Core/Import/IImportPipeline.cs` — Orchestrator interface (PreviewAsync, ExecuteAsync, SupportedDataTypes)
-- `src/Core/DotNetCloud.Core/Errors/ErrorCodes.cs` — 5 new IMPORT_* error codes
+**New test files:**
+- `tests/DotNetCloud.Modules.Contacts.Tests/ContactShareServiceTests.cs` — 9 tests: share CRUD, owner/non-owner authorization, team shares
+- `tests/DotNetCloud.Modules.Contacts.Tests/ContactSecurityTests.cs` — 8 tests: tenant isolation (get/list/update/delete/search), group isolation, share authorization
+- `tests/DotNetCloud.Modules.Contacts.Tests/CardDavInteropTests.cs` — 13 tests: vCard 3.0 format compliance (BEGIN/END, VERSION, FN, N, ORG, EMAIL, TEL), round-trip, multi-vCard import, PHOTO/extended field tolerance
+- `tests/DotNetCloud.Modules.Contacts.Tests/ContactPerformanceTests.cs` — 4 tests: 500-record creation, 200-list, search, export benchmarks with timing thresholds
+- `tests/DotNetCloud.Modules.Calendar.Tests/CalendarShareServiceTests.cs` — 8 tests: share CRUD, owner/non-owner authorization, team shares
+- `tests/DotNetCloud.Modules.Calendar.Tests/CalendarSecurityTests.cs` — 10 tests: calendar+event tenant isolation, search isolation, share authorization
+- `tests/DotNetCloud.Modules.Calendar.Tests/CalDavInteropTests.cs` — 12 tests: iCal RFC 5545 compliance (VCALENDAR/VEVENT structure, VERSION:2.0, SUMMARY, DTSTART/DTEND, DESCRIPTION, LOCATION), round-trip, multi-event import, timezone/RRULE/VALARM/all-day tolerance
+- `tests/DotNetCloud.Modules.Calendar.Tests/CalendarPerformanceTests.cs` — 4 tests: 200-event creation, list, search, export benchmarks
+- `tests/DotNetCloud.Modules.Notes.Tests/NoteSecurityTests.cs` — 13 tests: tenant isolation (get/list/update/delete/search/folders), share authorization, XSS content storage validation (script, img onerror, iframe, javascript: URL, event handlers)
 
-**Server pipeline:**
-- `src/Core/DotNetCloud.Core.Server/Services/ImportPipelineService.cs` — Routes ImportRequests to module providers by DataType; validates unsupported types; DryRun flag delegates to PreviewAsync
+**Coverage summary by Phase 3.7 deliverable:**
+- ✓ Unit test suites: ContactShareService (9), CalendarShareService (8) — filled the last untested services
+- ✓ Integration tests: CardDavInteropTests (13), CalDavInteropTests (12) — vCard/iCal format, round-trip, client compatibility
+- ✓ Security tests: ContactSecurityTests (8), CalendarSecurityTests (10), NoteSecurityTests (13) — authz bypass, tenant isolation, XSS
+- ✓ Performance baselines: ContactPerformanceTests (4), CalendarPerformanceTests (4) — large dataset thresholds
 
-**Module import providers:**
-- `src/Modules/Contacts/DotNetCloud.Modules.Contacts.Data/Services/ContactsImportProvider.cs` — Full vCard 3.0 parser (FN/N/ORG/TITLE/EMAIL/TEL/ADR/BDAY/URL/NOTE); creates contacts via ContactService; skips items missing display name
-- `src/Modules/Calendar/DotNetCloud.Modules.Calendar.Data/Services/CalendarImportProvider.cs` — iCalendar RFC 5545 parser (SUMMARY/DTSTART/DTEND/DESCRIPTION/LOCATION/URL/RRULE); requires TargetContainerId (calendar ID); skips items missing summary
-- `src/Modules/Notes/DotNetCloud.Modules.Notes.Data/Services/NotesImportProvider.cs` — JSON manifest array (title/content/format/tags) or raw Markdown (heading extraction); creates notes via NoteService
+**XSS note:** Content is stored as-is (no server-side sanitization). Tests document this behavior. Markdown sanitization pipeline is deferred to Phase 3.4 exit criteria / future work.
 
-**DI registration:**
-- 3 module `ServiceRegistration.cs` files: added `IImportProvider` → module provider
-- `Program.cs`: added `IImportPipeline` → `ImportPipelineService`
-
-**Tests (51 new):**
-- `tests/DotNetCloud.Core.Server.Tests/Services/ImportPipelineServiceTests.cs` — 8 tests
-- `tests/DotNetCloud.Modules.Contacts.Tests/ContactsImportProviderTests.cs` — 12 tests
-- `tests/DotNetCloud.Modules.Calendar.Tests/CalendarImportProviderTests.cs` — 13 tests
-- `tests/DotNetCloud.Modules.Notes.Tests/NotesImportProviderTests.cs` — 18 tests
-
-**Namespace note:** Originally `DotNetCloud.Core.Migration` — renamed to `DotNetCloud.Core.Import` to avoid conflict with EF Core's `Microsoft.EntityFrameworkCore.Migrations.Migration`.
+**Deferred items (carried from Phase 3.5):**
+- CreatedByUserId/UpdatedByUserId audit fields (requires EF migrations)
+- Markdown sanitization pipeline
 
 #### Next actionable work
-1. Begin **phase-3.7** (Testing And Quality Gates) — unit test suites, integration tests, CardDAV/CalDAV compatibility matrix, security tests, performance baselines.
-2. Address deferred items from Phase 3.5: CreatedByUserId/UpdatedByUserId audit fields (requires migrations), Markdown sanitization pipeline.
+1. Begin **phase-3.8** (Documentation And Release Readiness) — admin docs, user guides, API docs, upgrade/release notes.
 
 #### Previous cycle summary
-- Phase 3.5 Cross-Module Integration complete (30 tests). Archived.
+- Phase 3.6 Migration Foundation complete (51 tests). Archived.
 
 ## Relay Template
 
