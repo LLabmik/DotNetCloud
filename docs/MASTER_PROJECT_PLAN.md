@@ -81,7 +81,7 @@
 | Client Security Remediation | 1 | 1 | 0 | 0 |
 | Phase 3.1 | 4 | 4 | 0 | 0 |
 | Phase 3.2 | 6 | 5 | 0 | 1 |
-| Phase 3.3 | 6 | 0 | 0 | 6 |
+| Phase 3.3 | 6 | 4 | 0 | 2 |
 | Phase 3.4 | 6 | 0 | 0 | 6 |
 | Phase 3.5 | 4 | 0 | 0 | 4 |
 | Phase 3.6 | 4 | 0 | 0 | 4 |
@@ -1319,14 +1319,19 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Section: Phase 3.3 - Calendar Module
-**STATUS:** pending
+**STATUS:** in-progress
 **DELIVERABLES:**
-- ☐ Module projects (Calendar, Calendar.Data, Calendar.Host)
-- ☐ Data model (calendars, events, attendees, recurrence, reminders)
-- ☐ REST API endpoints (CRUD, RSVP, sharing, search/filter)
-- ☐ CalDAV endpoints (calendar discovery, iCal get/put/delete, sync token)
+- ✓ Module projects (Calendar, Calendar.Data, Calendar.Host)
+- ✓ Data model (calendars, events, attendees, recurrence, reminders, shares)
+- ✓ REST API endpoints (CRUD, RSVP, sharing, search/filter)
+- ✓ CalDAV endpoints (calendar discovery, iCal get/put/delete, sync token)
 - ☐ Recurrence engine and occurrence expansion
 - ☐ Reminder/notification pipeline
+- ✓ gRPC service (11 RPCs) for core ↔ module communication
+- ✓ iCalendar RFC 5545 import/export service
+- ✓ 39 passing tests (module lifecycle, calendar CRUD, event CRUD, iCal import/export)
+
+**Notes:** Core calendar module structure complete following Contacts 3-tier pattern. REST+CalDAV+gRPC all implemented. Remaining items: recurrence expansion engine, reminder/notification pipeline. Ready for Phase 3.4 (Notes Module).
 
 ---
 

@@ -1,0 +1,244 @@
+syntax = "proto3";
+
+option csharp_namespace = "DotNetCloud.Modules.Calendar.Host.Protos";
+
+package dotnetcloud.calendar;
+
+// CalendarGrpcService: gRPC service for the Calendar module.
+// The core server calls these RPCs to interact with the Calendar module.
+service CalendarGrpcService {
+  // Creates a new calendar.
+  rpc CreateCalendar (CreateCalendarRequest) returns (CalendarResponse);
+
+  // Gets a calendar by ID.
+  rpc GetCalendar (GetCalendarRequest) returns (CalendarResponse);
+
+  // Lists calendars for a user.
+  rpc ListCalendars (ListCalendarsRequest) returns (ListCalendarsResponse);
+
+  // Creates a new calendar event.
+  rpc CreateEvent (CreateEventRequest) returns (EventResponse);
+
+  // Gets a calendar event by ID.
+  rpc GetEvent (GetEventRequest) returns (EventResponse);
+
+  // Lists events for a calendar.
+  rpc ListEvents (ListEventsRequest) returns (ListEventsResponse);
+
+  // Updates a calendar event.
+  rpc UpdateEvent (UpdateEventRequest) returns (EventResponse);
+
+  // Deletes a calendar event (soft-delete).
+  rpc DeleteEvent (DeleteEventRequest) returns (DeleteEventResponse);
+
+  // Records an RSVP response from an attendee.
+  rpc Rsvp (RsvpRequest) returns (EventResponse);
+
+  // Exports a calendar event as iCalendar text.
+  rpc ExportEventICal (ExportEventICalRequest) returns (ExportICalResponse);
+
+  // Imports events from iCalendar text.
+  rpc ImportICal (ImportICalRequest) returns (ImportICalResponse);
+}
+
+// --- CreateCalendar ---
+
+message CreateCalendarRequest {
+  string user_id = 1;
+  string name = 2;
+  string description = 3;
+  string color = 4;
+  string timezone = 5;
+}
+
+message CalendarResponse {
+  bool success = 1;
+  string error_message = 2;
+  CalendarMessage calendar = 3;
+}
+
+// --- GetCalendar ---
+
+message GetCalendarRequest {
+  string calendar_id = 1;
+  string user_id = 2;
+}
+
+// --- ListCalendars ---
+
+message ListCalendarsRequest {
+  string user_id = 1;
+}
+
+message ListCalendarsResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated CalendarMessage calendars = 3;
+}
+
+// --- CreateEvent ---
+
+message CreateEventRequest {
+  string user_id = 1;
+  string calendar_id = 2;
+  string title = 3;
+  string description = 4;
+  string location = 5;
+  string start_utc = 6;       // ISO 8601 timestamp
+  string end_utc = 7;         // ISO 8601 timestamp
+  bool is_all_day = 8;
+  string recurrence_rule = 9;
+  string color = 10;
+  string url = 11;
+  repeated AttendeeMessage attendees = 12;
+  repeated ReminderMessage reminders = 13;
+}
+
+message EventResponse {
+  bool success = 1;
+  string error_message = 2;
+  EventMessage event = 3;
+}
+
+// --- GetEvent ---
+
+message GetEventRequest {
+  string event_id = 1;
+  string user_id = 2;
+}
+
+// --- ListEvents ---
+
+message ListEventsRequest {
+  string calendar_id = 1;
+  string user_id = 2;
+  string from_utc = 3;        // ISO 8601 timestamp (optional)
+  string to_utc = 4;          // ISO 8601 timestamp (optional)
+  int32 skip = 5;
+  int32 take = 6;
+}
+
+message ListEventsResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated EventMessage events = 3;
+}
+
+// --- UpdateEvent ---
+
+message UpdateEventRequest {
+  string event_id = 1;
+  string user_id = 2;
+  string title = 3;
+  string description = 4;
+  string location = 5;
+  string start_utc = 6;
+  string end_utc = 7;
+  string is_all_day = 8;      // "true"/"false" or empty for no change
+  string status = 9;          // Tentative/Confirmed/Cancelled or empty
+  string recurrence_rule = 10;
+  string color = 11;
+  string url = 12;
+  repeated AttendeeMessage attendees = 13;
+  repeated ReminderMessage reminders = 14;
+}
+
+// --- DeleteEvent ---
+
+message DeleteEventRequest {
+  string event_id = 1;
+  string user_id = 2;
+}
+
+message DeleteEventResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+// --- Rsvp ---
+
+message RsvpRequest {
+  string event_id = 1;
+  string user_id = 2;
+  string status = 3;          // Accepted, Declined, Tentative
+  string comment = 4;
+}
+
+// --- ExportEventICal ---
+
+message ExportEventICalRequest {
+  string event_id = 1;
+  string user_id = 2;
+}
+
+message ExportICalResponse {
+  bool success = 1;
+  string error_message = 2;
+  string ical_text = 3;
+}
+
+// --- ImportICal ---
+
+message ImportICalRequest {
+  string user_id = 1;
+  string calendar_id = 2;
+  string ical_text = 3;
+}
+
+message ImportICalResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated string created_event_ids = 3;
+}
+
+// --- Shared Messages ---
+
+message CalendarMessage {
+  string id = 1;
+  string owner_id = 2;
+  string name = 3;
+  string description = 4;
+  string color = 5;
+  string timezone = 6;
+  bool is_default = 7;
+  bool is_visible = 8;
+  string sync_token = 9;
+  string created_at = 10;     // ISO 8601 timestamp
+  string updated_at = 11;
+}
+
+message EventMessage {
+  string id = 1;
+  string calendar_id = 2;
+  string created_by_user_id = 3;
+  string title = 4;
+  string description = 5;
+  string location = 6;
+  string start_utc = 7;
+  string end_utc = 8;
+  bool is_all_day = 9;
+  string status = 10;
+  string recurrence_rule = 11;
+  string recurring_event_id = 12;
+  string original_start_utc = 13;
+  string color = 14;
+  string url = 15;
+  string etag = 16;
+  string created_at = 17;
+  string updated_at = 18;
+  repeated AttendeeMessage attendees = 19;
+  repeated ReminderMessage reminders = 20;
+}
+
+message AttendeeMessage {
+  string user_id = 1;
+  string email = 2;
+  string display_name = 3;
+  string role = 4;           // Required, Optional, Informational
+  string status = 5;         // NeedsAction, Accepted, Declined, Tentative
+}
+
+message ReminderMessage {
+  string method = 1;         // Notification, Email
+  int32 minutes_before = 2;
+}

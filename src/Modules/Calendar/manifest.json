@@ -1,0 +1,21 @@
+{
+  "id": "dotnetcloud.calendar",
+  "name": "Calendar",
+  "version": "1.0.0",
+  "description": "Calendar management with CalDAV compatibility, event scheduling, RSVP, reminders, and iCalendar import/export.",
+  "author": "DotNetCloud",
+  "requiredCapabilities": [
+    "INotificationService",
+    "IUserDirectory",
+    "ICurrentUserContext"
+  ],
+  "publishedEvents": [
+    "CalendarEventCreatedEvent",
+    "CalendarEventUpdatedEvent",
+    "CalendarEventDeletedEvent",
+    "CalendarEventRsvpEvent",
+    "CalendarReminderTriggeredEvent"
+  ],
+  "subscribedEvents": [],
+  "minCoreVersion": "1.0.0"
+}

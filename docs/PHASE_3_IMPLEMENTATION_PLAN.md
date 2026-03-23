@@ -86,18 +86,21 @@
 - Deliver robust calendars/events with recurrence, invitations, reminders, and CalDAV compatibility.
 
 ### Deliverables
-- ☐ Module projects:
-  - ☐ DotNetCloud.Modules.Calendar
-  - ☐ DotNetCloud.Modules.Calendar.Data
-  - ☐ DotNetCloud.Modules.Calendar.Host
-- ☐ Data model for calendars, events, attendees, recurrence rules, reminders, exception instances.
-- ☐ REST API endpoints for CRUD, RSVP, calendar sharing, event search/filter.
-- ☐ CalDAV endpoints:
-  - ☐ Calendar discovery and collections
-  - ☐ iCalendar get/put/delete
-  - ☐ Sync token/change tracking
+- ✓ Module projects:
+  - ✓ DotNetCloud.Modules.Calendar
+  - ✓ DotNetCloud.Modules.Calendar.Data
+  - ✓ DotNetCloud.Modules.Calendar.Host
+- ✓ Data model for calendars, events, attendees, recurrence rules, reminders, exception instances.
+- ✓ REST API endpoints for CRUD, RSVP, calendar sharing, event search/filter.
+- ✓ CalDAV endpoints:
+  - ✓ Calendar discovery and collections
+  - ✓ iCalendar get/put/delete
+  - ✓ Sync token/change tracking
 - ☐ Recurrence engine and occurrence expansion service.
 - ☐ Reminder/notification pipeline (in-app + push if configured).
+- ✓ gRPC service (11 RPCs) for core ↔ module communication.
+- ✓ iCalendar RFC 5545 import/export service.
+- ✓ 39 passing tests.
 
 ### Exit Criteria
 - ☐ Recurring events behave correctly across timezones.

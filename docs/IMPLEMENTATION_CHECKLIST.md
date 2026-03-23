@@ -3156,28 +3156,34 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase 3.3: Calendar Module
 
 #### Module Projects
-- ☐ Create `DotNetCloud.Modules.Calendar` (core logic)
-- ☐ Create `DotNetCloud.Modules.Calendar.Data` (EF Core context)
-- ☐ Create `DotNetCloud.Modules.Calendar.Host` (gRPC host)
+- ✓ Create `DotNetCloud.Modules.Calendar` (core logic)
+- ✓ Create `DotNetCloud.Modules.Calendar.Data` (EF Core context)
+- ✓ Create `DotNetCloud.Modules.Calendar.Host` (gRPC host)
 
 #### Data Model
-- ☐ Calendar, CalendarEvent, Attendee, RecurrenceRule, Reminder, ExceptionInstance entities
-- ☐ EF configurations with multi-provider naming strategies
+- ✓ Calendar, CalendarEvent, Attendee, RecurrenceRule, Reminder, ExceptionInstance entities
+- ✓ EF configurations with multi-provider naming strategies
 - ☐ Initial migrations (PostgreSQL + SQL Server)
 
 #### REST API
-- ☐ CRUD endpoints for calendars and events
-- ☐ RSVP / invitation management
-- ☐ Calendar sharing and event search/filter
+- ✓ CRUD endpoints for calendars and events
+- ✓ RSVP / invitation management
+- ✓ Calendar sharing and event search/filter
 
 #### CalDAV
-- ☐ Calendar discovery and collections
-- ☐ iCalendar GET/PUT/DELETE
-- ☐ Sync token and change tracking
+- ✓ Calendar discovery and collections
+- ✓ iCalendar GET/PUT/DELETE
+- ✓ Sync token and change tracking
 
 #### Features
 - ☐ Recurrence engine and occurrence expansion service
 - ☐ Reminder/notification pipeline (in-app + push)
+
+#### Additional Deliverables
+- ✓ gRPC service (11 RPCs) for core ↔ module communication
+- ✓ iCalendar RFC 5545 import/export service
+- ✓ Module manifest (manifest.json)
+- ✓ 39 passing tests (module, service, event, iCal)
 
 ### Phase 3.4: Notes Module
 

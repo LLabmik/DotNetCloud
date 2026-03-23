@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DotNetCloud.Modules.Calendar</RootNamespace>
+    <AssemblyName>DotNetCloud.Modules.Calendar</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="DotNetCloud.Modules.Calendar.Data" />
+    <InternalsVisibleTo Include="DotNetCloud.Modules.Calendar.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Core\DotNetCloud.Core\DotNetCloud.Core.csproj" />
+  </ItemGroup>
+
+</Project>

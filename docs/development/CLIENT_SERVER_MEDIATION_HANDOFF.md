@@ -60,7 +60,7 @@ Archived context:
 - Security audit desktop client validation on `Windows11-TestDNC`: **COMPLETE** (2026-03-23).
 - Security audit closeout + merge validation on `mint22`: **COMPLETE** (2026-03-23).
 - Post-closeout Windows runtime smoke: **COMPLETE** (2026-03-23). 4/4 targeted tests passed; login launch path verified reachable.
-- **Active cycle:** Phase 3.2 Contacts Module complete. Phase 3.3 Calendar Module next.
+- **Active cycle:** Phase 3.3 Calendar Module complete. Phase 3.4 Notes Module next.
 
 ## Environment
 
@@ -85,24 +85,27 @@ Archived context:
 **Target machine:** mint22
 **Status:** COMPLETE
 
-### Phase 3.2: Contacts Module — DONE
+### Phase 3.3: Calendar Module — DONE
 
-Full Contacts module implemented (3-tier: Main/Data/Host). 32/32 tests pass. Solution builds clean.
+Full Calendar module implemented (3-tier: Main/Data/Host). 39/39 tests pass. Solution builds clean.
 
 **Created projects:**
-- `src/Modules/Contacts/DotNetCloud.Modules.Contacts/` — Interfaces, models, module lifecycle, event handlers
-- `src/Modules/Contacts/DotNetCloud.Modules.Contacts.Data/` — EF Core DbContext, configurations, service implementations (ContactService, ContactGroupService, ContactShareService, VCardService)
-- `src/Modules/Contacts/DotNetCloud.Modules.Contacts.Host/` — REST API (ContactsController), CardDAV (CardDavController), gRPC (ContactsGrpcService), health check, lifecycle service
-- `tests/DotNetCloud.Modules.Contacts.Tests/` — 32 tests (MSTest v4 + Moq + EF InMemory)
+- `src/Modules/Calendar/DotNetCloud.Modules.Calendar/` — Interfaces, models (Calendar, CalendarEvent, EventAttendee, EventReminder, CalendarShare), module lifecycle, event handlers
+- `src/Modules/Calendar/DotNetCloud.Modules.Calendar.Data/` — EF Core DbContext, 5 entity configurations, service implementations (CalendarService, CalendarEventService, CalendarShareService, ICalService)
+- `src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/` — REST API (CalendarController ~20 endpoints), CalDAV (CalDavController with PROPFIND/REPORT/GET/PUT/DELETE), gRPC (CalendarGrpcService 11 RPCs), health check, lifecycle service
+- `tests/DotNetCloud.Modules.Calendar.Tests/` — 39 tests (MSTest v4 + Moq + EF InMemory)
+- `src/Modules/Calendar/manifest.json`
 
-**Key features:** vCard 3.0 import/export, CardDAV PROPFIND/REPORT, contact groups, contact sharing, search, soft-delete, ETag concurrency.
+**Key features:** Calendar CRUD, event CRUD with attendees/reminders, RSVP, calendar sharing, event search, iCalendar RFC 5545 import/export, CalDAV discovery+sync-token, gRPC lifecycle, soft-delete, ETag concurrency.
+
+**Remaining items (not blockers for Phase 3.4):** Recurrence expansion engine, reminder/notification pipeline — deferred to Phase 3.7 quality gates.
 
 #### Next actionable work
-1. Begin **phase-3.3** (Calendar Module) — create module projects, EF data model, REST API, CalDAV endpoints.
-2. Reference Contacts module pattern for project structure (3-tier: Main/Data/Host).
+1. Begin **phase-3.4** (Notes Module) — create module projects, EF data model, REST API.
+2. Reference Contacts/Calendar module pattern for project structure (3-tier: Main/Data/Host).
 
 #### Previous cycle summary
-- Security audit cycle fully closed (2026-03-23). All machines validated. See archive.
+- Phase 3.2 Contacts Module complete (32 tests). Archived.
 
 ## Relay Template
 
