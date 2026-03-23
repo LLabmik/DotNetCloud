@@ -77,6 +77,12 @@ public sealed class Contact
     /// <summary>When the contact was last modified (UTC).</summary>
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>User ID who created this contact record (for audit).</summary>
+    public Guid? CreatedByUserId { get; set; }
+
+    /// <summary>User ID who last updated this contact record (for audit).</summary>
+    public Guid? UpdatedByUserId { get; set; }
+
     /// <summary>Email addresses for this contact.</summary>
     public ICollection<ContactEmail> Emails { get; set; } = [];
 

@@ -34,7 +34,7 @@ public class ContactSecurityTests
         _eventBusMock = new Mock<IEventBus>();
         _contactService = new ContactService(_db, _eventBusMock.Object, NullLogger<ContactService>.Instance);
         _groupService = new ContactGroupService(_db, NullLogger<ContactGroupService>.Instance);
-        _shareService = new ContactShareService(_db, NullLogger<ContactShareService>.Instance);
+        _shareService = new ContactShareService(_db, _eventBusMock.Object, NullLogger<ContactShareService>.Instance);
         _userA = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
         _userB = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
     }

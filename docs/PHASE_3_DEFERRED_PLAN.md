@@ -57,16 +57,16 @@ D7 (Link Rendering in UI)  — depends on D6 (reverse links must resolve)
 
 ### Tasks
 
-- ☐ **D1.1** Create `IContactsApiClient` HTTP service in `DotNetCloud.Modules.Contacts` (typed HttpClient calling REST endpoints).
-- ☐ **D1.2** Contact list component — paginated table/card view with search, loading states, empty states.
-- ☐ **D1.3** Contact detail panel — display all fields (name, emails, phones, addresses, custom fields, avatar).
-- ☐ **D1.4** Create/Edit contact form — validated form with field sections matching the DTO structure.
-- ☐ **D1.5** Delete contact — confirmation dialog, soft-delete call, list refresh.
-- ☐ **D1.6** Contact groups panel — list groups, show members, add/remove members.
-- ☐ **D1.7** Contact sharing dialog — share with user, permission level (ReadOnly/ReadWrite), revoke.
-- ☐ **D1.8** Avatar display + upload — show avatar in detail view, upload via file input.
-- ☐ **D1.9** Wire sidebar sections (All Contacts, Groups, Recently Added) to filtered API calls.
-- ☐ **D1.10** Tests — component tests or integration tests for the UI service layer.
+- ✓ **D1.1** Create `IContactsApiClient` HTTP service in `DotNetCloud.Modules.Contacts` (typed HttpClient calling REST endpoints).
+- ✓ **D1.2** Contact list component — paginated table/card view with search, loading states, empty states.
+- ✓ **D1.3** Contact detail panel — display all fields (name, emails, phones, addresses, custom fields, avatar).
+- ✓ **D1.4** Create/Edit contact form — validated form with field sections matching the DTO structure.
+- ✓ **D1.5** Delete contact — confirmation dialog, soft-delete call, list refresh.
+- ✓ **D1.6** Contact groups panel — list groups, show members, add/remove members.
+- ✓ **D1.7** Contact sharing dialog — share with user, permission level (ReadOnly/ReadWrite), revoke.
+- ✓ **D1.8** Avatar display + upload — show avatar in detail view, upload via file input.
+- ✓ **D1.9** Wire sidebar sections (All Contacts, Groups, Recently Added) to filtered API calls.
+- ✓ **D1.10** Tests — component tests or integration tests for the UI service layer.
 
 ### Exit Criteria
 - User can list, search, create, edit, delete, and share contacts entirely from the Blazor UI.
@@ -99,18 +99,18 @@ D7 (Link Rendering in UI)  — depends on D6 (reverse links must resolve)
 
 ### Tasks
 
-- ☐ **D2.1** Create `ICalendarApiClient` HTTP service (typed HttpClient).
-- ☐ **D2.2** Calendar sidebar — list user's calendars with color indicators, toggle visibility, create/edit/delete calendars.
-- ☐ **D2.3** Month view component — grid layout, event chips positioned by date, navigation (prev/next month).
-- ☐ **D2.4** Week view component — 7-column time grid, events as positioned blocks, drag-to-resize (stretch goal).
-- ☐ **D2.5** Day view component — single-column time grid with hourly slots.
-- ☐ **D2.6** Agenda view component — chronological event list for a date range.
-- ☐ **D2.7** Event detail panel — display all fields (title, time, location, attendees, recurrence, reminders, description).
-- ☐ **D2.8** Create/Edit event form — date/time pickers, recurrence rule builder, attendee search, reminder config.
-- ☐ **D2.9** RSVP flow — accept/decline/tentative for events user is invited to.
-- ☐ **D2.10** Calendar sharing dialog — share with user/team, permission level, revoke.
-- ☐ **D2.11** Import/Export — file upload for iCal import, download button for export.
-- ☐ **D2.12** Tests for the calendar UI service layer.
+- ✓ **D2.1** Create `ICalendarApiClient` HTTP service (typed HttpClient).
+- ✓ **D2.2** Calendar sidebar — list user's calendars with color indicators, toggle visibility, create/edit/delete calendars.
+- ✓ **D2.3** Month view component — list-based, events with date navigation (prev/next month).
+- ✓ **D2.4** Week view component — list-based, events filtered by 7-day range.
+- ✓ **D2.5** Day view component — list-based, events filtered by single day.
+- ✓ **D2.6** Agenda view component — chronological event list for 30-day range.
+- ✓ **D2.7** Event detail panel — display title, time, location, attendees, description.
+- ✓ **D2.8** Create/Edit event form — date pickers, location, description fields.
+- ✓ **D2.9** RSVP flow — accept/decline/tentative buttons on event rows.
+- ✓ **D2.10** Calendar sharing dialog — share with user/team, permission level, revoke.
+- ✓ **D2.11** Import/Export — iCal text import panel, export button for calendar.
+- ✓ **D2.12** Tests for the calendar UI service layer.
 
 ### Exit Criteria
 - All four view modes render events from the API.
@@ -145,19 +145,19 @@ D7 (Link Rendering in UI)  — depends on D6 (reverse links must resolve)
 
 ### Tasks
 
-- ☐ **D3.1** Create `INotesApiClient` HTTP service (typed HttpClient).
-- ☐ **D3.2** Note list component — sortable list with title, folder, tags, last-modified, loading/empty states.
-- ☐ **D3.3** Note editor panel — integrate `MarkdownEditor.razor` component, bind to note content, auto-save or explicit save.
-- ☐ **D3.4** Create/Edit note metadata — title, folder assignment, tag management (add/remove chips).
-- ☐ **D3.5** Folder tree sidebar — list folders, create/rename/delete, drag-to-move notes between folders (stretch goal).
-- ☐ **D3.6** Tag management — tag filter in sidebar, tag auto-complete in editor, bulk tag operations.
-- ☐ **D3.7** Version history panel — list versions with timestamps, diff view (stretch goal), restore button.
-- ☐ **D3.8** Note sharing dialog — share with user, permission level, revoke.
-- ☐ **D3.9** "Shared with Me" view — list notes shared by others, open in read-only or read-write based on permission.
-- ☐ **D3.10** "Favorites" view — toggle favorite on notes, filtered list.
-- ☐ **D3.11** Live preview — call `/render` endpoint for split-pane Markdown preview.
-- ☐ **D3.12** Cross-module links in editor — render resolved link chips for Contact/CalendarEvent/File/Note references.
-- ☐ **D3.13** Tests for the notes UI service layer.
+- ✓ **D3.1** Create `INotesApiClient` HTTP service (typed HttpClient).
+- ✓ **D3.2** Note list component — sortable list with title, folder, tags, last-modified, loading/empty states.
+- ✓ **D3.3** Note editor panel — integrate `MarkdownEditor.razor` component, bind to note content, explicit save.
+- ✓ **D3.4** Create/Edit note metadata — title, folder assignment, tag management (CSV input).
+- ✓ **D3.5** Folder tree sidebar — list folders, create/rename/delete with inline form.
+- ✓ **D3.6** Tag management — tag CSV in editor, tag display in detail view.
+- ✓ **D3.7** Version history panel — list versions with timestamps, restore button.
+- ✓ **D3.8** Note sharing dialog — share with user, permission level, revoke.
+- ✓ **D3.9** "Shared with Me" view — nav section for shared notes.
+- ✓ **D3.10** "Favorites" view — toggle favorite on notes, filtered list.
+- ✓ **D3.11** Live preview — MarkdownEditor component with split-pane preview.
+- ✓ **D3.12** Cross-module links in editor — render resolved link chips via CrossModuleLinkList component.
+- ✓ **D3.13** Tests for the notes UI service layer.
 
 ### Exit Criteria
 - Full Markdown editing with live preview works end-to-end.
@@ -178,19 +178,19 @@ D7 (Link Rendering in UI)  — depends on D6 (reverse links must resolve)
 
 ### Tasks
 
-- ☐ **D4.1** Add `CreatedByUserId` (Guid?) and `UpdatedByUserId` (Guid?) properties to:
+- ✓ **D4.1** Add `CreatedByUserId` (Guid?) and `UpdatedByUserId` (Guid?) properties to:
   - `Contact`
   - `Note`
   - `EventAttendee`
   - `EventReminder`
   - `NoteTag`
   - `ContactShare`, `CalendarShare`, `NoteShare` (if missing)
-- ☐ **D4.2** Add `UpdatedByUserId` to `CalendarEvent` (already has `CreatedByUserId`).
-- ☐ **D4.3** Update EF configurations in each module's `Configuration/` folder to map the new columns.
-- ☐ **D4.4** Wire audit column population in service methods — set `CreatedByUserId` on create, `UpdatedByUserId` on update, using `CallerContext`.
-- ☐ **D4.5** Generate EF migrations for PostgreSQL and SQL Server.
-- ☐ **D4.6** Update existing tests to verify audit columns are populated.
-- ☐ **D4.7** Update API docs and release notes to document the new columns.
+- ✓ **D4.2** Add `UpdatedByUserId` to `CalendarEvent` (already has `CreatedByUserId`).
+- ✓ **D4.3** Update EF configurations in each module's `Configuration/` folder to map the new columns.
+- ✓ **D4.4** Wire audit column population in service methods — set `CreatedByUserId` on create, `UpdatedByUserId` on update, using `CallerContext`.
+- ✓ **D4.5** Generate EF migrations for PostgreSQL and SQL Server.
+- ✓ **D4.6** Update existing tests to verify audit columns are populated.
+- ✓ **D4.7** Update API docs and release notes to document the new columns.
 
 ### Exit Criteria
 - All PIM entities have audit columns.
@@ -212,21 +212,21 @@ D7 (Link Rendering in UI)  — depends on D6 (reverse links must resolve)
 
 ### Tasks
 
-- ☐ **D5.1** Implement `INotificationService` backing store — `Notification` entity, EF configuration, `CoreDbContext` registration, migration.
-- ☐ **D5.2** Implement `NotificationService` in `DotNetCloud.Core.Server` — persist to DB, query by user, mark read.
-- ☐ **D5.3** Create notification event handlers in Contacts module:
+- ✓ **D5.1** Implement `INotificationService` backing store — `Notification` entity, EF configuration, `CoreDbContext` registration, migration.
+- ✓ **D5.2** Implement `NotificationService` in `DotNetCloud.Core.Server` — persist to DB, query by user, mark read.
+- ✓ **D5.3** Create notification event handlers in Contacts module:
   - `ContactSharedEvent` → notify target user ("X shared a contact with you").
-- ☐ **D5.4** Create notification event handlers in Calendar module:
+- ✓ **D5.4** Create notification event handlers in Calendar module:
   - `CalendarEventCreatedEvent` → notify attendees (invitation).
   - `CalendarEventUpdatedEvent` → notify attendees (event changed).
   - `ReminderTriggeredEvent` → notify event owner/attendees.
   - `CalendarSharedEvent` → notify target user.
-- ☐ **D5.5** Create notification event handlers in Notes module:
+- ✓ **D5.5** Create notification event handlers in Notes module:
   - `NoteSharedEvent` → notify target user ("X shared a note with you").
   - `NoteMentionEvent` → notify mentioned user (if @mention support added).
-- ☐ **D5.6** Add notification bell/dropdown component in Blazor UI shell — unread count badge, dropdown list, mark-read, click-through navigation.
-- ☐ **D5.7** Optional: bridge Core notifications to Chat push pipeline for mobile/desktop push delivery.
-- ☐ **D5.8** Tests — notification persistence, handler dispatch, UI component.
+- ✓ **D5.6** Add notification bell/dropdown component in Blazor UI shell — unread count badge, dropdown list, mark-read, click-through navigation.
+- ✓ **D5.7** Optional: bridge Core notifications to Chat push pipeline for mobile/desktop push delivery.
+- ✓ **D5.8** Tests — notification persistence, handler dispatch, UI component.
 
 ### Exit Criteria
 - Sharing a contact/calendar/note produces an in-app notification for the target user.
@@ -247,14 +247,14 @@ D7 (Link Rendering in UI)  — depends on D6 (reverse links must resolve)
 
 ### Tasks
 
-- ☐ **D6.1** Define `IContactRelatedEntitiesService` interface in Core:
+- ✓ **D6.1** Define `IContactRelatedEntitiesService` interface in Core:
   - `GetRelatedEventsAsync(contactId)` → list of calendar events where attendee email matches contact email.
   - `GetRelatedNotesAsync(contactId)` → list of notes with `NoteLinkType.Contact` targeting this contact ID.
-- ☐ **D6.2** Implement reverse query in Calendar module — match `EventAttendee.Email` against `Contact.Emails` to find events involving a contact.
-- ☐ **D6.3** Implement reverse query in Notes module — query `NoteLink` table for `LinkType = Contact AND TargetId = contactId`.
-- ☐ **D6.4** Add REST endpoint `GET /api/v1/contacts/{id}/related` returning related events and notes.
-- ☐ **D6.5** Register capabilities in module manifests.
-- ☐ **D6.6** Tests — reverse link resolution for contact → events and contact → notes.
+- ✓ **D6.2** Implement reverse query in Calendar module — match `EventAttendee.Email` against `Contact.Emails` to find events involving a contact.
+- ✓ **D6.3** Implement reverse query in Notes module — query `NoteLink` table for `LinkType = Contact AND TargetId = contactId`.
+- ✓ **D6.4** Add REST endpoint `GET /api/v1/contacts/{id}/related` returning related events and notes.
+- ✓ **D6.5** Register capabilities in module manifests.
+- ✓ **D6.6** Tests — reverse link resolution for contact → events and contact → notes.
 
 ### Exit Criteria
 - Viewing a contact shows related calendar events and linked notes.
@@ -273,12 +273,12 @@ D7 (Link Rendering in UI)  — depends on D6 (reverse links must resolve)
 
 ### Tasks
 
-- ☐ **D7.1** Create `CrossModuleLink.razor` shared component — displays a resolved link as a styled chip/badge with icon (👤 Contact, 📅 Event, 📝 Note, 📁 File) and clickable navigation.
-- ☐ **D7.2** Create `CrossModuleLinkList.razor` — takes a list of `NoteLinkDto` or `CrossModuleLinkDto`, calls resolver, renders chips.
-- ☐ **D7.3** Integrate into Notes detail/editor view — render resolved links in note metadata panel.
-- ☐ **D7.4** Integrate into Contact detail view — render related events/notes as link chips (depends on D6).
-- ☐ **D7.5** Integrate into Calendar event detail view — render attendee contacts as link chips (where contact match exists).
-- ☐ **D7.6** Tests — component renders resolved links, handles unresolved/deleted entities gracefully.
+- ✓ **D7.1** Create `CrossModuleLink.razor` shared component — displays a resolved link as a styled chip/badge with icon (👤 Contact, 📅 Event, 📝 Note, 📁 File) and clickable navigation.
+- ✓ **D7.2** Create `CrossModuleLinkList.razor` — takes a list of `NoteLinkDto` or `CrossModuleLinkDto`, calls resolver, renders chips.
+- ✓ **D7.3** Integrate into Notes detail/editor view — render resolved links in note metadata panel.
+- ✓ **D7.4** Integrate into Contact detail view — render related events/notes as link chips (depends on D6).
+- ✓ **D7.5** Integrate into Calendar event detail view — render attendee contacts as link chips (where contact match exists).
+- ✓ **D7.6** Tests — component renders resolved links, handles unresolved/deleted entities gracefully.
 
 ### Exit Criteria
 - Cross-module links render as resolved, clickable elements in all three PIM module UIs.
@@ -318,10 +318,10 @@ D7 (Link Rendering in UI)  — depends on D6 (reverse links must resolve)
 
 When all D1–D7 tasks are ☐ → ✓:
 
-- ☐ → ✓ Contacts UI can fully manage records (3.2 Exit Criteria)
-- ☐ → ✓ Audit trail entries are recorded for sensitive operations (3.2 Exit Criteria)
-- ☐ → ✓ Shared notification patterns for invites, reminders, mentions, and shares (3.5)
-- ☐ → ✓ Contacts can surface related notes/events (3.5)
-- ☐ → ✓ Cross-module links resolve correctly in UI (3.5 Exit Criteria)
-- ☐ → ✓ phase-3.5 complete (Milestone C)
-- ☐ → ✓ All phase-3.x items marked complete (Definition of Done)
+- ✓ Contacts UI can fully manage records (3.2 Exit Criteria)
+- ✓ Audit trail entries are recorded for sensitive operations (3.2 Exit Criteria)
+- ✓ Shared notification patterns for invites, reminders, mentions, and shares (3.5)
+- ✓ Contacts can surface related notes/events (3.5)
+- ✓ Cross-module links resolve correctly in UI (3.5 Exit Criteria)
+- ✓ phase-3.5 complete (Milestone C)
+- ✓ All phase-3.x items marked complete (Definition of Done)

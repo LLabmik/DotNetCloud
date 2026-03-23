@@ -1,0 +1,43 @@
+@using DotNetCloud.Core.Capabilities
+@using DotNetCloud.Core.DTOs
+@inject ICrossModuleLinkResolver LinkResolver
+
+@if (_resolvedLinks.Count == 0)
+{
+    <span class="cross-link-empty">No links</span>
+}
+else
+{
+    <div class="cross-link-list">
+        @foreach (var link in _resolvedLinks)
+        {
+            if (link.IsResolved && !string.IsNullOrWhiteSpace(link.Href))
+            {
+                <a href="@link.Href" class="cross-link-chip">@link.DisplayLabel</a>
+            }
+            else
+            {
+                <span class="cross-link-chip unresolved">@link.DisplayLabel</span>
+            }
+        }
+    </div>
+}
+
+@code {
+    [Parameter]
+    public IReadOnlyList<CrossModuleLinkRequest> Requests { get; set; } = [];
+
+    private readonly List<CrossModuleLinkDto> _resolvedLinks = [];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _resolvedLinks.Clear();
+
+        if (Requests.Count == 0)
+        {
+            return;
+        }
+
+        _resolvedLinks.AddRange(await LinkResolver.ResolveBatchAsync(Requests));
+    }
+}

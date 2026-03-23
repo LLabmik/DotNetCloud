@@ -21,4 +21,10 @@ public sealed class EventReminder
 
     /// <summary>Minutes before the event start to trigger the reminder.</summary>
     public int MinutesBefore { get; set; }
+
+    /// <summary>User ID who created this reminder (for audit).</summary>
+    public Guid? CreatedByUserId { get; set; }
+
+    /// <summary>User ID who last updated this reminder (for audit).</summary>
+    public Guid? UpdatedByUserId { get; set; }
 }

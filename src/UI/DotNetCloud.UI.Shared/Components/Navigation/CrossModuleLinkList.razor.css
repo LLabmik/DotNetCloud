@@ -1,0 +1,10 @@
+.cross-link-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.cross-link-empty {
+    opacity: 0.7;
+    font-size: 0.85rem;
+}

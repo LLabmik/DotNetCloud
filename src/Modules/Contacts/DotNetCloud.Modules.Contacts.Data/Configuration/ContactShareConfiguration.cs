@@ -23,6 +23,8 @@ public sealed class ContactShareConfiguration : IEntityTypeConfiguration<Contact
             .IsRequired()
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+        builder.Property(s => s.UpdatedByUserId);
+
         builder.HasOne(s => s.Contact)
             .WithMany(c => c.Shares)
             .HasForeignKey(s => s.ContactId)

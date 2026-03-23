@@ -1,5 +1,6 @@
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Modules.Contacts.Models;
 using DotNetCloud.Modules.Contacts.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -15,6 +16,7 @@ public class ContactsController : ContactsControllerBase
     private readonly IContactService _contactService;
     private readonly IContactGroupService _groupService;
     private readonly IContactShareService _shareService;
+    private readonly IContactRelatedEntitiesService _relatedEntitiesService;
     private readonly IVCardService _vcardService;
     private readonly IContactAvatarService _avatarService;
     private readonly ILogger<ContactsController> _logger;
@@ -26,6 +28,7 @@ public class ContactsController : ContactsControllerBase
         IContactService contactService,
         IContactGroupService groupService,
         IContactShareService shareService,
+        IContactRelatedEntitiesService relatedEntitiesService,
         IVCardService vcardService,
         IContactAvatarService avatarService,
         ILogger<ContactsController> logger)
@@ -33,6 +36,7 @@ public class ContactsController : ContactsControllerBase
         _contactService = contactService;
         _groupService = groupService;
         _shareService = shareService;
+        _relatedEntitiesService = relatedEntitiesService;
         _vcardService = vcardService;
         _avatarService = avatarService;
         _logger = logger;
@@ -61,6 +65,15 @@ public class ContactsController : ContactsControllerBase
         return contact is null
             ? NotFound(ErrorEnvelope(ErrorCodes.ContactNotFound, "Contact not found."))
             : Ok(Envelope(contact));
+    }
+
+    /// <summary>Gets related events and notes for a contact.</summary>
+    [HttpGet("{contactId:guid}/related")]
+    public async Task<IActionResult> GetRelatedAsync(Guid contactId)
+    {
+        var caller = GetAuthenticatedCaller();
+        var related = await _relatedEntitiesService.GetRelatedAsync(contactId, caller.UserId);
+        return Ok(Envelope(related));
     }
 
     /// <summary>Creates a new contact.</summary>

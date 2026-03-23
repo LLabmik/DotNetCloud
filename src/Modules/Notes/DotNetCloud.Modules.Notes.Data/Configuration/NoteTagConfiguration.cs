@@ -25,5 +25,7 @@ public sealed class NoteTagConfiguration : IEntityTypeConfiguration<NoteTag>
 
         builder.HasIndex(t => t.Tag)
             .HasDatabaseName("ix_note_tags_tag");
+
+        builder.Property(t => t.CreatedByUserId);
     }
 }

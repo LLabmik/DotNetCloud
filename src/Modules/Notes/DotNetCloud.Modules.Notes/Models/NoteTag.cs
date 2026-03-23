@@ -16,4 +16,7 @@ public sealed class NoteTag
 
     /// <summary>Navigation: the note.</summary>
     public Note? Note { get; set; }
+
+    /// <summary>User ID who added this tag (for audit).</summary>
+    public Guid? CreatedByUserId { get; set; }
 }

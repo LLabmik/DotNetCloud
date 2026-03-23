@@ -43,6 +43,12 @@ public sealed class Note
     /// <summary>Timestamp when the note was last modified (UTC).</summary>
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>User ID who created this note (for audit).</summary>
+    public Guid? CreatedByUserId { get; set; }
+
+    /// <summary>User ID who last updated this note (for audit).</summary>
+    public Guid? UpdatedByUserId { get; set; }
+
     /// <summary>Version number, incremented on each edit.</summary>
     public int Version { get; set; } = 1;
 

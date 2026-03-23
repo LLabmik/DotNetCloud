@@ -1,0 +1,20 @@
+.cross-link-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 999px;
+    border: 1px solid var(--border-color, #d1d5db);
+    background: var(--surface-2, #f8fafc);
+    text-decoration: none;
+    color: inherit;
+    font-size: 0.82rem;
+}
+
+.cross-link-chip.unresolved {
+    opacity: 0.7;
+}
+
+.cross-link-icon {
+    font-size: 0.82rem;
+}

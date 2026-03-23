@@ -22,6 +22,9 @@ public sealed class NoteShareConfiguration : IEntityTypeConfiguration<NoteShare>
             .IsRequired()
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+        builder.Property(s => s.CreatedByUserId);
+        builder.Property(s => s.UpdatedByUserId);
+
         // Unique constraint: one share per note/user pair
         builder.HasIndex(s => new { s.NoteId, s.SharedWithUserId })
             .IsUnique()

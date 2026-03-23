@@ -50,6 +50,9 @@ public sealed class ContactConfiguration : IEntityTypeConfiguration<Contact>
             .IsRequired()
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+        builder.Property(c => c.CreatedByUserId);
+        builder.Property(c => c.UpdatedByUserId);
+
         // Soft-delete query filter
         builder.HasQueryFilter(c => !c.IsDeleted);
 

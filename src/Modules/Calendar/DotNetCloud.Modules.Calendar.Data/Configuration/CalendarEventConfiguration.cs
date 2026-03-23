@@ -44,6 +44,8 @@ public sealed class CalendarEventConfiguration : IEntityTypeConfiguration<Calend
             .IsRequired()
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+        builder.Property(e => e.UpdatedByUserId);
+
         // Soft-delete query filter
         builder.HasQueryFilter(e => !e.IsDeleted);
 

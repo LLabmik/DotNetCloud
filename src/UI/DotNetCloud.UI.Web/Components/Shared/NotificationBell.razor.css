@@ -1,0 +1,99 @@
+.notification-bell-container {
+    position: relative;
+}
+
+.notification-bell-btn {
+    border: 1px solid var(--border-color, #d1d5db);
+    background: var(--surface-2, #ffffff);
+    color: inherit;
+    border-radius: 999px;
+    width: 2.25rem;
+    height: 2.25rem;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.notification-badge {
+    position: absolute;
+    top: -0.35rem;
+    right: -0.35rem;
+    background: #ef4444;
+    color: #ffffff;
+    border-radius: 999px;
+    min-width: 1.2rem;
+    height: 1.2rem;
+    font-size: 0.7rem;
+    line-height: 1.2rem;
+    text-align: center;
+    padding: 0 0.2rem;
+}
+
+.notification-dropdown {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    width: 22rem;
+    max-height: 26rem;
+    overflow-y: auto;
+    border: 1px solid var(--border-color, #d1d5db);
+    border-radius: 0.75rem;
+    background: var(--surface-2, #ffffff);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+    z-index: 40;
+}
+
+.notification-dropdown-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0.9rem;
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+    font-weight: 600;
+}
+
+.notification-mark-all {
+    border: none;
+    background: transparent;
+    color: #2563eb;
+    font-size: 0.8rem;
+}
+
+.notification-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.notification-item {
+    padding: 0.75rem 0.9rem;
+    border-bottom: 1px solid var(--border-color, #f1f5f9);
+    cursor: pointer;
+}
+
+.notification-item:hover {
+    background: rgba(37, 99, 235, 0.08);
+}
+
+.notification-title {
+    font-weight: 600;
+    margin-bottom: 0.2rem;
+}
+
+.notification-message {
+    font-size: 0.86rem;
+    opacity: 0.86;
+    margin-bottom: 0.3rem;
+}
+
+.notification-time {
+    font-size: 0.72rem;
+    opacity: 0.72;
+}
+
+.notification-empty {
+    padding: 1rem;
+    font-size: 0.9rem;
+    opacity: 0.8;
+}

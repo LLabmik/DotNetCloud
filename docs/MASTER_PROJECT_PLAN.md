@@ -80,7 +80,7 @@
 | Sync Hardening P1–P2 | 6 | 6 | 0 | 0 |
 | Client Security Remediation | 1 | 1 | 0 | 0 |
 | Phase 3.1 | 4 | 4 | 0 | 0 |
-| Phase 3.2 | 6 | 5 | 0 | 1 |
+| Phase 3.2 | 6 | 6 | 0 | 0 |
 | Phase 3.3 | 6 | 6 | 0 | 0 |
 | Phase 3.4 | 6 | 6 | 0 | 0 |
 | Phase 3.5 | 4 | 4 | 0 | 0 |
@@ -1365,7 +1365,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Module Razor SDK upgrades (Contacts, Calendar, Notes)
 - ✓ Module manifest updates with cross-module capabilities and event subscriptions
 
-**Notes:** Cross-module integration complete. All PIM modules now declare IAuditLogger + ICrossModuleLinkResolver capabilities, publish ResourceSharedEvent, and subscribe to each other's domain events. Notification handlers wire into existing IPushNotificationService. ExampleModule NoteCreatedEvent naming conflict resolved with using aliases. Entity-level audit fields (CreatedByUserId/UpdatedByUserId) not yet present in Contacts/Notes — deferred to Phase 3.7 quality gates. Ready for Phase 3.6 (Migration Foundation).
+**Notes:** Cross-module integration complete. All PIM modules now declare IAuditLogger + ICrossModuleLinkResolver capabilities, publish ResourceSharedEvent, and subscribe to each other's domain events. Notification handlers wire into existing IPushNotificationService. ExampleModule NoteCreatedEvent naming conflict resolved with using aliases. Deferred items were completed in follow-up implementation: audit columns were added across PIM entities, notification persistence + bell UI were wired, contact reverse related-entity queries were exposed via API, and link chips now render in Contacts/Calendar/Notes views. All D1-D7 deferred items are now complete: API client methods added for sharing/RSVP/import-export/folder-CRUD/version-history/search across all three modules; ContactsPage has avatar display and sharing dialog; CalendarPage has RSVP buttons, sharing dialog, and iCal import/export; NotesPage has folder CRUD (create/rename/delete), version history panel with restore, and sharing dialog.
 
 ---
 
@@ -1390,7 +1390,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Security tests (authz bypass, tenant isolation, XSS) — ContactSecurityTests, CalendarSecurityTests, NoteSecurityTests (XSS content storage validation)
 - ✓ Performance baselines (500-contact creation, 200-event creation, large list/search/export benchmarks)
 
-**Notes:** Phase 3.7 complete. 224 new tests added across 8 new test files. Total PIM module tests: 245 (77 Contacts + 87 Calendar + 81 Notes). Total CI tests: 2,700 — all passing, 0 failures. XSS tests document that content is stored as-is; sanitization is a presentation-layer concern (deferred to Phase 3.4 Markdown sanitization pipeline). Deferred items from Phase 3.5 (CreatedByUserId/UpdatedByUserId audit fields, Markdown sanitization) remain open. Ready for Phase 3.8 (Documentation And Release Readiness).
+**Notes:** Phase 3.7 complete. 224 new tests added across 8 new test files. Total PIM module tests: 245 (77 Contacts + 87 Calendar + 81 Notes). Total CI tests: 2,700 — all passing, 0 failures. XSS tests document that content is stored as-is; sanitization is a presentation-layer concern and is handled by the markdown rendering pipeline. Previously deferred Phase 3.5 follow-ups are now implemented (audit columns, PIM notification persistence/UI, and cross-module related-link rendering).
 
 ---
 

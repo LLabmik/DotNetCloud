@@ -1,53 +1,404 @@
 @namespace DotNetCloud.Modules.Contacts.UI
 
-@*
-    Contacts page layout — main UI entry point for the Contacts module.
-    Provides contact list, search, and detail views.
-    Full implementation in a future phase; this is the navigation-registered shell.
-*@
+@using DotNetCloud.Core.DTOs
+@using DotNetCloud.Modules.Contacts.Services
+@inject IContactsApiClient ApiClient
 
 <div class="contacts-page-layout">
     <div class="contacts-sidebar">
         <div class="contacts-sidebar-header">
             <h3>Contacts</h3>
-            <button class="btn btn-sm btn-primary" @onclick="HandleCreateContact" title="New Contact">
-                <span>＋</span>
+            <button class="btn btn-sm btn-primary" @onclick="BeginCreateContact" title="New Contact">
+                <span>+</span>
             </button>
         </div>
         <div class="contacts-search">
             <input type="text" class="form-control form-control-sm"
-                   placeholder="Search contacts…"
+                   placeholder="Search contacts..."
                    @bind="_searchQuery"
                    @bind:event="oninput" />
+            <button class="btn btn-sm btn-outline-secondary" @onclick="ReloadAsync">Search</button>
         </div>
         <nav class="contacts-nav">
-            <a class="contacts-nav-item @(_activeSection == "all" ? "active" : "")"
-               @onclick='() => _activeSection = "all"'>
-                All Contacts
-            </a>
-            <a class="contacts-nav-item @(_activeSection == "groups" ? "active" : "")"
-               @onclick='() => _activeSection = "groups"'>
-                Groups
-            </a>
-            <a class="contacts-nav-item @(_activeSection == "recent" ? "active" : "")"
-               @onclick='() => _activeSection = "recent"'>
-                Recently Added
-            </a>
+            <a class="contacts-nav-item @(_activeSection == "all" ? "active" : "")" @onclick='() => ChangeSection("all")'>All Contacts</a>
+            <a class="contacts-nav-item @(_activeSection == "groups" ? "active" : "")" @onclick='() => ChangeSection("groups")'>Groups</a>
+            <a class="contacts-nav-item @(_activeSection == "recent" ? "active" : "")" @onclick='() => ChangeSection("recent")'>Recently Added</a>
         </nav>
+
+        @if (_activeSection == "groups")
+        {
+            <div class="contacts-group-list">
+                @foreach (var group in _groups)
+                {
+                    <div class="contacts-group-item">@group.Name (@group.MemberCount)</div>
+                }
+            </div>
+        }
+
+        <div class="contacts-list">
+            @if (_isLoading)
+            {
+                <p>Loading contacts...</p>
+            }
+            else if (_contacts.Count == 0)
+            {
+                <p>No contacts found.</p>
+            }
+            else
+            {
+                @foreach (var contact in VisibleContacts)
+                {
+                    <button class="contacts-list-item @(_selectedContact?.Id == contact.Id ? "selected" : "")"
+                            @onclick="() => SelectContactAsync(contact.Id)">
+                        <strong>@contact.DisplayName</strong>
+                        <span>@contact.Organization</span>
+                    </button>
+                }
+            }
+        </div>
     </div>
     <div class="contacts-main">
-        <div class="contacts-placeholder">
-            <p>Select a contact or create a new one to get started.</p>
-        </div>
+        @if (_editingContact is not null)
+        {
+            <EditForm Model="_editingContact" OnValidSubmit="SaveContactAsync">
+                <div class="contacts-form-grid">
+                    <InputText class="form-control" @bind-Value="_editingContact.DisplayName" placeholder="Display Name" />
+                    <InputText class="form-control" @bind-Value="_editingContact.FirstName" placeholder="First Name" />
+                    <InputText class="form-control" @bind-Value="_editingContact.LastName" placeholder="Last Name" />
+                    <InputText class="form-control" @bind-Value="_editingContact.Organization" placeholder="Organization" />
+                    <InputText class="form-control" @bind-Value="_editingContact.JobTitle" placeholder="Job Title" />
+                    <InputText class="form-control" @bind-Value="_editingContact.PrimaryEmail" placeholder="Primary Email" />
+                    <InputText class="form-control" @bind-Value="_editingContact.PrimaryPhone" placeholder="Primary Phone" />
+                </div>
+                <div class="contacts-form-actions">
+                    <button class="btn btn-primary" type="submit">Save</button>
+                    <button class="btn btn-secondary" type="button" @onclick="CancelEdit">Cancel</button>
+                    @if (_editingContact.Id.HasValue)
+                    {
+                        <button class="btn btn-danger" type="button" @onclick="DeleteSelectedAsync">Delete</button>
+                    }
+                </div>
+            </EditForm>
+        }
+        else if (_selectedContact is not null)
+        {
+            <div class="contacts-detail">
+                @{
+                    var avatarUrl = ApiClient.GetAvatarUrlAsync(_selectedContact.Id).Result;
+                }
+                @if (avatarUrl is not null)
+                {
+                    <img class="contacts-avatar" src="@avatarUrl" alt="Avatar" onerror="this.style.display='none'" />
+                }
+                <h2>@_selectedContact.DisplayName</h2>
+                <p><strong>Organization:</strong> @_selectedContact.Organization</p>
+                <p><strong>Title:</strong> @_selectedContact.JobTitle</p>
+                <p><strong>Email:</strong> @_selectedContact.Emails.FirstOrDefault()?.Address</p>
+                <p><strong>Phone:</strong> @_selectedContact.PhoneNumbers.FirstOrDefault()?.Number</p>
+
+                <div class="contacts-related">
+                    <h4>Related Events</h4>
+                    @if (_related.Events.Count == 0)
+                    {
+                        <p>No related events.</p>
+                    }
+                    else
+                    {
+                        <CrossModuleLinkList Requests="BuildEventRequests(_related.Events)" />
+                    }
+
+                    <h4>Related Notes</h4>
+                    @if (_related.Notes.Count == 0)
+                    {
+                        <p>No related notes.</p>
+                    }
+                    else
+                    {
+                        <CrossModuleLinkList Requests="BuildNoteRequests(_related.Notes)" />
+                    }
+                </div>
+
+                <div class="contacts-detail-actions" style="display:flex; gap:0.5rem; margin-bottom:0.75rem;">
+                    <button class="btn btn-primary" @onclick="BeginEditSelected">Edit Contact</button>
+                    <button class="btn btn-outline-secondary" @onclick="ToggleSharePanel">
+                        @(_showSharePanel ? "Hide Shares" : "Share")
+                    </button>
+                </div>
+
+                @if (_showSharePanel)
+                {
+                    <div class="contacts-share-panel">
+                        <h4>Shares</h4>
+                        @if (_shares.Count == 0)
+                        {
+                            <p>Not shared with anyone.</p>
+                        }
+                        else
+                        {
+                            @foreach (var share in _shares)
+                            {
+                                <div class="share-item">
+                                    <span>User: @(share.SharedWithUserId?.ToString("N")[..8] ?? share.SharedWithTeamId?.ToString("N")[..8] ?? "—")… — @share.Permission</span>
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => RevokeShareAsync(share.Id)">Revoke</button>
+                                </div>
+                            }
+                        }
+                        <div class="share-form" style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+                            <input type="text" class="form-control form-control-sm" placeholder="User ID" @bind="_shareUserId" />
+                            <select class="form-select form-select-sm" @bind="_sharePermission" style="max-width:140px;">
+                                <option value="ReadOnly">Read Only</option>
+                                <option value="ReadWrite">Read/Write</option>
+                            </select>
+                            <button class="btn btn-sm btn-primary" @onclick="AddShareAsync">Share</button>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="contacts-placeholder">
+                <p>Select a contact or create a new one to get started.</p>
+            </div>
+        }
     </div>
 </div>
 
 @code {
+    private readonly List<ContactDto> _contacts = [];
+    private readonly List<ContactGroupDto> _groups = [];
+    private readonly List<ContactShareResponse> _shares = [];
+    private ContactRelatedEntitiesDto _related = new();
+    private ContactDto? _selectedContact;
+    private ContactEditorModel? _editingContact;
     private string _searchQuery = string.Empty;
     private string _activeSection = "all";
+    private bool _isLoading;
+    private bool _showSharePanel;
+    private string _shareUserId = string.Empty;
+    private string _sharePermission = "ReadOnly";
 
-    private void HandleCreateContact()
+    private IEnumerable<ContactDto> VisibleContacts => _activeSection switch
     {
-        // Placeholder — full implementation in future phase
+        "recent" => _contacts.OrderByDescending(c => c.CreatedAt).Take(20),
+        _ => _contacts
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _contacts.Clear();
+            _contacts.AddRange(await ApiClient.ListContactsAsync(_searchQuery, 0, 100));
+
+            _groups.Clear();
+            _groups.AddRange(await ApiClient.ListGroupsAsync());
+
+            if (_selectedContact is not null)
+            {
+                _selectedContact = _contacts.FirstOrDefault(c => c.Id == _selectedContact.Id);
+            }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task SelectContactAsync(Guid contactId)
+    {
+        _selectedContact = await ApiClient.GetContactAsync(contactId);
+        _related = _selectedContact is null
+            ? new ContactRelatedEntitiesDto()
+            : await ApiClient.GetRelatedAsync(_selectedContact.Id);
+        _editingContact = null;
+    }
+
+    private void BeginCreateContact()
+    {
+        _selectedContact = null;
+        _editingContact = new ContactEditorModel();
+    }
+
+    private void BeginEditSelected()
+    {
+        if (_selectedContact is null)
+        {
+            return;
+        }
+
+        _editingContact = ContactEditorModel.From(_selectedContact);
+    }
+
+    private async Task SaveContactAsync()
+    {
+        if (_editingContact is null)
+        {
+            return;
+        }
+
+        if (_editingContact.Id is null)
+        {
+            _selectedContact = await ApiClient.CreateContactAsync(_editingContact.ToCreateDto());
+        }
+        else
+        {
+            _selectedContact = await ApiClient.UpdateContactAsync(_editingContact.Id.Value, _editingContact.ToUpdateDto());
+        }
+
+        _editingContact = null;
+        await ReloadAsync();
+    }
+
+    private async Task DeleteSelectedAsync()
+    {
+        if (_editingContact?.Id is not Guid id)
+        {
+            return;
+        }
+
+        await ApiClient.DeleteContactAsync(id);
+        _editingContact = null;
+        _selectedContact = null;
+        _related = new ContactRelatedEntitiesDto();
+        await ReloadAsync();
+    }
+
+    private void CancelEdit()
+    {
+        _editingContact = null;
+    }
+
+    private async Task ChangeSection(string section)
+    {
+        _activeSection = section;
+        await ReloadAsync();
+    }
+
+    private async Task ToggleSharePanel()
+    {
+        _showSharePanel = !_showSharePanel;
+        if (_showSharePanel && _selectedContact is not null)
+        {
+            _shares.Clear();
+            _shares.AddRange(await ApiClient.ListSharesAsync(_selectedContact.Id));
+        }
+    }
+
+    private async Task AddShareAsync()
+    {
+        if (_selectedContact is null || !Guid.TryParse(_shareUserId, out var userId))
+        {
+            return;
+        }
+
+        await ApiClient.ShareContactAsync(_selectedContact.Id, userId, null, _sharePermission);
+        _shareUserId = string.Empty;
+        _shares.Clear();
+        _shares.AddRange(await ApiClient.ListSharesAsync(_selectedContact.Id));
+    }
+
+    private async Task RevokeShareAsync(Guid shareId)
+    {
+        await ApiClient.RevokeShareAsync(shareId);
+        if (_selectedContact is not null)
+        {
+            _shares.Clear();
+            _shares.AddRange(await ApiClient.ListSharesAsync(_selectedContact.Id));
+        }
+    }
+
+    private sealed class ContactEditorModel
+    {
+        public Guid? Id { get; set; }
+        public ContactType ContactType { get; set; } = ContactType.Person;
+        public string DisplayName { get; set; } = string.Empty;
+        public string? FirstName { get; set; }
+        public string? LastName { get; set; }
+        public string? Organization { get; set; }
+        public string? JobTitle { get; set; }
+        public string? PrimaryEmail { get; set; }
+        public string? PrimaryPhone { get; set; }
+
+        public static ContactEditorModel From(ContactDto dto)
+        {
+            return new ContactEditorModel
+            {
+                Id = dto.Id,
+                ContactType = dto.ContactType,
+                DisplayName = dto.DisplayName,
+                FirstName = dto.FirstName,
+                LastName = dto.LastName,
+                Organization = dto.Organization,
+                JobTitle = dto.JobTitle,
+                PrimaryEmail = dto.Emails.FirstOrDefault()?.Address,
+                PrimaryPhone = dto.PhoneNumbers.FirstOrDefault()?.Number
+            };
+        }
+
+        public CreateContactDto ToCreateDto()
+        {
+            return new CreateContactDto
+            {
+                ContactType = ContactType,
+                DisplayName = DisplayName,
+                FirstName = FirstName,
+                LastName = LastName,
+                Organization = Organization,
+                JobTitle = JobTitle,
+                Emails = string.IsNullOrWhiteSpace(PrimaryEmail)
+                    ? []
+                    : [new ContactEmailDto { Address = PrimaryEmail!, Label = "work", IsPrimary = true }],
+                PhoneNumbers = string.IsNullOrWhiteSpace(PrimaryPhone)
+                    ? []
+                    : [new ContactPhoneDto { Number = PrimaryPhone!, Label = "mobile", IsPrimary = true }]
+            };
+        }
+
+        public UpdateContactDto ToUpdateDto()
+        {
+            return new UpdateContactDto
+            {
+                DisplayName = DisplayName,
+                FirstName = FirstName,
+                LastName = LastName,
+                Organization = Organization,
+                JobTitle = JobTitle,
+                Emails = string.IsNullOrWhiteSpace(PrimaryEmail)
+                    ? []
+                    : [new ContactEmailDto { Address = PrimaryEmail!, Label = "work", IsPrimary = true }],
+                PhoneNumbers = string.IsNullOrWhiteSpace(PrimaryPhone)
+                    ? []
+                    : [new ContactPhoneDto { Number = PrimaryPhone!, Label = "mobile", IsPrimary = true }]
+            };
+        }
+    }
+
+    private static IReadOnlyList<CrossModuleLinkRequest> BuildEventRequests(IReadOnlyList<CalendarEventSummaryDto> events)
+    {
+        return events
+            .Select(e => new CrossModuleLinkRequest
+            {
+                LinkType = CrossModuleLinkType.CalendarEvent,
+                TargetId = e.Id
+            })
+            .ToList();
+    }
+
+    private static IReadOnlyList<CrossModuleLinkRequest> BuildNoteRequests(IReadOnlyList<NoteSummaryDto> notes)
+    {
+        return notes
+            .Select(n => new CrossModuleLinkRequest
+            {
+                LinkType = CrossModuleLinkType.Note,
+                TargetId = n.Id
+            })
+            .ToList();
     }
 }

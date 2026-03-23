@@ -36,4 +36,10 @@ public sealed class EventAttendee
 
     /// <summary>When the attendee last responded (UTC).</summary>
     public DateTime? RespondedAt { get; set; }
+
+    /// <summary>User ID who created this attendee record (for audit).</summary>
+    public Guid? CreatedByUserId { get; set; }
+
+    /// <summary>User ID who last updated this attendee record (for audit).</summary>
+    public Guid? UpdatedByUserId { get; set; }
 }

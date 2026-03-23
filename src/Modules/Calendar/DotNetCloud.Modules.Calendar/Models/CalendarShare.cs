@@ -37,4 +37,10 @@ public sealed class CalendarShare
 
     /// <summary>When the share was created (UTC).</summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>User ID who created this share (for audit).</summary>
+    public Guid? CreatedByUserId { get; set; }
+
+    /// <summary>User ID who last updated this share (for audit).</summary>
+    public Guid? UpdatedByUserId { get; set; }
 }

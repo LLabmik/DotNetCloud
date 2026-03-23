@@ -28,6 +28,8 @@
   <ItemGroup>
     <ProjectReference Include="..\DotNetCloud.Modules.Contacts\DotNetCloud.Modules.Contacts.csproj" />
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Data\DotNetCloud.Core.Data.csproj" />
+    <ProjectReference Include="..\..\Calendar\DotNetCloud.Modules.Calendar.Data\DotNetCloud.Modules.Calendar.Data.csproj" />
+    <ProjectReference Include="..\..\Notes\DotNetCloud.Modules.Notes.Data\DotNetCloud.Modules.Notes.Data.csproj" />
   </ItemGroup>
 
   <ItemGroup>

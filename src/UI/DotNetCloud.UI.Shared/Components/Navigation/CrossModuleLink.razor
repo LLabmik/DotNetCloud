@@ -1,0 +1,33 @@
+@using DotNetCloud.Core.DTOs
+
+@if (Link.IsResolved && !string.IsNullOrWhiteSpace(Link.Href))
+{
+    <a href="@Link.Href" class="cross-link-chip" title="@Link.DisplayLabel">
+        <span class="cross-link-icon">@GetIcon(Link.LinkType)</span>
+        <span>@Link.DisplayLabel</span>
+    </a>
+}
+else
+{
+    <span class="cross-link-chip unresolved" title="@Link.DisplayLabel">
+        <span class="cross-link-icon">@GetIcon(Link.LinkType)</span>
+        <span>@Link.DisplayLabel</span>
+    </span>
+}
+
+@code {
+    [Parameter]
+    public required CrossModuleLinkDto Link { get; set; }
+
+    private static string GetIcon(CrossModuleLinkType linkType)
+    {
+        return linkType switch
+        {
+            CrossModuleLinkType.Contact => "👤",
+            CrossModuleLinkType.CalendarEvent => "📅",
+            CrossModuleLinkType.Note => "📝",
+            CrossModuleLinkType.File => "📁",
+            _ => "🔗"
+        };
+    }
+}

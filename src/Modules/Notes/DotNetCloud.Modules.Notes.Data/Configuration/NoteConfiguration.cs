@@ -37,6 +37,9 @@ public sealed class NoteConfiguration : IEntityTypeConfiguration<Note>
             .IsRequired()
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+        builder.Property(n => n.CreatedByUserId);
+        builder.Property(n => n.UpdatedByUserId);
+
         // Soft-delete query filter
         builder.HasQueryFilter(n => !n.IsDeleted);
 

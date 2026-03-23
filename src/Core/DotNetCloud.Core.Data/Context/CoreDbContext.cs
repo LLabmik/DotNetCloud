@@ -4,12 +4,14 @@ using DotNetCloud.Core.Data.Entities.Modules;
 using DotNetCloud.Core.Data.Entities.Organizations;
 using DotNetCloud.Core.Data.Entities.Permissions;
 using DotNetCloud.Core.Data.Entities.Settings;
+using DotNetCloud.Core.Data.Entities.Notifications;
 using DotNetCloud.Core.Data.Configuration.Identity;
 using DotNetCloud.Core.Data.Configuration.Modules;
 using DotNetCloud.Core.Data.Configuration.Organizations;
 using DotNetCloud.Core.Data.Configuration.Permissions;
 using DotNetCloud.Core.Data.Configuration.Settings;
 using DotNetCloud.Core.Data.Configuration.Auth;
+using DotNetCloud.Core.Data.Configuration.Notifications;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Data.Interceptors;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -177,6 +179,16 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     /// </remarks>
     public DbSet<UserDevice> UserDevices => Set<UserDevice>();
 
+    // Notifications DbSets
+    /// <summary>
+    /// Gets or sets the Notifications DbSet.
+    /// </summary>
+    /// <remarks>
+    /// Represents persisted in-app notifications for users including shares,
+    /// invitations, reminders, and mentions.
+    /// </remarks>
+    public DbSet<Notification> Notifications => Set<Notification>();
+
     // Module Registry DbSets
     /// <summary>
     /// Gets or sets the InstalledModules DbSet.
@@ -264,6 +276,7 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
         ConfigurePermissionModels(modelBuilder);
         ConfigureSettingModels(modelBuilder);
         ConfigureDeviceModels(modelBuilder);
+        ConfigureNotificationModels(modelBuilder);
         ConfigureModuleModels(modelBuilder);
         ConfigureAuthenticationModels(modelBuilder);
 
@@ -332,6 +345,14 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     {
         // Apply configurations for all device entities
         modelBuilder.ApplyConfiguration(new UserDeviceConfiguration());
+    }
+
+    /// <summary>
+    /// Configures notification entities.
+    /// </summary>
+    private void ConfigureNotificationModels(ModelBuilder modelBuilder)
+    {
+        modelBuilder.ApplyConfiguration(new NotificationConfiguration());
     }
 
     /// <summary>

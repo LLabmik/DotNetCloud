@@ -370,6 +370,72 @@ public sealed class DotNetCloudApiClient
     }
 
     // -----------------------------------------------------------------------
+    // Notifications
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Gets unread notifications for the current user.
+    /// </summary>
+    public async Task<IReadOnlyList<NotificationDto>> GetUnreadNotificationsAsync(int maxResults = 25, CancellationToken ct = default)
+    {
+        var json = await _http.GetStringAsync($"api/v1/notifications/unread?maxResults={Math.Clamp(maxResults, 1, 200)}", ct);
+
+        using var document = JsonDocument.Parse(json);
+        if (!TryGetPropertyIgnoreCase(document.RootElement, "data", out var dataElement))
+        {
+            return [];
+        }
+
+        if (dataElement.ValueKind == JsonValueKind.Object && TryGetPropertyIgnoreCase(dataElement, "data", out var nestedData))
+        {
+            dataElement = nestedData;
+        }
+
+        return JsonSerializer.Deserialize<IReadOnlyList<NotificationDto>>(dataElement.GetRawText(), JsonOptions) ?? [];
+    }
+
+    /// <summary>
+    /// Gets unread notification count for the current user.
+    /// </summary>
+    public async Task<int> GetUnreadNotificationCountAsync(CancellationToken ct = default)
+    {
+        var json = await _http.GetStringAsync("api/v1/notifications/unread-count", ct);
+
+        using var document = JsonDocument.Parse(json);
+        if (!TryGetPropertyIgnoreCase(document.RootElement, "data", out var dataElement))
+        {
+            return 0;
+        }
+
+        if (dataElement.ValueKind == JsonValueKind.Object && TryGetPropertyIgnoreCase(dataElement, "data", out var nestedData))
+        {
+            dataElement = nestedData;
+        }
+
+        return dataElement.ValueKind == JsonValueKind.Number && dataElement.TryGetInt32(out var count)
+            ? count
+            : 0;
+    }
+
+    /// <summary>
+    /// Marks a notification as read.
+    /// </summary>
+    public async Task MarkNotificationReadAsync(Guid notificationId, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsync($"api/v1/notifications/{notificationId}/mark-read", null, ct);
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>
+    /// Marks all notifications as read.
+    /// </summary>
+    public async Task MarkAllNotificationsReadAsync(CancellationToken ct = default)
+    {
+        var response = await _http.PostAsync("api/v1/notifications/mark-all-read", null, ct);
+        response.EnsureSuccessStatusCode();
+    }
+
+    // -----------------------------------------------------------------------
     // Response envelope
     // -----------------------------------------------------------------------
 

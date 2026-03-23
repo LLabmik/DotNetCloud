@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Contacts.Models;
 using DotNetCloud.Modules.Contacts.Services;
 using Microsoft.EntityFrameworkCore;
@@ -12,14 +13,19 @@ namespace DotNetCloud.Modules.Contacts.Data.Services;
 public sealed class ContactShareService : IContactShareService
 {
     private readonly ContactsDbContext _db;
+    private readonly IEventBus _eventBus;
     private readonly ILogger<ContactShareService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ContactShareService"/> class.
     /// </summary>
-    public ContactShareService(ContactsDbContext db, ILogger<ContactShareService> logger)
+    public ContactShareService(
+        ContactsDbContext db,
+        IEventBus eventBus,
+        ILogger<ContactShareService> logger)
     {
         _db = db;
+        _eventBus = eventBus;
         _logger = logger;
     }
 
@@ -45,11 +51,28 @@ public sealed class ContactShareService : IContactShareService
             SharedByUserId = caller.UserId,
             SharedWithUserId = userId,
             SharedWithTeamId = teamId,
-            Permission = permission
+            Permission = permission,
+            UpdatedByUserId = caller.UserId
         };
 
         _db.ContactShares.Add(share);
         await _db.SaveChangesAsync(cancellationToken);
+
+        if (userId.HasValue)
+        {
+            await _eventBus.PublishAsync(new ResourceSharedEvent
+            {
+                EventId = Guid.NewGuid(),
+                CreatedAt = DateTime.UtcNow,
+                SharedByUserId = caller.UserId,
+                SharedWithUserId = userId.Value,
+                SourceModuleId = "dotnetcloud.contacts",
+                EntityType = "Contact",
+                EntityId = contactId,
+                EntityDisplayName = "Contact",
+                Permission = permission.ToString()
+            }, caller, cancellationToken);
+        }
 
         _logger.LogInformation("Contact {ContactId} shared by user {UserId}", contactId, caller.UserId);
 

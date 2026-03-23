@@ -1,51 +1,486 @@
 @namespace DotNetCloud.Modules.Calendar.UI
 
-@*
-    Calendar page layout — main UI entry point for the Calendar module.
-    Provides calendar views (month, week, day), event management, and sidebar navigation.
-    Full implementation in a future phase; this is the navigation-registered shell.
-*@
+@using DotNetCloud.Core.DTOs
+@using DotNetCloud.Modules.Calendar.Services
+@inject ICalendarApiClient ApiClient
 
 <div class="calendar-page-layout">
     <div class="calendar-sidebar">
         <div class="calendar-sidebar-header">
             <h3>Calendar</h3>
-            <button class="btn btn-sm btn-primary" @onclick="HandleCreateEvent" title="New Event">
-                <span>＋</span>
+            <button class="btn btn-sm btn-primary" @onclick="BeginCreateEvent" title="New Event">
+                <span>+</span>
             </button>
         </div>
         <nav class="calendar-nav">
-            <a class="calendar-nav-item @(_activeView == "month" ? "active" : "")"
-               @onclick='() => _activeView = "month"'>
-                Month
-            </a>
-            <a class="calendar-nav-item @(_activeView == "week" ? "active" : "")"
-               @onclick='() => _activeView = "week"'>
-                Week
-            </a>
-            <a class="calendar-nav-item @(_activeView == "day" ? "active" : "")"
-               @onclick='() => _activeView = "day"'>
-                Day
-            </a>
-            <a class="calendar-nav-item @(_activeView == "agenda" ? "active" : "")"
-               @onclick='() => _activeView = "agenda"'>
-                Agenda
-            </a>
+            <a class="calendar-nav-item @(_activeView == "month" ? "active" : "")" @onclick='() => SetView("month")'>Month</a>
+            <a class="calendar-nav-item @(_activeView == "week" ? "active" : "")" @onclick='() => SetView("week")'>Week</a>
+            <a class="calendar-nav-item @(_activeView == "day" ? "active" : "")" @onclick='() => SetView("day")'>Day</a>
+            <a class="calendar-nav-item @(_activeView == "agenda" ? "active" : "")" @onclick='() => SetView("agenda")'>Agenda</a>
         </nav>
+
         <div class="calendar-list-heading">My Calendars</div>
+        <div class="calendar-list">
+            @foreach (var calendar in _calendars)
+            {
+                <button class="calendar-item @(_selectedCalendar?.Id == calendar.Id ? "selected" : "")"
+                        @onclick="() => SelectCalendarAsync(calendar.Id)">
+                    <span class="calendar-dot" style="background:@(calendar.Color ?? "#3b82f6")"></span>
+                    <span>@calendar.Name</span>
+                </button>
+            }
+        </div>
+
+        <div class="calendar-actions">
+            <button class="btn btn-sm btn-outline-primary" @onclick="BeginCreateCalendar">New Calendar</button>
+            @if (_selectedCalendar is not null)
+            {
+                <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleSharePanel">
+                    @(_showSharePanel ? "Hide Shares" : "Share")
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="ExportCalendarAsync">Export iCal</button>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="() => _showImportPanel = !_showImportPanel">Import</button>
+            }
+        </div>
+
+        @if (_showSharePanel && _selectedCalendar is not null)
+        {
+            <div class="calendar-share-panel">
+                <h4>Shares</h4>
+                @if (_shares.Count == 0)
+                {
+                    <p>Not shared.</p>
+                }
+                else
+                {
+                    @foreach (var share in _shares)
+                    {
+                        <div class="share-item">
+                            <span>@(share.SharedWithUserId?.ToString("N")[..8] ?? share.SharedWithTeamId?.ToString("N")[..8] ?? "—")… — @share.Permission</span>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => RevokeShareAsync(share.Id)">Revoke</button>
+                        </div>
+                    }
+                }
+                <div class="share-form" style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+                    <input type="text" class="form-control form-control-sm" placeholder="User ID" @bind="_shareUserId" />
+                    <select class="form-select form-select-sm" @bind="_sharePermission" style="max-width:140px;">
+                        <option value="ReadOnly">Read Only</option>
+                        <option value="ReadWrite">Read/Write</option>
+                    </select>
+                    <button class="btn btn-sm btn-primary" @onclick="AddShareAsync">Share</button>
+                </div>
+            </div>
+        }
+
+        @if (_showImportPanel && _selectedCalendar is not null)
+        {
+            <div class="calendar-import-panel" style="margin-top:0.5rem;">
+                <textarea class="form-control form-control-sm" rows="4" placeholder="Paste iCalendar (.ics) data here…" @bind="_importText"></textarea>
+                <button class="btn btn-sm btn-primary" style="margin-top:0.25rem;" @onclick="ImportCalendarAsync">Import</button>
+            </div>
+        }
     </div>
     <div class="calendar-main">
-        <div class="calendar-placeholder">
-            <p>Calendar view — select a view mode to get started.</p>
+        <div class="calendar-toolbar">
+            <button class="btn btn-sm btn-outline-secondary" @onclick="PrevRange">Prev</button>
+            <strong>@RangeLabel</strong>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="NextRange">Next</button>
         </div>
+
+        @if (_calendarEditor is not null)
+        {
+            <EditForm Model="_calendarEditor" OnValidSubmit="SaveCalendarAsync">
+                <div class="calendar-form-grid">
+                    <InputText class="form-control" @bind-Value="_calendarEditor.Name" placeholder="Calendar Name" />
+                    <InputText class="form-control" @bind-Value="_calendarEditor.Color" placeholder="Color (e.g. #3b82f6)" />
+                    <InputText class="form-control" @bind-Value="_calendarEditor.Description" placeholder="Description" />
+                </div>
+                <div class="calendar-form-actions">
+                    <button type="submit" class="btn btn-primary">Save Calendar</button>
+                    <button type="button" class="btn btn-secondary" @onclick="CancelCalendarEdit">Cancel</button>
+                </div>
+            </EditForm>
+        }
+        else if (_eventEditor is not null)
+        {
+            <EditForm Model="_eventEditor" OnValidSubmit="SaveEventAsync">
+                <div class="calendar-form-grid">
+                    <InputText class="form-control" @bind-Value="_eventEditor.Title" placeholder="Title" />
+                    <InputDate class="form-control" @bind-Value="_eventEditor.StartLocal" />
+                    <InputDate class="form-control" @bind-Value="_eventEditor.EndLocal" />
+                    <InputText class="form-control" @bind-Value="_eventEditor.Location" placeholder="Location" />
+                    <InputText class="form-control" @bind-Value="_eventEditor.Description" placeholder="Description" />
+                </div>
+                <div class="calendar-form-actions">
+                    <button type="submit" class="btn btn-primary">Save Event</button>
+                    <button type="button" class="btn btn-secondary" @onclick="CancelEventEdit">Cancel</button>
+                    @if (_eventEditor.Id.HasValue)
+                    {
+                        <button type="button" class="btn btn-danger" @onclick="DeleteEventAsync">Delete</button>
+                    }
+                </div>
+            </EditForm>
+        }
+        else
+        {
+            <div class="calendar-events-panel">
+                @if (_events.Count == 0)
+                {
+                    <p>No events in this range.</p>
+                }
+                else
+                {
+                    @foreach (var eventItem in _events.OrderBy(e => e.StartUtc))
+                    {
+                        <div class="calendar-event-row">
+                            <button class="btn btn-link p-0 text-start" @onclick="() => BeginEditEvent(eventItem)">
+                                <strong>@eventItem.Title</strong>
+                                <span>@eventItem.StartUtc.ToLocalTime():g - @eventItem.EndUtc.ToLocalTime():g</span>
+                                <span>@eventItem.Location</span>
+                            </button>
+                            <div class="calendar-rsvp-buttons" style="display:flex; gap:0.25rem; margin-top:0.25rem;">
+                                <button class="btn btn-sm btn-outline-success" @onclick="() => RsvpAsync(eventItem.Id, AttendeeStatus.Accepted)">Accept</button>
+                                <button class="btn btn-sm btn-outline-warning" @onclick="() => RsvpAsync(eventItem.Id, AttendeeStatus.Tentative)">Maybe</button>
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => RsvpAsync(eventItem.Id, AttendeeStatus.Declined)">Decline</button>
+                            </div>
+                            <CrossModuleLinkList Requests="BuildAttendeeContactRequests(eventItem)" />
+                        </div>
+                    }
+                }
+            </div>
+        }
     </div>
 </div>
 
 @code {
+    private readonly List<CalendarDto> _calendars = [];
+    private readonly List<CalendarEventDto> _events = [];
+    private readonly List<CalendarShareResponse> _shares = [];
     private string _activeView = "month";
+    private CalendarDto? _selectedCalendar;
+    private DateTime _anchorDate = DateTime.UtcNow.Date;
+    private CalendarEditorModel? _calendarEditor;
+    private EventEditorModel? _eventEditor;
+    private bool _showSharePanel;
+    private bool _showImportPanel;
+    private string _shareUserId = string.Empty;
+    private string _sharePermission = "ReadOnly";
+    private string _importText = string.Empty;
 
-    private void HandleCreateEvent()
+    private string RangeLabel => _activeView switch
     {
-        // Placeholder — full implementation in future phase
+        "day" => _anchorDate.ToLocalTime().ToString("D"),
+        "week" => $"Week of {_anchorDate.ToLocalTime():d}",
+        _ => _anchorDate.ToLocalTime().ToString("Y")
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadCalendarsAsync();
+    }
+
+    private async Task ReloadCalendarsAsync()
+    {
+        _calendars.Clear();
+        _calendars.AddRange(await ApiClient.ListCalendarsAsync());
+
+        _selectedCalendar ??= _calendars.FirstOrDefault();
+        if (_selectedCalendar is not null)
+        {
+            await ReloadEventsAsync();
+        }
+    }
+
+    private async Task ReloadEventsAsync()
+    {
+        if (_selectedCalendar is null)
+        {
+            _events.Clear();
+            return;
+        }
+
+        var (startUtc, endUtc) = GetRange();
+        _events.Clear();
+        _events.AddRange(await ApiClient.ListEventsAsync(_selectedCalendar.Id, startUtc, endUtc));
+    }
+
+    private (DateTime startUtc, DateTime endUtc) GetRange()
+    {
+        return _activeView switch
+        {
+            "day" => (_anchorDate.Date, _anchorDate.Date.AddDays(1)),
+            "week" => (_anchorDate.Date, _anchorDate.Date.AddDays(7)),
+            "agenda" => (_anchorDate.Date, _anchorDate.Date.AddDays(30)),
+            _ => (new DateTime(_anchorDate.Year, _anchorDate.Month, 1), new DateTime(_anchorDate.Year, _anchorDate.Month, 1).AddMonths(1))
+        };
+    }
+
+    private async Task SelectCalendarAsync(Guid calendarId)
+    {
+        _selectedCalendar = _calendars.FirstOrDefault(c => c.Id == calendarId);
+        await ReloadEventsAsync();
+    }
+
+    private async Task SetView(string view)
+    {
+        _activeView = view;
+        await ReloadEventsAsync();
+    }
+
+    private async Task PrevRange()
+    {
+        _anchorDate = _activeView switch
+        {
+            "day" => _anchorDate.AddDays(-1),
+            "week" => _anchorDate.AddDays(-7),
+            "agenda" => _anchorDate.AddDays(-30),
+            _ => _anchorDate.AddMonths(-1)
+        };
+
+        await ReloadEventsAsync();
+    }
+
+    private async Task NextRange()
+    {
+        _anchorDate = _activeView switch
+        {
+            "day" => _anchorDate.AddDays(1),
+            "week" => _anchorDate.AddDays(7),
+            "agenda" => _anchorDate.AddDays(30),
+            _ => _anchorDate.AddMonths(1)
+        };
+
+        await ReloadEventsAsync();
+    }
+
+    private void BeginCreateCalendar()
+    {
+        _calendarEditor = new CalendarEditorModel();
+        _eventEditor = null;
+    }
+
+    private async Task SaveCalendarAsync()
+    {
+        if (_calendarEditor is null)
+        {
+            return;
+        }
+
+        if (_calendarEditor.Id is null)
+        {
+            await ApiClient.CreateCalendarAsync(_calendarEditor.ToCreateDto());
+        }
+        else
+        {
+            await ApiClient.UpdateCalendarAsync(_calendarEditor.Id.Value, _calendarEditor.ToUpdateDto());
+        }
+
+        _calendarEditor = null;
+        await ReloadCalendarsAsync();
+    }
+
+    private void CancelCalendarEdit()
+    {
+        _calendarEditor = null;
+    }
+
+    private void BeginCreateEvent()
+    {
+        if (_selectedCalendar is null)
+        {
+            return;
+        }
+
+        _eventEditor = new EventEditorModel
+        {
+            CalendarId = _selectedCalendar.Id,
+            StartLocal = DateTime.UtcNow,
+            EndLocal = DateTime.UtcNow.AddHours(1)
+        };
+
+        _calendarEditor = null;
+    }
+
+    private void BeginEditEvent(CalendarEventDto dto)
+    {
+        _eventEditor = EventEditorModel.From(dto);
+        _calendarEditor = null;
+    }
+
+    private async Task SaveEventAsync()
+    {
+        if (_eventEditor is null)
+        {
+            return;
+        }
+
+        if (_eventEditor.Id is null)
+        {
+            await ApiClient.CreateEventAsync(_eventEditor.ToCreateDto());
+        }
+        else
+        {
+            await ApiClient.UpdateEventAsync(_eventEditor.Id.Value, _eventEditor.ToUpdateDto());
+        }
+
+        _eventEditor = null;
+        await ReloadEventsAsync();
+    }
+
+    private void CancelEventEdit()
+    {
+        _eventEditor = null;
+    }
+
+    private async Task DeleteEventAsync()
+    {
+        if (_eventEditor?.Id is not Guid eventId)
+        {
+            return;
+        }
+
+        await ApiClient.DeleteEventAsync(eventId);
+        _eventEditor = null;
+        await ReloadEventsAsync();
+    }
+
+    private async Task RsvpAsync(Guid eventId, AttendeeStatus status)
+    {
+        await ApiClient.RsvpAsync(eventId, new EventRsvpDto { Status = status });
+        await ReloadEventsAsync();
+    }
+
+    private async Task ToggleSharePanel()
+    {
+        _showSharePanel = !_showSharePanel;
+        if (_showSharePanel && _selectedCalendar is not null)
+        {
+            _shares.Clear();
+            _shares.AddRange(await ApiClient.ListSharesAsync(_selectedCalendar.Id));
+        }
+    }
+
+    private async Task AddShareAsync()
+    {
+        if (_selectedCalendar is null || !Guid.TryParse(_shareUserId, out var userId))
+        {
+            return;
+        }
+
+        await ApiClient.ShareCalendarAsync(_selectedCalendar.Id, userId, null, _sharePermission);
+        _shareUserId = string.Empty;
+        _shares.Clear();
+        _shares.AddRange(await ApiClient.ListSharesAsync(_selectedCalendar.Id));
+    }
+
+    private async Task RevokeShareAsync(Guid shareId)
+    {
+        await ApiClient.RevokeShareAsync(shareId);
+        if (_selectedCalendar is not null)
+        {
+            _shares.Clear();
+            _shares.AddRange(await ApiClient.ListSharesAsync(_selectedCalendar.Id));
+        }
+    }
+
+    private async Task ExportCalendarAsync()
+    {
+        if (_selectedCalendar is null)
+        {
+            return;
+        }
+
+        _exportedIcal = await ApiClient.ExportCalendarICalAsync(_selectedCalendar.Id);
+    }
+
+    private async Task ImportCalendarAsync()
+    {
+        if (_selectedCalendar is null || string.IsNullOrWhiteSpace(_importText))
+        {
+            return;
+        }
+
+        await ApiClient.ImportICalAsync(_selectedCalendar.Id, _importText);
+        _importText = string.Empty;
+        _showImportPanel = false;
+        await ReloadEventsAsync();
+    }
+
+    private string? _exportedIcal;
+
+    private sealed class CalendarEditorModel
+    {
+        public Guid? Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string? Color { get; set; }
+
+        public CreateCalendarDto ToCreateDto() => new()
+        {
+            Name = Name,
+            Description = Description,
+            Color = Color
+        };
+
+        public UpdateCalendarDto ToUpdateDto() => new()
+        {
+            Name = Name,
+            Description = Description,
+            Color = Color
+        };
+    }
+
+    private sealed class EventEditorModel
+    {
+        public Guid? Id { get; set; }
+        public Guid CalendarId { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string? Location { get; set; }
+        public DateTime StartLocal { get; set; }
+        public DateTime EndLocal { get; set; }
+
+        public static EventEditorModel From(CalendarEventDto dto) => new()
+        {
+            Id = dto.Id,
+            CalendarId = dto.CalendarId,
+            Title = dto.Title,
+            Description = dto.Description,
+            Location = dto.Location,
+            StartLocal = dto.StartUtc.ToLocalTime(),
+            EndLocal = dto.EndUtc.ToLocalTime()
+        };
+
+        public CreateCalendarEventDto ToCreateDto() => new()
+        {
+            CalendarId = CalendarId,
+            Title = Title,
+            Description = Description,
+            Location = Location,
+            StartUtc = StartLocal.ToUniversalTime(),
+            EndUtc = EndLocal.ToUniversalTime()
+        };
+
+        public UpdateCalendarEventDto ToUpdateDto() => new()
+        {
+            Title = Title,
+            Description = Description,
+            Location = Location,
+            StartUtc = StartLocal.ToUniversalTime(),
+            EndUtc = EndLocal.ToUniversalTime()
+        };
+    }
+
+    private static IReadOnlyList<CrossModuleLinkRequest> BuildAttendeeContactRequests(CalendarEventDto eventDto)
+    {
+        return eventDto.Attendees
+            .Where(a => a.UserId.HasValue)
+            .Select(a => new CrossModuleLinkRequest
+            {
+                LinkType = CrossModuleLinkType.Contact,
+                TargetId = a.UserId!.Value
+            })
+            .DistinctBy(r => r.TargetId)
+            .ToList();
     }
 }

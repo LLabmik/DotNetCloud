@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Notes.Models;
 using DotNetCloud.Modules.Notes.Services;
 using Microsoft.EntityFrameworkCore;
@@ -12,14 +13,19 @@ namespace DotNetCloud.Modules.Notes.Data.Services;
 public sealed class NoteShareService : INoteShareService
 {
     private readonly NotesDbContext _db;
+    private readonly IEventBus _eventBus;
     private readonly ILogger<NoteShareService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="NoteShareService"/> class.
     /// </summary>
-    public NoteShareService(NotesDbContext db, ILogger<NoteShareService> logger)
+    public NoteShareService(
+        NotesDbContext db,
+        IEventBus eventBus,
+        ILogger<NoteShareService> logger)
     {
         _db = db;
+        _eventBus = eventBus;
         _logger = logger;
     }
 
@@ -44,6 +50,7 @@ public sealed class NoteShareService : INoteShareService
         {
             // Update permission
             existingShare.Permission = permission;
+            existingShare.UpdatedByUserId = caller.UserId;
             await _db.SaveChangesAsync(cancellationToken);
             return MapToDto(existingShare);
         }
@@ -52,11 +59,26 @@ public sealed class NoteShareService : INoteShareService
         {
             NoteId = noteId,
             SharedWithUserId = targetUserId,
-            Permission = permission
+            Permission = permission,
+            CreatedByUserId = caller.UserId,
+            UpdatedByUserId = caller.UserId
         };
 
         _db.NoteShares.Add(share);
         await _db.SaveChangesAsync(cancellationToken);
+
+        await _eventBus.PublishAsync(new ResourceSharedEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            SharedByUserId = caller.UserId,
+            SharedWithUserId = targetUserId,
+            SourceModuleId = "dotnetcloud.notes",
+            EntityType = "Note",
+            EntityId = noteId,
+            EntityDisplayName = $"Note {noteId}",
+            Permission = permission.ToString()
+        }, caller, cancellationToken);
 
         _logger.LogInformation("Note {NoteId} shared with user {TargetUserId} ({Permission}) by user {UserId}",
             noteId, targetUserId, permission, caller.UserId);

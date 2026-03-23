@@ -34,7 +34,7 @@ public class CalendarSecurityTests
         _eventBusMock = new Mock<IEventBus>();
         _calendarService = new CalendarService(_db, _eventBusMock.Object, NullLogger<CalendarService>.Instance);
         _eventService = new CalendarEventService(_db, _eventBusMock.Object, NullLogger<CalendarEventService>.Instance);
-        _shareService = new CalendarShareService(_db, NullLogger<CalendarShareService>.Instance);
+        _shareService = new CalendarShareService(_db, _eventBusMock.Object, NullLogger<CalendarShareService>.Instance);
         _userA = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
         _userB = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
     }

@@ -48,6 +48,8 @@ public sealed class NoteService : INoteService
         var note = new Note
         {
             OwnerId = caller.UserId,
+            CreatedByUserId = caller.UserId,
+            UpdatedByUserId = caller.UserId,
             FolderId = dto.FolderId,
             Title = dto.Title,
             Content = dto.Content,
@@ -197,6 +199,7 @@ public sealed class NoteService : INoteService
         note.Version++;
         note.ETag = Guid.NewGuid().ToString("N");
         note.UpdatedAt = DateTime.UtcNow;
+        note.UpdatedByUserId = caller.UserId;
 
         await _db.SaveChangesAsync(cancellationToken);
 

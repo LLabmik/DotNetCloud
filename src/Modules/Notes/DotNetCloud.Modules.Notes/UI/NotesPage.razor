@@ -1,61 +1,509 @@
 @namespace DotNetCloud.Modules.Notes.UI
 
-@*
-    Notes page layout — main UI entry point for the Notes module.
-    Provides note list, folder navigation, search, and note editor.
-    Full implementation in a future phase; this is the navigation-registered shell.
-*@
+@using DotNetCloud.Core.DTOs
+@using DotNetCloud.Modules.Notes.Services
+@using DotNetCloud.Modules.Notes.Models
+@inject INotesApiClient ApiClient
+@inject IMarkdownRenderer MarkdownRenderer
 
 <div class="notes-page-layout">
     <div class="notes-sidebar">
         <div class="notes-sidebar-header">
             <h3>Notes</h3>
-            <button class="btn btn-sm btn-primary" @onclick="HandleCreateNote" title="New Note">
-                <span>＋</span>
+            <button class="btn btn-sm btn-primary" @onclick="BeginCreateNote" title="New Note">
+                <span>+</span>
             </button>
         </div>
         <div class="notes-search">
             <input type="text" class="form-control form-control-sm"
-                   placeholder="Search notes…"
+                   placeholder="Search notes..."
                    @bind="_searchQuery"
                    @bind:event="oninput" />
         </div>
         <nav class="notes-nav">
-            <a class="notes-nav-item @(_activeSection == "all" ? "active" : "")"
-               @onclick='() => _activeSection = "all"'>
-                All Notes
-            </a>
-            <a class="notes-nav-item @(_activeSection == "folders" ? "active" : "")"
-               @onclick='() => _activeSection = "folders"'>
-                Folders
-            </a>
-            <a class="notes-nav-item @(_activeSection == "tags" ? "active" : "")"
-               @onclick='() => _activeSection = "tags"'>
-                Tags
-            </a>
-            <a class="notes-nav-item @(_activeSection == "favorites" ? "active" : "")"
-               @onclick='() => _activeSection = "favorites"'>
-                Favorites
-            </a>
-            <a class="notes-nav-item @(_activeSection == "shared" ? "active" : "")"
-               @onclick='() => _activeSection = "shared"'>
-                Shared with Me
-            </a>
+            <a class="notes-nav-item @(_activeSection == "all" ? "active" : "")" @onclick='() => _activeSection = "all"'>All Notes</a>
+            <a class="notes-nav-item @(_activeSection == "folders" ? "active" : "")" @onclick='() => _activeSection = "folders"'>Folders</a>
+            <a class="notes-nav-item @(_activeSection == "tags" ? "active" : "")" @onclick='() => _activeSection = "tags"'>Tags</a>
+            <a class="notes-nav-item @(_activeSection == "favorites" ? "active" : "")" @onclick='() => _activeSection = "favorites"'>Favorites</a>
+            <a class="notes-nav-item @(_activeSection == "shared" ? "active" : "")" @onclick='() => _activeSection = "shared"'>Shared with Me</a>
         </nav>
+
+        @if (_activeSection == "folders")
+        {
+            <div class="notes-folders">
+                @foreach (var folder in _folders)
+                {
+                    <div class="notes-folder-item-row" style="display:flex; align-items:center; gap:0.25rem;">
+                        <button class="notes-folder-item @(_selectedFolderId == folder.Id ? "selected" : "")"
+                                @onclick="() => SelectFolderAsync(folder.Id)" style="flex:1;">
+                            @folder.Name
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" title="Rename" @onclick="() => BeginRenameFolder(folder)">✏</button>
+                        <button class="btn btn-sm btn-outline-danger" title="Delete" @onclick="() => DeleteFolderAsync(folder.Id)">×</button>
+                    </div>
+                }
+                <div style="display:flex; gap:0.25rem; margin-top:0.25rem;">
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="ClearFolderFilter">All Folders</button>
+                    <button class="btn btn-sm btn-outline-primary" @onclick="BeginCreateFolder">+ Folder</button>
+                </div>
+
+                @if (_showFolderForm)
+                {
+                    <div style="display:flex; gap:0.25rem; margin-top:0.25rem;">
+                        <input type="text" class="form-control form-control-sm" placeholder="Folder name" @bind="_folderName" />
+                        <button class="btn btn-sm btn-primary" @onclick="SaveFolderAsync">Save</button>
+                        <button class="btn btn-sm btn-secondary" @onclick="() => _showFolderForm = false">Cancel</button>
+                    </div>
+                }
+            </div>
+        }
+
+        <div class="notes-list">
+            @if (_notes.Count == 0)
+            {
+                <p>No notes found.</p>
+            }
+            else
+            {
+                @foreach (var note in VisibleNotes)
+                {
+                    <button class="notes-list-item @(_selectedNote?.Id == note.Id ? "selected" : "")"
+                            @onclick="() => SelectNoteAsync(note.Id)">
+                        <strong>@note.Title</strong>
+                        <span>@note.UpdatedAt.ToLocalTime():g</span>
+                        @if (note.IsFavorite)
+                        {
+                            <span>★</span>
+                        }
+                    </button>
+                }
+            }
+        </div>
     </div>
     <div class="notes-main">
-        <div class="notes-placeholder">
-            <p>Select a note or create a new one to get started.</p>
-        </div>
+        @if (_editingNote is not null)
+        {
+            <EditForm Model="_editingNote" OnValidSubmit="SaveNoteAsync">
+                <div class="notes-form-actions" style="margin-bottom:0.75rem; display:flex; gap:0.5rem;">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button type="button" class="btn btn-secondary" @onclick="CancelEdit">Cancel</button>
+                    @if (_editingNote.Id.HasValue)
+                    {
+                        <button type="button" class="btn btn-danger" @onclick="DeleteSelectedAsync">Delete</button>
+                    }
+                </div>
+                <div class="notes-form-grid" style="display:grid; gap:0.5rem; margin-bottom:0.75rem;">
+                    <InputText class="form-control" @bind-Value="_editingNote.Title" placeholder="Note title" />
+                    <InputText class="form-control" @bind-Value="_editingNote.TagCsv" placeholder="Tags (comma separated)" />
+                </div>
+                <MarkdownEditor Content="_editingNote.Content" ContentChanged="HandleEditorChanged" Renderer="MarkdownRenderer" />
+            </EditForm>
+        }
+        else if (_selectedNote is not null)
+        {
+            <div class="notes-detail">
+                <h2>@_selectedNote.Title</h2>
+                <p><strong>Tags:</strong> @string.Join(", ", _selectedNote.Tags)</p>
+                <div class="notes-detail-actions" style="display:flex; gap:0.5rem; margin-bottom:0.75rem;">
+                    <button class="btn btn-primary" @onclick="BeginEditSelected">Edit</button>
+                    <button class="btn btn-outline-warning" @onclick="ToggleFavoriteAsync">@(_selectedNote.IsFavorite ? "Unfavorite" : "Favorite")</button>
+                    <button class="btn btn-outline-secondary" @onclick="ToggleSharePanel">
+                        @(_showSharePanel ? "Hide Shares" : "Share")
+                    </button>
+                    <button class="btn btn-outline-secondary" @onclick="ToggleVersionPanel">
+                        @(_showVersionPanel ? "Hide History" : "History")
+                    </button>
+                </div>
+
+                @if (_showSharePanel)
+                {
+                    <div class="notes-share-panel" style="margin-bottom:0.75rem;">
+                        <h4>Shares</h4>
+                        @if (_noteShares.Count == 0)
+                        {
+                            <p>Not shared.</p>
+                        }
+                        else
+                        {
+                            @foreach (var share in _noteShares)
+                            {
+                                <div class="share-item" style="display:flex; gap:0.5rem; align-items:center;">
+                                    <span>User: @share.SharedWithUserId.ToString("N")[..8]… — @share.Permission</span>
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => RevokeShareAsync(share.Id)">Revoke</button>
+                                </div>
+                            }
+                        }
+                        <div class="share-form" style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+                            <input type="text" class="form-control form-control-sm" placeholder="User ID" @bind="_shareUserId" />
+                            <select class="form-select form-select-sm" @bind="_sharePermission" style="max-width:140px;">
+                                <option value="ReadOnly">Read Only</option>
+                                <option value="ReadWrite">Read/Write</option>
+                            </select>
+                            <button class="btn btn-sm btn-primary" @onclick="AddShareAsync">Share</button>
+                        </div>
+                    </div>
+                }
+
+                @if (_showVersionPanel)
+                {
+                    <div class="notes-version-panel" style="margin-bottom:0.75rem;">
+                        <h4>Version History</h4>
+                        @if (_versions.Count == 0)
+                        {
+                            <p>No previous versions.</p>
+                        }
+                        else
+                        {
+                            @foreach (var version in _versions.OrderByDescending(v => v.VersionNumber))
+                            {
+                                <div class="version-item" style="display:flex; gap:0.5rem; align-items:center;">
+                                    <span>v@(version.VersionNumber) — @version.CreatedAt.ToLocalTime():g</span>
+                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => RestoreVersionAsync(version.Id)">Restore</button>
+                                </div>
+                            }
+                        }
+                    </div>
+                }
+                <div style="margin-bottom:0.75rem;">
+                    <CrossModuleLinkList Requests="BuildNoteLinkRequests(_selectedNote)" />
+                </div>
+                <MarkdownEditor Content="_selectedNote.Content" Renderer="MarkdownRenderer" PreviewOnly="true" />
+            </div>
+        }
+        else
+        {
+            <div class="notes-placeholder">
+                <p>Select a note or create a new one to get started.</p>
+            </div>
+        }
     </div>
 </div>
 
 @code {
+    private readonly List<NoteDto> _notes = [];
+    private readonly List<NoteFolderDto> _folders = [];
+    private readonly List<NoteShareDto> _noteShares = [];
+    private readonly List<NoteVersionDto> _versions = [];
+    private NoteDto? _selectedNote;
+    private NoteEditorModel? _editingNote;
     private string _searchQuery = string.Empty;
     private string _activeSection = "all";
+    private Guid? _selectedFolderId;
+    private bool _showSharePanel;
+    private bool _showVersionPanel;
+    private string _shareUserId = string.Empty;
+    private string _sharePermission = "ReadOnly";
+    private bool _showFolderForm;
+    private string _folderName = string.Empty;
+    private Guid? _editingFolderId;
 
-    private void HandleCreateNote()
+    private IEnumerable<NoteDto> VisibleNotes
     {
-        // Placeholder — full implementation in future phase
+        get
+        {
+            IEnumerable<NoteDto> query = _notes;
+
+            if (!string.IsNullOrWhiteSpace(_searchQuery))
+            {
+                query = query.Where(n =>
+                    n.Title.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                    n.Content.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase));
+            }
+
+            query = _activeSection switch
+            {
+                "favorites" => query.Where(n => n.IsFavorite),
+                "shared" => query,
+                _ => query
+            };
+
+            return query.OrderByDescending(n => n.UpdatedAt);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _folders.Clear();
+        _folders.AddRange(await ApiClient.ListFoldersAsync());
+
+        _notes.Clear();
+        _notes.AddRange(await ApiClient.ListNotesAsync(_selectedFolderId));
+
+        if (_selectedNote is not null)
+        {
+            _selectedNote = _notes.FirstOrDefault(n => n.Id == _selectedNote.Id);
+        }
+    }
+
+    private async Task SelectNoteAsync(Guid noteId)
+    {
+        _selectedNote = await ApiClient.GetNoteAsync(noteId);
+        _editingNote = null;
+    }
+
+    private void BeginCreateNote()
+    {
+        _selectedNote = null;
+        _editingNote = new NoteEditorModel { Title = "New note" };
+    }
+
+    private void BeginEditSelected()
+    {
+        if (_selectedNote is null)
+        {
+            return;
+        }
+
+        _editingNote = NoteEditorModel.From(_selectedNote);
+    }
+
+    private async Task SaveNoteAsync()
+    {
+        if (_editingNote is null)
+        {
+            return;
+        }
+
+        if (_editingNote.Id is null)
+        {
+            _selectedNote = await ApiClient.CreateNoteAsync(_editingNote.ToCreateDto());
+        }
+        else
+        {
+            _selectedNote = await ApiClient.UpdateNoteAsync(_editingNote.Id.Value, _editingNote.ToUpdateDto());
+        }
+
+        _editingNote = null;
+        await ReloadAsync();
+    }
+
+    private async Task DeleteSelectedAsync()
+    {
+        if (_editingNote?.Id is not Guid noteId)
+        {
+            return;
+        }
+
+        await ApiClient.DeleteNoteAsync(noteId);
+        _editingNote = null;
+        _selectedNote = null;
+        await ReloadAsync();
+    }
+
+    private void CancelEdit()
+    {
+        _editingNote = null;
+    }
+
+    private Task HandleEditorChanged(string content)
+    {
+        if (_editingNote is not null)
+        {
+            _editingNote.Content = content;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task SelectFolderAsync(Guid folderId)
+    {
+        _selectedFolderId = folderId;
+        await ReloadAsync();
+    }
+
+    private async Task ClearFolderFilter()
+    {
+        _selectedFolderId = null;
+        await ReloadAsync();
+    }
+
+    private async Task ToggleFavoriteAsync()
+    {
+        if (_selectedNote is null)
+        {
+            return;
+        }
+
+        _selectedNote = await ApiClient.UpdateNoteAsync(_selectedNote.Id, new UpdateNoteDto
+        {
+            IsFavorite = !_selectedNote.IsFavorite
+        });
+
+        await ReloadAsync();
+    }
+
+    private async Task ToggleSharePanel()
+    {
+        _showSharePanel = !_showSharePanel;
+        _showVersionPanel = false;
+        if (_showSharePanel && _selectedNote is not null)
+        {
+            _noteShares.Clear();
+            _noteShares.AddRange(await ApiClient.ListSharesAsync(_selectedNote.Id));
+        }
+    }
+
+    private async Task AddShareAsync()
+    {
+        if (_selectedNote is null || !Guid.TryParse(_shareUserId, out var userId))
+        {
+            return;
+        }
+
+        var perm = _sharePermission == "ReadWrite" ? NoteSharePermission.ReadWrite : NoteSharePermission.ReadOnly;
+        await ApiClient.ShareNoteAsync(_selectedNote.Id, userId, perm);
+        _shareUserId = string.Empty;
+        _noteShares.Clear();
+        _noteShares.AddRange(await ApiClient.ListSharesAsync(_selectedNote.Id));
+    }
+
+    private async Task RevokeShareAsync(Guid shareId)
+    {
+        await ApiClient.RevokeShareAsync(shareId);
+        if (_selectedNote is not null)
+        {
+            _noteShares.Clear();
+            _noteShares.AddRange(await ApiClient.ListSharesAsync(_selectedNote.Id));
+        }
+    }
+
+    private async Task ToggleVersionPanel()
+    {
+        _showVersionPanel = !_showVersionPanel;
+        _showSharePanel = false;
+        if (_showVersionPanel && _selectedNote is not null)
+        {
+            _versions.Clear();
+            _versions.AddRange(await ApiClient.GetVersionHistoryAsync(_selectedNote.Id));
+        }
+    }
+
+    private async Task RestoreVersionAsync(Guid versionId)
+    {
+        if (_selectedNote is null)
+        {
+            return;
+        }
+
+        _selectedNote = await ApiClient.RestoreVersionAsync(_selectedNote.Id, versionId);
+        if (_selectedNote is not null)
+        {
+            _versions.Clear();
+            _versions.AddRange(await ApiClient.GetVersionHistoryAsync(_selectedNote.Id));
+        }
+
+        await ReloadAsync();
+    }
+
+    private void BeginCreateFolder()
+    {
+        _showFolderForm = true;
+        _editingFolderId = null;
+        _folderName = string.Empty;
+    }
+
+    private void BeginRenameFolder(NoteFolderDto folder)
+    {
+        _showFolderForm = true;
+        _editingFolderId = folder.Id;
+        _folderName = folder.Name;
+    }
+
+    private async Task SaveFolderAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_folderName))
+        {
+            return;
+        }
+
+        if (_editingFolderId is Guid folderId)
+        {
+            await ApiClient.UpdateFolderAsync(folderId, new UpdateNoteFolderDto { Name = _folderName });
+        }
+        else
+        {
+            await ApiClient.CreateFolderAsync(new CreateNoteFolderDto { Name = _folderName });
+        }
+
+        _showFolderForm = false;
+        _folderName = string.Empty;
+        _editingFolderId = null;
+        await ReloadAsync();
+    }
+
+    private async Task DeleteFolderAsync(Guid folderId)
+    {
+        await ApiClient.DeleteFolderAsync(folderId);
+        if (_selectedFolderId == folderId)
+        {
+            _selectedFolderId = null;
+        }
+
+        await ReloadAsync();
+    }
+
+    private static IReadOnlyList<CrossModuleLinkRequest> BuildNoteLinkRequests(NoteDto note)
+    {
+        return note.Links
+            .Select(link => new CrossModuleLinkRequest
+            {
+                LinkType = link.LinkType switch
+                {
+                    NoteLinkType.Contact => CrossModuleLinkType.Contact,
+                    NoteLinkType.CalendarEvent => CrossModuleLinkType.CalendarEvent,
+                    NoteLinkType.Note => CrossModuleLinkType.Note,
+                    NoteLinkType.File => CrossModuleLinkType.File,
+                    _ => CrossModuleLinkType.Note
+                },
+                TargetId = link.TargetId
+            })
+            .ToList();
+    }
+
+    private sealed class NoteEditorModel
+    {
+        public Guid? Id { get; set; }
+        public Guid? FolderId { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string Content { get; set; } = string.Empty;
+        public string TagCsv { get; set; } = string.Empty;
+
+        public static NoteEditorModel From(NoteDto dto) => new()
+        {
+            Id = dto.Id,
+            FolderId = dto.FolderId,
+            Title = dto.Title,
+            Content = dto.Content,
+            TagCsv = string.Join(",", dto.Tags)
+        };
+
+        public CreateNoteDto ToCreateDto() => new()
+        {
+            FolderId = FolderId,
+            Title = Title,
+            Content = Content,
+            Tags = ParseTags()
+        };
+
+        public UpdateNoteDto ToUpdateDto() => new()
+        {
+            FolderId = FolderId,
+            Title = Title,
+            Content = Content,
+            Tags = ParseTags()
+        };
+
+        private IReadOnlyList<string> ParseTags()
+        {
+            return TagCsv
+                .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
     }
 }

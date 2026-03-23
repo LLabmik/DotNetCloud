@@ -31,6 +31,9 @@ public sealed class ContactShare
 
     /// <summary>Optional expiration for time-limited shares.</summary>
     public DateTime? ExpiresAt { get; set; }
+
+    /// <summary>User ID who last updated this share record (for audit).</summary>
+    public Guid? UpdatedByUserId { get; set; }
 }
 
 /// <summary>

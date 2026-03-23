@@ -14,6 +14,7 @@ internal sealed class NotificationEventSubscriber : IHostedService
 {
     private readonly IEventBus _eventBus;
     private readonly IPushNotificationService _pushService;
+    private readonly DotNetCloud.Core.Capabilities.INotificationService _notificationService;
     private readonly ILoggerFactory _loggerFactory;
     private FileSharedNotificationHandler? _fileSharedHandler;
     private QuotaNotificationHandler? _quotaHandler;
@@ -22,14 +23,17 @@ internal sealed class NotificationEventSubscriber : IHostedService
     private ResourceSharedNotificationHandler? _resourceSharedHandler;
     private UserMentionedNotificationHandler? _userMentionedHandler;
     private ReminderNotificationHandler? _reminderHandler;
+    private InAppNotificationEventHandler? _inAppNotificationHandler;
 
     public NotificationEventSubscriber(
         IEventBus eventBus,
         IPushNotificationService pushService,
+        DotNetCloud.Core.Capabilities.INotificationService notificationService,
         ILoggerFactory loggerFactory)
     {
         _eventBus = eventBus;
         _pushService = pushService;
+        _notificationService = notificationService;
         _loggerFactory = loggerFactory;
     }
 
@@ -64,6 +68,8 @@ internal sealed class NotificationEventSubscriber : IHostedService
             _pushService,
             _loggerFactory.CreateLogger<ReminderNotificationHandler>());
 
+        _inAppNotificationHandler = new InAppNotificationEventHandler(_notificationService);
+
         await _eventBus.SubscribeAsync<FileSharedEvent>(_fileSharedHandler, cancellationToken);
         await _eventBus.SubscribeAsync<QuotaWarningEvent>(_quotaHandler, cancellationToken);
         await _eventBus.SubscribeAsync<QuotaCriticalEvent>(_quotaHandler, cancellationToken);
@@ -72,6 +78,9 @@ internal sealed class NotificationEventSubscriber : IHostedService
         await _eventBus.SubscribeAsync<ResourceSharedEvent>(_resourceSharedHandler, cancellationToken);
         await _eventBus.SubscribeAsync<UserMentionedEvent>(_userMentionedHandler, cancellationToken);
         await _eventBus.SubscribeAsync<ReminderTriggeredEvent>(_reminderHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<ResourceSharedEvent>(_inAppNotificationHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<UserMentionedEvent>(_inAppNotificationHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<ReminderTriggeredEvent>(_inAppNotificationHandler, cancellationToken);
 
         _loggerFactory.CreateLogger<NotificationEventSubscriber>()
             .LogInformation("Notification event handlers subscribed (FileShared, QuotaWarning, QuotaCritical, PublicLinkAccessed, ShareExpiring, ResourceShared, UserMentioned, Reminder)");
@@ -103,5 +112,12 @@ internal sealed class NotificationEventSubscriber : IHostedService
 
         if (_reminderHandler is not null)
             await _eventBus.UnsubscribeAsync<ReminderTriggeredEvent>(_reminderHandler, cancellationToken);
+
+        if (_inAppNotificationHandler is not null)
+        {
+            await _eventBus.UnsubscribeAsync<ResourceSharedEvent>(_inAppNotificationHandler, cancellationToken);
+            await _eventBus.UnsubscribeAsync<UserMentionedEvent>(_inAppNotificationHandler, cancellationToken);
+            await _eventBus.UnsubscribeAsync<ReminderTriggeredEvent>(_inAppNotificationHandler, cancellationToken);
+        }
     }
 }

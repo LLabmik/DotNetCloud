@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Import;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Modules.Contacts.Data.Services;
 using DotNetCloud.Modules.Contacts.Services;
 using Microsoft.Extensions.Configuration;
@@ -20,6 +21,7 @@ public static class ContactsServiceRegistration
         services.AddScoped<IContactGroupService, ContactGroupService>();
         services.AddScoped<IContactShareService, ContactShareService>();
         services.AddScoped<IVCardService, VCardService>();
+        services.AddScoped<IContactRelatedEntitiesService, ContactRelatedEntitiesService>();
         services.AddScoped<IImportProvider, ContactsImportProvider>();
 
         // Avatar/attachment storage path

@@ -35,6 +35,8 @@ public sealed class ContactService : IContactService
         var contact = new Contact
         {
             OwnerId = caller.UserId,
+            CreatedByUserId = caller.UserId,
+            UpdatedByUserId = caller.UserId,
             ContactType = dto.ContactType,
             DisplayName = dto.DisplayName,
             FirstName = dto.FirstName,
@@ -205,6 +207,7 @@ public sealed class ContactService : IContactService
 
         contact.ETag = Guid.NewGuid().ToString("N");
         contact.UpdatedAt = DateTime.UtcNow;
+        contact.UpdatedByUserId = caller.UserId;
 
         await _db.SaveChangesAsync(cancellationToken);
 

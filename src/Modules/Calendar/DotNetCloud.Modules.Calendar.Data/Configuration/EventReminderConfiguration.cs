@@ -19,6 +19,9 @@ public sealed class EventReminderConfiguration : IEntityTypeConfiguration<EventR
             .HasConversion<string>()
             .HasMaxLength(20);
 
+        builder.Property(r => r.CreatedByUserId);
+        builder.Property(r => r.UpdatedByUserId);
+
         // Relationships
         builder.HasOne(r => r.Event)
             .WithMany(e => e.Reminders)

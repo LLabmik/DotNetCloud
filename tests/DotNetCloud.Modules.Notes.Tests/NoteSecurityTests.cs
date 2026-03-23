@@ -34,7 +34,7 @@ public class NoteSecurityTests
         var eventBusMock = new Mock<IEventBus>();
         _noteService = new NoteService(_db, eventBusMock.Object, NullLogger<NoteService>.Instance);
         _folderService = new NoteFolderService(_db, NullLogger<NoteFolderService>.Instance);
-        _shareService = new NoteShareService(_db, NullLogger<NoteShareService>.Instance);
+        _shareService = new NoteShareService(_db, eventBusMock.Object, NullLogger<NoteShareService>.Instance);
         _userA = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
         _userB = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
     }

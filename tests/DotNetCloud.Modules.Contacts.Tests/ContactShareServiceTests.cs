@@ -32,7 +32,7 @@ public class ContactShareServiceTests
         _db = new ContactsDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
         _contactService = new ContactService(_db, _eventBusMock.Object, NullLogger<ContactService>.Instance);
-        _shareService = new ContactShareService(_db, NullLogger<ContactShareService>.Instance);
+        _shareService = new ContactShareService(_db, _eventBusMock.Object, NullLogger<ContactShareService>.Instance);
         _owner = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
         _otherUser = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
     }

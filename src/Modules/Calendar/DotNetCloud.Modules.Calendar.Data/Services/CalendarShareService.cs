@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Calendar.Models;
 using DotNetCloud.Modules.Calendar.Services;
 using Microsoft.EntityFrameworkCore;
@@ -12,14 +13,19 @@ namespace DotNetCloud.Modules.Calendar.Data.Services;
 public sealed class CalendarShareService : ICalendarShareService
 {
     private readonly CalendarDbContext _db;
+    private readonly IEventBus _eventBus;
     private readonly ILogger<CalendarShareService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CalendarShareService"/> class.
     /// </summary>
-    public CalendarShareService(CalendarDbContext db, ILogger<CalendarShareService> logger)
+    public CalendarShareService(
+        CalendarDbContext db,
+        IEventBus eventBus,
+        ILogger<CalendarShareService> logger)
     {
         _db = db;
+        _eventBus = eventBus;
         _logger = logger;
     }
 
@@ -35,11 +41,29 @@ public sealed class CalendarShareService : ICalendarShareService
             CalendarId = calendarId,
             SharedWithUserId = userId,
             SharedWithTeamId = teamId,
-            Permission = permission
+            Permission = permission,
+            CreatedByUserId = caller.UserId,
+            UpdatedByUserId = caller.UserId
         };
 
         _db.CalendarShares.Add(share);
         await _db.SaveChangesAsync(cancellationToken);
+
+        if (userId.HasValue)
+        {
+            await _eventBus.PublishAsync(new ResourceSharedEvent
+            {
+                EventId = Guid.NewGuid(),
+                CreatedAt = DateTime.UtcNow,
+                SharedByUserId = caller.UserId,
+                SharedWithUserId = userId.Value,
+                SourceModuleId = "dotnetcloud.calendar",
+                EntityType = "Calendar",
+                EntityId = calendarId,
+                EntityDisplayName = calendar.Name,
+                Permission = permission.ToString()
+            }, caller, cancellationToken);
+        }
 
         _logger.LogInformation("Calendar {CalendarId} shared by user {UserId} with user={SharedUserId} team={SharedTeamId}",
             calendarId, caller.UserId, userId, teamId);

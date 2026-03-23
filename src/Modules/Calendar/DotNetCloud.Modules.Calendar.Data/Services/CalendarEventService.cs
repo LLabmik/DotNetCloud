@@ -201,8 +201,7 @@ public sealed class CalendarEventService : ICalendarEventService
 
         calendarEvent.ETag = Guid.NewGuid().ToString("N");
         calendarEvent.UpdatedAt = DateTime.UtcNow;
-
-        // Update calendar sync token
+        calendarEvent.UpdatedByUserId = caller.UserId;
         if (calendarEvent.Calendar is not null)
         {
             calendarEvent.Calendar.SyncToken = Guid.NewGuid().ToString("N");

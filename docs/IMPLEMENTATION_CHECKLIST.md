@@ -3137,7 +3137,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 #### Data Model
 - ✓ Contact, ContactGroup, Address, PhoneNumber, EmailAddress, CustomField entities
 - ✓ EF configurations with multi-provider naming strategies
-- ☐ Initial migrations (PostgreSQL + SQL Server)
+- ✓ Initial migrations (PostgreSQL + SQL Server)
 
 #### REST API
 - ✓ CRUD endpoints for contacts and groups
@@ -3163,7 +3163,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 #### Data Model
 - ✓ Calendar, CalendarEvent, Attendee, RecurrenceRule, Reminder, ExceptionInstance entities
 - ✓ EF configurations with multi-provider naming strategies
-- ☐ Initial migrations (PostgreSQL + SQL Server)
+- ✓ Initial migrations (PostgreSQL + SQL Server)
 
 #### REST API
 - ✓ CRUD endpoints for calendars and events
@@ -3195,7 +3195,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 #### Data Model
 - ✓ Note, NoteVersion, NoteFolder, NoteTag, NoteLink, NoteShare entities
 - ✓ EF configurations with multi-provider naming strategies
-- ☐ Initial migrations (PostgreSQL + SQL Server)
+- ✓ Initial migrations (PostgreSQL + SQL Server)
 
 #### REST API
 - ✓ CRUD endpoints for notes (~25 REST endpoints)

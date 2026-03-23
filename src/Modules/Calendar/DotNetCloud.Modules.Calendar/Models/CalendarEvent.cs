@@ -73,6 +73,9 @@ public sealed class CalendarEvent
     /// <summary>When the event was last modified (UTC).</summary>
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>User ID who last updated this event (for audit).</summary>
+    public Guid? UpdatedByUserId { get; set; }
+
     /// <summary>Attendees invited to this event.</summary>
     public ICollection<EventAttendee> Attendees { get; set; } = [];
 

@@ -1,0 +1,106 @@
+@using DotNetCloud.Core.DTOs
+@using DotNetCloud.UI.Web.Client.Services
+@inject DotNetCloudApiClient ApiClient
+@inject NavigationManager Navigation
+
+<div class="notification-bell-container">
+    <button type="button" class="notification-bell-btn" title="Notifications" @onclick="ToggleDropdown">
+        <span aria-hidden="true">🔔</span>
+        @if (_unreadCount > 0)
+        {
+            <span class="notification-badge">@_unreadCount</span>
+        }
+    </button>
+
+    @if (_isOpen)
+    {
+        <div class="notification-dropdown">
+            <div class="notification-dropdown-header">
+                <span>Notifications</span>
+                @if (_notifications.Count > 0)
+                {
+                    <button class="notification-mark-all" @onclick="MarkAllReadAsync">Mark all read</button>
+                }
+            </div>
+
+            @if (_isLoading)
+            {
+                <div class="notification-empty">Loading...</div>
+            }
+            else if (_notifications.Count == 0)
+            {
+                <div class="notification-empty">You're all caught up.</div>
+            }
+            else
+            {
+                <ul class="notification-list">
+                    @foreach (var notification in _notifications)
+                    {
+                        <li class="notification-item" @onclick="() => OpenNotificationAsync(notification)">
+                            <div class="notification-title">@notification.Title</div>
+                            @if (!string.IsNullOrWhiteSpace(notification.Message))
+                            {
+                                <div class="notification-message">@notification.Message</div>
+                            }
+                            <div class="notification-time">@notification.CreatedAtUtc.ToLocalTime().ToString("g")</div>
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private bool _isOpen;
+    private bool _isLoading;
+    private int _unreadCount;
+    private readonly List<NotificationDto> _notifications = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshUnreadCountAsync();
+    }
+
+    private async Task ToggleDropdown()
+    {
+        _isOpen = !_isOpen;
+
+        if (_isOpen)
+        {
+            _isLoading = true;
+            try
+            {
+                _notifications.Clear();
+                _notifications.AddRange(await ApiClient.GetUnreadNotificationsAsync(25));
+            }
+            finally
+            {
+                _isLoading = false;
+            }
+        }
+    }
+
+    private async Task RefreshUnreadCountAsync()
+    {
+        _unreadCount = await ApiClient.GetUnreadNotificationCountAsync();
+    }
+
+    private async Task OpenNotificationAsync(NotificationDto notification)
+    {
+        await ApiClient.MarkNotificationReadAsync(notification.Id);
+        _notifications.RemoveAll(n => n.Id == notification.Id);
+        await RefreshUnreadCountAsync();
+
+        Navigation.NavigateTo(string.IsNullOrWhiteSpace(notification.ActionUrl)
+            ? "/"
+            : notification.ActionUrl);
+    }
+
+    private async Task MarkAllReadAsync()
+    {
+        await ApiClient.MarkAllNotificationsReadAsync();
+        _notifications.Clear();
+        await RefreshUnreadCountAsync();
+    }
+}

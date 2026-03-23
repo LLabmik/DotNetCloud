@@ -29,7 +29,7 @@ public class NoteShareServiceTests
         _db = new NotesDbContext(options);
         var eventBusMock = new Mock<IEventBus>();
         _noteService = new NoteService(_db, eventBusMock.Object, NullLogger<NoteService>.Instance);
-        _shareService = new NoteShareService(_db, NullLogger<NoteShareService>.Instance);
+        _shareService = new NoteShareService(_db, eventBusMock.Object, NullLogger<NoteShareService>.Instance);
         _owner = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
         _recipient = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
     }

@@ -23,6 +23,9 @@ public sealed class CalendarShareConfiguration : IEntityTypeConfiguration<Calend
             .IsRequired()
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+        builder.Property(s => s.CreatedByUserId);
+        builder.Property(s => s.UpdatedByUserId);
+
         // Relationships
         builder.HasOne(s => s.Calendar)
             .WithMany(c => c.Shares)

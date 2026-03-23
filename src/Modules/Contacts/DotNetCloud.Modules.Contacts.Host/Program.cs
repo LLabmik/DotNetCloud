@@ -2,6 +2,8 @@ using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Contacts;
 using DotNetCloud.Modules.Contacts.Data;
 using DotNetCloud.Modules.Contacts.Host.Services;
+using DotNetCloud.Modules.Calendar.Data;
+using DotNetCloud.Modules.Notes.Data;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,6 +17,10 @@ builder.Services.AddSingleton<ContactsModule>();
 // In production, modules use the database configured by the core server
 builder.Services.AddDbContext<ContactsDbContext>(options =>
     options.UseInMemoryDatabase("ContactsModule"));
+builder.Services.AddDbContext<CalendarDbContext>(options =>
+    options.UseInMemoryDatabase("CalendarModule"));
+builder.Services.AddDbContext<NotesDbContext>(options =>
+    options.UseInMemoryDatabase("NotesModule"));
 
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();

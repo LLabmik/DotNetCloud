@@ -32,6 +32,9 @@ public sealed class EventAttendeeConfiguration : IEntityTypeConfiguration<EventA
 
         builder.Property(a => a.Comment).HasMaxLength(1000);
 
+        builder.Property(a => a.CreatedByUserId);
+        builder.Property(a => a.UpdatedByUserId);
+
         // Relationships
         builder.HasOne(a => a.Event)
             .WithMany(e => e.Attendees)
