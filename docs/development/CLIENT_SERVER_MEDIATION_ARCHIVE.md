@@ -5,6 +5,24 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Phase 3.6 Migration Foundation COMPLETE on mint22 (2026-03-24)
+
+**Original target:** mint22
+**Original status:** COMPLETE ✅
+
+Import infrastructure for NextCloud migration paths. Contracts, pipeline, 3 module providers, dry-run mode. 51 new tests, 2,476 total CI tests pass.
+
+**Key deliverables:**
+- Core contracts: `ImportDtos.cs` (ImportRequest/ImportReport/ImportItemResult), `IImportProvider`, `IImportPipeline` in `DotNetCloud.Core.Import` namespace
+- `ImportPipelineService` — routes ImportRequests to providers by DataType via DI
+- `ContactsImportProvider` — vCard 3.0 parser (FN/N/ORG/TITLE/EMAIL/TEL/ADR/BDAY/URL/NOTE)
+- `CalendarImportProvider` — iCalendar RFC 5545 parser (SUMMARY/DTSTART/DTEND/DESCRIPTION/LOCATION/URL/RRULE)
+- `NotesImportProvider` — JSON manifest array or raw Markdown with heading extraction
+- Dry-run: `DryRun=true` validates without persisting, returns deterministic `ImportReport`
+- 5 new import error codes in ErrorCodes.cs
+- DI registration in all 3 module service registrations + Program.cs
+- 51 tests: 8 pipeline + 12 contacts + 13 calendar + 18 notes
+
 ## Archived: Phase 3.5 Cross-Module Integration COMPLETE on mint22 (2026-03-24)
 
 **Original target:** mint22

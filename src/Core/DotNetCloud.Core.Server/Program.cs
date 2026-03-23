@@ -205,6 +205,7 @@ public class Program
         builder.Services.AddChatServices(builder.Configuration);
         builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
         builder.Services.AddSingleton<DotNetCloud.Core.Capabilities.ICrossModuleLinkResolver, CrossModuleLinkResolver>();
+        builder.Services.AddScoped<DotNetCloud.Core.Import.IImportPipeline, ImportPipelineService>();
 
         var filesStoragePath = builder.Configuration.GetValue<string>("Files:StoragePath");
         var dataDirForStorage = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");

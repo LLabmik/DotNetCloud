@@ -149,20 +149,27 @@
 - ☐ Cross-module links resolve correctly in UI.
 - ☐ End-to-end flows pass integration tests.
 
-## 3.6 Migration Foundation (phase-3.6)
+## 3.6 Migration Foundation (phase-3.6) ✅
 
 ### Objectives
 - Build migration groundwork for NextCloud import paths for contacts/calendar/notes.
 
 ### Deliverables
-- ☐ Import contract interfaces and pipeline architecture.
-- ☐ Parsers/transformers for vCard and iCalendar migration inputs.
-- ☐ Initial Notes import adapter for markdown/plain exports.
-- ☐ Dry-run mode with import report and conflict summary.
+- ✓ Import contract interfaces and pipeline architecture.
+- ✓ Parsers/transformers for vCard and iCalendar migration inputs.
+- ✓ Initial Notes import adapter for markdown/plain exports.
+- ✓ Dry-run mode with import report and conflict summary.
 
 ### Exit Criteria
-- ☐ Dry-run import generates deterministic reports.
-- ☐ Real import path works for representative fixture datasets.
+- ✓ Dry-run import generates deterministic reports.
+- ✓ Real import path works for representative fixture datasets.
+
+### Implementation Notes
+- Core contracts: `ImportDtos.cs`, `IImportProvider`, `IImportPipeline` in `DotNetCloud.Core.Import` namespace.
+- `ImportPipelineService` routes requests to module providers by `ImportDataType`.
+- Three providers: `ContactsImportProvider` (vCard 3.0), `CalendarImportProvider` (iCalendar RFC 5545), `NotesImportProvider` (JSON manifest or raw Markdown).
+- Dry-run: `ImportRequest.DryRun = true` → validates/parses without persisting, returns full `ImportReport`.
+- 51 tests: 8 pipeline + 12 contacts + 13 calendar + 18 notes.
 
 ## 3.7 Testing And Quality Gates (phase-3.7)
 
@@ -229,7 +236,7 @@
 - ☐ phase-3.5 complete
 
 ### Milestone D: Import + Hardening + Docs
-- ☐ phase-3.6 complete
+- ✓ phase-3.6 complete
 - ☐ phase-3.7 complete
 - ☐ phase-3.8 complete
 

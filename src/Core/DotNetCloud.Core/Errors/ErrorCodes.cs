@@ -281,6 +281,22 @@ public static class ErrorCodes
     /// <summary>Error code for unsafe Markdown content detected.</summary>
     public const string NoteUnsafeContent = "NOTE_UNSAFE_CONTENT";
 
+    // Import / Migration
+    /// <summary>Error code for unsupported import data type.</summary>
+    public const string ImportUnsupportedDataType = "IMPORT_UNSUPPORTED_DATA_TYPE";
+
+    /// <summary>Error code for invalid or unparseable import data.</summary>
+    public const string ImportInvalidData = "IMPORT_INVALID_DATA";
+
+    /// <summary>Error code for empty import payload.</summary>
+    public const string ImportEmptyData = "IMPORT_EMPTY_DATA";
+
+    /// <summary>Error code for import item validation failure.</summary>
+    public const string ImportItemValidationFailed = "IMPORT_ITEM_VALIDATION_FAILED";
+
+    /// <summary>Error code for import target container not found.</summary>
+    public const string ImportTargetNotFound = "IMPORT_TARGET_NOT_FOUND";
+
     // General
     /// <summary>Error code for unknown error.</summary>
     public const string UnknownError = "UNKNOWN_ERROR";

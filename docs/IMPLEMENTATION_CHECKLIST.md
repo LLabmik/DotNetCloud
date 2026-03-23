@@ -3224,10 +3224,10 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 ### Phase 3.6: Migration Foundation
 
-- ☐ Import contract interfaces and pipeline architecture
-- ☐ vCard and iCalendar migration parsers/transformers
-- ☐ Notes import adapter (markdown/plain exports)
-- ☐ Dry-run mode with import report and conflict summary
+- ✓ Import contract interfaces and pipeline architecture
+- ✓ vCard and iCalendar migration parsers/transformers
+- ✓ Notes import adapter (markdown/plain exports)
+- ✓ Dry-run mode with import report and conflict summary
 
 ### Phase 3.7: Testing And Quality Gates
 

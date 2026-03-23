@@ -84,7 +84,7 @@
 | Phase 3.3 | 6 | 4 | 0 | 2 |
 | Phase 3.4 | 6 | 6 | 0 | 0 |
 | Phase 3.5 | 4 | 4 | 0 | 0 |
-| Phase 3.6 | 4 | 0 | 0 | 4 |
+| Phase 3.6 | 4 | 4 | 0 | 0 |
 | Phase 3.7 | 5 | 0 | 0 | 5 |
 | Phase 3.8 | 4 | 0 | 0 | 4 |
 | Phase 4-9 | Summary | 0 | 0 | 1 |
@@ -1370,12 +1370,14 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Section: Phase 3.6 - Migration Foundation
-**STATUS:** pending
+**STATUS:** completed ✅
 **DELIVERABLES:**
-- ☐ Import contract interfaces and pipeline architecture
-- ☐ vCard and iCalendar migration parsers/transformers
-- ☐ Notes import adapter (markdown/plain exports)
-- ☐ Dry-run mode with import report and conflict summary
+- ✓ Import contract interfaces and pipeline architecture
+- ✓ vCard and iCalendar migration parsers/transformers
+- ✓ Notes import adapter (markdown/plain exports)
+- ✓ Dry-run mode with import report and conflict summary
+
+**Notes:** Import infrastructure complete in `DotNetCloud.Core.Import` namespace. Core contracts: `ImportDtos.cs` (ImportRequest/ImportReport/ImportItemResult records), `IImportProvider` (module adapter interface), `IImportPipeline` (orchestrator). `ImportPipelineService` routes by DataType via DI-injected providers. Three providers: `ContactsImportProvider` (vCard 3.0 — FN/N/ORG/TITLE/EMAIL/TEL/ADR/BDAY/URL/NOTE), `CalendarImportProvider` (iCalendar RFC 5545 — SUMMARY/DTSTART/DTEND/DESCRIPTION/LOCATION/URL/RRULE), `NotesImportProvider` (JSON manifest array or raw Markdown with heading extraction). Dry-run: `DryRun=true` parses and validates without persisting, returns deterministic `ImportReport`. 51 tests (8 pipeline + 12 contacts + 13 calendar + 18 notes), all passing. 2,476 total CI tests pass. Ready for Phase 3.7 (Testing And Quality Gates).
 
 ---
 

@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Import;
 using DotNetCloud.Modules.Calendar.Data.Services;
 using DotNetCloud.Modules.Calendar.Services;
 using Microsoft.Extensions.Configuration;
@@ -19,6 +20,7 @@ public static class CalendarServiceRegistration
         services.AddScoped<ICalendarEventService, CalendarEventService>();
         services.AddScoped<ICalendarShareService, CalendarShareService>();
         services.AddScoped<IICalendarService, ICalService>();
+        services.AddScoped<IImportProvider, CalendarImportProvider>();
 
         return services;
     }

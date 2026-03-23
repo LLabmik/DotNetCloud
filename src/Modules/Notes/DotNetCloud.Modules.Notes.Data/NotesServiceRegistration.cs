@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Import;
 using DotNetCloud.Modules.Notes.Data.Services;
 using DotNetCloud.Modules.Notes.Services;
 using Microsoft.Extensions.Configuration;
@@ -18,6 +19,7 @@ public static class NotesServiceRegistration
         services.AddScoped<INoteService, NoteService>();
         services.AddScoped<INoteFolderService, NoteFolderService>();
         services.AddScoped<INoteShareService, NoteShareService>();
+        services.AddScoped<IImportProvider, NotesImportProvider>();
         return services;
     }
 }

@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-24 (Phase 3.5 Cross-Module Integration complete)
+Last updated: 2026-03-24 (Phase 3.6 Migration Foundation complete)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -60,7 +60,7 @@ Archived context:
 - Security audit desktop client validation on `Windows11-TestDNC`: **COMPLETE** (2026-03-23).
 - Security audit closeout + merge validation on `mint22`: **COMPLETE** (2026-03-23).
 - Post-closeout Windows runtime smoke: **COMPLETE** (2026-03-23). 4/4 targeted tests passed; login launch path verified reachable.
-- **Active cycle:** Phase 3.5 Cross-Module Integration complete. Phase 3.6 Migration Foundation next.
+- **Active cycle:** Phase 3.6 Migration Foundation complete. Phase 3.7 Testing And Quality Gates next.
 
 ## Environment
 
@@ -85,52 +85,42 @@ Archived context:
 **Target machine:** mint22
 **Status:** COMPLETE
 
-### Phase 3.5: Cross-Module Integration — DONE
+### Phase 3.6: Migration Foundation — DONE
 
-Full cross-module integration for PIM modules (Contacts, Calendar, Notes). 30 new tests pass. All 2,500+ solution tests pass. Build clean (CI filter).
+Full import/migration infrastructure for NextCloud import paths. 51 new tests pass. All 2,476 CI tests pass. Build clean (0 errors, 0 warnings).
 
-**New core abstractions:**
-- `src/Core/DotNetCloud.Core/DTOs/NotificationDtos.cs` — NotificationDto, NotificationType, NotificationPriority
-- `src/Core/DotNetCloud.Core/DTOs/CrossModuleLinkDtos.cs` — CrossModuleLinkDto, CrossModuleLinkType, CrossModuleLinkRequest
-- `src/Core/DotNetCloud.Core/Capabilities/ICrossModuleLinkResolver.cs` — ResolveAsync + ResolveBatchAsync
-- `src/Core/DotNetCloud.Core/Capabilities/IAuditLogger.cs` — LogAsync(AuditEntry), AuditAction enum
-- `src/Core/DotNetCloud.Core/Capabilities/INotificationService.cs` — expanded from marker to full interface (Send, GetUnread, MarkRead, etc.)
-- `src/Core/DotNetCloud.Core/Events/NotificationEvents.cs` — ResourceSharedEvent, UserMentionedEvent, ReminderTriggeredEvent
+**New core contracts (`DotNetCloud.Core.Import` namespace):**
+- `src/Core/DotNetCloud.Core/DTOs/ImportDtos.cs` — ImportDataType, ImportSource, ImportItemStatus enums; ImportRequest, ImportConflictStrategy, ImportItemResult, ImportReport records
+- `src/Core/DotNetCloud.Core/Import/IImportProvider.cs` — Module adapter interface (DataType, PreviewAsync, ExecuteAsync)
+- `src/Core/DotNetCloud.Core/Import/IImportPipeline.cs` — Orchestrator interface (PreviewAsync, ExecuteAsync, SupportedDataTypes)
+- `src/Core/DotNetCloud.Core/Errors/ErrorCodes.cs` — 5 new IMPORT_* error codes
 
-**Server services:**
-- `src/Core/DotNetCloud.Core.Server/Services/CrossModuleLinkResolver.cs` — resolves links via IContactDirectory/ICalendarDirectory/INoteDirectory; batch support with type grouping; graceful fallback to `[Deleted X]`
-- `src/Core/DotNetCloud.Core.Server/Services/ResourceSharedNotificationHandler.cs`
-- `src/Core/DotNetCloud.Core.Server/Services/UserMentionedNotificationHandler.cs`
-- `src/Core/DotNetCloud.Core.Server/Services/ReminderNotificationHandler.cs`
-- NotificationEventSubscriber updated to wire 3 new handlers
-- DI registration: ICrossModuleLinkResolver in Program.cs
+**Server pipeline:**
+- `src/Core/DotNetCloud.Core.Server/Services/ImportPipelineService.cs` — Routes ImportRequests to module providers by DataType; validates unsupported types; DryRun flag delegates to PreviewAsync
 
-**Module upgrades:**
-- Contacts, Calendar, Notes .csproj: SDK → Microsoft.NET.Sdk.Razor, added FrameworkReference
-- 3 stub UI pages with search/create placeholders in `UI/` subfolders + _Imports.razor
-- UI.Web references all 3 module projects; ModuleUiRegistrationHostedService registers nav entries
-- All 3 module manifests (JSON + C#) updated: IAuditLogger + ICrossModuleLinkResolver capabilities, cross-module event subscriptions
-- NotificationCategory enum expanded (CalendarInvitation, Reminder, ResourceShared, Mention)
+**Module import providers:**
+- `src/Modules/Contacts/DotNetCloud.Modules.Contacts.Data/Services/ContactsImportProvider.cs` — Full vCard 3.0 parser (FN/N/ORG/TITLE/EMAIL/TEL/ADR/BDAY/URL/NOTE); creates contacts via ContactService; skips items missing display name
+- `src/Modules/Calendar/DotNetCloud.Modules.Calendar.Data/Services/CalendarImportProvider.cs` — iCalendar RFC 5545 parser (SUMMARY/DTSTART/DTEND/DESCRIPTION/LOCATION/URL/RRULE); requires TargetContainerId (calendar ID); skips items missing summary
+- `src/Modules/Notes/DotNetCloud.Modules.Notes.Data/Services/NotesImportProvider.cs` — JSON manifest array (title/content/format/tags) or raw Markdown (heading extraction); creates notes via NoteService
 
-**Bug fixes:**
-- ExampleModule.cs/tests: NoteCreatedEvent/NoteDeletedEvent naming ambiguity with Core.Events resolved via using aliases
-- Notes module test: updated Manifest_SubscribesNoEvents → Manifest_SubscribesCrossModuleEvents
+**DI registration:**
+- 3 module `ServiceRegistration.cs` files: added `IImportProvider` → module provider
+- `Program.cs`: added `IImportPipeline` → `ImportPipelineService`
 
-**Tests (30 new):**
-- `tests/DotNetCloud.Core.Server.Tests/Services/CrossModuleLinkResolverTests.cs` — 13 tests
-- `tests/DotNetCloud.Core.Server.Tests/Services/NotificationHandlerTests.cs` — 4 tests
-- `tests/DotNetCloud.Core.Server.Tests/Services/ModuleManifestConsistencyTests.cs` — 13 tests
+**Tests (51 new):**
+- `tests/DotNetCloud.Core.Server.Tests/Services/ImportPipelineServiceTests.cs` — 8 tests
+- `tests/DotNetCloud.Modules.Contacts.Tests/ContactsImportProviderTests.cs` — 12 tests
+- `tests/DotNetCloud.Modules.Calendar.Tests/CalendarImportProviderTests.cs` — 13 tests
+- `tests/DotNetCloud.Modules.Notes.Tests/NotesImportProviderTests.cs` — 18 tests
 
-**Deferred items (non-blockers):**
-- Contacts & Notes entities lack CreatedByUserId/UpdatedByUserId audit fields — requires EF migrations, deferred to Phase 3.7
-- Markdown sanitization pipeline — deferred to Phase 3.7
+**Namespace note:** Originally `DotNetCloud.Core.Migration` — renamed to `DotNetCloud.Core.Import` to avoid conflict with EF Core's `Microsoft.EntityFrameworkCore.Migrations.Migration`.
 
 #### Next actionable work
-1. Begin **phase-3.6** (Migration Foundation) — import contract interfaces, vCard/iCalendar parsers, Notes import adapter, dry-run mode.
-2. Reference existing module data layers for import target patterns.
+1. Begin **phase-3.7** (Testing And Quality Gates) — unit test suites, integration tests, CardDAV/CalDAV compatibility matrix, security tests, performance baselines.
+2. Address deferred items from Phase 3.5: CreatedByUserId/UpdatedByUserId audit fields (requires migrations), Markdown sanitization pipeline.
 
 #### Previous cycle summary
-- Phase 3.4 Notes Module complete (50 tests). Archived.
+- Phase 3.5 Cross-Module Integration complete (30 tests). Archived.
 
 ## Relay Template
 
