@@ -1,0 +1,321 @@
+@page "/admin/backup"
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveWebAssemblyRenderMode(prerender: false))
+@attribute [Authorize(Policy = "RequireAdmin")]
+
+<PageTitle>Backup &amp; Restore - DotNetCloud</PageTitle>
+
+<div class="page-header">
+    <h1>Backup &amp; Restore Settings</h1>
+    <div class="page-header-actions">
+        <a href="/admin/settings?module=dotnetcloud.core" class="btn btn-outline btn-sm">All Core Settings</a>
+    </div>
+</div>
+
+<p class="text-muted">
+    Configure automated backups, retention policies, and restore options for your DotNetCloud instance.
+</p>
+
+@if (_loading)
+{
+    <LoadingIndicator Message="Loading backup settings..." />
+}
+else
+{
+    <div class="settings-grid">
+        <!-- Backup Schedule -->
+        <section class="settings-section">
+            <h2>Backup Schedule</h2>
+
+            <div class="form-group">
+                <label>Automated Backups</label>
+                <input type="checkbox" @bind="_enabled" />
+                <span class="hint">Enable scheduled automatic backups.</span>
+            </div>
+
+            <div class="form-group">
+                <label>Schedule</label>
+                <select class="input input-sm" @bind="_schedule">
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="manual">Manual Only</option>
+                </select>
+                <span class="hint">
+                    How often automated backups run. "Manual Only" disables the schedule
+                    but still allows on-demand backups.
+                </span>
+            </div>
+
+            <div class="form-group">
+                <label>Backup Time (UTC)</label>
+                <input type="time" class="input input-sm" @bind="_backupTimeUtc" />
+                <span class="hint">Time of day (UTC) to start the backup. Default: 02:00.</span>
+            </div>
+
+            @if (_schedule == "weekly")
+            {
+                <div class="form-group">
+                    <label>Day of Week</label>
+                    <select class="input input-sm" @bind="_backupDayOfWeek">
+                        <option value="Sunday">Sunday</option>
+                        <option value="Monday">Monday</option>
+                        <option value="Tuesday">Tuesday</option>
+                        <option value="Wednesday">Wednesday</option>
+                        <option value="Thursday">Thursday</option>
+                        <option value="Friday">Friday</option>
+                        <option value="Saturday">Saturday</option>
+                    </select>
+                    <span class="hint">Day of the week to run the backup.</span>
+                </div>
+            }
+        </section>
+
+        <!-- Storage -->
+        <section class="settings-section">
+            <h2>Storage</h2>
+
+            <div class="form-group">
+                <label>Backup Directory</label>
+                <input type="text" class="input" @bind="_backupDirectory"
+                       placeholder="/var/lib/dotnetcloud/backups" />
+                <span class="hint">
+                    Local directory where backup archives are stored.
+                    Ensure the DotNetCloud service account has write permissions.
+                </span>
+            </div>
+
+            <div class="form-group">
+                <label>Retention Count</label>
+                <input type="number" class="input input-sm" min="1" max="365"
+                       @bind="_retentionCount" />
+                <span class="hint">
+                    Number of backup archives to keep. Oldest backups are automatically
+                    deleted when this limit is exceeded. Default: 7.
+                </span>
+            </div>
+        </section>
+
+        <!-- Backup Scope -->
+        <section class="settings-section">
+            <h2>Backup Scope</h2>
+
+            <div class="form-group">
+                <label>Include Database</label>
+                <input type="checkbox" @bind="_includeDatabase" />
+                <span class="hint">
+                    Back up the PostgreSQL / SQL Server database (users, settings, metadata).
+                </span>
+            </div>
+
+            <div class="form-group">
+                <label>Include File Storage</label>
+                <input type="checkbox" @bind="_includeFileStorage" />
+                <span class="hint">
+                    Back up uploaded files and chunks. This can significantly increase backup size
+                    and duration.
+                </span>
+            </div>
+
+            <div class="form-group">
+                <label>Include Module Data</label>
+                <input type="checkbox" @bind="_includeModuleData" />
+                <span class="hint">
+                    Back up per-module data directories (Chat attachments, Calendar exports, etc.).
+                </span>
+            </div>
+        </section>
+
+        <!-- Security -->
+        <section class="settings-section">
+            <h2>Security</h2>
+
+            <div class="form-group">
+                <label>Encrypt Backups</label>
+                <input type="checkbox" @bind="_encryptBackups" />
+                <span class="hint">
+                    Encrypt backup archives using AES-256. Store the encryption passphrase securely —
+                    without it, backups cannot be restored.
+                </span>
+            </div>
+
+            @if (_encryptBackups)
+            {
+                <div class="form-group">
+                    <label>Encryption Passphrase</label>
+                    <input type="password" class="input" @bind="_encryptionPassphrase"
+                           placeholder="Enter encryption passphrase" />
+                    <span class="hint">
+                        Passphrase used to encrypt and decrypt backup archives.
+                        Minimum 12 characters. Store this passphrase in a safe location.
+                    </span>
+                </div>
+            }
+        </section>
+
+        <!-- Notifications -->
+        <section class="settings-section">
+            <h2>Notifications</h2>
+
+            <div class="form-group">
+                <label>Notify on Success</label>
+                <input type="checkbox" @bind="_notifyOnSuccess" />
+                <span class="hint">Send a notification to admins when a backup completes successfully.</span>
+            </div>
+
+            <div class="form-group">
+                <label>Notify on Failure</label>
+                <input type="checkbox" @bind="_notifyOnFailure" />
+                <span class="hint">Send a notification to admins when a backup fails.</span>
+            </div>
+        </section>
+    </div>
+
+    <div class="form-actions">
+        <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+            @(_saving ? "Saving..." : "Save Settings")
+        </button>
+    </div>
+}
+
+<ConfirmDialog @ref="_confirmDialog" />
+
+@code {
+    [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+
+    private const string Module = "dotnetcloud.core";
+
+    private bool _loading = true;
+    private bool _saving;
+    private ConfirmDialog _confirmDialog = default!;
+
+    // Form fields
+    private bool _enabled;
+    private string _schedule = "daily";
+    private TimeOnly _backupTimeUtc = new(2, 0);
+    private string _backupDayOfWeek = "Sunday";
+    private string _backupDirectory = string.Empty;
+    private int _retentionCount = 7;
+    private bool _includeDatabase = true;
+    private bool _includeFileStorage = true;
+    private bool _includeModuleData = true;
+    private bool _encryptBackups;
+    private string _encryptionPassphrase = string.Empty;
+    private bool _notifyOnSuccess;
+    private bool _notifyOnFailure = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSettingsAsync();
+    }
+
+    private async Task LoadSettingsAsync()
+    {
+        _loading = true;
+        try
+        {
+            var settings = await Api.ListSettingsAsync(Module);
+            PopulateFields(settings);
+        }
+        catch
+        {
+            Toast.ShowError("Failed to load backup settings.");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void PopulateFields(IReadOnlyList<SystemSettingDto> settings)
+    {
+        _enabled = GetBool(settings, "Backup:Enabled");
+        _schedule = GetString(settings, "Backup:Schedule", "daily");
+        var timeStr = GetString(settings, "Backup:TimeUtc", "02:00");
+        if (TimeOnly.TryParse(timeStr, out var t))
+            _backupTimeUtc = t;
+        _backupDayOfWeek = GetString(settings, "Backup:DayOfWeek", "Sunday");
+        _backupDirectory = GetString(settings, "Backup:Directory", "/var/lib/dotnetcloud/backups");
+        _retentionCount = GetInt(settings, "Backup:RetentionCount", 7);
+        _includeDatabase = GetBool(settings, "Backup:IncludeDatabase", defaultValue: true);
+        _includeFileStorage = GetBool(settings, "Backup:IncludeFileStorage", defaultValue: true);
+        _includeModuleData = GetBool(settings, "Backup:IncludeModuleData", defaultValue: true);
+        _encryptBackups = GetBool(settings, "Backup:Encrypt");
+        _encryptionPassphrase = GetString(settings, "Backup:EncryptionPassphrase");
+        _notifyOnSuccess = GetBool(settings, "Backup:NotifyOnSuccess");
+        _notifyOnFailure = GetBool(settings, "Backup:NotifyOnFailure", defaultValue: true);
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_encryptBackups && _encryptionPassphrase.Length < 12)
+        {
+            Toast.ShowError("Encryption passphrase must be at least 12 characters.");
+            return;
+        }
+
+        if (_retentionCount < 1)
+        {
+            Toast.ShowError("Retention count must be at least 1.");
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var tasks = new[]
+            {
+                Api.UpsertSettingAsync(Module, "Backup:Enabled", Str(_enabled.ToString())),
+                Api.UpsertSettingAsync(Module, "Backup:Schedule", Str(_schedule)),
+                Api.UpsertSettingAsync(Module, "Backup:TimeUtc", Str(_backupTimeUtc.ToString("HH:mm"))),
+                Api.UpsertSettingAsync(Module, "Backup:DayOfWeek", Str(_backupDayOfWeek)),
+                Api.UpsertSettingAsync(Module, "Backup:Directory", Str(_backupDirectory)),
+                Api.UpsertSettingAsync(Module, "Backup:RetentionCount", Str(_retentionCount.ToString())),
+                Api.UpsertSettingAsync(Module, "Backup:IncludeDatabase", Str(_includeDatabase.ToString())),
+                Api.UpsertSettingAsync(Module, "Backup:IncludeFileStorage", Str(_includeFileStorage.ToString())),
+                Api.UpsertSettingAsync(Module, "Backup:IncludeModuleData", Str(_includeModuleData.ToString())),
+                Api.UpsertSettingAsync(Module, "Backup:Encrypt", Str(_encryptBackups.ToString())),
+                Api.UpsertSettingAsync(Module, "Backup:EncryptionPassphrase",
+                    new UpsertSystemSettingDto { Value = _encryptionPassphrase, IsSensitive = true }),
+                Api.UpsertSettingAsync(Module, "Backup:NotifyOnSuccess", Str(_notifyOnSuccess.ToString())),
+                Api.UpsertSettingAsync(Module, "Backup:NotifyOnFailure", Str(_notifyOnFailure.ToString()))
+            };
+
+            var results = await Task.WhenAll(tasks);
+            if (results.All(r => r))
+                Toast.ShowSuccess("Backup settings saved.");
+            else
+                Toast.ShowError("Some settings could not be saved.");
+        }
+        catch
+        {
+            Toast.ShowError("Failed to save backup settings.");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    // ---- Setting helpers ----
+
+    private static string GetString(IReadOnlyList<SystemSettingDto> settings, string key, string defaultValue = "")
+    {
+        var s = settings.FirstOrDefault(x => x.Key == key);
+        return s?.Value ?? defaultValue;
+    }
+
+    private static bool GetBool(IReadOnlyList<SystemSettingDto> settings, string key, bool defaultValue = false)
+    {
+        var val = GetString(settings, key);
+        return string.IsNullOrEmpty(val) ? defaultValue : bool.TryParse(val, out var b) ? b : defaultValue;
+    }
+
+    private static int GetInt(IReadOnlyList<SystemSettingDto> settings, string key, int defaultValue = 0)
+    {
+        var val = GetString(settings, key);
+        return string.IsNullOrEmpty(val) ? defaultValue : int.TryParse(val, out var i) ? i : defaultValue;
+    }
+
+    private static UpsertSystemSettingDto Str(string value, string? description = null) =>
+        new() { Value = value, Description = description };
+}

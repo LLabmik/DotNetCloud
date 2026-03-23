@@ -1,0 +1,17 @@
+apiVersion: v2
+name: dotnetcloud
+description: DotNetCloud — self-hosted cloud platform (modular monolith)
+type: application
+version: 0.1.0
+appVersion: "0.1.0-alpha"
+keywords:
+  - cloud
+  - self-hosted
+  - files
+  - sync
+  - nextcloud-alternative
+home: https://dotnetcloud.net
+sources:
+  - https://github.com/LLabmik/DotNetCloud
+maintainers:
+  - name: DotNetCloud Team

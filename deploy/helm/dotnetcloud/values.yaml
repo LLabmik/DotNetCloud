@@ -1,0 +1,171 @@
+# DotNetCloud Helm Chart — Default Values
+# Override these in your values.yaml or with --set flags.
+
+# ── Image ─────────────────────────────────────────────────────────────────────
+
+image:
+  repository: ghcr.io/llabmik/dotnetcloud
+  tag: ""  # defaults to Chart.appVersion
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# ── Replicas & Strategy ───────────────────────────────────────────────────────
+
+replicaCount: 1
+
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+# ── Service ───────────────────────────────────────────────────────────────────
+
+service:
+  type: ClusterIP
+  port: 8080
+
+# ── Ingress ───────────────────────────────────────────────────────────────────
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # nginx.ingress.kubernetes.io/proxy-body-size: "512m"
+  hosts:
+    - host: cloud.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+    # - secretName: dotnetcloud-tls
+    #   hosts:
+    #     - cloud.example.com
+
+# ── Environment ───────────────────────────────────────────────────────────────
+
+env:
+  ASPNETCORE_ENVIRONMENT: Production
+  ASPNETCORE_URLS: http://+:8080
+
+# ── Database ──────────────────────────────────────────────────────────────────
+
+database:
+  # "postgresql" or "sqlserver"
+  provider: postgresql
+
+  # PostgreSQL (used when provider=postgresql)
+  postgresql:
+    # Set to true to deploy the Bitnami PostgreSQL sub-chart
+    enabled: true
+    auth:
+      username: dotnetcloud
+      password: ""  # Set via secret or --set
+      database: dotnetcloud
+    # External PostgreSQL connection string (used when postgresql.enabled=false)
+    externalConnectionString: ""
+
+  # SQL Server (used when provider=sqlserver)
+  sqlserver:
+    enabled: false
+    externalConnectionString: ""
+
+# ── Storage ───────────────────────────────────────────────────────────────────
+
+persistence:
+  enabled: true
+  storageClass: ""
+  accessMode: ReadWriteOnce
+
+  data:
+    size: 50Gi
+
+  logs:
+    size: 1Gi
+
+# ── Module Hosts ──────────────────────────────────────────────────────────────
+# Each module runs as separate process communicating via gRPC/Unix sockets.
+
+modules:
+  files:
+    enabled: true
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  chat:
+    enabled: true
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+# ── Health Checks ─────────────────────────────────────────────────────────────
+
+healthCheck:
+  liveness:
+    path: /health/live
+    initialDelaySeconds: 15
+    periodSeconds: 30
+    timeoutSeconds: 5
+  readiness:
+    path: /health/ready
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+
+# ── Resources ─────────────────────────────────────────────────────────────────
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+# ── Service Account ──────────────────────────────────────────────────────────
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# ── Pod Configuration ────────────────────────────────────────────────────────
+
+podAnnotations: {}
+podSecurityContext:
+  fsGroup: 1000
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# ── Observability ─────────────────────────────────────────────────────────────
+
+metrics:
+  enabled: false
+  serviceMonitor:
+    enabled: false
+    interval: 30s

@@ -74,9 +74,56 @@ internal sealed class FcmPushProvider : IPushProviderEndpoint
     /// <inheritdoc />
     public async Task SendToMultipleAsync(IEnumerable<Guid> userIds, PushNotification notification, CancellationToken cancellationToken = default)
     {
+        if (!_options.Enabled)
+        {
+            _logger.LogDebug("FCM provider disabled; skipping batch push delivery");
+            return;
+        }
+
+        var messages = new List<(DeviceRegistration Device, PushNotification Notification)>();
+        var userDeviceMap = new Dictionary<string, Guid>(); // token → userId for cleanup
+
         foreach (var userId in userIds)
         {
-            await SendAsync(userId, notification, cancellationToken);
+            if (!_registrations.TryGetValue(userId, out var devices))
+                continue;
+
+            var fcmDevices = devices.Where(d => d.Provider == PushProvider.FCM).ToList();
+            foreach (var device in fcmDevices)
+            {
+                messages.Add((device, notification));
+                userDeviceMap[device.Token] = userId;
+            }
+        }
+
+        if (messages.Count == 0)
+            return;
+
+        var results = await _transport.SendBatchAsync(messages, cancellationToken);
+
+        // Process results: clean up invalid tokens
+        for (var i = 0; i < results.Count; i++)
+        {
+            var result = results[i];
+            var (device, _) = messages[i];
+
+            if (result.IsInvalidToken && userDeviceMap.TryGetValue(device.Token, out var userId))
+            {
+                if (_registrations.TryGetValue(userId, out var userDevices))
+                {
+                    lock (userDevices)
+                    {
+                        userDevices.RemoveAll(d => d.Token == device.Token);
+                    }
+                }
+
+                _logger.LogWarning("FCM invalid token cleanup for user {UserId}", userId);
+            }
+            else if (!result.IsSuccess)
+            {
+                _logger.LogWarning("FCM batch send failed for device {Token}: {Error}",
+                    device.Token[..Math.Min(8, device.Token.Length)], result.Error ?? "unknown_error");
+            }
         }
     }
 

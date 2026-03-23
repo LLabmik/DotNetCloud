@@ -2,6 +2,8 @@ using DotNetCloud.Modules.Chat.Data.Services;
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace DotNetCloud.Modules.Chat.Data;
 
@@ -18,6 +20,8 @@ public static class ChatServiceRegistration
         services.Configure<FcmPushOptions>(configuration.GetSection(FcmPushOptions.SectionName));
         services.Configure<UnifiedPushOptions>(configuration.GetSection(UnifiedPushOptions.SectionName));
 
+        services.AddHttpClient("fcm");
+
         services.AddScoped<IChannelService, ChannelService>();
         services.AddScoped<IChannelMemberService, ChannelMemberService>();
         services.AddScoped<IMessageService, MessageService>();
@@ -31,7 +35,19 @@ public static class ChatServiceRegistration
         services.AddScoped<IMentionNotificationService, MentionNotificationService>();
         services.AddSingleton<INotificationPreferenceStore, InMemoryNotificationPreferenceStore>();
         services.AddSingleton<INotificationDeliveryQueue, InMemoryNotificationDeliveryQueue>();
-        services.AddSingleton<IFcmTransport, FcmLoggingTransport>();
+        services.AddSingleton<IFcmTransport>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<FcmPushOptions>>().Value;
+            if (!string.IsNullOrWhiteSpace(options.CredentialsPath) && File.Exists(options.CredentialsPath))
+            {
+                return new FcmHttpTransport(
+                    sp.GetRequiredService<IHttpClientFactory>().CreateClient("fcm"),
+                    sp.GetRequiredService<IOptions<FcmPushOptions>>(),
+                    sp.GetRequiredService<ILogger<FcmHttpTransport>>());
+            }
+
+            return new FcmLoggingTransport(sp.GetRequiredService<ILogger<FcmLoggingTransport>>());
+        });
         services.AddSingleton<IUnifiedPushTransport, UnifiedPushLoggingTransport>();
 
         // Push notification providers and router

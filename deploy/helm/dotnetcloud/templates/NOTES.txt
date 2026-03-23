@@ -1,0 +1,22 @@
+╔═══════════════════════════════════════════════════════════════╗
+  DotNetCloud has been deployed!
+╚═══════════════════════════════════════════════════════════════╝
+
+{{- if .Values.ingress.enabled }}
+Access the application at:
+{{- range .Values.ingress.hosts }}
+  https://{{ .host }}
+{{- end }}
+{{- else }}
+
+Get the application URL by running:
+
+  kubectl port-forward svc/{{ include "dotnetcloud.fullname" . }} 8080:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+
+Then open: http://localhost:8080
+{{- end }}
+
+Default admin credentials are created on first startup.
+Check the server logs for the initial admin password:
+
+  kubectl logs -f deployment/{{ include "dotnetcloud.fullname" . }} -n {{ .Release.Namespace }}

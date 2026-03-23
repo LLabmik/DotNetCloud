@@ -9,6 +9,11 @@ internal interface IFcmTransport
     /// Sends a push notification to one FCM device.
     /// </summary>
     Task<FcmSendResult> SendAsync(DeviceRegistration device, PushNotification notification, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sends push notifications to multiple devices concurrently for efficiency.
+    /// </summary>
+    Task<IReadOnlyList<FcmSendResult>> SendBatchAsync(IReadOnlyList<(DeviceRegistration Device, PushNotification Notification)> messages, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

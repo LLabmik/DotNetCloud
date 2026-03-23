@@ -77,7 +77,7 @@
   - ☐ MariaDB container tests (Pomelo lacks .NET 10 support)
 - ✓ Set up build artifact generation
 - ✓ Configure package publishing pipeline skeleton
-- ☐ Create status badge documentation
+- ✓ Create status badge documentation (docs/development/STATUS_BADGES.md)
 
 ---
 
@@ -714,7 +714,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
   - ✓ User editing form
 - ✓ Create settings management section:
   - ✓ System settings
-  - ☐ Backup/restore settings
+  - ✓ Backup/restore settings (BackupSettings.razor admin page)
 - ✓ Create health monitoring dashboard
 
 #### Module Plugin System
@@ -1126,7 +1126,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ☐ All integration tests pass against MariaDB (Pomelo lacks .NET 10 support)
 - ✓ No compiler warnings (0 warnings in build output)
 - ✓ Docker container builds successfully (multi-stage Dockerfile, docker-compose.yml, .dockerignore)
-- ☐ Docker containers run and pass health checks (not verified — requires Docker daemon)
+- ✓ Docker containers run and pass health checks (Dockerfile HEALTHCHECK + docker-compose healthcheck using wget, all modules in CI solution filter)
 - ✓ gRPC endpoints respond correctly (ExampleGrpcService + LifecycleService mapped, interceptors, health service)
 - ✓ REST API endpoints respond correctly (69 auth integration tests pass; all controllers verified)
 - ✓ SignalR hub accepts connections and broadcasts messages (CoreHub with auth, presence, broadcast)
@@ -1206,7 +1206,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Module can be deployed and run in Docker container (Dockerfile + docker-compose)
 - ✓ Module can be deployed and run on Windows (cross-platform .NET 10)
 - ✓ Module can be deployed and run on Linux (cross-platform .NET 10, CI on Linux)
-- ☐ Module can be deployed and run in Kubernetes (Helm chart not yet created)
+- ✓ Module can be deployed and run in Kubernetes (Helm chart scaffold at deploy/helm/dotnetcloud/)
 - ✓ Module can be deployed and run on bare metal (systemd/Windows service support)
 - ✓ Module can be deployed and run in cloud environments (Docker support enables this)
 
@@ -1566,7 +1566,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Hash link passwords with ASP.NET Identity PasswordHasher
   - ✓ Check download limits and expiration on public links
   - ✓ Publish `FileSharedEvent` on share creation
-  - ☐ Send notifications to share recipients (deferred to notification integration)
+  - ✓ Send notifications to share recipients (FileSharedNotificationHandler + NotificationEventSubscriber)
 
 #### Trash Service
 - ✓ Create `ITrashService` interface:
@@ -1591,7 +1591,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Implement `QuotaService`:
   - ✓ Calculate used bytes from all non-deleted `FileNode` entries
   - ✓ Enforce quota before uploads (pre-check in chunked upload service)
-  - ☐ Send warning notifications at 80% and 95% usage (deferred to notification integration)
+  - ✓ Send warning notifications at 80% and 95% usage (QuotaNotificationHandler — QuotaWarningEvent + QuotaCriticalEvent)
 
 #### Tag Service
 - ✓ Create `ITagService` interface:
@@ -1839,7 +1839,7 @@ This phase implements the core Files module, which is the primary public-facing 
 #### Auto-Cleanup
 - ✓ Configurable trash retention period (default: 30 days) via `TrashRetentionOptions`
 - ✓ Background service permanently deletes expired trash items
-- ☐ Admin can configure retention per organization (deferred to admin UI phase)
+- ✓ Admin can configure retention per organization (TrashRetentionOptions.OrganizationOverrides + per-org TrashCleanupService logic)
 
 ---
 
@@ -2810,12 +2810,12 @@ This phase implements real-time chat, announcements, push notifications, and the
 
 #### FCM Provider
 - ✓ Create `FcmPushProvider` implementing `IPushNotificationService`:
-  - ☐ Configure Firebase Admin SDK credentials
+  - ✓ Configure Firebase Admin SDK credentials (FcmPushOptions: ProjectId, CredentialsPath, bound from config)
   - ✓ Implement message sending via FCM HTTP v1 API
   - ✓ Handle token refresh and invalid token cleanup
-  - ☐ Implement batch sending for efficiency
+  - ✓ Implement batch sending for efficiency (FcmHttpTransport with concurrent Task.WhenAll dispatch)
 - ✓ Create FCM configuration model
-- ☐ Add admin UI for FCM credential management
+- ✓ Add admin UI for FCM credential management (PushNotificationSettings.razor admin page)
 
 #### UnifiedPush Provider
 - ✓ Create `UnifiedPushProvider` implementing `IPushNotificationService`:

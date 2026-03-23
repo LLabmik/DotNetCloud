@@ -65,5 +65,16 @@ public class FcmPushProviderTests
             Calls.Add(device.Token);
             return Task.FromResult(_resultFactory(device.Token));
         }
+
+        public Task<IReadOnlyList<FcmSendResult>> SendBatchAsync(IReadOnlyList<(DeviceRegistration Device, PushNotification Notification)> batch, CancellationToken cancellationToken = default)
+        {
+            var results = new List<FcmSendResult>();
+            foreach (var (device, _) in batch)
+            {
+                Calls.Add(device.Token);
+                results.Add(_resultFactory(device.Token));
+            }
+            return Task.FromResult<IReadOnlyList<FcmSendResult>>(results);
+        }
     }
 }

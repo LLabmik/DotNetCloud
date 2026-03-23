@@ -25,4 +25,19 @@ internal sealed class FcmLoggingTransport : IFcmTransport
 
         return Task.FromResult(FcmSendResult.Success);
     }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<FcmSendResult>> SendBatchAsync(IReadOnlyList<(DeviceRegistration Device, PushNotification Notification)> messages, CancellationToken cancellationToken = default)
+    {
+        foreach (var (device, notification) in messages)
+        {
+            _logger.LogInformation(
+                "FCM batch push to device {Token}: {Title}",
+                device.Token[..Math.Min(8, device.Token.Length)],
+                notification.Title);
+        }
+
+        var results = Enumerable.Repeat(FcmSendResult.Success, messages.Count).ToList();
+        return Task.FromResult<IReadOnlyList<FcmSendResult>>(results);
+    }
 }

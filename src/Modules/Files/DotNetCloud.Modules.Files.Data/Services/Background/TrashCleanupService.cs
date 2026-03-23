@@ -53,16 +53,52 @@ internal sealed class TrashCleanupService : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FilesDbContext>();
         var storageEngine = scope.ServiceProvider.GetRequiredService<IFileStorageEngine>();
+        var orgResolver = scope.ServiceProvider.GetService<IUserOrganizationResolver>();
 
         // Skip if retention is disabled
-        if (_options.RetentionDays > 0)
+        if (_options.RetentionDays > 0 || _options.OrganizationOverrides.Count > 0)
         {
-            var cutoff = DateTime.UtcNow - TimeSpan.FromDays(_options.RetentionDays);
+            var globalCutoff = _options.RetentionDays > 0
+                ? DateTime.UtcNow - TimeSpan.FromDays(_options.RetentionDays)
+                : (DateTime?)null;
 
-            var expiredTrash = await db.FileNodes
+            // Get all deleted items (we'll filter per-org retention in memory)
+            var allTrash = await db.FileNodes
                 .IgnoreQueryFilters()
-                .Where(n => n.IsDeleted && n.DeletedAt.HasValue && n.DeletedAt.Value < cutoff)
+                .Where(n => n.IsDeleted && n.DeletedAt.HasValue)
                 .ToListAsync(cancellationToken);
+
+            if (allTrash.Count == 0)
+                goto ChunkGC;
+
+            // Resolve per-org overrides if any are configured
+            IReadOnlyDictionary<Guid, Guid>? userOrgs = null;
+            if (_options.OrganizationOverrides.Count > 0 && orgResolver is not null)
+            {
+                var ownerIds = allTrash.Select(n => n.OwnerId).Distinct();
+                userOrgs = await orgResolver.GetOrganizationIdsAsync(ownerIds, cancellationToken);
+            }
+
+            var expiredTrash = new List<FileNode>();
+            foreach (var node in allTrash)
+            {
+                var retentionDays = _options.RetentionDays;
+
+                // Check for per-org override
+                if (userOrgs is not null &&
+                    userOrgs.TryGetValue(node.OwnerId, out var orgId) &&
+                    _options.OrganizationOverrides.TryGetValue(orgId, out var orgRetention))
+                {
+                    retentionDays = orgRetention;
+                }
+
+                if (retentionDays <= 0)
+                    continue;
+
+                var cutoff = DateTime.UtcNow - TimeSpan.FromDays(retentionDays);
+                if (node.DeletedAt!.Value < cutoff)
+                    expiredTrash.Add(node);
+            }
 
             if (expiredTrash.Count > 0)
             {
@@ -72,10 +108,12 @@ internal sealed class TrashCleanupService : BackgroundService
                 }
 
                 await db.SaveChangesAsync(cancellationToken);
-                _logger.LogInformation("Auto-purged {Count} trash items older than {Days} days",
-                    expiredTrash.Count, _options.RetentionDays);
+                _logger.LogInformation("Auto-purged {Count} trash items (global retention: {Days} days, {OrgOverrides} org overrides)",
+                    expiredTrash.Count, _options.RetentionDays, _options.OrganizationOverrides.Count);
             }
         }
+
+        ChunkGC:
 
         // GC unreferenced chunks
         var orphanChunks = await db.FileChunks

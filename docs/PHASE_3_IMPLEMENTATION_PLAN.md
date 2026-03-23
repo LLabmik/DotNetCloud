@@ -76,9 +76,9 @@
 - ✓ Contact-sharing model (user/team scoped permissions).
 
 ### Exit Criteria
-- ☐ Contacts UI can fully manage records (shell/placeholder exists; full CRUD wiring deferred).
+- ✓ Contacts UI can fully manage records (verified: ContactsPage.razor calls real API via IContactsApiClient — full CRUD wired).
 - ✓ CardDAV interoperability tests pass with at least two external clients.
-- ☐ Audit trail entries are recorded for sensitive operations (audit columns deferred — see release notes).
+- ✓ Audit trail entries are recorded for sensitive operations (verified: CreatedByUserId/UpdatedByUserId on all PIM entities + migrations).
 
 ## 3.3 Calendar Module (phase-3.3)
 
@@ -138,15 +138,15 @@
 
 ### Deliverables
 - ✓ Unified navigation entries and module registration in the Blazor shell.
-- ☐ Shared notification patterns for invites, reminders, mentions, and shares (deferred — Chat notification infra exists as template).
+- ✓ Shared notification patterns for invites, reminders, mentions, and shares (verified: NotificationService, InAppNotificationEventHandler, NotificationEventSubscriber all implemented).
 - ✓ Cross-links:
   - ✓ Calendar event references contact records (via attendee model)
   - ✓ Notes can mention contacts and events (via NoteLinkType enum: Contact, CalendarEvent, File, Note)
-  - ☐ Contacts can surface related notes/events (deferred)
+  - ✓ Contacts can surface related notes/events (verified: GET /api/v1/contacts/{id}/related endpoint + IContactRelatedEntitiesService)
 - ✓ Consistent authorization, audit logging, and soft-delete behavior.
 
 ### Exit Criteria
-- ☐ Cross-module links resolve correctly in UI (UI shells are placeholders; link rendering deferred).
+- ✓ Cross-module links resolve correctly in UI (verified: CrossModuleLink.razor + CrossModuleLinkList.razor in UI.Shared and all PIM modules).
 - ✓ End-to-end flows pass integration tests.
 
 ## 3.6 Migration Foundation (phase-3.6) ✅
@@ -247,7 +247,7 @@
 
 ### Milestone C: Notes MVP + Integration
 - ✓ phase-3.4 complete
-- ☐ phase-3.5 complete (partially — navigation done, cross-link UI deferred)
+- ✓ phase-3.5 complete (verified: all deliverables including cross-link UI and notification patterns)
 
 ### Milestone D: Import + Hardening + Docs
 - ✓ phase-3.6 complete
@@ -271,7 +271,7 @@
 
 ## 7. Definition Of Done (Phase 3)
 
-- ☐ All phase-3.x items marked complete (3.5 partial — UI cross-links and shared notifications deferred).
+- ✓ All phase-3.x items marked complete (verified 2026-03-23: all D1–D7 deferred items confirmed in code).
 - ✓ Interoperability validation completed for CardDAV and CalDAV.
 - ✓ Security and performance quality gates passed.
 - ✓ Documentation and release notes published.

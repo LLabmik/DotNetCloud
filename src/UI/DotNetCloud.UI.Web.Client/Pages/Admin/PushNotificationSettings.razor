@@ -1,0 +1,269 @@
+@page "/admin/push-notifications"
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveWebAssemblyRenderMode(prerender: false))
+@attribute [Authorize(Policy = "RequireAdmin")]
+
+<PageTitle>Push Notifications - DotNetCloud</PageTitle>
+
+<div class="page-header">
+    <h1>Push Notification Settings</h1>
+    <div class="page-header-actions">
+        <a href="/admin/settings?module=dotnetcloud.chat" class="btn btn-outline btn-sm">All Chat Settings</a>
+    </div>
+</div>
+
+<p class="text-muted">
+    Configure Firebase Cloud Messaging (FCM) and UnifiedPush for delivering push notifications to mobile and desktop clients.
+</p>
+
+@if (_loading)
+{
+    <LoadingIndicator Message="Loading push notification settings..." />
+}
+else
+{
+    <div class="settings-grid">
+        <!-- FCM Configuration -->
+        <section class="settings-section">
+            <h2>Firebase Cloud Messaging (FCM)</h2>
+
+            <div class="form-group">
+                <label>Enabled</label>
+                <input type="checkbox" @bind="_fcmEnabled" />
+                <span class="hint">Enable push notifications via Google Firebase Cloud Messaging.</span>
+            </div>
+
+            <div class="form-group">
+                <label>Project ID</label>
+                <input type="text" class="input" @bind="_fcmProjectId"
+                       placeholder="my-project-123456" />
+                <span class="hint">
+                    Firebase project identifier. Found in your Firebase Console → Project Settings → General.
+                </span>
+            </div>
+
+            <div class="form-group">
+                <label>Service Account Credentials Path</label>
+                <input type="text" class="input" @bind="_fcmCredentialsPath"
+                       placeholder="/etc/dotnetcloud/firebase-credentials.json" />
+                <span class="hint">
+                    Absolute path to the Google service account JSON key file on the server.
+                    Generate one in the Firebase Console → Project Settings → Service Accounts → Generate New Private Key.
+                    The file must be readable by the DotNetCloud service account.
+                </span>
+            </div>
+
+            <div class="form-group">
+                <label>Credentials Status</label>
+                @if (string.IsNullOrWhiteSpace(_fcmCredentialsPath))
+                {
+                    <span class="badge badge-muted">Not configured</span>
+                }
+                else
+                {
+                    <span class="badge badge-info">Path set (server validates on startup)</span>
+                }
+            </div>
+
+            <div class="form-group">
+                <label>Dry-Run Mode</label>
+                <input type="checkbox" @bind="_fcmDryRun" />
+                <span class="hint">
+                    When enabled, FCM messages are validated but not delivered. Useful for
+                    testing the integration without sending real notifications.
+                </span>
+            </div>
+        </section>
+
+        <!-- UnifiedPush Configuration -->
+        <section class="settings-section">
+            <h2>UnifiedPush</h2>
+
+            <div class="form-group">
+                <label>Enabled</label>
+                <input type="checkbox" @bind="_upEnabled" />
+                <span class="hint">
+                    Enable UnifiedPush for privacy-preserving push notifications (no Google dependency).
+                    Requires clients to have a UnifiedPush distributor app installed.
+                </span>
+            </div>
+
+            <div class="form-group">
+                <label>Max Retry Attempts</label>
+                <input type="number" class="input input-sm" min="0" max="10"
+                       @bind="_upMaxRetries" />
+                <span class="hint">
+                    Number of retry attempts for transient delivery failures. Default: 3.
+                </span>
+            </div>
+        </section>
+
+        <!-- Notification Behavior -->
+        <section class="settings-section">
+            <h2>Delivery Settings</h2>
+
+            <div class="form-group">
+                <label>File Share Notifications</label>
+                <input type="checkbox" @bind="_notifyFileShared" />
+                <span class="hint">Send push notification when a file is shared with a user.</span>
+            </div>
+
+            <div class="form-group">
+                <label>Public Link Access Notifications</label>
+                <input type="checkbox" @bind="_notifyPublicLinkAccessed" />
+                <span class="hint">Notify the share creator when their public link is first accessed.</span>
+            </div>
+
+            <div class="form-group">
+                <label>Quota Warning Notifications</label>
+                <input type="checkbox" @bind="_notifyQuotaWarning" />
+                <span class="hint">Send push notification when storage quota reaches 80% or 95%.</span>
+            </div>
+
+            <div class="form-group">
+                <label>Share Expiry Notifications</label>
+                <input type="checkbox" @bind="_notifyShareExpiring" />
+                <span class="hint">Notify users when their shared links are about to expire.</span>
+            </div>
+
+            <div class="form-group">
+                <label>Chat Mention Notifications</label>
+                <input type="checkbox" @bind="_notifyChatMention" />
+                <span class="hint">Send push notification when a user is mentioned in a chat message.</span>
+            </div>
+        </section>
+    </div>
+
+    <div class="form-actions">
+        <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+            @(_saving ? "Saving..." : "Save Settings")
+        </button>
+    </div>
+}
+
+<ConfirmDialog @ref="_confirmDialog" />
+
+@code {
+    [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+
+    private const string Module = "dotnetcloud.chat";
+
+    private bool _loading = true;
+    private bool _saving;
+    private ConfirmDialog _confirmDialog = default!;
+
+    // FCM fields
+    private bool _fcmEnabled = true;
+    private string _fcmProjectId = string.Empty;
+    private string _fcmCredentialsPath = string.Empty;
+    private bool _fcmDryRun;
+
+    // UnifiedPush fields
+    private bool _upEnabled = true;
+    private int _upMaxRetries = 3;
+
+    // Notification delivery toggles
+    private bool _notifyFileShared = true;
+    private bool _notifyPublicLinkAccessed = true;
+    private bool _notifyQuotaWarning = true;
+    private bool _notifyShareExpiring = true;
+    private bool _notifyChatMention = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSettingsAsync();
+    }
+
+    private async Task LoadSettingsAsync()
+    {
+        _loading = true;
+        try
+        {
+            var settings = await Api.ListSettingsAsync(Module);
+            PopulateFields(settings);
+        }
+        catch
+        {
+            Toast.ShowError("Failed to load push notification settings.");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void PopulateFields(IReadOnlyList<SystemSettingDto> settings)
+    {
+        _fcmEnabled = GetBool(settings, "Push:Fcm:Enabled", defaultValue: true);
+        _fcmProjectId = GetString(settings, "Push:Fcm:ProjectId");
+        _fcmCredentialsPath = GetString(settings, "Push:Fcm:CredentialsPath");
+        _fcmDryRun = GetBool(settings, "Push:Fcm:DryRun");
+        _upEnabled = GetBool(settings, "Push:UnifiedPush:Enabled", defaultValue: true);
+        _upMaxRetries = GetInt(settings, "Push:UnifiedPush:MaxRetryAttempts", 3);
+        _notifyFileShared = GetBool(settings, "Push:Delivery:FileShared", defaultValue: true);
+        _notifyPublicLinkAccessed = GetBool(settings, "Push:Delivery:PublicLinkAccessed", defaultValue: true);
+        _notifyQuotaWarning = GetBool(settings, "Push:Delivery:QuotaWarning", defaultValue: true);
+        _notifyShareExpiring = GetBool(settings, "Push:Delivery:ShareExpiring", defaultValue: true);
+        _notifyChatMention = GetBool(settings, "Push:Delivery:ChatMention", defaultValue: true);
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            var tasks = new[]
+            {
+                Api.UpsertSettingAsync(Module, "Push:Fcm:Enabled", Str(_fcmEnabled.ToString())),
+                Api.UpsertSettingAsync(Module, "Push:Fcm:ProjectId", Str(_fcmProjectId)),
+                Api.UpsertSettingAsync(Module, "Push:Fcm:CredentialsPath",
+                    new UpsertSystemSettingDto { Value = _fcmCredentialsPath, IsSensitive = true }),
+                Api.UpsertSettingAsync(Module, "Push:Fcm:DryRun", Str(_fcmDryRun.ToString())),
+                Api.UpsertSettingAsync(Module, "Push:UnifiedPush:Enabled", Str(_upEnabled.ToString())),
+                Api.UpsertSettingAsync(Module, "Push:UnifiedPush:MaxRetryAttempts", Str(_upMaxRetries.ToString())),
+                Api.UpsertSettingAsync(Module, "Push:Delivery:FileShared", Str(_notifyFileShared.ToString())),
+                Api.UpsertSettingAsync(Module, "Push:Delivery:PublicLinkAccessed", Str(_notifyPublicLinkAccessed.ToString())),
+                Api.UpsertSettingAsync(Module, "Push:Delivery:QuotaWarning", Str(_notifyQuotaWarning.ToString())),
+                Api.UpsertSettingAsync(Module, "Push:Delivery:ShareExpiring", Str(_notifyShareExpiring.ToString())),
+                Api.UpsertSettingAsync(Module, "Push:Delivery:ChatMention", Str(_notifyChatMention.ToString()))
+            };
+
+            var results = await Task.WhenAll(tasks);
+            if (results.All(r => r))
+                Toast.ShowSuccess("Push notification settings saved. Restart the Chat module to apply changes.");
+            else
+                Toast.ShowError("Some settings could not be saved.");
+        }
+        catch
+        {
+            Toast.ShowError("Failed to save push notification settings.");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    // ---- Setting helpers ----
+
+    private static string GetString(IReadOnlyList<SystemSettingDto> settings, string key, string defaultValue = "")
+    {
+        var s = settings.FirstOrDefault(x => x.Key == key);
+        return s?.Value ?? defaultValue;
+    }
+
+    private static bool GetBool(IReadOnlyList<SystemSettingDto> settings, string key, bool defaultValue = false)
+    {
+        var val = GetString(settings, key);
+        return string.IsNullOrEmpty(val) ? defaultValue : bool.TryParse(val, out var b) ? b : defaultValue;
+    }
+
+    private static int GetInt(IReadOnlyList<SystemSettingDto> settings, string key, int defaultValue = 0)
+    {
+        var val = GetString(settings, key);
+        return string.IsNullOrEmpty(val) ? defaultValue : int.TryParse(val, out var i) ? i : defaultValue;
+    }
+
+    private static UpsertSystemSettingDto Str(string value, string? description = null) =>
+        new() { Value = value, Description = description };
+}
