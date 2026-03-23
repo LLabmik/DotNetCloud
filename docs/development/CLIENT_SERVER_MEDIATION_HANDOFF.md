@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-23 (Security audit closeout complete on mint22; Windows post-closeout smoke handoff)
+Last updated: 2026-03-23 (Post-closeout Windows smoke complete; security audit cycle fully closed)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -59,7 +59,8 @@ Archived context:
 - `mint22` connectivity diagnosis: **COMPLETE** (2026-03-22). Current deployment listens directly on HTTPS `:5443`; no listener exists on `:15443`.
 - Security audit desktop client validation on `Windows11-TestDNC`: **COMPLETE** (2026-03-23).
 - Security audit closeout + merge validation on `mint22`: **COMPLETE** (2026-03-23).
-- **Active cycle:** Post-closeout Windows runtime smoke on latest `main` (2026-03-23).
+- Post-closeout Windows runtime smoke: **COMPLETE** (2026-03-23). 4/4 targeted tests passed; login launch path verified reachable.
+- **Active cycle:** Security audit fully closed across all machines (2026-03-23). No active work items.
 
 ## Environment
 
@@ -81,42 +82,20 @@ Archived context:
 
 ## Active Handoff
 
-**Target machine:** `Windows11-TestDNC`
-**Status:** READY FOR PICKUP
+**Target machine:** N/A — no active handoff
+**Status:** IDLE
 
-### Security Audit — Post-Closeout Windows Runtime Smoke
+### Security Audit Cycle — Fully Closed
 
-Server closeout is complete and archived in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
-Windows agent should run final runtime smoke on latest `main` and confirm no regressions after merge.
+All post-closeout validation is complete. No active work items remain.
 
-#### Completed closeout evidence now on `main`
+#### Summary of completed validation (2026-03-23)
 
-- Server release-confidence build passed: `dotnet build DotNetCloud.CI.slnf -v minimal`.
-- Server/module security test scope passed:
-    - `DotNetCloud.Core.Server.Tests` -> 385 total, 0 failed, 383 passed, 2 skipped.
-    - `DotNetCloud.Modules.Files.Tests` -> 669 total, 0 failed.
-- Stale test expectation reconciled:
-    - `tests/DotNetCloud.Core.Server.Tests/Configuration/RateLimitingOptionsTests.cs`
-    - Updated `GlobalPermitLimit` default expectation from 100 to 20.
-- Security audit cycle officially closed on server side.
+- **Server (`mint22`):** Release-confidence build passed; 385 Core.Server tests passed (2 skipped), 669 Files tests passed. Stale rate-limit test expectation reconciled.
+- **Windows (`Windows11-TestDNC`):** 4/4 targeted smoke tests passed. Add-account/login launch path verified reachable (`https://mint22.kimball.home:5443/` → HTTP 200, discovery endpoints confirmed).
+- **Linux client (`mint-dnc-client`):** All four security findings implemented and validated (see archive).
 
-#### Requested actions on `Windows11-TestDNC`
-
-1. Pull latest `main`.
-2. Run targeted Windows smoke validation on latest build:
-    - Add-account/auth flow smoke (`AddAccountServerUrl_DefaultsToEmptyString|AddAccountAsync_ValidInputs_CallsOAuth2AndIpc`).
-    - Tray connection/sync smoke (`ConnectAsync_RaisesConnectionStateChangedOnConnect|OnSyncComplete_WithTransfersNoErrors_ShowsSuccessToast`).
-3. Confirm no runtime regressions in Windows add-account/login launch flow against `https://mint22.kimball.home:5443/`.
-4. Update this handoff doc:
-    - If fully complete: archive this block and set next single Active Handoff task.
-    - If incomplete: keep this block and list concrete remaining actions + blocker evidence.
-
-#### Acceptance Criteria
-
-- ☐ Pull latest `main` on `Windows11-TestDNC`.
-- ☐ Run targeted Windows smoke tests and report raw pass/fail counts.
-- ☐ Verify add-account/login launch path still targets and reaches `https://mint22.kimball.home:5443/`.
-- ☐ Archive this block if all checks pass; otherwise keep active with explicit blockers.
+No further handoff action required until a new work item is created.
 
 ## Relay Template
 

@@ -5,6 +5,39 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Post-Closeout Windows Runtime Smoke COMPLETE on Windows11-TestDNC (2026-03-23)
+
+Archived from Active Handoff on 2026-03-23 after post-closeout Windows runtime smoke validation on `Windows11-TestDNC`.
+
+**Original target:** `Windows11-TestDNC`
+**Original status:** COMPLETE ✅
+
+### Pull latest
+
+- `git pull` → fast-forward to `194ec61`.
+
+### Targeted Windows smoke test results
+
+- `AddAccountServerUrl_DefaultsToEmptyString` → **PASSED**
+- `AddAccountAsync_ValidInputs_CallsOAuth2AndIpc` → **PASSED**
+- `ConnectAsync_RaisesConnectionStateChangedOnConnect` → **PASSED**
+- `OnSyncComplete_WithTransfersNoErrors_ShowsSuccessToast` → **PASSED**
+- **Total: 4 passed, 0 failed.**
+
+### Add-account/login launch path verification
+
+- Endpoint probe from `Windows11-TestDNC` to `https://mint22.kimball.home:5443/.well-known/openid-configuration` returned **HTTP 200**.
+- Discovery document confirms:
+    - `authorization_endpoint` = `https://mint22.kimball.home:5443/connect/authorize`
+    - `token_endpoint` = `https://mint22.kimball.home:5443/connect/token`
+    - `issuer` = `https://mint22.kimball.home:5443/`
+- Login launch path: **reachable, no regression.**
+
+### Notes
+
+- Security audit cycle officially closed across all machines.
+- No runtime regressions detected on latest `main` after server closeout merge.
+
 ## Archived: Security Audit Closeout + Merge Validation COMPLETE on mint22 (2026-03-23)
 
 Archived from Active Handoff on 2026-03-23 after server-side release-confidence validation on `mint22`.
