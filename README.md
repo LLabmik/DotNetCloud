@@ -48,7 +48,7 @@ See [MASTER_PROJECT_PLAN.md](docs/MASTER_PROJECT_PLAN.md) for the full phased im
 | **Phase 0** | Foundation — core platform, auth, module system, CLI, web shell, observability | ✅ Complete |
 | **Phase 1** | Files + Desktop Sync Client — file browser, upload/download, sharing, Collabora editing, bulk operations, trash, tags, versioning, Windows & Linux sync | ✅ Complete |
 | **Phase 2** | Chat + Notifications + Android — real-time messaging, push notifications, Android MAUI client | ✅ Complete |
-| **Phase 3** | Contacts + Calendar + Notes + NextCloud Migration | ⬜ Planned |
+| **Phase 3** | Contacts + Calendar + Notes + NextCloud Migration | 🔜 Up Next |
 | **Phase 4** | Project Management (Deck) | ⬜ Planned |
 | **Phase 5** | Photos + Music | ⬜ Planned |
 | **Phase 6** | Email + Bookmarks | ⬜ Planned |

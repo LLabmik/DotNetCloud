@@ -3101,3 +3101,144 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Fixed CreatedAtAction route mismatch (SuppressAsyncSuffixInActionNames)
 - ✓ Fixed duplicate AnnouncementController route conflict
 - ✓ 47 integration tests, all passing
+
+---
+
+## Phase 3: Contacts, Calendar & Notes
+
+### Objective
+Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-isolated modules with standards-compliant sync, cross-module integration, and migration tooling.
+
+> **Detailed plan:** `docs/PHASE_3_IMPLEMENTATION_PLAN.md`
+
+### Phase 3.1: Architecture And Contracts
+
+#### Core DTOs & Contracts
+- ☐ Contact DTOs (person/org/group, phone/email/address, metadata)
+- ☐ Calendar DTOs (calendar, event, attendee, recurrence, reminders)
+- ☐ Note DTOs (note document, folder, tag, note metadata)
+
+#### Event Contracts
+- ☐ ContactCreated/Updated/DeletedEvent
+- ☐ CalendarEventCreated/Updated/DeletedEvent
+- ☐ NoteCreated/Updated/DeletedEvent
+
+#### Capability & Validation
+- ☐ Capability interfaces and tier mapping for Contacts, Calendar, Notes
+- ☐ Validation rules and error code extensions for new domains
+
+### Phase 3.2: Contacts Module
+
+#### Module Projects
+- ☐ Create `DotNetCloud.Modules.Contacts` (core logic)
+- ☐ Create `DotNetCloud.Modules.Contacts.Data` (EF Core context)
+- ☐ Create `DotNetCloud.Modules.Contacts.Host` (gRPC host)
+
+#### Data Model
+- ☐ Contact, ContactGroup, Address, PhoneNumber, EmailAddress, CustomField entities
+- ☐ EF configurations with multi-provider naming strategies
+- ☐ Initial migrations (PostgreSQL + SQL Server)
+
+#### REST API
+- ☐ CRUD endpoints for contacts and groups
+- ☐ Bulk import/export (vCard format)
+- ☐ Search endpoint with full-text support
+
+#### CardDAV
+- ☐ Principal and addressbook discovery
+- ☐ vCard GET/PUT/DELETE
+- ☐ Sync token and change tracking
+
+#### Features
+- ☐ Contact avatar upload and attachment metadata
+- ☐ Contact sharing model (user/team scoped permissions)
+
+### Phase 3.3: Calendar Module
+
+#### Module Projects
+- ☐ Create `DotNetCloud.Modules.Calendar` (core logic)
+- ☐ Create `DotNetCloud.Modules.Calendar.Data` (EF Core context)
+- ☐ Create `DotNetCloud.Modules.Calendar.Host` (gRPC host)
+
+#### Data Model
+- ☐ Calendar, CalendarEvent, Attendee, RecurrenceRule, Reminder, ExceptionInstance entities
+- ☐ EF configurations with multi-provider naming strategies
+- ☐ Initial migrations (PostgreSQL + SQL Server)
+
+#### REST API
+- ☐ CRUD endpoints for calendars and events
+- ☐ RSVP / invitation management
+- ☐ Calendar sharing and event search/filter
+
+#### CalDAV
+- ☐ Calendar discovery and collections
+- ☐ iCalendar GET/PUT/DELETE
+- ☐ Sync token and change tracking
+
+#### Features
+- ☐ Recurrence engine and occurrence expansion service
+- ☐ Reminder/notification pipeline (in-app + push)
+
+### Phase 3.4: Notes Module
+
+#### Module Projects
+- ☐ Create `DotNetCloud.Modules.Notes` (core logic)
+- ☐ Create `DotNetCloud.Modules.Notes.Data` (EF Core context)
+- ☐ Create `DotNetCloud.Modules.Notes.Host` (gRPC host)
+
+#### Data Model
+- ☐ Note, NoteVersion, NoteFolder, NoteTag, NoteLink entities
+- ☐ EF configurations with multi-provider naming strategies
+- ☐ Initial migrations (PostgreSQL + SQL Server)
+
+#### REST API
+- ☐ CRUD endpoints for notes
+- ☐ Move/copy, tagging, search, version history endpoints
+
+#### Features
+- ☐ Markdown rendering pipeline with XSS sanitization
+- ☐ Optional rich-editor behind feature flag
+- ☐ Cross-entity link references (Files, Calendar)
+- ☐ Note sharing model
+
+### Phase 3.5: Cross-Module Integration
+
+- ☐ Unified navigation entries and module registration in Blazor shell
+- ☐ Shared notification patterns for invites, reminders, mentions, shares
+- ☐ Cross-module link resolution (events↔contacts, notes↔events/contacts)
+- ☐ Consistent authorization, audit logging, and soft-delete behavior
+
+### Phase 3.6: Migration Foundation
+
+- ☐ Import contract interfaces and pipeline architecture
+- ☐ vCard and iCalendar migration parsers/transformers
+- ☐ Notes import adapter (markdown/plain exports)
+- ☐ Dry-run mode with import report and conflict summary
+
+### Phase 3.7: Testing And Quality Gates
+
+#### Unit Tests
+- ☐ Contacts module test suite (domain, handlers, validators)
+- ☐ Calendar module test suite (domain, handlers, recurrence)
+- ☐ Notes module test suite (domain, handlers, sanitization)
+
+#### Integration Tests
+- ☐ REST endpoint tests for all three modules
+- ☐ CardDAV interoperability tests
+- ☐ CalDAV interoperability tests
+
+#### Security Tests
+- ☐ Authorization bypass attempts
+- ☐ Tenant isolation verification
+- ☐ Markdown XSS / unsafe content tests
+
+#### Performance
+- ☐ Large contact list benchmarks
+- ☐ Recurring event expansion benchmarks
+
+### Phase 3.8: Documentation And Release Readiness
+
+- ☐ Admin docs for Contacts, Calendar, Notes configuration
+- ☐ User guides for import, sharing, sync, troubleshooting
+- ☐ API docs for all new REST and DAV endpoints
+- ☐ Upgrade/release notes with migration caveats

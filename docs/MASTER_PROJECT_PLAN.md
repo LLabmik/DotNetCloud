@@ -79,7 +79,15 @@
 | Sync Hardening P0 | 3 | 3 | 0 | 0 |
 | Sync Hardening P1–P2 | 6 | 6 | 0 | 0 |
 | Client Security Remediation | 1 | 1 | 0 | 0 |
-| Phase 3-9 | Summary | 0 | 0 | 1 |
+| Phase 3.1 | 4 | 0 | 0 | 4 |
+| Phase 3.2 | 6 | 0 | 0 | 6 |
+| Phase 3.3 | 6 | 0 | 0 | 6 |
+| Phase 3.4 | 6 | 0 | 0 | 6 |
+| Phase 3.5 | 4 | 0 | 0 | 4 |
+| Phase 3.6 | 4 | 0 | 0 | 4 |
+| Phase 3.7 | 5 | 0 | 0 | 5 |
+| Phase 3.8 | 4 | 0 | 0 | 4 |
+| Phase 4-9 | Summary | 0 | 0 | 1 |
 | Infrastructure | Summary | 0 | 0 | 1 |
 | Documentation | Summary | 0 | 0 | 1 |
 
@@ -1276,3 +1284,95 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Dependencies:** phase-2.7, phase-2.8
 **Blocking Issues:** None
 **Notes:** Phase 2.10 fully complete. All deliverables shipped: auth (PKCE+Keystore), real-time chat (SignalR + FCM/UP push), offline queue (SQLite), photo upload (MediaStore → chunked API), file browser (IFileRestClient with chunked upload/download, FileBrowserViewModel with folder navigation and camera capture, Files tab in Shell), media auto-upload (photos + videos into InstantUpload/YYYY/MM folders via IFileRestClient), distribution signing, notification badges (AppBadgeManager → SetNumber on notification builders), direct APK download docs, and app store listing. Android callback handling was hardened by de-duplicating the `oauth2redirect` intent registration and applying explicit `DotNetCloud` labels so browser return prompts no longer present duplicate generic `.NET` targets. The local HTTPS path was also hardened so private LAN FQDNs that resolve inside the home network, including `mint22.kimball.home`, are treated like other local/self-hosted targets for self-signed certificate acceptance during OAuth token exchange and subsequent app traffic. Post-login navigation was further stabilized by aligning the authenticated Shell route with `//Main/ChannelList` and keeping Shell transitions plus bound collection updates on the UI thread across login, channel list, message list, channel details, and settings flows. All services registered in MauiProgram.cs via `AddSingleton`/`AddTransient`/`AddHttpClient`.
+
+---
+
+## Phase 3: Contacts, Calendar & Notes
+
+> **Goal:** Personal information management — Contacts (CardDAV), Calendar (CalDAV), Notes (Markdown). Full PIM suite with standards compliance.
+> **Detailed plan:** `docs/PHASE_3_IMPLEMENTATION_PLAN.md`
+
+### Section: Phase 3.1 - Architecture And Contracts
+**STATUS:** pending
+**DELIVERABLES:**
+- ☐ Core DTOs and contracts for Contacts, Calendar, Notes
+- ☐ Event contracts (Created/Updated/Deleted events for each domain)
+- ☐ Capability interfaces and tier mapping
+- ☐ Validation and error code extensions
+
+---
+
+### Section: Phase 3.2 - Contacts Module
+**STATUS:** pending
+**DELIVERABLES:**
+- ☐ Module projects (Contacts, Contacts.Data, Contacts.Host)
+- ☐ Data model + EF configurations
+- ☐ REST API endpoints (CRUD, bulk import/export, search)
+- ☐ CardDAV endpoints (principal discovery, vCard get/put/delete, sync token)
+- ☐ Contact avatar and attachment support
+- ☐ Contact sharing model
+
+---
+
+### Section: Phase 3.3 - Calendar Module
+**STATUS:** pending
+**DELIVERABLES:**
+- ☐ Module projects (Calendar, Calendar.Data, Calendar.Host)
+- ☐ Data model (calendars, events, attendees, recurrence, reminders)
+- ☐ REST API endpoints (CRUD, RSVP, sharing, search/filter)
+- ☐ CalDAV endpoints (calendar discovery, iCal get/put/delete, sync token)
+- ☐ Recurrence engine and occurrence expansion
+- ☐ Reminder/notification pipeline
+
+---
+
+### Section: Phase 3.4 - Notes Module
+**STATUS:** pending
+**DELIVERABLES:**
+- ☐ Module projects (Notes, Notes.Data, Notes.Host)
+- ☐ Data model (notes, versions, folders, tags, links, sharing)
+- ☐ REST API endpoints (CRUD, move/copy, tagging, search, versions)
+- ☐ Markdown rendering pipeline with sanitization
+- ☐ Optional rich-editor behind feature flag
+- ☐ Cross-entity link references (Files, Calendar)
+
+---
+
+### Section: Phase 3.5 - Cross-Module Integration
+**STATUS:** pending
+**DELIVERABLES:**
+- ☐ Unified navigation + module registration in Blazor shell
+- ☐ Shared notification patterns
+- ☐ Cross-module link resolution (events↔contacts, notes↔events/contacts)
+- ☐ Consistent authorization, audit, and soft-delete behavior
+
+---
+
+### Section: Phase 3.6 - Migration Foundation
+**STATUS:** pending
+**DELIVERABLES:**
+- ☐ Import contract interfaces and pipeline architecture
+- ☐ vCard and iCalendar migration parsers/transformers
+- ☐ Notes import adapter (markdown/plain exports)
+- ☐ Dry-run mode with import report and conflict summary
+
+---
+
+### Section: Phase 3.7 - Testing And Quality Gates
+**STATUS:** pending
+**DELIVERABLES:**
+- ☐ Unit test suites for all three modules
+- ☐ Integration tests for REST and DAV endpoints
+- ☐ CardDAV and CalDAV compatibility test matrix
+- ☐ Security tests (authz bypass, tenant isolation, XSS)
+- ☐ Performance baselines (large contact lists, recurrence expansion)
+
+---
+
+### Section: Phase 3.8 - Documentation And Release Readiness
+**STATUS:** pending
+**DELIVERABLES:**
+- ☐ Admin docs for Contacts, Calendar, Notes
+- ☐ User guides for import, sharing, sync, troubleshooting
+- ☐ API docs for REST and DAV endpoints
+- ☐ Upgrade/release notes with migration caveats

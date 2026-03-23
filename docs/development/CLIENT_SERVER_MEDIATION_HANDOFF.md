@@ -82,20 +82,25 @@ Archived context:
 
 ## Active Handoff
 
-**Target machine:** N/A — no active handoff
-**Status:** IDLE
+**Target machine:** mint22
+**Status:** PLANNING
 
-### Security Audit Cycle — Fully Closed
+### Phase 3: Contacts, Calendar & Notes — Implementation Planning
 
-All post-closeout validation is complete. No active work items remain.
+Phase 3 implementation plan created and tracked:
+- **Plan doc:** `docs/PHASE_3_IMPLEMENTATION_PLAN.md` — full WBS with 8 sub-phases, milestones, risks.
+- **Master plan:** `docs/MASTER_PROJECT_PLAN.md` — Phase 3.1–3.8 rows added to Quick Status Summary + step detail sections appended after Phase 2.
+- **Checklist:** `docs/IMPLEMENTATION_CHECKLIST.md` — Phase 3 task breakdown appended (Contacts, Calendar, Notes, integration, migration, testing, docs).
+- **README:** Phase 3 status updated to 🔜 Up Next in roadmap table.
 
-#### Summary of completed validation (2026-03-23)
+#### Next actionable work
+1. Begin **phase-3.1** (Architecture And Contracts) — define shared DTOs, event contracts, capability interfaces in `DotNetCloud.Core`.
+2. After contracts compile and pass review, proceed to **phase-3.2** (Contacts Module).
 
-- **Server (`mint22`):** Release-confidence build passed; 385 Core.Server tests passed (2 skipped), 669 Files tests passed. Stale rate-limit test expectation reconciled.
-- **Windows (`Windows11-TestDNC`):** 4/4 targeted smoke tests passed. Add-account/login launch path verified reachable (`https://mint22.kimball.home:5443/` → HTTP 200, discovery endpoints confirmed).
-- **Linux client (`mint-dnc-client`):** All four security findings implemented and validated (see archive).
+No blockers. All Phase 0–2 foundation is stable.
 
-No further handoff action required until a new work item is created.
+#### Previous cycle summary
+- Security audit cycle fully closed (2026-03-23). All machines validated. See archive.
 
 ## Relay Template
 
