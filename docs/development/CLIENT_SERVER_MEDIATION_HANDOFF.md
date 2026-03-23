@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-23 (Post-closeout Windows smoke complete; security audit cycle fully closed)
+Last updated: 2026-03-24 (Phase 3.2 Contacts Module complete)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -60,7 +60,7 @@ Archived context:
 - Security audit desktop client validation on `Windows11-TestDNC`: **COMPLETE** (2026-03-23).
 - Security audit closeout + merge validation on `mint22`: **COMPLETE** (2026-03-23).
 - Post-closeout Windows runtime smoke: **COMPLETE** (2026-03-23). 4/4 targeted tests passed; login launch path verified reachable.
-- **Active cycle:** Security audit fully closed across all machines (2026-03-23). No active work items.
+- **Active cycle:** Phase 3.2 Contacts Module complete. Phase 3.3 Calendar Module next.
 
 ## Environment
 
@@ -85,33 +85,21 @@ Archived context:
 **Target machine:** mint22
 **Status:** COMPLETE
 
-### Phase 3.1: Architecture And Contracts — DONE
+### Phase 3.2: Contacts Module — DONE
 
-All shared contracts for Contacts, Calendar, and Notes implemented in `DotNetCloud.Core`:
+Full Contacts module implemented (3-tier: Main/Data/Host). 32/32 tests pass. Solution builds clean.
 
-**DTOs (src/Core/DotNetCloud.Core/DTOs/):**
-- `ContactDtos.cs` — ContactDto, ContactType, ContactEmailDto, ContactPhoneDto, ContactAddressDto, ContactGroupDto, CreateContactDto, UpdateContactDto
-- `CalendarDtos.cs` — CalendarDto, CalendarEventDto, CalendarEventStatus, EventAttendeeDto, AttendeeRole, AttendeeStatus, EventReminderDto, ReminderMethod, CreateCalendarDto, UpdateCalendarDto, CreateCalendarEventDto, UpdateCalendarEventDto, EventRsvpDto
-- `NoteDtos.cs` — NoteDto, NoteContentFormat, NoteLinkDto, NoteLinkType, NoteFolderDto, NoteVersionDto, CreateNoteDto, UpdateNoteDto, CreateNoteFolderDto, UpdateNoteFolderDto
+**Created projects:**
+- `src/Modules/Contacts/DotNetCloud.Modules.Contacts/` — Interfaces, models, module lifecycle, event handlers
+- `src/Modules/Contacts/DotNetCloud.Modules.Contacts.Data/` — EF Core DbContext, configurations, service implementations (ContactService, ContactGroupService, ContactShareService, VCardService)
+- `src/Modules/Contacts/DotNetCloud.Modules.Contacts.Host/` — REST API (ContactsController), CardDAV (CardDavController), gRPC (ContactsGrpcService), health check, lifecycle service
+- `tests/DotNetCloud.Modules.Contacts.Tests/` — 32 tests (MSTest v4 + Moq + EF InMemory)
 
-**Events (src/Core/DotNetCloud.Core/Events/):**
-- `ContactEvents.cs` — ContactCreatedEvent, ContactUpdatedEvent, ContactDeletedEvent
-- `CalendarEvents.cs` — CalendarEventCreatedEvent, CalendarEventUpdatedEvent, CalendarEventDeletedEvent, CalendarEventRsvpEvent, CalendarReminderTriggeredEvent
-- `NoteEvents.cs` — NoteCreatedEvent, NoteUpdatedEvent, NoteDeletedEvent
-
-**Capabilities (src/Core/DotNetCloud.Core/Capabilities/):**
-- `IContactDirectory.cs` — Public tier, read-only contact lookup + search
-- `ICalendarDirectory.cs` — Public tier, event summary + upcoming events query (includes CalendarEventSummary record)
-- `INoteDirectory.cs` — Public tier, note title lookup + search
-
-**Error Codes (src/Core/DotNetCloud.Core/Errors/ErrorCodes.cs):**
-- CONTACT_* (6 codes), CALENDAR_* (8 codes), NOTE_* (6 codes) added
-
-**Tests:** 197/197 Core tests pass (including new contact, calendar, note DTO tests + event tests + capability tests).
+**Key features:** vCard 3.0 import/export, CardDAV PROPFIND/REPORT, contact groups, contact sharing, search, soft-delete, ETag concurrency.
 
 #### Next actionable work
-1. Begin **phase-3.2** (Contacts Module) — create module projects, EF data model, REST API, CardDAV endpoints.
-2. Reference existing Files/Chat module patterns for project structure.
+1. Begin **phase-3.3** (Calendar Module) — create module projects, EF data model, REST API, CalDAV endpoints.
+2. Reference Contacts module pattern for project structure (3-tier: Main/Data/Host).
 
 #### Previous cycle summary
 - Security audit cycle fully closed (2026-03-23). All machines validated. See archive.

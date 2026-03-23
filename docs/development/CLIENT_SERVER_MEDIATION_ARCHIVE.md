@@ -3295,3 +3295,58 @@ Client-side retry and cleanup against the corrected HTTPS endpoint were complete
 - **Desktop SyncTray add-account default source:** fixed.
 - **Desktop verification walkthrough examples:** fixed.
 - **Interactive tray/browser full pass on this run:** completed successfully on `mint-dnc-client` using `https://mint22.kimball.home:5443`.
+
+---
+
+### Phase 3.1: Architecture And Contracts — COMPLETE (2026-03-24)
+
+**Target machine:** mint22
+
+All shared contracts for Contacts, Calendar, and Notes implemented in `DotNetCloud.Core`:
+
+**DTOs (src/Core/DotNetCloud.Core/DTOs/):**
+- `ContactDtos.cs` — ContactDto, ContactType, ContactEmailDto, ContactPhoneDto, ContactAddressDto, ContactGroupDto, CreateContactDto, UpdateContactDto
+- `CalendarDtos.cs` — CalendarDto, CalendarEventDto, CalendarEventStatus, EventAttendeeDto, AttendeeRole, AttendeeStatus, EventReminderDto, ReminderMethod, CreateCalendarDto, UpdateCalendarDto, CreateCalendarEventDto, UpdateCalendarEventDto, EventRsvpDto
+- `NoteDtos.cs` — NoteDto, NoteContentFormat, NoteLinkDto, NoteLinkType, NoteFolderDto, NoteVersionDto, CreateNoteDto, UpdateNoteDto, CreateNoteFolderDto, UpdateNoteFolderDto
+
+**Events (src/Core/DotNetCloud.Core/Events/):**
+- `ContactEvents.cs` — ContactCreatedEvent, ContactUpdatedEvent, ContactDeletedEvent
+- `CalendarEvents.cs` — CalendarEventCreatedEvent, CalendarEventUpdatedEvent, CalendarEventDeletedEvent, CalendarEventRsvpEvent, CalendarReminderTriggeredEvent
+- `NoteEvents.cs` — NoteCreatedEvent, NoteUpdatedEvent, NoteDeletedEvent
+
+**Capabilities (src/Core/DotNetCloud.Core/Capabilities/):**
+- `IContactDirectory.cs` — Public tier, read-only contact lookup + search
+- `ICalendarDirectory.cs` — Public tier, event summary + upcoming events query
+- `INoteDirectory.cs` — Public tier, note title lookup + search
+
+**Error Codes (src/Core/DotNetCloud.Core/Errors/ErrorCodes.cs):**
+- CONTACT_* (6 codes), CALENDAR_* (8 codes), NOTE_* (6 codes)
+
+**Tests:** 197/197 Core tests pass.
+
+### Phase 3.2: Contacts Module — COMPLETE (2026-03-24)
+
+**Target machine:** mint22
+
+Full Contacts module implemented following 3-tier pattern (Main/Data/Host):
+
+**Main Project (src/Modules/Contacts/DotNetCloud.Modules.Contacts/):**
+- `ContactsModule.cs` — IModuleLifecycle with Init/Start/Stop
+- `ContactsModuleManifest.cs` — Declares capabilities and events
+- 8 entity models: Contact, ContactEmail, ContactPhone, ContactAddress, ContactCustomField, ContactGroup, ContactGroupMember, ContactShare
+- 4 service interfaces: IContactService, IContactGroupService, IContactShareService, IVCardService
+- Event handlers: ContactCreatedEventHandler
+
+**Data Project (src/Modules/Contacts/DotNetCloud.Modules.Contacts.Data/):**
+- `ContactsDbContext.cs` — 8 DbSets with full EF configurations
+- 4 service implementations: ContactService, ContactGroupService, ContactShareService, VCardService (vCard 3.0 / RFC 2426)
+- `ContactsServiceRegistration.cs` — DI registration extension
+
+**Host Project (src/Modules/Contacts/DotNetCloud.Modules.Contacts.Host/):**
+- `ContactsController.cs` — REST API at api/v1/contacts (full CRUD, groups, sharing, vCard import/export)
+- `CardDavController.cs` — CardDAV endpoints (PROPFIND, REPORT, well-known redirect, OPTIONS with DAV headers)
+- `ContactsGrpcService.cs` — gRPC service with Create/Get/List/Update/Delete/ExportVCard/ImportVCards
+- `ContactsLifecycleService.cs`, `ContactsHealthCheck.cs`, `InProcessEventBus.cs`
+- `contacts_service.proto` — Proto3 definitions
+
+**Tests:** 32/32 pass (ContactServiceTests: 14, ContactGroupServiceTests: 8, VCardServiceTests: 6, ContactsModuleTests: 5). Solution builds with 0 warnings, 0 errors (excluding pre-existing Android SDK / ExampleModule issues).

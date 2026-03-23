@@ -1,0 +1,19 @@
+{
+  "id": "dotnetcloud.contacts",
+  "name": "Contacts",
+  "version": "1.0.0",
+  "description": "Contact management with CardDAV compatibility, groups, sharing, and vCard import/export.",
+  "author": "DotNetCloud",
+  "requiredCapabilities": [
+    "INotificationService",
+    "IUserDirectory",
+    "ICurrentUserContext"
+  ],
+  "publishedEvents": [
+    "ContactCreatedEvent",
+    "ContactUpdatedEvent",
+    "ContactDeletedEvent"
+  ],
+  "subscribedEvents": [],
+  "minCoreVersion": "1.0.0"
+}

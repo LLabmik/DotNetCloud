@@ -3130,28 +3130,28 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase 3.2: Contacts Module
 
 #### Module Projects
-- ☐ Create `DotNetCloud.Modules.Contacts` (core logic)
-- ☐ Create `DotNetCloud.Modules.Contacts.Data` (EF Core context)
-- ☐ Create `DotNetCloud.Modules.Contacts.Host` (gRPC host)
+- ✓ Create `DotNetCloud.Modules.Contacts` (core logic)
+- ✓ Create `DotNetCloud.Modules.Contacts.Data` (EF Core context)
+- ✓ Create `DotNetCloud.Modules.Contacts.Host` (gRPC host)
 
 #### Data Model
-- ☐ Contact, ContactGroup, Address, PhoneNumber, EmailAddress, CustomField entities
-- ☐ EF configurations with multi-provider naming strategies
+- ✓ Contact, ContactGroup, Address, PhoneNumber, EmailAddress, CustomField entities
+- ✓ EF configurations with multi-provider naming strategies
 - ☐ Initial migrations (PostgreSQL + SQL Server)
 
 #### REST API
-- ☐ CRUD endpoints for contacts and groups
-- ☐ Bulk import/export (vCard format)
-- ☐ Search endpoint with full-text support
+- ✓ CRUD endpoints for contacts and groups
+- ✓ Bulk import/export (vCard format)
+- ✓ Search endpoint with full-text support
 
 #### CardDAV
-- ☐ Principal and addressbook discovery
-- ☐ vCard GET/PUT/DELETE
-- ☐ Sync token and change tracking
+- ✓ Principal and addressbook discovery
+- ✓ vCard GET/PUT/DELETE
+- ✓ Sync token and change tracking
 
 #### Features
 - ☐ Contact avatar upload and attachment metadata
-- ☐ Contact sharing model (user/team scoped permissions)
+- ✓ Contact sharing model (user/team scoped permissions)
 
 ### Phase 3.3: Calendar Module
 

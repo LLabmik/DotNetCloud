@@ -62,18 +62,18 @@
 - Deliver first-class contact management and CardDAV compatibility.
 
 ### Deliverables
-- ☐ Module projects:
-  - ☐ DotNetCloud.Modules.Contacts
-  - ☐ DotNetCloud.Modules.Contacts.Data
-  - ☐ DotNetCloud.Modules.Contacts.Host
-- ☐ Data model + EF configurations for contacts, groups, addresses, communication methods.
-- ☐ REST API endpoints for CRUD, bulk import/export, search.
-- ☐ CardDAV endpoints:
-  - ☐ Principal + addressbook discovery
-  - ☐ vCard get/put/delete
-  - ☐ Sync token/change tracking
+- ✓ Module projects:
+  - ✓ DotNetCloud.Modules.Contacts
+  - ✓ DotNetCloud.Modules.Contacts.Data
+  - ✓ DotNetCloud.Modules.Contacts.Host
+- ✓ Data model + EF configurations for contacts, groups, addresses, communication methods.
+- ✓ REST API endpoints for CRUD, bulk import/export, search.
+- ✓ CardDAV endpoints:
+  - ✓ Principal + addressbook discovery
+  - ✓ vCard get/put/delete
+  - ✓ Sync token/change tracking
 - ☐ Contact avatar support and attachment metadata.
-- ☐ Contact-sharing model (user/team scoped permissions).
+- ✓ Contact-sharing model (user/team scoped permissions).
 
 ### Exit Criteria
 - ☐ Contacts UI can fully manage records.

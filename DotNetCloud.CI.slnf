@@ -15,6 +15,9 @@
       "src\\Modules\\Chat\\DotNetCloud.Modules.Chat\\DotNetCloud.Modules.Chat.csproj",
       "src\\Modules\\Chat\\DotNetCloud.Modules.Chat.Data\\DotNetCloud.Modules.Chat.Data.csproj",
       "src\\Modules\\Chat\\DotNetCloud.Modules.Chat.Host\\DotNetCloud.Modules.Chat.Host.csproj",
+      "src\\Modules\\Contacts\\DotNetCloud.Modules.Contacts\\DotNetCloud.Modules.Contacts.csproj",
+      "src\\Modules\\Contacts\\DotNetCloud.Modules.Contacts.Data\\DotNetCloud.Modules.Contacts.Data.csproj",
+      "src\\Modules\\Contacts\\DotNetCloud.Modules.Contacts.Host\\DotNetCloud.Modules.Contacts.Host.csproj",
       "src\\Modules\\Example\\DotNetCloud.Modules.Example\\DotNetCloud.Modules.Example.csproj",
       "src\\Modules\\Example\\DotNetCloud.Modules.Example.Data\\DotNetCloud.Modules.Example.Data.csproj",
       "src\\Modules\\Example\\DotNetCloud.Modules.Example.Host\\DotNetCloud.Modules.Example.Host.csproj",
@@ -34,6 +37,7 @@
       "tests\\DotNetCloud.Core.Tests\\DotNetCloud.Core.Tests.csproj",
       "tests\\DotNetCloud.Integration.Tests\\DotNetCloud.Integration.Tests.csproj",
       "tests\\DotNetCloud.Modules.Chat.Tests\\DotNetCloud.Modules.Chat.Tests.csproj",
+      "tests\\DotNetCloud.Modules.Contacts.Tests\\DotNetCloud.Modules.Contacts.Tests.csproj",
       "tests\\DotNetCloud.Modules.Example.Tests\\DotNetCloud.Modules.Example.Tests.csproj",
       "tests\\DotNetCloud.Modules.Files.Tests\\DotNetCloud.Modules.Files.Tests.csproj"
     ]

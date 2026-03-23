@@ -1,0 +1,192 @@
+syntax = "proto3";
+
+option csharp_namespace = "DotNetCloud.Modules.Contacts.Host.Protos";
+
+package dotnetcloud.contacts;
+
+// ContactsService: gRPC service for the Contacts module.
+// The core server calls these RPCs to interact with the Contacts module.
+service ContactsService {
+  // Creates a new contact.
+  rpc CreateContact (CreateContactRequest) returns (ContactResponse);
+
+  // Gets a contact by ID.
+  rpc GetContact (GetContactRequest) returns (ContactResponse);
+
+  // Lists contacts for a user.
+  rpc ListContacts (ListContactsRequest) returns (ListContactsResponse);
+
+  // Updates a contact.
+  rpc UpdateContact (UpdateContactRequest) returns (ContactResponse);
+
+  // Deletes a contact (soft-delete).
+  rpc DeleteContact (DeleteContactRequest) returns (DeleteContactResponse);
+
+  // Exports a contact as vCard text.
+  rpc ExportVCard (ExportVCardRequest) returns (ExportVCardResponse);
+
+  // Imports contacts from vCard text.
+  rpc ImportVCards (ImportVCardsRequest) returns (ImportVCardsResponse);
+}
+
+// --- CreateContact ---
+
+message CreateContactRequest {
+  string user_id = 1;
+  string contact_type = 2;    // Person, Organization, Group
+  string display_name = 3;
+  string first_name = 4;
+  string last_name = 5;
+  string middle_name = 6;
+  string prefix = 7;
+  string suffix = 8;
+  string organization = 9;
+  string department = 10;
+  string job_title = 11;
+  string notes = 12;
+  string birthday = 13;       // ISO 8601 date (yyyy-MM-dd)
+  string website_url = 14;
+  repeated ContactEmailMessage emails = 15;
+  repeated ContactPhoneMessage phones = 16;
+  repeated ContactAddressMessage addresses = 17;
+  map<string, string> custom_fields = 18;
+}
+
+message ContactResponse {
+  bool success = 1;
+  string error_message = 2;
+  ContactMessage contact = 3;
+}
+
+// --- GetContact ---
+
+message GetContactRequest {
+  string contact_id = 1;
+  string user_id = 2;
+}
+
+// --- ListContacts ---
+
+message ListContactsRequest {
+  string user_id = 1;
+  string search = 2;
+  int32 skip = 3;
+  int32 take = 4;
+}
+
+message ListContactsResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated ContactMessage contacts = 3;
+}
+
+// --- UpdateContact ---
+
+message UpdateContactRequest {
+  string contact_id = 1;
+  string user_id = 2;
+  string display_name = 3;
+  string first_name = 4;
+  string last_name = 5;
+  string middle_name = 6;
+  string prefix = 7;
+  string suffix = 8;
+  string organization = 9;
+  string department = 10;
+  string job_title = 11;
+  string notes = 12;
+  string birthday = 13;
+  string website_url = 14;
+  repeated ContactEmailMessage emails = 15;
+  repeated ContactPhoneMessage phones = 16;
+  repeated ContactAddressMessage addresses = 17;
+  map<string, string> custom_fields = 18;
+}
+
+// --- DeleteContact ---
+
+message DeleteContactRequest {
+  string contact_id = 1;
+  string user_id = 2;
+}
+
+message DeleteContactResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+// --- ExportVCard ---
+
+message ExportVCardRequest {
+  string contact_id = 1;
+  string user_id = 2;
+}
+
+message ExportVCardResponse {
+  bool success = 1;
+  string error_message = 2;
+  string vcard_text = 3;
+}
+
+// --- ImportVCards ---
+
+message ImportVCardsRequest {
+  string user_id = 1;
+  string vcard_text = 2;
+}
+
+message ImportVCardsResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated string created_contact_ids = 3;
+}
+
+// --- Shared Messages ---
+
+message ContactMessage {
+  string id = 1;
+  string owner_id = 2;
+  string contact_type = 3;
+  string display_name = 4;
+  string first_name = 5;
+  string last_name = 6;
+  string middle_name = 7;
+  string prefix = 8;
+  string suffix = 9;
+  string organization = 10;
+  string department = 11;
+  string job_title = 12;
+  string notes = 13;
+  string birthday = 14;
+  string website_url = 15;
+  string avatar_url = 16;
+  string etag = 17;
+  string created_at = 18;     // ISO 8601 timestamp
+  string updated_at = 19;
+  repeated ContactEmailMessage emails = 20;
+  repeated ContactPhoneMessage phones = 21;
+  repeated ContactAddressMessage addresses = 22;
+  map<string, string> custom_fields = 23;
+}
+
+message ContactEmailMessage {
+  string address = 1;
+  string label = 2;
+  bool is_primary = 3;
+}
+
+message ContactPhoneMessage {
+  string number = 1;
+  string label = 2;
+  bool is_primary = 3;
+}
+
+message ContactAddressMessage {
+  string label = 1;
+  string street = 2;
+  string city = 3;
+  string region = 4;
+  string postal_code = 5;
+  string country = 6;
+  bool is_primary = 7;
+}
