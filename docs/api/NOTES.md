@@ -123,6 +123,66 @@ GET /api/v1/notes/search?q={query}&skip={n}&take={n}
 
 ---
 
+## Markdown Rendering
+
+### Preview Note
+
+```
+GET /api/v1/notes/{noteId}/preview
+```
+
+Renders a saved note's Markdown content to sanitized HTML.
+
+**Response:**
+
+```json
+{
+  "data": {
+    "noteId": "...",
+    "title": "Project Ideas",
+    "renderedHtml": "<h1>Ideas</h1>\n<ul>\n<li>Build a notification system</li>\n</ul>",
+    "format": "Markdown",
+    "version": 5
+  }
+}
+```
+
+### Render Markdown
+
+```
+POST /api/v1/notes/render
+```
+
+Renders raw Markdown to sanitized HTML without saving. Useful for live preview in editors.
+
+**Request Body:**
+
+```json
+{
+  "content": "# Hello\n\n**Bold text** and [a link](https://example.com)",
+  "format": "Markdown"
+}
+```
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `content` | string | — | Raw content to render (required) |
+| `format` | string | `Markdown` | Content format (`Markdown` or `PlainText`) |
+
+**Response:**
+
+```json
+{
+  "data": {
+    "html": "<h1>Hello</h1>\n<p><strong>Bold text</strong> and <a href=\"https://example.com\">a link</a></p>"
+  }
+}
+```
+
+**Security:** All rendered HTML is sanitized server-side using HtmlSanitizer. Script tags, event handlers, `javascript:` URLs, iframes, forms, and other XSS vectors are stripped. Only safe HTML elements and attributes are preserved.
+
+---
+
 ## Version History
 
 ### Get Version History

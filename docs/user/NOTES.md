@@ -38,11 +38,26 @@ Notes support Markdown formatting:
 
 - **Bold**: `**text**`
 - *Italic*: `*text*`
+- ~~Strikethrough~~: `~~text~~`
 - Headings: `# H1`, `## H2`, `### H3`
 - Lists: `- item` or `1. item`
+- Task lists: `- [ ] todo` or `- [x] done`
 - Code blocks: triple backticks
 - Links: `[text](url)`
+- Images: `![alt](url)`
 - Tables, blockquotes, and more
+- Emoji shortcodes: `:smile:`, `:rocket:`
+
+### Editor Features
+
+The Notes editor provides a split-pane interface with live preview:
+
+- **Toolbar** — formatting buttons for bold, italic, strikethrough, headings, lists, task lists, links, images, code blocks, blockquotes, tables, and horizontal rules
+- **Edit mode** — write Markdown in a monospace text editor
+- **Split mode** — side-by-side editor and rendered preview (default)
+- **Preview mode** — read-only rendered view of the note
+
+All Markdown content is rendered with full sanitization — dangerous HTML like scripts, iframes, and event handlers are automatically stripped for security.
 
 ### Deleting a Note
 

@@ -38,7 +38,7 @@ Phase 3 adds a complete Personal Information Management (PIM) suite to DotNetClo
 
 ### Notes Module
 
-- **Markdown-first notes** — create and edit notes in Markdown or plain text
+- **Markdown-first notes** — create and edit notes in Markdown or plain text with live preview and server-side sanitization
 - **Hierarchical folders** — unlimited nesting with colored folder labels and manual sort ordering
 - **Tags** — free-form tag labels for cross-folder categorization
 - **Full-text search** — search by note title, content, and tags with relevance ranking
@@ -95,6 +95,8 @@ Phase 3 adds a complete Personal Information Management (PIM) suite to DotNetClo
 |---|---|---|
 | `GET/POST/PUT/DELETE` | `/api/v1/notes/*` | Note CRUD |
 | `GET` | `/api/v1/notes/search` | Search notes |
+| `GET` | `/api/v1/notes/{id}/preview` | Render note to sanitized HTML |
+| `POST` | `/api/v1/notes/render` | Render raw Markdown to sanitized HTML |
 | `GET/POST` | `/api/v1/notes/{id}/versions/*` | Version history & restore |
 | `GET/POST/PUT/DELETE` | `/api/v1/notes/folders/*` | Folder management |
 | `GET/POST/DELETE` | `/api/v1/notes/{id}/shares/*` | Share management |
@@ -168,7 +170,7 @@ No new `appsettings.json` entries are required. PIM modules use core infrastruct
 1. **Contact avatars** — avatar upload/storage is recognized but not fully implemented (planned for future release)
 2. **Recurrence engine** — recurrence expansion service and occurrence projection are structural but not production-hardened for complex RRULE patterns
 3. **Reminder pipeline** — reminder dispatch (in-app notifications and email) infrastructure is defined but not wired to a delivery backend
-4. **Markdown sanitization** — note content is stored as-is without server-side XSS sanitization; sanitization is a presentation-layer concern (deferred)
+4. **Markdown sanitization** — Markdown rendering and XSS sanitization are implemented server-side using Markdig + HtmlSanitizer. Note content is stored as-is; sanitization is applied at render time via the preview/render endpoints
 5. **Note team sharing** — notes can only be shared with individual users, not teams
 6. **Audit trail fields** — `CreatedByUserId`/`UpdatedByUserId` audit columns require EF migration (deferred)
 7. **Cross-module integration** — unified navigation, cross-links in UI, and shared notification patterns (Phase 3.5 scope) are deferred
