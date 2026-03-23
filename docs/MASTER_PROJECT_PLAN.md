@@ -83,7 +83,7 @@
 | Phase 3.2 | 6 | 5 | 0 | 1 |
 | Phase 3.3 | 6 | 4 | 0 | 2 |
 | Phase 3.4 | 6 | 6 | 0 | 0 |
-| Phase 3.5 | 4 | 0 | 0 | 4 |
+| Phase 3.5 | 4 | 4 | 0 | 0 |
 | Phase 3.6 | 4 | 0 | 0 | 4 |
 | Phase 3.7 | 5 | 0 | 0 | 5 |
 | Phase 3.8 | 4 | 0 | 0 | 4 |
@@ -1354,12 +1354,18 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Section: Phase 3.5 - Cross-Module Integration
-**STATUS:** pending
+**STATUS:** completed ✅
 **DELIVERABLES:**
-- ☐ Unified navigation + module registration in Blazor shell
-- ☐ Shared notification patterns
-- ☐ Cross-module link resolution (events↔contacts, notes↔events/contacts)
-- ☐ Consistent authorization, audit, and soft-delete behavior
+- ✓ Unified navigation + module registration in Blazor shell (Contacts 👤, Calendar 📅, Notes 📝 with stub pages)
+- ✓ Shared notification patterns (ResourceShared, UserMentioned, ReminderTriggered events + handlers + push integration)
+- ✓ Cross-module link resolution (ICrossModuleLinkResolver with Contact/CalendarEvent/Note/File support, batch resolve)
+- ✓ Consistent authorization, audit, and soft-delete behavior (IAuditLogger capability, CallerContext verification, all manifests updated)
+- ✓ 30 new tests (CrossModuleLinkResolver 13, NotificationHandlers 4, ManifestConsistency 13)
+- ✓ Core DTOs: NotificationDtos, CrossModuleLinkDtos
+- ✓ Module Razor SDK upgrades (Contacts, Calendar, Notes)
+- ✓ Module manifest updates with cross-module capabilities and event subscriptions
+
+**Notes:** Cross-module integration complete. All PIM modules now declare IAuditLogger + ICrossModuleLinkResolver capabilities, publish ResourceSharedEvent, and subscribe to each other's domain events. Notification handlers wire into existing IPushNotificationService. ExampleModule NoteCreatedEvent naming conflict resolved with using aliases. Entity-level audit fields (CreatedByUserId/UpdatedByUserId) not yet present in Contacts/Notes — deferred to Phase 3.7 quality gates. Ready for Phase 3.6 (Migration Foundation).
 
 ---
 

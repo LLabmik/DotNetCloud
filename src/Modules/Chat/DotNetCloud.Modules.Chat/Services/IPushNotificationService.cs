@@ -95,6 +95,18 @@ public enum NotificationCategory
     /// <summary>A share is about to expire.</summary>
     ShareExpiring,
 
+    /// <summary>Calendar event invitation received.</summary>
+    CalendarInvitation,
+
+    /// <summary>Calendar or task reminder.</summary>
+    Reminder,
+
+    /// <summary>A resource was shared (contact, note, calendar).</summary>
+    ResourceShared,
+
+    /// <summary>User was mentioned in a note or comment.</summary>
+    Mention,
+
     /// <summary>System notification.</summary>
     System
 }

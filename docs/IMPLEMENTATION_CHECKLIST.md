@@ -3217,10 +3217,10 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 ### Phase 3.5: Cross-Module Integration
 
-- ☐ Unified navigation entries and module registration in Blazor shell
-- ☐ Shared notification patterns for invites, reminders, mentions, shares
-- ☐ Cross-module link resolution (events↔contacts, notes↔events/contacts)
-- ☐ Consistent authorization, audit logging, and soft-delete behavior
+- ✓ Unified navigation entries and module registration in Blazor shell
+- ✓ Shared notification patterns for invites, reminders, mentions, shares
+- ✓ Cross-module link resolution (events↔contacts, notes↔events/contacts)
+- ✓ Consistent authorization, audit logging, and soft-delete behavior
 
 ### Phase 3.6: Migration Foundation
 

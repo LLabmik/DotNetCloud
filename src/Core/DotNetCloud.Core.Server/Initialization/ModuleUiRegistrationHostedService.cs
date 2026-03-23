@@ -28,7 +28,31 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
             Icon: "💬",
             SortOrder: 20,
             RouteKey: "chat.channels",
-            ComponentType: typeof(DotNetCloud.Modules.Chat.UI.ChatPageLayout))
+            ComponentType: typeof(DotNetCloud.Modules.Chat.UI.ChatPageLayout)),
+        new(
+            ModuleId: "dotnetcloud.contacts",
+            Label: "Contacts",
+            Href: "/apps/contacts",
+            Icon: "👤",
+            SortOrder: 30,
+            RouteKey: "contacts.page",
+            ComponentType: typeof(DotNetCloud.Modules.Contacts.UI.ContactsPage)),
+        new(
+            ModuleId: "dotnetcloud.calendar",
+            Label: "Calendar",
+            Href: "/apps/calendar",
+            Icon: "📅",
+            SortOrder: 40,
+            RouteKey: "calendar.page",
+            ComponentType: typeof(DotNetCloud.Modules.Calendar.UI.CalendarPage)),
+        new(
+            ModuleId: "dotnetcloud.notes",
+            Label: "Notes",
+            Href: "/apps/notes",
+            Icon: "📝",
+            SortOrder: 50,
+            RouteKey: "notes.page",
+            ComponentType: typeof(DotNetCloud.Modules.Notes.UI.NotesPage))
     ];
 
     private readonly IServiceScopeFactory _scopeFactory;

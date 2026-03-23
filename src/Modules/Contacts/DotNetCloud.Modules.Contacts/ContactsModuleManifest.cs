@@ -23,7 +23,9 @@ public sealed class ContactsModuleManifest : IModuleManifest
     {
         nameof(Core.Capabilities.INotificationService),
         nameof(Core.Capabilities.IUserDirectory),
-        nameof(Core.Capabilities.ICurrentUserContext)
+        nameof(Core.Capabilities.ICurrentUserContext),
+        nameof(Core.Capabilities.IAuditLogger),
+        nameof(Core.Capabilities.ICrossModuleLinkResolver)
     };
 
     /// <inheritdoc />
@@ -31,9 +33,14 @@ public sealed class ContactsModuleManifest : IModuleManifest
     {
         nameof(ContactCreatedEvent),
         nameof(ContactUpdatedEvent),
-        nameof(ContactDeletedEvent)
+        nameof(ContactDeletedEvent),
+        nameof(ResourceSharedEvent)
     };
 
     /// <inheritdoc />
-    public IReadOnlyCollection<string> SubscribedEvents => [];
+    public IReadOnlyCollection<string> SubscribedEvents => new[]
+    {
+        nameof(CalendarEventCreatedEvent),
+        nameof(NoteCreatedEvent)
+    };
 }

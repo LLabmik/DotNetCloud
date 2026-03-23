@@ -7,13 +7,22 @@
   "requiredCapabilities": [
     "INotificationService",
     "IUserDirectory",
-    "ICurrentUserContext"
+    "ICurrentUserContext",
+    "IAuditLogger",
+    "ICrossModuleLinkResolver",
+    "IContactDirectory",
+    "ICalendarDirectory"
   ],
   "publishedEvents": [
     "NoteCreatedEvent",
     "NoteUpdatedEvent",
-    "NoteDeletedEvent"
+    "NoteDeletedEvent",
+    "ResourceSharedEvent",
+    "UserMentionedEvent"
   ],
-  "subscribedEvents": [],
+  "subscribedEvents": [
+    "ContactCreatedEvent",
+    "CalendarEventCreatedEvent"
+  ],
   "minCoreVersion": "1.0.0"
 }

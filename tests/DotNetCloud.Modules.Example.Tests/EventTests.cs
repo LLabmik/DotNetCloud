@@ -1,5 +1,7 @@
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Example.Events;
+using NoteCreatedEvent = DotNetCloud.Modules.Example.Events.NoteCreatedEvent;
+using NoteDeletedEvent = DotNetCloud.Modules.Example.Events.NoteDeletedEvent;
 
 namespace DotNetCloud.Modules.Example.Tests;
 

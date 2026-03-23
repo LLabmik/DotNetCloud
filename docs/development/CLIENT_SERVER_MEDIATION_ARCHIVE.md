@@ -5,6 +5,29 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Phase 3.5 Cross-Module Integration COMPLETE on mint22 (2026-03-24)
+
+**Original target:** mint22
+**Original status:** COMPLETE ✅
+
+Cross-module integration implemented for Contacts, Calendar, and Notes PIM modules. 30 new tests, all 2,500+ solution tests pass.
+
+**Key deliverables:**
+- Unified navigation: 3 module stub UI pages (Contacts 👤, Calendar 📅, Notes 📝) registered in ModuleUiRegistrationHostedService
+- Shared notification patterns: ResourceSharedEvent, UserMentionedEvent, ReminderTriggeredEvent + push notification handlers
+- Cross-module link resolution: ICrossModuleLinkResolver with Contact/CalendarEvent/Note/File support and batch resolve
+- Consistent auth/audit: IAuditLogger capability, all manifests declare required capabilities + cross-module event subscriptions
+- Module Razor SDK upgrades (Contacts, Calendar, Notes) with ASP.NET Core framework reference
+- 30 new tests: CrossModuleLinkResolverTests (13), NotificationHandlerTests (4), ModuleManifestConsistencyTests (13)
+- Fixed pre-existing ExampleModule NoteCreatedEvent naming ambiguity (using aliases)
+
+## Archived: Phase 3.4 Notes Module COMPLETE on mint22 (2026-03-24)
+
+**Original target:** mint22
+**Original status:** COMPLETE ✅
+
+Full Notes module implemented (3-tier: Main/Data/Host). 50/50 tests pass.
+
 ## Archived: Phase 3.3 Calendar Module COMPLETE on mint22 (2026-03-24)
 
 **Original target:** mint22

@@ -45,10 +45,12 @@ public class NotesModuleTests
     }
 
     [TestMethod]
-    public void Manifest_SubscribesNoEvents()
+    public void Manifest_SubscribesCrossModuleEvents()
     {
         var module = new NotesModule();
-        Assert.AreEqual(0, module.Manifest.SubscribedEvents.Count);
+        Assert.AreEqual(2, module.Manifest.SubscribedEvents.Count);
+        Assert.IsTrue(module.Manifest.SubscribedEvents.Contains("ContactCreatedEvent"));
+        Assert.IsTrue(module.Manifest.SubscribedEvents.Contains("CalendarEventCreatedEvent"));
     }
 
     [TestMethod]

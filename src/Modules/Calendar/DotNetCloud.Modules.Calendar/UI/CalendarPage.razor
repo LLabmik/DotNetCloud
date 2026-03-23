@@ -1,0 +1,51 @@
+@namespace DotNetCloud.Modules.Calendar.UI
+
+@*
+    Calendar page layout — main UI entry point for the Calendar module.
+    Provides calendar views (month, week, day), event management, and sidebar navigation.
+    Full implementation in a future phase; this is the navigation-registered shell.
+*@
+
+<div class="calendar-page-layout">
+    <div class="calendar-sidebar">
+        <div class="calendar-sidebar-header">
+            <h3>Calendar</h3>
+            <button class="btn btn-sm btn-primary" @onclick="HandleCreateEvent" title="New Event">
+                <span>＋</span>
+            </button>
+        </div>
+        <nav class="calendar-nav">
+            <a class="calendar-nav-item @(_activeView == "month" ? "active" : "")"
+               @onclick='() => _activeView = "month"'>
+                Month
+            </a>
+            <a class="calendar-nav-item @(_activeView == "week" ? "active" : "")"
+               @onclick='() => _activeView = "week"'>
+                Week
+            </a>
+            <a class="calendar-nav-item @(_activeView == "day" ? "active" : "")"
+               @onclick='() => _activeView = "day"'>
+                Day
+            </a>
+            <a class="calendar-nav-item @(_activeView == "agenda" ? "active" : "")"
+               @onclick='() => _activeView = "agenda"'>
+                Agenda
+            </a>
+        </nav>
+        <div class="calendar-list-heading">My Calendars</div>
+    </div>
+    <div class="calendar-main">
+        <div class="calendar-placeholder">
+            <p>Calendar view — select a view mode to get started.</p>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string _activeView = "month";
+
+    private void HandleCreateEvent()
+    {
+        // Placeholder — full implementation in future phase
+    }
+}

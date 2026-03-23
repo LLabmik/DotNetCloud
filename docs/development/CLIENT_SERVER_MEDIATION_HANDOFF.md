@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-24 (Phase 3.4 Notes Module complete)
+Last updated: 2026-03-24 (Phase 3.5 Cross-Module Integration complete)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -60,7 +60,7 @@ Archived context:
 - Security audit desktop client validation on `Windows11-TestDNC`: **COMPLETE** (2026-03-23).
 - Security audit closeout + merge validation on `mint22`: **COMPLETE** (2026-03-23).
 - Post-closeout Windows runtime smoke: **COMPLETE** (2026-03-23). 4/4 targeted tests passed; login launch path verified reachable.
-- **Active cycle:** Phase 3.4 Notes Module complete. Phase 3.5 Cross-Module Integration next.
+- **Active cycle:** Phase 3.5 Cross-Module Integration complete. Phase 3.6 Migration Foundation next.
 
 ## Environment
 
@@ -85,37 +85,52 @@ Archived context:
 **Target machine:** mint22
 **Status:** COMPLETE
 
-### Phase 3.4: Notes Module — DONE
+### Phase 3.5: Cross-Module Integration — DONE
 
-Full Notes module implemented (3-tier: Main/Data/Host). 50/50 tests pass. Solution builds clean.
+Full cross-module integration for PIM modules (Contacts, Calendar, Notes). 30 new tests pass. All 2,500+ solution tests pass. Build clean (CI filter).
 
-**Created projects:**
-- `src/Modules/Notes/DotNetCloud.Modules.Notes/` — Models (Note, NoteFolder, NoteTag, NoteLink, NoteVersion, NoteShare), service interfaces (INoteService, INoteFolderService, INoteShareService), module lifecycle, event handlers, manifest
-- `src/Modules/Notes/DotNetCloud.Modules.Notes.Data/` — EF Core DbContext (6 DbSets), 6 entity configurations, 3 service implementations (NoteService, NoteFolderService, NoteShareService), design-time factory, service registration
-- `src/Modules/Notes/DotNetCloud.Modules.Notes.Host/` — REST API (NotesController ~25 endpoints), gRPC (NotesGrpcService 10 RPCs), health check, lifecycle service, InProcessEventBus, Program.cs
-- `tests/DotNetCloud.Modules.Notes.Tests/` — 50 tests (MSTest v4 + Moq + EF InMemory)
-- `src/Modules/Notes/manifest.json`
+**New core abstractions:**
+- `src/Core/DotNetCloud.Core/DTOs/NotificationDtos.cs` — NotificationDto, NotificationType, NotificationPriority
+- `src/Core/DotNetCloud.Core/DTOs/CrossModuleLinkDtos.cs` — CrossModuleLinkDto, CrossModuleLinkType, CrossModuleLinkRequest
+- `src/Core/DotNetCloud.Core/Capabilities/ICrossModuleLinkResolver.cs` — ResolveAsync + ResolveBatchAsync
+- `src/Core/DotNetCloud.Core/Capabilities/IAuditLogger.cs` — LogAsync(AuditEntry), AuditAction enum
+- `src/Core/DotNetCloud.Core/Capabilities/INotificationService.cs` — expanded from marker to full interface (Send, GetUnread, MarkRead, etc.)
+- `src/Core/DotNetCloud.Core/Events/NotificationEvents.cs` — ResourceSharedEvent, UserMentionedEvent, ReminderTriggeredEvent
 
-**Key features:**
-- Note CRUD with Markdown/PlainText formats, pinned/favorite flags
-- Hierarchical folder management (nested folders, duplicate-name validation)
-- Tag system (create, replace, search by tag)
-- Cross-entity links (File, CalendarEvent, Contact, Note link types)
-- Version history with full restore capability
-- Optimistic concurrency (ExpectedVersion check)
-- Per-user note sharing (ReadOnly/ReadWrite permissions, upsert, owner-only removal)
-- Soft-delete pattern with query filters
-- Search across title, content, and tags
-- ETag-based conflict detection
+**Server services:**
+- `src/Core/DotNetCloud.Core.Server/Services/CrossModuleLinkResolver.cs` — resolves links via IContactDirectory/ICalendarDirectory/INoteDirectory; batch support with type grouping; graceful fallback to `[Deleted X]`
+- `src/Core/DotNetCloud.Core.Server/Services/ResourceSharedNotificationHandler.cs`
+- `src/Core/DotNetCloud.Core.Server/Services/UserMentionedNotificationHandler.cs`
+- `src/Core/DotNetCloud.Core.Server/Services/ReminderNotificationHandler.cs`
+- NotificationEventSubscriber updated to wire 3 new handlers
+- DI registration: ICrossModuleLinkResolver in Program.cs
 
-**Remaining items (not blockers for Phase 3.5):** Markdown sanitization pipeline, rich-editor integration — deferred to Phase 3.7 quality gates.
+**Module upgrades:**
+- Contacts, Calendar, Notes .csproj: SDK → Microsoft.NET.Sdk.Razor, added FrameworkReference
+- 3 stub UI pages with search/create placeholders in `UI/` subfolders + _Imports.razor
+- UI.Web references all 3 module projects; ModuleUiRegistrationHostedService registers nav entries
+- All 3 module manifests (JSON + C#) updated: IAuditLogger + ICrossModuleLinkResolver capabilities, cross-module event subscriptions
+- NotificationCategory enum expanded (CalendarInvitation, Reminder, ResourceShared, Mention)
+
+**Bug fixes:**
+- ExampleModule.cs/tests: NoteCreatedEvent/NoteDeletedEvent naming ambiguity with Core.Events resolved via using aliases
+- Notes module test: updated Manifest_SubscribesNoEvents → Manifest_SubscribesCrossModuleEvents
+
+**Tests (30 new):**
+- `tests/DotNetCloud.Core.Server.Tests/Services/CrossModuleLinkResolverTests.cs` — 13 tests
+- `tests/DotNetCloud.Core.Server.Tests/Services/NotificationHandlerTests.cs` — 4 tests
+- `tests/DotNetCloud.Core.Server.Tests/Services/ModuleManifestConsistencyTests.cs` — 13 tests
+
+**Deferred items (non-blockers):**
+- Contacts & Notes entities lack CreatedByUserId/UpdatedByUserId audit fields — requires EF migrations, deferred to Phase 3.7
+- Markdown sanitization pipeline — deferred to Phase 3.7
 
 #### Next actionable work
-1. Begin **phase-3.5** (Cross-Module Integration) — unified navigation, shared notifications, cross-module links.
-2. Reference all three modules (Contacts/Calendar/Notes) for integration patterns.
+1. Begin **phase-3.6** (Migration Foundation) — import contract interfaces, vCard/iCalendar parsers, Notes import adapter, dry-run mode.
+2. Reference existing module data layers for import target patterns.
 
 #### Previous cycle summary
-- Phase 3.3 Calendar Module complete (39 tests). Archived.
+- Phase 3.4 Notes Module complete (50 tests). Archived.
 
 ## Relay Template
 

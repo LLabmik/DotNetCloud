@@ -1,0 +1,53 @@
+@namespace DotNetCloud.Modules.Contacts.UI
+
+@*
+    Contacts page layout — main UI entry point for the Contacts module.
+    Provides contact list, search, and detail views.
+    Full implementation in a future phase; this is the navigation-registered shell.
+*@
+
+<div class="contacts-page-layout">
+    <div class="contacts-sidebar">
+        <div class="contacts-sidebar-header">
+            <h3>Contacts</h3>
+            <button class="btn btn-sm btn-primary" @onclick="HandleCreateContact" title="New Contact">
+                <span>＋</span>
+            </button>
+        </div>
+        <div class="contacts-search">
+            <input type="text" class="form-control form-control-sm"
+                   placeholder="Search contacts…"
+                   @bind="_searchQuery"
+                   @bind:event="oninput" />
+        </div>
+        <nav class="contacts-nav">
+            <a class="contacts-nav-item @(_activeSection == "all" ? "active" : "")"
+               @onclick='() => _activeSection = "all"'>
+                All Contacts
+            </a>
+            <a class="contacts-nav-item @(_activeSection == "groups" ? "active" : "")"
+               @onclick='() => _activeSection = "groups"'>
+                Groups
+            </a>
+            <a class="contacts-nav-item @(_activeSection == "recent" ? "active" : "")"
+               @onclick='() => _activeSection = "recent"'>
+                Recently Added
+            </a>
+        </nav>
+    </div>
+    <div class="contacts-main">
+        <div class="contacts-placeholder">
+            <p>Select a contact or create a new one to get started.</p>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string _searchQuery = string.Empty;
+    private string _activeSection = "all";
+
+    private void HandleCreateContact()
+    {
+        // Placeholder — full implementation in future phase
+    }
+}

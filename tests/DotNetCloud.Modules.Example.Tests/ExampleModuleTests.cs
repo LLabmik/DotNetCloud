@@ -2,6 +2,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Modules;
 using DotNetCloud.Modules.Example.Events;
+using NoteCreatedEvent = DotNetCloud.Modules.Example.Events.NoteCreatedEvent;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;

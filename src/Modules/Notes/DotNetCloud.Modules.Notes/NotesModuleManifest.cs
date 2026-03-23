@@ -23,7 +23,11 @@ public sealed class NotesModuleManifest : IModuleManifest
     {
         nameof(Core.Capabilities.INotificationService),
         nameof(Core.Capabilities.IUserDirectory),
-        nameof(Core.Capabilities.ICurrentUserContext)
+        nameof(Core.Capabilities.ICurrentUserContext),
+        nameof(Core.Capabilities.IAuditLogger),
+        nameof(Core.Capabilities.ICrossModuleLinkResolver),
+        nameof(Core.Capabilities.IContactDirectory),
+        nameof(Core.Capabilities.ICalendarDirectory)
     };
 
     /// <inheritdoc />
@@ -31,9 +35,15 @@ public sealed class NotesModuleManifest : IModuleManifest
     {
         nameof(NoteCreatedEvent),
         nameof(NoteUpdatedEvent),
-        nameof(NoteDeletedEvent)
+        nameof(NoteDeletedEvent),
+        nameof(ResourceSharedEvent),
+        nameof(UserMentionedEvent)
     };
 
     /// <inheritdoc />
-    public IReadOnlyCollection<string> SubscribedEvents => [];
+    public IReadOnlyCollection<string> SubscribedEvents => new[]
+    {
+        nameof(ContactCreatedEvent),
+        nameof(CalendarEventCreatedEvent)
+    };
 }

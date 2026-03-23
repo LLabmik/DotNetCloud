@@ -19,6 +19,9 @@ internal sealed class NotificationEventSubscriber : IHostedService
     private QuotaNotificationHandler? _quotaHandler;
     private PublicLinkAccessedNotificationHandler? _publicLinkHandler;
     private ShareExpiringNotificationHandler? _shareExpiringHandler;
+    private ResourceSharedNotificationHandler? _resourceSharedHandler;
+    private UserMentionedNotificationHandler? _userMentionedHandler;
+    private ReminderNotificationHandler? _reminderHandler;
 
     public NotificationEventSubscriber(
         IEventBus eventBus,
@@ -49,14 +52,29 @@ internal sealed class NotificationEventSubscriber : IHostedService
             _pushService,
             _loggerFactory.CreateLogger<ShareExpiringNotificationHandler>());
 
+        _resourceSharedHandler = new ResourceSharedNotificationHandler(
+            _pushService,
+            _loggerFactory.CreateLogger<ResourceSharedNotificationHandler>());
+
+        _userMentionedHandler = new UserMentionedNotificationHandler(
+            _pushService,
+            _loggerFactory.CreateLogger<UserMentionedNotificationHandler>());
+
+        _reminderHandler = new ReminderNotificationHandler(
+            _pushService,
+            _loggerFactory.CreateLogger<ReminderNotificationHandler>());
+
         await _eventBus.SubscribeAsync<FileSharedEvent>(_fileSharedHandler, cancellationToken);
         await _eventBus.SubscribeAsync<QuotaWarningEvent>(_quotaHandler, cancellationToken);
         await _eventBus.SubscribeAsync<QuotaCriticalEvent>(_quotaHandler, cancellationToken);
         await _eventBus.SubscribeAsync<PublicLinkAccessedEvent>(_publicLinkHandler, cancellationToken);
         await _eventBus.SubscribeAsync<ShareExpiringEvent>(_shareExpiringHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<ResourceSharedEvent>(_resourceSharedHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<UserMentionedEvent>(_userMentionedHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<ReminderTriggeredEvent>(_reminderHandler, cancellationToken);
 
         _loggerFactory.CreateLogger<NotificationEventSubscriber>()
-            .LogInformation("Notification event handlers subscribed (FileShared, QuotaWarning, QuotaCritical, PublicLinkAccessed, ShareExpiring)");
+            .LogInformation("Notification event handlers subscribed (FileShared, QuotaWarning, QuotaCritical, PublicLinkAccessed, ShareExpiring, ResourceShared, UserMentioned, Reminder)");
     }
 
     /// <inheritdoc />
@@ -76,5 +94,14 @@ internal sealed class NotificationEventSubscriber : IHostedService
 
         if (_shareExpiringHandler is not null)
             await _eventBus.UnsubscribeAsync<ShareExpiringEvent>(_shareExpiringHandler, cancellationToken);
+
+        if (_resourceSharedHandler is not null)
+            await _eventBus.UnsubscribeAsync<ResourceSharedEvent>(_resourceSharedHandler, cancellationToken);
+
+        if (_userMentionedHandler is not null)
+            await _eventBus.UnsubscribeAsync<UserMentionedEvent>(_userMentionedHandler, cancellationToken);
+
+        if (_reminderHandler is not null)
+            await _eventBus.UnsubscribeAsync<ReminderTriggeredEvent>(_reminderHandler, cancellationToken);
     }
 }

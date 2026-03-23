@@ -23,7 +23,10 @@ public sealed class CalendarModuleManifest : IModuleManifest
     {
         nameof(Core.Capabilities.INotificationService),
         nameof(Core.Capabilities.IUserDirectory),
-        nameof(Core.Capabilities.ICurrentUserContext)
+        nameof(Core.Capabilities.ICurrentUserContext),
+        nameof(Core.Capabilities.IAuditLogger),
+        nameof(Core.Capabilities.ICrossModuleLinkResolver),
+        nameof(Core.Capabilities.IContactDirectory)
     };
 
     /// <inheritdoc />
@@ -33,9 +36,15 @@ public sealed class CalendarModuleManifest : IModuleManifest
         nameof(CalendarEventUpdatedEvent),
         nameof(CalendarEventDeletedEvent),
         nameof(CalendarEventRsvpEvent),
-        nameof(CalendarReminderTriggeredEvent)
+        nameof(CalendarReminderTriggeredEvent),
+        nameof(ReminderTriggeredEvent),
+        nameof(ResourceSharedEvent)
     };
 
     /// <inheritdoc />
-    public IReadOnlyCollection<string> SubscribedEvents => [];
+    public IReadOnlyCollection<string> SubscribedEvents => new[]
+    {
+        nameof(ContactCreatedEvent),
+        nameof(ContactDeletedEvent)
+    };
 }

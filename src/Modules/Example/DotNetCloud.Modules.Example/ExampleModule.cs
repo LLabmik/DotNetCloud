@@ -139,7 +139,7 @@ public sealed class ExampleModule : IModuleLifecycle
         // Publish domain event
         if (_eventBus is not null)
         {
-            var @event = new NoteCreatedEvent
+            var @event = new Example.Events.NoteCreatedEvent
             {
                 EventId = Guid.NewGuid(),
                 CreatedAt = DateTime.UtcNow,
