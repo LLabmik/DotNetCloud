@@ -5,6 +5,21 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: Phase 3.3 Calendar Module COMPLETE on mint22 (2026-03-24)
+
+**Original target:** mint22
+**Original status:** COMPLETE ✅
+
+Full Calendar module implemented (3-tier: Main/Data/Host). 39/39 tests pass.
+
+**Created projects:**
+- `DotNetCloud.Modules.Calendar` — Interfaces, models, module lifecycle, event handlers
+- `DotNetCloud.Modules.Calendar.Data` — EF Core DbContext, 5 entity configs, 3 service implementations + ICalService
+- `DotNetCloud.Modules.Calendar.Host` — REST API (~20 endpoints), CalDAV, gRPC (11 RPCs), health check, lifecycle
+- 39 tests (MSTest v4 + Moq + EF InMemory)
+
+**Key features:** Calendar CRUD, event CRUD with attendees/reminders, RSVP, sharing, search, iCal import/export, CalDAV discovery+sync-token, gRPC lifecycle, soft-delete.
+
 ## Archived: Post-Closeout Windows Runtime Smoke COMPLETE on Windows11-TestDNC (2026-03-23)
 
 Archived from Active Handoff on 2026-03-23 after post-closeout Windows runtime smoke validation on `Windows11-TestDNC`.

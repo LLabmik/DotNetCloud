@@ -1,0 +1,215 @@
+syntax = "proto3";
+
+option csharp_namespace = "DotNetCloud.Modules.Notes.Host.Protos";
+
+package dotnetcloud.notes;
+
+// NotesGrpcService: gRPC service for the Notes module.
+// The core server calls these RPCs to interact with the Notes module.
+service NotesGrpcService {
+  // Creates a new note.
+  rpc CreateNote (CreateNoteRequest) returns (NoteResponse);
+
+  // Gets a note by ID.
+  rpc GetNote (GetNoteRequest) returns (NoteResponse);
+
+  // Lists notes for a user.
+  rpc ListNotes (ListNotesRequest) returns (ListNotesResponse);
+
+  // Updates an existing note.
+  rpc UpdateNote (UpdateNoteRequest) returns (NoteResponse);
+
+  // Deletes a note (soft-delete).
+  rpc DeleteNote (DeleteNoteRequest) returns (DeleteNoteResponse);
+
+  // Searches notes by title/content/tags.
+  rpc SearchNotes (SearchNotesRequest) returns (ListNotesResponse);
+
+  // Creates a new note folder.
+  rpc CreateFolder (CreateFolderRequest) returns (FolderResponse);
+
+  // Lists folders for a user.
+  rpc ListFolders (ListFoldersRequest) returns (ListFoldersResponse);
+
+  // Gets version history for a note.
+  rpc GetVersionHistory (GetVersionHistoryRequest) returns (VersionHistoryResponse);
+
+  // Restores a note to a previous version.
+  rpc RestoreVersion (RestoreVersionRequest) returns (NoteResponse);
+}
+
+// --- CreateNote ---
+
+message CreateNoteRequest {
+  string user_id = 1;
+  string folder_id = 2;
+  string title = 3;
+  string content = 4;
+  string format = 5;          // Markdown, PlainText
+  repeated string tags = 6;
+  repeated NoteLinkMessage links = 7;
+}
+
+message NoteResponse {
+  bool success = 1;
+  string error_message = 2;
+  NoteMessage note = 3;
+}
+
+// --- GetNote ---
+
+message GetNoteRequest {
+  string note_id = 1;
+  string user_id = 2;
+}
+
+// --- ListNotes ---
+
+message ListNotesRequest {
+  string user_id = 1;
+  string folder_id = 2;
+  int32 skip = 3;
+  int32 take = 4;
+}
+
+message ListNotesResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated NoteMessage notes = 3;
+}
+
+// --- UpdateNote ---
+
+message UpdateNoteRequest {
+  string note_id = 1;
+  string user_id = 2;
+  string folder_id = 3;
+  string title = 4;
+  string content = 5;
+  string format = 6;
+  string is_pinned = 7;       // "true"/"false" or empty for no change
+  string is_favorite = 8;     // "true"/"false" or empty for no change
+  repeated string tags = 9;
+  bool update_tags = 10;      // if true, replace tags with above list
+  repeated NoteLinkMessage links = 11;
+  bool update_links = 12;     // if true, replace links with above list
+  int32 expected_version = 13; // 0 means no check
+}
+
+// --- DeleteNote ---
+
+message DeleteNoteRequest {
+  string note_id = 1;
+  string user_id = 2;
+}
+
+message DeleteNoteResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+// --- SearchNotes ---
+
+message SearchNotesRequest {
+  string user_id = 1;
+  string query = 2;
+  int32 skip = 3;
+  int32 take = 4;
+}
+
+// --- CreateFolder ---
+
+message CreateFolderRequest {
+  string user_id = 1;
+  string parent_id = 2;
+  string name = 3;
+  string color = 4;
+}
+
+message FolderResponse {
+  bool success = 1;
+  string error_message = 2;
+  FolderMessage folder = 3;
+}
+
+// --- ListFolders ---
+
+message ListFoldersRequest {
+  string user_id = 1;
+  string parent_id = 2;
+}
+
+message ListFoldersResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated FolderMessage folders = 3;
+}
+
+// --- GetVersionHistory ---
+
+message GetVersionHistoryRequest {
+  string note_id = 1;
+  string user_id = 2;
+}
+
+message VersionHistoryResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated NoteVersionMessage versions = 3;
+}
+
+// --- RestoreVersion ---
+
+message RestoreVersionRequest {
+  string note_id = 1;
+  string version_id = 2;
+  string user_id = 3;
+}
+
+// --- Shared Messages ---
+
+message NoteMessage {
+  string id = 1;
+  string owner_id = 2;
+  string folder_id = 3;
+  string title = 4;
+  string content = 5;
+  string format = 6;
+  bool is_pinned = 7;
+  bool is_favorite = 8;
+  int32 version = 9;
+  string etag = 10;
+  int32 content_length = 11;
+  string created_at = 12;     // ISO 8601 timestamp
+  string updated_at = 13;
+  repeated string tags = 14;
+  repeated NoteLinkMessage links = 15;
+}
+
+message NoteLinkMessage {
+  string link_type = 1;       // File, CalendarEvent, Contact, Note
+  string target_id = 2;
+  string display_label = 3;
+}
+
+message FolderMessage {
+  string id = 1;
+  string owner_id = 2;
+  string parent_id = 3;
+  string name = 4;
+  string color = 5;
+  int32 sort_order = 6;
+  int32 note_count = 7;
+  string created_at = 8;
+  string updated_at = 9;
+}
+
+message NoteVersionMessage {
+  string id = 1;
+  string note_id = 2;
+  int32 version_number = 3;
+  string title = 4;
+  string content = 5;
+  string edited_by_user_id = 6;
+  string created_at = 7;
+}

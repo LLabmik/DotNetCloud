@@ -1,0 +1,19 @@
+{
+  "id": "dotnetcloud.notes",
+  "name": "Notes",
+  "version": "1.0.0",
+  "description": "Markdown-centric note-taking with folders, tags, version history, search, sharing, and cross-entity links.",
+  "author": "DotNetCloud",
+  "requiredCapabilities": [
+    "INotificationService",
+    "IUserDirectory",
+    "ICurrentUserContext"
+  ],
+  "publishedEvents": [
+    "NoteCreatedEvent",
+    "NoteUpdatedEvent",
+    "NoteDeletedEvent"
+  ],
+  "subscribedEvents": [],
+  "minCoreVersion": "1.0.0"
+}

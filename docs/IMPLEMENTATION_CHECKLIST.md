@@ -3188,24 +3188,32 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase 3.4: Notes Module
 
 #### Module Projects
-- ☐ Create `DotNetCloud.Modules.Notes` (core logic)
-- ☐ Create `DotNetCloud.Modules.Notes.Data` (EF Core context)
-- ☐ Create `DotNetCloud.Modules.Notes.Host` (gRPC host)
+- ✓ Create `DotNetCloud.Modules.Notes` (core logic)
+- ✓ Create `DotNetCloud.Modules.Notes.Data` (EF Core context)
+- ✓ Create `DotNetCloud.Modules.Notes.Host` (gRPC host)
 
 #### Data Model
-- ☐ Note, NoteVersion, NoteFolder, NoteTag, NoteLink entities
-- ☐ EF configurations with multi-provider naming strategies
+- ✓ Note, NoteVersion, NoteFolder, NoteTag, NoteLink, NoteShare entities
+- ✓ EF configurations with multi-provider naming strategies
 - ☐ Initial migrations (PostgreSQL + SQL Server)
 
 #### REST API
-- ☐ CRUD endpoints for notes
-- ☐ Move/copy, tagging, search, version history endpoints
+- ✓ CRUD endpoints for notes (~25 REST endpoints)
+- ✓ Move/copy, tagging, search, version history endpoints
+
+#### gRPC Service
+- ✓ 10 RPCs: CreateNote, GetNote, ListNotes, UpdateNote, DeleteNote, SearchNotes, CreateFolder, ListFolders, GetVersionHistory, RestoreVersion
+- ✓ Module lifecycle service (Initialize, Start, Stop, HealthCheck, GetManifest)
+- ✓ Module manifest (manifest.json)
 
 #### Features
 - ☐ Markdown rendering pipeline with XSS sanitization
 - ☐ Optional rich-editor behind feature flag
-- ☐ Cross-entity link references (Files, Calendar)
-- ☐ Note sharing model
+- ✓ Cross-entity link references (Files, Calendar, Contact, Note)
+- ✓ Note sharing model (ReadOnly/ReadWrite per-user)
+- ✓ Version history with restore
+- ✓ Optimistic concurrency via ExpectedVersion
+- ✓ 50 passing tests (module lifecycle, CRUD, search, versioning, folders, sharing)
 
 ### Phase 3.5: Cross-Module Integration
 

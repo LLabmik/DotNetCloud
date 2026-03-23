@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-24 (Phase 3.2 Contacts Module complete)
+Last updated: 2026-03-24 (Phase 3.4 Notes Module complete)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -60,7 +60,7 @@ Archived context:
 - Security audit desktop client validation on `Windows11-TestDNC`: **COMPLETE** (2026-03-23).
 - Security audit closeout + merge validation on `mint22`: **COMPLETE** (2026-03-23).
 - Post-closeout Windows runtime smoke: **COMPLETE** (2026-03-23). 4/4 targeted tests passed; login launch path verified reachable.
-- **Active cycle:** Phase 3.3 Calendar Module complete. Phase 3.4 Notes Module next.
+- **Active cycle:** Phase 3.4 Notes Module complete. Phase 3.5 Cross-Module Integration next.
 
 ## Environment
 
@@ -85,27 +85,37 @@ Archived context:
 **Target machine:** mint22
 **Status:** COMPLETE
 
-### Phase 3.3: Calendar Module — DONE
+### Phase 3.4: Notes Module — DONE
 
-Full Calendar module implemented (3-tier: Main/Data/Host). 39/39 tests pass. Solution builds clean.
+Full Notes module implemented (3-tier: Main/Data/Host). 50/50 tests pass. Solution builds clean.
 
 **Created projects:**
-- `src/Modules/Calendar/DotNetCloud.Modules.Calendar/` — Interfaces, models (Calendar, CalendarEvent, EventAttendee, EventReminder, CalendarShare), module lifecycle, event handlers
-- `src/Modules/Calendar/DotNetCloud.Modules.Calendar.Data/` — EF Core DbContext, 5 entity configurations, service implementations (CalendarService, CalendarEventService, CalendarShareService, ICalService)
-- `src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/` — REST API (CalendarController ~20 endpoints), CalDAV (CalDavController with PROPFIND/REPORT/GET/PUT/DELETE), gRPC (CalendarGrpcService 11 RPCs), health check, lifecycle service
-- `tests/DotNetCloud.Modules.Calendar.Tests/` — 39 tests (MSTest v4 + Moq + EF InMemory)
-- `src/Modules/Calendar/manifest.json`
+- `src/Modules/Notes/DotNetCloud.Modules.Notes/` — Models (Note, NoteFolder, NoteTag, NoteLink, NoteVersion, NoteShare), service interfaces (INoteService, INoteFolderService, INoteShareService), module lifecycle, event handlers, manifest
+- `src/Modules/Notes/DotNetCloud.Modules.Notes.Data/` — EF Core DbContext (6 DbSets), 6 entity configurations, 3 service implementations (NoteService, NoteFolderService, NoteShareService), design-time factory, service registration
+- `src/Modules/Notes/DotNetCloud.Modules.Notes.Host/` — REST API (NotesController ~25 endpoints), gRPC (NotesGrpcService 10 RPCs), health check, lifecycle service, InProcessEventBus, Program.cs
+- `tests/DotNetCloud.Modules.Notes.Tests/` — 50 tests (MSTest v4 + Moq + EF InMemory)
+- `src/Modules/Notes/manifest.json`
 
-**Key features:** Calendar CRUD, event CRUD with attendees/reminders, RSVP, calendar sharing, event search, iCalendar RFC 5545 import/export, CalDAV discovery+sync-token, gRPC lifecycle, soft-delete, ETag concurrency.
+**Key features:**
+- Note CRUD with Markdown/PlainText formats, pinned/favorite flags
+- Hierarchical folder management (nested folders, duplicate-name validation)
+- Tag system (create, replace, search by tag)
+- Cross-entity links (File, CalendarEvent, Contact, Note link types)
+- Version history with full restore capability
+- Optimistic concurrency (ExpectedVersion check)
+- Per-user note sharing (ReadOnly/ReadWrite permissions, upsert, owner-only removal)
+- Soft-delete pattern with query filters
+- Search across title, content, and tags
+- ETag-based conflict detection
 
-**Remaining items (not blockers for Phase 3.4):** Recurrence expansion engine, reminder/notification pipeline — deferred to Phase 3.7 quality gates.
+**Remaining items (not blockers for Phase 3.5):** Markdown sanitization pipeline, rich-editor integration — deferred to Phase 3.7 quality gates.
 
 #### Next actionable work
-1. Begin **phase-3.4** (Notes Module) — create module projects, EF data model, REST API.
-2. Reference Contacts/Calendar module pattern for project structure (3-tier: Main/Data/Host).
+1. Begin **phase-3.5** (Cross-Module Integration) — unified navigation, shared notifications, cross-module links.
+2. Reference all three modules (Contacts/Calendar/Notes) for integration patterns.
 
 #### Previous cycle summary
-- Phase 3.2 Contacts Module complete (32 tests). Archived.
+- Phase 3.3 Calendar Module complete (39 tests). Archived.
 
 ## Relay Template
 

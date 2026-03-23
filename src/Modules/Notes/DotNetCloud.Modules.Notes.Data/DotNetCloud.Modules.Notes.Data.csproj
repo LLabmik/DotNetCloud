@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DotNetCloud.Modules.Notes.Data</RootNamespace>
+    <AssemblyName>DotNetCloud.Modules.Notes.Data</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="DotNetCloud.Modules.Notes.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.3" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.3">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.3" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.3" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+    <!-- TODO: Add Pomelo.EntityFrameworkCore.MySql when .NET 10 compatible version is released -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DotNetCloud.Modules.Notes\DotNetCloud.Modules.Notes.csproj" />
+    <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Data\DotNetCloud.Core.Data.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Migrations\SqlServer\" />
+  </ItemGroup>
+
+</Project>

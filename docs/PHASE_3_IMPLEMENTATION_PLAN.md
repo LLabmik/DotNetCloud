@@ -113,19 +113,22 @@
 - Deliver Markdown-centric note-taking with folders, tags, and search.
 
 ### Deliverables
-- ☐ Module projects:
-  - ☐ DotNetCloud.Modules.Notes
-  - ☐ DotNetCloud.Modules.Notes.Data
-  - ☐ DotNetCloud.Modules.Notes.Host
-- ☐ Data model for notes, versions, folders, tags, links, and sharing metadata.
-- ☐ REST API endpoints for CRUD, move/copy, tagging, search, version history.
+- ✓ Module projects:
+  - ✓ DotNetCloud.Modules.Notes
+  - ✓ DotNetCloud.Modules.Notes.Data
+  - ✓ DotNetCloud.Modules.Notes.Host
+- ✓ Data model for notes, versions, folders, tags, links, and sharing metadata.
+- ✓ REST API endpoints for CRUD, move/copy, tagging, search, version history.
 - ☐ Markdown rendering pipeline with sanitization and safe preview.
 - ☐ Optional rich-editor integration behind feature flag (if adopted).
-- ☐ Note link references to Files and Calendar entities.
+- ✓ Note link references to Files and Calendar entities.
+- ✓ gRPC service (10 RPCs) for core ↔ module communication.
+- ✓ Note sharing with per-user permission (ReadOnly/ReadWrite).
+- ✓ 50 passing tests.
 
 ### Exit Criteria
-- ☐ Notes support version history restore and conflict-safe updates.
-- ☐ Search includes title/content/tags and returns stable relevance ordering.
+- ✓ Notes support version history restore and conflict-safe updates.
+- ✓ Search includes title/content/tags and returns stable relevance ordering.
 - ☐ Markdown sanitization tests pass against XSS payload cases.
 
 ## 3.5 Cross-Module Integration (phase-3.5)
