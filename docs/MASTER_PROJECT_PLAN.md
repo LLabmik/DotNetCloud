@@ -81,7 +81,7 @@
 | Client Security Remediation | 1 | 1 | 0 | 0 |
 | Phase 3.1 | 4 | 4 | 0 | 0 |
 | Phase 3.2 | 6 | 5 | 0 | 1 |
-| Phase 3.3 | 6 | 4 | 0 | 2 |
+| Phase 3.3 | 6 | 6 | 0 | 0 |
 | Phase 3.4 | 6 | 6 | 0 | 0 |
 | Phase 3.5 | 4 | 4 | 0 | 0 |
 | Phase 3.6 | 4 | 4 | 0 | 0 |
@@ -1319,19 +1319,19 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Section: Phase 3.3 - Calendar Module
-**STATUS:** in-progress
+**STATUS:** completed ✅
 **DELIVERABLES:**
 - ✓ Module projects (Calendar, Calendar.Data, Calendar.Host)
 - ✓ Data model (calendars, events, attendees, recurrence, reminders, shares)
 - ✓ REST API endpoints (CRUD, RSVP, sharing, search/filter)
 - ✓ CalDAV endpoints (calendar discovery, iCal get/put/delete, sync token)
-- ☐ Recurrence engine and occurrence expansion
-- ☐ Reminder/notification pipeline
+- ✓ Recurrence engine and occurrence expansion
+- ✓ Reminder/notification pipeline (in-app + push)
 - ✓ gRPC service (11 RPCs) for core ↔ module communication
 - ✓ iCalendar RFC 5545 import/export service
-- ✓ 39 passing tests (module lifecycle, calendar CRUD, event CRUD, iCal import/export)
+- ✓ 82 passing tests (39 existing + 43 new: recurrence, expansion, reminders)
 
-**Notes:** Core calendar module structure complete following Contacts 3-tier pattern. REST+CalDAV+gRPC all implemented. Remaining items: recurrence expansion engine, reminder/notification pipeline. Ready for Phase 3.4 (Notes Module).
+**Notes:** Calendar module fully complete. RecurrenceEngine parses RFC 5545 RRULE (DAILY/WEEKLY/MONTHLY/YEARLY, INTERVAL, COUNT, UNTIL, BYDAY with ordinals, BYMONTHDAY, BYMONTH, BYSETPOS). OccurrenceExpansionService merges expanded/concrete/exception events for time-range queries. ReminderDispatchService (BackgroundService) scans every 30s, publishes CalendarReminderTriggeredEvent + ReminderTriggeredEvent, logs dispatches in ReminderLog table to prevent duplicates. Handles recurring event reminders via recurrence expansion.
 
 ---
 

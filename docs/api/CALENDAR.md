@@ -100,9 +100,11 @@ GET /api/v1/calendars/{calendarId}/events?from={date}&to={date}&skip={n}&take={n
 | `from` | DateTime | — | Start of date range filter (UTC) |
 | `to` | DateTime | — | End of date range filter (UTC) |
 | `skip` | int | 0 | Pagination offset |
-| `take` | int | 50 | Page size |
+| `take` | int | 200 | Page size |
 
 **Response:** Paginated array of `CalendarEventDto`
+
+**Recurrence Expansion:** When `from` and `to` are provided, recurring events within the window are automatically expanded into individual occurrence instances. Each expanded occurrence is returned as a `CalendarEventDto` where `recurringEventId` is set to the master event's ID and `originalStartUtc` is set to that occurrence's computed start time. Exception overrides (single-occurrence edits) replace the generated occurrence they modify.
 
 ---
 
@@ -220,9 +222,11 @@ GET /api/v1/calendars/events/search?q={query}&from={date}&to={date}&skip={n}&tak
 | `from` | DateTime | — | Start of date range |
 | `to` | DateTime | — | End of date range |
 | `skip` | int | 0 | Pagination offset |
-| `take` | int | 50 | Page size |
+| `take` | int | 200 | Page size |
 
 **Response:** Paginated array of `CalendarEventDto`
+
+**Recurrence Expansion:** Same expansion behavior as List Events — recurring events within the date range are expanded into individual occurrences and included in search results. Searches across all of the authenticated user's calendars (owned and shared).
 
 ---
 
@@ -381,6 +385,59 @@ POST /api/v1/calendars/events/import
 
 ---
 
+## Recurrence
+
+### Supported RRULE Components
+
+The recurrence engine implements RFC 5545 RRULE parsing. Supported components:
+
+| Component | Values | Example |
+|---|---|---|
+| `FREQ` | `DAILY`, `WEEKLY`, `MONTHLY`, `YEARLY` | `FREQ=WEEKLY` |
+| `INTERVAL` | Positive integer | `INTERVAL=2` (every 2 weeks) |
+| `COUNT` | Max occurrences | `COUNT=10` |
+| `UNTIL` | End date (UTC) | `UNTIL=20260630T000000Z` |
+| `BYDAY` | Day list, optional ordinal | `BYDAY=MO,WE,FR` or `BYDAY=2MO` (2nd Monday) or `BYDAY=-1FR` (last Friday) |
+| `BYMONTHDAY` | Day(s) of month | `BYMONTHDAY=15` |
+| `BYMONTH` | Month(s) | `BYMONTH=1,6` |
+| `BYSETPOS` | Position within set | `BYSETPOS=-1` (last occurrence) |
+| `WKST` | Week start day | `WKST=MO` |
+
+### Occurrence Expansion
+
+Occurrence expansion is capped at **1,000 instances** per recurring event. If a rule would produce more occurrences within the requested window, only the first 1,000 are returned.
+
+Each expanded occurrence is a virtual `CalendarEventDto` with:
+- `id` — same as the master event (use `originalStartUtc` to distinguish occurrences)
+- `recurringEventId` — set to the master event's ID
+- `originalStartUtc` — the computed start time of this occurrence
+- `startUtc` / `endUtc` — adjusted to this occurrence's time, preserving the original event duration
+
+### Recurrence Exceptions
+
+Editing a single occurrence of a recurring event creates a **recurrence exception** — a standalone event linked to the master via `recurringEventId` and `originalStartUtc`. When expanding occurrences:
+
+1. The generated occurrence at the exception's `originalStartUtc` is removed
+2. The exception event replaces it with its own modified data
+3. Deleting a single occurrence creates a cancelled exception that suppresses that date
+
+---
+
+## Reminders
+
+### Reminder Dispatch
+
+Reminders are dispatched automatically by a background service that scans every 30 seconds. When a reminder's trigger time (`event.startUtc - reminder.minutesBefore`) falls within the current look-ahead window (24 hours):
+
+1. A `CalendarReminderTriggeredEvent` is published on the event bus
+2. A cross-module `ReminderTriggeredEvent` is published (consumed by the notification service)
+
+**Recurring events:** Reminders fire independently for each expanded occurrence. A reminder on a weekly meeting fires every week.
+
+**Duplicate prevention:** Each reminder fires at most once per occurrence. Dispatch is tracked in the `ReminderLogs` table with a unique constraint on `(ReminderId, OccurrenceStartUtc)`.
+
+---
+
 ## Enums
 
 ### Event Status
@@ -425,7 +482,7 @@ POST /api/v1/calendars/events/import
 | `CALENDAR_EVENT_NOT_FOUND` | 404 | Event does not exist or is not accessible |
 | `CALENDAR_ALREADY_EXISTS` | 409 | Duplicate calendar |
 | `CALENDAR_EVENT_CONFLICT` | 409 | Event version conflict (concurrent edit) |
-| `CALENDAR_INVALID_RECURRENCE` | 400 | Invalid RRULE format |
+| `CALENDAR_INVALID_RECURRENCE` | 400 | Invalid RRULE format (unsupported FREQ, malformed components) |
 | `ATTENDEE_NOT_FOUND` | 404 | Referenced attendee not found |
 | `CALENDAR_SHARE_NOT_FOUND` | 404 | Share does not exist |
 

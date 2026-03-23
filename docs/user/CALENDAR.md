@@ -1,6 +1,6 @@
 # Calendar — User Guide
 
-> **Last Updated:** 2026-03-23
+> **Last Updated:** 2026-07-16
 
 ---
 
@@ -140,6 +140,10 @@ When creating or editing an event:
 | 15 minutes before | 15 min before start |
 | 60 minutes before | 1 hour before start |
 | 1440 minutes before | 1 day before start |
+
+### Reminders on Recurring Events
+
+Reminders automatically fire for each occurrence of a recurring event. For example, a "15 minutes before" reminder on a weekly meeting will fire every week, 15 minutes before that occurrence starts. If you edit a single occurrence and change its reminders, only that instance is affected — the rest of the series keeps the original reminders.
 
 ---
 

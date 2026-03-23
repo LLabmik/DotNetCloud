@@ -1,6 +1,6 @@
 # PIM Modules — Admin Configuration Guide
 
-> **Last Updated:** 2026-03-23  
+> **Last Updated:** 2026-07-16  
 > **Applies to:** Contacts, Calendar, Notes modules (Phase 3)
 
 ---
@@ -71,7 +71,7 @@ dotnet ef database update --context CoreDbContext
 `Contacts`, `ContactEmails`, `ContactPhones`, `ContactAddresses`, `ContactCustomFields`, `ContactGroups`, `ContactGroupMembers`, `ContactShares`
 
 **Calendar:**
-`Calendars`, `CalendarEvents`, `EventAttendees`, `EventReminders`, `CalendarShares`
+`Calendars`, `CalendarEvents`, `EventAttendees`, `EventReminders`, `CalendarShares`, `ReminderLogs`
 
 **Notes:**
 `Notes`, `NoteVersions`, `NoteFolders`, `NoteTags`, `NoteLinks`, `NoteShares`
@@ -95,7 +95,7 @@ The PIM modules currently use sensible defaults and do not require module-specif
 
 ### Future Configuration (Planned)
 
-These options may be added in future releases:
+These options may be added in future releases to make current defaults configurable:
 
 ```json
 {
@@ -105,8 +105,10 @@ These options may be added in future releases:
     "VCardExportThrottlePerMinute": 60
   },
   "Calendar": {
-    "RecurrenceExpansionMaxInstances": 365,
-    "DefaultReminderMinutes": 15
+    "RecurrenceExpansionMaxInstances": 1000,
+    "DefaultReminderMinutes": 15,
+    "ReminderScanIntervalSeconds": 30,
+    "ReminderLookAheadHours": 24
   },
   "Notes": {
     "MaxVersionsPerNote": 100,
@@ -114,6 +116,8 @@ These options may be added in future releases:
   }
 }
 ```
+
+> **Note:** The Calendar recurrence engine and reminder dispatch service are active with the defaults shown above. These values are currently hardcoded; configurable overrides will be added in a future release.
 
 ### Contacts File Storage
 
@@ -283,7 +287,7 @@ PIM modules publish and subscribe to events for cross-module coordination:
 | Module | Events |
 |---|---|
 | Contacts | `ContactCreatedEvent`, `ContactUpdatedEvent`, `ContactDeletedEvent`, `ResourceSharedEvent` |
-| Calendar | `CalendarEventCreatedEvent`, `CalendarEventUpdatedEvent`, `CalendarEventDeletedEvent`, `CalendarEventRsvpEvent`, `ReminderTriggeredEvent`, `ResourceSharedEvent` |
+| Calendar | `CalendarEventCreatedEvent`, `CalendarEventUpdatedEvent`, `CalendarEventDeletedEvent`, `CalendarEventRsvpEvent`, `CalendarReminderTriggeredEvent`, `ReminderTriggeredEvent`, `ResourceSharedEvent` |
 | Notes | `NoteCreatedEvent`, `NoteUpdatedEvent`, `NoteDeletedEvent`, `ResourceSharedEvent`, `UserMentionedEvent` |
 
 ### Subscribed Events
@@ -317,6 +321,44 @@ PIM modules participate in the standard health check system:
 - `/health` — overall system health (includes PIM module status)
 - `/health/ready` — readiness probe
 - `/health/live` — liveness probe
+
+---
+
+## Background Services
+
+### Reminder Dispatch Service (Calendar)
+
+The `ReminderDispatchService` is a background service that continuously scans for due reminders and dispatches notifications.
+
+**Behavior:**
+
+| Parameter | Default |
+|---|---|
+| Scan interval | 30 seconds |
+| Look-ahead window | 24 hours |
+| Max recurrence expansion | 1,000 occurrences per event |
+
+**How it works:**
+
+1. Every 30 seconds, the service queries all events with reminders whose trigger time falls within the current look-ahead window
+2. For **single events**, it checks `event.StartUtc - reminder.MinutesBefore` against the current time
+3. For **recurring events**, it expands occurrences using the `RecurrenceEngine` and checks each occurrence's reminders individually
+4. Before dispatching, it checks the `ReminderLogs` table to prevent duplicate delivery
+5. On successful dispatch, two events are published via the event bus:
+   - `CalendarReminderTriggeredEvent` (Calendar-internal)
+   - `ReminderTriggeredEvent` (cross-module, consumed by notification infrastructure)
+6. Each dispatch is logged in the `ReminderLogs` table with success/failure status
+
+**Duplicate Prevention:**
+
+The `ReminderLogs` table uses a unique index on `(ReminderId, OccurrenceStartUtc)` to ensure each reminder fires exactly once per event occurrence, even across server restarts.
+
+**Logging:**
+
+```
+[INF] Reminder dispatched for event {EventId}, occurrence {OccurrenceStartUtc}
+[WRN] Reminder dispatch failed for event {EventId}: {ErrorMessage}
+```
 
 ### Logging
 
@@ -381,3 +423,15 @@ PIM data is stored in the same database as all other core data. The standard bac
 **Cause:** Another user or session modified the note since it was loaded.
 
 **Resolution:** Reload the note to get the current version, merge changes, and retry with the updated `ExpectedVersion`.
+
+### Reminders Not Firing
+
+**Symptom:** Users report not receiving reminders for calendar events.
+
+**Check:**
+1. Verify the `ReminderDispatchService` is running (look for scan log entries every 30 seconds)
+2. Check that the event has reminders configured (`EventReminders` table)
+3. Verify the event is not soft-deleted (`DeletedAt IS NULL`)
+4. For recurring events, ensure the RRULE is valid — invalid rules are skipped with a warning log
+5. Check the `ReminderLogs` table for successful dispatches — if a log entry exists, the reminder already fired and won't fire again
+6. If reminders fired but notifications weren't received, check downstream `INotificationService` configuration

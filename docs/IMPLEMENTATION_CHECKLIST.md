@@ -3176,8 +3176,8 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Sync token and change tracking
 
 #### Features
-- ☐ Recurrence engine and occurrence expansion service
-- ☐ Reminder/notification pipeline (in-app + push)
+- ✓ Recurrence engine and occurrence expansion service
+- ✓ Reminder/notification pipeline (in-app + push)
 
 #### Additional Deliverables
 - ✓ gRPC service (11 RPCs) for core ↔ module communication

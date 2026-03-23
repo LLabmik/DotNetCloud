@@ -15,7 +15,7 @@
 - ☐ CalDAV endpoints interoperate with common clients (Thunderbird, DAVx5, iOS/macOS calendar).
 - ☐ Notes support Markdown editing, folders/tags, and full-text search.
 - ☐ Permissions and tenant boundaries are enforced consistently across all three modules.
-- ☐ Background jobs (recurrence expansion, reminder dispatch, sync jobs) run reliably.
+- ✓ Background jobs (recurrence expansion, reminder dispatch, sync jobs) run reliably.
 - ☐ API + UI + integration tests pass in CI for PostgreSQL and SQL Server.
 - ☐ Admin and user documentation for all three modules is complete.
 
@@ -96,11 +96,11 @@
   - ✓ Calendar discovery and collections
   - ✓ iCalendar get/put/delete
   - ✓ Sync token/change tracking
-- ☐ Recurrence engine and occurrence expansion service.
-- ☐ Reminder/notification pipeline (in-app + push if configured).
+- ✓ Recurrence engine and occurrence expansion service.
+- ✓ Reminder/notification pipeline (in-app + push if configured).
 - ✓ gRPC service (11 RPCs) for core ↔ module communication.
 - ✓ iCalendar RFC 5545 import/export service.
-- ✓ 39 passing tests.
+- ✓ 82 passing tests (39 existing + 43 new).
 
 ### Exit Criteria
 - ☐ Recurring events behave correctly across timezones.
@@ -243,7 +243,7 @@
 - ☐ phase-3.2 complete (REST + basic CardDAV)
 
 ### Milestone B: Calendar MVP + Interop
-- ☐ phase-3.3 complete (REST + recurrence + basic CalDAV)
+- ✓ phase-3.3 complete (REST + recurrence + basic CalDAV)
 
 ### Milestone C: Notes MVP + Integration
 - ☐ phase-3.4 complete

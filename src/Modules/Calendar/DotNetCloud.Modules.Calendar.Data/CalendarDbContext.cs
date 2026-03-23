@@ -33,6 +33,9 @@ public class CalendarDbContext : DbContext
     /// <summary>Calendar sharing grants.</summary>
     public DbSet<CalendarShare> CalendarShares => Set<CalendarShare>();
 
+    /// <summary>Reminder dispatch log entries.</summary>
+    public DbSet<ReminderLog> ReminderLogs => Set<ReminderLog>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -43,5 +46,6 @@ public class CalendarDbContext : DbContext
         modelBuilder.ApplyConfiguration(new EventAttendeeConfiguration());
         modelBuilder.ApplyConfiguration(new EventReminderConfiguration());
         modelBuilder.ApplyConfiguration(new CalendarShareConfiguration());
+        modelBuilder.ApplyConfiguration(new ReminderLogConfiguration());
     }
 }

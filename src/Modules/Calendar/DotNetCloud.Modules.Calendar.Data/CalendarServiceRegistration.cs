@@ -21,6 +21,9 @@ public static class CalendarServiceRegistration
         services.AddScoped<ICalendarShareService, CalendarShareService>();
         services.AddScoped<IICalendarService, ICalService>();
         services.AddScoped<IImportProvider, CalendarImportProvider>();
+        services.AddSingleton<IRecurrenceEngine, RecurrenceEngine>();
+        services.AddScoped<IOccurrenceExpansionService, OccurrenceExpansionService>();
+        services.AddHostedService<ReminderDispatchService>();
 
         return services;
     }
