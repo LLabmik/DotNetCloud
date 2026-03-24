@@ -30,7 +30,7 @@
             <div class="contacts-group-list">
                 @foreach (var group in _groups)
                 {
-                    <div class="contacts-group-item">@group.Name (@group.MemberCount)</div>
+                    <div class="contacts-group-item-row">@group.Name (@group.MemberCount)</div>
                 }
             </div>
         }
@@ -118,7 +118,7 @@
                     }
                 </div>
 
-                <div class="contacts-detail-actions" style="display:flex; gap:0.5rem; margin-bottom:0.75rem;">
+                <div class="contacts-detail-actions">
                     <button class="btn btn-primary" @onclick="BeginEditSelected">Edit Contact</button>
                     <button class="btn btn-outline-secondary" @onclick="ToggleSharePanel">
                         @(_showSharePanel ? "Hide Shares" : "Share")
@@ -143,7 +143,7 @@
                                 </div>
                             }
                         }
-                        <div class="share-form" style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+                        <div class="share-form">
                             <input type="text" class="form-control form-control-sm" placeholder="User ID" @bind="_shareUserId" />
                             <select class="form-select form-select-sm" @bind="_sharePermission" style="max-width:140px;">
                                 <option value="ReadOnly">Read Only</option>

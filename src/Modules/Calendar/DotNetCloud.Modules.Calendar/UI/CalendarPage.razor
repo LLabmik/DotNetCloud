@@ -3,6 +3,7 @@
 @using DotNetCloud.Core.DTOs
 @using DotNetCloud.Modules.Calendar.Services
 @inject ICalendarApiClient ApiClient
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <div class="calendar-page-layout">
     <div class="calendar-sidebar">
@@ -61,7 +62,7 @@
                         </div>
                     }
                 }
-                <div class="share-form" style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+                <div class="share-form">
                     <input type="text" class="form-control form-control-sm" placeholder="User ID" @bind="_shareUserId" />
                     <select class="form-select form-select-sm" @bind="_sharePermission" style="max-width:140px;">
                         <option value="ReadOnly">Read Only</option>
@@ -74,13 +75,18 @@
 
         @if (_showImportPanel && _selectedCalendar is not null)
         {
-            <div class="calendar-import-panel" style="margin-top:0.5rem;">
+            <div class="calendar-import-panel">
                 <textarea class="form-control form-control-sm" rows="4" placeholder="Paste iCalendar (.ics) data here…" @bind="_importText"></textarea>
-                <button class="btn btn-sm btn-primary" style="margin-top:0.25rem;" @onclick="ImportCalendarAsync">Import</button>
+                <button class="btn btn-sm btn-primary" @onclick="ImportCalendarAsync" style="margin-top:8px;">Import</button>
             </div>
         }
     </div>
     <div class="calendar-main">
+        @if (!string.IsNullOrWhiteSpace(_operationError))
+        {
+            <div class="calendar-inline-error">@_operationError</div>
+        }
+
         <div class="calendar-toolbar">
             <button class="btn btn-sm btn-outline-secondary" @onclick="PrevRange">Prev</button>
             <strong>@RangeLabel</strong>
@@ -121,8 +127,91 @@
                 </div>
             </EditForm>
         }
+        else if (_activeView == "month")
+        {
+            <div class="calendar-month-grid">
+                @foreach (var name in DayNames)
+                {
+                    <div class="calendar-day-header">@name</div>
+                }
+                @foreach (var day in GetMonthGridDays())
+                {
+                    var dayEvents = GetEventsForDate(day);
+                    <div class="calendar-day-cell @(day.Month != _anchorDate.Month ? "other-month" : "") @(day.Date == DateTime.Today ? "today" : "")"
+                         @onclick="() => DayClicked(day)">
+                        <span class="calendar-day-number">@day.Day</span>
+                        @foreach (var evt in dayEvents)
+                        {
+                            <div class="calendar-day-event"
+                                 style="background:@(GetEventColor(evt))"
+                                 @onclick:stopPropagation @onclick="() => BeginEditEvent(evt)">
+                                @evt.Title
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        else if (_activeView == "week")
+        {
+            <div class="calendar-week-grid">
+                @foreach (var day in GetWeekDays())
+                {
+                    var dayEvents = GetEventsForDate(day);
+                    <div class="calendar-week-col">
+                        <div class="calendar-week-col-header @(day.Date == DateTime.Today ? "today" : "")">
+                            <span class="calendar-week-day-name">@day.ToString("ddd")</span>
+                            <span class="calendar-week-day-num">@day.Day</span>
+                        </div>
+                        <div class="calendar-week-col-body" @onclick="() => DayClicked(day)">
+                            @if (dayEvents.Count == 0)
+                            {
+                                <span class="calendar-week-empty">&nbsp;</span>
+                            }
+                            else
+                            {
+                                @foreach (var evt in dayEvents)
+                                {
+                                    <div class="calendar-day-event"
+                                         style="background:@(GetEventColor(evt))"
+                                         @onclick:stopPropagation @onclick="() => BeginEditEvent(evt)">
+                                        <span class="calendar-event-time">@evt.StartUtc.ToLocalTime().ToString("HH:mm")</span>
+                                        @evt.Title
+                                    </div>
+                                }
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else if (_activeView == "day")
+        {
+            <div class="calendar-day-view">
+                @for (var h = 0; h < 24; h++)
+                {
+                    var hour = h;
+                    var hourEvents = GetEventsForHour(_anchorDate, hour);
+                    <div class="calendar-hour-row @(DateTime.Now.Hour == hour && _anchorDate.Date == DateTime.Today ? "current-hour" : "")">
+                        <div class="calendar-hour-label">@($"{hour:D2}:00")</div>
+                        <div class="calendar-hour-content" @onclick="() => CreateEventAtHour(hour)">
+                            @foreach (var evt in hourEvents)
+                            {
+                                <div class="calendar-day-event"
+                                     style="background:@(GetEventColor(evt))"
+                                     @onclick:stopPropagation @onclick="() => BeginEditEvent(evt)">
+                                    @evt.Title
+                                    <span class="calendar-event-time">@evt.StartUtc.ToLocalTime().ToString("HH:mm") – @evt.EndUtc.ToLocalTime().ToString("HH:mm")</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
         else
         {
+            @* Agenda view — flat event list *@
             <div class="calendar-events-panel">
                 @if (_events.Count == 0)
                 {
@@ -135,14 +224,17 @@
                         <div class="calendar-event-row">
                             <button class="btn btn-link p-0 text-start" @onclick="() => BeginEditEvent(eventItem)">
                                 <strong>@eventItem.Title</strong>
-                                <span>@eventItem.StartUtc.ToLocalTime():g - @eventItem.EndUtc.ToLocalTime():g</span>
+                                <span>@eventItem.StartUtc.ToLocalTime().ToString("g") – @eventItem.EndUtc.ToLocalTime().ToString("g")</span>
                                 <span>@eventItem.Location</span>
                             </button>
-                            <div class="calendar-rsvp-buttons" style="display:flex; gap:0.25rem; margin-top:0.25rem;">
-                                <button class="btn btn-sm btn-outline-success" @onclick="() => RsvpAsync(eventItem.Id, AttendeeStatus.Accepted)">Accept</button>
-                                <button class="btn btn-sm btn-outline-warning" @onclick="() => RsvpAsync(eventItem.Id, AttendeeStatus.Tentative)">Maybe</button>
-                                <button class="btn btn-sm btn-outline-danger" @onclick="() => RsvpAsync(eventItem.Id, AttendeeStatus.Declined)">Decline</button>
-                            </div>
+                            @if (CanCurrentUserRsvp(eventItem))
+                            {
+                                <div class="calendar-rsvp-buttons">
+                                    <button class="btn btn-sm btn-outline-success" @onclick="() => RsvpAsync(eventItem.Id, AttendeeStatus.Accepted)">Accept</button>
+                                    <button class="btn btn-sm btn-outline-warning" @onclick="() => RsvpAsync(eventItem.Id, AttendeeStatus.Tentative)">Maybe</button>
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => RsvpAsync(eventItem.Id, AttendeeStatus.Declined)">Decline</button>
+                                </div>
+                            }
                             <CrossModuleLinkList Requests="BuildAttendeeContactRequests(eventItem)" />
                         </div>
                     }
@@ -163,6 +255,8 @@
     private EventEditorModel? _eventEditor;
     private bool _showSharePanel;
     private bool _showImportPanel;
+    private Guid? _currentUserId;
+    private string? _operationError;
     private string _shareUserId = string.Empty;
     private string _sharePermission = "ReadOnly";
     private string _importText = string.Empty;
@@ -174,15 +268,137 @@
         _ => _anchorDate.ToLocalTime().ToString("Y")
     };
 
+    private static readonly string[] DayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+    private List<DateTime> GetMonthGridDays()
+    {
+        var firstOfMonth = new DateTime(_anchorDate.Year, _anchorDate.Month, 1);
+        var startOffset = (int)firstOfMonth.DayOfWeek;
+        var startDate = firstOfMonth.AddDays(-startOffset);
+        var days = new List<DateTime>(42);
+        for (var i = 0; i < 42; i++)
+        {
+            days.Add(startDate.AddDays(i));
+        }
+        return days;
+    }
+
+    private List<DateTime> GetWeekDays()
+    {
+        var startOfWeek = _anchorDate.Date.AddDays(-(int)_anchorDate.DayOfWeek);
+        var days = new List<DateTime>(7);
+        for (var i = 0; i < 7; i++)
+        {
+            days.Add(startOfWeek.AddDays(i));
+        }
+        return days;
+    }
+
+    private List<CalendarEventDto> GetEventsForDate(DateTime date)
+    {
+        return _events
+            .Where(e => e.StartUtc.ToLocalTime().Date == date.Date)
+            .OrderBy(e => e.StartUtc)
+            .ToList();
+    }
+
+    private List<CalendarEventDto> GetEventsForHour(DateTime date, int hour)
+    {
+        return _events
+            .Where(e =>
+            {
+                var local = e.StartUtc.ToLocalTime();
+                return local.Date == date.Date && local.Hour == hour;
+            })
+            .OrderBy(e => e.StartUtc)
+            .ToList();
+    }
+
+    private string GetEventColor(CalendarEventDto evt)
+    {
+        var color = evt.Color
+            ?? _calendars.FirstOrDefault(c => c.Id == evt.CalendarId)?.Color
+            ?? "#3b82f6";
+        return $"color-mix(in srgb, {color} 20%, transparent)";
+    }
+
+    private void DayClicked(DateTime day)
+    {
+        if (_selectedCalendar is null)
+        {
+            return;
+        }
+
+        _eventEditor = new EventEditorModel
+        {
+            CalendarId = _selectedCalendar.Id,
+            StartLocal = day.Date.AddHours(9),
+            EndLocal = day.Date.AddHours(10)
+        };
+        _calendarEditor = null;
+    }
+
+    private void CreateEventAtHour(int hour)
+    {
+        if (_selectedCalendar is null)
+        {
+            return;
+        }
+
+        _eventEditor = new EventEditorModel
+        {
+            CalendarId = _selectedCalendar.Id,
+            StartLocal = _anchorDate.Date.AddHours(hour),
+            EndLocal = _anchorDate.Date.AddHours(hour + 1)
+        };
+        _calendarEditor = null;
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        await ResolveCurrentUserAsync();
         await ReloadCalendarsAsync();
+    }
+
+    private async Task ResolveCurrentUserAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var principal = authState.User;
+
+        var claimValue = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? principal.FindFirst("sub")?.Value;
+
+        if (Guid.TryParse(claimValue, out var userId))
+        {
+            _currentUserId = userId;
+        }
+    }
+
+    private bool CanCurrentUserRsvp(CalendarEventDto eventDto)
+    {
+        return _currentUserId.HasValue && eventDto.Attendees.Any(a => a.UserId == _currentUserId.Value);
     }
 
     private async Task ReloadCalendarsAsync()
     {
         _calendars.Clear();
         _calendars.AddRange(await ApiClient.ListCalendarsAsync());
+
+        // Auto-create a default "Personal" calendar on first access
+        if (_calendars.Count == 0)
+        {
+            var created = await ApiClient.CreateCalendarAsync(new CreateCalendarDto
+            {
+                Name = "Personal",
+                Color = "#3b82f6",
+                Description = "Default personal calendar"
+            });
+
+            if (created is not null)
+            {
+                _calendars.Add(created);
+            }
+        }
 
         _selectedCalendar ??= _calendars.FirstOrDefault();
         if (_selectedCalendar is not null)
@@ -346,8 +562,17 @@
 
     private async Task RsvpAsync(Guid eventId, AttendeeStatus status)
     {
-        await ApiClient.RsvpAsync(eventId, new EventRsvpDto { Status = status });
-        await ReloadEventsAsync();
+        _operationError = null;
+
+        try
+        {
+            await ApiClient.RsvpAsync(eventId, new EventRsvpDto { Status = status });
+            await ReloadEventsAsync();
+        }
+        catch (HttpRequestException)
+        {
+            _operationError = "RSVP failed for this event. You may not be listed as an attendee.";
+        }
     }
 
     private async Task ToggleSharePanel()

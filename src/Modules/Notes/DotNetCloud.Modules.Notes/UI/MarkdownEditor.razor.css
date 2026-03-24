@@ -1,14 +1,15 @@
 /* ────────────────────────────────────────────────────────────
    MarkdownEditor — split-pane Markdown editor with toolbar
+   Uses app-level CSS custom properties for theme support.
    ──────────────────────────────────────────────────────────── */
 
 .markdown-editor {
     display: flex;
     flex-direction: column;
-    border: 1px solid var(--border-color, #d0d5dd);
-    border-radius: 6px;
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 8px;
     overflow: hidden;
-    background: var(--editor-bg, #fff);
+    background: var(--color-surface, #fff);
     min-height: 400px;
 }
 
@@ -18,9 +19,9 @@
     display: flex;
     align-items: center;
     gap: 2px;
-    padding: 4px 8px;
-    border-bottom: 1px solid var(--border-color, #d0d5dd);
-    background: var(--toolbar-bg, #f8f9fa);
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--color-border, #e2e8f0);
+    background: var(--color-bg, #f5f7fa);
     flex-wrap: wrap;
 }
 
@@ -37,8 +38,8 @@
 .toolbar-separator {
     width: 1px;
     height: 20px;
-    background: var(--border-color, #d0d5dd);
-    margin: 0 4px;
+    background: var(--color-border, #e2e8f0);
+    margin: 0 6px;
 }
 
 .toolbar-btn {
@@ -46,24 +47,26 @@
     align-items: center;
     justify-content: center;
     min-width: 32px;
-    height: 28px;
-    padding: 2px 6px;
-    border: none;
-    border-radius: 4px;
+    height: 30px;
+    padding: 2px 8px;
+    border: 1px solid transparent;
+    border-radius: 6px;
     background: transparent;
-    color: var(--text-color, #344054);
-    font-size: 0.8rem;
+    color: var(--color-text, #1e293b);
+    font-size: 13px;
     cursor: pointer;
-    transition: background-color 0.15s;
+    transition: background-color 0.15s, border-color 0.15s;
     white-space: nowrap;
+    gap: 4px;
 }
 
 .toolbar-btn:hover {
-    background: var(--toolbar-hover, #e9ecef);
+    background: var(--color-border, #e2e8f0);
 }
 
 .toolbar-btn.active {
-    background: var(--toolbar-active, #dbe1e8);
+    background: var(--color-primary, #3b82f6);
+    color: #fff;
     font-weight: 600;
 }
 
@@ -87,7 +90,7 @@
 }
 
 .markdown-editor-body.view-split .preview-pane {
-    border-left: 1px solid var(--border-color, #d0d5dd);
+    border-left: 1px solid var(--color-border, #e2e8f0);
 }
 
 .markdown-editor-body.view-preview .preview-pane {
@@ -113,13 +116,13 @@
     font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
     font-size: 0.875rem;
     line-height: 1.6;
-    color: var(--text-color, #344054);
+    color: var(--color-text, #1e293b);
     background: transparent;
     tab-size: 4;
 }
 
 .editor-textarea::placeholder {
-    color: var(--placeholder-color, #98a2b3);
+    color: var(--color-text-secondary, #64748b);
 }
 
 /* ── Preview pane ────────────────────────────────────────── */
@@ -149,7 +152,7 @@
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-size: 0.9375rem;
     line-height: 1.7;
-    color: var(--text-color, #1d2939);
+    color: var(--color-text, #1e293b);
     word-wrap: break-word;
 }
 
@@ -163,21 +166,22 @@
     margin-bottom: 0.5em;
     font-weight: 600;
     line-height: 1.3;
+    color: var(--color-text, #1e293b);
 }
 
-.markdown-body h1 { font-size: 1.75rem; border-bottom: 1px solid var(--border-color, #e4e7ec); padding-bottom: 0.3em; }
-.markdown-body h2 { font-size: 1.4rem; border-bottom: 1px solid var(--border-color, #e4e7ec); padding-bottom: 0.3em; }
+.markdown-body h1 { font-size: 1.75rem; border-bottom: 1px solid var(--color-border, #e2e8f0); padding-bottom: 0.3em; }
+.markdown-body h2 { font-size: 1.4rem; border-bottom: 1px solid var(--color-border, #e2e8f0); padding-bottom: 0.3em; }
 .markdown-body h3 { font-size: 1.15rem; }
 .markdown-body h4 { font-size: 1rem; }
 .markdown-body h5 { font-size: 0.875rem; }
-.markdown-body h6 { font-size: 0.8rem; color: var(--muted-text, #667085); }
+.markdown-body h6 { font-size: 0.8rem; color: var(--color-text-secondary, #64748b); }
 
 .markdown-body p {
     margin: 0 0 1em;
 }
 
 .markdown-body a {
-    color: var(--link-color, #2563eb);
+    color: var(--color-primary, #3b82f6);
     text-decoration: none;
 }
 
@@ -194,9 +198,9 @@
 .markdown-body blockquote {
     margin: 0 0 1em;
     padding: 0.5em 1em;
-    border-left: 4px solid var(--blockquote-border, #d0d5dd);
-    color: var(--muted-text, #667085);
-    background: var(--blockquote-bg, #f9fafb);
+    border-left: 4px solid var(--color-border, #e2e8f0);
+    color: var(--color-text-secondary, #64748b);
+    background: var(--color-bg, #f5f7fa);
     border-radius: 0 4px 4px 0;
 }
 
@@ -208,16 +212,17 @@
     padding: 0.15em 0.4em;
     font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
     font-size: 0.85em;
-    background: var(--code-bg, #f2f4f7);
+    background: var(--color-bg, #f5f7fa);
     border-radius: 3px;
+    color: var(--color-text, #1e293b);
 }
 
 .markdown-body pre {
     margin: 0 0 1em;
     padding: 12px 16px;
     overflow-x: auto;
-    background: var(--pre-bg, #1d2939);
-    color: var(--pre-text, #e4e7ec);
+    background: #1e293b;
+    color: #e2e8f0;
     border-radius: 6px;
     line-height: 1.5;
 }
@@ -261,28 +266,28 @@
 .markdown-body th,
 .markdown-body td {
     padding: 8px 12px;
-    border: 1px solid var(--border-color, #d0d5dd);
+    border: 1px solid var(--color-border, #e2e8f0);
     text-align: left;
 }
 
 .markdown-body th {
     font-weight: 600;
-    background: var(--table-header-bg, #f2f4f7);
+    background: var(--color-bg, #f5f7fa);
 }
 
 .markdown-body tr:nth-child(even) {
-    background: var(--table-stripe-bg, #f9fafb);
+    background: var(--color-bg, #f5f7fa);
 }
 
 .markdown-body hr {
     margin: 1.5em 0;
     border: none;
-    border-top: 1px solid var(--border-color, #d0d5dd);
+    border-top: 1px solid var(--color-border, #e2e8f0);
 }
 
 .markdown-body mark {
     padding: 0.1em 0.2em;
-    background: var(--mark-bg, #fef3c7);
+    background: #fef3c7;
     border-radius: 2px;
 }
 
@@ -291,11 +296,11 @@
     padding: 2px 6px;
     font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
     font-size: 0.8em;
-    color: var(--text-color, #344054);
-    background: var(--kbd-bg, #f2f4f7);
-    border: 1px solid var(--border-color, #d0d5dd);
+    color: var(--color-text, #1e293b);
+    background: var(--color-bg, #f5f7fa);
+    border: 1px solid var(--color-border, #e2e8f0);
     border-radius: 3px;
-    box-shadow: 0 1px 0 var(--border-color, #d0d5dd);
+    box-shadow: 0 1px 0 var(--color-border, #e2e8f0);
 }
 
 .markdown-body details {

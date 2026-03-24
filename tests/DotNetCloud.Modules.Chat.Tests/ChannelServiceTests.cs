@@ -128,8 +128,39 @@ public class ChannelServiceTests
 
         var result = await _service.ListChannelsAsync(_caller);
 
+        Assert.AreEqual(2, result.Count);
+        Assert.IsTrue(result.Any(c => c.Name == "mine"));
+        Assert.IsTrue(result.Any(c => c.Name == "Public"));
+        Assert.IsFalse(result.Any(c => c.Name == "other"));
+    }
+
+    [TestMethod]
+    public async Task WhenListChannelsWithNoChannelsThenDefaultPublicChannelIsCreatedAndJoined()
+    {
+        var result = await _service.ListChannelsAsync(_caller);
+
         Assert.AreEqual(1, result.Count);
-        Assert.AreEqual("mine", result[0].Name);
+        Assert.AreEqual("Public", result[0].Name);
+        Assert.AreEqual("Public", result[0].Type);
+
+        var membership = await _db.ChannelMembers
+            .FirstOrDefaultAsync(m => m.ChannelId == result[0].Id && m.UserId == _caller.UserId);
+        Assert.IsNotNull(membership);
+    }
+
+    [TestMethod]
+    public async Task WhenDifferentUsersListChannelsThenSingleDefaultPublicChannelIsShared()
+    {
+        var firstUserResult = await _service.ListChannelsAsync(_caller);
+        var otherCaller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
+        var secondUserResult = await _service.ListChannelsAsync(otherCaller);
+
+        Assert.AreEqual(1, firstUserResult.Count);
+        Assert.AreEqual(1, secondUserResult.Count);
+        Assert.AreEqual(firstUserResult[0].Id, secondUserResult[0].Id);
+
+        var memberCount = await _db.ChannelMembers.CountAsync(m => m.ChannelId == firstUserResult[0].Id);
+        Assert.AreEqual(2, memberCount);
     }
 
     [TestMethod]

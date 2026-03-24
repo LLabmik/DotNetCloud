@@ -1,4 +1,5 @@
 @namespace DotNetCloud.Modules.Notes.UI
+@inject IJSRuntime JS
 
 @*
     Markdown editor component with toolbar and live preview.
@@ -91,7 +92,8 @@
         @if (_activeView != EditorView.Preview)
         {
             <div class="editor-pane">
-                <textarea class="editor-textarea"
+                <textarea @ref="_textareaRef"
+                          class="editor-textarea"
                           placeholder="Write your note in Markdown…"
                           @bind="Content"
                           @bind:event="oninput"
@@ -113,6 +115,7 @@
 @code {
     private string _renderedHtml = string.Empty;
     private EditorView _activeView = EditorView.Split;
+    private ElementReference _textareaRef;
 
     /// <summary>
     /// The raw Markdown content being edited.
@@ -177,46 +180,62 @@
     }
 
     // ─── Toolbar actions ─────────────────────────────────────────────
-    // These insert Markdown syntax at the end of content.
-    // Full cursor-position insertion requires JS interop,
-    // which can be added as a progressive enhancement.
+    // These use JS interop to wrap selected text or insert at cursor.
 
-    private Task InsertBold() => InsertText("**bold text**");
-    private Task InsertItalic() => InsertText("*italic text*");
-    private Task InsertStrikethrough() => InsertText("~~strikethrough~~");
+    private Task InsertBold() => ApplyWrapFormat("**", "**", "bold text");
+    private Task InsertItalic() => ApplyWrapFormat("*", "*", "italic text");
+    private Task InsertStrikethrough() => ApplyWrapFormat("~~", "~~", "strikethrough");
 
     private Task InsertHeading(int level) =>
-        InsertText($"\n{new string('#', level)} Heading\n");
+        InsertAtCursor($"\n{new string('#', level)} Heading\n");
 
     private Task InsertUnorderedList() =>
-        InsertText("\n- Item 1\n- Item 2\n- Item 3\n");
+        InsertAtCursor("\n- Item 1\n- Item 2\n- Item 3\n");
 
     private Task InsertOrderedList() =>
-        InsertText("\n1. Item 1\n2. Item 2\n3. Item 3\n");
+        InsertAtCursor("\n1. Item 1\n2. Item 2\n3. Item 3\n");
 
     private Task InsertTaskList() =>
-        InsertText("\n- [ ] Task 1\n- [ ] Task 2\n- [x] Completed task\n");
+        InsertAtCursor("\n- [ ] Task 1\n- [ ] Task 2\n- [x] Completed task\n");
 
-    private Task InsertLink() => InsertText("[link text](https://example.com)");
-    private Task InsertImage() => InsertText("![alt text](image-url)");
+    private Task InsertLink() => ApplyWrapFormat("[", "](https://example.com)", "link text");
+    private Task InsertImage() => InsertAtCursor("![alt text](image-url)");
 
     private Task InsertCodeBlock() =>
-        InsertText("\n```\ncode here\n```\n");
+        ApplyWrapFormat("\n```\n", "\n```\n", "code here");
 
     private Task InsertBlockquote() =>
-        InsertText("\n> Quoted text\n");
+        InsertAtCursor("\n> Quoted text\n");
 
     private Task InsertHorizontalRule() =>
-        InsertText("\n---\n");
+        InsertAtCursor("\n---\n");
 
     private Task InsertTable() =>
-        InsertText("\n| Header 1 | Header 2 | Header 3 |\n|----------|----------|----------|\n| Cell 1   | Cell 2   | Cell 3   |\n");
+        InsertAtCursor("\n| Header 1 | Header 2 | Header 3 |\n|----------|----------|----------|\n| Cell 1   | Cell 2   | Cell 3   |\n");
 
-    private async Task InsertText(string text)
+    private async Task ApplyWrapFormat(string prefix, string suffix, string fallbackText)
     {
-        Content += text;
-        RenderPreview();
-        await ContentChanged.InvokeAsync(Content);
+        var fallback = prefix + fallbackText + suffix;
+        var newValue = await JS.InvokeAsync<string?>("dotnetcloudMarkdownEditor.applyFormat",
+            _textareaRef, prefix, suffix, fallback);
+        if (newValue is not null)
+        {
+            Content = newValue;
+            RenderPreview();
+            await ContentChanged.InvokeAsync(Content);
+        }
+    }
+
+    private async Task InsertAtCursor(string text)
+    {
+        var newValue = await JS.InvokeAsync<string?>("dotnetcloudMarkdownEditor.insertAtCursor",
+            _textareaRef, text);
+        if (newValue is not null)
+        {
+            Content = newValue;
+            RenderPreview();
+            await ContentChanged.InvokeAsync(Content);
+        }
     }
 
     private enum EditorView

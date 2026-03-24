@@ -16,6 +16,8 @@ namespace DotNetCloud.Modules.Chat.Data.Services;
 /// </summary>
 internal sealed class ChannelService : IChannelService
 {
+    private const string DefaultPublicChannelName = "Public";
+
     private readonly ChatDbContext _db;
     private readonly IEventBus _eventBus;
     private readonly IChatRealtimeService? _realtimeService;
@@ -136,6 +138,8 @@ internal sealed class ChannelService : IChannelService
     /// <inheritdoc />
     public async Task<IReadOnlyList<ChannelDto>> ListChannelsAsync(CallerContext caller, CancellationToken cancellationToken = default)
     {
+        await EnsureDefaultPublicChannelForUserAsync(caller, cancellationToken);
+
         var channelIds = await _db.ChannelMembers
             .AsNoTracking()
             .Where(m => m.UserId == caller.UserId)
@@ -158,6 +162,67 @@ internal sealed class ChannelService : IChannelService
         return channels
             .Select(c => ToChannelDto(c, memberCounts.GetValueOrDefault(c.Id, 0)))
             .ToList();
+    }
+
+    private async Task EnsureDefaultPublicChannelForUserAsync(CallerContext caller, CancellationToken cancellationToken)
+    {
+        // One global "Public" channel gives every user a guaranteed common room.
+        var defaultChannel = await _db.Channels
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(
+                c => c.OrganizationId == null
+                  && c.Type == ChannelType.Public
+                  && c.Name == DefaultPublicChannelName,
+                cancellationToken);
+
+        var hasChanges = false;
+
+        if (defaultChannel is null)
+        {
+            defaultChannel = new Channel
+            {
+                Name = DefaultPublicChannelName,
+                Description = "Default public channel for all users.",
+                Type = ChannelType.Public,
+                CreatedByUserId = caller.UserId
+            };
+
+            _db.Channels.Add(defaultChannel);
+            hasChanges = true;
+        }
+        else if (defaultChannel.IsDeleted)
+        {
+            defaultChannel.IsDeleted = false;
+            defaultChannel.DeletedAt = null;
+            defaultChannel.IsArchived = false;
+            hasChanges = true;
+        }
+
+        var membershipExists = await _db.ChannelMembers
+            .AnyAsync(m => m.ChannelId == defaultChannel.Id && m.UserId == caller.UserId, cancellationToken);
+
+        if (!membershipExists)
+        {
+            _db.ChannelMembers.Add(new ChannelMember
+            {
+                ChannelId = defaultChannel.Id,
+                UserId = caller.UserId,
+                Role = ChannelMemberRole.Member
+            });
+            hasChanges = true;
+        }
+
+        if (!hasChanges)
+        {
+            return;
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        if (_realtimeService is not null)
+        {
+            await _realtimeService.AddUserToChannelGroupAsync(caller.UserId, defaultChannel.Id, cancellationToken);
+        }
     }
 
     /// <inheritdoc />

@@ -33,23 +33,23 @@
             <div class="notes-folders">
                 @foreach (var folder in _folders)
                 {
-                    <div class="notes-folder-item-row" style="display:flex; align-items:center; gap:0.25rem;">
+                    <div class="notes-folder-item-row">
                         <button class="notes-folder-item @(_selectedFolderId == folder.Id ? "selected" : "")"
-                                @onclick="() => SelectFolderAsync(folder.Id)" style="flex:1;">
+                                @onclick="() => SelectFolderAsync(folder.Id)">
                             @folder.Name
                         </button>
                         <button class="btn btn-sm btn-outline-secondary" title="Rename" @onclick="() => BeginRenameFolder(folder)">✏</button>
                         <button class="btn btn-sm btn-outline-danger" title="Delete" @onclick="() => DeleteFolderAsync(folder.Id)">×</button>
                     </div>
                 }
-                <div style="display:flex; gap:0.25rem; margin-top:0.25rem;">
+                <div class="notes-folder-actions">
                     <button class="btn btn-sm btn-outline-secondary" @onclick="ClearFolderFilter">All Folders</button>
                     <button class="btn btn-sm btn-outline-primary" @onclick="BeginCreateFolder">+ Folder</button>
                 </div>
 
                 @if (_showFolderForm)
                 {
-                    <div style="display:flex; gap:0.25rem; margin-top:0.25rem;">
+                    <div class="notes-folder-form">
                         <input type="text" class="form-control form-control-sm" placeholder="Folder name" @bind="_folderName" />
                         <button class="btn btn-sm btn-primary" @onclick="SaveFolderAsync">Save</button>
                         <button class="btn btn-sm btn-secondary" @onclick="() => _showFolderForm = false">Cancel</button>
@@ -84,7 +84,7 @@
         @if (_editingNote is not null)
         {
             <EditForm Model="_editingNote" OnValidSubmit="SaveNoteAsync">
-                <div class="notes-form-actions" style="margin-bottom:0.75rem; display:flex; gap:0.5rem;">
+                <div class="notes-form-actions">
                     <button type="submit" class="btn btn-primary">Save</button>
                     <button type="button" class="btn btn-secondary" @onclick="CancelEdit">Cancel</button>
                     @if (_editingNote.Id.HasValue)
@@ -92,11 +92,11 @@
                         <button type="button" class="btn btn-danger" @onclick="DeleteSelectedAsync">Delete</button>
                     }
                 </div>
-                <div class="notes-form-grid" style="display:grid; gap:0.5rem; margin-bottom:0.75rem;">
+                <div class="notes-form-grid">
                     <InputText class="form-control" @bind-Value="_editingNote.Title" placeholder="Note title" />
                     <InputText class="form-control" @bind-Value="_editingNote.TagCsv" placeholder="Tags (comma separated)" />
                 </div>
-                <MarkdownEditor Content="_editingNote.Content" ContentChanged="HandleEditorChanged" Renderer="MarkdownRenderer" />
+                <MarkdownEditor Content="@_editingNote.Content" ContentChanged="HandleEditorChanged" Renderer="MarkdownRenderer" />
             </EditForm>
         }
         else if (_selectedNote is not null)
@@ -104,7 +104,7 @@
             <div class="notes-detail">
                 <h2>@_selectedNote.Title</h2>
                 <p><strong>Tags:</strong> @string.Join(", ", _selectedNote.Tags)</p>
-                <div class="notes-detail-actions" style="display:flex; gap:0.5rem; margin-bottom:0.75rem;">
+                <div class="notes-detail-actions">
                     <button class="btn btn-primary" @onclick="BeginEditSelected">Edit</button>
                     <button class="btn btn-outline-warning" @onclick="ToggleFavoriteAsync">@(_selectedNote.IsFavorite ? "Unfavorite" : "Favorite")</button>
                     <button class="btn btn-outline-secondary" @onclick="ToggleSharePanel">
@@ -117,7 +117,7 @@
 
                 @if (_showSharePanel)
                 {
-                    <div class="notes-share-panel" style="margin-bottom:0.75rem;">
+                    <div class="notes-share-panel">
                         <h4>Shares</h4>
                         @if (_noteShares.Count == 0)
                         {
@@ -127,13 +127,13 @@
                         {
                             @foreach (var share in _noteShares)
                             {
-                                <div class="share-item" style="display:flex; gap:0.5rem; align-items:center;">
+                                <div class="share-item">
                                     <span>User: @share.SharedWithUserId.ToString("N")[..8]… — @share.Permission</span>
                                     <button class="btn btn-sm btn-outline-danger" @onclick="() => RevokeShareAsync(share.Id)">Revoke</button>
                                 </div>
                             }
                         }
-                        <div class="share-form" style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+                        <div class="share-form">
                             <input type="text" class="form-control form-control-sm" placeholder="User ID" @bind="_shareUserId" />
                             <select class="form-select form-select-sm" @bind="_sharePermission" style="max-width:140px;">
                                 <option value="ReadOnly">Read Only</option>
@@ -146,7 +146,7 @@
 
                 @if (_showVersionPanel)
                 {
-                    <div class="notes-version-panel" style="margin-bottom:0.75rem;">
+                    <div class="notes-version-panel">
                         <h4>Version History</h4>
                         @if (_versions.Count == 0)
                         {
@@ -156,7 +156,7 @@
                         {
                             @foreach (var version in _versions.OrderByDescending(v => v.VersionNumber))
                             {
-                                <div class="version-item" style="display:flex; gap:0.5rem; align-items:center;">
+                                <div class="version-item">
                                     <span>v@(version.VersionNumber) — @version.CreatedAt.ToLocalTime():g</span>
                                     <button class="btn btn-sm btn-outline-primary" @onclick="() => RestoreVersionAsync(version.Id)">Restore</button>
                                 </div>
@@ -164,10 +164,10 @@
                         }
                     </div>
                 }
-                <div style="margin-bottom:0.75rem;">
+                <div class="notes-cross-module-links">
                     <CrossModuleLinkList Requests="BuildNoteLinkRequests(_selectedNote)" />
                 </div>
-                <MarkdownEditor Content="_selectedNote.Content" Renderer="MarkdownRenderer" PreviewOnly="true" />
+                <MarkdownEditor Content="@_selectedNote.Content" Renderer="MarkdownRenderer" PreviewOnly="true" />
             </div>
         }
         else
