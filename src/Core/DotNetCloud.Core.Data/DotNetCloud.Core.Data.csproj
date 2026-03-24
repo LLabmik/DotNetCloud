@@ -27,8 +27,4 @@
     <ProjectReference Include="../DotNetCloud.Core/DotNetCloud.Core.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Migrations\SqlServer\" />
-  </ItemGroup>
-
   </Project>
