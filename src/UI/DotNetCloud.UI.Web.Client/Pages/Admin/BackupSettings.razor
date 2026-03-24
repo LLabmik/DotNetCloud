@@ -1,5 +1,5 @@
 @page "/admin/backup"
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveWebAssemblyRenderMode(prerender: false))
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveAutoRenderMode(prerender: false))
 @attribute [Authorize(Policy = "RequireAdmin")]
 
 <PageTitle>Backup &amp; Restore - DotNetCloud</PageTitle>

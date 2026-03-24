@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Data.Context;
+using DotNetCloud.Core.Data.Entities.Modules;
 using DotNetCloud.UI.Web.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -58,6 +59,7 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ModuleUiRegistry _moduleUiRegistry;
     private readonly ILogger<ModuleUiRegistrationHostedService> _logger;
+    private bool _initialSeedDone;
     private IReadOnlyDictionary<string, string> _lastInstalledModuleStatuses =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -86,6 +88,12 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
     {
         using var scope = _scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
+
+        if (!_initialSeedDone)
+        {
+            await SeedKnownModulesAsync(dbContext, cancellationToken);
+            _initialSeedDone = true;
+        }
 
         var installedModuleStatuses = await dbContext.InstalledModules
             .AsNoTracking()
@@ -123,6 +131,50 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
 
         _lastInstalledModuleStatuses = installedModuleStatuses;
         _logger.LogInformation("Refreshed module UI registrations from installed module statuses.");
+    }
+
+    /// <summary>
+    /// Ensures all known first-party modules have records in the InstalledModules table.
+    /// Runs once on startup so the admin UI and sidebar show them immediately.
+    /// </summary>
+    private async Task SeedKnownModulesAsync(CoreDbContext dbContext, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var existingIds = await dbContext.InstalledModules
+                .Select(m => m.ModuleId)
+                .ToListAsync(cancellationToken);
+
+            var existingSet = existingIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var added = 0;
+
+            foreach (var descriptor in KnownModuleUiDescriptors)
+            {
+                if (existingSet.Contains(descriptor.ModuleId))
+                    continue;
+
+                dbContext.InstalledModules.Add(new InstalledModule
+                {
+                    ModuleId = descriptor.ModuleId,
+                    Version = "1.0.0",
+                    Status = "Enabled",
+                    InstalledAt = DateTime.UtcNow,
+                });
+
+                added++;
+                _logger.LogInformation("Auto-registered built-in module {ModuleId}", descriptor.ModuleId);
+            }
+
+            if (added > 0)
+            {
+                await dbContext.SaveChangesAsync(cancellationToken);
+                _logger.LogInformation("Seeded {Count} built-in modules into database", added);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to seed built-in modules into database");
+        }
     }
 
     private static bool AreStatusesEqual(

@@ -378,7 +378,13 @@ public sealed class DotNetCloudApiClient
     /// </summary>
     public async Task<IReadOnlyList<NotificationDto>> GetUnreadNotificationsAsync(int maxResults = 25, CancellationToken ct = default)
     {
-        var json = await _http.GetStringAsync($"api/v1/notifications/unread?maxResults={Math.Clamp(maxResults, 1, 200)}", ct);
+        var response = await _http.GetAsync($"api/v1/notifications/unread?maxResults={Math.Clamp(maxResults, 1, 200)}", ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            return [];
+        }
+
+        var json = await response.Content.ReadAsStringAsync(ct);
 
         using var document = JsonDocument.Parse(json);
         if (!TryGetPropertyIgnoreCase(document.RootElement, "data", out var dataElement))
@@ -399,7 +405,13 @@ public sealed class DotNetCloudApiClient
     /// </summary>
     public async Task<int> GetUnreadNotificationCountAsync(CancellationToken ct = default)
     {
-        var json = await _http.GetStringAsync("api/v1/notifications/unread-count", ct);
+        var response = await _http.GetAsync("api/v1/notifications/unread-count", ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            return 0;
+        }
+
+        var json = await response.Content.ReadAsStringAsync(ct);
 
         using var document = JsonDocument.Parse(json);
         if (!TryGetPropertyIgnoreCase(document.RootElement, "data", out var dataElement))

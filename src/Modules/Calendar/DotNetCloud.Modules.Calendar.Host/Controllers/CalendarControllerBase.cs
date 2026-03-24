@@ -11,7 +11,7 @@ namespace DotNetCloud.Modules.Calendar.Host.Controllers;
 /// Provides helper methods for caller context creation and envelope responses.
 /// </summary>
 [ApiController]
-[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+[Authorize(AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
 public abstract class CalendarControllerBase : ControllerBase
 {
     /// <summary>

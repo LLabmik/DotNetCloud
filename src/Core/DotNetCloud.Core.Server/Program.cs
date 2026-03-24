@@ -13,8 +13,11 @@ using DotNetCloud.Core.ServiceDefaults.Extensions;
 using DotNetCloud.Core.ServiceDefaults.HealthChecks;
 using DotNetCloud.Core.ServiceDefaults.Telemetry;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Modules.Calendar.Data;
 using DotNetCloud.Modules.Chat.Data;
+using DotNetCloud.Modules.Contacts.Data;
 using DotNetCloud.Modules.Files.Data;
+using DotNetCloud.Modules.Notes.Data;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.UI.Web.Client.Services;
 using DotNetCloud.UI.Web.Services;
@@ -103,6 +106,15 @@ public class Program
 
                         var chatDbContext = scope.ServiceProvider.GetRequiredService<ChatDbContext>();
                         await EnsureModuleTablesCreatedAsync(chatDbContext, "Channels", logger);
+
+                        var contactsDbContext = scope.ServiceProvider.GetRequiredService<ContactsDbContext>();
+                        await EnsureModuleTablesCreatedAsync(contactsDbContext, "Contacts", logger);
+
+                        var calendarDbContext = scope.ServiceProvider.GetRequiredService<CalendarDbContext>();
+                        await EnsureModuleTablesCreatedAsync(calendarDbContext, "Calendars", logger);
+
+                        var notesDbContext = scope.ServiceProvider.GetRequiredService<NotesDbContext>();
+                        await EnsureModuleTablesCreatedAsync(notesDbContext, "Notes", logger);
                     }
                     catch (InvalidOperationException ex)
                     {
@@ -118,6 +130,15 @@ public class Program
 
                     var chatDbContext = scope.ServiceProvider.GetRequiredService<ChatDbContext>();
                     await EnsureModuleTablesCreatedAsync(chatDbContext, "Channels", logger);
+
+                    var contactsDbContext = scope.ServiceProvider.GetRequiredService<ContactsDbContext>();
+                    await EnsureModuleTablesCreatedAsync(contactsDbContext, "Contacts", logger);
+
+                    var calendarDbContext = scope.ServiceProvider.GetRequiredService<CalendarDbContext>();
+                    await EnsureModuleTablesCreatedAsync(calendarDbContext, "Calendars", logger);
+
+                    var notesDbContext = scope.ServiceProvider.GetRequiredService<NotesDbContext>();
+                    await EnsureModuleTablesCreatedAsync(notesDbContext, "Notes", logger);
                 }
 
                 // Mark the application as ready for traffic now that DB is initialized
@@ -201,8 +222,17 @@ public class Program
             ConfigureModuleDbContext(options, provider, connectionString));
         builder.Services.AddDbContext<ChatDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString));
+        builder.Services.AddDbContext<ContactsDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString));
+        builder.Services.AddDbContext<CalendarDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString));
+        builder.Services.AddDbContext<NotesDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString));
         builder.Services.AddFilesServices(builder.Configuration);
         builder.Services.AddChatServices(builder.Configuration);
+        builder.Services.AddContactsServices(builder.Configuration);
+        builder.Services.AddCalendarServices(builder.Configuration);
+        builder.Services.AddNotesServices(builder.Configuration);
         builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
         builder.Services.AddSingleton<DotNetCloud.Core.Capabilities.ICrossModuleLinkResolver, CrossModuleLinkResolver>();
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.INotificationService, NotificationService>();
@@ -257,28 +287,36 @@ public class Program
         // Blazor UI services (server-side prerendering needs these too)
         builder.Services.AddSingleton<ModuleUiRegistry>();
         builder.Services.AddSingleton<ToastService>();
+        builder.Services.AddTransient<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
         builder.Services.AddScoped(sp =>
         {
             var nav = sp.GetRequiredService<NavigationManager>();
             var configuration = sp.GetRequiredService<IConfiguration>();
             var baseUri = new Uri(nav.BaseUri);
-            var allowInsecureUiHttps = configuration.GetValue<bool>("Files:Collabora:AllowInsecureTls");
+            var allowInsecureTls = configuration.GetValue<bool>("Files:Collabora:AllowInsecureTls");
 
-            // In local bare-metal installs with self-signed HTTPS certs, server-side
+            // Cookie forwarding handler: during SSR, forwards browser auth cookies
+            // to the outgoing HttpClient so API calls are authenticated.
+            var cookieHandler = sp.GetRequiredService<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
+
+            // In self-hosted installs with self-signed HTTPS certs, server-side
             // Blazor API calls to the same origin would otherwise fail TLS validation.
-            // When AllowInsecureTls is enabled, accept the cert for non-loopback local hostnames
-            // (for example https://mint22:15443) used in LAN testing.
-            if (baseUri.Scheme == Uri.UriSchemeHttps && (baseUri.IsLoopback || allowInsecureUiHttps))
+            // Accept self-signed certs for loopback, private/LAN hostnames, or when
+            // AllowInsecureTls is explicitly enabled.
+            if (baseUri.Scheme == Uri.UriSchemeHttps &&
+                (baseUri.IsLoopback || allowInsecureTls || IsPrivateOrLocalHost(baseUri.Host)))
             {
-                var handler = new HttpClientHandler
+                var sslHandler = new HttpClientHandler
                 {
                     ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
                 };
+                cookieHandler.InnerHandler = sslHandler;
 
-                return new HttpClient(handler) { BaseAddress = baseUri };
+                return new HttpClient(cookieHandler) { BaseAddress = baseUri };
             }
 
-            return new HttpClient { BaseAddress = baseUri };
+            cookieHandler.InnerHandler = new HttpClientHandler();
+            return new HttpClient(cookieHandler) { BaseAddress = baseUri };
         });
         builder.Services.AddScoped<DotNetCloud.Modules.Contacts.Services.IContactsApiClient, DotNetCloud.Modules.Contacts.Services.ContactsApiClient>();
         builder.Services.AddScoped<DotNetCloud.Modules.Calendar.Services.ICalendarApiClient, DotNetCloud.Modules.Calendar.Services.CalendarApiClient>();
@@ -748,5 +786,45 @@ public class Program
                     httpContext.Request.Host.Port.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
             }
         }
+    }
+
+    /// <summary>
+    /// Determines whether a hostname is a private or local network host
+    /// (e.g. LAN hostnames, .local domains, or RFC 1918 addresses).
+    /// Used to auto-accept self-signed TLS certs for self-hosted installs.
+    /// </summary>
+    private static bool IsPrivateOrLocalHost(string host)
+    {
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            return false;
+        }
+
+        // Single-label hostnames (no dots) are always local/LAN (e.g. "mint22")
+        if (!host.Contains('.'))
+        {
+            return true;
+        }
+
+        // .local mDNS domains
+        if (host.EndsWith(".local", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        // Check for RFC 1918 / link-local IP addresses
+        if (System.Net.IPAddress.TryParse(host, out var ip))
+        {
+            var bytes = ip.GetAddressBytes();
+            if (bytes.Length == 4)
+            {
+                return bytes[0] == 10
+                    || (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31)
+                    || (bytes[0] == 192 && bytes[1] == 168)
+                    || (bytes[0] == 169 && bytes[1] == 254);
+            }
+        }
+
+        return false;
     }
 }

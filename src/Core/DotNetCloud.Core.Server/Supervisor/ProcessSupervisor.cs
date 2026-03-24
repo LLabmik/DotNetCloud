@@ -1,9 +1,13 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using DotNetCloud.Core.Data.Context;
+using DotNetCloud.Core.Data.Entities.Modules;
 using DotNetCloud.Core.Grpc.Lifecycle;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server.ModuleLoading;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -23,6 +27,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     private readonly ModuleManifestLoader _manifestLoader;
     private readonly GrpcChannelManager _channelManager;
     private readonly ResourceLimiter _resourceLimiter;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ConcurrentDictionary<string, ModuleProcessHandle> _modules = new();
     private readonly SemaphoreSlim _startStopLock = new(1, 1);
 
@@ -32,7 +37,8 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         ModuleDiscoveryService discoveryService,
         ModuleManifestLoader manifestLoader,
         GrpcChannelManager channelManager,
-        ResourceLimiter resourceLimiter)
+        ResourceLimiter resourceLimiter,
+        IServiceScopeFactory scopeFactory)
     {
         _logger = logger;
         _options = options.Value;
@@ -40,6 +46,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         _manifestLoader = manifestLoader;
         _channelManager = channelManager;
         _resourceLimiter = resourceLimiter;
+        _scopeFactory = scopeFactory;
     }
 
     // ---- IProcessSupervisor ----
@@ -59,6 +66,8 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             }
 
             _logger.LogInformation("Starting {Count} discovered modules", discovered.Count);
+
+            await SyncDiscoveredModulesToDatabaseAsync(discovered, cancellationToken);
 
             foreach (var module in discovered)
             {
@@ -690,6 +699,60 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Error force-killing module {ModuleId}", handle.ModuleId);
+        }
+    }
+
+    // ---- Database Sync ----
+
+    /// <summary>
+    /// Ensures all discovered modules have corresponding <see cref="InstalledModule"/>
+    /// records in the database so the admin UI and module UI registration can see them.
+    /// </summary>
+    private async Task SyncDiscoveredModulesToDatabaseAsync(
+        IReadOnlyList<DiscoveredModule> discovered, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
+
+            var existingModuleIds = await dbContext.InstalledModules
+                .Select(m => m.ModuleId)
+                .ToListAsync(cancellationToken);
+
+            var existingSet = existingModuleIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var added = 0;
+
+            foreach (var module in discovered)
+            {
+                if (existingSet.Contains(module.ModuleId))
+                    continue;
+
+                var manifest = LoadManifest(module);
+
+                dbContext.InstalledModules.Add(new InstalledModule
+                {
+                    ModuleId = module.ModuleId,
+                    Version = manifest.Version,
+                    Status = "Enabled",
+                    InstalledAt = DateTime.UtcNow,
+                });
+
+                added++;
+                _logger.LogInformation(
+                    "Auto-registered discovered module {ModuleId} (v{Version}) in database",
+                    module.ModuleId, manifest.Version);
+            }
+
+            if (added > 0)
+            {
+                await dbContext.SaveChangesAsync(cancellationToken);
+                _logger.LogInformation("Registered {Count} newly discovered modules in database", added);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to sync discovered modules to database. Admin UI may not show all modules.");
         }
     }
 }

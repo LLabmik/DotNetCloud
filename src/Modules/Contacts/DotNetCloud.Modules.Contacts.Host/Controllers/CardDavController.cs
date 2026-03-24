@@ -46,7 +46,7 @@ internal sealed class WebDavMethodAttribute : Attribute, IActionHttpMethodProvid
 /// </summary>
 [Route("carddav")]
 [ApiController]
-[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+[Authorize(AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
 public class CardDavController : ControllerBase
 {
     private readonly IContactService _contactService;

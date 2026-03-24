@@ -15,7 +15,7 @@ namespace DotNetCloud.Modules.Calendar.Host.Controllers;
 /// Implements a subset of RFC 4791 (CalDAV) and RFC 6764 (CalDAV discovery).
 /// </summary>
 [ApiController]
-[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+[Authorize(AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
 public class CalDavController : ControllerBase
 {
     private readonly ICalendarService _calendarService;
@@ -190,6 +190,7 @@ public class CalDavController : ControllerBase
     /// REPORT for sync-token based change tracking.
     /// </summary>
     [HttpMethod("REPORT", "/caldav/{userId}/calendars/{calendarId}")]
+    [Route("/caldav/{userId}/calendars/{calendarId}")]
     public async Task<IActionResult> Report(string userId, Guid calendarId)
     {
         var caller = GetCaller();
@@ -244,7 +245,7 @@ public class CalDavController : ControllerBase
 /// Custom HTTP method attribute for WebDAV methods (PROPFIND, REPORT, etc.).
 /// </summary>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
-internal sealed class HttpMethodAttribute : Attribute, IActionHttpMethodProvider
+internal sealed class HttpMethodAttribute : Attribute, IActionHttpMethodProvider, IRouteTemplateProvider
 {
     /// <summary>
     /// Initializes a new instance of the <see cref="HttpMethodAttribute"/> class.
@@ -260,4 +261,10 @@ internal sealed class HttpMethodAttribute : Attribute, IActionHttpMethodProvider
 
     /// <summary>Gets the route template.</summary>
     public string? Template { get; }
+
+    /// <inheritdoc />
+    int? IRouteTemplateProvider.Order => null;
+
+    /// <inheritdoc />
+    string? IRouteTemplateProvider.Name => null;
 }

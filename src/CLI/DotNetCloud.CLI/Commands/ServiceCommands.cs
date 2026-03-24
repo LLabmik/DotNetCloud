@@ -123,6 +123,25 @@ internal static class ServiceCommands
                 psi.Environment["Kestrel__CertificatePassword"] = "";
             }
 
+            // Bridge Collabora CLI config to server configuration
+            if (string.Equals(config.CollaboraMode, "BuiltIn", StringComparison.OrdinalIgnoreCase))
+            {
+                psi.Environment["Files__Collabora__Enabled"] = "true";
+                psi.Environment["Files__Collabora__UseBuiltInCollabora"] = "true";
+                psi.Environment["Files__Collabora__ServerUrl"] = "https://localhost:9980";
+                if (!string.IsNullOrEmpty(config.CollaboraDirectory))
+                {
+                    psi.Environment["Files__Collabora__CollaboraInstallDirectory"] = config.CollaboraDirectory;
+                }
+            }
+            else if (string.Equals(config.CollaboraMode, "External", StringComparison.OrdinalIgnoreCase)
+                     && !string.IsNullOrEmpty(config.CollaboraUrl))
+            {
+                psi.Environment["Files__Collabora__Enabled"] = "true";
+                psi.Environment["Files__Collabora__UseBuiltInCollabora"] = "false";
+                psi.Environment["Files__Collabora__ServerUrl"] = config.CollaboraUrl;
+            }
+
             var process = Process.Start(psi);
             if (process is null)
             {

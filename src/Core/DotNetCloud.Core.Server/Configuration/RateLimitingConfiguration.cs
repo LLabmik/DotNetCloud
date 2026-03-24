@@ -22,9 +22,9 @@ public sealed class RateLimitingOptions
     public bool Enabled { get; set; } = true;
 
     /// <summary>
-    /// Gets or sets the global rate limit (requests per window). Defaults to 20.
+    /// Gets or sets the global rate limit (requests per window). Defaults to 100.
     /// </summary>
-    public int GlobalPermitLimit { get; set; } = 20;
+    public int GlobalPermitLimit { get; set; } = 100;
 
     /// <summary>
     /// Gets or sets the global rate limit window in seconds. Defaults to 60.
@@ -118,13 +118,17 @@ public static class RateLimitingConfiguration
 
         services.AddRateLimiter(limiterOptions =>
         {
-            // Default global limiter applied to ALL endpoints that don't have
-            // an explicit [EnableRateLimiting] attribute. This is the safety net
-            // that ensures every endpoint is rate-limited by default.
-            // Authenticated requests get a higher limit (per user); anonymous
-            // requests get the strict global limit (per IP).
+            // Default global limiter applied to API endpoints only.
+            // Blazor page routes, SignalR (_blazor), static assets, and other
+            // non-API paths are exempt — they are infrastructure, not user actions.
+            // Only paths starting with /api/ or /auth/session/ are rate-limited.
             limiterOptions.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
             {
+                if (!IsRateLimitedPath(context))
+                {
+                    return RateLimitPartition.GetNoLimiter(string.Empty);
+                }
+
                 var isAuthenticated = context.User?.Identity?.IsAuthenticated == true;
 
                 if (isAuthenticated)
@@ -286,6 +290,35 @@ public static class RateLimitingConfiguration
 
         app.UseRateLimiter();
         return app;
+    }
+
+    /// <summary>
+    /// Path prefixes that should be subject to rate limiting.
+    /// Everything else (Blazor pages, static assets, SignalR, etc.) is exempt.
+    /// </summary>
+    private static readonly string[] RateLimitedPrefixes =
+    [
+        "/api/",
+        "/auth/session/",
+    ];
+
+    private static bool IsRateLimitedPath(HttpContext context)
+    {
+        var path = context.Request.Path.Value;
+        if (string.IsNullOrEmpty(path))
+        {
+            return false;
+        }
+
+        foreach (var prefix in RateLimitedPrefixes)
+        {
+            if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static string GetClientIpAddress(HttpContext context)

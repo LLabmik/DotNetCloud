@@ -59,13 +59,45 @@ fi
 info "Publishing server to $OUTPUT_DIR..."
 dotnet publish "$PROJECT_PATH" --configuration "$CONFIGURATION" --output "$OUTPUT_DIR"
 
-info "Restarting $SERVICE_NAME..."
-if systemctl restart "$SERVICE_NAME" 2>/dev/null; then
-    :
-elif sudo -n systemctl restart "$SERVICE_NAME" 2>/dev/null; then
-    :
-else
-    error "Failed to restart $SERVICE_NAME (requires systemd restart permission)."
+# Copy published output to the installed server locations.
+# The systemd service runs the binary from /opt/dotnetcloud/cli/server/
+# with WorkingDirectory /opt/dotnetcloud/server/.
+INSTALL_CLI_DIR="/opt/dotnetcloud/cli/server"
+INSTALL_SERVER_DIR="/opt/dotnetcloud/server"
+
+stop_service() {
+    if systemctl stop "$SERVICE_NAME" 2>/dev/null; then :
+    elif sudo -n systemctl stop "$SERVICE_NAME" 2>/dev/null; then :
+    else return 1; fi
+}
+
+start_service() {
+    if systemctl start "$SERVICE_NAME" 2>/dev/null; then :
+    elif sudo -n systemctl start "$SERVICE_NAME" 2>/dev/null; then :
+    else return 1; fi
+}
+
+info "Stopping $SERVICE_NAME..."
+if ! stop_service; then
+    error "Failed to stop $SERVICE_NAME (requires systemd permission)."
+    exit 1
+fi
+
+if [[ -d "$INSTALL_CLI_DIR" ]]; then
+    info "Deploying to $INSTALL_CLI_DIR..."
+    cp -r "$OUTPUT_DIR"/* "$INSTALL_CLI_DIR/" 2>/dev/null \
+        || sudo cp -r "$OUTPUT_DIR"/* "$INSTALL_CLI_DIR/"
+fi
+
+if [[ -d "$INSTALL_SERVER_DIR" ]]; then
+    info "Deploying to $INSTALL_SERVER_DIR..."
+    cp -r "$OUTPUT_DIR"/* "$INSTALL_SERVER_DIR/" 2>/dev/null \
+        || sudo cp -r "$OUTPUT_DIR"/* "$INSTALL_SERVER_DIR/"
+fi
+
+info "Starting $SERVICE_NAME..."
+if ! start_service; then
+    error "Failed to start $SERVICE_NAME (requires systemd permission)."
     exit 1
 fi
 
