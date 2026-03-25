@@ -36,8 +36,8 @@ Finish all WS-4 checks with pass/fail evidence, then update tracking docs:
 **Step 1: Redeploy latest code to mint22** (one-time)
 ```bash
 cd /home/benk/Repos/dotnetcloud
-dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o artifacts/publish/server-baremetal
 sudo systemctl stop dotnetcloud.service
+dotnet publish src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release -o artifacts/publish/server-baremetal
 sudo cp -r artifacts/publish/server-baremetal/. /opt/dotnetcloud/server/
 sudo systemctl start dotnetcloud.service
 ```
