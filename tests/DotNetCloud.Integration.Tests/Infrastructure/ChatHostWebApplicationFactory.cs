@@ -42,11 +42,13 @@ internal sealed class ChatHostWebApplicationFactory : WebApplicationFactory<Chat
             // Inject a deterministic test identity from request header for auth-bound checks.
             services.AddSingleton<IStartupFilter, TestUserStartupFilter>();
 
-            // Register test auth handler for the OpenIddict validation scheme
-            // required by ChatControllerBase [Authorize(AuthenticationSchemes = "OpenIddict...")].
+            // Register test auth handler for the auth schemes
+            // required by ChatControllerBase [Authorize(AuthenticationSchemes = "Identity.Application,OpenIddict...")].
             services.AddAuthentication()
                 .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
                     TestAuthHandler.SchemeName, _ => { })
+                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
+                    "Identity.Application", _ => { })
                 .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
                     "OpenIddict.Validation.AspNetCore", _ => { });
         });

@@ -1,7 +1,6 @@
 using DotNetCloud.Core.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using OpenIddict.Validation.AspNetCore;
 using System.Security.Claims;
 
 namespace DotNetCloud.Modules.Chat.Host.Controllers;
@@ -11,7 +10,7 @@ namespace DotNetCloud.Modules.Chat.Host.Controllers;
 /// Provides helper methods for caller context creation and envelope responses.
 /// </summary>
 [ApiController]
-[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+[Authorize(AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
 public abstract class ChatControllerBase : ControllerBase
 {
     /// <summary>

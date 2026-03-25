@@ -38,13 +38,15 @@ internal sealed class FilesHostWebApplicationFactory : WebApplicationFactory<Fil
             // Inject a deterministic test identity from request header for auth-bound gRPC checks.
             services.AddSingleton<IStartupFilter, TestUserStartupFilter>();
 
-            // Register test auth handler for the OpenIddict validation scheme
-            // required by FilesControllerBase [Authorize(AuthenticationSchemes = "OpenIddict...")].
-            // The standalone Files.Host process has no OpenIddict, so we register
-            // the test handler directly.
+            // Register test auth handler for the auth schemes
+            // required by FilesControllerBase [Authorize(AuthenticationSchemes = "Identity.Application,OpenIddict...")].
+            // The standalone Files.Host process has no OpenIddict or Identity, so we register
+            // the test handler directly for both schemes.
             services.AddAuthentication()
                 .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
                     TestAuthHandler.SchemeName, _ => { })
+                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
+                    "Identity.Application", _ => { })
                 .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
                     "OpenIddict.Validation.AspNetCore", _ => { });
         });

@@ -3,7 +3,6 @@ using DotNetCloud.Core.Errors;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using OpenIddict.Validation.AspNetCore;
 using System.Security.Claims;
 
 namespace DotNetCloud.Modules.Files.Host.Controllers;
@@ -13,7 +12,7 @@ namespace DotNetCloud.Modules.Files.Host.Controllers;
 /// Provides helper methods for caller context creation, envelope responses, and exception handling.
 /// </summary>
 [ApiController]
-[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+[Authorize(AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
 public abstract class FilesControllerBase : ControllerBase
 {
     /// <summary>
