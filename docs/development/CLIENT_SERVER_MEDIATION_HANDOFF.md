@@ -82,35 +82,113 @@ Archived context:
 
 ## Active Handoff
 
-**Target machine:** mint22
-**Status:** COMPLETE
+**Target machine:** monolith
+**Status:** READY
 
-### Phase 3.8: Documentation And Release Readiness — DONE
+### WS-4 API Verification Bootstrap For mint22 Deployment
 
-All four Phase 3.8 deliverables created. 8 new documentation files, 5 existing files updated. CI build passes, all tests green.
+Goal: unblock WS-4 Copilot-capable checks by collecting auth/runtime inputs and executing API verification from a Windows admin session on monolith.
 
-**New documentation files:**
-- `docs/admin/PIM_MODULES.md` — admin operations guide for Contacts, Calendar, Notes (config, auth, DAV, import, gRPC, troubleshooting)
-- `docs/user/CONTACTS.md` — user guide: contact CRUD, groups, sharing, vCard import/export, CardDAV sync (DAVx5/Thunderbird/iOS)
-- `docs/user/CALENDAR.md` — user guide: calendars, events, invitations/RSVP, reminders, recurring events, sharing, iCalendar import/export, CalDAV sync
-- `docs/user/NOTES.md` — user guide: Markdown notes, folders, tags, version history, cross-module links, sharing, import
-- `docs/api/CONTACTS.md` — REST + CardDAV API reference (all endpoints, schemas, error codes)
-- `docs/api/CALENDAR.md` — REST + CalDAV API reference (all endpoints, schemas, enums, error codes)
-- `docs/api/NOTES.md` — REST API reference (notes, folders, versions, sharing — all endpoints, schemas, error codes)
-- `docs/admin/PHASE_3_RELEASE_NOTES.md` — release notes (features, API summary, DB changes, upgrade instructions, known limitations)
+Server under test:
+- `https://mint22:5443`
 
-**Updated files:**
-- `docs/api/README.md` — added module API reference links
-- `README.md` — Phase 3 status updated to 🔧 In Progress, added PIM admin/user/release doc links
-- Tracking docs: `IMPLEMENTATION_CHECKLIST.md`, `MASTER_PROJECT_PLAN.md`, `PHASE_3_IMPLEMENTATION_PLAN.md` — all Phase 3.8 items marked ✓, Milestone D closed
+Use test account:
+- Email: `testdude@llabmik.net`
+- Password: provided out-of-band by moderator
 
-**Deferred items (carried from prior phases):**
-- CreatedByUserId/UpdatedByUserId audit fields (requires EF migrations)
-- Markdown sanitization pipeline
-- Phase 3.5 UI integration (unified navigation, cross-links in UI, shared notification patterns)
+#### Required work
 
-#### Previous cycle summary
-- Phase 3.7 Testing And Quality Gates complete (224 tests). Archived.
+1. Acquire bearer token via API login
+   - Endpoint: `POST https://mint22:5443/api/v1/core/auth/login`
+   - Capture `data.accessToken` and `data.refreshToken` from response
+   - Do NOT commit raw tokens to git; report only masked values in handoff notes
+
+2. Execute WS-4 API checks (PowerShell)
+   - TC-1.40: `GET /api/v1/files/sync/changes?since=<timestamp>`
+   - TC-1.42: `GET /api/v1/files/sync/tree`
+   - TC-1.41: `POST /api/v1/files/sync/reconcile`
+
+3. Determine one valid file id
+   - Use sync tree response or file API responses to pick one accessible file id
+   - Record the file id in handoff notes
+
+4. Execute range request check with the discovered file id
+   - TC-1.45: `GET /api/v1/files/{fileId}/download` with `Range` headers
+   - Verify `206 Partial Content` and `Content-Range`
+
+5. Attempt WOPI CheckFileInfo two ways
+   - First try bearer auth against `GET /api/v1/wopi/files/{fileId}`
+   - If bearer fails, capture WOPI `access_token` from Collabora launch flow and call:
+     - `GET /api/v1/wopi/files/{fileId}?access_token=<token>`
+
+6. Return artifacts for relay
+   - HTTP status lines and key response fields for each test case
+   - Sanitized token evidence (first 12 chars + length only)
+   - Discovered `fileId`
+   - Whether WOPI required query token or accepted bearer auth
+
+#### PowerShell command template (run on monolith)
+
+```powershell
+$BaseUrl = "https://mint22:5443"
+$Since = "2026-03-25T00:00:00Z"
+
+# 1) Login
+$loginBody = @{ email = "testdude@llabmik.net"; password = "<PASSWORD>" } | ConvertTo-Json
+$login = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/v1/core/auth/login" -Body $loginBody -ContentType "application/json" -SkipCertificateCheck
+$token = $login.data.accessToken
+
+$headers = @{ Authorization = "Bearer $token" }
+
+# 2) Sync changes (TC-1.40)
+$changes = Invoke-RestMethod -Method Get -Uri "$BaseUrl/api/v1/files/sync/changes?since=$Since" -Headers $headers -SkipCertificateCheck
+
+# 3) Sync tree (TC-1.42)
+$tree = Invoke-RestMethod -Method Get -Uri "$BaseUrl/api/v1/files/sync/tree" -Headers $headers -SkipCertificateCheck
+
+# 4) Pick a fileId from tree payload (adjust path to match actual schema)
+# Example placeholder:
+# $fileId = $tree.data.items | Where-Object { $_.type -eq "file" } | Select-Object -First 1 -ExpandProperty id
+
+# 5) Reconcile (TC-1.41)
+$reconcileBody = @{
+  items = @(
+    @{
+      path = "/Documents/example.txt"
+      hash = "abc123"
+      lastModifiedUtc = "2026-03-25T00:00:00Z"
+      size = 128
+    }
+  )
+} | ConvertTo-Json -Depth 5
+$reconcile = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/v1/files/sync/reconcile" -Headers $headers -Body $reconcileBody -ContentType "application/json" -SkipCertificateCheck
+
+# 6) Range test (TC-1.45)
+# Replace <FILE_ID> with discovered id if not set in script.
+$fileId = "<FILE_ID>"
+$rangeHeaders1 = @{ Authorization = "Bearer $token"; Range = "bytes=0-1048575" }
+$rangeHeaders2 = @{ Authorization = "Bearer $token"; Range = "bytes=1048576-" }
+Invoke-WebRequest -Uri "$BaseUrl/api/v1/files/$fileId/download" -Headers $rangeHeaders1 -OutFile "$env:TEMP\part1.bin" -SkipCertificateCheck
+Invoke-WebRequest -Uri "$BaseUrl/api/v1/files/$fileId/download" -Headers $rangeHeaders2 -OutFile "$env:TEMP\part2.bin" -SkipCertificateCheck
+
+# 7) WOPI bearer attempt (TC-1.27)
+# If this fails, capture access_token from Collabora request and retry with query token.
+try {
+  $wopi = Invoke-RestMethod -Method Get -Uri "$BaseUrl/api/v1/wopi/files/$fileId" -Headers $headers -SkipCertificateCheck
+  "WOPI bearer: success"
+}
+catch {
+  "WOPI bearer: failed"
+}
+```
+
+#### Return format (for relay back)
+
+- Commit hash
+- For each test (TC-1.40, TC-1.41, TC-1.42, TC-1.45, TC-1.27): HTTP status + brief result
+- `fileId` used
+- Token evidence: masked access token prefix + total length
+- WOPI auth mode used: bearer or query `access_token`
 
 ## Relay Template
 

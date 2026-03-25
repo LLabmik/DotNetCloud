@@ -15,9 +15,11 @@ namespace DotNetCloud.Integration.Tests.Infrastructure;
 internal static class LocalSqlServerDetector
 {
     private const string TestDatabasePrefix = "dotnetcloud_test_";
+    private const string ExternalConnectionStringEnvVar = "DOTNETCLOUD_TEST_SQLSERVER_CONNECTION_STRING";
 
     private static bool s_detectionDone;
     private static string? s_connectionString;
+    private static bool s_useExternalConnectionString;
 
     /// <summary>
     /// Gets the connection string for a local SQL Server instance, or <see langword="null"/>
@@ -39,6 +41,40 @@ internal static class LocalSqlServerDetector
         }
 
         s_detectionDone = true;
+
+        // Highest priority: explicit external SQL Server connection string
+        // (supports Linux/macOS CI runners and network SQL Server instances).
+        var externalConnectionString = Environment.GetEnvironmentVariable(ExternalConnectionStringEnvVar);
+        if (!string.IsNullOrWhiteSpace(externalConnectionString))
+        {
+            try
+            {
+                var builder = new SqlConnectionStringBuilder(externalConnectionString)
+                {
+                    ConnectTimeout = 5,
+                    TrustServerCertificate = true,
+                };
+
+                await using var connection = new SqlConnection(builder.ConnectionString);
+                await connection.OpenAsync(cancellationToken);
+
+                s_connectionString = builder.ConnectionString;
+                s_useExternalConnectionString = true;
+                return true;
+            }
+            catch (SqlException)
+            {
+                return false;
+            }
+            catch (InvalidOperationException)
+            {
+                return false;
+            }
+            catch (ArgumentException)
+            {
+                return false;
+            }
+        }
 
         // Only attempt on Windows — Windows Authentication is not available on Linux/macOS
         if (!OperatingSystem.IsWindows())
@@ -89,6 +125,13 @@ internal static class LocalSqlServerDetector
     public static async Task CleanupAsync()
     {
         if (s_connectionString is null)
+        {
+            return;
+        }
+
+        // External connection strings point to user-managed databases.
+        // Never attempt destructive cleanup in that case.
+        if (s_useExternalConnectionString)
         {
             return;
         }
