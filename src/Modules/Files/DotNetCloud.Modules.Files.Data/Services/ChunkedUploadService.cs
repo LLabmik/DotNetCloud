@@ -238,15 +238,27 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
                 ? _db.FileNodes.Where(n => n.ParentId == session.TargetParentId.Value)
                 : _db.FileNodes.Where(n => n.OwnerId == caller.UserId && n.ParentId == null);
 
-            var exactNameExists = await siblingQuery
-                .AnyAsync(n => n.Name == session.FileName, cancellationToken);
+            // If a file with the same name already exists, treat as a version update
+            var existingNode = await siblingQuery
+                .Where(n => n.Name == session.FileName && n.NodeType == FileNodeType.File)
+                .FirstOrDefaultAsync(cancellationToken);
 
-            if (exactNameExists)
+            if (existingNode is not null)
             {
-                var scope = session.TargetParentId.HasValue ? "this folder" : "the root level";
-                throw new Core.Errors.ValidationException("Name", $"A node named '{session.FileName}' already exists in {scope}.");
+                // Re-upload of same file → create new version of the existing node
+                quotaDelta = session.TotalSize - existingNode.Size;
+                existingNode.Size = session.TotalSize;
+                existingNode.ContentHash = contentHash;
+                existingNode.StoragePath = storagePath;
+                existingNode.CurrentVersion++;
+                existingNode.UpdatedAt = DateTime.UtcNow;
+                existingNode.PosixMode = session.PosixMode ?? existingNode.PosixMode;
+                existingNode.PosixOwnerHint = session.PosixOwnerHint ?? existingNode.PosixOwnerHint;
+                existingNode.OriginatingDeviceId = session.DeviceId ?? _deviceContext.DeviceId ?? existingNode.OriginatingDeviceId;
+                fileNode = existingNode;
             }
-
+            else
+            {
             // Guard against case-insensitive name collisions before creating the node.
             if (_fileSystemOptions.EnforceCaseInsensitiveUniqueness)
             {
@@ -287,6 +299,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
 
             _db.FileNodes.Add(fileNode);
             quotaDelta = session.TotalSize; // full size for new file
+            }
         }
 
         // Create file version

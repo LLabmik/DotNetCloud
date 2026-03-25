@@ -420,19 +420,20 @@ public class ChunkedUploadServiceTests
     }
 
     [TestMethod]
-    public async Task CompleteUploadAsync_NewRootFile_ExactNameExists_ThrowsValidationException()
+    public async Task CompleteUploadAsync_NewRootFile_ExactNameExists_CreatesNewVersion()
     {
         using var db = CreateContext();
         var userId = Guid.NewGuid();
         var chunkHash = "rootdupe001";
 
-        db.FileNodes.Add(new FileNode
+        var existingNode = new FileNode
         {
             Name = "BenK Toy Package.png",
             NodeType = FileNodeType.File,
             OwnerId = userId,
             Size = 10
-        });
+        };
+        db.FileNodes.Add(existingNode);
         db.FileChunks.Add(new FileChunk { ChunkHash = chunkHash, StoragePath = "chunks/ro/ot/rootdupe001", Size = 50 });
 
         var session = new ChunkedUploadSession
@@ -451,12 +452,15 @@ public class ChunkedUploadServiceTests
 
         var service = CreateService(db);
 
-        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => service.CompleteUploadAsync(session.Id, UserCaller(userId)));
+        var result = await service.CompleteUploadAsync(session.Id, UserCaller(userId));
+
+        Assert.AreEqual(existingNode.Id, result.Id, "Should update existing file, not create new one.");
+        Assert.AreEqual(50, result.Size, "Size should be updated.");
+        Assert.AreEqual(2, existingNode.CurrentVersion, "Version should be incremented.");
     }
 
     [TestMethod]
-    public async Task CompleteUploadAsync_NewChildFile_ExactNameExists_ThrowsValidationException()
+    public async Task CompleteUploadAsync_NewChildFile_ExactNameExists_CreatesNewVersion()
     {
         using var db = CreateContext();
         var userId = Guid.NewGuid();
@@ -471,14 +475,15 @@ public class ChunkedUploadServiceTests
         };
         parent.MaterializedPath = $"/{parent.Id}";
         db.FileNodes.Add(parent);
-        db.FileNodes.Add(new FileNode
+        var existingChild = new FileNode
         {
             Name = "report.pdf",
             NodeType = FileNodeType.File,
             OwnerId = userId,
             ParentId = parent.Id,
             Size = 10
-        });
+        };
+        db.FileNodes.Add(existingChild);
         db.FileChunks.Add(new FileChunk { ChunkHash = chunkHash, StoragePath = "chunks/ch/il/childdupe001", Size = 50 });
 
         var session = new ChunkedUploadSession
@@ -498,8 +503,11 @@ public class ChunkedUploadServiceTests
 
         var service = CreateService(db);
 
-        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => service.CompleteUploadAsync(session.Id, UserCaller(userId)));
+        var result = await service.CompleteUploadAsync(session.Id, UserCaller(userId));
+
+        Assert.AreEqual(existingChild.Id, result.Id, "Should update existing file, not create new one.");
+        Assert.AreEqual(50, result.Size, "Size should be updated.");
+        Assert.AreEqual(2, existingChild.CurrentVersion, "Version should be incremented.");
     }
 
     [TestMethod]
