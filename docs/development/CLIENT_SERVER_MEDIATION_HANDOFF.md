@@ -82,10 +82,10 @@ Archived context:
 
 ## Active Handoff
 
-**Target machine:** mint22
-**Status:** BLOCKER - AWAITING SERVER-SIDE INVESTIGATION (20260325)
+**Target machine:** monolith
+**Status:** READY FOR MONOLITH RETRY (20260325)
 
-### WS-4 API Verification Bootstrap For mint22 Deployment — FINDINGS
+### WS-4 API Verification Bootstrap For mint22 Deployment — SERVER INVESTIGATION COMPLETE
 
 **Goal:** Collect auth/runtime inputs for WS-4 Copilot-capable checks
 
@@ -131,34 +131,34 @@ Archived context:
 3. **Timestamp:** Request made 2026-03-25T07:20:42Z
 4. **NetworkReachability:** mint22:5443 is reachable from monolith via HTTPS
 
-#### Blocking Issue
+#### Root Cause (verified in source)
 
-**The server is not returning bearer tokens** even though the login is successful. This prevents all downstream WS-4 API checks (sync, reconcile, WOPI) from executing.
+This is **not** a mint22 runtime token-signing failure. The `/api/v1/core/auth/login` endpoint currently returns placeholder token fields by design:
 
-**Hypothesis:** 
-- Token generation/serialization issue on mint22
-- Possible causes: missing configuration, expired signing key, JWT generation disabled, or response DTO field mapping error
+- `AuthService.LoginAsync` sets `AccessToken = string.Empty`, `RefreshToken = string.Empty`, `ExpiresIn = 0` with comment "populated at endpoint layer".
+- `AuthController.LoginAsync` simply returns that DTO and does not invoke OpenIddict token issuance.
+- OpenIddict server is configured for authorization-code + refresh flows and the seeded clients are PKCE auth-code clients.
 
-#### Next Steps Required (Server-side: mint22)
+Therefore, using `POST /api/v1/core/auth/login` as a bearer token source is invalid in the current architecture.
 
-1. **Verify token generation pipeline**
-   - Check OpenIddict configuration: is token generation enabled?
-   - Verify signing certificate/key is valid and loaded
-   - Check `IdentityController` or `AuthController` implementation: is `accessToken` being populated before response?
+#### Next Steps Required (monolith)
 
-2. **Investigate response DTO**
-   - Confirm login response DTO correctly maps generated token to `data.accessToken`
-   - Check for serialization filters that might null out token fields
+1. Acquire bearer token via browser/network capture during a normal authenticated flow (or from an endpoint call already carrying Authorization header)
+2. Re-run WS-4 API checks with the captured bearer token:
+  - TC-1.40 `GET /api/v1/files/sync/changes`
+  - TC-1.42 `GET /api/v1/files/sync/tree`
+  - TC-1.41 `POST /api/v1/files/sync/reconcile`
+3. Discover one valid `fileId` from sync tree/files payload
+4. Run TC-1.45 range request and verify `206` + `Content-Range`
+5. Run TC-1.27 WOPI check with bearer first, query `access_token` fallback if needed
 
-3. **Review logs**
-   - Mint22 app logs: any errors during token generation?
-   - Check if user authentication succeeded (it did) but token generation failed silently
+#### Evidence (code references)
 
-4. **Test directly on server**
-   - Attempt login via Swagger/OpenAPI UI on mint22 console
-   - Verify token is generated when called locally
+- `src/Core/DotNetCloud.Core.Auth/Services/AuthService.cs`: login response token fields intentionally set to empty placeholders
+- `src/Core/DotNetCloud.Core.Server/Controllers/AuthController.cs`: `/api/v1/core/auth/login` returns `IAuthService.LoginAsync` DTO directly
+- `src/Core/DotNetCloud.Core.Auth/Extensions/AuthServiceExtensions.cs`: OpenIddict configured for auth-code/refresh/client-credentials flows
+- `src/Core/DotNetCloud.Core.Server/Initialization/OidcClientSeeder.cs`: seeded public clients (`dotnetcloud-desktop`, `dotnetcloud-mobile`) configured for PKCE auth-code flow
 
 **Handoff ready when:**
-- Server-side team confirms token generation is now working and returns non-empty `accessToken`
-- A test login from monolith successfully returns a bearer token
-- Monolith re-runs WS-4 API bootstrap and completes all 6 tests
+- Monolith captures a valid bearer token from the active auth flow
+- Monolith executes TC-1.40, TC-1.41, TC-1.42, TC-1.45, and TC-1.27 and records status + key outputs
