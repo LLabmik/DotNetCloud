@@ -702,6 +702,10 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         {
             // Circuit may already be disconnected during disposal
         }
+        catch (InvalidOperationException)
+        {
+            // JSInterop not available during prerender
+        }
     }
 
     protected async Task DeleteSelected()
