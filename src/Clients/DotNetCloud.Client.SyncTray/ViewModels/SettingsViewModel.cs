@@ -3,10 +3,11 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Windows.Input;
 using DotNetCloud.Client.Core.Auth;
+using DotNetCloud.Client.Core.Conflict;
+using DotNetCloud.Client.Core.LocalState;
 using DotNetCloud.Client.Core.SelectiveSync;
+using DotNetCloud.Client.Core.Sync;
 using DotNetCloud.Client.Core.SyncIgnore;
-using DotNetCloud.Client.SyncService.Ipc;
-using DotNetCloud.Client.SyncTray.Ipc;
 using DotNetCloud.Client.SyncTray.Startup;
 using DotNetCloud.Client.SyncTray.Views;
 using Microsoft.Extensions.Logging;
@@ -20,7 +21,7 @@ namespace DotNetCloud.Client.SyncTray.ViewModels;
 public sealed class SettingsViewModel : ViewModelBase
 {
     private readonly TrayViewModel _trayVm;
-    private readonly IIpcClient _ipc;
+    private readonly ISyncContextManager _syncManager;
     private readonly IOAuth2Service _oauth2;
     private readonly ISyncIgnoreParser _syncIgnore;
     private readonly ISelectiveSyncConfig _selectiveSync;
@@ -315,7 +316,7 @@ public sealed class SettingsViewModel : ViewModelBase
     /// <summary>Initializes a new <see cref="SettingsViewModel"/>.</summary>
     public SettingsViewModel(
         TrayViewModel trayVm,
-        IIpcClient ipc,
+        ISyncContextManager syncManager,
         IOAuth2Service oauth2,
         ISyncIgnoreParser syncIgnore,
         ISelectiveSyncConfig selectiveSync,
@@ -324,7 +325,7 @@ public sealed class SettingsViewModel : ViewModelBase
         string? localSettingsPath = null)
     {
         _trayVm = trayVm;
-        _ipc = ipc;
+        _syncManager = syncManager;
         _oauth2 = oauth2;
         _syncIgnore = syncIgnore;
         _selectiveSync = selectiveSync;
@@ -433,9 +434,9 @@ public sealed class SettingsViewModel : ViewModelBase
 
             _logger.LogInformation("OAuth2 tokens received. Building account data.");
 
-            var data = new AddAccountData
+            var data = new AddAccountRequest
             {
-                ServerUrl = serverUrl,
+                ServerBaseUrl = serverUrl,
                 UserId = ExtractUserId(tokens.AccessToken),
                 LocalFolderPath = localFolderPath,
                 DisplayName = BuildDisplayName(tokens.AccessToken, serverUrl),
@@ -444,8 +445,7 @@ public sealed class SettingsViewModel : ViewModelBase
                 ExpiresAt = tokens.ExpiresAt,
             };
 
-            // Ensure the sync folder exists before sending to the service.
-            // The tray runs as the user and has permission; the service may not.
+            // Ensure the sync folder exists before registering.
             try { Directory.CreateDirectory(localFolderPath); }
             catch (Exception dirEx)
             {
@@ -453,28 +453,25 @@ public sealed class SettingsViewModel : ViewModelBase
             }
 
             _logger.LogInformation(
-                "Sending add-account to SyncService: UserId={UserId}, DisplayName={DisplayName}, Folder={Folder}.",
+                "Adding account: UserId={UserId}, DisplayName={DisplayName}, Folder={Folder}.",
                 data.UserId, data.DisplayName, data.LocalFolderPath);
 
-            using var ipcCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            ipcCts.CancelAfter(TimeSpan.FromSeconds(30));
+            using var addCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            addCts.CancelAfter(TimeSpan.FromSeconds(30));
 
             try
             {
-                await _ipc.AddAccountAsync(data, ipcCts.Token);
-                _logger.LogInformation("Add-account IPC call completed successfully.");
+                await _syncManager.AddContextAsync(data, addCts.Token);
+                _logger.LogInformation("Add-account completed successfully.");
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
-                _logger.LogError("Add-account IPC call timed out after 30 seconds.");
-                AddAccountError = "Timed out waiting for SyncService to register the account. The service may still be processing — try restarting the app.";
+                _logger.LogError("Add-account timed out after 30 seconds.");
+                AddAccountError = "Timed out adding account. Try restarting the app.";
                 return;
             }
 
             AddAccountServerUrl = string.Empty;
-
-            // Allow SyncService time to persist the new context before querying.
-            await Task.Delay(500, cancellationToken);
 
             _logger.LogInformation("Refreshing account list after add.");
             await _trayVm.RefreshAccountsAsync();
@@ -601,11 +598,11 @@ public sealed class SettingsViewModel : ViewModelBase
     {
         try
         {
-            await _ipc.UpdateBandwidthAsync(_uploadLimitKbps, _downloadLimitKbps);
+            await _syncManager.UpdateBandwidthAsync(_uploadLimitKbps, _downloadLimitKbps);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to persist bandwidth settings via IPC.");
+            _logger.LogWarning(ex, "Failed to persist bandwidth settings.");
         }
     }
 
@@ -621,8 +618,8 @@ public sealed class SettingsViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Persists the conflict resolution settings via IPC.
-    /// Issue #55: settings are saved to sync-settings.json by the service.
+    /// Persists the conflict resolution settings.
+    /// Issue #55: settings are saved to sync-settings.json.
     /// </summary>
     private async Task PersistConflictSettingsAsync()
     {
@@ -635,12 +632,17 @@ public sealed class SettingsViewModel : ViewModelBase
             if (_strategyNewerWins) strategies.Add("newer-wins");
             if (_strategyAppendOnly) strategies.Add("append-only");
 
-            await _ipc.UpdateConflictSettingsAsync(
-                _autoResolveEnabled, _newerWinsThresholdMinutes, strategies);
+            await _syncManager.PersistConflictResolutionSettingsAsync(
+                new ConflictResolutionSettings
+                {
+                    AutoResolveEnabled = _autoResolveEnabled,
+                    NewerWinsThresholdMinutes = _newerWinsThresholdMinutes,
+                    EnabledStrategies = strategies,
+                });
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to persist conflict resolution settings via IPC.");
+            _logger.LogWarning(ex, "Failed to persist conflict resolution settings.");
         }
     }
 
@@ -670,7 +672,7 @@ public sealed class SettingsViewModel : ViewModelBase
 
             await _selectiveSync.LoadAsync(configPath);
 
-            var vm = new FolderBrowserViewModel(_ipc, contextId, _selectiveSync, configPath);
+            var vm = new FolderBrowserViewModel(_syncManager, contextId, _selectiveSync, configPath);
             var dialog = new FolderBrowserDialog(vm);
             dialog.Show();
 
@@ -683,7 +685,7 @@ public sealed class SettingsViewModel : ViewModelBase
                 // Trigger re-sync so the engine picks up the new selective sync rules.
                 try
                 {
-                    await _ipc.SyncNowAsync(contextId);
+                    await _syncManager.SyncNowAsync(contextId);
                 }
                 catch (Exception ex)
                 {
@@ -843,13 +845,13 @@ public sealed class SettingsViewModel : ViewModelBase
 
             foreach (var account in _trayVm.Accounts)
             {
-                var active = await _ipc.ListConflictsAsync(account.ContextId, includeHistory: false);
+                var active = await _syncManager.ListConflictsAsync(account.ContextId, includeHistory: false);
                 foreach (var r in active)
-                    _conflicts.Add(new ConflictViewModel(r, _ipc, _trayVm, _logger));
+                    _conflicts.Add(new ConflictViewModel(account.ContextId, r, _syncManager, _trayVm, _logger));
 
-                var history = await _ipc.ListConflictsAsync(account.ContextId, includeHistory: true);
-                foreach (var r in history.Where(h => h.IsResolved))
-                    _conflictHistory.Add(new ConflictViewModel(r, _ipc, _trayVm, _logger));
+                var history = await _syncManager.ListConflictsAsync(account.ContextId, includeHistory: true);
+                foreach (var r in history.Where(h => h.ResolvedAt.HasValue))
+                    _conflictHistory.Add(new ConflictViewModel(account.ContextId, r, _syncManager, _trayVm, _logger));
             }
         }
         catch (Exception ex)

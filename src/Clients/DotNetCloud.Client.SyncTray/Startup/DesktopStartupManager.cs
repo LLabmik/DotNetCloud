@@ -5,8 +5,6 @@ namespace DotNetCloud.Client.SyncTray.Startup;
 
 public interface IDesktopStartupManager
 {
-    bool TryEnsureSyncServiceStarted();
-
     bool TryApplyStartOnLogin(bool enable);
 
     bool TryEnsureApplicationLauncher();
@@ -18,7 +16,6 @@ internal sealed class DesktopStartupManager : IDesktopStartupManager
 
     private readonly ILogger<DesktopStartupManager> _logger;
     private readonly Func<string?> _trayExecutablePathProvider;
-    private readonly Func<string?> _serviceExecutablePathProvider;
     private readonly Func<string?> _launcherIconPathProvider;
     private readonly string _autostartDirectory;
     private readonly string _applicationsDirectory;
@@ -27,7 +24,6 @@ internal sealed class DesktopStartupManager : IDesktopStartupManager
     public DesktopStartupManager(
         ILogger<DesktopStartupManager> logger,
         Func<string?>? trayExecutablePathProvider = null,
-        Func<string?>? serviceExecutablePathProvider = null,
         Func<string?>? launcherIconPathProvider = null,
         string? autostartDirectory = null,
         string? applicationsDirectory = null,
@@ -35,62 +31,10 @@ internal sealed class DesktopStartupManager : IDesktopStartupManager
     {
         _logger = logger;
         _trayExecutablePathProvider = trayExecutablePathProvider ?? ResolveTrayExecutablePath;
-        _serviceExecutablePathProvider = serviceExecutablePathProvider ?? ResolveServiceExecutablePath;
         _launcherIconPathProvider = launcherIconPathProvider ?? ResolveLauncherIconPath;
         _autostartDirectory = autostartDirectory ?? ResolveAutostartDirectory();
         _applicationsDirectory = applicationsDirectory ?? ResolveApplicationsDirectory();
         _isLinux = isLinux ?? OperatingSystem.IsLinux;
-    }
-
-    public bool TryEnsureSyncServiceStarted()
-    {
-        if (!_isLinux())
-        {
-            return true;
-        }
-
-        var serviceExecutablePath = _serviceExecutablePathProvider();
-        if (string.IsNullOrWhiteSpace(serviceExecutablePath) || !File.Exists(serviceExecutablePath))
-        {
-            _logger.LogWarning("SyncService auto-start skipped because no executable was found.");
-            return false;
-        }
-
-        if (IsSyncServiceAlreadyRunning(serviceExecutablePath))
-        {
-            _logger.LogDebug("SyncService already running; skipping auto-start.");
-            return true;
-        }
-
-        try
-        {
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = serviceExecutablePath,
-                WorkingDirectory = Path.GetDirectoryName(serviceExecutablePath) ?? AppContext.BaseDirectory,
-                UseShellExecute = false,
-            };
-
-            Process.Start(startInfo);
-            _logger.LogInformation("Started SyncService from {Path}.", serviceExecutablePath);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to auto-start SyncService from {Path}.", serviceExecutablePath);
-            return false;
-        }
-    }
-
-    private static bool IsSyncServiceAlreadyRunning(string serviceExecutablePath)
-    {
-        var processName = Path.GetFileNameWithoutExtension(serviceExecutablePath);
-        if (string.IsNullOrWhiteSpace(processName))
-        {
-            return false;
-        }
-
-        return Process.GetProcessesByName(processName).Length > 0;
     }
 
     public bool TryApplyStartOnLogin(bool enable)
@@ -205,7 +149,7 @@ internal sealed class DesktopStartupManager : IDesktopStartupManager
                 "Type=Application",
                 "Version=1.0",
                 "Name=DotNetCloud Sync Client",
-                "Comment=Open DotNetCloud SyncTray and start SyncService if needed",
+                "Comment=Open DotNetCloud SyncTray",
                 $"Exec={escapedExec}",
                 iconLine,
                 "Terminal=false",

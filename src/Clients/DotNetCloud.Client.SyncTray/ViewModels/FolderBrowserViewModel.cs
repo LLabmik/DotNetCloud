@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using DotNetCloud.Client.Core.Api;
 using DotNetCloud.Client.Core.SelectiveSync;
-using DotNetCloud.Client.SyncTray.Ipc;
+using DotNetCloud.Client.Core.Sync;
 
 namespace DotNetCloud.Client.SyncTray.ViewModels;
 
@@ -13,7 +13,7 @@ namespace DotNetCloud.Client.SyncTray.ViewModels;
 /// </summary>
 public sealed class FolderBrowserViewModel : ViewModelBase
 {
-    private readonly IIpcClient _ipc;
+    private readonly ISyncContextManager _syncManager;
     private readonly Guid _contextId;
     private readonly ISelectiveSyncConfig _selectiveSync;
     private readonly string _configFilePath;
@@ -65,17 +65,17 @@ public sealed class FolderBrowserViewModel : ViewModelBase
     public Func<string, Task<bool>>? ConfirmDeletionAsync { get; set; }
 
     /// <summary>Initializes a new <see cref="FolderBrowserViewModel"/>.</summary>
-    /// <param name="ipc">IPC client for communicating with SyncService.</param>
+    /// <param name="syncManager">Sync context manager for direct access.</param>
     /// <param name="contextId">Sync context ID to load the tree for.</param>
     /// <param name="selectiveSync">Selective sync config to persist rules to.</param>
     /// <param name="configFilePath">Path to the selective sync config JSON file.</param>
     public FolderBrowserViewModel(
-        IIpcClient ipc,
+        ISyncContextManager syncManager,
         Guid contextId,
         ISelectiveSyncConfig selectiveSync,
         string configFilePath)
     {
-        _ipc = ipc;
+        _syncManager = syncManager;
         _contextId = contextId;
         _selectiveSync = selectiveSync;
         _configFilePath = configFilePath;
@@ -93,7 +93,7 @@ public sealed class FolderBrowserViewModel : ViewModelBase
 
         try
         {
-            _fullTree = await _ipc.GetFolderTreeAsync(_contextId);
+            _fullTree = await _syncManager.GetFolderTreeAsync(_contextId);
             if (_fullTree is null)
             {
                 ErrorMessage = "Failed to load folder tree from server.";
@@ -144,7 +144,7 @@ public sealed class FolderBrowserViewModel : ViewModelBase
             newExclusions.Add(path);
         });
 
-        await _ipc.UpdateSelectiveSyncAsync(_contextId, _selectiveSync.GetRules(_contextId), CancellationToken.None);
+        await _syncManager.UpdateSelectiveSyncAsync(_contextId, _selectiveSync.GetRules(_contextId), CancellationToken.None);
 
         // Issue #58: clean up local files for newly excluded folders.
         if (LocalSyncRoot is not null)

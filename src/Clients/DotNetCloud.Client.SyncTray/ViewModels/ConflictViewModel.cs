@@ -1,5 +1,6 @@
 using System.Windows.Input;
-using DotNetCloud.Client.SyncTray.Ipc;
+using DotNetCloud.Client.Core.LocalState;
+using DotNetCloud.Client.Core.Sync;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Client.SyncTray.ViewModels;
@@ -9,7 +10,7 @@ namespace DotNetCloud.Client.SyncTray.ViewModels;
 /// </summary>
 public sealed class ConflictViewModel : ViewModelBase
 {
-    private readonly IIpcClient _ipc;
+    private readonly ISyncContextManager _syncManager;
     private readonly TrayViewModel _trayVm;
     private readonly ILogger _logger;
 
@@ -86,22 +87,22 @@ public sealed class ConflictViewModel : ViewModelBase
 
     // ── Constructor ───────────────────────────────────────────────────────
 
-    /// <summary>Initialises from an IPC conflict record snapshot.</summary>
-    public ConflictViewModel(ConflictRecordData data, IIpcClient ipc, TrayViewModel trayVm, ILogger logger)
+    /// <summary>Initialises from a conflict record.</summary>
+    public ConflictViewModel(Guid contextId, ConflictRecord data, ISyncContextManager syncManager, TrayViewModel trayVm, ILogger logger)
     {
-        _ipc = ipc;
+        _syncManager = syncManager;
         _trayVm = trayVm;
         _logger = logger;
 
         Id = data.Id;
-        ContextId = data.ContextId;
-        OriginalPath = data.OriginalPath ?? string.Empty;
-        ConflictCopyPath = data.ConflictCopyPath ?? string.Empty;
+        ContextId = contextId;
+        OriginalPath = data.OriginalPath;
+        ConflictCopyPath = data.ConflictCopyPath;
         LocalModifiedAt = data.LocalModifiedAt;
         RemoteModifiedAt = data.RemoteModifiedAt;
         DetectedAt = data.DetectedAt;
         AutoResolved = data.AutoResolved;
-        IsResolved = data.IsResolved;
+        IsResolved = data.ResolvedAt.HasValue;
         ResolutionLabel = data.Resolution;
 
         KeepLocalCommand = new AsyncRelayCommand(
@@ -163,7 +164,7 @@ public sealed class ConflictViewModel : ViewModelBase
     {
         try
         {
-            await _ipc.ResolveConflictAsync(ContextId, Id, resolution);
+            await _syncManager.ResolveConflictAsync(ContextId, Id, resolution);
             ResolutionLabel = resolution;
             IsResolved = true;
             _trayVm.OnConflictResolved();

@@ -1,6 +1,6 @@
 using System.Collections.ObjectModel;
 using DotNetCloud.Client.Core;
-using DotNetCloud.Client.SyncTray.Ipc;
+using DotNetCloud.Client.Core.Sync;
 using DotNetCloud.Client.SyncTray.Notifications;
 using Microsoft.Extensions.Logging;
 
@@ -13,7 +13,7 @@ namespace DotNetCloud.Client.SyncTray.ViewModels;
 /// </summary>
 public sealed class TrayViewModel : ViewModelBase
 {
-    private readonly IIpcClient _ipc;
+    private readonly ISyncContextManager _syncManager;
     private readonly IChatSignalRClient _chatSignalRClient;
     private readonly INotificationService _notifications;
     private readonly ILogger<TrayViewModel> _logger;
@@ -134,25 +134,24 @@ public sealed class TrayViewModel : ViewModelBase
 
     /// <summary>Initializes a new <see cref="TrayViewModel"/>.</summary>
     public TrayViewModel(
-        IIpcClient ipc,
+        ISyncContextManager syncManager,
         IChatSignalRClient chatSignalRClient,
         INotificationService notifications,
         ILogger<TrayViewModel> logger)
     {
-        _ipc = ipc;
+        _syncManager = syncManager;
         _chatSignalRClient = chatSignalRClient;
         _notifications = notifications;
         _logger = logger;
         _notifications.OnNotificationActivated = OnNotificationActivated;
 
-        _ipc.ConnectionStateChanged += OnConnectionStateChanged;
-        _ipc.SyncProgressReceived += OnSyncProgress;
-        _ipc.SyncCompleteReceived += OnSyncComplete;
-        _ipc.SyncErrorReceived += OnSyncError;
-        _ipc.ConflictDetected += OnConflictDetected;
-        _ipc.ConflictAutoResolved += OnConflictAutoResolved;
-        _ipc.TransferProgressReceived += OnTransferProgress;
-        _ipc.TransferCompleteReceived += OnTransferComplete;
+        _syncManager.SyncProgress += OnSyncProgress;
+        _syncManager.SyncComplete += OnSyncComplete;
+        _syncManager.SyncError += OnSyncError;
+        _syncManager.ConflictDetected += OnConflictDetected;
+        _syncManager.ConflictAutoResolved += OnConflictAutoResolved;
+        _syncManager.TransferProgress += OnTransferProgress;
+        _syncManager.TransferComplete += OnTransferComplete;
         _chatSignalRClient.OnUnreadCountUpdated += OnUnreadCountUpdated;
         _chatSignalRClient.OnNewChatMessage += OnNewChatMessage;
 
@@ -178,18 +177,34 @@ public sealed class TrayViewModel : ViewModelBase
 
     // ── Commands (called from TrayIconManager / menu) ─────────────────────
 
-    /// <summary>Refreshes account list from the IPC service.</summary>
+    /// <summary>Refreshes account list from the sync context manager.</summary>
     public async Task RefreshAccountsAsync()
     {
         try
         {
-            var contexts = await _ipc.ListContextsAsync();
-            _logger.LogInformation("RefreshAccounts: received {Count} context(s) from SyncService.", contexts.Count);
+            var contexts = await _syncManager.GetContextsAsync();
+            _logger.LogInformation("RefreshAccounts: received {Count} context(s).", contexts.Count);
             UpdateAccounts(contexts);
+
+            // Populate live status for each context.
+            foreach (var ctx in contexts)
+            {
+                var status = await _syncManager.GetStatusAsync(ctx.Id);
+                if (status is not null && _accounts.TryGetValue(ctx.Id, out var vm))
+                {
+                    vm.State = status.State.ToString();
+                    vm.PendingUploads = status.PendingUploads;
+                    vm.PendingDownloads = status.PendingDownloads;
+                    vm.LastSyncedAt = status.LastSyncedAt;
+                    vm.LastError = status.LastError;
+                }
+            }
+
+            UpdateAggregateState();
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to refresh accounts from SyncService.");
+            _logger.LogWarning(ex, "Failed to refresh accounts.");
         }
     }
 
@@ -200,7 +215,7 @@ public sealed class TrayViewModel : ViewModelBase
         {
             try
             {
-                await _ipc.SyncNowAsync(account.ContextId);
+                await _syncManager.SyncNowAsync(account.ContextId);
             }
             catch (Exception ex)
             {
@@ -210,7 +225,7 @@ public sealed class TrayViewModel : ViewModelBase
     }
 
     /// <summary>Triggers an immediate sync for a specific context.</summary>
-    public Task SyncNowAsync(Guid contextId) => _ipc.SyncNowAsync(contextId);
+    public Task SyncNowAsync(Guid contextId) => _syncManager.SyncNowAsync(contextId);
 
     /// <summary>Pauses sync for all accounts.</summary>
     public async Task PauseAllAsync()
@@ -219,7 +234,7 @@ public sealed class TrayViewModel : ViewModelBase
         {
             try
             {
-                await _ipc.PauseAsync(account.ContextId);
+                await _syncManager.PauseAsync(account.ContextId);
                 account.State = "Paused";
             }
             catch (Exception ex)
@@ -238,7 +253,7 @@ public sealed class TrayViewModel : ViewModelBase
         {
             try
             {
-                await _ipc.ResumeAsync(account.ContextId);
+                await _syncManager.ResumeAsync(account.ContextId);
                 account.State = "Idle";
             }
             catch (Exception ex)
@@ -255,7 +270,7 @@ public sealed class TrayViewModel : ViewModelBase
     {
         try
         {
-            await _ipc.RemoveAccountAsync(contextId);
+            await _syncManager.RemoveContextAsync(contextId);
             if (_accounts.Remove(contextId, out var vm))
             {
                 _accountList.Remove(vm);
@@ -287,67 +302,48 @@ public sealed class TrayViewModel : ViewModelBase
         }
     }
 
-    // ── IPC event handlers ────────────────────────────────────────────────
-    // NOTE: These handlers run on the thread that raises the event (IPC reader
+    // ── Sync event handlers ─────────────────────────────────────────────
+    // NOTE: These handlers run on the thread that raises the event (sync engine
     // thread or test thread).  Avalonia's property-binding infrastructure handles
     // cross-thread marshal automatically, so no manual Dispatcher.UIThread.Post
     // is required.
 
-    private void OnConnectionStateChanged(object? sender, bool connected)
-    {
-        if (!connected)
-        {
-            _accounts.Clear();
-            _accountList.Clear();
-            OverallState = TrayState.Offline;
-            Tooltip = "DotNetCloud Sync \u2014 service not running";
-            OnPropertyChanged(nameof(Accounts));
-            return;
-        }
-
-        // Connected — refresh accounts from the service (fire and forget; errors are logged).
-        _ = Task.Run(async () =>
-        {
-            await RefreshAccountsAsync();
-            UpdateAggregateState();
-        });
-    }
-
-    private void OnSyncProgress(object? sender, SyncProgressEventData e)
+    private void OnSyncProgress(object? sender, SyncProgressEventArgs e)
     {
         if (_accounts.TryGetValue(e.ContextId, out var vm))
         {
-            if (e.State == "Syncing" && vm.State != "Syncing")
+            var stateStr = e.Status.State.ToString();
+            if (stateStr == "Syncing" && vm.State != "Syncing")
             {
                 // New sync cycle starting — reset per-cycle aggregation.
                 _cycleErrors.Remove(e.ContextId);
                 _cycleTransfers.Remove(e.ContextId);
             }
 
-            vm.State = e.State;
-            vm.PendingUploads = e.PendingUploads;
-            vm.PendingDownloads = e.PendingDownloads;
+            vm.State = stateStr;
+            vm.PendingUploads = e.Status.PendingUploads;
+            vm.PendingDownloads = e.Status.PendingDownloads;
         }
 
         UpdateAggregateState();
     }
 
-    private void OnSyncComplete(object? sender, SyncCompleteEventData e)
+    private void OnSyncComplete(object? sender, SyncCompleteEventArgs e)
     {
         string? displayName = null;
         if (_accounts.TryGetValue(e.ContextId, out var vm))
         {
             displayName = vm.DisplayName;
             vm.State = "Idle";
-            vm.LastSyncedAt = e.LastSyncedAt;
+            vm.LastSyncedAt = e.Status.LastSyncedAt;
             vm.PendingUploads = 0;
             vm.PendingDownloads = 0;
 
-            if (e.Conflicts > 0)
+            if (e.Status.Conflicts > 0)
             {
                 _notifications.ShowNotification(
                     "Sync conflict detected",
-                    $"{e.Conflicts} conflict(s) in {displayName}. Conflict copies have been created.",
+                    $"{e.Status.Conflicts} conflict(s) in {displayName}. Conflict copies have been created.",
                     NotificationType.Warning);
             }
         }
@@ -385,23 +381,23 @@ public sealed class TrayViewModel : ViewModelBase
         UpdateAggregateState();
     }
 
-    private void OnSyncError(object? sender, SyncErrorEventData e)
+    private void OnSyncError(object? sender, SyncErrorEventArgs e)
     {
         if (_accounts.TryGetValue(e.ContextId, out var vm))
         {
             vm.State = "Error";
-            vm.LastError = e.Error;
+            vm.LastError = e.ErrorMessage;
 
             // Accumulate errors — the consolidated toast is emitted at cycle completion.
             if (!_cycleErrors.TryGetValue(e.ContextId, out var errors))
                 _cycleErrors[e.ContextId] = errors = [];
-            errors.Add(e.Error);
+            errors.Add(e.ErrorMessage);
         }
 
         UpdateAggregateState();
     }
 
-    private void OnConflictDetected(object? sender, SyncConflictEventData e)
+    private void OnConflictDetected(object? sender, SyncConflictDetectedEventArgs e)
     {
         var fileName = Path.GetFileName(e.OriginalPath);
         ConflictCount++;
@@ -413,9 +409,9 @@ public sealed class TrayViewModel : ViewModelBase
             NotificationType.Warning);
     }
 
-    private void OnConflictAutoResolved(object? sender, ConflictAutoResolvedEventData e)
+    private void OnConflictAutoResolved(object? sender, SyncConflictAutoResolvedEventArgs e)
     {
-        var fileName = Path.GetFileName(e.LocalPath ?? string.Empty);
+        var fileName = Path.GetFileName(e.LocalPath);
         _notifications.ShowNotification(
             "Conflict auto-resolved",
             $"\"{fileName}\" was automatically resolved ({e.Resolution ?? e.Strategy ?? "no details"}).",
@@ -586,7 +582,7 @@ public sealed class TrayViewModel : ViewModelBase
             NotificationType.Warning);
     }
 
-    private void OnTransferProgress(object? sender, TransferProgressEventData e)
+    private void OnTransferProgress(object? sender, ContextTransferProgressEventArgs e)
     {
         var key = $"{e.ContextId}:{e.FileName}:{e.Direction}";
 
@@ -597,10 +593,10 @@ public sealed class TrayViewModel : ViewModelBase
             _activeTransfers.Add(vm);
         }
 
-        vm.Update(e.BytesTransferred, e.TotalBytes, e.ChunksCompleted, e.ChunksTotal, e.PercentComplete);
+        vm.Update(e.BytesTransferred, e.TotalBytes, e.ChunksTransferred, e.TotalChunks, e.PercentComplete);
     }
 
-    private void OnTransferComplete(object? sender, TransferCompleteEventData e)
+    private void OnTransferComplete(object? sender, ContextTransferCompleteEventArgs e)
     {
         var key = $"{e.ContextId}:{e.FileName}:{e.Direction}";
 
@@ -632,18 +628,14 @@ public sealed class TrayViewModel : ViewModelBase
 
     // ── Aggregate state computation ───────────────────────────────────────
 
-    private void UpdateAccounts(IReadOnlyList<DotNetCloud.Client.SyncService.Ipc.ContextInfo> contexts)
+    private void UpdateAccounts(IReadOnlyList<SyncContextRegistration> contexts)
     {
         var seen = new HashSet<Guid>();
 
         foreach (var ctx in contexts)
         {
             seen.Add(ctx.Id);
-            if (_accounts.TryGetValue(ctx.Id, out var vm))
-            {
-                vm.UpdateFrom(ctx);
-            }
-            else
+            if (!_accounts.ContainsKey(ctx.Id))
             {
                 var newVm = new AccountViewModel(ctx);
                 _accounts[ctx.Id] = newVm;
@@ -665,13 +657,10 @@ public sealed class TrayViewModel : ViewModelBase
 
     private void UpdateAggregateState()
     {
-        if (!_ipc.IsConnected || _accountList.Count == 0)
+        if (_accountList.Count == 0)
         {
             OverallState = TrayState.Offline;
-            var offlineTooltip = _ipc.IsConnected
-                ? "DotNetCloud Sync \u2014 no accounts configured"
-                : "DotNetCloud Sync \u2014 service not running";
-            Tooltip = AppendChatSummary(offlineTooltip);
+            Tooltip = AppendChatSummary("DotNetCloud Sync \u2014 no accounts configured");
             IsSyncing = false;
             IsPaused = false;
             return;

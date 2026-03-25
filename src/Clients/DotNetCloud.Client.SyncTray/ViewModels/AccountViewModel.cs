@@ -1,4 +1,4 @@
-using DotNetCloud.Client.SyncService.Ipc;
+using DotNetCloud.Client.Core.Sync;
 
 namespace DotNetCloud.Client.SyncTray.ViewModels;
 
@@ -61,27 +61,13 @@ public sealed class AccountViewModel : ViewModelBase
         set => SetProperty(ref _lastError, value);
     }
 
-    /// <summary>Initializes a new <see cref="AccountViewModel"/> from a <see cref="ContextInfo"/>.</summary>
-    public AccountViewModel(ContextInfo info)
+    /// <summary>Initializes a new <see cref="AccountViewModel"/> from a <see cref="SyncContextRegistration"/>.</summary>
+    public AccountViewModel(SyncContextRegistration registration)
     {
-        ContextId = info.Id;
-        DisplayName = info.DisplayName;
-        ServerBaseUrl = info.ServerBaseUrl;
-        LocalFolderPath = info.LocalFolderPath;
-        _state = info.State;
-        _pendingUploads = info.PendingUploads;
-        _pendingDownloads = info.PendingDownloads;
-        _lastSyncedAt = info.LastSyncedAt;
-        _lastError = info.LastError;
-    }
-
-    /// <summary>Updates mutable fields from refreshed <see cref="ContextInfo"/> data.</summary>
-    public void UpdateFrom(ContextInfo info)
-    {
-        State = info.State;
-        PendingUploads = info.PendingUploads;
-        PendingDownloads = info.PendingDownloads;
-        LastSyncedAt = info.LastSyncedAt;
-        LastError = info.LastError;
+        ContextId = registration.Id;
+        DisplayName = registration.DisplayName;
+        ServerBaseUrl = registration.ServerBaseUrl;
+        LocalFolderPath = registration.LocalFolderPath;
+        _state = "Idle";
     }
 }
