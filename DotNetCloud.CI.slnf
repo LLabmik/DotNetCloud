@@ -4,7 +4,6 @@
     "projects": [
       "src\\CLI\\DotNetCloud.CLI\\DotNetCloud.CLI.csproj",
       "src\\Clients\\DotNetCloud.Client.Core\\DotNetCloud.Client.Core.csproj",
-      "src\\Clients\\DotNetCloud.Client.SyncService\\DotNetCloud.Client.SyncService.csproj",
       "src\\Clients\\DotNetCloud.Client.SyncTray\\DotNetCloud.Client.SyncTray.csproj",
       "src\\Core\\DotNetCloud.Core\\DotNetCloud.Core.csproj",
       "src\\Core\\DotNetCloud.Core.Auth\\DotNetCloud.Core.Auth.csproj",
@@ -39,7 +38,6 @@
       "src\\UI\\DotNetCloud.UI.Web.Client\\DotNetCloud.UI.Web.Client.csproj",
       "tests\\DotNetCloud.CLI.Tests\\DotNetCloud.CLI.Tests.csproj",
       "tests\\DotNetCloud.Client.Core.Tests\\DotNetCloud.Client.Core.Tests.csproj",
-      "tests\\DotNetCloud.Client.SyncService.Tests\\DotNetCloud.Client.SyncService.Tests.csproj",
       "tests\\DotNetCloud.Client.SyncTray.Tests\\DotNetCloud.Client.SyncTray.Tests.csproj",
       "tests\\DotNetCloud.Core.Auth.Tests\\DotNetCloud.Core.Auth.Tests.csproj",
       "tests\\DotNetCloud.Core.Data.Tests\\DotNetCloud.Core.Data.Tests.csproj",

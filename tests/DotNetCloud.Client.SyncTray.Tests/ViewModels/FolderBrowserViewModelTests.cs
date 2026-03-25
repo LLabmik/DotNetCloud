@@ -1,7 +1,6 @@
 using DotNetCloud.Client.Core.Api;
 using DotNetCloud.Client.Core.SelectiveSync;
-using DotNetCloud.Client.SyncService.Ipc;
-using DotNetCloud.Client.SyncTray.Ipc;
+using DotNetCloud.Client.Core.Sync;
 using DotNetCloud.Client.SyncTray.ViewModels;
 using Moq;
 
@@ -18,12 +17,12 @@ public sealed class FolderBrowserViewModelTests
         // Arrange: two-level tree.
         var tree = BuildTestTree();
 
-        var ipc = new Mock<IIpcClient>();
-        ipc.Setup(x => x.GetFolderTreeAsync(_contextId, It.IsAny<CancellationToken>()))
+        var syncMock = new Mock<ISyncContextManager>();
+        syncMock.Setup(x => x.GetFolderTreeAsync(_contextId, It.IsAny<CancellationToken>()))
            .ReturnsAsync(tree);
 
         var selectiveSync = new SelectiveSyncConfig();
-        var vm = new FolderBrowserViewModel(ipc.Object, _contextId, selectiveSync, "test-config.json");
+        var vm = new FolderBrowserViewModel(syncMock.Object, _contextId, selectiveSync, "test-config.json");
 
         // Act
         await vm.LoadTreeAsync();
@@ -44,12 +43,12 @@ public sealed class FolderBrowserViewModelTests
     {
         // Arrange
         var tree = BuildTestTree();
-        var ipc = new Mock<IIpcClient>();
-        ipc.Setup(x => x.GetFolderTreeAsync(_contextId, It.IsAny<CancellationToken>()))
+        var syncMock = new Mock<ISyncContextManager>();
+        syncMock.Setup(x => x.GetFolderTreeAsync(_contextId, It.IsAny<CancellationToken>()))
            .ReturnsAsync(tree);
 
         var selectiveSync = new SelectiveSyncConfig();
-        var vm = new FolderBrowserViewModel(ipc.Object, _contextId, selectiveSync, "test-config.json");
+        var vm = new FolderBrowserViewModel(syncMock.Object, _contextId, selectiveSync, "test-config.json");
         await vm.LoadTreeAsync();
 
         // Verify placeholder before expand.
@@ -94,15 +93,15 @@ public sealed class FolderBrowserViewModelTests
             ],
         };
 
-        var ipc = new Mock<IIpcClient>();
-        ipc.Setup(x => x.GetFolderTreeAsync(_contextId, It.IsAny<CancellationToken>()))
+        var syncMock = new Mock<ISyncContextManager>();
+        syncMock.Setup(x => x.GetFolderTreeAsync(_contextId, It.IsAny<CancellationToken>()))
            .ReturnsAsync(tree);
 
         var selectiveSync = new SelectiveSyncConfig();
         var tempFile = Path.GetTempFileName();
         try
         {
-            var vm = new FolderBrowserViewModel(ipc.Object, _contextId, selectiveSync, tempFile);
+            var vm = new FolderBrowserViewModel(syncMock.Object, _contextId, selectiveSync, tempFile);
             await vm.LoadTreeAsync();
 
             // Act: uncheck "Trash"
@@ -147,8 +146,8 @@ public sealed class FolderBrowserViewModelTests
             ],
         };
 
-        var ipc = new Mock<IIpcClient>();
-        ipc.Setup(x => x.GetFolderTreeAsync(_contextId, It.IsAny<CancellationToken>()))
+        var syncMock = new Mock<ISyncContextManager>();
+        syncMock.Setup(x => x.GetFolderTreeAsync(_contextId, It.IsAny<CancellationToken>()))
            .ReturnsAsync(tree);
 
         var selectiveSync = new SelectiveSyncConfig();
@@ -162,7 +161,7 @@ public sealed class FolderBrowserViewModelTests
             Directory.CreateDirectory(removeDir);
             File.WriteAllText(Path.Combine(removeDir, "file.txt"), "test");
 
-            var vm = new FolderBrowserViewModel(ipc.Object, _contextId, selectiveSync, tempConfigFile)
+            var vm = new FolderBrowserViewModel(syncMock.Object, _contextId, selectiveSync, tempConfigFile)
             {
                 LocalSyncRoot = tempSyncRoot,
                 ConfirmDeletionAsync = _ => Task.FromResult(true), // Auto-confirm.
@@ -205,8 +204,8 @@ public sealed class FolderBrowserViewModelTests
             ],
         };
 
-        var ipc = new Mock<IIpcClient>();
-        ipc.Setup(x => x.GetFolderTreeAsync(_contextId, It.IsAny<CancellationToken>()))
+        var syncMock = new Mock<ISyncContextManager>();
+        syncMock.Setup(x => x.GetFolderTreeAsync(_contextId, It.IsAny<CancellationToken>()))
            .ReturnsAsync(tree);
 
         var selectiveSync = new SelectiveSyncConfig();
@@ -218,7 +217,7 @@ public sealed class FolderBrowserViewModelTests
         {
             Directory.CreateDirectory(protectedDir);
 
-            var vm = new FolderBrowserViewModel(ipc.Object, _contextId, selectiveSync, tempConfigFile)
+            var vm = new FolderBrowserViewModel(syncMock.Object, _contextId, selectiveSync, tempConfigFile)
             {
                 LocalSyncRoot = tempSyncRoot,
                 ConfirmDeletionAsync = _ => Task.FromResult(false), // Decline deletion.
@@ -260,12 +259,12 @@ public sealed class FolderBrowserViewModelTests
             ],
         };
 
-        var ipc = new Mock<IIpcClient>();
-        ipc.Setup(x => x.GetFolderTreeAsync(_contextId, It.IsAny<CancellationToken>()))
+        var syncMock = new Mock<ISyncContextManager>();
+        syncMock.Setup(x => x.GetFolderTreeAsync(_contextId, It.IsAny<CancellationToken>()))
            .ReturnsAsync(tree);
 
         var selectiveSync = new SelectiveSyncConfig();
-        var vm = new FolderBrowserViewModel(ipc.Object, _contextId, selectiveSync, "test-config.json");
+        var vm = new FolderBrowserViewModel(syncMock.Object, _contextId, selectiveSync, "test-config.json");
 
         await vm.LoadTreeAsync();
 

@@ -29,7 +29,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\DotNetCloud.Client.SyncService\DotNetCloud.Client.SyncService.csproj" />
     <ProjectReference Include="..\DotNetCloud.Client.Core\DotNetCloud.Client.Core.csproj" />
   </ItemGroup>
 

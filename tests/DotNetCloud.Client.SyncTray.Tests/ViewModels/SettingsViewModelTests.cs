@@ -1,8 +1,8 @@
 using DotNetCloud.Client.Core.Auth;
 using DotNetCloud.Client.Core;
 using DotNetCloud.Client.Core.SelectiveSync;
+using DotNetCloud.Client.Core.Sync;
 using DotNetCloud.Client.Core.SyncIgnore;
-using DotNetCloud.Client.SyncTray.Ipc;
 using DotNetCloud.Client.SyncTray.Notifications;
 using DotNetCloud.Client.SyncTray.Startup;
 using DotNetCloud.Client.SyncTray.ViewModels;
@@ -57,7 +57,7 @@ public sealed class SettingsViewModelTests
     [TestMethod]
     public async Task AddAccountAsync_ValidInputs_CallsOAuth2AndIpc()
     {
-        var (vm, ipcMock, oauth2Mock, _) = BuildVm();
+        var (vm, syncMock, oauth2Mock, _) = BuildVm();
 
         var tokenInfo = new TokenInfo
         {
@@ -74,12 +74,22 @@ public sealed class SettingsViewModelTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(tokenInfo);
 
-        ipcMock
-            .Setup(i => i.AddAccountAsync(It.IsAny<DotNetCloud.Client.SyncService.Ipc.AddAccountData>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+        syncMock
+            .Setup(i => i.AddContextAsync(It.IsAny<AddAccountRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SyncContextRegistration
+            {
+                Id = Guid.NewGuid(),
+                ServerBaseUrl = "https://cloud.example.com",
+                UserId = Guid.NewGuid(),
+                LocalFolderPath = "/tmp/sync",
+                DisplayName = "test",
+                AccountKey = "test-key",
+                OsUserName = "testuser",
+                DataDirectory = "/tmp/data",
+            });
 
-        ipcMock
-            .Setup(i => i.ListContextsAsync(It.IsAny<CancellationToken>()))
+        syncMock
+            .Setup(i => i.GetContextsAsync())
             .ReturnsAsync([]);
 
         await vm.AddAccountAsync("https://cloud.example.com", "/tmp/sync");
@@ -88,27 +98,34 @@ public sealed class SettingsViewModelTests
         oauth2Mock.Verify(
             o => o.AuthorizeAsync("https://cloud.example.com", It.IsAny<string>(), It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()),
             Times.Once);
-        ipcMock.Verify(i => i.AddAccountAsync(It.IsAny<DotNetCloud.Client.SyncService.Ipc.AddAccountData>(), It.IsAny<CancellationToken>()), Times.Once);
+        syncMock.Verify(i => i.AddContextAsync(It.IsAny<AddAccountRequest>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [TestMethod]
     public async Task AddAccountAsync_ExistingAccount_SetsErrorAndSkipsAddFlow()
     {
-        var (vm, ipcMock, oauth2Mock, _) = BuildVm();
+        var (vm, syncMock, oauth2Mock, _) = BuildVm();
 
         var existingContextId = Guid.NewGuid();
-        ipcMock
-            .Setup(i => i.ListContextsAsync(It.IsAny<CancellationToken>()))
+        syncMock
+            .Setup(i => i.GetContextsAsync())
             .ReturnsAsync([
-                new DotNetCloud.Client.SyncService.Ipc.ContextInfo
+                new SyncContextRegistration
                 {
                     Id = existingContextId,
                     DisplayName = "test@example.com @ cloud.example.com",
                     ServerBaseUrl = "https://cloud.example.com",
                     LocalFolderPath = "/tmp/existing-sync",
-                    State = "Idle",
+                    UserId = Guid.NewGuid(),
+                    AccountKey = "existing-key",
+                    OsUserName = "testuser",
+                    DataDirectory = "/tmp/data",
                 }
             ]);
+
+        syncMock
+            .Setup(i => i.GetStatusAsync(existingContextId))
+            .ReturnsAsync(new SyncStatus { State = SyncState.Idle });
 
         await vm.TrayVm.RefreshAccountsAsync();
         Assert.IsTrue(vm.HasAccount);
@@ -119,8 +136,8 @@ public sealed class SettingsViewModelTests
         oauth2Mock.Verify(
             o => o.AuthorizeAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IEnumerable<string>>(), It.IsAny<CancellationToken>()),
             Times.Never);
-        ipcMock.Verify(
-            i => i.AddAccountAsync(It.IsAny<DotNetCloud.Client.SyncService.Ipc.AddAccountData>(), It.IsAny<CancellationToken>()),
+        syncMock.Verify(
+            i => i.AddContextAsync(It.IsAny<AddAccountRequest>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -163,16 +180,16 @@ public sealed class SettingsViewModelTests
     [TestMethod]
     public async Task RemoveAccountAsync_DelegatesToTrayViewModel()
     {
-        var (vm, ipcMock, _, _) = BuildVm();
+        var (vm, syncMock, _, _) = BuildVm();
         var contextId = Guid.NewGuid();
 
-        ipcMock
-            .Setup(i => i.RemoveAccountAsync(contextId, It.IsAny<CancellationToken>()))
+        syncMock
+            .Setup(i => i.RemoveContextAsync(contextId, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         await vm.RemoveAccountAsync(contextId);
 
-        ipcMock.Verify(i => i.RemoveAccountAsync(contextId, It.IsAny<CancellationToken>()), Times.Once);
+        syncMock.Verify(i => i.RemoveContextAsync(contextId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [TestMethod]
@@ -184,21 +201,21 @@ public sealed class SettingsViewModelTests
 
         try
         {
-            var ipcMock = new Mock<IIpcClient>();
-            ipcMock.SetupGet(i => i.IsConnected).Returns(false);
+            var syncMock = new Mock<ISyncContextManager>();
+            syncMock.Setup(s => s.GetContextsAsync()).ReturnsAsync(new List<SyncContextRegistration>());
 
             var chatMock = new Mock<IChatSignalRClient>();
             chatMock.Setup(c => c.ConnectAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
             var notifMock = new Mock<INotificationService>();
-            var trayVm = new TrayViewModel(ipcMock.Object, chatMock.Object, notifMock.Object, NullLogger<TrayViewModel>.Instance);
+            var trayVm = new TrayViewModel(syncMock.Object, chatMock.Object, notifMock.Object, NullLogger<TrayViewModel>.Instance);
             var oauth2Mock = new Mock<IOAuth2Service>();
             var startupManager = new Mock<IDesktopStartupManager>();
             startupManager.Setup(m => m.TryApplyStartOnLogin(It.IsAny<bool>())).Returns(true);
 
             var vm1 = new SettingsViewModel(
                 trayVm,
-                ipcMock.Object,
+                syncMock.Object,
                 oauth2Mock.Object,
                 new Mock<ISyncIgnoreParser>().Object,
                 new Mock<ISelectiveSyncConfig>().Object,
@@ -211,7 +228,7 @@ public sealed class SettingsViewModelTests
 
             var vm2 = new SettingsViewModel(
                 trayVm,
-                ipcMock.Object,
+                syncMock.Object,
                 oauth2Mock.Object,
                 new Mock<ISyncIgnoreParser>().Object,
                 new Mock<ISelectiveSyncConfig>().Object,
@@ -241,14 +258,14 @@ public sealed class SettingsViewModelTests
 
         try
         {
-            var ipcMock = new Mock<IIpcClient>();
-            ipcMock.SetupGet(i => i.IsConnected).Returns(false);
+            var syncMock = new Mock<ISyncContextManager>();
+            syncMock.Setup(s => s.GetContextsAsync()).ReturnsAsync(new List<SyncContextRegistration>());
 
             var chatMock = new Mock<IChatSignalRClient>();
             chatMock.Setup(c => c.ConnectAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
             var notifMock = new Mock<INotificationService>();
-            var trayVm = new TrayViewModel(ipcMock.Object, chatMock.Object, notifMock.Object, NullLogger<TrayViewModel>.Instance);
+            var trayVm = new TrayViewModel(syncMock.Object, chatMock.Object, notifMock.Object, NullLogger<TrayViewModel>.Instance);
             var startupManager = new DesktopStartupManager(
                 NullLogger<DesktopStartupManager>.Instance,
                 trayExecutablePathProvider: () => trayExecutablePath,
@@ -257,7 +274,7 @@ public sealed class SettingsViewModelTests
 
             var vm1 = new SettingsViewModel(
                 trayVm,
-                ipcMock.Object,
+                syncMock.Object,
                 new Mock<IOAuth2Service>().Object,
                 new Mock<ISyncIgnoreParser>().Object,
                 new Mock<ISelectiveSyncConfig>().Object,
@@ -277,7 +294,7 @@ public sealed class SettingsViewModelTests
 
             var vm2 = new SettingsViewModel(
                 trayVm,
-                ipcMock.Object,
+                syncMock.Object,
                 new Mock<IOAuth2Service>().Object,
                 new Mock<ISyncIgnoreParser>().Object,
                 new Mock<ISelectiveSyncConfig>().Object,
@@ -307,14 +324,14 @@ public sealed class SettingsViewModelTests
 
         try
         {
-            var ipcMock = new Mock<IIpcClient>();
-            ipcMock.SetupGet(i => i.IsConnected).Returns(false);
+            var syncMock = new Mock<ISyncContextManager>();
+            syncMock.Setup(s => s.GetContextsAsync()).ReturnsAsync(new List<SyncContextRegistration>());
 
             var chatMock = new Mock<IChatSignalRClient>();
             chatMock.Setup(c => c.ConnectAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
             var notifMock = new Mock<INotificationService>();
-            var trayVm = new TrayViewModel(ipcMock.Object, chatMock.Object, notifMock.Object, NullLogger<TrayViewModel>.Instance);
+            var trayVm = new TrayViewModel(syncMock.Object, chatMock.Object, notifMock.Object, NullLogger<TrayViewModel>.Instance);
             var startupManager = new DesktopStartupManager(
                 NullLogger<DesktopStartupManager>.Instance,
                 trayExecutablePathProvider: () => trayExecutablePath,
@@ -323,7 +340,7 @@ public sealed class SettingsViewModelTests
 
             var vm1 = new SettingsViewModel(
                 trayVm,
-                ipcMock.Object,
+                syncMock.Object,
                 new Mock<IOAuth2Service>().Object,
                 new Mock<ISyncIgnoreParser>().Object,
                 new Mock<ISelectiveSyncConfig>().Object,
@@ -344,7 +361,7 @@ public sealed class SettingsViewModelTests
 
             var vm2 = new SettingsViewModel(
                 trayVm,
-                ipcMock.Object,
+                syncMock.Object,
                 new Mock<IOAuth2Service>().Object,
                 new Mock<ISyncIgnoreParser>().Object,
                 new Mock<ISelectiveSyncConfig>().Object,
@@ -399,35 +416,30 @@ public sealed class SettingsViewModelTests
 
     // ── Helpers ───────────────────────────────────────────────────────────
 
-    private static (SettingsViewModel vm, Mock<IIpcClient> ipcMock, Mock<IOAuth2Service> oauth2Mock, Mock<INotificationService> notifMock)
+    private static (SettingsViewModel vm, Mock<ISyncContextManager> syncMock, Mock<IOAuth2Service> oauth2Mock, Mock<INotificationService> notifMock)
         BuildVm()
     {
-        var ipcMock = new Mock<IIpcClient>();
-        ipcMock.SetupGet(i => i.IsConnected).Returns(false);
-        ipcMock.SetupAdd(i => i.SyncProgressReceived += It.IsAny<EventHandler<SyncProgressEventData>>());
-        ipcMock.SetupAdd(i => i.SyncCompleteReceived += It.IsAny<EventHandler<SyncCompleteEventData>>());
-        ipcMock.SetupAdd(i => i.SyncErrorReceived += It.IsAny<EventHandler<SyncErrorEventData>>());
-        ipcMock.SetupAdd(i => i.ConflictDetected += It.IsAny<EventHandler<SyncConflictEventData>>());
-        ipcMock.SetupAdd(i => i.ConnectionStateChanged += It.IsAny<EventHandler<bool>>());
+        var syncMock = new Mock<ISyncContextManager>();
+        syncMock.Setup(s => s.GetContextsAsync()).ReturnsAsync(new List<SyncContextRegistration>());
 
         var chatMock = new Mock<IChatSignalRClient>();
         chatMock.Setup(c => c.ConnectAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var notifMock = new Mock<INotificationService>();
-        var trayVm = new TrayViewModel(ipcMock.Object, chatMock.Object, notifMock.Object, NullLogger<TrayViewModel>.Instance);
+        var trayVm = new TrayViewModel(syncMock.Object, chatMock.Object, notifMock.Object, NullLogger<TrayViewModel>.Instance);
 
         var oauth2Mock = new Mock<IOAuth2Service>();
         var startupManager = new Mock<IDesktopStartupManager>();
         startupManager.Setup(m => m.TryApplyStartOnLogin(It.IsAny<bool>())).Returns(true);
 
         var settingsVm = new SettingsViewModel(
-            trayVm, ipcMock.Object, oauth2Mock.Object,
+            trayVm, syncMock.Object, oauth2Mock.Object,
             new Mock<ISyncIgnoreParser>().Object,
             new Mock<ISelectiveSyncConfig>().Object,
             startupManager.Object,
             NullLogger<SettingsViewModel>.Instance);
 
-        return (settingsVm, ipcMock, oauth2Mock, notifMock);
+        return (settingsVm, syncMock, oauth2Mock, notifMock);
     }
 
     /// <summary>

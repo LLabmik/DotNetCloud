@@ -1,6 +1,5 @@
-using DotNetCloud.Client.SyncService.Ipc;
 using DotNetCloud.Client.Core;
-using DotNetCloud.Client.SyncTray.Ipc;
+using DotNetCloud.Client.Core.Sync;
 using DotNetCloud.Client.SyncTray.Notifications;
 using DotNetCloud.Client.SyncTray.ViewModels;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -27,34 +26,21 @@ public sealed class TrayViewModelTests
         StringAssert.Contains(vm.Tooltip, "service not running");
     }
 
-    // ── ConnectionStateChanged ────────────────────────────────────────────
-
-    [TestMethod]
-    public void OnDisconnect_SetsOfflineState()
-    {
-        var (vm, ipcMock, _, _) = BuildVm();
-
-        // Simulate a disconnect.
-        ipcMock.Raise(i => i.ConnectionStateChanged += null, ipcMock.Object, false);
-
-        Assert.AreEqual(TrayState.Offline, vm.OverallState);
-    }
-
     // ── SyncProgress event ────────────────────────────────────────────────
 
     [TestMethod]
     public async Task OnSyncProgress_ForKnownContext_UpdatesAccountState()
     {
-        var (vm, ipcMock, _, _) = BuildVm();
+        var (vm, syncMock, _, _) = BuildVm();
         var contextId = Guid.NewGuid();
 
-        await SeedAccountAsync(vm, ipcMock, contextId, "Idle");
+        await SeedAccountAsync(vm, syncMock, contextId, "Idle");
 
         // Raise a sync-progress event.
-        ipcMock.Raise(
-            i => i.SyncProgressReceived += null,
-            ipcMock.Object,
-            new SyncProgressEventData { ContextId = contextId, State = "Syncing", PendingUploads = 2, PendingDownloads = 1 });
+        syncMock.Raise(
+            i => i.SyncProgress += null,
+            syncMock.Object,
+            new SyncProgressEventArgs { ContextId = contextId, Status = new SyncStatus { State = SyncState.Syncing, PendingUploads = 2, PendingDownloads = 1 } });
 
         var account = vm.Accounts.FirstOrDefault(a => a.ContextId == contextId);
         Assert.IsNotNull(account);
@@ -67,15 +53,15 @@ public sealed class TrayViewModelTests
     [TestMethod]
     public async Task OnSyncComplete_ResetsAccountToIdle()
     {
-        var (vm, ipcMock, _, _) = BuildVm();
+        var (vm, syncMock, _, _) = BuildVm();
         var contextId = Guid.NewGuid();
 
-        await SeedAccountAsync(vm, ipcMock, contextId, "Syncing");
+        await SeedAccountAsync(vm, syncMock, contextId, "Syncing");
 
-        ipcMock.Raise(
-            i => i.SyncCompleteReceived += null,
-            ipcMock.Object,
-            new SyncCompleteEventData { ContextId = contextId, LastSyncedAt = DateTime.UtcNow, Conflicts = 0 });
+        syncMock.Raise(
+            i => i.SyncComplete += null,
+            syncMock.Object,
+            new SyncCompleteEventArgs { ContextId = contextId, Status = new SyncStatus { LastSyncedAt = DateTime.UtcNow, Conflicts = 0 } });
 
         var account = vm.Accounts.FirstOrDefault(a => a.ContextId == contextId);
         Assert.AreEqual("Idle", account?.State);
@@ -84,15 +70,15 @@ public sealed class TrayViewModelTests
     [TestMethod]
     public async Task OnSyncComplete_WithConflicts_ShowsNotification()
     {
-        var (vm, ipcMock, _, notifMock) = BuildVm();
+        var (vm, syncMock, _, notifMock) = BuildVm();
         var contextId = Guid.NewGuid();
 
-        await SeedAccountAsync(vm, ipcMock, contextId, "Syncing");
+        await SeedAccountAsync(vm, syncMock, contextId, "Syncing");
 
-        ipcMock.Raise(
-            i => i.SyncCompleteReceived += null,
-            ipcMock.Object,
-            new SyncCompleteEventData { ContextId = contextId, Conflicts = 3, LastSyncedAt = DateTime.UtcNow });
+        syncMock.Raise(
+            i => i.SyncComplete += null,
+            syncMock.Object,
+            new SyncCompleteEventArgs { ContextId = contextId, Status = new SyncStatus { Conflicts = 3, LastSyncedAt = DateTime.UtcNow } });
 
         notifMock.Verify(
             n => n.ShowNotification(
@@ -110,15 +96,15 @@ public sealed class TrayViewModelTests
     [TestMethod]
     public async Task OnSyncError_SetsErrorState_AndBuffersError_NoImmediateToast()
     {
-        var (vm, ipcMock, _, notifMock) = BuildVm();
+        var (vm, syncMock, _, notifMock) = BuildVm();
         var contextId = Guid.NewGuid();
 
-        await SeedAccountAsync(vm, ipcMock, contextId, "Syncing");
+        await SeedAccountAsync(vm, syncMock, contextId, "Syncing");
 
-        ipcMock.Raise(
-            i => i.SyncErrorReceived += null,
-            ipcMock.Object,
-            new SyncErrorEventData { ContextId = contextId, Error = "Network timeout" });
+        syncMock.Raise(
+            i => i.SyncError += null,
+            syncMock.Object,
+            new SyncErrorEventArgs { ContextId = contextId, ErrorMessage = "Network timeout" });
 
         var account = vm.Accounts.FirstOrDefault(a => a.ContextId == contextId);
         Assert.AreEqual("Error", account?.State);
@@ -141,20 +127,20 @@ public sealed class TrayViewModelTests
     [TestMethod]
     public async Task OnSyncComplete_WithPriorError_ShowsSingleAggregatedErrorToast()
     {
-        var (vm, ipcMock, _, notifMock) = BuildVm();
+        var (vm, syncMock, _, notifMock) = BuildVm();
         var contextId = Guid.NewGuid();
 
-        await SeedAccountAsync(vm, ipcMock, contextId, "Syncing");
+        await SeedAccountAsync(vm, syncMock, contextId, "Syncing");
 
-        ipcMock.Raise(
-            i => i.SyncErrorReceived += null,
-            ipcMock.Object,
-            new SyncErrorEventData { ContextId = contextId, Error = "Network timeout" });
+        syncMock.Raise(
+            i => i.SyncError += null,
+            syncMock.Object,
+            new SyncErrorEventArgs { ContextId = contextId, ErrorMessage = "Network timeout" });
 
-        ipcMock.Raise(
-            i => i.SyncCompleteReceived += null,
-            ipcMock.Object,
-            new SyncCompleteEventData { ContextId = contextId, Conflicts = 0, LastSyncedAt = DateTime.UtcNow });
+        syncMock.Raise(
+            i => i.SyncComplete += null,
+            syncMock.Object,
+            new SyncCompleteEventArgs { ContextId = contextId, Status = new SyncStatus { Conflicts = 0, LastSyncedAt = DateTime.UtcNow } });
 
         notifMock.Verify(
             n => n.ShowNotification(
@@ -181,22 +167,22 @@ public sealed class TrayViewModelTests
     [TestMethod]
     public async Task OnSyncComplete_WithMultipleErrors_ShowsSingleToastWithSummary()
     {
-        var (vm, ipcMock, _, notifMock) = BuildVm();
+        var (vm, syncMock, _, notifMock) = BuildVm();
         var contextId = Guid.NewGuid();
 
-        await SeedAccountAsync(vm, ipcMock, contextId, "Syncing");
+        await SeedAccountAsync(vm, syncMock, contextId, "Syncing");
 
-        ipcMock.Raise(i => i.SyncErrorReceived += null, ipcMock.Object,
-            new SyncErrorEventData { ContextId = contextId, Error = "Error A" });
-        ipcMock.Raise(i => i.SyncErrorReceived += null, ipcMock.Object,
-            new SyncErrorEventData { ContextId = contextId, Error = "Error B" });
-        ipcMock.Raise(i => i.SyncErrorReceived += null, ipcMock.Object,
-            new SyncErrorEventData { ContextId = contextId, Error = "Error C" });
+        syncMock.Raise(i => i.SyncError += null, syncMock.Object,
+            new SyncErrorEventArgs { ContextId = contextId, ErrorMessage = "Error A" });
+        syncMock.Raise(i => i.SyncError += null, syncMock.Object,
+            new SyncErrorEventArgs { ContextId = contextId, ErrorMessage = "Error B" });
+        syncMock.Raise(i => i.SyncError += null, syncMock.Object,
+            new SyncErrorEventArgs { ContextId = contextId, ErrorMessage = "Error C" });
 
-        ipcMock.Raise(
-            i => i.SyncCompleteReceived += null,
-            ipcMock.Object,
-            new SyncCompleteEventData { ContextId = contextId, Conflicts = 0, LastSyncedAt = DateTime.UtcNow });
+        syncMock.Raise(
+            i => i.SyncComplete += null,
+            syncMock.Object,
+            new SyncCompleteEventArgs { ContextId = contextId, Status = new SyncStatus { Conflicts = 0, LastSyncedAt = DateTime.UtcNow } });
 
         // Exactly one error toast containing the count.
         notifMock.Verify(
@@ -213,23 +199,23 @@ public sealed class TrayViewModelTests
     [TestMethod]
     public async Task OnSyncComplete_WithTransfersNoErrors_ShowsSuccessToast()
     {
-        var (vm, ipcMock, _, notifMock) = BuildVm();
+        var (vm, syncMock, _, notifMock) = BuildVm();
         var contextId = Guid.NewGuid();
 
-        await SeedAccountAsync(vm, ipcMock, contextId, "Syncing");
+        await SeedAccountAsync(vm, syncMock, contextId, "Syncing");
 
         // Two uploads and one download.
-        ipcMock.Raise(i => i.TransferCompleteReceived += null, ipcMock.Object,
-            new TransferCompleteEventData { ContextId = contextId, FileName = "a.txt", Direction = "upload", TotalBytes = 100 });
-        ipcMock.Raise(i => i.TransferCompleteReceived += null, ipcMock.Object,
-            new TransferCompleteEventData { ContextId = contextId, FileName = "b.txt", Direction = "upload", TotalBytes = 200 });
-        ipcMock.Raise(i => i.TransferCompleteReceived += null, ipcMock.Object,
-            new TransferCompleteEventData { ContextId = contextId, FileName = "c.txt", Direction = "download", TotalBytes = 300 });
+        syncMock.Raise(i => i.TransferComplete += null, syncMock.Object,
+            new ContextTransferCompleteEventArgs { ContextId = contextId, FileName = "a.txt", Direction = "upload", TotalBytes = 100 });
+        syncMock.Raise(i => i.TransferComplete += null, syncMock.Object,
+            new ContextTransferCompleteEventArgs { ContextId = contextId, FileName = "b.txt", Direction = "upload", TotalBytes = 200 });
+        syncMock.Raise(i => i.TransferComplete += null, syncMock.Object,
+            new ContextTransferCompleteEventArgs { ContextId = contextId, FileName = "c.txt", Direction = "download", TotalBytes = 300 });
 
-        ipcMock.Raise(
-            i => i.SyncCompleteReceived += null,
-            ipcMock.Object,
-            new SyncCompleteEventData { ContextId = contextId, Conflicts = 0, LastSyncedAt = DateTime.UtcNow });
+        syncMock.Raise(
+            i => i.SyncComplete += null,
+            syncMock.Object,
+            new SyncCompleteEventArgs { ContextId = contextId, Status = new SyncStatus { Conflicts = 0, LastSyncedAt = DateTime.UtcNow } });
 
         notifMock.Verify(
             n => n.ShowNotification(
@@ -245,15 +231,15 @@ public sealed class TrayViewModelTests
     [TestMethod]
     public async Task OnSyncComplete_WithNoActivityNoErrors_ShowsNoToast()
     {
-        var (vm, ipcMock, _, notifMock) = BuildVm();
+        var (vm, syncMock, _, notifMock) = BuildVm();
         var contextId = Guid.NewGuid();
 
-        await SeedAccountAsync(vm, ipcMock, contextId, "Syncing");
+        await SeedAccountAsync(vm, syncMock, contextId, "Syncing");
 
-        ipcMock.Raise(
-            i => i.SyncCompleteReceived += null,
-            ipcMock.Object,
-            new SyncCompleteEventData { ContextId = contextId, Conflicts = 0, LastSyncedAt = DateTime.UtcNow });
+        syncMock.Raise(
+            i => i.SyncComplete += null,
+            syncMock.Object,
+            new SyncCompleteEventArgs { ContextId = contextId, Status = new SyncStatus { Conflicts = 0, LastSyncedAt = DateTime.UtcNow } });
 
         // Nothing synced, nothing failed — no toast.
         notifMock.Verify(
@@ -270,20 +256,20 @@ public sealed class TrayViewModelTests
     [TestMethod]
     public async Task OnSyncComplete_MixedSuccessAndErrors_ShowsOnlyErrorToast()
     {
-        var (vm, ipcMock, _, notifMock) = BuildVm();
+        var (vm, syncMock, _, notifMock) = BuildVm();
         var contextId = Guid.NewGuid();
 
-        await SeedAccountAsync(vm, ipcMock, contextId, "Syncing");
+        await SeedAccountAsync(vm, syncMock, contextId, "Syncing");
 
-        ipcMock.Raise(i => i.TransferCompleteReceived += null, ipcMock.Object,
-            new TransferCompleteEventData { ContextId = contextId, FileName = "ok.txt", Direction = "upload", TotalBytes = 100 });
-        ipcMock.Raise(i => i.SyncErrorReceived += null, ipcMock.Object,
-            new SyncErrorEventData { ContextId = contextId, Error = "Upload failed: permission denied" });
+        syncMock.Raise(i => i.TransferComplete += null, syncMock.Object,
+            new ContextTransferCompleteEventArgs { ContextId = contextId, FileName = "ok.txt", Direction = "upload", TotalBytes = 100 });
+        syncMock.Raise(i => i.SyncError += null, syncMock.Object,
+            new SyncErrorEventArgs { ContextId = contextId, ErrorMessage = "Upload failed: permission denied" });
 
-        ipcMock.Raise(
-            i => i.SyncCompleteReceived += null,
-            ipcMock.Object,
-            new SyncCompleteEventData { ContextId = contextId, Conflicts = 0, LastSyncedAt = DateTime.UtcNow });
+        syncMock.Raise(
+            i => i.SyncComplete += null,
+            syncMock.Object,
+            new SyncCompleteEventArgs { ContextId = contextId, Status = new SyncStatus { Conflicts = 0, LastSyncedAt = DateTime.UtcNow } });
 
         notifMock.Verify(
             n => n.ShowNotification(
@@ -309,28 +295,28 @@ public sealed class TrayViewModelTests
     [TestMethod]
     public async Task NewSyncCycle_ResetsPriorCycleErrors()
     {
-        var (vm, ipcMock, _, notifMock) = BuildVm();
+        var (vm, syncMock, _, notifMock) = BuildVm();
         var contextId = Guid.NewGuid();
 
-        await SeedAccountAsync(vm, ipcMock, contextId, "Idle");
+        await SeedAccountAsync(vm, syncMock, contextId, "Idle");
 
         // First cycle: triggers an error.
-        ipcMock.Raise(i => i.SyncProgressReceived += null, ipcMock.Object,
-            new SyncProgressEventData { ContextId = contextId, State = "Syncing" });
-        ipcMock.Raise(i => i.SyncErrorReceived += null, ipcMock.Object,
-            new SyncErrorEventData { ContextId = contextId, Error = "Old error" });
+        syncMock.Raise(i => i.SyncProgress += null, syncMock.Object,
+            new SyncProgressEventArgs { ContextId = contextId, Status = new SyncStatus { State = SyncState.Syncing } });
+        syncMock.Raise(i => i.SyncError += null, syncMock.Object,
+            new SyncErrorEventArgs { ContextId = contextId, ErrorMessage = "Old error" });
 
         // Second cycle starts — should clear the pending error.
-        ipcMock.Raise(i => i.SyncProgressReceived += null, ipcMock.Object,
-            new SyncProgressEventData { ContextId = contextId, State = "Idle" });
-        ipcMock.Raise(i => i.SyncProgressReceived += null, ipcMock.Object,
-            new SyncProgressEventData { ContextId = contextId, State = "Syncing" });
+        syncMock.Raise(i => i.SyncProgress += null, syncMock.Object,
+            new SyncProgressEventArgs { ContextId = contextId, Status = new SyncStatus { State = SyncState.Idle } });
+        syncMock.Raise(i => i.SyncProgress += null, syncMock.Object,
+            new SyncProgressEventArgs { ContextId = contextId, Status = new SyncStatus { State = SyncState.Syncing } });
 
         // Cycle completes with no new errors and no transfers.
-        ipcMock.Raise(
-            i => i.SyncCompleteReceived += null,
-            ipcMock.Object,
-            new SyncCompleteEventData { ContextId = contextId, Conflicts = 0, LastSyncedAt = DateTime.UtcNow });
+        syncMock.Raise(
+            i => i.SyncComplete += null,
+            syncMock.Object,
+            new SyncCompleteEventArgs { ContextId = contextId, Status = new SyncStatus { Conflicts = 0, LastSyncedAt = DateTime.UtcNow } });
 
         // Old error was cleared — no error toast.
         notifMock.Verify(
@@ -349,12 +335,12 @@ public sealed class TrayViewModelTests
     [TestMethod]
     public async Task OverallState_IsIdle_WhenAllAccountsIdle()
     {
-        var (vm, ipcMock, _, _) = BuildVm();
+        var (vm, syncMock, _, _) = BuildVm();
         var id1 = Guid.NewGuid();
         var id2 = Guid.NewGuid();
 
-        await SeedAccountAsync(vm, ipcMock, id1, "Idle");
-        await SeedAccountAsync(vm, ipcMock, id2, "Idle");
+        await SeedAccountAsync(vm, syncMock, id1, "Idle");
+        await SeedAccountAsync(vm, syncMock, id2, "Idle");
 
         Assert.AreEqual(TrayState.Idle, vm.OverallState);
     }
@@ -362,18 +348,18 @@ public sealed class TrayViewModelTests
     [TestMethod]
     public async Task OverallState_IsSyncing_WhenAnyAccountSyncing()
     {
-        var (vm, ipcMock, _, _) = BuildVm();
+        var (vm, syncMock, _, _) = BuildVm();
         var id1 = Guid.NewGuid();
         var id2 = Guid.NewGuid();
 
-        await SeedAccountAsync(vm, ipcMock, id1, "Idle");
-        await SeedAccountAsync(vm, ipcMock, id2, "Syncing");
+        await SeedAccountAsync(vm, syncMock, id1, "Idle");
+        await SeedAccountAsync(vm, syncMock, id2, "Syncing");
 
         // Trigger a SyncProgress event so state recomputes.
-        ipcMock.Raise(
-            i => i.SyncProgressReceived += null,
-            ipcMock.Object,
-            new SyncProgressEventData { ContextId = id2, State = "Syncing", PendingUploads = 1 });
+        syncMock.Raise(
+            i => i.SyncProgress += null,
+            syncMock.Object,
+            new SyncProgressEventArgs { ContextId = id2, Status = new SyncStatus { State = SyncState.Syncing, PendingUploads = 1 } });
 
         Assert.AreEqual(TrayState.Syncing, vm.OverallState);
     }
@@ -381,16 +367,16 @@ public sealed class TrayViewModelTests
     [TestMethod]
     public async Task OverallState_IsError_WhenAnyAccountInError()
     {
-        var (vm, ipcMock, _, _) = BuildVm();
+        var (vm, syncMock, _, _) = BuildVm();
         var id = Guid.NewGuid();
 
-        await SeedAccountAsync(vm, ipcMock, id, "Idle");
+        await SeedAccountAsync(vm, syncMock, id, "Idle");
 
         // Trigger a SyncError event which sets state to Error.
-        ipcMock.Raise(
-            i => i.SyncErrorReceived += null,
-            ipcMock.Object,
-            new SyncErrorEventData { ContextId = id, Error = "Boom" });
+        syncMock.Raise(
+            i => i.SyncError += null,
+            syncMock.Object,
+            new SyncErrorEventArgs { ContextId = id, ErrorMessage = "Boom" });
 
         Assert.AreEqual(TrayState.Error, vm.OverallState);
     }
@@ -398,16 +384,16 @@ public sealed class TrayViewModelTests
     [TestMethod]
     public async Task OverallState_IsPaused_WhenAllAccountsPaused()
     {
-        var (vm, ipcMock, _, _) = BuildVm();
+        var (vm, syncMock, _, _) = BuildVm();
         var id = Guid.NewGuid();
 
-        await SeedAccountAsync(vm, ipcMock, id, "Idle");
+        await SeedAccountAsync(vm, syncMock, id, "Idle");
 
         // Simulate a progress event with Paused state.
-        ipcMock.Raise(
-            i => i.SyncProgressReceived += null,
-            ipcMock.Object,
-            new SyncProgressEventData { ContextId = id, State = "Paused" });
+        syncMock.Raise(
+            i => i.SyncProgress += null,
+            syncMock.Object,
+            new SyncProgressEventArgs { ContextId = id, Status = new SyncStatus { State = SyncState.Paused } });
 
         Assert.AreEqual(TrayState.Paused, vm.OverallState);
     }
@@ -417,10 +403,10 @@ public sealed class TrayViewModelTests
     [TestMethod]
     public async Task OnUnreadCountUpdated_AggregatesAcrossChannels_AndTracksMentions()
     {
-        var (vm, ipcMock, chatMock, _) = BuildVm();
+        var (vm, syncMock, chatMock, _) = BuildVm();
         var contextId = Guid.NewGuid();
 
-        await SeedAccountAsync(vm, ipcMock, contextId, "Idle");
+        await SeedAccountAsync(vm, syncMock, contextId, "Idle");
 
         chatMock.Raise(
             c => c.OnUnreadCountUpdated += null,
@@ -438,10 +424,10 @@ public sealed class TrayViewModelTests
     [TestMethod]
     public async Task Tooltip_IncludesChatUnreadSummary_WhenUnreadExists()
     {
-        var (vm, ipcMock, chatMock, _) = BuildVm();
+        var (vm, syncMock, chatMock, _) = BuildVm();
         var contextId = Guid.NewGuid();
 
-        await SeedAccountAsync(vm, ipcMock, contextId, "Idle");
+        await SeedAccountAsync(vm, syncMock, contextId, "Idle");
 
         chatMock.Raise(
             c => c.OnUnreadCountUpdated += null,
@@ -540,10 +526,10 @@ public sealed class TrayViewModelTests
     [TestMethod]
     public async Task OnNewChatMessage_WithKnownAccount_PassesChatAppActionUrl()
     {
-        var (vm, ipcMock, chatMock, notifMock) = BuildVm();
+        var (vm, syncMock, chatMock, notifMock) = BuildVm();
         var contextId = Guid.NewGuid();
 
-        await SeedAccountAsync(vm, ipcMock, contextId, "Idle");
+        await SeedAccountAsync(vm, syncMock, contextId, "Idle");
 
         chatMock.Raise(
             c => c.OnNewChatMessage += null,
@@ -569,62 +555,60 @@ public sealed class TrayViewModelTests
             Times.Once);
     }
 
-    private static (TrayViewModel vm, Mock<IIpcClient> ipcMock, Mock<IChatSignalRClient> chatMock, Mock<INotificationService> notifMock) BuildVm()
+    private static (TrayViewModel vm, Mock<ISyncContextManager> syncMock, Mock<IChatSignalRClient> chatMock, Mock<INotificationService> notifMock) BuildVm()
     {
-        var ipcMock = new Mock<IIpcClient>();
-        ipcMock.SetupGet(i => i.IsConnected).Returns(false);
-        ipcMock.SetupAdd(i => i.SyncProgressReceived += It.IsAny<EventHandler<SyncProgressEventData>>());
-        ipcMock.SetupAdd(i => i.SyncCompleteReceived += It.IsAny<EventHandler<SyncCompleteEventData>>());
-        ipcMock.SetupAdd(i => i.SyncErrorReceived += It.IsAny<EventHandler<SyncErrorEventData>>());
-        ipcMock.SetupAdd(i => i.ConflictDetected += It.IsAny<EventHandler<SyncConflictEventData>>());
-        ipcMock.SetupAdd(i => i.ConflictAutoResolved += It.IsAny<EventHandler<ConflictAutoResolvedEventData>>());
-        ipcMock.SetupAdd(i => i.TransferProgressReceived += It.IsAny<EventHandler<TransferProgressEventData>>());
-        ipcMock.SetupAdd(i => i.TransferCompleteReceived += It.IsAny<EventHandler<TransferCompleteEventData>>());
-        ipcMock.SetupAdd(i => i.ConnectionStateChanged += It.IsAny<EventHandler<bool>>());
+        var syncMock = new Mock<ISyncContextManager>();
+        syncMock.Setup(s => s.GetContextsAsync()).ReturnsAsync(new List<SyncContextRegistration>());
 
         var chatMock = new Mock<IChatSignalRClient>();
         chatMock.Setup(c => c.ConnectAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var notifMock = new Mock<INotificationService>();
-        var vm = new TrayViewModel(ipcMock.Object, chatMock.Object, notifMock.Object, NullLogger<TrayViewModel>.Instance);
+        var vm = new TrayViewModel(syncMock.Object, chatMock.Object, notifMock.Object, NullLogger<TrayViewModel>.Instance);
 
-        return (vm, ipcMock, chatMock, notifMock);
+        return (vm, syncMock, chatMock, notifMock);
     }
 
     /// <summary>
     /// Injects a fake account into the view-model by:
-    /// 1. Wiring the mock to return a context from <c>ListContextsAsync</c>.
-    /// 2. Raising <c>ConnectionStateChanged(true)</c> which triggers <c>RefreshAccountsAsync</c>
-    ///    via <c>Task.Run</c>.
-    /// 3. Awaiting until the account appears in <c>vm.Accounts</c>.
+    /// 1. Wiring the mock to return a context from <c>GetContextsAsync</c>.
+    /// 2. Wiring <c>GetStatusAsync</c> to return the desired state.
+    /// 3. Calling <c>RefreshAccountsAsync</c> directly.
+    /// 4. Awaiting until the account appears in <c>vm.Accounts</c>.
     /// </summary>
     private static async Task SeedAccountAsync(
-        TrayViewModel vm, Mock<IIpcClient> ipcMock, Guid contextId, string state)
+        TrayViewModel vm, Mock<ISyncContextManager> syncMock, Guid contextId, string state)
     {
-        ipcMock.SetupGet(i => i.IsConnected).Returns(true);
+        var existing = syncMock.Object.GetContextsAsync().GetAwaiter().GetResult();
 
-        var contexts = new List<ContextInfo>
+        var contexts = new List<SyncContextRegistration>(existing)
         {
-            new ContextInfo
+            new SyncContextRegistration
             {
                 Id = contextId,
                 DisplayName = $"TestAccount-{contextId}",
                 ServerBaseUrl = "https://cloud.example.com",
                 LocalFolderPath = "/sync",
-                State = state,
+                UserId = Guid.NewGuid(),
+                AccountKey = $"test-{contextId}",
+                OsUserName = "testuser",
+                DataDirectory = "/tmp/data",
             },
         };
 
-        ipcMock
-            .Setup(i => i.ListContextsAsync(It.IsAny<CancellationToken>()))
+        syncMock
+            .Setup(s => s.GetContextsAsync())
             .ReturnsAsync(contexts);
 
-        // Trigger refresh (fires Task.Run internally).
-        ipcMock.Raise(i => i.ConnectionStateChanged += null, ipcMock.Object, true);
+        // Parse the state string into a SyncState enum value.
+        var syncState = Enum.TryParse<SyncState>(state, ignoreCase: true, out var parsed)
+            ? parsed
+            : SyncState.Idle;
 
-        // Wait until the account appears (Task.Run completes).
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        while (!vm.Accounts.Any(a => a.ContextId == contextId) && !cts.Token.IsCancellationRequested)
-            await Task.Delay(10, cts.Token).ConfigureAwait(false);
+        syncMock
+            .Setup(s => s.GetStatusAsync(contextId))
+            .ReturnsAsync(new SyncStatus { State = syncState });
+
+        await vm.RefreshAccountsAsync();
     }
 }

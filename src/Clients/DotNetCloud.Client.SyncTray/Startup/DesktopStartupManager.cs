@@ -186,28 +186,6 @@ internal sealed class DesktopStartupManager : IDesktopStartupManager
         return File.Exists(candidate) ? candidate : null;
     }
 
-    internal static string? ResolveServiceExecutablePath()
-    {
-        var executableName = OperatingSystem.IsWindows() ? "dotnetcloud-sync-service.exe" : "dotnetcloud-sync-service";
-        var candidates = new[]
-        {
-            Path.Combine(AppContext.BaseDirectory, executableName),
-            Path.Combine(AppContext.BaseDirectory, "SyncService", executableName),
-            Path.Combine(AppContext.BaseDirectory, "..", "SyncService", executableName),
-            Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".local",
-                "opt",
-                "dotnetcloud-desktop-client",
-                "SyncService",
-                executableName),
-        };
-
-        return candidates
-            .Select(Path.GetFullPath)
-            .FirstOrDefault(File.Exists);
-    }
-
     private static string ResolveAutostartDirectory()
     {
         var configHome = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
