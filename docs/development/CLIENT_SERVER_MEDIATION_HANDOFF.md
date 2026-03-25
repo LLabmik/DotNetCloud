@@ -82,83 +82,55 @@ Archived context:
 
 ## Active Handoff
 
-**Target machine:** monolith
-**Status:** READY FOR MONOLITH RETRY (20260325)
+**Target machine:** mint22
+**Status:** ARCHITECTURAL DECISION REQUIRED (20260325)
 
-### WS-4 API Verification Bootstrap For mint22 Deployment — SERVER INVESTIGATION COMPLETE
+### WS-4 API Verification — Bearer Token Acquisition Path Selection
 
-**Goal:** Collect auth/runtime inputs for WS-4 Copilot-capable checks
+**Goal:** Enable bearer token acquisition for WS-4 API endpoint testing (TC-1.27, TC-1.40, TC-1.41, TC-1.42, TC-1.45)
 
-**Bootstrap attempt:** 20260325 ~07:20 UTC from monolith (Windows 11)
+**Investigation complete:** 20260325 (monolith)
+- Root cause identified: `/api/v1/core/auth/login` returns empty tokens by design (PKCE architecture)
+- OAuth2 PKCE automation blocked: `/connect/authorize` returns HTTP 400 when automated
+- Web UI token extraction not applicable: uses cookies only, no bearer tokens in storage
+- Test scripts created and ready: `scripts/ws4-api-verification.ps1` + `scripts/get-bearer-token.ps1`
 
-#### Results Summary
+**Handoff details:** See `CLIENT_SERVER_MEDIATION_ARCHIVE.md` — "WS-4 API Verification Bootstrap" section for full investigation findings.
 
-| Test | Status | Finding |
-|------|--------|---------|
-| Server connectivity | PASS | `https://mint22:5443/` responds; HTTP 302 redirect to `/auth/login` |
-| TC-1: Login | PARTIAL | Success: HTTP 200, `userId` received; **BLOCKER: `accessToken` returned empty** |
-| TC-1.40 | BLOCKED | Cannot proceed without bearer token |
-| TC-1.41 | BLOCKED | Cannot proceed without bearer token |
-| TC-1.42 | BLOCKED | Cannot proceed without bearer token |
-| TC-1.45 | BLOCKED | Cannot proceed without bearer token |
-| TC-1.27 | BLOCKED | Cannot proceed without bearer token |
+#### Decision Required (mint22)
 
-#### Detailed Findings
+Choose ONE implementation approach to unblock WS-4 API testing:
 
-**Login endpoint test:**
-- Endpoint: `POST https://mint22:5443/api/v1/core/auth/login`
-- Request: `{"email":"testdude@llabmik.net","password":"<PASSWORD>"}`
-- **Response (successful):**
-  ```json
-  {
-    "success": true,
-    "data": {
-      "accessToken": "",
-      "refreshToken": "",
-      "expiresIn": 0,
-      "tokenType": "Bearer",
-      "userId": "019d1fd0-7277-7724-8ddd-d1a74b9fc32a",
-      "displayName": "Test Dude"
-    }
-  }
-  ```
-- **Root cause:** `accessToken` and `refreshToken` fields are empty strings despite HTTP 200 success response
+**Option A: Password Grant Flow Endpoint (Testing-Only)**
+- Add `AllowPasswordFlow()` to OpenIddict server configuration
+- Add password grant handler to `/connect/token` endpoint
+- Enable direct credential → bearer token exchange for API testing
+- **Pros:** Simple to implement, standard OAuth2 grant type
+- **Cons:** Not recommended for production mobile clients (PKCE is correct), requires OpenIddict config change
 
-#### Client-side observations
+**Option B: Cookie-to-Bearer Exchange Endpoint**
+- Create `POST /api/v1/core/auth/exchange-token` endpoint
+- Requires authenticated cookie session ([Authorize] attribute with Identity scheme)
+- Returns temporary bearer JWT for API testing
+- **Pros:** Leverages existing web UI auth, doesn't change OAuth2 flow
+- **Cons:** Custom endpoint, needs explicit token generation logic
 
-1. **SSL/TLS:** Server uses self-signed certificate; curl works with `-k` flag; PowerShell `Invoke-RestMethod` requires certificate policy override
-2. **API response:** Server correctly authenticates the user (returns `userId` and `displayName`), but token fields are null/empty
-3. **Timestamp:** Request made 2026-03-25T07:20:42Z
-4. **NetworkReachability:** mint22:5443 is reachable from monolith via HTTPS
+**Option C: Manual OAuth2 Flow (No Code Changes)**
+- Tester completes full OAuth2 PKCE flow in browser/mobile app manually
+- Copy bearer token from mobile app after successful authentication
+- **Pros:** No server-side changes needed
+- **Cons:** Least automatable, requires mobile app deployment
 
-#### Root Cause (verified in source)
+#### Recommended Approach
 
-This is **not** a mint22 runtime token-signing failure. The `/api/v1/core/auth/login` endpoint currently returns placeholder token fields by design:
-
-- `AuthService.LoginAsync` sets `AccessToken = string.Empty`, `RefreshToken = string.Empty`, `ExpiresIn = 0` with comment "populated at endpoint layer".
-- `AuthController.LoginAsync` simply returns that DTO and does not invoke OpenIddict token issuance.
-- OpenIddict server is configured for authorization-code + refresh flows and the seeded clients are PKCE auth-code clients.
-
-Therefore, using `POST /api/v1/core/auth/login` as a bearer token source is invalid in the current architecture.
-
-#### Next Steps Required (monolith)
-
-1. Acquire bearer token via browser/network capture during a normal authenticated flow (or from an endpoint call already carrying Authorization header)
-2. Re-run WS-4 API checks with the captured bearer token:
-  - TC-1.40 `GET /api/v1/files/sync/changes`
-  - TC-1.42 `GET /api/v1/files/sync/tree`
-  - TC-1.41 `POST /api/v1/files/sync/reconcile`
-3. Discover one valid `fileId` from sync tree/files payload
-4. Run TC-1.45 range request and verify `206` + `Content-Range`
-5. Run TC-1.27 WOPI check with bearer first, query `access_token` fallback if needed
-
-#### Evidence (code references)
-
-- `src/Core/DotNetCloud.Core.Auth/Services/AuthService.cs`: login response token fields intentionally set to empty placeholders
-- `src/Core/DotNetCloud.Core.Server/Controllers/AuthController.cs`: `/api/v1/core/auth/login` returns `IAuthService.LoginAsync` DTO directly
-- `src/Core/DotNetCloud.Core.Auth/Extensions/AuthServiceExtensions.cs`: OpenIddict configured for auth-code/refresh/client-credentials flows
-- `src/Core/DotNetCloud.Core.Server/Initialization/OidcClientSeeder.cs`: seeded public clients (`dotnetcloud-desktop`, `dotnetcloud-mobile`) configured for PKCE auth-code flow
+**Option B (Cookie-to-Bearer Exchange)** is cleanest for test automation:
+1. Web UI login works today (cookies)
+2. Exchange endpoint provides bearer token on demand
+3. No changes to production OAuth2 flow
+4. Fully scriptable test pipeline
 
 **Handoff ready when:**
-- Monolith captures a valid bearer token from the active auth flow
-- Monolith executes TC-1.40, TC-1.41, TC-1.42, TC-1.45, and TC-1.27 and records status + key outputs
+- Mint22 implements chosen approach and deploys to `https://mint22:5443/`
+- Monolith re-runs `scripts/get-bearer-token.ps1` and successfully acquires bearer token
+- Monolith executes `scripts/ws4-api-verification.ps1` and records PASS/FAIL/SKIP for all 5 tests
+- Test results committed to `ws4-test-results.json` and handoff updated with findings

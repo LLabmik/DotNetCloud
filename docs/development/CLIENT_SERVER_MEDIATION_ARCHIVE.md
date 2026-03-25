@@ -5,6 +5,66 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: WS-4 API Verification Bootstrap — Token Acquisition Investigation COMPLETE (2026-03-25)
+
+**Original target:** monolith (Windows 11)
+**Original status:** INVESTIGATION COMPLETE — ARCHITECTURAL DECISION REQUIRED
+
+### Context
+
+WS-4 required bearer tokens for API endpoint testing (TC-1.27, TC-1.40, TC-1.41, TC-1.42, TC-1.45) against `mint22` deployment. Initial login endpoint returned empty `accessToken`/`refreshToken` fields.
+
+### Root cause (verified)
+
+The `/api/v1/core/auth/login` endpoint returns placeholder token fields by design:
+- `AuthService.LoginAsync` sets `AccessToken = string.Empty`, `RefreshToken = string.Empty`, `ExpiresIn = 0` with comment "populated at endpoint layer".
+- `AuthController.LoginAsync` does NOT invoke OpenIddict token issuance.
+- OpenIddict configured for authorization-code + PKCE flow only (no password grant).
+- Seeded clients (`dotnetcloud-desktop`, `dotnetcloud-mobile`) are public PKCE clients.
+
+### Token acquisition attempts
+
+**Approach 1: OAuth2 PKCE flow automation**
+- Created `scripts/get-bearer-token.ps1` implementing full authorization-code + PKCE flow
+- Step 1: Form login to `https://mint22:5443/auth/session/login` → cookie session established
+- Step 2: `/connect/authorize` with cookie auth → HTTP 400 Bad Request
+- **Result:** BLOCKED — authorize endpoint rejected automated PKCE request even with authenticated cookie session
+
+**Approach 2: Manual browser token extraction**
+- Web UI uses cookie-based authentication (`AuthSessionController` + ASP.NET Identity cookies)
+- API endpoints expect bearer tokens (`[Authorize(AuthenticationSchemes = "OpenIddict.Validation.AspNetCore")]`)
+- Blazor `InteractiveServer` mode uses HttpClient with cookies automatically
+- **Result:** Web UI has NO bearer token in localStorage/sessionStorage — cookies only
+
+### Architectural observation
+
+**Current state:**
+- Web UI: Cookie-based auth (`IdentityConstants.ApplicationScheme`)
+- Mobile clients: OAuth2 PKCE bearer tokens (authorization-code grant)
+- API endpoints: OpenIddict bearer validation
+
+**Problem:** No documented path to acquire bearer tokens for manual API testing without implementing full mobile OAuth2 flow with browser interaction/redirect handling.
+
+### Deliverables created
+
+- `scripts/get-bearer-token.ps1` — OAuth2 PKCE flow automation (HTTP 400 at authorize endpoint)
+- `scripts/ws4-api-verification.ps1` — Complete WS-4 test suite (blocked on token acquisition)
+- `scripts/manual-get-bearer-token.ps1` — Instructions for manual browser token extraction (not applicable for cookie-only web UI)
+
+### Recommendation
+
+**Option A:** Implement password grant flow endpoint for testing (`grant_type=password` in OpenIddict server options)
+**Option B:** Create cookie-to-bearer exchange endpoint (`POST /api/v1/core/auth/exchange-token`)
+**Option C:** Accept manual browser OAuth2 flow (no code changes, least automatable)
+
+### Code references
+
+- `src/Core/DotNetCloud.Core.Auth/Services/AuthService.cs`: login response token fields intentionally empty
+- `src/Core/DotNetCloud.Core.Server/Controllers/AuthController.cs`: `/api/v1/core/auth/login` returns DTO directly
+- `src/Core/DotNetCloud.Core.Server/Extensions/OpenIddictEndpointsExtensions.cs`: OAuth2 endpoint handlers
+- `src/Core/DotNetCloud.Core.Auth/Extensions/AuthServiceExtensions.cs`: OpenIddict configuration (no password grant)
+- `src/Core/DotNetCloud.Core.Server/Initialization/OidcClientSeeder.cs`: seeded PKCE clients
+
 ## Archived: Phase 3.8 Documentation And Release Readiness COMPLETE on mint22 (2026-03-23)
 
 **Original target:** mint22
