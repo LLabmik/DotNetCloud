@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Chat.Services;
 using DotNetCloud.Modules.Files.Events;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -14,7 +15,7 @@ internal sealed class NotificationEventSubscriber : IHostedService
 {
     private readonly IEventBus _eventBus;
     private readonly IPushNotificationService _pushService;
-    private readonly DotNetCloud.Core.Capabilities.INotificationService _notificationService;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILoggerFactory _loggerFactory;
     private FileSharedNotificationHandler? _fileSharedHandler;
     private QuotaNotificationHandler? _quotaHandler;
@@ -28,12 +29,12 @@ internal sealed class NotificationEventSubscriber : IHostedService
     public NotificationEventSubscriber(
         IEventBus eventBus,
         IPushNotificationService pushService,
-        DotNetCloud.Core.Capabilities.INotificationService notificationService,
+        IServiceScopeFactory scopeFactory,
         ILoggerFactory loggerFactory)
     {
         _eventBus = eventBus;
         _pushService = pushService;
-        _notificationService = notificationService;
+        _scopeFactory = scopeFactory;
         _loggerFactory = loggerFactory;
     }
 
@@ -68,7 +69,7 @@ internal sealed class NotificationEventSubscriber : IHostedService
             _pushService,
             _loggerFactory.CreateLogger<ReminderNotificationHandler>());
 
-        _inAppNotificationHandler = new InAppNotificationEventHandler(_notificationService);
+        _inAppNotificationHandler = new InAppNotificationEventHandler(_scopeFactory);
 
         await _eventBus.SubscribeAsync<FileSharedEvent>(_fileSharedHandler, cancellationToken);
         await _eventBus.SubscribeAsync<QuotaWarningEvent>(_quotaHandler, cancellationToken);

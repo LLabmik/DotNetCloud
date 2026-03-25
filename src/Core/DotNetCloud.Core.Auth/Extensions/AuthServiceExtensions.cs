@@ -115,6 +115,7 @@ public static class AuthServiceExtensions
                 options.AllowAuthorizationCodeFlow();
                 options.AllowRefreshTokenFlow();
                 options.AllowClientCredentialsFlow();
+                options.AllowPasswordFlow();
 
                 // PKCE required for public clients
                 options.RequireProofKeyForCodeExchange();

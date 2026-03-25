@@ -1,22 +1,25 @@
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DotNetCloud.Core.Server.Services;
 
 /// <summary>
 /// Persists in-app notifications for common notification events.
+/// Uses <see cref="IServiceScopeFactory"/> to resolve the scoped
+/// <see cref="INotificationService"/> per event invocation.
 /// </summary>
 internal sealed class InAppNotificationEventHandler :
     IEventHandler<ResourceSharedEvent>,
     IEventHandler<UserMentionedEvent>,
     IEventHandler<ReminderTriggeredEvent>
 {
-    private readonly INotificationService _notificationService;
+    private readonly IServiceScopeFactory _scopeFactory;
 
-    public InAppNotificationEventHandler(INotificationService notificationService)
+    public InAppNotificationEventHandler(IServiceScopeFactory scopeFactory)
     {
-        _notificationService = notificationService;
+        _scopeFactory = scopeFactory;
     }
 
     public async Task HandleAsync(ResourceSharedEvent @event, CancellationToken cancellationToken = default)
@@ -36,7 +39,9 @@ internal sealed class InAppNotificationEventHandler :
             CreatedAtUtc = @event.CreatedAt
         };
 
-        await _notificationService.SendAsync(@event.SharedWithUserId, notification, cancellationToken);
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
+        await notificationService.SendAsync(@event.SharedWithUserId, notification, cancellationToken);
     }
 
     public async Task HandleAsync(UserMentionedEvent @event, CancellationToken cancellationToken = default)
@@ -56,7 +61,9 @@ internal sealed class InAppNotificationEventHandler :
             CreatedAtUtc = @event.CreatedAt
         };
 
-        await _notificationService.SendAsync(@event.MentionedUserId, notification, cancellationToken);
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
+        await notificationService.SendAsync(@event.MentionedUserId, notification, cancellationToken);
     }
 
     public async Task HandleAsync(ReminderTriggeredEvent @event, CancellationToken cancellationToken = default)
@@ -78,7 +85,9 @@ internal sealed class InAppNotificationEventHandler :
             CreatedAtUtc = @event.CreatedAt
         };
 
-        await _notificationService.SendAsync(@event.UserId, notification, cancellationToken);
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
+        await notificationService.SendAsync(@event.UserId, notification, cancellationToken);
     }
 
     private static string BuildActionUrl(string entityType, Guid entityId)
