@@ -3509,3 +3509,29 @@ Full Contacts module implemented following 3-tier pattern (Main/Data/Host):
 - `contacts_service.proto` — Proto3 definitions
 
 **Tests:** 32/32 pass (ContactServiceTests: 14, ContactGroupServiceTests: 8, VCardServiceTests: 6, ContactsModuleTests: 5). Solution builds with 0 warnings, 0 errors (excluding pre-existing Android SDK / ExampleModule issues).
+
+---
+
+## Archived: WS-4 API Verification — ROPC Attempt + Integration Tests (20260325)
+
+### Phase 1: Password Grant (ROPC) — Failed at Runtime
+
+**Commit:** `8255368`
+
+Added ROPC password grant flow to OpenIddict:
+- `AuthServiceExtensions.cs`: `AllowPasswordFlow()`
+- `OpenIddictEndpointsExtensions.cs`: ~60-line password grant handler
+- `OidcClientSeeder.cs`: Added `Permissions.GrantTypes.Password` to desktop + mobile clients
+- Also fixed: `NotificationEventSubscriber` DI scope bug (20 test failures), rate limiting assertion
+
+**Result:** Deployed to mint22, but OpenIddict returned `unsupported_grant_type`. Discovery document at `/.well-known/openid-configuration` did not list `password` in `grant_types_supported`. Root cause unknown — OpenIddict 7.2.0 may have undocumented requirements.
+
+### Phase 2: Integration Tests — Succeeded
+
+**Commit:** `8f5c37d`
+
+Pivoted to `WebApplicationFactory<Program>` in-process integration tests:
+- Enhanced `DotNetCloudWebApplicationFactory` with `x-test-user-roles` header, `AddRoleClaims()`, `CreateAdminApiClient()`
+- Added 36 new tests: UserManagement (10), Admin (9), Notifications (7), Devices (4), MFA (6)
+- Removed all broken ROPC code from 3 files
+- Total CI: 2828 tests pass, 0 failures
