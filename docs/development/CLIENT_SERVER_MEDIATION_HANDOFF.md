@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-03-24 (Phase 3.6 Migration Foundation complete)
+Last updated: 20260325 (WS-4 API verification bootstrap active for monolith)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -60,7 +60,7 @@ Archived context:
 - Security audit desktop client validation on `Windows11-TestDNC`: **COMPLETE** (2026-03-23).
 - Security audit closeout + merge validation on `mint22`: **COMPLETE** (2026-03-23).
 - Post-closeout Windows runtime smoke: **COMPLETE** (2026-03-23). 4/4 targeted tests passed; login launch path verified reachable.
-- **Active cycle:** Phase 3.8 Documentation And Release Readiness complete. Milestone D (Import + Hardening + Docs) fully closed.
+- **Active cycle (20260325):** WS-4 live verification bootstrap in progress. Monolith is collecting auth/runtime artifacts for TC-1.27, TC-1.40, TC-1.41, TC-1.42, and TC-1.45 against `mint22`.
 
 ## Environment
 
@@ -83,7 +83,7 @@ Archived context:
 ## Active Handoff
 
 **Target machine:** monolith
-**Status:** READY
+**Status:** IN PROGRESS (20260325)
 
 ### WS-4 API Verification Bootstrap For mint22 Deployment
 
