@@ -12,6 +12,95 @@ Finish all WS-4 checks with pass/fail evidence, then update tracking docs:
 - `docs/MASTER_PROJECT_PLAN.md`
 - `docs/IMPLEMENTATION_CHECKLIST.md`
 
+---
+
+## Current Status (2026-03-25)
+
+### What's Done
+- **36 automated integration tests added** (commit `8f5c37d`) covering User Management, Admin, Notifications, Devices, MFA endpoints via `WebApplicationFactory<Program>` — these run in CI, not against the live server
+- **Broken ROPC (password grant) code removed** — was added to get bearer tokens for live testing but OpenIddict refused to honor it at runtime; cleaned out
+- **Server is running** on mint22: `dotnetcloud.service` active, `coolwsd` (Collabora) active
+- **Deployment is from earlier today** (Mar 25 03:28) — includes the ROPC removal, so the server is clean
+
+### What's NOT Done
+- **Zero of the 66 WS-4 live verification items have been executed** — all checkboxes are ☐
+- All verification requires manual browser interaction or providing a bearer token
+
+### Known Blockers
+- **Comments UI does not exist** — TC-1.37 (add comment), TC-1.38 (reply), TC-1.39 (edit/delete) will be **Blocked** (3 items)
+- **SQL Server** (TC-1.43) — needs a SQL Server instance + connection string; no environment currently available
+- **Sync client tests** (TC-1.46 to TC-1.57, 12 items) — need Windows11-TestDNC and mint-dnc-client machines set up with sync clients
+
+### Your Action Plan (What To Do)
+
+**Step 1: Redeploy latest code to mint22** (one-time)
+```bash
+cd /home/benk/Repos/dotnetcloud
+dotnet publish src/Core/DotNetCloud.Core.Server -c Release -o artifacts/publish/server-baremetal
+sudo systemctl stop dotnetcloud.service
+sudo cp -r artifacts/publish/server-baremetal/. /opt/dotnetcloud/server/
+sudo systemctl start dotnetcloud.service
+```
+
+**Step 2: Open web client and run Phase A tests (36 items)**
+
+Log in as testdude@llabmik.net at https://mint22:5443. Work through these in order:
+
+| Sprint | What to test | Items |
+|---|---|---:|
+| 1.1-1.2 | Upload, download, rename, move, copy, delete file. Create/navigate/rename/move/delete folder. | 11 |
+| 1.3 | Upload >4MB file. Upload same file again (dedup). Interrupt + resume upload. | 3 |
+| 1.4 | Upload new version. View history. Download old version. Restore old version. | 4 |
+| 1.5 | Share file (read). Public link in incognito. Password-protect link. Download limit. | 4 |
+| 1.6 | Set low quota (admin). Upload until exceeded. | 2 |
+| 1.8 | Preview: image, video, PDF, text/code, markdown, unsupported fallback. | 6 |
+| 1.9 | Tags: add, filter, remove. Comments: **BLOCKED** (no UI). | 3 pass + 3 blocked |
+
+**Step 3: Capture a bearer token for API tests**
+
+While logged in, open browser DevTools (F12) > Network tab. Find any API call with an `Authorization: Bearer ...` header. Copy the token value and give it to Copilot.
+
+Also grab a **file ID** from any file detail API call in DevTools.
+
+**Step 4: Give Copilot the token + file ID**
+
+Copilot can then run:
+- TC-1.40 to TC-1.42 — Sync endpoint API checks (3 items)
+- TC-1.45 — Range request resume (1 item)
+- TC-1.27 — WOPI CheckFileInfo (1 item, also needs WOPI token from Collabora flow in DevTools)
+
+**Step 5: Collabora tests (3 items)**
+- Upload a .docx, open in Collabora, edit, save, check version history
+- While Collabora is open, grab the WOPI `access_token` from DevTools for TC-1.27
+
+**Step 6: Observability + Security (hybrid, 9 items)**
+- Do file operations in browser, then ask Copilot to check server logs for gRPC/module/OTel evidence
+- Copilot can test path traversal and rate limiting via API if you provide the bearer token
+
+**Step 7: Sync client tests (deferred, 12 items)**
+- Requires Windows11-TestDNC and mint-dnc-client to be set up
+- Can be done in a separate session
+
+**Step 8: SQL Server (deferred, 1 item)**
+- Needs a SQL Server instance — skip or mark blocked for now
+
+### Quick Tally
+
+| Category | Items | Status |
+|---|---:|---|
+| Phase A: Browser tests | 33 | Ready to start |
+| Phase A: Comments (no UI) | 3 | Blocked |
+| Phase B: API tests (need token) | 5 | Ready after Step 3 |
+| Phase B: WOPI (need WOPI token) | 1 | Ready after Step 5 |
+| Phase D: Observability + Security | 9 | Hybrid — after Steps 2+3 |
+| Phase C: Sync clients | 12 | Deferred — machines not set up |
+| Phase E: SQL Server | 1 | Blocked — no SQL Server |
+| Phase D: OTel traces | 1 | Needs Jaeger/OTLP collector |
+| Phase D: i18n | 1 | Needs alternate locale |
+| **Total** | **66** | |
+
+---
+
 ## Execution Phases
 
 ### Phase A: Web-Only Verification (monolith)
