@@ -82,123 +82,83 @@ Archived context:
 
 ## Active Handoff
 
-**Target machine:** monolith
-**Status:** IN PROGRESS (20260325)
+**Target machine:** mint22
+**Status:** BLOCKER - AWAITING SERVER-SIDE INVESTIGATION (20260325)
 
-### WS-4 API Verification Bootstrap For mint22 Deployment
+### WS-4 API Verification Bootstrap For mint22 Deployment — FINDINGS
 
-Goal: unblock WS-4 Copilot-capable checks by collecting auth/runtime inputs and executing API verification from a Windows admin session on monolith.
+**Goal:** Collect auth/runtime inputs for WS-4 Copilot-capable checks
 
-Server under test:
-- `https://mint22:5443`
+**Bootstrap attempt:** 20260325 ~07:20 UTC from monolith (Windows 11)
 
-Use test account:
-- Email: `testdude@llabmik.net`
-- Password: provided out-of-band by moderator
+#### Results Summary
 
-#### Required work
+| Test | Status | Finding |
+|------|--------|---------|
+| Server connectivity | PASS | `https://mint22:5443/` responds; HTTP 302 redirect to `/auth/login` |
+| TC-1: Login | PARTIAL | Success: HTTP 200, `userId` received; **BLOCKER: `accessToken` returned empty** |
+| TC-1.40 | BLOCKED | Cannot proceed without bearer token |
+| TC-1.41 | BLOCKED | Cannot proceed without bearer token |
+| TC-1.42 | BLOCKED | Cannot proceed without bearer token |
+| TC-1.45 | BLOCKED | Cannot proceed without bearer token |
+| TC-1.27 | BLOCKED | Cannot proceed without bearer token |
 
-1. Acquire bearer token via API login
-   - Endpoint: `POST https://mint22:5443/api/v1/core/auth/login`
-   - Capture `data.accessToken` and `data.refreshToken` from response
-   - Do NOT commit raw tokens to git; report only masked values in handoff notes
+#### Detailed Findings
 
-2. Execute WS-4 API checks (PowerShell)
-   - TC-1.40: `GET /api/v1/files/sync/changes?since=<timestamp>`
-   - TC-1.42: `GET /api/v1/files/sync/tree`
-   - TC-1.41: `POST /api/v1/files/sync/reconcile`
-
-3. Determine one valid file id
-   - Use sync tree response or file API responses to pick one accessible file id
-   - Record the file id in handoff notes
-
-4. Execute range request check with the discovered file id
-   - TC-1.45: `GET /api/v1/files/{fileId}/download` with `Range` headers
-   - Verify `206 Partial Content` and `Content-Range`
-
-5. Attempt WOPI CheckFileInfo two ways
-   - First try bearer auth against `GET /api/v1/wopi/files/{fileId}`
-   - If bearer fails, capture WOPI `access_token` from Collabora launch flow and call:
-     - `GET /api/v1/wopi/files/{fileId}?access_token=<token>`
-
-6. Return artifacts for relay
-   - HTTP status lines and key response fields for each test case
-   - Sanitized token evidence (first 12 chars + length only)
-   - Discovered `fileId`
-   - Whether WOPI required query token or accepted bearer auth
-
-#### PowerShell command template (run on monolith)
-
-```powershell
-$BaseUrl = "https://mint22:5443"
-$Since = "2026-03-25T00:00:00Z"
-
-# 1) Login
-$loginBody = @{ email = "testdude@llabmik.net"; password = "<PASSWORD>" } | ConvertTo-Json
-$login = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/v1/core/auth/login" -Body $loginBody -ContentType "application/json" -SkipCertificateCheck
-$token = $login.data.accessToken
-
-$headers = @{ Authorization = "Bearer $token" }
-
-# 2) Sync changes (TC-1.40)
-$changes = Invoke-RestMethod -Method Get -Uri "$BaseUrl/api/v1/files/sync/changes?since=$Since" -Headers $headers -SkipCertificateCheck
-
-# 3) Sync tree (TC-1.42)
-$tree = Invoke-RestMethod -Method Get -Uri "$BaseUrl/api/v1/files/sync/tree" -Headers $headers -SkipCertificateCheck
-
-# 4) Pick a fileId from tree payload (adjust path to match actual schema)
-# Example placeholder:
-# $fileId = $tree.data.items | Where-Object { $_.type -eq "file" } | Select-Object -First 1 -ExpandProperty id
-
-# 5) Reconcile (TC-1.41)
-$reconcileBody = @{
-  items = @(
-    @{
-      path = "/Documents/example.txt"
-      hash = "abc123"
-      lastModifiedUtc = "2026-03-25T00:00:00Z"
-      size = 128
+**Login endpoint test:**
+- Endpoint: `POST https://mint22:5443/api/v1/core/auth/login`
+- Request: `{"email":"testdude@llabmik.net","password":"<PASSWORD>"}`
+- **Response (successful):**
+  ```json
+  {
+    "success": true,
+    "data": {
+      "accessToken": "",
+      "refreshToken": "",
+      "expiresIn": 0,
+      "tokenType": "Bearer",
+      "userId": "019d1fd0-7277-7724-8ddd-d1a74b9fc32a",
+      "displayName": "Test Dude"
     }
-  )
-} | ConvertTo-Json -Depth 5
-$reconcile = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/v1/files/sync/reconcile" -Headers $headers -Body $reconcileBody -ContentType "application/json" -SkipCertificateCheck
+  }
+  ```
+- **Root cause:** `accessToken` and `refreshToken` fields are empty strings despite HTTP 200 success response
 
-# 6) Range test (TC-1.45)
-# Replace <FILE_ID> with discovered id if not set in script.
-$fileId = "<FILE_ID>"
-$rangeHeaders1 = @{ Authorization = "Bearer $token"; Range = "bytes=0-1048575" }
-$rangeHeaders2 = @{ Authorization = "Bearer $token"; Range = "bytes=1048576-" }
-Invoke-WebRequest -Uri "$BaseUrl/api/v1/files/$fileId/download" -Headers $rangeHeaders1 -OutFile "$env:TEMP\part1.bin" -SkipCertificateCheck
-Invoke-WebRequest -Uri "$BaseUrl/api/v1/files/$fileId/download" -Headers $rangeHeaders2 -OutFile "$env:TEMP\part2.bin" -SkipCertificateCheck
+#### Client-side observations
 
-# 7) WOPI bearer attempt (TC-1.27)
-# If this fails, capture access_token from Collabora request and retry with query token.
-try {
-  $wopi = Invoke-RestMethod -Method Get -Uri "$BaseUrl/api/v1/wopi/files/$fileId" -Headers $headers -SkipCertificateCheck
-  "WOPI bearer: success"
-}
-catch {
-  "WOPI bearer: failed"
-}
-```
+1. **SSL/TLS:** Server uses self-signed certificate; curl works with `-k` flag; PowerShell `Invoke-RestMethod` requires certificate policy override
+2. **API response:** Server correctly authenticates the user (returns `userId` and `displayName`), but token fields are null/empty
+3. **Timestamp:** Request made 2026-03-25T07:20:42Z
+4. **NetworkReachability:** mint22:5443 is reachable from monolith via HTTPS
 
-#### Return format (for relay back)
+#### Blocking Issue
 
-- Commit hash
-- For each test (TC-1.40, TC-1.41, TC-1.42, TC-1.45, TC-1.27): HTTP status + brief result
-- `fileId` used
-- Token evidence: masked access token prefix + total length
-- WOPI auth mode used: bearer or query `access_token`
+**The server is not returning bearer tokens** even though the login is successful. This prevents all downstream WS-4 API checks (sync, reconcile, WOPI) from executing.
 
-## Relay Template
+**Hypothesis:** 
+- Token generation/serialization issue on mint22
+- Possible causes: missing configuration, expired signing key, JWT generation disabled, or response DTO field mapping error
 
-```markdown
-### Send to [Server|Client] Agent on <target-machine>
-<message text including target machine>
+#### Next Steps Required (Server-side: mint22)
 
-### Request Back
-- commit hash
-- raw endpoint/URL used
-- raw error/query params
-- raw log lines around the event (with timestamp)
-```
+1. **Verify token generation pipeline**
+   - Check OpenIddict configuration: is token generation enabled?
+   - Verify signing certificate/key is valid and loaded
+   - Check `IdentityController` or `AuthController` implementation: is `accessToken` being populated before response?
+
+2. **Investigate response DTO**
+   - Confirm login response DTO correctly maps generated token to `data.accessToken`
+   - Check for serialization filters that might null out token fields
+
+3. **Review logs**
+   - Mint22 app logs: any errors during token generation?
+   - Check if user authentication succeeded (it did) but token generation failed silently
+
+4. **Test directly on server**
+   - Attempt login via Swagger/OpenAPI UI on mint22 console
+   - Verify token is generated when called locally
+
+**Handoff ready when:**
+- Server-side team confirms token generation is now working and returns non-empty `accessToken`
+- A test login from monolith successfully returns a bearer token
+- Monolith re-runs WS-4 API bootstrap and completes all 6 tests
