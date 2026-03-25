@@ -188,6 +188,16 @@ internal sealed class DotNetCloudWebApplicationFactory : WebApplicationFactory<D
     }
 
     /// <summary>
+    /// Creates an authenticated <see cref="HttpClient"/> with admin privileges.
+    /// </summary>
+    public HttpClient CreateAdminApiClient(Guid adminUserId)
+    {
+        var client = CreateAuthenticatedApiClient(adminUserId);
+        client.DefaultRequestHeaders.Add("x-test-user-roles", "Administrator");
+        return client;
+    }
+
+    /// <summary>
     /// Creates an authenticated <see cref="HttpClient"/> with test user identity.
     /// </summary>
     public HttpClient CreateAuthenticatedApiClient(Guid authenticatedUserId)
@@ -265,6 +275,7 @@ internal sealed class DotNetCloudWebApplicationFactory : WebApplicationFactory<D
                         ],
                         authenticationType: "IntegrationTest");
 
+                        AddRoleClaims(context.Request.Headers, identity);
                         context.User = new ClaimsPrincipal(identity);
                     }
 
@@ -305,12 +316,34 @@ internal sealed class DotNetCloudWebApplicationFactory : WebApplicationFactory<D
                 ],
                 authenticationType: SchemeName);
 
+                AddRoleClaims(Request.Headers, identity);
+
                 var principal = new ClaimsPrincipal(identity);
                 var ticket = new AuthenticationTicket(principal, SchemeName);
                 return Task.FromResult(AuthenticateResult.Success(ticket));
             }
 
             return Task.FromResult(AuthenticateResult.NoResult());
+        }
+    }
+
+    /// <summary>
+    /// Adds role and permission claims from the <c>x-test-user-roles</c> header to the identity.
+    /// </summary>
+    private static void AddRoleClaims(Microsoft.AspNetCore.Http.IHeaderDictionary headers, ClaimsIdentity identity)
+    {
+        if (headers.TryGetValue("x-test-user-roles", out var rolesHeader))
+        {
+            foreach (var role in rolesHeader.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                identity.AddClaim(new Claim(ClaimTypes.Role, role));
+
+                // Map "Administrator" role to "admin" permission for RequireAdmin policy
+                if (string.Equals(role, "Administrator", StringComparison.OrdinalIgnoreCase))
+                {
+                    identity.AddClaim(new Claim("dnc:perm", "admin"));
+                }
+            }
         }
     }
 }

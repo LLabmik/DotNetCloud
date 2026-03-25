@@ -58,65 +58,6 @@ public static class OpenIddictEndpointsExtensions
                 }));
         }
 
-        if (request.IsPasswordGrantType())
-        {
-            var userManager = context.RequestServices.GetRequiredService<UserManager<ApplicationUser>>();
-            var user = await userManager.FindByEmailAsync(request.Username ?? string.Empty);
-
-            if (user is null || !await userManager.CheckPasswordAsync(user, request.Password ?? string.Empty))
-            {
-                return Results.Forbid(
-                    authenticationSchemes: [OpenIddictServerAspNetCoreDefaults.AuthenticationScheme],
-                    properties: new AuthenticationProperties(new Dictionary<string, string?>
-                    {
-                        [OpenIddictServerAspNetCoreConstants.Properties.Error] = OpenIddictConstants.Errors.InvalidGrant,
-                        [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "The username/password couple is invalid.",
-                    }));
-            }
-
-            if (await userManager.IsLockedOutAsync(user))
-            {
-                return Results.Forbid(
-                    authenticationSchemes: [OpenIddictServerAspNetCoreDefaults.AuthenticationScheme],
-                    properties: new AuthenticationProperties(new Dictionary<string, string?>
-                    {
-                        [OpenIddictServerAspNetCoreConstants.Properties.Error] = OpenIddictConstants.Errors.InvalidGrant,
-                        [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "The user account has been locked out.",
-                    }));
-            }
-
-            var identity = new ClaimsIdentity(
-                authenticationType: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
-                nameType: Claims.Name,
-                roleType: Claims.Role);
-
-            identity.SetClaim(Claims.Subject, user.Id.ToString());
-            identity.SetClaim(Claims.Name, user.DisplayName);
-            identity.SetClaim(Claims.PreferredUsername, user.UserName);
-            identity.SetClaim(Claims.Email, user.Email);
-
-            var roles = await userManager.GetRolesAsync(user);
-            foreach (var role in roles)
-            {
-                identity.AddClaim(Claims.Role, role);
-            }
-
-            var principal = new ClaimsPrincipal(identity);
-            principal.SetScopes(request.GetScopes());
-
-            principal.SetDestinations(static claim => claim.Type switch
-            {
-                Claims.Name or Claims.Email or Claims.Role or Claims.Subject
-                    or Claims.PreferredUsername
-                    => [Destinations.AccessToken, Destinations.IdentityToken],
-                _ => [Destinations.AccessToken],
-            });
-
-            return Results.SignIn(
-                principal,
-                authenticationScheme: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
-        }
-
         if (request.IsClientCredentialsGrantType())
         {
             var identity = new ClaimsIdentity(
