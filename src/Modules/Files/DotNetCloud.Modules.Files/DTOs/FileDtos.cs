@@ -90,8 +90,8 @@ public sealed record RenameNodeDto
 /// </summary>
 public sealed record MoveNodeDto
 {
-    /// <summary>Target parent folder ID.</summary>
-    public required Guid TargetParentId { get; init; }
+    /// <summary>Target parent folder ID. Null means root.</summary>
+    public Guid? TargetParentId { get; init; }
 }
 
 /// <summary>
@@ -104,6 +104,12 @@ public sealed record InitiateUploadDto
 
     /// <summary>Parent folder ID.</summary>
     public Guid? ParentId { get; init; }
+
+    /// <summary>
+    /// When set, the upload replaces the content of an existing <see cref="Models.FileNode"/>
+    /// instead of creating a new one (e.g. inline text editor save on a shared file).
+    /// </summary>
+    public Guid? TargetFileNodeId { get; init; }
 
     /// <summary>Total file size in bytes.</summary>
     public long TotalSize { get; init; }
@@ -222,6 +228,9 @@ public sealed record FileShareDto
 
     /// <summary>When the share was created.</summary>
     public DateTime CreatedAt { get; init; }
+
+    /// <summary>ID of the user who created the share.</summary>
+    public Guid CreatedByUserId { get; init; }
 
     /// <summary>Note attached to the share.</summary>
     public string? Note { get; init; }

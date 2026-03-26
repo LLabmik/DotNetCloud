@@ -352,6 +352,62 @@ public class FilesController : FilesControllerBase
     });
 
     /// <summary>
+    /// Streams a file's content inline (no Content-Disposition attachment header).
+    /// Used by the preview component for images, audio, video, PDF, and text.
+    /// </summary>
+    [HttpGet("{nodeId:guid}/content")]
+    public Task<IActionResult> ContentAsync(Guid nodeId) => ExecuteAsync(async () =>
+    {
+        var caller = GetAuthenticatedCaller();
+        var node = await _fileService.GetNodeAsync(nodeId, caller);
+        if (node is null)
+            return NotFound(ErrorEnvelope("not_found", "Node not found."));
+
+        var stream = await _downloadService.DownloadCurrentAsync(nodeId, caller);
+        var mime = string.IsNullOrWhiteSpace(node.MimeType) ? "application/octet-stream" : node.MimeType;
+        return File(stream, mime, enableRangeProcessing: true);
+    });
+
+    /// <summary>
+    /// Replaces the content of an existing file (creates a new version).
+    /// Used by the inline text editor to save changes.
+    /// </summary>
+    [HttpPut("{nodeId:guid}/content")]
+    [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB max for inline edits
+    public Task<IActionResult> UpdateContentAsync(Guid nodeId) => ExecuteAsync(async () =>
+    {
+        var caller = GetAuthenticatedCaller();
+        var node = await _fileService.GetNodeAsync(nodeId, caller);
+        if (node is null)
+            return NotFound(ErrorEnvelope("not_found", "Node not found."));
+
+        using var ms = new MemoryStream();
+        await Request.Body.CopyToAsync(ms);
+        var data = ms.ToArray();
+
+        var hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(data));
+
+        var initDto = new InitiateUploadDto
+        {
+            FileName = node.Name,
+            ParentId = node.ParentId,
+            TargetFileNodeId = nodeId,
+            TotalSize = data.Length,
+            MimeType = node.MimeType,
+            ChunkHashes = [hash]
+        };
+
+        var session = await _uploadService.InitiateUploadAsync(initDto, caller);
+
+        if (!session.ExistingChunks.Contains(hash))
+            await _uploadService.UploadChunkAsync(session.SessionId, hash, data.AsMemory(), caller);
+
+        var result = await _uploadService.CompleteUploadAsync(session.SessionId, caller);
+        _logger.LogInformation("file.content_updated {NodeId} {Size} {UserId}", nodeId, data.Length, caller.UserId);
+        return Ok(result);
+    });
+
+    /// <summary>
     /// Downloads a file. Optionally specify a version number.
     /// </summary>
     [HttpGet("{nodeId:guid}/download")]

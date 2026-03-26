@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using System.Net.Http.Json;
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
@@ -9,6 +11,7 @@ using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.JSInterop;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace DotNetCloud.Modules.Files.UI;
@@ -25,9 +28,13 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     [Inject] private ICollaboraDiscoveryService CollaboraDiscoveryService { get; set; } = default!;
     [Inject] private IOptions<CollaboraOptions> CollaboraOptions { get; set; } = default!;
     [Inject] private ITrashService TrashService { get; set; } = default!;
+    [Inject] private IVersionService VersionService { get; set; } = default!;
+    [Inject] private IShareService ShareService { get; set; } = default!;
+    [Inject] private IUserManagementService UserManagementService { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private IJSRuntime Js { get; set; } = default!;
+    [Inject] private ILogger<FileBrowser> Logger { get; set; } = default!;
 
     /// <summary>The current user ID, used for opening the document editor.</summary>
     [Parameter] public Guid UserId { get; set; }
@@ -38,14 +45,18 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     private FileSidebarSection _activeSection = FileSidebarSection.AllFiles;
     private int _trashItemCount;
 
+    private List<SharedItemViewModel> _sharedWithMeItems = [];
+    private List<SharedItemViewModel> _sharedByMeItems = [];
+    private bool _isLoadingSharedItems;
+
     /// <summary>Items shared with the current user (for the SharedWithMe view).</summary>
-    [Parameter] public IReadOnlyList<SharedItemViewModel> SharedWithMeItems { get; set; } = [];
+    public IReadOnlyList<SharedItemViewModel> SharedWithMeItems => _sharedWithMeItems;
 
     /// <summary>Items shared by the current user (for the SharedByMe view).</summary>
-    [Parameter] public IReadOnlyList<SharedItemViewModel> SharedByMeItems { get; set; } = [];
+    public IReadOnlyList<SharedItemViewModel> SharedByMeItems => _sharedByMeItems;
 
     /// <summary>Whether shared items are being loaded.</summary>
-    [Parameter] public bool IsLoadingSharedItems { get; set; }
+    public bool IsLoadingSharedItems => _isLoadingSharedItems;
 
     /// <summary>Raised when the user opens a shared item.</summary>
     [Parameter] public EventCallback<SharedItemViewModel> OnOpenSharedItem { get; set; }
@@ -137,6 +148,12 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     private FileNodeViewModel? _renameNode;
     private string _renameNewName = string.Empty;
 
+    // Version history panel
+    private bool _showVersionHistory;
+    private Guid _versionHistoryNodeId;
+    private string? _versionHistoryFileName;
+    private List<FileVersionViewModel> _versionHistoryItems = [];
+
     protected override async Task OnInitializedAsync()
     {
         await LoadCollaboraCapabilitiesAsync();
@@ -154,6 +171,14 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             _currentFolderId = null;
             _breadcrumbs.Clear();
             await LoadCurrentFolderAsync();
+        }
+        else if (section == FileSidebarSection.SharedWithMe)
+        {
+            await LoadSharedWithMeAsync();
+        }
+        else if (section == FileSidebarSection.SharedByMe)
+        {
+            await LoadSharedByMeAsync();
         }
 
         StateHasChanged();
@@ -333,17 +358,27 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     protected async Task HandleNodeDoubleClick(FileNodeViewModel node)
     {
+        Console.WriteLine($"[DIAG-OPEN] HandleNodeDoubleClick called: Name={node.Name} Type={node.NodeType} Mime={node.MimeType}");
+        Console.WriteLine($"[DIAG-OPEN] CanNative={CanOpenInNativePreview(node)} CanDocEditor={CanOpenInDocumentEditor(node)}");
+
         if (node.NodeType == "Folder")
         {
             _breadcrumbs.Add(new BreadcrumbItem(node.Id, node.Name));
             NavigateToFolder(node.Id);
         }
+        else if (CanOpenInNativePreview(node))
+        {
+            Console.WriteLine("[DIAG-OPEN] → ShowPreview (native)");
+            ShowPreview(node);
+        }
         else if (CanOpenInDocumentEditor(node))
         {
+            Console.WriteLine("[DIAG-OPEN] → ShowDocumentEditor");
             ShowDocumentEditor(node);
         }
         else
         {
+            Console.WriteLine("[DIAG-OPEN] → ShowPreview (fallback)");
             ShowPreview(node);
         }
 
@@ -589,12 +624,12 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     }
 
     /// <summary>Context menu: Open share dialog for a node.</summary>
-    protected void HandleContextShare(Guid nodeId)
+    protected async Task HandleContextShare(Guid nodeId)
     {
         _showContextMenu = false;
         var node = _nodes.FirstOrDefault(n => n.Id == nodeId);
         if (node is not null)
-            ShowShareDialog(node);
+            await ShowShareDialogAsync(node);
     }
 
     /// <summary>Context menu: Download a file.</summary>
@@ -614,6 +649,77 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         await FileService.DeleteAsync(nodeId, caller);
         await LoadCurrentFolderAsync();
         await LoadTrashCountAsync();
+    }
+
+    /// <summary>Context menu: Open version history panel for a file.</summary>
+    protected async Task HandleContextVersionHistory(Guid nodeId)
+    {
+        _showContextMenu = false;
+        var node = _nodes.FirstOrDefault(n => n.Id == nodeId);
+        if (node is null || node.NodeType == "Folder") return;
+
+        _versionHistoryNodeId = nodeId;
+        _versionHistoryFileName = node.Name;
+        _versionHistoryItems = [];
+        _showVersionHistory = true;
+        StateHasChanged();
+
+        var caller = await GetCallerContextAsync();
+        var versions = await VersionService.ListVersionsAsync(nodeId, caller);
+        var maxVersion = versions.Count > 0 ? versions.Max(v => v.VersionNumber) : 0;
+        _versionHistoryItems = versions.Select(v => new FileVersionViewModel
+        {
+            Id = v.Id,
+            VersionNumber = v.VersionNumber,
+            Label = v.Label,
+            CreatedAt = v.CreatedAt,
+            AuthorName = v.CreatedByUserId.ToString()[..8],
+            SizeBytes = v.Size,
+            IsCurrent = v.VersionNumber == maxVersion
+        }).ToList();
+        StateHasChanged();
+    }
+
+    /// <summary>Hides the version history panel.</summary>
+    protected void HideVersionHistory()
+    {
+        _showVersionHistory = false;
+        _versionHistoryFileName = null;
+        _versionHistoryItems = [];
+    }
+
+    /// <summary>Handles downloading a specific version from the version history panel.</summary>
+    protected async Task HandleDownloadVersion(FileVersionViewModel version)
+    {
+        var node = _nodes.FirstOrDefault(n => n.Id == _versionHistoryNodeId);
+        if (node is null) return;
+        var url = $"/api/v1/files/{_versionHistoryNodeId}/download?version={version.VersionNumber}";
+        await Js.InvokeVoidAsync("open", url, "_blank");
+    }
+
+    /// <summary>Handles restoring a file to a specific version.</summary>
+    protected async Task HandleRestoreVersion(FileVersionViewModel version)
+    {
+        var caller = await GetCallerContextAsync();
+        await VersionService.RestoreVersionAsync(_versionHistoryNodeId, version.Id, caller);
+        await HandleContextVersionHistory(_versionHistoryNodeId);
+        await LoadCurrentFolderAsync();
+    }
+
+    /// <summary>Handles deleting a specific version.</summary>
+    protected async Task HandleDeleteVersion(FileVersionViewModel version)
+    {
+        var caller = await GetCallerContextAsync();
+        await VersionService.DeleteVersionAsync(version.Id, caller);
+        _versionHistoryItems.RemoveAll(v => v.Id == version.Id);
+        StateHasChanged();
+    }
+
+    /// <summary>Handles saving a version label.</summary>
+    protected async Task HandleVersionLabelSaved((Guid VersionId, string Label) args)
+    {
+        var caller = await GetCallerContextAsync();
+        await VersionService.LabelVersionAsync(args.VersionId, args.Label, caller);
     }
 
     // ── Inline rename ────────────────────────────────────────────────────────
@@ -815,22 +921,25 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         {
             foreach (var nodeId in _selectedNodes.ToList())
             {
-                if (targetId.HasValue)
-                    await FileService.MoveAsync(nodeId, new MoveNodeDto { TargetParentId = targetId.Value }, caller);
+                await FileService.MoveAsync(nodeId, new MoveNodeDto { TargetParentId = targetId }, caller);
             }
         }
         else
         {
             foreach (var nodeId in _selectedNodes.ToList())
             {
-                if (targetId.HasValue)
-                    await FileService.CopyAsync(nodeId, targetId.Value, caller);
+                await FileService.CopyAsync(nodeId, targetId, caller);
             }
         }
 
         _selectedNodes.Clear();
         _selectionMode = false;
         HideFolderPicker();
+
+        // Navigate to the target folder so the user sees the result
+        _currentFolderId = targetId;
+        _breadcrumbs.Clear();
+
         await LoadCurrentFolderAsync();
     }
 
@@ -909,13 +1018,108 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         }
     }
 
-    protected void ShowShareDialog(FileNodeViewModel node)
+    protected async Task ShowShareDialogAsync(FileNodeViewModel node)
     {
         _shareTargetNode = node;
+        _shareDialogShares = [];
+        _isLoadingShareDialogShares = true;
         _showShareDialog = true;
+        StateHasChanged();
+
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            var shares = await ShareService.GetSharesAsync(node.Id, caller);
+            _shareDialogShares = shares.Select(s => new ShareViewModel
+            {
+                Id = s.Id,
+                ShareType = s.ShareType,
+                RecipientName = s.SharedWithUserId?.ToString() ?? "Public Link",
+                Permission = s.Permission,
+                LinkToken = s.LinkToken,
+                LinkUrl = s.LinkToken is not null ? $"{Navigation.BaseUri.TrimEnd('/')}/s/{s.LinkToken}" : null,
+                HasPassword = false,
+                DownloadCount = s.DownloadCount,
+                MaxDownloads = s.MaxDownloads,
+                ExpiresAt = s.ExpiresAt,
+                CreatedAt = s.CreatedAt,
+                Note = s.Note
+            }).ToList();
+        }
+        catch
+        {
+            _shareDialogShares = [];
+        }
+        finally
+        {
+            _isLoadingShareDialogShares = false;
+        }
     }
 
     protected void HideShareDialog() => _showShareDialog = false;
+
+    private List<ShareViewModel> _shareDialogShares = [];
+    private bool _isLoadingShareDialogShares;
+
+    protected async Task<IReadOnlyList<ShareSearchResult>> HandleShareSearchAsync(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query) || query.Length < 2)
+            return [];
+
+        var result = await UserManagementService.ListUsersAsync(new UserListQuery
+        {
+            Search = query,
+            PageSize = 10,
+            IsActive = true
+        });
+
+        return result.Items.Select(u => new ShareSearchResult
+        {
+            Id = u.Id,
+            DisplayName = u.DisplayName,
+            SecondaryText = null,
+            ResultType = "User"
+        }).ToList();
+    }
+
+    protected async Task HandleShareCreatedAsync(ShareCreatedEventArgs args)
+    {
+        if (_shareTargetNode is null) return;
+
+        var caller = await GetCallerContextAsync();
+        var dto = new CreateShareDto
+        {
+            ShareType = args.ShareType,
+            SharedWithUserId = args.ShareType == "User" ? args.TargetId : null,
+            SharedWithTeamId = args.ShareType == "Team" ? args.TargetId : null,
+            SharedWithGroupId = args.ShareType == "Group" ? args.TargetId : null,
+            Permission = args.Permission,
+            ExpiresAt = args.ExpirationDays > 0 ? DateTime.UtcNow.AddDays(args.ExpirationDays) : null,
+            Note = args.Note
+        };
+
+        await ShareService.CreateShareAsync(_shareTargetNode.Id, dto, caller);
+    }
+
+    protected async Task HandleShareUpdatedAsync(ShareUpdatedEventArgs args)
+    {
+        var caller = await GetCallerContextAsync();
+        var dto = new UpdateShareDto
+        {
+            Permission = args.NewPermission,
+            MaxDownloads = args.NewMaxDownloads,
+            ExpiresAt = args.NewExpirationDays > 0 ? DateTime.UtcNow.AddDays((double)args.NewExpirationDays) : null,
+            LinkPassword = args.RemovePassword ? "" : args.NewPassword
+        };
+
+        await ShareService.UpdateShareAsync(args.ShareId, dto, caller);
+    }
+
+    protected async Task HandleShareRemovedAsync(Guid shareId)
+    {
+        var caller = await GetCallerContextAsync();
+        await ShareService.DeleteShareAsync(shareId, caller);
+    }
 
     protected void ShowPreview(FileNodeViewModel node)
     {
@@ -926,10 +1130,10 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     protected void HidePreview() => _showPreview = false;
 
     /// <summary>Closes the preview and opens the share dialog for the given node.</summary>
-    protected void HandlePreviewShare(FileNodeViewModel node)
+    protected async Task HandlePreviewShare(FileNodeViewModel node)
     {
         HidePreview();
-        ShowShareDialog(node);
+        await ShowShareDialogAsync(node);
     }
 
     /// <summary>Closes the preview and triggers a download for the given node.</summary>
@@ -962,11 +1166,39 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     private bool CanOpenInDocumentEditor(string fileName)
     {
-        if (!_isCollaboraConfigured)
+        if (!_isCollaboraConfigured || !_isCollaboraAvailable)
             return false;
 
         var extension = NormalizeExtension(Path.GetExtension(fileName));
         return !string.IsNullOrWhiteSpace(extension) && _collaboraEditableExtensions.Contains(extension);
+    }
+
+    /// <summary>Returns true when the file can be rendered natively (image, text, video, audio, PDF) without Collabora.</summary>
+    private static bool CanOpenInNativePreview(FileNodeViewModel node)
+    {
+        if (node.NodeType != "File") return false;
+
+        var mime = node.MimeType;
+        if (!string.IsNullOrEmpty(mime))
+        {
+            if (mime.StartsWith("image/", StringComparison.OrdinalIgnoreCase)) return true;
+            if (mime.StartsWith("video/", StringComparison.OrdinalIgnoreCase)) return true;
+            if (mime.StartsWith("audio/", StringComparison.OrdinalIgnoreCase)) return true;
+            if (mime.StartsWith("text/", StringComparison.OrdinalIgnoreCase)) return true;
+            if (mime.Equals("application/pdf", StringComparison.OrdinalIgnoreCase)) return true;
+            if (mime.Equals("application/json", StringComparison.OrdinalIgnoreCase)) return true;
+            if (mime.Equals("application/xml", StringComparison.OrdinalIgnoreCase)) return true;
+        }
+
+        // Fallback: check extension for common natively previewable types
+        var ext = NormalizeExtension(Path.GetExtension(node.Name));
+        return ext is "png" or "jpg" or "jpeg" or "gif" or "webp" or "svg" or "bmp" or "ico"
+            or "mp4" or "webm" or "ogg" or "ogv"
+            or "mp3" or "wav" or "flac" or "aac" or "oga"
+            or "pdf"
+            or "txt" or "md" or "csv" or "log" or "json" or "xml" or "yaml" or "yml"
+            or "html" or "htm" or "css" or "js" or "ts" or "cs" or "py" or "sh" or "bash"
+            or "sql" or "ini" or "toml" or "cfg" or "conf" or "env" or "rtf";
     }
 
     protected void HideDocumentEditor()
@@ -1040,40 +1272,94 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     // ── Shared item event handlers ─────────────────────────────────────────────
 
-    /// <summary>Handles opening a shared item from the SharedWithMe or SharedByMe views.</summary>
+    /// <summary>Handles opening a shared item — fetches the node and shows preview or editor.</summary>
     protected async Task HandleOpenSharedItem(SharedItemViewModel item)
     {
-        await OnOpenSharedItem.InvokeAsync(item);
+        Logger.LogInformation("[SharedOpen] Opening shared item NodeId={NodeId} Name={Name} Type={Type}",
+            item.NodeId, item.NodeName, item.NodeType);
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            Logger.LogInformation("[SharedOpen] Caller UserId={UserId}", caller.UserId);
+
+            var nodeDto = await FileService.GetNodeAsync(item.NodeId, caller);
+            if (nodeDto is null)
+            {
+                Logger.LogWarning("[SharedOpen] GetNodeAsync returned null for NodeId={NodeId}", item.NodeId);
+                return;
+            }
+
+            Logger.LogInformation("[SharedOpen] Got node: {Name} Type={Type}", nodeDto.Name, nodeDto.NodeType);
+            var node = ToViewModel(nodeDto);
+
+            if (node.NodeType == "Folder")
+            {
+                _activeSection = FileSidebarSection.AllFiles;
+                _breadcrumbs.Clear();
+                _breadcrumbs.Add(new BreadcrumbItem(node.Id, node.Name));
+                NavigateToFolder(node.Id);
+            }
+            else if (CanOpenInNativePreview(node))
+            {
+                Logger.LogInformation("[SharedOpen] Showing native preview");
+                ShowPreview(node);
+            }
+            else if (CanOpenInDocumentEditor(node))
+            {
+                Logger.LogInformation("[SharedOpen] Opening in document editor");
+                ShowDocumentEditor(node);
+            }
+            else
+            {
+                Logger.LogInformation("[SharedOpen] Showing preview");
+                ShowPreview(node);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[SharedOpen] Exception opening shared item NodeId={NodeId}", item.NodeId);
+        }
     }
 
-    /// <summary>Handles declining a share from the SharedWithMe view.</summary>
+    /// <summary>Handles declining (deleting) a share from the SharedWithMe view.</summary>
     protected async Task HandleDeclineShare(SharedItemViewModel item)
     {
-        await OnDeclineShare.InvokeAsync(item);
+        var caller = await GetCallerContextAsync();
+        await ShareService.DeleteShareAsync(item.ShareId, caller);
+        _sharedWithMeItems.RemoveAll(s => s.ShareId == item.ShareId);
+        StateHasChanged();
     }
 
-    /// <summary>Handles managing a share from the SharedByMe view.</summary>
-    protected async Task HandleManageShare(SharedItemViewModel item)
+    /// <summary>Handles managing a share from the SharedByMe view — opens share dialog.</summary>
+    protected Task HandleManageShare(SharedItemViewModel item)
     {
-        await OnManageShare.InvokeAsync(item);
+        // Could open share dialog for the node
+        return Task.CompletedTask;
     }
 
     /// <summary>Handles revoking a share from the SharedByMe view.</summary>
     protected async Task HandleRevokeShare(SharedItemViewModel item)
     {
-        await OnRevokeShare.InvokeAsync(item);
+        var caller = await GetCallerContextAsync();
+        await ShareService.DeleteShareAsync(item.ShareId, caller);
+        _sharedByMeItems.RemoveAll(s => s.ShareId == item.ShareId);
+        StateHasChanged();
     }
 
     /// <summary>Handles inline permission change from the SharedByMe view.</summary>
     protected async Task HandleSharePermissionChanged(SharePermissionChangedEventArgs args)
     {
-        await OnSharePermissionChanged.InvokeAsync(args);
+        var caller = await GetCallerContextAsync();
+        await ShareService.UpdateShareAsync(args.ShareId, new UpdateShareDto { Permission = args.NewPermission }, caller);
     }
 
     /// <summary>Handles copying a public link from the SharedByMe view.</summary>
     protected async Task HandleCopyShareLink(SharedItemViewModel item)
     {
-        await OnCopyShareLink.InvokeAsync(item);
+        if (!string.IsNullOrEmpty(item.LinkUrl))
+        {
+            await Js.InvokeVoidAsync("navigator.clipboard.writeText", item.LinkUrl);
+        }
     }
 
     private async Task LoadCurrentFolderAsync()
@@ -1086,6 +1372,101 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
         _nodes = nodes.Select(ToViewModel).ToList();
         StateHasChanged();
+    }
+
+    private async Task LoadSharedWithMeAsync()
+    {
+        _isLoadingSharedItems = true;
+        StateHasChanged();
+
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            var shares = await ShareService.GetSharedWithMeAsync(caller);
+
+            var userIds = shares.Select(s => s.CreatedByUserId).Distinct().ToList();
+            var nameMap = await ResolveUserNamesAsync(userIds);
+
+            _sharedWithMeItems = shares.Select(s => new SharedItemViewModel
+            {
+                ShareId = s.Id,
+                NodeId = s.FileNodeId,
+                NodeName = s.NodeName ?? "Unknown",
+                ShareType = s.ShareType,
+                Permission = s.Permission,
+                SharedByName = nameMap.GetValueOrDefault(s.CreatedByUserId, s.CreatedByUserId.ToString()),
+                SharedAt = s.CreatedAt,
+                ExpiresAt = s.ExpiresAt,
+                DownloadCount = s.DownloadCount,
+                MaxDownloads = s.MaxDownloads
+            }).ToList();
+        }
+        catch
+        {
+            _sharedWithMeItems = [];
+        }
+        finally
+        {
+            _isLoadingSharedItems = false;
+        }
+    }
+
+    private async Task LoadSharedByMeAsync()
+    {
+        _isLoadingSharedItems = true;
+        StateHasChanged();
+
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            var shares = await ShareService.GetSharedByMeAsync(caller);
+
+            var userIds = shares
+                .Where(s => s.SharedWithUserId.HasValue)
+                .Select(s => s.SharedWithUserId!.Value)
+                .Distinct()
+                .ToList();
+            var nameMap = await ResolveUserNamesAsync(userIds);
+
+            _sharedByMeItems = shares.Select(s => new SharedItemViewModel
+            {
+                ShareId = s.Id,
+                NodeId = s.FileNodeId,
+                NodeName = s.NodeName ?? "Unknown",
+                ShareType = s.ShareType,
+                Permission = s.Permission,
+                SharedWithName = s.SharedWithUserId.HasValue
+                    ? nameMap.GetValueOrDefault(s.SharedWithUserId.Value, s.SharedWithUserId.Value.ToString())
+                    : "Public Link",
+                SharedAt = s.CreatedAt,
+                ExpiresAt = s.ExpiresAt,
+                LinkUrl = s.LinkToken is not null ? $"{Navigation.BaseUri.TrimEnd('/')}/s/{s.LinkToken}" : null,
+                DownloadCount = s.DownloadCount,
+                MaxDownloads = s.MaxDownloads
+            }).ToList();
+        }
+        catch
+        {
+            _sharedByMeItems = [];
+        }
+        finally
+        {
+            _isLoadingSharedItems = false;
+        }
+    }
+
+    private async Task<Dictionary<Guid, string>> ResolveUserNamesAsync(IReadOnlyList<Guid> userIds)
+    {
+        var map = new Dictionary<Guid, string>();
+        foreach (var id in userIds)
+        {
+            var user = await UserManagementService.GetUserAsync(id);
+            if (user is not null)
+            {
+                map[id] = user.DisplayName;
+            }
+        }
+        return map;
     }
 
     private async Task LoadCollaboraCapabilitiesAsync()

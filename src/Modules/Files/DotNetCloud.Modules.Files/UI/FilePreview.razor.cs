@@ -46,6 +46,13 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
     private int _gestureHandlerId;
     private double _imageZoom = 1;
 
+    // Native text preview state
+    private string? _textContent;
+    private bool _isLoadingText;
+    private bool _isEditingText;
+    private string? _editableText;
+    private bool _isSavingText;
+
     // Tracks the currently displayed node when the user navigates away from the original Node.
     private FileNodeViewModel? _currentNode;
 
@@ -57,6 +64,10 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
     {
         _currentNode = null;
         _imageZoom = 1;
+        _textContent = null;
+        _isLoadingText = false;
+        _isEditingText = false;
+        _editableText = null;
     }
 
     /// <inheritdoc />
@@ -68,6 +79,73 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
 
             _gestureDotNetRef = DotNetObjectReference.Create(this);
             _gestureHandlerId = await Js.InvokeAsync<int>("dotnetcloudFilePreviewGestures.init", _overlayRef, _gestureDotNetRef);
+
+            // Auto-load text content for text files
+            if (IsText || IsCode || IsMarkdown)
+            {
+                await LoadTextContentAsync();
+            }
+        }
+    }
+
+    /// <summary>Fetches text file content via JS fetch and stores it for native rendering.</summary>
+    private async Task LoadTextContentAsync()
+    {
+        if (DisplayNode is null) return;
+        _isLoadingText = true;
+        StateHasChanged();
+
+        try
+        {
+            _textContent = await Js.InvokeAsync<string>("dotnetcloudFilePreview.fetchTextContent", GetContentUrl());
+        }
+        catch
+        {
+            _textContent = "Failed to load file content.";
+        }
+        finally
+        {
+            _isLoadingText = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>Toggles between view and edit mode for text files.</summary>
+    protected void ToggleTextEdit()
+    {
+        _isEditingText = !_isEditingText;
+        if (_isEditingText)
+            _editableText = _textContent;
+    }
+
+    /// <summary>Saves the edited text content back to the server via PUT.</summary>
+    protected async Task SaveTextAsync()
+    {
+        if (DisplayNode is null || _editableText is null) return;
+        _isSavingText = true;
+        StateHasChanged();
+
+        try
+        {
+            var url = string.IsNullOrEmpty(ApiBaseUrl)
+                ? $"/api/v1/files/{DisplayNode.Id}/content"
+                : $"{ApiBaseUrl.TrimEnd('/')}/api/v1/files/{DisplayNode.Id}/content";
+
+            var success = await Js.InvokeAsync<bool>("dotnetcloudFilePreview.saveTextContent", url, _editableText);
+            if (success)
+            {
+                _textContent = _editableText;
+                _isEditingText = false;
+            }
+        }
+        catch
+        {
+            // Save failed — stay in edit mode so user doesn't lose work
+        }
+        finally
+        {
+            _isSavingText = false;
+            StateHasChanged();
         }
     }
 
@@ -134,43 +212,49 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
     }
 
     /// <summary>Navigates to the previous file in the list.</summary>
-    protected void GoPrev()
+    protected async Task GoPrev()
     {
         var idx = CurrentIndex;
         if (idx > 0)
         {
             _currentNode = NavigableFiles[idx - 1];
             _imageZoom = 1;
+            _textContent = null;
+            _isEditingText = false;
             StateHasChanged();
+            if (IsText || IsCode || IsMarkdown)
+                await LoadTextContentAsync();
         }
     }
 
     /// <summary>Navigates to the next file in the list.</summary>
-    protected void GoNext()
+    protected async Task GoNext()
     {
         var idx = CurrentIndex;
         if (idx >= 0 && idx < NavigableFiles.Count - 1)
         {
             _currentNode = NavigableFiles[idx + 1];
             _imageZoom = 1;
+            _textContent = null;
+            _isEditingText = false;
             StateHasChanged();
+            if (IsText || IsCode || IsMarkdown)
+                await LoadTextContentAsync();
         }
     }
 
     /// <summary>Handles a swipe-left gesture to navigate forward.</summary>
     [JSInvokable]
-    public Task OnSwipeLeft()
+    public async Task OnSwipeLeft()
     {
-        GoNext();
-        return Task.CompletedTask;
+        await GoNext();
     }
 
     /// <summary>Handles a swipe-right gesture to navigate backward.</summary>
     [JSInvokable]
-    public Task OnSwipeRight()
+    public async Task OnSwipeRight()
     {
-        GoPrev();
-        return Task.CompletedTask;
+        await GoPrev();
     }
 
     /// <summary>Handles pinch gesture scale deltas for image zoom.</summary>
@@ -198,10 +282,10 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
                 await OnClose.InvokeAsync();
                 break;
             case "ArrowLeft":
-                GoPrev();
+                await GoPrev();
                 break;
             case "ArrowRight":
-                GoNext();
+                await GoNext();
                 break;
         }
     }
@@ -242,20 +326,20 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
 
     // ── Formatting ──────────────────────────────────────────────────────────────
 
-    /// <summary>Returns a text icon label for the given MIME type.</summary>
+    /// <summary>Returns an emoji icon for the given MIME type.</summary>
     protected static string GetFileIcon(string? mimeType)
     {
-        if (mimeType is null) return "[File]";
-        if (mimeType.StartsWith("image/"))  return "[Image]";
-        if (mimeType.StartsWith("video/"))  return "[Video]";
-        if (mimeType.StartsWith("audio/"))  return "[Audio]";
-        if (mimeType == "application/pdf")  return "[PDF]";
-        if (mimeType.StartsWith("text/"))   return "[Text]";
-        if (mimeType.Contains("spreadsheet") || mimeType.Contains("excel")) return "[Sheet]";
-        if (mimeType.Contains("presentation") || mimeType.Contains("powerpoint")) return "[Slides]";
-        if (mimeType.Contains("document") || mimeType.Contains("word")) return "[Doc]";
-        if (mimeType.Contains("zip") || mimeType.Contains("compressed")) return "[Archive]";
-        return "[File]";
+        if (mimeType is null) return "📄";
+        if (mimeType.StartsWith("image/")) return "🖼️";
+        if (mimeType.StartsWith("video/")) return "🎬";
+        if (mimeType.StartsWith("audio/")) return "🎵";
+        if (mimeType == "application/pdf") return "📕";
+        if (mimeType.StartsWith("text/")) return "📝";
+        if (mimeType.Contains("spreadsheet") || mimeType.Contains("excel")) return "📊";
+        if (mimeType.Contains("presentation") || mimeType.Contains("powerpoint")) return "📈";
+        if (mimeType.Contains("document") || mimeType.Contains("word")) return "📘";
+        if (mimeType.Contains("zip") || mimeType.Contains("compressed")) return "🗜️";
+        return "📄";
     }
 
     /// <summary>

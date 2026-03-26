@@ -226,36 +226,46 @@ internal sealed class FileService : IFileService
 
         await _permissions.RequirePermissionAsync(nodeId, caller, SharePermission.ReadWrite, cancellationToken);
 
-        var targetParent = await _db.FileNodes.FindAsync([dto.TargetParentId], cancellationToken)
-            ?? throw new NotFoundException("FileNode", dto.TargetParentId);
+        FileNode? targetParent = null;
+        if (dto.TargetParentId.HasValue)
+        {
+            targetParent = await _db.FileNodes.FindAsync([dto.TargetParentId.Value], cancellationToken)
+                ?? throw new NotFoundException("FileNode", dto.TargetParentId.Value);
 
-        if (targetParent.NodeType != FileNodeType.Folder)
-            throw new Core.Errors.ValidationException("TargetParentId", "Target must be a folder.");
+            if (targetParent.NodeType != FileNodeType.Folder)
+                throw new Core.Errors.ValidationException("TargetParentId", "Target must be a folder.");
 
-        await _permissions.RequirePermissionAsync(dto.TargetParentId, caller, SharePermission.ReadWrite, cancellationToken);
+            await _permissions.RequirePermissionAsync(dto.TargetParentId.Value, caller, SharePermission.ReadWrite, cancellationToken);
+        }
 
         // Prevent circular move: target cannot be self or a descendant
         if (dto.TargetParentId == nodeId)
             throw new Core.Errors.ValidationException("TargetParentId", "Cannot move a node into itself.");
 
-        if (node.NodeType == FileNodeType.Folder)
+        if (node.NodeType == FileNodeType.Folder && targetParent is not null)
         {
             var targetPath = targetParent.MaterializedPath;
             if (targetPath.StartsWith(node.MaterializedPath, StringComparison.Ordinal))
                 throw new Core.Errors.ValidationException("TargetParentId", "Cannot move a folder into one of its descendants.");
         }
 
-        if (targetParent.Depth + 1 >= MaxDepth)
+        var targetDepth = targetParent is not null ? targetParent.Depth + 1 : 0;
+        if (targetDepth >= MaxDepth)
             throw new Core.Errors.ValidationException("Depth", $"Maximum folder depth of {MaxDepth} exceeded.");
 
-        await ValidateNameUniqueAsync(dto.TargetParentId, node.Name, nodeId, cancellationToken);
+        if (dto.TargetParentId.HasValue)
+            await ValidateNameUniqueAsync(dto.TargetParentId.Value, node.Name, nodeId, cancellationToken);
+        else
+            await ValidateRootNameUniqueAsync(node.OwnerId, node.Name, nodeId, cancellationToken);
 
         var previousParentId = node.ParentId;
         var oldPath = node.MaterializedPath;
 
         node.ParentId = dto.TargetParentId;
-        node.Depth = targetParent.Depth + 1;
-        var newPath = $"{targetParent.MaterializedPath}/{node.Id}";
+        node.Depth = targetDepth;
+        var newPath = targetParent is not null
+            ? $"{targetParent.MaterializedPath}/{node.Id}"
+            : $"/{node.Id}";
         node.MaterializedPath = newPath;
         node.UpdatedAt = DateTime.UtcNow;
         await SyncCursorHelper.AssignNextSequenceAsync(_db, node, node.OwnerId, _syncNotifier, cancellationToken);
@@ -294,7 +304,7 @@ internal sealed class FileService : IFileService
     }
 
     /// <inheritdoc />
-    public async Task<FileNodeDto> CopyAsync(Guid nodeId, Guid targetParentId, CallerContext caller, CancellationToken cancellationToken = default)
+    public async Task<FileNodeDto> CopyAsync(Guid nodeId, Guid? targetParentId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(caller);
 
@@ -305,13 +315,17 @@ internal sealed class FileService : IFileService
 
         await _permissions.RequirePermissionAsync(nodeId, caller, SharePermission.Read, cancellationToken);
 
-        var targetParent = await _db.FileNodes.FindAsync([targetParentId], cancellationToken)
-            ?? throw new NotFoundException("FileNode", targetParentId);
+        FileNode? targetParent = null;
+        if (targetParentId.HasValue)
+        {
+            targetParent = await _db.FileNodes.FindAsync([targetParentId.Value], cancellationToken)
+                ?? throw new NotFoundException("FileNode", targetParentId.Value);
 
-        if (targetParent.NodeType != FileNodeType.Folder)
-            throw new Core.Errors.ValidationException("TargetParentId", "Target must be a folder.");
+            if (targetParent.NodeType != FileNodeType.Folder)
+                throw new Core.Errors.ValidationException("TargetParentId", "Target must be a folder.");
 
-        await _permissions.RequirePermissionAsync(targetParentId, caller, SharePermission.ReadWrite, cancellationToken);
+            await _permissions.RequirePermissionAsync(targetParentId.Value, caller, SharePermission.ReadWrite, cancellationToken);
+        }
 
         // Check quota before copying
         var copySize = await CalculateSubtreeSizeAsync(nodeId, source, cancellationToken);
@@ -328,12 +342,14 @@ internal sealed class FileService : IFileService
             Size = source.NodeType == FileNodeType.File ? source.Size : 0,
             ParentId = targetParentId,
             OwnerId = caller.UserId,
-            Depth = targetParent.Depth + 1,
+            Depth = targetParent is not null ? targetParent.Depth + 1 : 0,
             ContentHash = source.NodeType == FileNodeType.File ? source.ContentHash : null,
             StoragePath = source.NodeType == FileNodeType.File ? source.StoragePath : null,
             CurrentVersion = 1
         };
-        copy.MaterializedPath = $"{targetParent.MaterializedPath}/{copy.Id}";
+        copy.MaterializedPath = targetParent is not null
+            ? $"{targetParent.MaterializedPath}/{copy.Id}"
+            : $"/{copy.Id}";
 
         await SyncCursorHelper.AssignNextSequenceAsync(_db, copy, caller.UserId, _syncNotifier, cancellationToken);
         _db.FileNodes.Add(copy);
@@ -388,6 +404,7 @@ internal sealed class FileService : IFileService
                 desc.IsDeleted = true;
                 desc.DeletedAt = DateTime.UtcNow;
                 desc.DeletedByUserId = caller.UserId;
+                desc.OriginalParentId = desc.ParentId;
                 allNodeIds.Add(desc.Id);
             }
         }
@@ -538,7 +555,7 @@ internal sealed class FileService : IFileService
         }
     }
 
-    private async Task<string> GetCopyNameAsync(Guid parentId, string originalName, CancellationToken cancellationToken)
+    private async Task<string> GetCopyNameAsync(Guid? parentId, string originalName, CancellationToken cancellationToken)
     {
         var name = originalName;
         var counter = 1;

@@ -36,7 +36,7 @@
             {
                 <li class="version-item @(version.IsCurrent ? "version-item--current" : "")">
                     <div class="version-number" aria-label="Version @version.VersionNumber">
-                        v@version.VersionNumber
+                        v@(version.VersionNumber)
                         @if (version.IsCurrent)
                         {
                             <span class="version-badge-current">Current</span>

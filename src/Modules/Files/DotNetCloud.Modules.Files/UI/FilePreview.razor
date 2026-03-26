@@ -78,9 +78,32 @@
                         <span class="preview-text-lang">
                             @(IsMarkdown ? "Markdown" : IsCode ? GetCodeLanguage(DisplayNode.Name) : "Plain text")
                         </span>
+                        @if (_isEditingText)
+                        {
+                            <button class="btn btn-sm btn-primary preview-text-save-btn" @onclick="SaveTextAsync" disabled="@_isSavingText">
+                                @(_isSavingText ? "Saving…" : "Save")
+                            </button>
+                        }
+                        <button class="btn btn-sm preview-text-edit-btn" @onclick="ToggleTextEdit">
+                            @(_isEditingText ? "Cancel" : "Edit")
+                        </button>
                     </div>
-                    <iframe src="@GetContentUrl()" title="@DisplayNode.Name"
-                            class="preview-text-frame" sandbox="allow-same-origin"></iframe>
+                    @if (_isLoadingText)
+                    {
+                        <div class="preview-text-loading">Loading…</div>
+                    }
+                    else if (_isEditingText)
+                    {
+                        <textarea class="preview-text-editor" @bind="_editableText" @bind:event="oninput"></textarea>
+                    }
+                    else if (_textContent is not null)
+                    {
+                        <pre class="preview-text-content">@_textContent</pre>
+                    }
+                    else
+                    {
+                        <div class="preview-text-loading">Unable to load content.</div>
+                    }
                 </div>
             }
             else if (IsDocument)

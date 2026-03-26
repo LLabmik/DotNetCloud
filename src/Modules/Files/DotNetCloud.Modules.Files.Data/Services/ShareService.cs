@@ -175,6 +175,7 @@ internal sealed class ShareService : IShareService
                 DownloadCount = s.DownloadCount,
                 MaxDownloads = s.MaxDownloads,
                 CreatedAt = s.CreatedAt,
+                CreatedByUserId = s.CreatedByUserId,
                 Note = s.Note
             })
             .ToListAsync(cancellationToken);
@@ -204,6 +205,37 @@ internal sealed class ShareService : IShareService
                 DownloadCount = s.DownloadCount,
                 MaxDownloads = s.MaxDownloads,
                 CreatedAt = s.CreatedAt,
+                CreatedByUserId = s.CreatedByUserId,
+                Note = s.Note
+            })
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<FileShareDto>> GetSharedByMeAsync(CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+
+        return await _db.FileShares
+            .AsNoTracking()
+            .Include(s => s.FileNode)
+            .Where(s => s.CreatedByUserId == caller.UserId)
+            .OrderByDescending(s => s.CreatedAt)
+            .Select(s => new FileShareDto
+            {
+                Id = s.Id,
+                FileNodeId = s.FileNodeId,
+                NodeName = s.FileNode!.Name,
+                ShareType = s.ShareType.ToString(),
+                SharedWithUserId = s.SharedWithUserId,
+                SharedWithTeamId = s.SharedWithTeamId,
+                Permission = s.Permission.ToString(),
+                LinkToken = s.LinkToken,
+                ExpiresAt = s.ExpiresAt,
+                DownloadCount = s.DownloadCount,
+                MaxDownloads = s.MaxDownloads,
+                CreatedAt = s.CreatedAt,
+                CreatedByUserId = s.CreatedByUserId,
                 Note = s.Note
             })
             .ToListAsync(cancellationToken);
@@ -304,6 +336,7 @@ internal sealed class ShareService : IShareService
         DownloadCount = share.DownloadCount,
         MaxDownloads = share.MaxDownloads,
         CreatedAt = share.CreatedAt,
+        CreatedByUserId = share.CreatedByUserId,
         Note = share.Note
     };
 }

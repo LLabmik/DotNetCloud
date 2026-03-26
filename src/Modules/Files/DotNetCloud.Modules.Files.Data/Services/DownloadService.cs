@@ -58,7 +58,12 @@ internal sealed class DownloadService : IDownloadService
             .FirstOrDefaultAsync(cancellationToken);
 
         if (latestVersion is null)
-            throw new NotFoundException("No version found for file.", fileNodeId);
+        {
+            // Pre-versioning file: try to find matching chunk and auto-repair.
+            latestVersion = await TryAutoRepairMissingVersionAsync(node, cancellationToken);
+            if (latestVersion is null)
+                throw new NotFoundException("No version found for file.", fileNodeId);
+        }
 
         return await BuildStreamFromVersionAsync(latestVersion.Id, cancellationToken);
     }
@@ -266,6 +271,70 @@ internal sealed class DownloadService : IDownloadService
                 await chunkStream.CopyToAsync(entryStream, cancellationToken);
             }
         }
+    }
+
+    /// <summary>
+    /// Attempts to auto-repair a file that has no <see cref="FileVersion"/> record
+    /// by locating the matching chunk(s) in the database. Creates the missing
+    /// version and version-chunk records so subsequent downloads work normally.
+    /// </summary>
+    private async Task<FileVersion?> TryAutoRepairMissingVersionAsync(FileNode node, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(node.ContentHash))
+            return null;
+
+        // For single-chunk files, find a chunk whose manifest hash matches the node's ContentHash.
+        var candidateChunks = await _db.FileChunks
+            .Where(c => c.Size == node.Size)
+            .ToListAsync(cancellationToken);
+
+        FileChunk? matchedChunk = null;
+        foreach (var chunk in candidateChunks)
+        {
+            var manifestHash = ContentHasher.ComputeManifestHash([chunk.ChunkHash]);
+            if (manifestHash == node.ContentHash)
+            {
+                matchedChunk = chunk;
+                break;
+            }
+        }
+
+        if (matchedChunk is null)
+        {
+            _logger.LogWarning("Auto-repair failed for FileNode {NodeId} '{Name}': no matching chunk found for ContentHash {Hash}.",
+                node.Id, node.Name, node.ContentHash[..12]);
+            return null;
+        }
+
+        // Create missing FileVersion + FileVersionChunk records.
+        var version = new FileVersion
+        {
+            FileNodeId = node.Id,
+            VersionNumber = node.CurrentVersion,
+            Size = node.Size,
+            ContentHash = node.ContentHash,
+            StoragePath = node.StoragePath ?? ContentHasher.GetFileStoragePath(node.ContentHash),
+            MimeType = node.MimeType,
+            CreatedByUserId = node.OwnerId,
+            CreatedAt = node.CreatedAt
+        };
+        _db.FileVersions.Add(version);
+
+        _db.FileVersionChunks.Add(new FileVersionChunk
+        {
+            FileVersionId = version.Id,
+            FileChunkId = matchedChunk.Id,
+            SequenceIndex = 0,
+            Offset = 0,
+            ChunkSize = (int)matchedChunk.Size
+        });
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Auto-repaired FileNode {NodeId} '{Name}': created FileVersion {VersionId} linked to chunk {ChunkHash}.",
+            node.Id, node.Name, version.Id, matchedChunk.ChunkHash[..12]);
+
+        return version;
     }
 
     private async Task<Stream> BuildStreamFromVersionAsync(Guid versionId, CancellationToken cancellationToken)

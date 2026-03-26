@@ -1,271 +1,162 @@
 # WS-4 Live Verification Execution Plan
 
-## Scope
-Complete all WS-4 live verification items from `docs/REMAINING_WORK_PLAN.md` using the current environment:
-- Server deployment running on mint22
-- Web client running on monolith
-- Active user: testdude@llabmik.net
-
-## Goal
-Finish all WS-4 checks with pass/fail evidence, then update tracking docs:
-- `docs/REMAINING_WORK_PLAN.md`
-- `docs/MASTER_PROJECT_PLAN.md`
-- `docs/IMPLEMENTATION_CHECKLIST.md`
+**Environment:** Server on mint22 · Web client on monolith · User: testdude@llabmik.net  
+**Tracking docs to update on completion:** `docs/REMAINING_WORK_PLAN.md`, `docs/MASTER_PROJECT_PLAN.md`, `docs/IMPLEMENTATION_CHECKLIST.md`
 
 ---
 
-## Current Status (2026-03-25)
+## Status (2026-03-25)
 
-### What's Done
-- **36 automated integration tests added** (commit `8f5c37d`) covering User Management, Admin, Notifications, Devices, MFA endpoints via `WebApplicationFactory<Program>` — these run in CI, not against the live server
-- **Broken ROPC (password grant) code removed** — was added to get bearer tokens for live testing but OpenIddict refused to honor it at runtime; cleaned out
-- **Server is running** on mint22: `dotnetcloud.service` active, `coolwsd` (Collabora) active
-- **Deployment is from earlier today** (Mar 25 03:28) — includes the ROPC removal, so the server is clean
+**Completed pre-work:**
+- 36 automated integration tests added (commit `8f5c37d`) — CI only, not live-server tests
+- Broken ROPC (password grant) code removed; server is clean
+- mint22: `dotnetcloud.service` active, `coolwsd` (Collabora) active (deployed Mar 25 03:28)
 
-### What's NOT Done
-- **Zero of the 66 WS-4 live verification items have been executed** — all checkboxes are ☐
-- All verification requires manual browser interaction or providing a bearer token
+**Live verification: 15 of 66 items passed ✅**
 
-### Known Blockers
-- **Comments UI does not exist** — TC-1.37 (add comment), TC-1.38 (reply), TC-1.39 (edit/delete) will be **Blocked** (3 items)
-- **SQL Server** (TC-1.43) — needs a SQL Server instance + connection string; no environment currently available
-- **Sync client tests** (TC-1.46 to TC-1.57, 12 items) — need Windows11-TestDNC and mint-dnc-client machines set up with sync clients
-
-### Your Action Plan (What To Do)
-
-**Step 1: Redeploy latest code to mint22** (one-time)
-```bash
-cd /home/benk/Repos/dotnetcloud
-sudo systemctl stop dotnetcloud.service
-dotnet publish src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj -c Release -o artifacts/publish/server-baremetal
-sudo cp -r artifacts/publish/server-baremetal/. /opt/dotnetcloud/server/
-sudo systemctl start dotnetcloud.service
-```
-
-**Step 2: Open web client and run Phase A tests (36 items)**
-
-Log in as testdude@llabmik.net at https://mint22:5443. Work through these in order:
-
-| Sprint | What to test | Items |
-|---|---|---:|
-| 1.1-1.2 | Upload, download, rename, move, copy, delete file. Create/navigate/rename/move/delete folder. | 11 |
-| 1.3 | Upload >4MB file. Upload same file again (dedup). Interrupt + resume upload. | 3 |
-| 1.4 | Upload new version. View history. Download old version. Restore old version. | 4 |
-| 1.5 | Share file (read). Public link in incognito. Password-protect link. Download limit. | 4 |
-| 1.6 | Set low quota (admin). Upload until exceeded. | 2 |
-| 1.8 | Preview: image, video, PDF, text/code, markdown, unsupported fallback. | 6 |
-| 1.9 | Tags: add, filter, remove. Comments: **BLOCKED** (no UI). | 3 pass + 3 blocked |
-
-**Step 3: Capture a bearer token for API tests**
-
-While logged in, open browser DevTools (F12) > Network tab. Find any API call with an `Authorization: Bearer ...` header. Copy the token value and give it to Copilot.
-
-Also grab a **file ID** from any file detail API call in DevTools.
-
-**Step 4: Give Copilot the token + file ID**
-
-Copilot can then run:
-- TC-1.40 to TC-1.42 — Sync endpoint API checks (3 items)
-- TC-1.45 — Range request resume (1 item)
-- TC-1.27 — WOPI CheckFileInfo (1 item, also needs WOPI token from Collabora flow in DevTools)
-
-**Step 5: Collabora tests (3 items)**
-- Upload a .docx, open in Collabora, edit, save, check version history
-- While Collabora is open, grab the WOPI `access_token` from DevTools for TC-1.27
-
-**Step 6: Observability + Security (hybrid, 9 items)**
-- Do file operations in browser, then ask Copilot to check server logs for gRPC/module/OTel evidence
-- Copilot can test path traversal and rate limiting via API if you provide the bearer token
-
-**Step 7: Sync client tests (deferred, 12 items)**
-- Requires Windows11-TestDNC and mint-dnc-client to be set up
-- Can be done in a separate session
-
-**Step 8: SQL Server (deferred, 1 item)**
-- Needs a SQL Server instance — skip or mark blocked for now
-
-### Quick Tally
-
-| Category | Items | Status |
-|---|---:|---|
-| Phase A: Browser tests | 33 | Ready to start |
-| Phase A: Comments (no UI) | 3 | Blocked |
-| Phase B: API tests (need token) | 5 | Ready after Step 3 |
-| Phase B: WOPI (need WOPI token) | 1 | Ready after Step 5 |
-| Phase D: Observability + Security | 9 | Hybrid — after Steps 2+3 |
-| Phase C: Sync clients | 12 | Deferred — machines not set up |
-| Phase E: SQL Server | 1 | Blocked — no SQL Server |
-| Phase D: OTel traces | 1 | Needs Jaeger/OTLP collector |
-| Phase D: i18n | 1 | Needs alternate locale |
-| **Total** | **66** | |
+**Known blockers:**
+- **Comments UI** (TC-1.37–1.39, 3 items) — no UI exists; will be Blocked
+- **SQL Server** (TC-1.43, 1 item) — no SQL Server instance available
+- **Sync clients** (TC-1.46–1.57, 12 items) — Windows11-TestDNC and mint-dnc-client not set up
 
 ---
 
-## Execution Phases
+## Phase A — Browser Tests (33 items, User-driven)
 
-### Phase A: Web-Only Verification (monolith)
-Run all browser-driven checks first.
+Log in as testdude@llabmik.net at `https://mint22:5443`. Work through the sprints below.
 
-1. Sprint 1.1-1.2: File and Folder Operations (11 items)
-2. Sprint 1.3: Chunked Upload and Dedup (3 items)
-3. Sprint 1.4: Versioning (4 items)
-4. Sprint 1.5: Sharing (4 items)
-5. Sprint 1.6: Quotas (2 items)
-6. Sprint 1.8: File Preview (6 items)
-7. Sprint 1.9: Tags and Comments (6 items)
+After completing Phase A, open DevTools (F12) > Network and grab:
+- `Authorization: Bearer <token>` from any authenticated API call → `DNC_BEARER_TOKEN`
+- A file GUID from any file detail call → `DNC_FILE_ID`
+- `access_token` query param from the WOPI request URL when Collabora is open → `DNC_WOPI_TOKEN`
 
-Deliverable: 36 completed checks with evidence for each.
+### Sprint 1.1–1.2: File and Folder Operations (11)
 
-### Phase B: API and Protocol Verification (monolith -> mint22)
-Run endpoint and protocol validations against the live deployment.
-
-1. Sprint 1.10: Sync Endpoints (3 items)
-2. Sprint 1.7 protocol check: WOPI CheckFileInfo metadata validation
-3. Sprint 3: Range Requests (2 items)
-
-Deliverable: Request/response evidence and expected behavior notes.
-
-### Phase C: Sync End-to-End (Windows11-TestDNC and mint-dnc-client)
-Validate full sync lifecycle across client machines.
-
-1. Sprint 4.2: End-to-End Sync (11 items)
-2. Sprint 4.1: FSW Debounce (1 item)
-
-Deliverable: Per-platform and cross-platform sync evidence, including conflict handling.
-
-### Phase D: Observability and Security (mint22)
-Validate runtime behavior and hardening checks.
-
-1. Sprint 5: Module and Observability (3 items)
-2. Sprint 5: OpenTelemetry traces (1 item)
-3. Sprint 6: Security checks (5 items)
-
-Deliverable: Logs, trace IDs, and security test outcomes mapped to checklist items.
-
-### Phase E: SQL Server and Documentation Closeout
-Finalize remaining integration and tracking updates.
-
-1. Sprint 1.11: SQL Server Integration (1 item)
-2. Update `docs/REMAINING_WORK_PLAN.md` WS-4 checkboxes
-3. Update `docs/MASTER_PROJECT_PLAN.md` status summary + step details
-4. Update `docs/IMPLEMENTATION_CHECKLIST.md` corresponding items
-
-Deliverable: WS-4 fully closed or explicitly marked blocked with reasons.
-
-## Detailed Test Catalog (Solo Execution)
-
-Use these as direct, runnable test cases. Each case is one checklist item from WS-4.
-
-### Sprint 1.1-1.2: File and Folder Operations (11)
-
-#### TC-1.1 Upload file via web UI
+#### TC-1.1 Upload file via web UI — ✅ Pass
 - Setup: Sign in as testdude@llabmik.net in Files UI.
 - Steps:
 	1. Click Upload.
 	2. Select a small test file (for example 50 KB text file).
 	3. Wait for upload completion.
 - Pass criteria: File appears in current folder with expected name and size.
+- **Result:** Pass (2026-03-26)
 
-#### TC-1.2 Download uploaded file
+#### TC-1.2 Download uploaded file — ✅ Pass
 - Setup: Existing file from TC-1.1.
 - Steps:
 	1. Click file actions.
 	2. Choose Download.
 	3. Open downloaded file locally.
 - Pass criteria: Download succeeds and content matches original.
+- **Result:** Pass (2026-03-26)
 
-#### TC-1.3 Rename file
+#### TC-1.3 Rename file — ✅ Pass
 - Setup: Existing test file.
 - Steps:
 	1. Open file context menu.
 	2. Select Rename and enter new name.
 	3. Confirm.
 - Pass criteria: List updates to new name and file is still accessible.
+- **Result:** Pass (2026-03-26)
 
-#### TC-1.4 Move file to subfolder
+#### TC-1.4 Move file to subfolder — ✅ Pass
 - Setup: File plus target subfolder.
 - Steps:
 	1. Create subfolder if needed.
 	2. Move file using drag/drop or Move action.
 	3. Open target folder.
 - Pass criteria: File no longer in source folder and appears in target folder.
+- **Result:** Pass (2026-03-26)
 
-#### TC-1.5 Copy file
+#### TC-1.5 Copy file — ✅ Pass
 - Setup: Existing file.
 - Steps:
 	1. Use Copy action.
 	2. Paste in same folder or a target folder.
 	3. Refresh file list.
 - Pass criteria: Original and copied file both exist with distinct names.
+- **Result:** Pass (2026-03-26)
+- **Fix applied:** Root-level copy/move required null-target support across FileService, UI picker guards, and controllers.
 
-#### TC-1.6 Delete file to trash
+#### TC-1.6 Delete file to trash — ✅ Pass
 - Setup: Existing file.
 - Steps:
 	1. Use Delete action.
 	2. Open Trash view.
 - Pass criteria: File removed from active view and present in Trash.
+- **Result:** Pass (2026-03-26)
+- **Fix applied:** TrashService query filter and OriginalParentId assignment on descendants fixed.
 
-#### TC-1.7 Create new folder
+#### TC-1.7 Create new folder — ✅ Pass
 - Setup: In Files root or selected parent folder.
 - Steps:
 	1. Click New Folder.
 	2. Enter folder name.
 	3. Confirm.
 - Pass criteria: Folder appears immediately in file list.
+- **Result:** Pass (2026-03-26)
 
-#### TC-1.8 Navigate into folder and back
+#### TC-1.8 Navigate into folder and back — ✅ Pass
 - Setup: Existing folder.
 - Steps:
 	1. Open folder.
 	2. Verify breadcrumb/path changes.
 	3. Navigate back to previous level.
 - Pass criteria: Navigation works both directions and listing is correct.
+- **Result:** Pass (2026-03-26)
 
-#### TC-1.9 Rename folder
+#### TC-1.9 Rename folder — ✅ Pass
 - Setup: Existing folder.
 - Steps:
 	1. Open folder context menu.
 	2. Rename folder.
 	3. Confirm.
 - Pass criteria: Folder name updates and folder opens normally.
+- **Result:** Pass (2026-03-26)
 
-#### TC-1.10 Move folder into another folder
+#### TC-1.10 Move folder into another folder — ✅ Pass
 - Setup: Source folder and destination folder.
 - Steps:
 	1. Move source folder to destination.
 	2. Open destination folder.
 - Pass criteria: Source folder appears under destination and path resolves correctly.
+- **Result:** Pass (2026-03-26)
 
-#### TC-1.11 Delete folder and verify children trashed
+#### TC-1.11 Delete folder and verify children trashed — ✅ Pass
 - Setup: Folder containing at least one file.
 - Steps:
 	1. Delete the folder.
 	2. Open Trash.
 - Pass criteria: Deleted folder and child items are present in Trash.
+- **Result:** Pass (2026-03-26)
 
 ### Sprint 1.3: Chunked Upload and Dedup (3)
 
-#### TC-1.12 Upload file larger than 4 MB
+#### TC-1.12 Upload file larger than 4 MB — ✅ Pass
 - Setup: Prepare file larger than 4 MB.
 - Steps:
 	1. Upload large file.
 	2. Monitor progress until complete.
 - Pass criteria: Upload completes successfully without timeout.
+- **Result:** Pass (2026-03-26)
 
-#### TC-1.13 Upload same file again for dedup
+#### TC-1.13 Upload same file again for dedup — ✅ Pass
 - Setup: File from TC-1.12 already uploaded.
 - Steps:
 	1. Upload identical file again.
 	2. Compare completion time/log indicators if available.
 - Pass criteria: Second upload completes and backend indicates dedup behavior (no duplicate chunk storage behavior).
+- **Result:** Pass (2026-03-26)
 
-#### TC-1.14 Interrupt and resume upload
+#### TC-1.14 Interrupt and resume upload — ✅ Pass
 - Setup: Large file upload in progress.
 - Steps:
 	1. Start upload.
 	2. Interrupt network/browser.
 	3. Reopen session and retry upload.
 - Pass criteria: Upload resumes from last chunk boundary and completes.
+- **Result:** Pass (2026-03-26)
+- **Fix applied:** Upload dialog now stays in progress view while files are paused; resume button correctly triggers chunk resumption.
 
 ### Sprint 1.4: Versioning (4)
 
@@ -275,6 +166,7 @@ Use these as direct, runnable test cases. Each case is one checklist item from W
 	1. Upload replacement content with same logical file.
 	2. Confirm version update flow is triggered.
 - Pass criteria: File now has version history count greater than 1.
+- **Result:** Pass (2026-03-26)
 
 #### TC-1.16 Open version history panel
 - Setup: File with at least two versions.
@@ -282,6 +174,7 @@ Use these as direct, runnable test cases. Each case is one checklist item from W
 	1. Open file details/history.
 	2. Inspect versions list.
 - Pass criteria: Both versions are listed with expected metadata.
+- **Result:** Pass (2026-03-26)
 
 #### TC-1.17 Download previous version
 - Setup: File with multiple versions.
@@ -290,6 +183,7 @@ Use these as direct, runnable test cases. Each case is one checklist item from W
 	2. Download selected version.
 	3. Open file locally.
 - Pass criteria: Downloaded content matches the older revision.
+- **Result:** Pass (2026-03-26)
 
 #### TC-1.18 Restore previous version
 - Setup: File with multiple versions.
@@ -298,15 +192,17 @@ Use these as direct, runnable test cases. Each case is one checklist item from W
 	2. Click Restore.
 	3. Reopen current file.
 - Pass criteria: Current file content reverts to selected older version.
+- **Result:** Pass (2026-03-26)
 
 ### Sprint 1.5: Sharing (4)
 
-#### TC-1.19 Share file with another user (read)
+#### TC-1.19 Share file with another user (read) — ✅ Pass
 - Setup: Second account available for verification.
 - Steps:
 	1. Share file with read permission.
 	2. Sign into second account and open share.
 - Pass criteria: Second user can view/download but not modify.
+- **Result:** Pass (2026-03-26)
 
 #### TC-1.20 Create public link and open incognito
 - Setup: Existing shareable file.
@@ -348,7 +244,7 @@ Use these as direct, runnable test cases. Each case is one checklist item from W
 	2. Observe behavior at boundary.
 - Pass criteria: Upload is rejected with clear quota error and no crash.
 
-### Sprint 1.7: Collabora and WOPI (3)
+### Sprint 1.7: Collabora (2)
 
 #### TC-1.25 Open DOCX in Collabora
 - Setup: Collabora integration configured.
@@ -364,13 +260,6 @@ Use these as direct, runnable test cases. Each case is one checklist item from W
 	2. Save/auto-save.
 	3. Return to file metadata/history.
 - Pass criteria: New version is created after save.
-
-#### TC-1.27 Verify WOPI CheckFileInfo metadata
-- Setup: Valid WOPI token and file id.
-- Steps:
-	1. Call CheckFileInfo endpoint.
-	2. Inspect JSON fields.
-- Pass criteria: Metadata is complete and values match target file.
 
 ### Sprint 1.8: File Preview (6)
 
@@ -434,69 +323,130 @@ Use these as direct, runnable test cases. Each case is one checklist item from W
 	2. Refresh.
 - Pass criteria: Tag is no longer associated.
 
-#### TC-1.37 Add comment to file
-- Setup: Existing file.
-- Steps:
-	1. Post comment from comments panel.
+#### TC-1.37 Add comment to file — **BLOCKED** (no Comments UI)
 - Pass criteria: Comment appears with author and timestamp.
 
-#### TC-1.38 Reply to comment (threaded)
-- Setup: Existing root comment.
-- Steps:
-	1. Add reply.
+#### TC-1.38 Reply to comment (threaded) — **BLOCKED** (no Comments UI)
 - Pass criteria: Reply is nested under root comment.
 
-#### TC-1.39 Edit and delete comment
-- Setup: Existing comment by current user.
-- Steps:
-	1. Edit comment text.
-	2. Delete comment.
+#### TC-1.39 Edit and delete comment — **BLOCKED** (no Comments UI)
 - Pass criteria: Edit persists, then deletion removes or marks comment per design.
 
-### Sprint 1.10: Sync Endpoints (3)
+---
 
-#### TC-1.40 GET sync changes
-- Setup: Known baseline timestamp.
-- Steps:
-	1. Call GET /api/v1/files/sync/changes?since=<timestamp>.
-- Pass criteria: Response returns expected changed items only.
+## Phase B — API & Protocol Tests (6 items, Copilot-runs with your token)
 
-#### TC-1.41 POST sync reconcile
-- Setup: Prepare local state payload.
-- Steps:
-	1. Call POST /api/v1/files/sync/reconcile.
-	2. Inspect diff response.
-- Pass criteria: Server returns correct reconcile actions.
+Provide `DNC_BEARER_TOKEN`, `DNC_FILE_ID`, and `DNC_WOPI_TOKEN` captured at the end of Phase A. Set these env vars once and Copilot runs the command-based tests below.
 
-#### TC-1.42 GET sync tree
-- Setup: Folder tree with known hashes.
-- Steps:
-	1. Call GET /api/v1/files/sync/tree.
-- Pass criteria: Response includes complete tree and hash data.
+```bash
+export DNC_BASE_URL="https://mint22:5443"
+export DNC_BEARER_TOKEN="<paste-access-token>"
+export DNC_FILE_ID="<target-file-id>"
+export DNC_WOPI_TOKEN="<wopi-token>"
+export DNC_SINCE="2026-03-25T00:00:00Z"
+```
 
-### Sprint 1.11: SQL Server Integration (1)
-
-#### TC-1.43 Run integration tests against SQL Server
-- Setup: SQL Server test environment configured.
-- Steps:
-	1. Execute integration test suite for SQL Server target.
-- Pass criteria: All designated integration tests pass.
-
-### Sprint 3: Range Requests (2)
-
-#### TC-1.44 Browser video seek on large file
+### TC-1.44 Browser video seek on large file (User-driven)
 - Setup: Large video uploaded.
 - Steps:
 	1. Start playback.
 	2. Seek to different timestamps.
 - Pass criteria: Seeking works without full re-download behavior.
 
-#### TC-1.45 Curl range resume
+### TC-1.45 Curl range resume (Copilot-capable)
 - Setup: Downloadable large file.
 - Steps:
 	1. Start partial download.
 	2. Resume with curl --range.
-- Pass criteria: Server returns correct partial content behavior and resume completes.
+- Pass criteria: Server returns correct partial content and resume completes.
+
+```bash
+curl -sS -D /tmp/range-head-1.txt \
+	-H "Authorization: Bearer $DNC_BEARER_TOKEN" \
+	-H "Range: bytes=0-1048575" \
+	"$DNC_BASE_URL/api/v1/files/$DNC_FILE_ID/download" \
+	-o /tmp/part1.bin
+
+curl -sS -D /tmp/range-head-2.txt \
+	-H "Authorization: Bearer $DNC_BEARER_TOKEN" \
+	-H "Range: bytes=1048576-" \
+	"$DNC_BASE_URL/api/v1/files/$DNC_FILE_ID/download" \
+	-o /tmp/part2.bin
+
+cat /tmp/part1.bin /tmp/part2.bin > /tmp/reconstructed.bin
+```
+
+Pass checks: both responses HTTP 206, Content-Range header present, reconstructed file hash/size matches source.
+
+### Sprint 1.7: WOPI CheckFileInfo (1, Copilot-capable)
+
+#### TC-1.27 Verify WOPI CheckFileInfo metadata
+- Setup: Valid WOPI token and file id (captured from DevTools during TC-1.25/1.26).
+- Steps:
+	1. Call CheckFileInfo endpoint.
+	2. Inspect JSON fields.
+- Pass criteria: Metadata is complete and values match target file.
+
+```bash
+curl -sS -D - \
+	"$DNC_BASE_URL/api/v1/wopi/files/$DNC_FILE_ID?access_token=$DNC_WOPI_TOKEN"
+```
+
+Pass checks: HTTP 200, JSON includes BaseFileName, Size, UserId, Version.
+
+### Sprint 1.10: Sync Endpoints (3, Copilot-capable)
+
+#### TC-1.40 GET sync changes
+
+```bash
+curl -sS -D - \
+	-H "Authorization: Bearer $DNC_BEARER_TOKEN" \
+	"$DNC_BASE_URL/api/v1/files/sync/changes?since=$DNC_SINCE"
+```
+
+Pass checks: HTTP 200, response includes only changes newer than DNC_SINCE.
+
+#### TC-1.41 POST sync reconcile
+
+```bash
+cat > /tmp/reconcile-payload.json << 'JSON'
+{
+	"items": [
+		{
+			"path": "/Documents/example.txt",
+			"hash": "abc123",
+			"lastModifiedUtc": "2026-03-25T00:00:00Z",
+			"size": 128
+		}
+	]
+}
+JSON
+
+curl -sS -D - \
+	-H "Authorization: Bearer $DNC_BEARER_TOKEN" \
+	-H "Content-Type: application/json" \
+	-X POST \
+	"$DNC_BASE_URL/api/v1/files/sync/reconcile" \
+	--data @/tmp/reconcile-payload.json
+```
+
+Pass checks: HTTP 200, response contains expected server diff actions.
+
+#### TC-1.42 GET sync tree
+
+```bash
+curl -sS -D - \
+	-H "Authorization: Bearer $DNC_BEARER_TOKEN" \
+	"$DNC_BASE_URL/api/v1/files/sync/tree"
+```
+
+Pass checks: HTTP 200, tree entries include paths and hashes.
+
+---
+
+## Phase C — Sync Client End-to-End (12 items, Deferred)
+
+Requires Windows11-TestDNC and mint-dnc-client to be set up with sync clients. Do in a separate session.
 
 ### Sprint 4.1: FSW Debounce (1)
 
@@ -589,210 +539,79 @@ Use these as direct, runnable test cases. Each case is one checklist item from W
 	2. Make changes in each scope.
 - Pass criteria: Both accounts sync independently with no cross-over.
 
+---
+
+## Phase D — Observability & Security (10 items, Hybrid)
+
+After Phase A/B are complete and bearer token is available.
+
 ### Sprint 5: Module and Observability (3)
 
-#### TC-1.58 Verify gRPC between core and Files host
+#### TC-1.58 Verify gRPC between core and Files host (Hybrid — Copilot checks mint22 logs)
 - Setup: mint22 server access.
 - Steps:
-	1. Perform file operations.
-	2. Inspect logs/health endpoints for module communication.
+	1. Perform file operations in browser.
+	2. Copilot inspects logs/health endpoints for module communication evidence.
 - Pass criteria: gRPC calls between core and Files host are visible and successful.
 
-#### TC-1.59 Verify module start and stop
+#### TC-1.59 Verify module start and stop (Hybrid)
 - Setup: Service control access on mint22.
 - Steps:
 	1. Restart module process.
 	2. Confirm clean startup and graceful stop behavior.
 - Pass criteria: Module lifecycle completes without crash or orphaned state.
 
-#### TC-1.60 Verify i18n strings for Files UI
+#### TC-1.60 Verify i18n strings for Files UI (User-driven)
 - Setup: Alternate locale available.
 - Steps:
-	1. Switch locale.
+	1. Switch locale in browser.
 	2. Reload Files UI.
 - Pass criteria: Files UI strings are localized and no missing keys appear.
 
 ### Sprint 5: OpenTelemetry (1)
 
-#### TC-1.61 Verify Files traces in telemetry backend
+#### TC-1.61 Verify Files traces in telemetry backend — **BLOCKED** if no collector configured
 - Setup: Jaeger or OTLP collector reachable.
 - Steps:
 	1. Trigger file operations.
 	2. Query telemetry backend.
 - Pass criteria: Traces contain Files operation spans with expected metadata.
 
-### Sprint 6: Security (5)
+### Sprint 6: Security (5, Copilot-capable via API)
 
 #### TC-1.62 Path traversal create rejected
-- Setup: File create dialog/API access.
-- Steps:
-	1. Attempt create with ../../etc/passwd style name.
-- Pass criteria: Operation rejected with safe validation error.
-
-#### TC-1.63 Path traversal rename rejected
-- Setup: Existing file.
-- Steps:
-	1. Attempt rename to ../../../tmp/evil style path.
-- Pass criteria: Rename is rejected and file remains intact.
-
-#### TC-1.64 Quota exceed does not crash
-- Setup: Low quota configuration.
-- Steps:
-	1. Upload file that exceeds quota.
-	2. Observe client and server behavior.
-- Pass criteria: Clear error shown, no service crash.
-
-#### TC-1.65 Rate limiting applied to upload endpoints
-- Setup: Rate limiting configured.
-- Steps:
-	1. Send burst upload requests.
-- Pass criteria: Requests are throttled according to policy.
-
-#### TC-1.66 429 response includes Retry-After
-- Setup: Triggered rate limit condition.
-- Steps:
-	1. Capture throttled upload response.
-- Pass criteria: Response status is 429 and Retry-After header is present.
-
-## Who Runs What (Solo + Copilot Split)
-
-This section marks each test as:
-- User-only: Requires manual UI interaction, external machine access, or credentials only you can provide in browser/session.
-- Copilot-capable: I can run from terminal here if required inputs (URL/token/test data) are available.
-- Hybrid: You do the UI step and I can validate backend/log/API evidence.
-
-### Ownership by Test Range
-
-| Test Range | Area | Owner |
-|---|---|---|
-| TC-1.1 to TC-1.11 | File and folder UI operations | User-only |
-| TC-1.12 to TC-1.14 | Chunked upload/dedup/resume | Hybrid |
-| TC-1.15 to TC-1.18 | Versioning UI workflows | User-only |
-| TC-1.19 to TC-1.22 | Sharing flows | User-only |
-| TC-1.23 to TC-1.24 | Admin quota + UI boundary behavior | User-only |
-| TC-1.25 to TC-1.26 | Collabora editing flow | User-only |
-| TC-1.27 | WOPI CheckFileInfo API | Copilot-capable |
-| TC-1.28 to TC-1.33 | File preview UI | User-only |
-| TC-1.34 to TC-1.39 | Tags/comments UI | User-only |
-| TC-1.40 to TC-1.42 | Sync endpoints API | Copilot-capable |
-| TC-1.43 | SQL Server integration tests | Copilot-capable |
-| TC-1.44 | Browser seek test | User-only |
-| TC-1.45 | Curl range resume | Copilot-capable |
-| TC-1.46 | FSW debounce (local editor/save behavior) | Hybrid |
-| TC-1.47 to TC-1.49 | Sync service install and OAuth tray setup | User-only |
-| TC-1.50 to TC-1.57 | Cross-machine sync scenarios | User-only |
-| TC-1.58 to TC-1.61 | Module/gRPC/OTel log and trace verification | Hybrid |
-| TC-1.62 to TC-1.66 | Security/rate-limit behavior | Hybrid |
-
-### Fast Summary
-
-- User-only: 48 tests
-- Copilot-capable: 7 tests (TC-1.27, TC-1.40 to TC-1.43, TC-1.45)
-- Hybrid: 11 tests (TC-1.12 to TC-1.14, TC-1.46, TC-1.58 to TC-1.66)
-
-## Command Playbook (Copilot-Capable + Hybrid Backend Checks)
-
-Use these command blocks for tests I can execute from terminal.
-
-### Common Environment Variables
 
 ```bash
-export DNC_BASE_URL="https://<your-server-host>"
-export DNC_BEARER_TOKEN="<paste-access-token>"
-export DNC_FILE_ID="<target-file-id>"
-export DNC_WOPI_TOKEN="<wopi-token>"
-export DNC_SINCE="2026-03-25T00:00:00Z"
-```
-
-### TC-1.40 GET Sync Changes
-
-```bash
-curl -sS -D - \
-	-H "Authorization: Bearer $DNC_BEARER_TOKEN" \
-	"$DNC_BASE_URL/api/v1/files/sync/changes?since=$DNC_SINCE"
-```
-
-Pass checks:
-- HTTP 200
-- Response includes only changes newer than DNC_SINCE
-
-### TC-1.41 POST Sync Reconcile
-
-```bash
-cat > /tmp/reconcile-payload.json << 'JSON'
-{
-	"items": [
-		{
-			"path": "/Documents/example.txt",
-			"hash": "abc123",
-			"lastModifiedUtc": "2026-03-25T00:00:00Z",
-			"size": 128
-		}
-	]
-}
-JSON
-
 curl -sS -D - \
 	-H "Authorization: Bearer $DNC_BEARER_TOKEN" \
 	-H "Content-Type: application/json" \
 	-X POST \
-	"$DNC_BASE_URL/api/v1/files/sync/reconcile" \
-	--data @/tmp/reconcile-payload.json
+	"$DNC_BASE_URL/api/v1/files" \
+	-d '{"name":"../../etc/passwd","parentId":null}'
 ```
 
-Pass checks:
-- HTTP 200
-- Response contains expected server diff actions
+Pass checks: 400 or 422 response, operation rejected with safe validation error.
 
-### TC-1.42 GET Sync Tree
+#### TC-1.63 Path traversal rename rejected
 
 ```bash
 curl -sS -D - \
 	-H "Authorization: Bearer $DNC_BEARER_TOKEN" \
-	"$DNC_BASE_URL/api/v1/files/sync/tree"
+	-H "Content-Type: application/json" \
+	-X PATCH \
+	"$DNC_BASE_URL/api/v1/files/$DNC_FILE_ID" \
+	-d '{"name":"../../../tmp/evil"}'
 ```
 
-Pass checks:
-- HTTP 200
-- Tree entries include paths and hashes
+Pass checks: 400 or 422 response, file remains intact.
 
-### TC-1.27 WOPI CheckFileInfo
+#### TC-1.64 Quota exceed does not crash
+- Setup: Low quota configuration from TC-1.23/1.24.
+- Steps:
+	1. Upload file that exceeds quota via API or browser.
+- Pass criteria: Clear error shown, no service crash, server still responds.
 
-```bash
-curl -sS -D - \
-	"$DNC_BASE_URL/api/v1/wopi/files/$DNC_FILE_ID?access_token=$DNC_WOPI_TOKEN"
-```
-
-Pass checks:
-- HTTP 200
-- JSON includes key metadata fields (BaseFileName, Size, UserId, Version)
-
-### TC-1.45 Range Resume
-
-```bash
-# First partial chunk
-curl -sS -D /tmp/range-head-1.txt \
-	-H "Authorization: Bearer $DNC_BEARER_TOKEN" \
-	-H "Range: bytes=0-1048575" \
-	"$DNC_BASE_URL/api/v1/files/$DNC_FILE_ID/download" \
-	-o /tmp/part1.bin
-
-# Resume from next range
-curl -sS -D /tmp/range-head-2.txt \
-	-H "Authorization: Bearer $DNC_BEARER_TOKEN" \
-	-H "Range: bytes=1048576-" \
-	"$DNC_BASE_URL/api/v1/files/$DNC_FILE_ID/download" \
-	-o /tmp/part2.bin
-
-cat /tmp/part1.bin /tmp/part2.bin > /tmp/reconstructed.bin
-```
-
-Pass checks:
-- Responses are HTTP 206 Partial Content
-- Content-Range header exists
-- Reconstructed file hash/size matches source file
-
-### TC-1.65 and TC-1.66 Upload Rate Limit and Retry-After
+#### TC-1.65 Rate limiting applied to upload endpoints / TC-1.66 429 includes Retry-After
 
 ```bash
 for i in $(seq 1 40); do
@@ -807,11 +626,15 @@ grep -H "HTTP/" /tmp/rate-*.hdr | tail -n 20
 grep -H "Retry-After" /tmp/rate-*.hdr
 ```
 
-Pass checks:
-- At least one response is HTTP 429
-- 429 responses include Retry-After header
+Pass checks: at least one HTTP 429 response; 429 responses include Retry-After header.
 
-### TC-1.43 SQL Server Integration Tests
+---
+
+## Phase E — SQL Server & Closeout (1 item + docs)
+
+TC-1.43 is **Blocked** until a SQL Server instance is available. All other items must be resolved first, then update the three tracking docs.
+
+### TC-1.43 SQL Server Integration Tests — **BLOCKED** (no SQL Server instance)
 
 ```bash
 export DOTNETCLOUD_TEST_SQLSERVER_CONNECTION_STRING="Server=<sql-host>;Database=<db>;User Id=<user>;Password=<pass>;TrustServerCertificate=true"
@@ -820,71 +643,17 @@ dotnet test tests/DotNetCloud.Integration.Tests/ \
 	-p:DatabaseProvider=SqlServer
 ```
 
-Pass checks:
-- Test run completes
-- No failed tests in SQL Server target run
+Pass checks: test run completes, no failed tests.
 
-Notes:
-- When DOTNETCLOUD_TEST_SQLSERVER_CONNECTION_STRING is set, integration tests use that SQL Server first.
-- This enables testing against network SQL Server hosts (for example Hyperdrive) without requiring local Windows SQL Server or Docker SQL Server.
+**Note:** When `DOTNETCLOUD_TEST_SQLSERVER_CONNECTION_STRING` is set, integration tests use that SQL Server. This enables testing against a network host (e.g. Hyperdrive) without requiring local Windows SQL Server or Docker.
 
-## Inputs Needed Before I Run Copilot-Capable Tests
+---
 
-Provide these once and I can run the command-based tests directly:
-1. Base URL for running deployment
-2. Bearer token with file API access
-3. One file id for download/range/WOPI checks
-4. WOPI token (if different from bearer auth model)
-5. Confirmation SQL Server integration environment is available
+## Cosmetic Issues Log
 
-## How To Get Missing Inputs
+- **Selected row text invisible:** When a file or folder row is selected, white text on white background makes the name unreadable. Needs CSS fix for selected-row text color or background contrast.
 
-### Bearer token
-
-Option A (API login):
-- Call POST /api/v1/core/auth/login with test user email/password.
-- Use data.accessToken from the response.
-
-Option B (browser capture):
-- Open browser DevTools while logged in.
-- Check Network for authenticated API calls and copy Authorization Bearer token.
-- Or inspect local/session storage if token is stored there by the client.
-
-### File id
-
-- A file id is the server GUID/identifier for an existing file.
-- Get it from sync tree API response, file details API response, or file-specific network calls in DevTools.
-- Any accessible existing file id is fine.
-
-### WOPI token
-
-- Open a DOCX in Collabora flow.
-- Capture access_token from the WOPI request URL in DevTools.
-- If endpoint accepts bearer auth in your deployment, test that first; otherwise use access_token query parameter.
-
-### SQL Server integration environment
-
-- Existing integration tests prefer local SQL Server on Windows and otherwise attempt Docker SQL Server.
-- Your external SQL Server can still be used, but that requires test wiring changes.
-
-## Solo Execution Checklist
-
-Use this mini-flow for each test case:
-1. Run test case steps.
-2. Mark Pass, Fail, or Blocked.
-3. Capture one artifact.
-4. Fill one Per-Item Result entry.
-5. Update Sprint Progress Tracker counts.
-6. Move to next test case.
-
-## Recommended Run Order
-
-1. Day 1: Phase A core file/folder, sharing, quota checks
-2. Day 2: Phase A preview + comments, then Phase B endpoints/range
-3. Day 3: Phase C client setup and baseline bidirectional sync
-4. Day 4: Phase C advanced sync scenarios (conflicts, offline queue, selective sync, multi-account)
-5. Day 5: Phase D observability and security, plus SQL Server integration
-6. Day 6: Reruns for failures, complete documentation updates, final signoff
+---
 
 ## Evidence Standard
 
@@ -963,9 +732,9 @@ Use this table to keep a live rollup while testing.
 
 | Sprint | Total | Pass | Fail | Blocked | Remaining | Owner | Notes |
 |---|---:|---:|---:|---:|---:|---|---|
-| 1.1-1.2 File & Folder Ops | 11 | 0 | 0 | 0 | 11 | | |
-| 1.3 Chunked Upload & Dedup | 3 | 0 | 0 | 0 | 3 | | |
-| 1.4 Versioning | 4 | 0 | 0 | 0 | 4 | | |
+| 1.1-1.2 File & Folder Ops | 11 | 11 | 0 | 0 | 0 | | All pass |
+| 1.3 Chunked Upload & Dedup | 3 | 3 | 0 | 0 | 0 | | All pass |
+| 1.4 Versioning | 4 | 4 | 0 | 0 | 0 | | All pass |
 | 1.5 Sharing | 4 | 0 | 0 | 0 | 4 | | |
 | 1.6 Quotas | 2 | 0 | 0 | 0 | 2 | | |
 | 1.7 Collabora / WOPI | 3 | 0 | 0 | 0 | 3 | | |
@@ -980,6 +749,3 @@ Use this table to keep a live rollup while testing.
 | 5 OpenTelemetry | 1 | 0 | 0 | 0 | 1 | | |
 | 6 Security | 5 | 0 | 0 | 0 | 5 | | |
 | **Total** | **66** | **0** | **0** | **0** | **66** | | |
-
-## Immediate Start Point
-Start with Sprint 1.8 (File Preview, 6 items), then continue through the rest of Phase A in the same session.

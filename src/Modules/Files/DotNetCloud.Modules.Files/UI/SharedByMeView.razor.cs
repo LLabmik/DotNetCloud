@@ -96,18 +96,21 @@ public partial class SharedByMeView : ComponentBase
         await OnCopyLink.InvokeAsync(item);
     }
 
-    /// <summary>Returns an icon placeholder based on node type and MIME type.</summary>
+    /// <summary>Returns an emoji icon based on node type and MIME type.</summary>
     protected static string GetNodeIcon(SharedItemViewModel item)
     {
-        if (item.NodeType == "Folder") return "[Folder]";
-        if (item.MimeType is null) return "[File]";
-        if (item.MimeType.StartsWith("image/")) return "[Image]";
-        if (item.MimeType.StartsWith("video/")) return "[Video]";
-        if (item.MimeType.StartsWith("audio/")) return "[Audio]";
-        if (item.MimeType == "application/pdf") return "[PDF]";
-        if (item.MimeType.Contains("document") || item.MimeType.Contains("word")) return "[Doc]";
-        if (item.MimeType.Contains("spreadsheet") || item.MimeType.Contains("excel")) return "[Sheet]";
-        return "[File]";
+        if (item.NodeType == "Folder") return "📁";
+        if (item.MimeType is null) return "📄";
+        if (item.MimeType.StartsWith("image/")) return "🖼️";
+        if (item.MimeType.StartsWith("video/")) return "🎬";
+        if (item.MimeType.StartsWith("audio/")) return "🎵";
+        if (item.MimeType.StartsWith("text/")) return "📝";
+        if (item.MimeType == "application/pdf") return "📕";
+        if (item.MimeType.Contains("spreadsheet") || item.MimeType.Contains("excel")) return "📊";
+        if (item.MimeType.Contains("presentation") || item.MimeType.Contains("powerpoint")) return "📈";
+        if (item.MimeType.Contains("document") || item.MimeType.Contains("word")) return "📘";
+        if (item.MimeType.Contains("zip") || item.MimeType.Contains("compressed")) return "🗜️";
+        return "📄";
     }
 
     /// <summary>Formats a file size in human-readable units.</summary>

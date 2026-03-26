@@ -26,16 +26,27 @@ public partial class VersionHistoryPanel : ComponentBase
     /// <summary>Raised when the user saves a version label (version, new label).</summary>
     [Parameter] public EventCallback<(Guid VersionId, string Label)> OnLabelSaved { get; set; }
 
+    /// <summary>Version items to display, provided by the parent component.</summary>
+    [Parameter] public IReadOnlyList<FileVersionViewModel>? InitialVersions { get; set; }
+
     private List<FileVersionViewModel> _versions = [];
-#pragma warning disable CS0649 // Assigned at runtime via future API integration
     private bool _isLoading;
-#pragma warning restore CS0649
     private Guid? _editingLabelId;
     private string _editLabelValue = string.Empty;
 
     /// <summary>Ordered version list (newest first).</summary>
     protected IReadOnlyList<FileVersionViewModel> Versions =>
         _versions.OrderByDescending(v => v.VersionNumber).ToList();
+
+    /// <inheritdoc />
+    protected override void OnParametersSet()
+    {
+        if (InitialVersions is not null)
+        {
+            _versions = [.. InitialVersions];
+            _isLoading = false;
+        }
+    }
 
     /// <summary>Whether version data is being fetched.</summary>
     protected bool IsLoading => _isLoading;

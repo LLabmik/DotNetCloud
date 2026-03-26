@@ -23,6 +23,9 @@ public interface IShareService
     /// <summary>Lists all files shared with the caller.</summary>
     Task<IReadOnlyList<FileShareDto>> GetSharedWithMeAsync(CallerContext caller, CancellationToken cancellationToken = default);
 
+    /// <summary>Lists all files shared by the caller.</summary>
+    Task<IReadOnlyList<FileShareDto>> GetSharedByMeAsync(CallerContext caller, CancellationToken cancellationToken = default);
+
     /// <summary>Resolves a public link token to a share. Returns null if invalid/expired.</summary>
     Task<FileShareDto?> ResolvePublicLinkAsync(string linkToken, string? password, CancellationToken cancellationToken = default);
 

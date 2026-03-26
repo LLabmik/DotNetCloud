@@ -155,6 +155,12 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
         _isUploading = true;
         StateHasChanged();
 
+        await UploadPendingFilesAsync();
+    }
+
+    /// <summary>Uploads all pending files, then checks overall state.</summary>
+    private async Task UploadPendingFilesAsync()
+    {
         try
         {
             var userId = await GetUserIdAsync();
@@ -178,24 +184,43 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
                 StateHasChanged();
             }
 
-            if (_files.All(f => f.Status == UploadStatus.Complete))
-            {
-                await OnUploadComplete.InvokeAsync();
-            }
-            else if (_files.Any(f => f.Status == UploadStatus.Failed))
-            {
-                _errorMessage ??= "One or more files failed to upload.";
-            }
+            CheckOverallCompletion();
         }
         catch (Exception ex)
         {
             _errorMessage = ex.Message;
+            CheckOverallCompletion();
         }
-        finally
+    }
+
+    /// <summary>Evaluates whether all uploads are finished and updates state accordingly.</summary>
+    private void CheckOverallCompletion()
+    {
+        var hasPaused = _files.Any(f => f.Status == UploadStatus.Paused);
+        var hasActive = _files.Any(f => f.Status is UploadStatus.Uploading or UploadStatus.Pending);
+
+        if (hasPaused || hasActive)
+        {
+            // Keep the uploading UI visible while files are paused or active
+            return;
+        }
+
+        if (_files.All(f => f.Status == UploadStatus.Complete))
         {
             _isUploading = false;
-            StateHasChanged();
+            _ = OnUploadComplete.InvokeAsync();
         }
+        else if (_files.Any(f => f.Status == UploadStatus.Failed))
+        {
+            _errorMessage ??= "One or more files failed to upload.";
+            _isUploading = false;
+        }
+        else
+        {
+            _isUploading = false;
+        }
+
+        StateHasChanged();
     }
 
     /// <summary>JS callback: per-file progress update.</summary>
@@ -281,6 +306,8 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
         var userId = await GetUserIdAsync();
         var parentIdStr = ParentId?.ToString();
         await JS!.InvokeVoidAsync("dotnetcloudUpload.resumeUpload", fileIndex, userId, parentIdStr, _jsRef);
+
+        CheckOverallCompletion();
     }
 
     /// <summary>Cancels an upload and cleans up the server-side session.</summary>
@@ -293,7 +320,7 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
         await JS!.InvokeVoidAsync("dotnetcloudUpload.cancelUpload", fileIndex);
         file.Status = UploadStatus.Failed;
         file.StatusText = "Cancelled";
-        StateHasChanged();
+        CheckOverallCompletion();
     }
 
     /// <summary>Formats a byte count as a human-readable size string.</summary>

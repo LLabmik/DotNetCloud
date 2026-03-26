@@ -53,17 +53,22 @@ internal sealed class PermissionService : IPermissionService
         var now = DateTime.UtcNow;
 
         // Find the most permissive active, non-public-link share for this user.
-        var bestPermission = await _db.FileShares
+        // Permission is stored as a string in the database, so we fetch matching
+        // share permission strings and resolve the max in memory.
+        var permissions = await _db.FileShares
             .AsNoTracking()
             .Where(s =>
                 idsToCheck.Contains(s.FileNodeId)
                 && s.ShareType != ShareType.PublicLink
                 && s.SharedWithUserId == caller.UserId
                 && (s.ExpiresAt == null || s.ExpiresAt > now))
-            .Select(s => (int?)s.Permission)
-            .MaxAsync(cancellationToken);
+            .Select(s => s.Permission)
+            .ToListAsync(cancellationToken);
 
-        return bestPermission.HasValue ? (SharePermission)bestPermission.Value : null;
+        if (permissions.Count == 0)
+            return null;
+
+        return permissions.Max();
     }
 
     /// <inheritdoc />

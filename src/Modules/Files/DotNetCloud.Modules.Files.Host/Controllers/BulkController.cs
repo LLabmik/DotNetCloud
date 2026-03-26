@@ -35,7 +35,7 @@ public class BulkController : FilesControllerBase
         {
             try
             {
-                await _fileService.MoveAsync(nodeId, new MoveNodeDto { TargetParentId = dto.TargetParentId!.Value }, caller);
+                await _fileService.MoveAsync(nodeId, new MoveNodeDto { TargetParentId = dto.TargetParentId }, caller);
                 results.Add(new BulkItemResultDto { NodeId = nodeId, Success = true });
             }
             catch (Exception ex)
@@ -60,7 +60,7 @@ public class BulkController : FilesControllerBase
         {
             try
             {
-                await _fileService.CopyAsync(nodeId, dto.TargetParentId!.Value, caller);
+                await _fileService.CopyAsync(nodeId, dto.TargetParentId, caller);
                 results.Add(new BulkItemResultDto { NodeId = nodeId, Success = true });
             }
             catch (Exception ex)

@@ -80,6 +80,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
 
         var session = new ChunkedUploadSession
         {
+            TargetFileNodeId = dto.TargetFileNodeId,
             TargetParentId = dto.ParentId,
             FileName = dto.FileName,
             TotalSize = dto.TotalSize,

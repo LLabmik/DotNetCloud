@@ -354,7 +354,7 @@ else
                                 @(node.IsFavorite ? "★" : "☆")
                             </button>
                             <button class="btn-icon" @onclick:stopPropagation
-                                    @onclick="() => ShowShareDialog(node)" title="Share" aria-label="Share">🔗</button>
+                                    @onclick="() => ShowShareDialogAsync(node)" title="Share" aria-label="Share">🔗</button>
                         </div>
                     }
                 </div>
@@ -375,7 +375,14 @@ else
 
     @if (IsShowShareDialog && ShareTargetNode is not null)
     {
-        <ShareDialog Node="ShareTargetNode" OnClose="HideShareDialog" />
+        <ShareDialog Node="ShareTargetNode"
+                    OnClose="HideShareDialog"
+                    OnSearch="HandleShareSearchAsync"
+                    OnShareCreated="HandleShareCreatedAsync"
+                    OnShareUpdated="HandleShareUpdatedAsync"
+                    OnShareRemoved="HandleShareRemovedAsync"
+                    InitialShares="_shareDialogShares"
+                    IsLoadingShares="_isLoadingShareDialogShares" />
     }
 
     <FileContextMenu
@@ -390,6 +397,7 @@ else
         OnCopy="HandleContextCopy"
         OnShare="HandleContextShare"
         OnDownload="HandleContextDownload"
+        OnVersionHistory="HandleContextVersionHistory"
         OnDelete="HandleContextDelete"
         OnDismiss="DismissContextMenu" />
 
@@ -403,30 +411,42 @@ else
         </div>
     }
 
-    @if (IsShowPreview && PreviewNode is not null)
-    {
-        <FilePreview
-            Node="@PreviewNode"
-            AllNodes="SortedNodes"
-            ApiBaseUrl="@ApiBaseUrl"
-            OnClose="HidePreview"
-            OnShare="HandlePreviewShare"
-            OnDownload="HandlePreviewDownload" />
-    }
-
-    @if (IsShowDocumentEditor && EditorNode is not null)
-    {
-        <div class="document-editor-overlay">
-            <DocumentEditor
-                FileId="@EditorNode.Id"
-                FileName="@EditorNode.Name"
-                ApiBaseUrl="@ApiBaseUrl"
-                OnClose="HideDocumentEditor"
-                OnDownload="HandleEditorDownload" />
-        </div>
-    }
-
 </div>
+}
+
+@if (IsShowPreview && PreviewNode is not null)
+{
+    <FilePreview
+        Node="@PreviewNode"
+        AllNodes="SortedNodes"
+        ApiBaseUrl="@ApiBaseUrl"
+        OnClose="HidePreview"
+        OnShare="HandlePreviewShare"
+        OnDownload="HandlePreviewDownload" />
+}
+
+@if (IsShowDocumentEditor && EditorNode is not null)
+{
+    <div class="document-editor-overlay">
+        <DocumentEditor
+            FileId="@EditorNode.Id"
+            FileName="@EditorNode.Name"
+            ApiBaseUrl="@ApiBaseUrl"
+            OnClose="HideDocumentEditor"
+            OnDownload="HandleEditorDownload" />
+    </div>
+}
+
+@if (_showVersionHistory && _versionHistoryFileName is not null)
+{
+    <VersionHistoryPanel
+        FileName="@_versionHistoryFileName"
+        InitialVersions="_versionHistoryItems"
+        OnClose="HideVersionHistory"
+        OnDownloadVersion="HandleDownloadVersion"
+        OnRestoreVersion="HandleRestoreVersion"
+        OnDeleteVersion="HandleDeleteVersion"
+        OnLabelSaved="HandleVersionLabelSaved" />
 }
 
     @if (_showFolderPicker)

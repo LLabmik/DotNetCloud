@@ -37,19 +37,15 @@
     }
     else
     {
-        <div class="shared-by-me-list-header">
-            <div class="col-icon"></div>
-            <button class="col-name sort-header @SortHeaderClass("Name")"
+        <div class="shared-by-me-sort-bar">
+            <button class="sort-btn @SortHeaderClass("Name")"
                     @onclick='() => SetSort("Name")'>
                 Name @SortIndicator("Name")
             </button>
-            <div class="col-shared-with">Shared with</div>
-            <div class="col-permission">Permission</div>
-            <button class="col-date sort-header @SortHeaderClass("Date")"
+            <button class="sort-btn @SortHeaderClass("Date")"
                     @onclick='() => SetSort("Date")'>
                 Shared @SortIndicator("Date")
             </button>
-            <div class="col-actions"></div>
         </div>
 
         <ul class="shared-items-list shared-by-me-items">
@@ -58,66 +54,69 @@
                 <li class="shared-item @(item.IsExpired ? "shared-item--expired" : "")">
                     <div class="shared-item-icon">@GetNodeIcon(item)</div>
 
-                    <div class="shared-item-name-col">
-                        <span class="shared-item-name">@item.NodeName</span>
-                        @if (item.NodeType == "File")
-                        {
-                            <span class="shared-item-size text-muted">@FormatSize(item.Size)</span>
-                        }
-                    </div>
-
-                    <div class="shared-item-recipient">
-                        <span class="badge badge-@item.ShareType.ToLowerInvariant()">
-                            @item.ShareType
-                        </span>
-                        <span class="recipient-name">
-                            @if (item.ShareType == "PublicLink")
+                    <div class="shared-item-content">
+                        <div class="shared-item-top-row">
+                            <span class="shared-item-name">@item.NodeName</span>
+                            @if (item.NodeType == "File")
                             {
-                                <text>Anyone with link</text>
-                                @if (item.LinkUrl is not null)
+                                <span class="shared-item-size text-muted">@FormatSize(item.Size)</span>
+                            }
+                        </div>
+                        <div class="shared-item-bottom-row">
+                            <div class="shared-item-recipient">
+                                <span class="badge badge-@item.ShareType.ToLowerInvariant()">
+                                    @item.ShareType
+                                </span>
+                                <span class="recipient-name">
+                                    @if (item.ShareType == "PublicLink")
+                                    {
+                                        <text>Anyone with link</text>
+                                        @if (item.LinkUrl is not null)
+                                        {
+                                            <button class="btn-icon btn-sm"
+                                                    @onclick="() => CopyLink(item)"
+                                                    title="Copy link">
+                                                📋
+                                            </button>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        @item.SharedWithName
+                                    }
+                                </span>
+                            </div>
+
+                            <div class="shared-item-permission">
+                                <select class="form-control form-control-sm share-inline-permission"
+                                        value="@item.Permission"
+                                        @onchange="e => UpdatePermission(item, e.Value?.ToString() ?? item.Permission)">
+                                    <option value="Read">View only</option>
+                                    <option value="ReadWrite">Can edit</option>
+                                    <option value="Full">Full access</option>
+                                </select>
+                            </div>
+
+                            <div class="shared-item-date">
+                                <span>@item.SharedAt.ToString("MMM d, yyyy")</span>
+                                @if (item.IsExpired)
                                 {
-                                    <button class="btn-icon btn-sm"
-                                            @onclick="() => CopyLink(item)"
-                                            title="Copy link">
-                                        📋
-                                    </button>
+                                    <span class="badge badge-danger">Expired</span>
                                 }
-                            }
-                            else
-                            {
-                                @item.SharedWithName
-                            }
-                        </span>
-                    </div>
-
-                    <div class="shared-item-permission">
-                        <select class="form-control form-control-sm share-inline-permission"
-                                value="@item.Permission"
-                                @onchange="e => UpdatePermission(item, e.Value?.ToString() ?? item.Permission)">
-                            <option value="Read">View only</option>
-                            <option value="ReadWrite">Can edit</option>
-                            <option value="Full">Full access</option>
-                        </select>
-                    </div>
-
-                    <div class="shared-item-date">
-                        <span>@item.SharedAt.ToString("MMM d, yyyy")</span>
-                        @if (item.IsExpired)
-                        {
-                            <span class="badge badge-danger">Expired</span>
-                        }
-                        else if (item.ExpiresAt.HasValue)
-                        {
-                            <span class="text-muted">
-                                (expires @FormatRelativeDate(item.ExpiresAt.Value))
-                            </span>
-                        }
-                        @if (item.ShareType == "PublicLink" && item.MaxDownloads.HasValue)
-                        {
-                            <span class="text-muted">
-                                @item.DownloadCount/@item.MaxDownloads downloads
-                            </span>
-                        }
+                                else if (item.ExpiresAt.HasValue)
+                                {
+                                    <span class="text-muted">
+                                        (expires @FormatRelativeDate(item.ExpiresAt.Value))
+                                    </span>
+                                }
+                                @if (item.ShareType == "PublicLink" && item.MaxDownloads.HasValue)
+                                {
+                                    <span class="text-muted">
+                                        @item.DownloadCount/@item.MaxDownloads downloads
+                                    </span>
+                                }
+                            </div>
+                        </div>
                     </div>
 
                     <div class="shared-item-actions">

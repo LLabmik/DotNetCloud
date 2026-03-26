@@ -38,7 +38,7 @@ internal sealed class TrashService : ITrashService
         return await _db.FileNodes
             .IgnoreQueryFilters()
             .AsNoTracking()
-            .Where(n => n.IsDeleted && n.OwnerId == caller.UserId && n.OriginalParentId != null)
+            .Where(n => n.IsDeleted && n.OwnerId == caller.UserId)
             .OrderByDescending(n => n.DeletedAt)
             .Select(n => new TrashItemDto
             {

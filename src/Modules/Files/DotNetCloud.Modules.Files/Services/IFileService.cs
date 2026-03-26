@@ -26,8 +26,8 @@ public interface IFileService
     /// <summary>Moves a file or folder to a new parent.</summary>
     Task<FileNodeDto> MoveAsync(Guid nodeId, MoveNodeDto dto, CallerContext caller, CancellationToken cancellationToken = default);
 
-    /// <summary>Copies a file or folder to a new parent.</summary>
-    Task<FileNodeDto> CopyAsync(Guid nodeId, Guid targetParentId, CallerContext caller, CancellationToken cancellationToken = default);
+    /// <summary>Copies a file or folder to a new parent. Null target means root.</summary>
+    Task<FileNodeDto> CopyAsync(Guid nodeId, Guid? targetParentId, CallerContext caller, CancellationToken cancellationToken = default);
 
     /// <summary>Soft-deletes a file or folder (moves to trash).</summary>
     Task DeleteAsync(Guid nodeId, CallerContext caller, CancellationToken cancellationToken = default);
