@@ -104,6 +104,7 @@ public static class FilesServiceRegistration
         services.AddHostedService<VersionCleanupService>();
         services.AddHostedService<TempFileCleanupService>();
         services.AddHostedService<ShareExpiryNotificationService>();
+        services.AddHostedService<ExpiredShareCleanupService>();
 
         return services;
     }

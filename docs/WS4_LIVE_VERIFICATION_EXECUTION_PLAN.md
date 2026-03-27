@@ -221,13 +221,14 @@ After completing Phase A, open DevTools (F12) > Network and grab:
 - Pass criteria: Access blocked until correct password is provided.
 - **Result:** Pass (2026-03-27)
 
-#### TC-1.22 Public link download limit
+#### TC-1.22 Public link download limit — ✅ Pass
 - Setup: Public link with configurable limit.
 - Steps:
 	1. Set small download limit (for example 1).
 	2. Download once.
 	3. Attempt second download.
 - Pass criteria: Further downloads are blocked after limit reached.
+- **Result:** Pass (2026-03-27)
 
 ### Sprint 1.6: Quotas (2)
 
