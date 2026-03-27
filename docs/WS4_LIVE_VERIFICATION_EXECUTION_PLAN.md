@@ -12,7 +12,7 @@
 - Broken ROPC (password grant) code removed; server is clean
 - mint22: `dotnetcloud.service` active, `coolwsd` (Collabora) active (deployed Mar 25 03:28)
 
-**Live verification: 15 of 66 items passed ✅**
+**Live verification: 16 of 66 items passed ✅**
 
 **Known blockers:**
 - **Comments UI** (TC-1.37–1.39, 3 items) — no UI exists; will be Blocked
@@ -251,12 +251,13 @@ After completing Phase A, open DevTools (F12) > Network and grab:
 
 ### Sprint 1.7: Collabora (2)
 
-#### TC-1.25 Open ODT in Collabora
+#### TC-1.25 Open ODT in Collabora — ✅ Pass
 - Setup: Collabora integration configured.
 - Steps:
 	1. Upload ODT file.
 	2. Open in editor.
 - Pass criteria: Document opens in Collabora editor successfully.
+- **Result:** Pass (2026-03-27)
 
 #### TC-1.26 Edit and save ODT
 - Setup:ODT open in editor.
