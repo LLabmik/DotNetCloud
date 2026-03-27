@@ -12,7 +12,7 @@
 - Broken ROPC (password grant) code removed; server is clean
 - mint22: `dotnetcloud.service` active, `coolwsd` (Collabora) active (deployed Mar 25 03:28)
 
-**Live verification: 18 of 66 items passed ✅**
+**Live verification: 19 of 66 items passed ✅**
 
 **Known blockers:**
 - **Comments UI** (TC-1.37–1.39, 3 items) — no UI exists; will be Blocked
@@ -285,12 +285,13 @@ After completing Phase A, open DevTools (F12) > Network and grab:
 - Pass criteria: Video preview loads and playback works.
 - **Result:** Pass (2026-03-27)
 
-#### TC-1.30 Preview PDF
+#### TC-1.30 Preview PDF — ✅ Pass
 - Setup: Sample PDF.
 - Steps:
 	1. Open PDF in preview.
 	2. Navigate at least one page.
 - Pass criteria: PDF renders in preview without forced download.
+- **Result:** Pass (2026-03-27) — Required fix: changed frame-ancestors to 'self' and X-Frame-Options to SAMEORIGIN (5b37316)
 
 #### TC-1.31 Preview text/code file
 - Setup: TXT or source code file.
