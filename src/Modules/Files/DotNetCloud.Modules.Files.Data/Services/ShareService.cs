@@ -176,7 +176,8 @@ internal sealed class ShareService : IShareService
                 MaxDownloads = s.MaxDownloads,
                 CreatedAt = s.CreatedAt,
                 CreatedByUserId = s.CreatedByUserId,
-                Note = s.Note
+                Note = s.Note,
+                HasPassword = s.LinkPasswordHash != null
             })
             .ToListAsync(cancellationToken);
     }
@@ -206,7 +207,8 @@ internal sealed class ShareService : IShareService
                 MaxDownloads = s.MaxDownloads,
                 CreatedAt = s.CreatedAt,
                 CreatedByUserId = s.CreatedByUserId,
-                Note = s.Note
+                Note = s.Note,
+                HasPassword = s.LinkPasswordHash != null
             })
             .ToListAsync(cancellationToken);
     }
@@ -236,7 +238,8 @@ internal sealed class ShareService : IShareService
                 MaxDownloads = s.MaxDownloads,
                 CreatedAt = s.CreatedAt,
                 CreatedByUserId = s.CreatedByUserId,
-                Note = s.Note
+                Note = s.Note,
+                HasPassword = s.LinkPasswordHash != null
             })
             .ToListAsync(cancellationToken);
     }
@@ -274,6 +277,27 @@ internal sealed class ShareService : IShareService
         }
 
         return ToDto(share, share.FileNode?.Name);
+    }
+
+    /// <inheritdoc />
+    public async Task<PublicLinkInfoDto> GetPublicLinkInfoAsync(string linkToken, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(linkToken);
+
+        var share = await _db.FileShares
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.LinkToken == linkToken && s.ShareType == ShareType.PublicLink, cancellationToken);
+
+        if (share is null)
+            return new PublicLinkInfoDto { Exists = false };
+
+        return new PublicLinkInfoDto
+        {
+            Exists = true,
+            RequiresPassword = share.LinkPasswordHash is not null,
+            IsExpired = share.ExpiresAt.HasValue && share.ExpiresAt.Value < DateTime.UtcNow,
+            IsMaxedOut = share.MaxDownloads.HasValue && share.DownloadCount >= share.MaxDownloads.Value
+        };
     }
 
     /// <inheritdoc />
@@ -337,6 +361,7 @@ internal sealed class ShareService : IShareService
         MaxDownloads = share.MaxDownloads,
         CreatedAt = share.CreatedAt,
         CreatedByUserId = share.CreatedByUserId,
-        Note = share.Note
+        Note = share.Note,
+        HasPassword = share.LinkPasswordHash is not null
     };
 }

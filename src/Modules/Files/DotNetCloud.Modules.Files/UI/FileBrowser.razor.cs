@@ -1038,7 +1038,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
                 Permission = s.Permission,
                 LinkToken = s.LinkToken,
                 LinkUrl = s.LinkToken is not null ? $"{Navigation.BaseUri.TrimEnd('/')}/s/{s.LinkToken}" : null,
-                HasPassword = false,
+                HasPassword = s.HasPassword,
                 DownloadCount = s.DownloadCount,
                 MaxDownloads = s.MaxDownloads,
                 ExpiresAt = s.ExpiresAt,
@@ -1112,13 +1112,37 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             LinkPassword = args.RemovePassword ? "" : args.NewPassword
         };
 
-        await ShareService.UpdateShareAsync(args.ShareId, dto, caller);
+        var result = await ShareService.UpdateShareAsync(args.ShareId, dto, caller);
+
+        // Update local share state so UI reflects changes (e.g. HasPassword)
+        var idx = _shareDialogShares.FindIndex(s => s.Id == args.ShareId);
+        if (idx >= 0)
+        {
+            var old = _shareDialogShares[idx];
+            _shareDialogShares[idx] = new ShareViewModel
+            {
+                Id = result.Id,
+                ShareType = result.ShareType,
+                RecipientName = old.RecipientName,
+                Permission = result.Permission,
+                LinkToken = result.LinkToken,
+                LinkUrl = result.LinkToken is not null ? $"{Navigation.BaseUri.TrimEnd('/')}/s/{result.LinkToken}" : old.LinkUrl,
+                HasPassword = result.HasPassword,
+                DownloadCount = result.DownloadCount,
+                MaxDownloads = result.MaxDownloads,
+                ExpiresAt = result.ExpiresAt,
+                CreatedAt = result.CreatedAt,
+                Note = result.Note
+            };
+            StateHasChanged();
+        }
     }
 
     protected async Task HandleShareRemovedAsync(Guid shareId)
     {
         var caller = await GetCallerContextAsync();
         await ShareService.DeleteShareAsync(shareId, caller);
+        _shareDialogShares.RemoveAll(s => s.Id == shareId);
     }
 
     protected async Task HandlePublicLinkToggledAsync(bool enabled)
@@ -1157,7 +1181,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
                 Permission = result.Permission,
                 LinkToken = result.LinkToken,
                 LinkUrl = linkUrl,
-                HasPassword = false,
+                HasPassword = result.HasPassword,
                 DownloadCount = result.DownloadCount,
                 MaxDownloads = result.MaxDownloads,
                 ExpiresAt = result.ExpiresAt,

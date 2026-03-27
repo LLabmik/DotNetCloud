@@ -146,11 +146,12 @@
                                            class="form-control form-control-sm"
                                            @bind="LinkPassword"
                                            placeholder="@(PublicLinkShare.HasPassword ? "(password set)" : "No password")" />
-                                    @if (!string.IsNullOrEmpty(LinkPassword))
+                                    @if (!PublicLinkShare.HasPassword)
                                     {
-                                        <button class="btn btn-sm btn-outline" @onclick="SetLinkPasswordAsync">Set</button>
+                                        <button class="btn btn-sm btn-outline" @onclick="SetLinkPasswordAsync"
+                                                disabled="@string.IsNullOrEmpty(LinkPassword)">Set</button>
                                     }
-                                    @if (PublicLinkShare.HasPassword)
+                                    else
                                     {
                                         <button class="btn btn-sm btn-outline btn-danger" @onclick="RemoveLinkPasswordAsync">Remove</button>
                                     }

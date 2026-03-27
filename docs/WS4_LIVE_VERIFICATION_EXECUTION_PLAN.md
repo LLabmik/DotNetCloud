@@ -212,13 +212,14 @@ After completing Phase A, open DevTools (F12) > Network and grab:
 - Pass criteria: Anonymous access works according to default share permissions.
 - **Result:** Pass (2026-03-27)
 
-#### TC-1.21 Public link password protection
+#### TC-1.21 Public link password protection — ✅ Pass
 - Setup: Existing public link.
 - Steps:
 	1. Set password on link.
 	2. Reopen link without password.
 	3. Enter password and continue.
 - Pass criteria: Access blocked until correct password is provided.
+- **Result:** Pass (2026-03-27)
 
 #### TC-1.22 Public link download limit
 - Setup: Public link with configurable limit.

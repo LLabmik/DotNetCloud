@@ -234,6 +234,27 @@ public sealed record FileShareDto
 
     /// <summary>Note attached to the share.</summary>
     public string? Note { get; init; }
+
+    /// <summary>Whether the public link has a password set.</summary>
+    public bool HasPassword { get; init; }
+}
+
+/// <summary>
+/// Lightweight info about a public link for pre-resolution checks.
+/// </summary>
+public sealed record PublicLinkInfoDto
+{
+    /// <summary>Whether the link token matched a valid share.</summary>
+    public bool Exists { get; init; }
+
+    /// <summary>Whether a password is required to access the share.</summary>
+    public bool RequiresPassword { get; init; }
+
+    /// <summary>Whether the link has expired.</summary>
+    public bool IsExpired { get; init; }
+
+    /// <summary>Whether the download limit has been reached.</summary>
+    public bool IsMaxedOut { get; init; }
 }
 
 /// <summary>

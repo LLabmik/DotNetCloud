@@ -28,6 +28,31 @@
             <p>@_error</p>
         </div>
     }
+    else if (_needsPassword)
+    {
+        <div class="public-share-card">
+            <div class="public-share-icon">
+                <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0110 0v4"/>
+                </svg>
+            </div>
+            <h2>Password required</h2>
+            <p class="text-muted" style="margin-bottom: 1.25rem;">This shared file is protected. Enter the password to continue.</p>
+            <form @onsubmit="SubmitPasswordAsync" @onsubmit:preventDefault>
+                <input type="password" class="form-control"
+                       @bind="_password" placeholder="Enter password"
+                       style="margin-bottom: 0.75rem;" autofocus />
+                @if (_passwordError is not null)
+                {
+                    <p class="text-danger" style="font-size: 0.875rem; margin-bottom: 0.75rem;">@_passwordError</p>
+                }
+                <button type="submit" class="btn btn-primary public-share-download" disabled="@_submittingPassword">
+                    @(_submittingPassword ? "Checking…" : "Unlock")
+                </button>
+            </form>
+        </div>
+    }
     else if (_share is not null && _node is not null)
     {
         <div class="public-share-card">
@@ -46,7 +71,7 @@
                     <span class="meta-item">@_node.MimeType</span>
                 }
             </div>
-            <a href="/api/v1/public/shares/@Token/download"
+            <a href="/api/v1/public/shares/@Token/download@(_resolvedWithPassword ? $"?password={Uri.EscapeDataString(_password)}" : "")"
                class="btn btn-primary public-share-download"
                download="@_node.Name">
                 Download
@@ -72,26 +97,37 @@
     private FileNodeDto? _node;
     private string? _error;
     private bool _loading = true;
+    private bool _needsPassword;
+    private string _password = string.Empty;
+    private string? _passwordError;
+    private bool _submittingPassword;
+    private bool _resolvedWithPassword;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            _share = await ShareService.ResolvePublicLinkAsync(Token, null);
+            var info = await ShareService.GetPublicLinkInfoAsync(Token);
 
-            if (_share is null)
+            if (!info.Exists)
             {
                 _error = "This link is invalid, has expired, or the download limit has been reached.";
                 return;
             }
 
-            var caller = CallerContext.CreateSystemContext();
-            _node = await FileService.GetNodeAsync(_share.FileNodeId, caller);
-
-            if (_node is null)
+            if (info.IsExpired || info.IsMaxedOut)
             {
-                _error = "The shared file no longer exists.";
+                _error = "This link is invalid, has expired, or the download limit has been reached.";
+                return;
             }
+
+            if (info.RequiresPassword)
+            {
+                _needsPassword = true;
+                return;
+            }
+
+            await ResolveShareAsync(null);
         }
         catch
         {
@@ -100,6 +136,56 @@
         finally
         {
             _loading = false;
+        }
+    }
+
+    private async Task SubmitPasswordAsync()
+    {
+        _passwordError = null;
+        _submittingPassword = true;
+        StateHasChanged();
+
+        try
+        {
+            await ResolveShareAsync(_password);
+
+            if (_share is null)
+            {
+                _passwordError = "Incorrect password. Please try again.";
+            }
+            else
+            {
+                _needsPassword = false;
+                _resolvedWithPassword = true;
+            }
+        }
+        catch
+        {
+            _passwordError = "Something went wrong. Please try again.";
+        }
+        finally
+        {
+            _submittingPassword = false;
+        }
+    }
+
+    private async Task ResolveShareAsync(string? password)
+    {
+        _share = await ShareService.ResolvePublicLinkAsync(Token, password);
+
+        if (_share is null)
+        {
+            if (password is null)
+                _error = "This link is invalid, has expired, or the download limit has been reached.";
+            return;
+        }
+
+        var caller = CallerContext.CreateSystemContext();
+        _node = await FileService.GetNodeAsync(_share.FileNodeId, caller);
+
+        if (_node is null)
+        {
+            _error = "The shared file no longer exists.";
         }
     }
 

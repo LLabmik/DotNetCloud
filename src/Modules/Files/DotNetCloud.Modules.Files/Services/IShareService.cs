@@ -29,6 +29,9 @@ public interface IShareService
     /// <summary>Resolves a public link token to a share. Returns null if invalid/expired.</summary>
     Task<FileShareDto?> ResolvePublicLinkAsync(string linkToken, string? password, CancellationToken cancellationToken = default);
 
+    /// <summary>Returns lightweight info about a public link (exists, requires password, expired, etc.).</summary>
+    Task<PublicLinkInfoDto> GetPublicLinkInfoAsync(string linkToken, CancellationToken cancellationToken = default);
+
     /// <summary>Increments the download counter on a public link share.</summary>
     Task IncrementDownloadCountAsync(Guid shareId, CancellationToken cancellationToken = default);
 }
