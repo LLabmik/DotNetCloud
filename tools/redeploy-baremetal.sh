@@ -25,7 +25,7 @@ Environment overrides:
   PROJECT_PATH         server csproj path (default: src/Core/DotNetCloud.Core.Server/DotNetCloud.Core.Server.csproj)
   OUTPUT_DIR           publish output directory (default: artifacts/publish/server-baremetal)
   CONFIGURATION        dotnet publish configuration (default: Release)
-    HEALTH_URL           single liveness URL override (default: auto-try https://localhost:15443/health/live then http://localhost:5080/health/live)
+    HEALTH_URL           single liveness URL override (default: auto-try https://localhost:5443/health/live then http://localhost:5080/health/live)
   HEALTH_RETRIES       retry attempts for health probe (default: 15)
   HEALTH_DELAY_SECONDS delay between retries (default: 2)
 EOF
@@ -110,7 +110,7 @@ if [[ -n "$HEALTH_URL" ]]; then
     health_urls+=("$HEALTH_URL")
 else
     # Keep parity with both local source deployments (HTTPS) and install.sh defaults (HTTP).
-    health_urls+=("https://localhost:15443/health/live")
+    health_urls+=("https://localhost:5443/health/live")
     health_urls+=("http://localhost:5080/health/live")
 fi
 

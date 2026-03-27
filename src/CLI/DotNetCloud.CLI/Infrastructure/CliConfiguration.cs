@@ -253,6 +253,12 @@ internal sealed class CliConfig
     public string CollaboraUrl { get; set; } = string.Empty;
 
     /// <summary>
+    /// HMAC-SHA256 signing key for WOPI access tokens (≥ 32 characters).
+    /// Auto-generated on first server start if empty.
+    /// </summary>
+    public string WopiTokenSigningKey { get; set; } = string.Empty;
+
+    /// <summary>
     /// Directory where the built-in Collabora CODE is installed.
     /// Used when <see cref="CollaboraMode"/> is "BuiltIn".
     /// On system installs Collabora is managed via APT, so this is not used.

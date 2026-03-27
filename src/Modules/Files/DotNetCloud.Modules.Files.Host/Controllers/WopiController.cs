@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -61,6 +62,7 @@ public class WopiController : FilesControllerBase
     /// Authenticated via the access_token query parameter.
     /// Also begins a session slot for concurrent session tracking.
     /// </summary>
+    [AllowAnonymous]
     [HttpGet("files/{fileId:guid}")]
     public async Task<IActionResult> CheckFileInfoAsync(Guid fileId, [FromQuery] string access_token)
     {
@@ -78,7 +80,7 @@ public class WopiController : FilesControllerBase
             return StatusCode(503); // Service Unavailable
         }
 
-        var caller = ToCaller(tokenContext.UserId);
+        var caller = WopiCaller(tokenContext.UserId);
         var result = await _wopiService.CheckFileInfoAsync(fileId, caller);
 
         if (result is null)
@@ -95,6 +97,7 @@ public class WopiController : FilesControllerBase
     /// Called by Collabora to load a document for editing.
     /// Authenticated via the access_token query parameter.
     /// </summary>
+    [AllowAnonymous]
     [HttpGet("files/{fileId:guid}/contents")]
     public async Task<IActionResult> GetFileAsync(Guid fileId, [FromQuery] string access_token)
     {
@@ -107,7 +110,7 @@ public class WopiController : FilesControllerBase
 
         _sessionTracker.HeartbeatSession(fileId, tokenContext.UserId);
 
-        var caller = ToCaller(tokenContext.UserId);
+        var caller = WopiCaller(tokenContext.UserId);
 
         try
         {
@@ -129,6 +132,7 @@ public class WopiController : FilesControllerBase
     /// Creates a new file version using the chunked upload pipeline.
     /// Authenticated via the access_token query parameter.
     /// </summary>
+    [AllowAnonymous]
     [HttpPost("files/{fileId:guid}/contents")]
     public async Task<IActionResult> PutFileAsync(Guid fileId, [FromQuery] string access_token)
     {
@@ -148,7 +152,7 @@ public class WopiController : FilesControllerBase
 
         _sessionTracker.HeartbeatSession(fileId, tokenContext.UserId);
 
-        var caller = ToCaller(tokenContext.UserId);
+        var caller = WopiCaller(tokenContext.UserId);
 
         try
         {
@@ -221,6 +225,16 @@ public class WopiController : FilesControllerBase
     {
         var isSupported = await _discoveryService.IsSupportedExtensionAsync(extension);
         return Ok(Envelope(new { extension, supported = isSupported }));
+    }
+
+    /// <summary>
+    /// Creates a <see cref="CallerContext"/> from a validated WOPI token.
+    /// Unlike <see cref="FilesControllerBase.ToCaller"/>, this does not require HttpContext.User
+    /// to be authenticated, since WOPI protocol callbacks use access_token query parameters.
+    /// </summary>
+    private static CallerContext WopiCaller(Guid userId)
+    {
+        return new CallerContext(userId, [], CallerType.User);
     }
 
     /// <summary>

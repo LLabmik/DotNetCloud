@@ -904,6 +904,8 @@ configure_collabora_wopi_alias_groups() {
     host_with_port=$(echo "$public_origin" | sed -E 's#^[a-zA-Z]+://##; s#/.*$##')
     local host_only
     host_only=$(echo "$host_with_port" | sed -E 's#:[0-9]+$##')
+    local port_only
+    port_only=$(echo "$host_with_port" | grep -oP ':\K[0-9]+$' || echo "443")
 
     local tmp_without_managed
     tmp_without_managed=$(mktemp)
@@ -925,14 +927,14 @@ configure_collabora_wopi_alias_groups() {
     cat > "$managed_block" <<EOF
         <!-- dotnetcloud-managed-start -->
         <group>
-            <host desc="DotNetCloud single-origin public host">${public_origin}</host>
+            <host desc="DotNetCloud single-origin public host" allow="true">${public_origin}</host>
             <alias>${public_origin}</alias>
             <alias>https://${host_with_port}</alias>
             <alias>https://${host_only}</alias>
             <alias>http://${host_with_port}</alias>
             <alias>http://${host_only}</alias>
-            <alias>https://localhost:15443</alias>
-            <alias>https://127.0.0.1:15443</alias>
+            <alias>https://localhost:${port_only}</alias>
+            <alias>https://127.0.0.1:${port_only}</alias>
             <alias>http://localhost:5080</alias>
             <alias>http://127.0.0.1:5080</alias>
         </group>

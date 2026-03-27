@@ -251,15 +251,15 @@ After completing Phase A, open DevTools (F12) > Network and grab:
 
 ### Sprint 1.7: Collabora (2)
 
-#### TC-1.25 Open DOCX in Collabora
+#### TC-1.25 Open ODT in Collabora
 - Setup: Collabora integration configured.
 - Steps:
-	1. Upload DOCX file.
+	1. Upload ODT file.
 	2. Open in editor.
 - Pass criteria: Document opens in Collabora editor successfully.
 
-#### TC-1.26 Edit and save DOCX
-- Setup: DOCX open in editor.
+#### TC-1.26 Edit and save ODT
+- Setup:ODT open in editor.
 - Steps:
 	1. Make small text edit.
 	2. Save/auto-save.

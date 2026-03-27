@@ -127,12 +127,11 @@ internal static class ServiceCommands
             if (string.Equals(config.CollaboraMode, "BuiltIn", StringComparison.OrdinalIgnoreCase))
             {
                 psi.Environment["Files__Collabora__Enabled"] = "true";
-                psi.Environment["Files__Collabora__UseBuiltInCollabora"] = "true";
+                // BuiltIn means coolwsd is installed via APT and runs as a system service.
+                // DotNetCloud does NOT need to spawn/manage the process — just connect to it.
+                psi.Environment["Files__Collabora__UseBuiltInCollabora"] = "false";
                 psi.Environment["Files__Collabora__ServerUrl"] = "https://localhost:9980";
-                if (!string.IsNullOrEmpty(config.CollaboraDirectory))
-                {
-                    psi.Environment["Files__Collabora__CollaboraInstallDirectory"] = config.CollaboraDirectory;
-                }
+                psi.Environment["Files__Collabora__AllowInsecureTls"] = "true";
             }
             else if (string.Equals(config.CollaboraMode, "External", StringComparison.OrdinalIgnoreCase)
                      && !string.IsNullOrEmpty(config.CollaboraUrl))
@@ -140,6 +139,30 @@ internal static class ServiceCommands
                 psi.Environment["Files__Collabora__Enabled"] = "true";
                 psi.Environment["Files__Collabora__UseBuiltInCollabora"] = "false";
                 psi.Environment["Files__Collabora__ServerUrl"] = config.CollaboraUrl;
+            }
+
+            // Ensure WOPI token signing key exists for any Collabora mode
+            if (config.CollaboraMode is "BuiltIn" or "External")
+            {
+                if (string.IsNullOrEmpty(config.WopiTokenSigningKey))
+                {
+                    config.WopiTokenSigningKey = GenerateTokenSigningKey();
+                    try { CliConfiguration.Save(config); }
+                    catch { /* Best-effort persist; key will be regenerated next start */ }
+                    ConsoleOutput.WriteInfo("Generated WOPI token signing key.");
+                }
+                psi.Environment["Files__Collabora__TokenSigningKey"] = config.WopiTokenSigningKey;
+
+                // Derive WopiBaseUrl from server's own HTTPS/HTTP address
+                // Use the configured TLS hostname (e.g. "mint22") so the URL matches
+                // Collabora's alias_groups; fall back to machine hostname then localhost.
+                var scheme = config.EnableHttps ? "https" : "http";
+                var port = config.EnableHttps ? config.HttpsPort : config.HttpPort;
+                var host = config.SelfSignedTlsHost
+                           ?? config.LetsEncryptDomain
+                           ?? Environment.MachineName
+                           ?? "localhost";
+                psi.Environment["Files__Collabora__WopiBaseUrl"] = $"{scheme}://{host}:{port}";
             }
 
             var process = Process.Start(psi);
@@ -533,5 +556,13 @@ internal static class ServiceCommands
             try { File.Delete(pidFile); }
             catch { /* best effort */ }
         }
+    }
+
+    private static string GenerateTokenSigningKey()
+    {
+        var bytes = new byte[32];
+        using var rng = System.Security.Cryptography.RandomNumberGenerator.Create();
+        rng.GetBytes(bytes);
+        return Convert.ToBase64String(bytes);
     }
 }
