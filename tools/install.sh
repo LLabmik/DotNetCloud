@@ -1013,6 +1013,93 @@ validate_collabora_runtime() {
 }
 
 # --- Check config for Collabora and install/upgrade if requested ---
+# --- Pre-generate WOPI token signing key in config.json ---
+# The CLI auto-generates at startup, but cannot persist it when config.json
+# is owned by root. Pre-generating here (as root) avoids that race condition.
+ensure_wopi_token_signing_key() {
+    local config_file="$1"
+
+    if [[ ! -f "$config_file" ]]; then
+        return
+    fi
+
+    # Check if a key already exists in config.
+    local existing_key
+    existing_key=$(grep -oP '"(?:wopiTokenSigningKey|WopiTokenSigningKey)"\s*:\s*"\K[^"]+' "$config_file" 2>/dev/null | head -n1 || true)
+    if [[ -n "$existing_key" ]]; then
+        return
+    fi
+
+    # Generate a 32-byte random key as base64.
+    local signing_key
+    signing_key=$(openssl rand -base64 32 2>/dev/null || head -c 32 /dev/urandom | base64 2>/dev/null || true)
+    if [[ -z "$signing_key" ]]; then
+        warn "Could not generate WOPI token signing key (no openssl or /dev/urandom)."
+        return
+    fi
+
+    # Insert the key into config.json. Use python3 (virtually always present on
+    # modern Linux) for safe JSON manipulation; fall back to sed if unavailable.
+    local inserted=false
+    if command -v python3 &>/dev/null; then
+        if $SUDO python3 -c "
+import json, sys
+with open('$config_file', 'r') as f:
+    cfg = json.load(f)
+cfg['wopiTokenSigningKey'] = '$signing_key'
+with open('$config_file', 'w') as f:
+    json.dump(cfg, f, indent=2)
+    f.write('\n')
+" 2>/dev/null; then
+            inserted=true
+        fi
+    fi
+
+    if [[ "$inserted" != "true" ]]; then
+        # Fallback: use sed to insert before the final closing brace.
+        if $SUDO sed -i '$ s/}$/,\n  "wopiTokenSigningKey": "'"${signing_key}"'"\n}/' "$config_file" 2>/dev/null; then
+            inserted=true
+        fi
+    fi
+
+    if [[ "$inserted" == "true" ]]; then
+        # Restore config file permissions for the service group.
+        $SUDO chown root:${SERVICE_GROUP} "$config_file" 2>/dev/null || true
+        $SUDO chmod 640 "$config_file" 2>/dev/null || true
+        ok "Pre-generated WOPI token signing key in ${config_file}."
+    else
+        warn "Failed to write WOPI token signing key to ${config_file}."
+        warn "The CLI will auto-generate one at startup, but it may not persist across restarts."
+    fi
+}
+
+# --- Ensure coolwsd trusts DotNetCloud's self-signed TLS certificate ---
+configure_coolwsd_ssl_verification() {
+    local config_file="$1"
+    local coolwsd_config="/etc/coolwsd/coolwsd.xml"
+
+    if [[ ! -f "$coolwsd_config" ]]; then
+        return
+    fi
+
+    # Only disable SSL verification for self-signed setups.
+    local use_self_signed
+    use_self_signed=$(grep -oP '"(?:useSelfSignedTls|UseSelfSignedTls)"\s*:\s*\K(true|false)' "$config_file" 2>/dev/null | head -n1 || true)
+
+    if [[ "$use_self_signed" != "true" ]]; then
+        return
+    fi
+
+    # Check current ssl_verification value in coolwsd's main ssl section.
+    # The setting at xpath /config/ssl/ssl_verification controls outbound verification.
+    if grep -q '<ssl_verification[^>]*>true</ssl_verification>' "$coolwsd_config" 2>/dev/null; then
+        # Find the main ssl section's ssl_verification (not languagetool's).
+        # The main one is inside <ssl desc="SSL settings"> block.
+        $SUDO sed -i '/<ssl desc="SSL settings">/,/<\/ssl>/ s|<ssl_verification\([^>]*\)>true</ssl_verification>|<ssl_verification\1>false</ssl_verification>|' "$coolwsd_config"
+        ok "Disabled coolwsd SSL verification for self-signed TLS environment."
+    fi
+}
+
 maybe_install_collabora() {
     local CONFIG_FILE="${CONFIG_DIR}/config.json"
 
@@ -1046,6 +1133,14 @@ maybe_install_collabora() {
         else
             warn "Could not derive DotNetCloud public origin from ${CONFIG_FILE}; skipping coolwsd alias_groups automation."
         fi
+
+        # Pre-generate WOPI token signing key so the service doesn't need
+        # write access to config.json at runtime.
+        ensure_wopi_token_signing_key "$CONFIG_FILE"
+
+        # For self-signed TLS environments, ensure coolwsd doesn't reject
+        # WOPI callbacks to DotNetCloud over the self-signed certificate.
+        configure_coolwsd_ssl_verification "$CONFIG_FILE"
 
         validate_collabora_runtime
     else
