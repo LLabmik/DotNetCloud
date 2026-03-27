@@ -146,6 +146,22 @@ window.dotnetcloudUpload = (function () {
                 return;
             }
 
+            // 0b. Quota pre-check — fail fast before expensive chunking/hashing
+            try {
+                const quotaResp = await fetch("/api/v1/files/quota", { credentials: "same-origin" });
+                if (quotaResp.ok) {
+                    const quotaJson = await quotaResp.json();
+                    const q = quotaJson.data || quotaJson;
+                    if (q.maxBytes > 0 && file.size > q.remainingBytes) {
+                        await dotNetRef.invokeMethodAsync("OnJsUploadError", fileIndex,
+                            "Insufficient storage quota. This file is " + formatSize(file.size) +
+                            " but you only have " + formatSize(q.remainingBytes) + " remaining" +
+                            " (used " + formatSize(q.usedBytes) + " of " + formatSize(q.maxBytes) + ").");
+                        return;
+                    }
+                }
+            } catch { /* quota check is best-effort; server will enforce anyway */ }
+
             // 1. Chunk & hash the file on the client
             await dotNetRef.invokeMethodAsync("OnJsUploadProgress", fileIndex, 0, "Preparing...");
             const chunks = await chunkAndHash(file, fileIndex, dotNetRef);
@@ -186,7 +202,13 @@ window.dotnetcloudUpload = (function () {
 
                 if (!initResp.ok) {
                     const errText = await initResp.text();
-                    throw new Error(`Initiate failed (${initResp.status}): ${errText}`);
+                    let friendlyMsg = "Upload failed (" + initResp.status + ")";
+                    try {
+                        const errJson = JSON.parse(errText);
+                        const msg = (errJson.error && errJson.error.message) || errJson.message;
+                        if (msg) friendlyMsg = msg;
+                    } catch { /* not JSON, use raw */ friendlyMsg = errText || friendlyMsg; }
+                    throw new Error(friendlyMsg);
                 }
 
                 const initJson = await initResp.json();

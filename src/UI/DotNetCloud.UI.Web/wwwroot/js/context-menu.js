@@ -41,7 +41,22 @@ window.dotnetcloudContextMenu = (function () {
             // Calculate viewport-aware position
             const pos = calculatePosition(event.clientX, event.clientY);
 
-            dotNetRef.invokeMethodAsync("OnContextMenu", nodeId, nodeType || "File", pos.x, pos.y);
+            dotNetRef.invokeMethodAsync("OnContextMenu", nodeId, nodeType || "File", pos.x, pos.y)
+                .then(function () {
+                    // After Blazor renders the menu, reposition based on actual size
+                    requestAnimationFrame(function () {
+                        const menu = document.querySelector(".file-context-menu");
+                        if (!menu) return;
+                        const rect = menu.getBoundingClientRect();
+                        const pad = 8;
+                        if (rect.bottom > window.innerHeight - pad) {
+                            menu.style.top = Math.max(pad, window.innerHeight - rect.height - pad) + "px";
+                        }
+                        if (rect.right > window.innerWidth - pad) {
+                            menu.style.left = Math.max(pad, window.innerWidth - rect.width - pad) + "px";
+                        }
+                    });
+                });
         }, { signal: signal });
 
         // Dismiss on click outside, Escape, or scroll
@@ -71,7 +86,7 @@ window.dotnetcloudContextMenu = (function () {
      */
     function calculatePosition(clientX, clientY) {
         const menuWidth = 200;
-        const menuHeight = 280;
+        const menuHeight = 360;
         const padding = 8;
 
         let x = clientX;
@@ -97,6 +112,15 @@ window.dotnetcloudContextMenu = (function () {
         requestAnimationFrame(function () {
             const menu = document.querySelector(".file-context-menu");
             if (menu) {
+                // Reposition based on actual rendered size
+                const rect = menu.getBoundingClientRect();
+                const pad = 8;
+                if (rect.bottom > window.innerHeight - pad) {
+                    menu.style.top = Math.max(pad, window.innerHeight - rect.height - pad) + "px";
+                }
+                if (rect.right > window.innerWidth - pad) {
+                    menu.style.left = Math.max(pad, window.innerWidth - rect.width - pad) + "px";
+                }
                 const firstItem = menu.querySelector("[role='menuitem']");
                 if (firstItem) firstItem.focus();
             }

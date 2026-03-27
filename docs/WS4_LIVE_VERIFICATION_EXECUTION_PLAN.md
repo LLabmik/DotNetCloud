@@ -241,12 +241,13 @@ After completing Phase A, open DevTools (F12) > Network and grab:
 - Pass criteria: New quota value is persisted and visible.
 - Result: PASS — Built admin quota UI (UserEdit quota field, UserDetail quota display, UserList quota bars), fixed QuotaController security (added RequireAdmin policy), fixed Blazor dispatcher threading bug (ToastService subscribers using InvokeAsync), changed ToastService from singleton to scoped, added Files sidebar storage summary with quota bar. Quota persists and displays correctly in both admin and user views.
 
-#### TC-1.24 Upload until quota exceeded
+#### TC-1.24 Upload until quota exceeded ✅ PASS
 - Setup: Low quota configured.
 - Steps:
 	1. Upload files until threshold exceeded.
 	2. Observe behavior at boundary.
 - Pass criteria: Upload is rejected with clear quota error and no crash.
+- Result: PASS — Added client-side quota pre-check (GET /api/v1/files/quota before chunking), friendly error message parsing from initiate response, context menu viewport repositioning fix, scrollable context menu. Upload is rejected instantly with clear message showing file size vs remaining quota.
 
 ### Sprint 1.7: Collabora (2)
 
