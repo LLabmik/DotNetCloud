@@ -1,4 +1,6 @@
 @namespace DotNetCloud.Modules.Files.UI
+@inject NavigationManager Navigation
+@inject IJSRuntime Js
 
 @*
     Comprehensive share dialog component — creates and manages file/folder shares.
@@ -9,8 +11,8 @@
     Code-behind: ShareDialog.razor.cs
 *@
 
-<div class="share-dialog-overlay" @onclick="HandleOverlayClick">
-    <div class="share-dialog" @onclick:stopPropagation>
+<div class="share-dialog-overlay" @onmousedown="HandleOverlayMouseDown" @onclick="HandleOverlayClick">
+    <div class="share-dialog" @onmousedown:stopPropagation @onclick:stopPropagation>
         <div class="share-header">
             <h3>Share "@Node?.Name"</h3>
             <button class="btn-icon" @onclick="Close" aria-label="Close" title="Close">✕</button>
@@ -161,6 +163,7 @@
                                            min="0" placeholder="Unlimited"
                                            @bind="LinkMaxDownloads"
                                            @bind:after="UpdatePublicLinkAsync" />
+                                    <span class="form-hint">0 = unlimited</span>
                                 </div>
 
                                 <div class="form-group-inline">

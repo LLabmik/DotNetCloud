@@ -1121,6 +1121,53 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         await ShareService.DeleteShareAsync(shareId, caller);
     }
 
+    protected async Task HandlePublicLinkToggledAsync(bool enabled)
+    {
+        if (_shareTargetNode is null) return;
+
+        var caller = await GetCallerContextAsync();
+
+        if (enabled)
+        {
+            var dto = new CreateShareDto
+            {
+                ShareType = "PublicLink",
+                Permission = "Read"
+            };
+
+            var result = await ShareService.CreateShareAsync(_shareTargetNode.Id, dto, caller);
+
+            // Update the dialog shares list with the real server-created share
+            var linkUrl = result.LinkToken is not null
+                ? $"{Navigation.BaseUri.TrimEnd('/')}/s/{result.LinkToken}"
+                : null;
+
+            // Replace placeholder with real share
+            var placeholder = _shareDialogShares.FirstOrDefault(s => s.ShareType == "PublicLink");
+            if (placeholder is not null)
+            {
+                _shareDialogShares.Remove(placeholder);
+            }
+
+            _shareDialogShares.Add(new ShareViewModel
+            {
+                Id = result.Id,
+                ShareType = result.ShareType,
+                RecipientName = "Public Link",
+                Permission = result.Permission,
+                LinkToken = result.LinkToken,
+                LinkUrl = linkUrl,
+                HasPassword = false,
+                DownloadCount = result.DownloadCount,
+                MaxDownloads = result.MaxDownloads,
+                ExpiresAt = result.ExpiresAt,
+                CreatedAt = result.CreatedAt
+            });
+
+            StateHasChanged();
+        }
+    }
+
     protected void ShowPreview(FileNodeViewModel node)
     {
         _previewNode = node;

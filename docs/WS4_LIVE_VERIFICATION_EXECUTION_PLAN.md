@@ -204,12 +204,13 @@ After completing Phase A, open DevTools (F12) > Network and grab:
 - Pass criteria: Second user can view/download but not modify.
 - **Result:** Pass (2026-03-26)
 
-#### TC-1.20 Create public link and open incognito
+#### TC-1.20 Create public link and open incognito — ✅ Pass
 - Setup: Existing shareable file.
 - Steps:
 	1. Generate public link.
 	2. Open link in incognito/private browser.
 - Pass criteria: Anonymous access works according to default share permissions.
+- **Result:** Pass (2026-03-27)
 
 #### TC-1.21 Public link password protection
 - Setup: Existing public link.

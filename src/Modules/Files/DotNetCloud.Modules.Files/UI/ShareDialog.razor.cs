@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.JSInterop;
 
 namespace DotNetCloud.Modules.Files.UI;
 
@@ -62,8 +63,9 @@ public partial class ShareDialog : ComponentBase
     private string _publicLinkPermission = "Read";
     private string _linkPassword = string.Empty;
     private int _linkMaxDownloads;
-    private int _linkExpirationDays;
+    private int _linkExpirationDays = 30;
     private bool _isLinkCopied;
+    private bool _overlayMouseDown;
 
     // ── Protected accessors for the template ───────────────────────────────
 
@@ -279,7 +281,7 @@ public partial class ShareDialog : ComponentBase
                 ShareType = "PublicLink",
                 RecipientName = "Public Link",
                 Permission = "Read",
-                LinkUrl = $"https://your-domain.com/s/{Guid.NewGuid():N}",
+                LinkUrl = $"{Navigation.BaseUri.TrimEnd('/')}/s/{Guid.NewGuid():N}",
                 CreatedAt = DateTime.UtcNow
             };
             _existingShares.Add(_publicLinkShare);
@@ -333,17 +335,32 @@ public partial class ShareDialog : ComponentBase
         });
     }
 
-    /// <summary>Copies the public link URL to clipboard (requires JS interop in full implementation).</summary>
-    protected void CopyPublicLink()
+    /// <summary>Copies the public link URL to clipboard via JS interop.</summary>
+    protected async Task CopyPublicLink()
     {
+        if (_publicLinkShare?.LinkUrl is not null)
+        {
+            await Js.InvokeVoidAsync("navigator.clipboard.writeText", _publicLinkShare.LinkUrl);
+        }
+
         _isLinkCopied = true;
-        // In a full implementation, use JS interop: await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", ...)
     }
 
     // ── Dialog ─────────────────────────────────────────────────────────────
 
-    /// <summary>Closes the dialog when clicking the overlay background.</summary>
-    protected void HandleOverlayClick() => Close();
+    /// <summary>Tracks that the mousedown originated on the overlay (not inside the dialog).</summary>
+    protected void HandleOverlayMouseDown() => _overlayMouseDown = true;
+
+    /// <summary>Closes the dialog only when both mousedown and click occurred on the overlay.</summary>
+    protected void HandleOverlayClick()
+    {
+        if (_overlayMouseDown)
+        {
+            Close();
+        }
+
+        _overlayMouseDown = false;
+    }
 
     /// <summary>Closes the share dialog.</summary>
     protected async void Close()

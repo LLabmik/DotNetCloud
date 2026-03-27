@@ -1,0 +1,113 @@
+@page "/s/{Token}"
+@using DotNetCloud.Core.Authorization
+@using DotNetCloud.Modules.Files.DTOs
+@using DotNetCloud.Modules.Files.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [AllowAnonymous]
+@inject IShareService ShareService
+@inject IFileService FileService
+
+<PageTitle>@(_node?.Name ?? "Shared File") - DotNetCloud</PageTitle>
+
+<div class="public-share-page">
+    @if (_loading)
+    {
+        <div class="public-share-card">
+            <p class="text-muted">Loading shared file…</p>
+        </div>
+    }
+    else if (_error is not null)
+    {
+        <div class="public-share-card public-share-error">
+            <svg class="share-icon-error" viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="15" y1="9" x2="9" y2="15"/>
+                <line x1="9" y1="9" x2="15" y2="15"/>
+            </svg>
+            <h2>Link not available</h2>
+            <p>@_error</p>
+        </div>
+    }
+    else if (_share is not null && _node is not null)
+    {
+        <div class="public-share-card">
+            <div class="public-share-icon">
+                <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                </svg>
+            </div>
+            <h2>@_node.Name</h2>
+            <div class="public-share-meta">
+                <span class="meta-item">@FormatSize(_node.Size)</span>
+                @if (!string.IsNullOrEmpty(_node.MimeType))
+                {
+                    <span class="meta-separator">·</span>
+                    <span class="meta-item">@_node.MimeType</span>
+                }
+            </div>
+            <a href="/api/v1/public/shares/@Token/download"
+               class="btn btn-primary public-share-download"
+               download="@_node.Name">
+                Download
+            </a>
+            @if (_share.ExpiresAt.HasValue)
+            {
+                <p class="public-share-expiry text-muted">
+                    This link expires @_share.ExpiresAt.Value.ToString("MMMM d, yyyy")
+                </p>
+            }
+        </div>
+    }
+
+    <div class="public-share-branding">
+        <span>Shared via <strong>DotNetCloud</strong></span>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Token { get; set; } = string.Empty;
+
+    private FileShareDto? _share;
+    private FileNodeDto? _node;
+    private string? _error;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _share = await ShareService.ResolvePublicLinkAsync(Token, null);
+
+            if (_share is null)
+            {
+                _error = "This link is invalid, has expired, or the download limit has been reached.";
+                return;
+            }
+
+            var caller = CallerContext.CreateSystemContext();
+            _node = await FileService.GetNodeAsync(_share.FileNodeId, caller);
+
+            if (_node is null)
+            {
+                _error = "The shared file no longer exists.";
+            }
+        }
+        catch
+        {
+            _error = "Something went wrong loading this shared file.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024.0 * 1024):F1} MB";
+        return $"{bytes / (1024.0 * 1024 * 1024):F1} GB";
+    }
+}

@@ -2460,6 +2460,11 @@ textarea.form-control {
     margin: 4px 0 0;
 }
 
+.form-hint {
+    font-size: 0.75rem;
+    color: var(--text-muted, #8b949e);
+}
+
 /* Existing shares list */
 .share-existing-section {
     border-top: 1px solid var(--color-border);
@@ -4354,4 +4359,87 @@ textarea.form-control {
 .file-meta-sep {
     color: var(--text-muted, #555);
     font-size: 0.7rem;
+}
+
+/* ── Public Share Page ───────────────────────────────────────────────── */
+
+.public-share-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 2rem;
+    background: var(--bg-primary, #0d1117);
+}
+
+.public-share-card {
+    background: var(--panel-bg, #161b22);
+    border: 1px solid var(--border-color, #30363d);
+    border-radius: 12px;
+    padding: 2.5rem;
+    text-align: center;
+    max-width: 440px;
+    width: 100%;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+}
+
+.public-share-icon {
+    color: var(--accent, #58a6ff);
+    margin-bottom: 1rem;
+}
+
+.public-share-card h2 {
+    margin: 0 0 0.75rem;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary, #e6edf3);
+    word-break: break-word;
+}
+
+.public-share-meta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    font-size: 0.875rem;
+    color: var(--text-muted, #8b949e);
+}
+
+.meta-separator {
+    font-size: 0.75rem;
+}
+
+.public-share-download {
+    display: inline-block;
+    padding: 0.75rem 2rem;
+    font-size: 1rem;
+    font-weight: 600;
+    border-radius: 8px;
+    text-decoration: none;
+}
+
+.public-share-error {
+    color: var(--text-secondary, #c9d1d9);
+}
+
+.share-icon-error {
+    color: var(--danger, #f85149);
+    margin-bottom: 0.75rem;
+}
+
+.public-share-error h2 {
+    color: var(--danger, #f85149);
+}
+
+.public-share-expiry {
+    margin-top: 1rem;
+    font-size: 0.8rem;
+}
+
+.public-share-branding {
+    margin-top: 2rem;
+    font-size: 0.8rem;
+    color: var(--text-muted, #8b949e);
 }

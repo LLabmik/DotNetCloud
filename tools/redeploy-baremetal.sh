@@ -56,6 +56,9 @@ if [[ ! -f "$PROJECT_PATH" ]]; then
     exit 1
 fi
 
+# Acquire sudo upfront so later commands don't prompt mid-deploy.
+sudo -v || { error "sudo authentication failed."; exit 1; }
+
 info "Publishing server to $OUTPUT_DIR..."
 dotnet publish "$PROJECT_PATH" --configuration "$CONFIGURATION" --output "$OUTPUT_DIR"
 
@@ -66,15 +69,11 @@ INSTALL_CLI_DIR="/opt/dotnetcloud/cli/server"
 INSTALL_SERVER_DIR="/opt/dotnetcloud/server"
 
 stop_service() {
-    if systemctl stop "$SERVICE_NAME" 2>/dev/null; then :
-    elif sudo -n systemctl stop "$SERVICE_NAME" 2>/dev/null; then :
-    else return 1; fi
+    sudo systemctl stop "$SERVICE_NAME"
 }
 
 start_service() {
-    if systemctl start "$SERVICE_NAME" 2>/dev/null; then :
-    elif sudo -n systemctl start "$SERVICE_NAME" 2>/dev/null; then :
-    else return 1; fi
+    sudo systemctl start "$SERVICE_NAME"
 }
 
 info "Stopping $SERVICE_NAME..."
@@ -85,14 +84,12 @@ fi
 
 if [[ -d "$INSTALL_CLI_DIR" ]]; then
     info "Deploying to $INSTALL_CLI_DIR..."
-    cp -r "$OUTPUT_DIR"/* "$INSTALL_CLI_DIR/" 2>/dev/null \
-        || sudo cp -r "$OUTPUT_DIR"/* "$INSTALL_CLI_DIR/"
+    sudo cp -r "$OUTPUT_DIR"/* "$INSTALL_CLI_DIR/"
 fi
 
 if [[ -d "$INSTALL_SERVER_DIR" ]]; then
     info "Deploying to $INSTALL_SERVER_DIR..."
-    cp -r "$OUTPUT_DIR"/* "$INSTALL_SERVER_DIR/" 2>/dev/null \
-        || sudo cp -r "$OUTPUT_DIR"/* "$INSTALL_SERVER_DIR/"
+    sudo cp -r "$OUTPUT_DIR"/* "$INSTALL_SERVER_DIR/"
 fi
 
 info "Starting $SERVICE_NAME..."
