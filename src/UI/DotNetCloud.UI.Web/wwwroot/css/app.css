@@ -4291,7 +4291,7 @@ textarea.form-control {
     flex: 1;
     overflow: auto;
     margin: 0;
-    padding: 20px 24px;
+    padding: 0;
     font-family: 'Cascadia Code', 'Fira Code', 'Source Code Pro', 'Consolas', monospace;
     font-size: 0.875rem;
     line-height: 1.6;
@@ -4300,6 +4300,20 @@ textarea.form-control {
     white-space: pre-wrap;
     word-wrap: break-word;
     tab-size: 4;
+}
+
+.preview-text-content code {
+    display: block;
+    padding: 20px 24px;
+    background: transparent;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+}
+
+/* Override highlight.js theme background to match our surface */
+.preview-text-content code.hljs {
+    background: var(--surface, #1e1e2e);
 }
 
 .preview-text-editor {

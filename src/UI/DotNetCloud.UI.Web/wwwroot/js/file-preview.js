@@ -19,5 +19,17 @@ window.dotnetcloudFilePreview = window.dotnetcloudFilePreview || (function () {
         return response.ok;
     }
 
-    return { fetchTextContent: fetchTextContent, saveTextContent: saveTextContent };
+    function highlightCode(codeElement) {
+        if (codeElement && typeof hljs !== "undefined") {
+            // Reset any previous highlighting so hljs re-processes.
+            delete codeElement.dataset.highlighted;
+            hljs.highlightElement(codeElement);
+        }
+    }
+
+    return {
+        fetchTextContent: fetchTextContent,
+        saveTextContent: saveTextContent,
+        highlightCode: highlightCode
+    };
 })();

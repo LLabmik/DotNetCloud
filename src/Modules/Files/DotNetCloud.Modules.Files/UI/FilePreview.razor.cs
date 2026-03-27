@@ -42,6 +42,7 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
     [Parameter] public EventCallback<FileNodeViewModel> OnShare { get; set; }
 
     private ElementReference _overlayRef;
+    private ElementReference _codeRef;
     private DotNetObjectReference<FilePreview>? _gestureDotNetRef;
     private int _gestureHandlerId;
     private double _imageZoom = 1;
@@ -52,9 +53,13 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
     private bool _isEditingText;
     private string? _editableText;
     private bool _isSavingText;
+    private bool _needsHighlight;
 
     // Tracks the currently displayed node when the user navigates away from the original Node.
     private FileNodeViewModel? _currentNode;
+
+    // Tracks the last Node parameter to detect actual changes vs. spurious re-renders.
+    private Guid? _lastNodeId;
 
     /// <summary>The node currently displayed in the preview area.</summary>
     protected FileNodeViewModel? DisplayNode => _currentNode ?? Node;
@@ -62,6 +67,14 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
     /// <inheritdoc />
     protected override void OnParametersSet()
     {
+        // Only reset state when the Node parameter actually changes.
+        // Prevents losing loaded text content on spurious parent re-renders
+        // (e.g., SSR → WASM circuit handoff in InteractiveAuto mode).
+        var newId = Node?.Id;
+        if (newId == _lastNodeId)
+            return;
+
+        _lastNodeId = newId;
         _currentNode = null;
         _imageZoom = 1;
         _textContent = null;
@@ -79,11 +92,26 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
 
             _gestureDotNetRef = DotNetObjectReference.Create(this);
             _gestureHandlerId = await Js.InvokeAsync<int>("dotnetcloudFilePreviewGestures.init", _overlayRef, _gestureDotNetRef);
+        }
 
-            // Auto-load text content for text files
-            if (IsText || IsCode || IsMarkdown)
+        // Load text content whenever it's needed but not yet loaded.
+        // Handles both the initial render and SSR → WASM circuit handoff.
+        if ((IsText || IsCode || IsMarkdown) && _textContent is null && !_isLoadingText)
+        {
+            await LoadTextContentAsync();
+        }
+
+        // Apply syntax highlighting after the <code> element has rendered with content.
+        if (_needsHighlight && _textContent is not null && !_isLoadingText && !_isEditingText)
+        {
+            _needsHighlight = false;
+            try
             {
-                await LoadTextContentAsync();
+                await Js.InvokeVoidAsync("dotnetcloudFilePreview.highlightCode", _codeRef);
+            }
+            catch (JSDisconnectedException)
+            {
+                // Circuit disconnected during teardown.
             }
         }
     }
@@ -93,6 +121,7 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
     {
         if (DisplayNode is null) return;
         _isLoadingText = true;
+        _needsHighlight = true;
         StateHasChanged();
 
         try
@@ -102,6 +131,7 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
         catch
         {
             _textContent = "Failed to load file content.";
+            _needsHighlight = false;
         }
         finally
         {
@@ -367,6 +397,53 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
             "sql"               => "SQL",
             _                   => "Code"
         };
+    }
+
+    /// <summary>
+    /// Returns the highlight.js CSS class for the current file's language.
+    /// Uses specific language hints when known, otherwise falls back to auto-detection.
+    /// </summary>
+    protected string GetHighlightClass()
+    {
+        if (DisplayNode is null) return "hljs";
+        if (IsText) return "language-plaintext";
+        if (IsMarkdown) return "language-markdown";
+
+        var ext = Path.GetExtension(DisplayNode.Name)?.TrimStart('.').ToLowerInvariant();
+        var lang = ext switch
+        {
+            "js" or "jsx" or "mjs" or "cjs" => "javascript",
+            "ts" or "tsx"                    => "typescript",
+            "cs"                             => "csharp",
+            "py"                             => "python",
+            "go"                             => "go",
+            "rs"                             => "rust",
+            "java"                           => "java",
+            "html" or "htm"                  => "xml",
+            "css"                            => "css",
+            "json"                           => "json",
+            "xml" or "xaml" or "csproj" or "sln" or "props" or "targets" => "xml",
+            "yaml" or "yml"                  => "yaml",
+            "sh" or "bash" or "zsh"          => "bash",
+            "ps1" or "psm1" or "psd1"        => "powershell",
+            "sql"                            => "sql",
+            "rb"                             => "ruby",
+            "php"                            => "php",
+            "swift"                          => "swift",
+            "kt" or "kts"                    => "kotlin",
+            "c" or "h"                       => "c",
+            "cpp" or "hpp" or "cc" or "cxx"  => "cpp",
+            "r"                              => "r",
+            "lua"                            => "lua",
+            "dockerfile"                     => "dockerfile",
+            "toml"                           => "ini",
+            "ini" or "cfg"                   => "ini",
+            "md" or "markdown"               => "markdown",
+            "razor" or "cshtml"              => "cshtml-razor",
+            _                                => null,
+        };
+
+        return lang is not null ? $"language-{lang}" : "hljs";
     }
 
     /// <summary>Formats a byte count as a human-readable size string.</summary>

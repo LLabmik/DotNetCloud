@@ -12,7 +12,7 @@
 - Broken ROPC (password grant) code removed; server is clean
 - mint22: `dotnetcloud.service` active, `coolwsd` (Collabora) active (deployed Mar 25 03:28)
 
-**Live verification: 19 of 66 items passed ✅**
+**Live verification: 20 of 66 items passed ✅**
 
 **Known blockers:**
 - **Comments UI** (TC-1.37–1.39, 3 items) — no UI exists; will be Blocked
@@ -293,12 +293,13 @@ After completing Phase A, open DevTools (F12) > Network and grab:
 - Pass criteria: PDF renders in preview without forced download.
 - **Result:** Pass (2026-03-27) — Required fix: changed frame-ancestors to 'self' and X-Frame-Options to SAMEORIGIN (5b37316)
 
-#### TC-1.31 Preview text/code file
+#### TC-1.31 Preview text/code file — ✅ Pass
 - Setup: TXT or source code file.
 - Steps:
 	1. Open in preview.
 	2. Scroll content.
 - Pass criteria: Text content is readable in preview viewer.
+- **Result:** Pass (2026-03-27) — Added highlight.js syntax highlighting for code files
 
 #### TC-1.32 Preview Markdown
 - Setup: Markdown file with headings and list.

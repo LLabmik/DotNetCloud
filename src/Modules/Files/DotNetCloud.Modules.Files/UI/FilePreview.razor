@@ -98,7 +98,7 @@
                     }
                     else if (_textContent is not null)
                     {
-                        <pre class="preview-text-content">@_textContent</pre>
+                        <pre class="preview-text-content"><code @ref="_codeRef" class="@GetHighlightClass()">@_textContent</code></pre>
                     }
                     else
                     {
