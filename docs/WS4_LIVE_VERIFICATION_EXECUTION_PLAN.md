@@ -301,11 +301,12 @@ After completing Phase A, open DevTools (F12) > Network and grab:
 - Pass criteria: Text content is readable in preview viewer.
 - **Result:** Pass (2026-03-27) — Added highlight.js syntax highlighting for code files
 
-#### TC-1.32 Preview Markdown
+#### TC-1.32 Preview Markdown — ✅ Pass
 - Setup: Markdown file with headings and list.
 - Steps:
 	1. Open markdown file in preview.
 - Pass criteria: Markdown displays correctly (rendered view or readable source per product design).
+- **Result:** Pass (2026-03-27) — Shared markdown viewer/editor extracted from Notes and integrated into Files preview/edit flow; preview renders markdown correctly.
 
 #### TC-1.33 Unsupported format fallback
 - Setup: Unknown/unsupported file type.

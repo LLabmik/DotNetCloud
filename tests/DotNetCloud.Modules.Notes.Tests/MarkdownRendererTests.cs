@@ -1,4 +1,4 @@
-using DotNetCloud.Modules.Notes.Services;
+using DotNetCloud.UI.Shared.Services;
 
 namespace DotNetCloud.Modules.Notes.Tests;
 

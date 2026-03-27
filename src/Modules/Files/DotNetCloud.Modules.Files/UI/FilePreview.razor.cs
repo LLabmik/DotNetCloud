@@ -1,6 +1,8 @@
+using DotNetCloud.UI.Shared.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
+using System.Text.RegularExpressions;
 
 namespace DotNetCloud.Modules.Files.UI;
 
@@ -11,7 +13,10 @@ namespace DotNetCloud.Modules.Files.UI;
 /// </summary>
 public partial class FilePreview : ComponentBase, IAsyncDisposable
 {
+    private static readonly Regex HtmlTagRegex = new("<\\/?[a-zA-Z][^>]*>", RegexOptions.Compiled);
+
     [Inject] private IJSRuntime Js { get; set; } = default!;
+    [Inject] private IMarkdownRenderer MarkdownRenderer { get; set; } = default!;
 
     /// <summary>The file node to preview (starting node; may change on navigation).</summary>
     [Parameter] public FileNodeViewModel? Node { get; set; }
@@ -54,6 +59,15 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
     private string? _editableText;
     private bool _isSavingText;
     private bool _needsHighlight;
+
+    protected bool MarkdownContainsInlineHtml
+    {
+        get
+        {
+            var content = _isEditingText ? _editableText : _textContent;
+            return IsMarkdown && !string.IsNullOrWhiteSpace(content) && HtmlTagRegex.IsMatch(content);
+        }
+    }
 
     // Tracks the currently displayed node when the user navigates away from the original Node.
     private FileNodeViewModel? _currentNode;
@@ -102,7 +116,7 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
         }
 
         // Apply syntax highlighting after the <code> element has rendered with content.
-        if (_needsHighlight && _textContent is not null && !_isLoadingText && !_isEditingText)
+        if (_needsHighlight && (IsText || IsCode) && _textContent is not null && !_isLoadingText && !_isEditingText)
         {
             _needsHighlight = false;
             try
@@ -121,7 +135,7 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
     {
         if (DisplayNode is null) return;
         _isLoadingText = true;
-        _needsHighlight = true;
+        _needsHighlight = !IsMarkdown;
         StateHasChanged();
 
         try

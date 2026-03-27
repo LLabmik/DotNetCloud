@@ -1,7 +1,7 @@
 using Ganss.Xss;
 using Markdig;
 
-namespace DotNetCloud.Modules.Notes.Services;
+namespace DotNetCloud.UI.Shared.Services;
 
 /// <summary>
 /// Renders Markdown to sanitized HTML using Markdig and HtmlSanitizer.

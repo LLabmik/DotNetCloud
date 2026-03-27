@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Import;
 using DotNetCloud.Modules.Notes.Data.Services;
 using DotNetCloud.Modules.Notes.Services;
+using DotNetCloud.UI.Shared.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 

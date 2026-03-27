@@ -1,4 +1,4 @@
-namespace DotNetCloud.Modules.Notes.Services;
+namespace DotNetCloud.UI.Shared.Services;
 
 /// <summary>
 /// Renders Markdown content to sanitized HTML safe for browser display.

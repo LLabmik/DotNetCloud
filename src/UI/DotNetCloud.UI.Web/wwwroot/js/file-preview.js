@@ -20,9 +20,15 @@ window.dotnetcloudFilePreview = window.dotnetcloudFilePreview || (function () {
     }
 
     function highlightCode(codeElement) {
-        if (codeElement && typeof hljs !== "undefined") {
+        if (!codeElement || !(codeElement instanceof HTMLElement)) {
+            return;
+        }
+
+        if (typeof hljs !== "undefined") {
             // Reset any previous highlighting so hljs re-processes.
-            delete codeElement.dataset.highlighted;
+            if (codeElement.dataset) {
+                delete codeElement.dataset.highlighted;
+            }
             hljs.highlightElement(codeElement);
         }
     }

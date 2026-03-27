@@ -1,4 +1,5 @@
-@namespace DotNetCloud.Modules.Notes.UI
+@namespace DotNetCloud.UI.Shared.Components.Editors
+@using DotNetCloud.UI.Shared.Services
 @inject IJSRuntime JS
 
 @*
@@ -141,13 +142,30 @@
     [Parameter]
     public bool PreviewOnly { get; set; }
 
+    /// <summary>
+    /// When true, initializes the editor in preview view instead of split view.
+    /// Useful in contexts where rendered output should be emphasized first.
+    /// </summary>
+    [Parameter]
+    public bool StartInPreview { get; set; }
+
+    private bool _viewInitialized;
+
     /// <inheritdoc />
     protected override void OnParametersSet()
     {
-        if (PreviewOnly)
+        if (!_viewInitialized)
+        {
+            _activeView = PreviewOnly || StartInPreview
+                ? EditorView.Preview
+                : EditorView.Split;
+            _viewInitialized = true;
+        }
+        else if (PreviewOnly)
         {
             _activeView = EditorView.Preview;
         }
+
         RenderPreview();
     }
 

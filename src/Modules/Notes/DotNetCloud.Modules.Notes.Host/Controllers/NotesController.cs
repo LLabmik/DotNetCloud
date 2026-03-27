@@ -3,6 +3,7 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Notes.Models;
 using DotNetCloud.Modules.Notes.Services;
+using DotNetCloud.UI.Shared.Services;
 using Microsoft.AspNetCore.Mvc;
 using ValidationException = DotNetCloud.Core.Errors.ValidationException;
 

@@ -71,7 +71,52 @@
                             class="preview-pdf-frame"></iframe>
                 </div>
             }
-            else if (IsText || IsCode || IsMarkdown)
+            else if (IsMarkdown)
+            {
+                <div class="preview-text-container">
+                    <div class="preview-text-toolbar">
+                        <span class="preview-text-lang">Markdown</span>
+                        @if (_isEditingText)
+                        {
+                            <button class="btn btn-sm btn-primary preview-text-save-btn" @onclick="SaveTextAsync" disabled="@_isSavingText">
+                                @(_isSavingText ? "Saving…" : "Save")
+                            </button>
+                        }
+                        <button class="btn btn-sm preview-text-edit-btn" @onclick="ToggleTextEdit">
+                            @(_isEditingText ? "Cancel" : "Edit")
+                        </button>
+                    </div>
+                    @if (_isLoadingText)
+                    {
+                        <div class="preview-text-loading">Loading…</div>
+                    }
+                    else if (_isEditingText)
+                    {
+                        @if (MarkdownContainsInlineHtml)
+                        {
+                            <div class="preview-text-loading" style="text-align: left; margin-bottom: 0.75rem;">
+                                Source contains inline HTML tags. Preview renders them; source view will show the raw tags.
+                            </div>
+                        }
+                        <MarkdownEditor Content="@(_editableText ?? string.Empty)" ContentChanged="@((val) => _editableText = val)" Renderer="MarkdownRenderer" StartInPreview="true" />
+                    }
+                    else if (_textContent is not null)
+                    {
+                        @if (MarkdownContainsInlineHtml)
+                        {
+                            <div class="preview-text-loading" style="text-align: left; margin-bottom: 0.75rem;">
+                                This markdown includes inline HTML tags.
+                            </div>
+                        }
+                        <MarkdownEditor Content="@_textContent" Renderer="MarkdownRenderer" PreviewOnly="true" />
+                    }
+                    else
+                    {
+                        <div class="preview-text-loading">Unable to load content.</div>
+                    }
+                </div>
+            }
+            else if (IsText || IsCode)
             {
                 <div class="preview-text-container">
                     <div class="preview-text-toolbar">
