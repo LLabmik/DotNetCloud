@@ -1,5 +1,6 @@
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DotNetCloud.Modules.Files.Host.Controllers;
@@ -24,9 +25,10 @@ public class QuotaController : FilesControllerBase
     /// Gets the current user's storage quota, creating a record with the default if needed.
     /// </summary>
     [HttpGet]
-    public Task<IActionResult> GetCurrentAsync([FromQuery] Guid userId) => ExecuteAsync(async () =>
+    public Task<IActionResult> GetCurrentAsync() => ExecuteAsync(async () =>
     {
-        var quota = await _quotaService.GetOrCreateQuotaAsync(userId, ToCaller(userId));
+        var caller = GetAuthenticatedCaller();
+        var quota = await _quotaService.GetOrCreateQuotaAsync(caller.UserId, caller);
         return Ok(Envelope(quota));
     });
 
@@ -34,9 +36,11 @@ public class QuotaController : FilesControllerBase
     /// Returns quota records for all users (admin).
     /// </summary>
     [HttpGet("all")]
-    public Task<IActionResult> GetAllAsync([FromQuery] Guid userId) => ExecuteAsync(async () =>
+    [Authorize(Policy = "RequireAdmin", AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
+    public Task<IActionResult> GetAllAsync() => ExecuteAsync(async () =>
     {
-        var quotas = await _quotaService.GetAllQuotasAsync(ToCaller(userId));
+        var caller = GetAuthenticatedCaller();
+        var quotas = await _quotaService.GetAllQuotasAsync(caller);
         return Ok(Envelope(quotas));
     });
 
@@ -44,9 +48,11 @@ public class QuotaController : FilesControllerBase
     /// Gets a specific user's storage quota (admin).
     /// </summary>
     [HttpGet("{targetUserId:guid}")]
-    public Task<IActionResult> GetAsync(Guid targetUserId, [FromQuery] Guid userId) => ExecuteAsync(async () =>
+    [Authorize(Policy = "RequireAdmin", AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
+    public Task<IActionResult> GetAsync(Guid targetUserId) => ExecuteAsync(async () =>
     {
-        var quota = await _quotaService.GetQuotaAsync(targetUserId, ToCaller(userId));
+        var caller = GetAuthenticatedCaller();
+        var quota = await _quotaService.GetQuotaAsync(targetUserId, caller);
         return Ok(Envelope(quota));
     });
 
@@ -54,9 +60,11 @@ public class QuotaController : FilesControllerBase
     /// Sets a user's storage quota (admin).
     /// </summary>
     [HttpPut("{targetUserId:guid}")]
-    public Task<IActionResult> SetAsync(Guid targetUserId, [FromBody] SetQuotaDto dto, [FromQuery] Guid userId) => ExecuteAsync(async () =>
+    [Authorize(Policy = "RequireAdmin", AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
+    public Task<IActionResult> SetAsync(Guid targetUserId, [FromBody] SetQuotaDto dto) => ExecuteAsync(async () =>
     {
-        var quota = await _quotaService.SetQuotaAsync(targetUserId, dto.MaxBytes, ToCaller(userId));
+        var caller = GetAuthenticatedCaller();
+        var quota = await _quotaService.SetQuotaAsync(targetUserId, dto.MaxBytes, caller);
         return Ok(Envelope(quota));
     });
 
@@ -64,10 +72,12 @@ public class QuotaController : FilesControllerBase
     /// Forces recalculation of a user's used storage (admin).
     /// </summary>
     [HttpPost("{targetUserId:guid}/recalculate")]
-    public Task<IActionResult> RecalculateAsync(Guid targetUserId, [FromQuery] Guid userId) => ExecuteAsync(async () =>
+    [Authorize(Policy = "RequireAdmin", AuthenticationSchemes = "Identity.Application,OpenIddict.Validation.AspNetCore")]
+    public Task<IActionResult> RecalculateAsync(Guid targetUserId) => ExecuteAsync(async () =>
     {
+        var caller = GetAuthenticatedCaller();
         await _quotaService.RecalculateAsync(targetUserId);
-        var quota = await _quotaService.GetQuotaAsync(targetUserId, ToCaller(userId));
+        var quota = await _quotaService.GetQuotaAsync(targetUserId, caller);
         return Ok(Envelope(quota));
     });
 }

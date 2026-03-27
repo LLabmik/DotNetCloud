@@ -44,6 +44,24 @@ else
                     <tr>
                         <td>
                             <a href="/admin/users/@user.Id">@user.DisplayName</a>
+                            @if (_quotas.TryGetValue(user.Id, out var q))
+                            {
+                                @if (q.MaxBytes > 0)
+                                {
+                                    <div class="quota-bar quota-bar-sm">
+                                        <div class="quota-bar-fill @QuotaBarClass(q)" style="width: @(Math.Min(q.UsagePercent, 100).ToString("F0"))%"></div>
+                                    </div>
+                                    <span class="text-muted text-sm">@FormatBytes(q.UsedBytes) / @FormatBytes(q.MaxBytes) (@q.UsagePercent.ToString("F0")%)</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted text-sm">Quota: Unlimited</span>
+                                }
+                            }
+                            else
+                            {
+                                <span class="text-muted text-sm">Quota: Unlimited</span>
+                            }
                         </td>
                         <td>@user.Email</td>
                         <td>
@@ -80,6 +98,7 @@ else
     private int _page = 1;
     private string _search = string.Empty;
     private PaginatedResult<UserDto> _result = new();
+    private Dictionary<Guid, QuotaResponse> _quotas = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -91,10 +110,14 @@ else
         _loading = true;
         try
         {
-            _result = await Api.ListUsersAsync(
+            var usersTask = Api.ListUsersAsync(
                 page: _page,
                 pageSize: 25,
                 search: string.IsNullOrWhiteSpace(_search) ? null : _search);
+            var quotasTask = Api.GetAllQuotasAsync();
+            await Task.WhenAll(usersTask, quotasTask);
+            _result = usersTask.Result;
+            _quotas = quotasTask.Result;
         }
         catch (Exception ex)
         {
@@ -128,5 +151,20 @@ else
             _page++;
             await LoadUsersAsync();
         }
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes >= 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
+        if (bytes >= 1024L * 1024) return $"{bytes / (1024.0 * 1024.0):F1} MB";
+        if (bytes >= 1024L) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes} B";
+    }
+
+    private static string QuotaBarClass(QuotaResponse q)
+    {
+        if (q.UsagePercent >= 95) return "quota-critical";
+        if (q.UsagePercent >= 80) return "quota-warning";
+        return "";
     }
 }

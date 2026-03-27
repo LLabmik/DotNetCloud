@@ -22,6 +22,9 @@ public partial class FileSidebar : ComponentBase
     /// <summary>Number of items currently in the trash (shown as a badge).</summary>
     [Parameter] public int TrashItemCount { get; set; }
 
+    /// <summary>Total size of items in the trash, in bytes.</summary>
+    [Parameter] public long TrashBytes { get; set; }
+
     /// <summary>Available file tags to display in the expandable tag section.</summary>
     [Parameter] public IReadOnlyList<FileTagViewModel> Tags { get; set; } = [];
 
@@ -55,4 +58,21 @@ public partial class FileSidebar : ComponentBase
     /// <summary>Returns the CSS active class when the given section matches <see cref="ActiveSection"/>.</summary>
     protected string IsActive(FileSidebarSection section) =>
         ActiveSection == section ? "sidebar-nav-item--active" : string.Empty;
+
+    /// <summary>Formats a byte count as a human-readable string.</summary>
+    protected static string FormatBytes(long bytes)
+    {
+        if (bytes >= 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
+        if (bytes >= 1024L * 1024) return $"{bytes / (1024.0 * 1024.0):F1} MB";
+        if (bytes >= 1024L) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes} B";
+    }
+
+    /// <summary>CSS class for the quota bar fill based on usage percentage.</summary>
+    protected static string QuotaBarClass(QuotaViewModel q)
+    {
+        if (q.UsagePercent >= 95) return "quota-critical";
+        if (q.UsagePercent >= 80) return "quota-warning";
+        return "";
+    }
 }

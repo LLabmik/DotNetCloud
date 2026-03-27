@@ -232,13 +232,14 @@ After completing Phase A, open DevTools (F12) > Network and grab:
 
 ### Sprint 1.6: Quotas (2)
 
-#### TC-1.23 Set low quota for test user
+#### TC-1.23 Set low quota for test user ✅ PASS
 - Setup: Admin access available.
 - Steps:
 	1. Open admin quota settings.
 	2. Assign low quota to testdude@llabmik.net.
 	3. Save settings.
 - Pass criteria: New quota value is persisted and visible.
+- Result: PASS — Built admin quota UI (UserEdit quota field, UserDetail quota display, UserList quota bars), fixed QuotaController security (added RequireAdmin policy), fixed Blazor dispatcher threading bug (ToastService subscribers using InvokeAsync), changed ToastService from singleton to scoped, added Files sidebar storage summary with quota bar. Quota persists and displays correctly in both admin and user views.
 
 #### TC-1.24 Upload until quota exceeded
 - Setup: Low quota configured.

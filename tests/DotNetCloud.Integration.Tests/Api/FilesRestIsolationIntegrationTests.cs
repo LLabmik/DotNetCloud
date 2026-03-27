@@ -160,10 +160,11 @@ public class FilesRestIsolationIntegrationTests
     public async Task QuotaExceeded_BlocksUploadInitiation()
     {
         var userId = Guid.NewGuid();
+        using var adminClient = _factory.CreateAdminApiClient(userId);
         using var client = _factory.CreateAuthenticatedApiClient(userId);
 
-        var setQuotaResponse = await client.PutAsJsonAsync(
-            $"/api/v1/files/quota/{userId}?userId={userId}",
+        var setQuotaResponse = await adminClient.PutAsJsonAsync(
+            $"/api/v1/files/quota/{userId}",
             new SetQuotaDto { MaxBytes = 1 });
         await ApiAssert.SuccessAsync(setQuotaResponse, HttpStatusCode.OK);
 

@@ -14,11 +14,13 @@
 @code {
     protected override void OnInitialized()
     {
-        ToastService.OnChange += StateHasChanged;
+        ToastService.OnChange += OnToastChanged;
     }
+
+    private void OnToastChanged() => InvokeAsync(StateHasChanged);
 
     public void Dispose()
     {
-        ToastService.OnChange -= StateHasChanged;
+        ToastService.OnChange -= OnToastChanged;
     }
 }

@@ -741,6 +741,43 @@ textarea.input { resize: vertical; min-height: 60px; }
     border-top: 1px solid var(--color-border);
     margin-top: 8px;
 }
+.sidebar-storage-summary {
+    font-size: 0.82rem;
+}
+.storage-line {
+    display: flex;
+    justify-content: space-between;
+    padding: 2px 0;
+    color: var(--color-text-secondary, #6b7280);
+}
+.storage-label {
+    font-weight: 500;
+}
+.storage-value {
+    font-variant-numeric: tabular-nums;
+}
+
+/* Quota progress bar (admin user detail) */
+.quota-bar {
+    display: inline-block;
+    width: 120px;
+    height: 8px;
+    background: var(--color-border);
+    border-radius: 4px;
+    overflow: hidden;
+    vertical-align: middle;
+    margin-right: 8px;
+}
+.quota-bar-fill {
+    height: 100%;
+    background: var(--color-primary);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+.quota-bar-fill.quota-warning { background: var(--color-warning, #f59e0b); }
+.quota-bar-fill.quota-critical { background: var(--color-danger, #ef4444); }
+.quota-bar.quota-bar-sm { width: 100%; max-width: 160px; height: 6px; margin: 4px 0 2px; }
+.text-sm { font-size: 0.8rem; display: block; }
 
 /* --- Trash Bin Page --- */
 .trash-bin-page {
@@ -2559,12 +2596,13 @@ textarea.form-control {
     font-size: 13px;
 }
 
-.btn-danger {
+.btn-outline.btn-danger {
     color: var(--color-danger);
     border-color: var(--color-danger);
+    background: transparent;
 }
 
-.btn-danger:hover:not(:disabled) {
+.btn-outline.btn-danger:hover:not(:disabled) {
     background: var(--color-danger);
     color: #fff;
 }

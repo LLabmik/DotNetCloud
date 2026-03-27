@@ -13,7 +13,7 @@ public static class Program
         builder.Services.AddAuthorizationCore();
         builder.Services.AddCascadingAuthenticationState();
         builder.Services.AddAuthenticationStateDeserialization();
-        builder.Services.AddSingleton<ToastService>();
+        builder.Services.AddScoped<ToastService>();
 
         builder.Services.AddScoped(sp =>
             new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });

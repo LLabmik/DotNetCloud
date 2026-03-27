@@ -2,7 +2,7 @@ namespace DotNetCloud.UI.Web.Client.Services;
 
 /// <summary>
 /// Service for managing toast notifications across the UI.
-/// Registered as singleton so state persists across renders.
+/// Registered as scoped so each Blazor circuit (user session) has its own instance.
 /// </summary>
 public sealed class ToastService
 {

@@ -109,6 +109,33 @@
     </ul>
 
     <div class="sidebar-quota">
-        <QuotaProgressBar Quota="Quota" />
+        <div class="sidebar-storage-summary">
+            <div class="storage-line">
+                <span class="storage-label">Used</span>
+                <span class="storage-value">@(Quota is not null ? FormatBytes(Quota.UsedBytes) : "—")</span>
+            </div>
+            <div class="storage-line">
+                <span class="storage-label">In Trash</span>
+                <span class="storage-value">@(TrashBytes > 0 ? FormatBytes(TrashBytes) : "Empty")</span>
+            </div>
+            @if (Quota is not null && Quota.MaxBytes > 0)
+            {
+                <div class="storage-line">
+                    <span class="storage-label">Quota</span>
+                    <span class="storage-value">@FormatBytes(Quota.MaxBytes)</span>
+                </div>
+                <div class="quota-bar quota-bar-sm">
+                    <div class="quota-bar-fill @QuotaBarClass(Quota)" style="width: @(Math.Min(Quota.UsagePercent, 100).ToString("F0"))%"></div>
+                </div>
+                <span class="text-muted text-sm">@Quota.UsagePercent.ToString("F1")% used</span>
+            }
+            else
+            {
+                <div class="storage-line">
+                    <span class="storage-label">Quota</span>
+                    <span class="storage-value">Unlimited</span>
+                </div>
+            }
+        </div>
     </div>
 </nav>

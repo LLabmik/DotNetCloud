@@ -448,6 +448,43 @@ public sealed class DotNetCloudApiClient
     }
 
     // -----------------------------------------------------------------------
+    // Quotas (Admin)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Gets a specific user's storage quota (admin).
+    /// </summary>
+    public async Task<QuotaResponse?> GetUserQuotaAsync(Guid targetUserId, CancellationToken ct = default)
+    {
+        var response = await _http.GetAsync($"api/v1/files/quota/{targetUserId}", ct);
+        if (!response.IsSuccessStatusCode) return null;
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<QuotaResponse>>(JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Gets all user quotas (admin). Returns a dictionary keyed by UserId.
+    /// </summary>
+    public async Task<Dictionary<Guid, QuotaResponse>> GetAllQuotasAsync(CancellationToken ct = default)
+    {
+        var response = await _http.GetAsync("api/v1/files/quota/all", ct);
+        if (!response.IsSuccessStatusCode) return [];
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<List<QuotaResponse>>>(JsonOptions, ct);
+        return envelope?.Data?.ToDictionary(q => q.UserId) ?? [];
+    }
+
+    /// <summary>
+    /// Sets a user's storage quota in bytes (admin). 0 = unlimited.
+    /// </summary>
+    public async Task<bool> SetUserQuotaAsync(Guid targetUserId, long maxBytes, CancellationToken ct = default)
+    {
+        var response = await _http.PutAsJsonAsync(
+            $"api/v1/files/quota/{targetUserId}",
+            new { maxBytes }, ct);
+        return response.IsSuccessStatusCode;
+    }
+
+    // -----------------------------------------------------------------------
     // Response envelope
     // -----------------------------------------------------------------------
 
@@ -499,4 +536,16 @@ public sealed class DeviceSyncStatusDto
     public long Lag { get; set; }
     public DateTime LastSeenAt { get; set; }
     public DateTime? CursorUpdatedAt { get; set; }
+}
+
+/// <summary>
+/// Response DTO for user storage quota.
+/// </summary>
+public sealed class QuotaResponse
+{
+    public Guid UserId { get; set; }
+    public long MaxBytes { get; set; }
+    public long UsedBytes { get; set; }
+    public long RemainingBytes { get; set; }
+    public double UsagePercent { get; set; }
 }

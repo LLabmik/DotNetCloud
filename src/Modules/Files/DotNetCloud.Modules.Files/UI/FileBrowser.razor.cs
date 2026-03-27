@@ -28,6 +28,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     [Inject] private ICollaboraDiscoveryService CollaboraDiscoveryService { get; set; } = default!;
     [Inject] private IOptions<CollaboraOptions> CollaboraOptions { get; set; } = default!;
     [Inject] private ITrashService TrashService { get; set; } = default!;
+    [Inject] private IQuotaService QuotaService { get; set; } = default!;
     [Inject] private IVersionService VersionService { get; set; } = default!;
     [Inject] private IShareService ShareService { get; set; } = default!;
     [Inject] private IUserManagementService UserManagementService { get; set; } = default!;
@@ -44,6 +45,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     private FileSidebarSection _activeSection = FileSidebarSection.AllFiles;
     private int _trashItemCount;
+    private long _trashBytes;
 
     private List<SharedItemViewModel> _sharedWithMeItems = [];
     private List<SharedItemViewModel> _sharedByMeItems = [];
@@ -159,6 +161,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         await LoadCollaboraCapabilitiesAsync();
         await LoadCurrentFolderAsync();
         await LoadTrashCountAsync();
+        await LoadQuotaAsync();
     }
 
     /// <summary>Handles sidebar section navigation.</summary>
@@ -207,10 +210,31 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             var caller = await GetCallerContextAsync();
             var items = await TrashService.ListTrashAsync(caller);
             _trashItemCount = items.Count;
+            _trashBytes = items.Sum(i => i.Size);
         }
         catch
         {
             _trashItemCount = 0;
+            _trashBytes = 0;
+        }
+    }
+
+    private async Task LoadQuotaAsync()
+    {
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            var dto = await QuotaService.GetOrCreateQuotaAsync(caller.UserId, caller);
+            _quota = new QuotaViewModel
+            {
+                UsedBytes = dto.UsedBytes,
+                MaxBytes = dto.MaxBytes,
+                UsagePercent = dto.UsagePercent
+            };
+        }
+        catch
+        {
+            _quota = null;
         }
     }
 

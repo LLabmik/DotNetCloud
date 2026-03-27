@@ -70,6 +70,39 @@ else
         </div>
 
         <div class="detail-section">
+            <h2>Storage Quota</h2>
+            @if (_quota is not null)
+            {
+                <dl class="detail-list">
+                    <dt>Quota</dt>
+                    <dd>@(_quota.MaxBytes == 0 ? "Unlimited" : FormatBytes(_quota.MaxBytes))</dd>
+                    <dt>Used</dt>
+                    <dd>@FormatBytes(_quota.UsedBytes)</dd>
+                    <dt>Remaining</dt>
+                    <dd>@(_quota.MaxBytes == 0 ? "Unlimited" : FormatBytes(_quota.RemainingBytes))</dd>
+                    <dt>Usage</dt>
+                    <dd>
+                        @if (_quota.MaxBytes > 0)
+                        {
+                            <div class="quota-bar">
+                                <div class="quota-bar-fill @QuotaBarClass()" style="width: @(Math.Min(_quota.UsagePercent, 100).ToString("F0"))%"></div>
+                            </div>
+                            <span class="text-muted">@_quota.UsagePercent.ToString("F1")%</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">N/A (unlimited)</span>
+                        }
+                    </dd>
+                </dl>
+            }
+            else
+            {
+                <p class="text-muted">No quota record found.</p>
+            }
+        </div>
+
+        <div class="detail-section">
             <h2>Actions</h2>
             <div class="action-buttons">
                 @if (_user.IsActive)
@@ -115,6 +148,7 @@ else
     private bool _showResetPassword;
     private string _newPassword = string.Empty;
     private UserDto? _user;
+    private QuotaResponse? _quota;
     private ConfirmDialog _confirmDialog = default!;
 
     protected override async Task OnInitializedAsync()
@@ -125,7 +159,11 @@ else
     private async Task LoadAsync()
     {
         _loading = true;
-        try { _user = await Api.GetUserAsync(UserId); }
+        try
+        {
+            _user = await Api.GetUserAsync(UserId);
+            _quota = await Api.GetUserQuotaAsync(UserId);
+        }
         catch { Toast.ShowError("Failed to load user."); }
         finally { _loading = false; }
     }
@@ -189,4 +227,20 @@ else
         else Toast.ShowError("Failed to reset password.");
         _actionInProgress = false;
     }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes == 0) return "0 B";
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        var i = (int)Math.Floor(Math.Log(Math.Abs(bytes), 1024));
+        i = Math.Min(i, units.Length - 1);
+        return $"{bytes / Math.Pow(1024, i):F1} {units[i]}";
+    }
+
+    private string QuotaBarClass() => _quota?.UsagePercent switch
+    {
+        >= 95 => "quota-critical",
+        >= 80 => "quota-warning",
+        _ => ""
+    };
 }

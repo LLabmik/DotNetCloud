@@ -2,11 +2,13 @@ extern alias FilesHost;
 
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using DotNetCloud.Core.Auth.Authorization;
 using DotNetCloud.Modules.Files.Data;
 using FilesHost::DotNetCloud.Modules.Files.Host;
 using FilesHost::DotNetCloud.Modules.Files.Host.Protos;
 using Grpc.Net.Client;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -49,6 +51,13 @@ internal sealed class FilesHostWebApplicationFactory : WebApplicationFactory<Fil
                     "Identity.Application", _ => { })
                 .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
                     "OpenIddict.Validation.AspNetCore", _ => { });
+
+            // Register authorization policies and handler used by admin-only endpoints.
+            services.AddAuthorizationBuilder()
+                .AddPolicy("RequireAdmin", policy => policy
+                    .RequireAuthenticatedUser()
+                    .AddRequirements(new PermissionRequirement("admin")));
+            services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
         });
     }
 
@@ -77,6 +86,16 @@ internal sealed class FilesHostWebApplicationFactory : WebApplicationFactory<Fil
         return client;
     }
 
+    /// <summary>
+    /// Creates an authenticated <see cref="HttpClient"/> with admin privileges.
+    /// </summary>
+    public HttpClient CreateAdminApiClient(Guid adminUserId)
+    {
+        var client = CreateAuthenticatedApiClient(adminUserId);
+        client.DefaultRequestHeaders.Add("x-test-user-roles", "Administrator");
+        return client;
+    }
+
     private sealed class TestUserStartupFilter : IStartupFilter
     {
         public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next)
@@ -88,13 +107,21 @@ internal sealed class FilesHostWebApplicationFactory : WebApplicationFactory<Fil
                     if (context.Request.Headers.TryGetValue("x-test-user-id", out var userHeader) &&
                         Guid.TryParse(userHeader.ToString(), out var userId))
                     {
-                        var identity = new ClaimsIdentity(
-                        [
-                            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
-                            new Claim("sub", userId.ToString())
-                        ],
-                        authenticationType: "IntegrationTest");
+                        var claims = new List<Claim>
+                        {
+                            new(ClaimTypes.NameIdentifier, userId.ToString()),
+                            new("sub", userId.ToString())
+                        };
 
+                        if (context.Request.Headers.TryGetValue("x-test-user-roles", out var rolesHeader))
+                        {
+                            foreach (var role in rolesHeader.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                            {
+                                claims.Add(new Claim(ClaimTypes.Role, role));
+                            }
+                        }
+
+                        var identity = new ClaimsIdentity(claims, authenticationType: "IntegrationTest");
                         context.User = new ClaimsPrincipal(identity);
                     }
 
@@ -126,13 +153,21 @@ internal sealed class FilesHostWebApplicationFactory : WebApplicationFactory<Fil
             if (Request.Headers.TryGetValue("x-test-user-id", out var userHeader) &&
                 Guid.TryParse(userHeader.ToString(), out var userId))
             {
-                var identity = new ClaimsIdentity(
-                [
-                    new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
-                    new Claim("sub", userId.ToString())
-                ],
-                authenticationType: SchemeName);
+                var claims = new List<Claim>
+                {
+                    new(ClaimTypes.NameIdentifier, userId.ToString()),
+                    new("sub", userId.ToString())
+                };
 
+                if (Request.Headers.TryGetValue("x-test-user-roles", out var rolesHeader))
+                {
+                    foreach (var role in rolesHeader.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    {
+                        claims.Add(new Claim(ClaimTypes.Role, role));
+                    }
+                }
+
+                var identity = new ClaimsIdentity(claims, authenticationType: SchemeName);
                 var principal = new ClaimsPrincipal(identity);
                 var ticket = new AuthenticationTicket(principal, SchemeName);
                 return Task.FromResult(AuthenticateResult.Success(ticket));
