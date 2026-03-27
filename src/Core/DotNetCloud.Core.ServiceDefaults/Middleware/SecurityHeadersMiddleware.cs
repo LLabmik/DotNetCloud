@@ -101,7 +101,7 @@ public class SecurityHeadersOptions
     /// Gets or sets the Content-Security-Policy value.
     /// </summary>
     public string ContentSecurityPolicy { get; set; } = 
-        "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'none';";
+        "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ws: wss:; frame-ancestors 'self';";
 
     /// <summary>
     /// Gets or sets whether to enable X-Frame-Options header.
@@ -111,7 +111,7 @@ public class SecurityHeadersOptions
     /// <summary>
     /// Gets or sets the X-Frame-Options value (DENY, SAMEORIGIN, or ALLOW-FROM uri).
     /// </summary>
-    public string XFrameOptionsValue { get; set; } = "DENY";
+    public string XFrameOptionsValue { get; set; } = "SAMEORIGIN";
 
     /// <summary>
     /// Gets or sets whether to enable X-Content-Type-Options header.
