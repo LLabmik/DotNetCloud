@@ -259,13 +259,14 @@ After completing Phase A, open DevTools (F12) > Network and grab:
 - Pass criteria: Document opens in Collabora editor successfully.
 - **Result:** Pass (2026-03-27)
 
-#### TC-1.26 Edit and save ODT
+#### TC-1.26 Edit and save ODT — ✅ Pass
 - Setup:ODT open in editor.
 - Steps:
 	1. Make small text edit.
 	2. Save/auto-save.
 	3. Return to file metadata/history.
 - Pass criteria: New version is created after save.
+- **Result:** Pass (2026-03-27)
 
 ### Sprint 1.8: File Preview (6)
 
