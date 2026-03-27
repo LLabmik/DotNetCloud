@@ -308,11 +308,12 @@ After completing Phase A, open DevTools (F12) > Network and grab:
 - Pass criteria: Markdown displays correctly (rendered view or readable source per product design).
 - **Result:** Pass (2026-03-27) — Shared markdown viewer/editor extracted from Notes and integrated into Files preview/edit flow; preview renders markdown correctly.
 
-#### TC-1.33 Unsupported format fallback
+#### TC-1.33 Unsupported format fallback — ✅ Pass
 - Setup: Unknown/unsupported file type.
 - Steps:
 	1. Open file in preview.
 - Pass criteria: Preview offers Download File fallback.
+- **Result:** Pass (2026-03-27) — `test.zip` showed unsupported preview state with **Download File** action.
 
 ### Sprint 1.9: Tags and Comments (6)
 
