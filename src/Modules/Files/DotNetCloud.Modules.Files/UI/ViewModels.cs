@@ -36,7 +36,7 @@ public sealed class FileNodeViewModel
     public string? ThumbnailUrl { get; init; }
 
     /// <summary>Tags applied to this node (includes name and color for badge rendering).</summary>
-    public IReadOnlyList<FileTagViewModel> Tags { get; init; } = [];
+    public IReadOnlyList<FileTagViewModel> Tags { get; set; } = [];
 }
 
 /// <summary>

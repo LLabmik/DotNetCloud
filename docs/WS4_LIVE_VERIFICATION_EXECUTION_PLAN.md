@@ -12,7 +12,7 @@
 - Broken ROPC (password grant) code removed; server is clean
 - mint22: `dotnetcloud.service` active, `coolwsd` (Collabora) active (deployed Mar 25 03:28)
 
-**Live verification: 20 of 66 items passed ✅**
+**Live verification: 23 of 66 items passed ✅**
 
 **Known blockers:**
 - **Comments UI** (TC-1.37–1.39, 3 items) — no UI exists; will be Blocked
@@ -317,24 +317,27 @@ After completing Phase A, open DevTools (F12) > Network and grab:
 
 ### Sprint 1.9: Tags and Comments (6)
 
-#### TC-1.34 Add tag to file
+#### TC-1.34 Add tag to file — ✅ Pass
 - Setup: Existing file.
 - Steps:
 	1. Add a new tag from file details.
 - Pass criteria: Tag appears on file and persists after refresh.
+- **Result:** Pass (2026-03-28)
 
-#### TC-1.35 Filter files by tag
+#### TC-1.35 Filter files by tag — ✅ Pass
 - Setup: At least two tagged files.
 - Steps:
 	1. Select tag filter.
 - Pass criteria: List shows only files with selected tag.
+- **Result:** Pass (2026-03-28)
 
-#### TC-1.36 Remove tag
+#### TC-1.36 Remove tag — ✅ Pass
 - Setup: Tagged file.
 - Steps:
 	1. Remove one tag.
 	2. Refresh.
 - Pass criteria: Tag is no longer associated.
+- **Result:** Pass (2026-03-28)
 
 #### TC-1.37 Add comment to file — **BLOCKED** (no Comments UI)
 - Pass criteria: Comment appears with author and timestamp.

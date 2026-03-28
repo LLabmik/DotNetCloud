@@ -47,6 +47,9 @@ public partial class FileContextMenu : ComponentBase
     /// <summary>Raised when the user selects "Delete".</summary>
     [Parameter] public EventCallback<Guid> OnDelete { get; set; }
 
+    /// <summary>Raised when the user selects "Tag".</summary>
+    [Parameter] public EventCallback<Guid> OnTag { get; set; }
+
     /// <summary>Raised when the menu should be dismissed.</summary>
     [Parameter] public EventCallback OnDismiss { get; set; }
 
@@ -58,6 +61,7 @@ public partial class FileContextMenu : ComponentBase
     private async Task HandleDownload() => await OnDownload.InvokeAsync(NodeId);
     private async Task HandleVersionHistory() => await OnVersionHistory.InvokeAsync(NodeId);
     private async Task HandleDelete() => await OnDelete.InvokeAsync(NodeId);
+    private async Task HandleTag() => await OnTag.InvokeAsync(NodeId);
 
     /// <summary>Handles keyboard navigation within the menu.</summary>
     protected async Task HandleKeyDown(KeyboardEventArgs e)

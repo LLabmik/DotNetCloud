@@ -31,6 +31,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     [Inject] private IQuotaService QuotaService { get; set; } = default!;
     [Inject] private IVersionService VersionService { get; set; } = default!;
     [Inject] private IShareService ShareService { get; set; } = default!;
+    [Inject] private ITagService TagService { get; set; } = default!;
     [Inject] private IUserManagementService UserManagementService { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
@@ -101,6 +102,9 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     private bool _showDocumentEditor;
     private bool _showCreateDocument;
     private bool _showBulkTagAdd;
+    private bool _showSingleTagDialog;
+    private Guid? _singleTagNodeId;
+    private List<Guid> _tagTargetNodeIds = [];
     private string _newFolderName = string.Empty;
     private string _newDocumentName = "Untitled";
     private string _selectedDocumentExtension = "docx";
@@ -162,6 +166,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         await LoadCurrentFolderAsync();
         await LoadTrashCountAsync();
         await LoadQuotaAsync();
+        await LoadUserTagsAsync();
     }
 
     /// <summary>Handles sidebar section navigation.</summary>
@@ -188,11 +193,34 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     }
 
     /// <summary>Handles tag selection from the sidebar.</summary>
-    protected void HandleTagSelected(FileTagViewModel tag)
+    protected async Task HandleTagSelected(FileTagViewModel tag)
     {
         _activeSection = FileSidebarSection.Tags;
         _activeTag = tag;
         _taggedNodes = [];
+        StateHasChanged();
+
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            var nodes = await TagService.GetNodesByTagAsync(tag.Name, caller);
+            _taggedNodes = nodes.Select(n => new FileNodeViewModel
+            {
+                Id = n.Id,
+                Name = n.Name,
+                NodeType = n.NodeType,
+                MimeType = n.MimeType,
+                Size = n.Size,
+                ParentId = n.ParentId,
+                UpdatedAt = n.UpdatedAt,
+                Tags = n.Tags.Select(t => new FileTagViewModel { Id = t.Id, Name = t.Name, Color = t.Color }).ToList()
+            }).ToList();
+        }
+        catch
+        {
+            _taggedNodes = [];
+        }
+
         StateHasChanged();
     }
 
@@ -235,6 +263,25 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         catch
         {
             _quota = null;
+        }
+    }
+
+    private async Task LoadUserTagsAsync()
+    {
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            var summaries = await TagService.GetUserTagSummariesAsync(caller);
+            _userTags = summaries.Select(s => new FileTagViewModel
+            {
+                Name = s.Name,
+                Color = s.Color,
+                FileCount = s.FileCount
+            }).ToList();
+        }
+        catch
+        {
+            _userTags = [];
         }
     }
 
@@ -1027,11 +1074,90 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     protected async Task HandleBulkTagAdd((string Name, string? Color) tag)
     {
         _showBulkTagAdd = false;
+        var caller = await GetCallerContextAsync();
+        await TagService.BulkAddTagAsync(SelectedNodeIds, tag.Name, tag.Color, caller);
         await OnBulkTagAdd.InvokeAsync((SelectedNodeIds, tag.Name, tag.Color));
+        await LoadCurrentFolderAsync();
+        await LoadUserTagsAsync();
     }
 
     /// <summary>Returns the IDs of all currently selected nodes.</summary>
     protected IReadOnlyList<Guid> SelectedNodeIds => [.. _selectedNodes];
+
+    // ── Single-file tag dialog ───────────────────────────────────────────────
+
+    /// <summary>Context menu: Open tag dialog. If multiple nodes are selected, tags all of them.</summary>
+    protected void HandleContextTag(Guid nodeId)
+    {
+        _showContextMenu = false;
+
+        // If the right-clicked node is part of the current selection, target all selected nodes.
+        // Otherwise, target just the right-clicked node.
+        if (_selectedNodes.Count > 1 && _selectedNodes.Contains(nodeId))
+        {
+            _tagTargetNodeIds = [.. _selectedNodes];
+        }
+        else
+        {
+            _tagTargetNodeIds = [nodeId];
+        }
+
+        _singleTagNodeId = nodeId;
+        _showSingleTagDialog = true;
+    }
+
+    /// <summary>Hides the single-file tag dialog.</summary>
+    protected void HideSingleTagDialog()
+    {
+        _showSingleTagDialog = false;
+        _singleTagNodeId = null;
+        _tagTargetNodeIds = [];
+    }
+
+    /// <summary>Adds a tag to the target node(s).</summary>
+    protected async Task HandleSingleTagAdd((string Name, string? Color) tag)
+    {
+        if (_tagTargetNodeIds.Count == 0) return;
+
+        var caller = await GetCallerContextAsync();
+
+        if (_tagTargetNodeIds.Count == 1)
+        {
+            var dto = await TagService.AddTagAsync(_tagTargetNodeIds[0], tag.Name, tag.Color, caller);
+            var node = _nodes.FirstOrDefault(n => n.Id == _tagTargetNodeIds[0]);
+            if (node is not null)
+            {
+                node.Tags = [.. node.Tags, new FileTagViewModel { Id = dto.Id, Name = dto.Name, Color = dto.Color }];
+            }
+        }
+        else
+        {
+            await TagService.BulkAddTagAsync(_tagTargetNodeIds, tag.Name, tag.Color, caller);
+            await LoadCurrentFolderAsync();
+        }
+
+        await LoadUserTagsAsync();
+        StateHasChanged();
+    }
+
+    /// <summary>Removes a tag from the primary target node.</summary>
+    protected async Task HandleSingleTagRemove(FileTagViewModel tag)
+    {
+        if (_singleTagNodeId is null) return;
+
+        var caller = await GetCallerContextAsync();
+        await TagService.RemoveTagAsync(_singleTagNodeId.Value, tag.Id, caller);
+
+        // Update the local node's tag list
+        var node = _nodes.FirstOrDefault(n => n.Id == _singleTagNodeId);
+        if (node is not null)
+        {
+            node.Tags = [.. node.Tags.Where(t => t.Id != tag.Id)];
+        }
+
+        await LoadUserTagsAsync();
+        StateHasChanged();
+    }
 
     protected void ToggleFavorite(Guid nodeId)
     {
@@ -1040,6 +1166,22 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         {
             node.IsFavorite = !node.IsFavorite;
         }
+    }
+
+    /// <summary>Removes a tag directly from the inline badge in the file list.</summary>
+    protected async Task HandleInlineTagRemove(Guid nodeId, FileTagViewModel tag)
+    {
+        var caller = await GetCallerContextAsync();
+        await TagService.RemoveTagAsync(nodeId, tag.Id, caller);
+
+        var node = _nodes.FirstOrDefault(n => n.Id == nodeId);
+        if (node is not null)
+        {
+            node.Tags = [.. node.Tags.Where(t => t.Id != tag.Id)];
+        }
+
+        await LoadUserTagsAsync();
+        StateHasChanged();
     }
 
     protected async Task ShowShareDialogAsync(FileNodeViewModel node)

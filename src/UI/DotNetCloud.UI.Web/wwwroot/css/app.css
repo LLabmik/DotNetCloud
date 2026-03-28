@@ -4506,3 +4506,201 @@ textarea.form-control {
     font-size: 0.8rem;
     color: var(--text-muted, #8b949e);
 }
+
+/* ── Tag Badges & Input ─────────────────────────────────────────────────── */
+
+.tag-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    line-height: 1.4;
+    background: color-mix(in srgb, var(--tag-color, #6b7280) 15%, transparent);
+    color: var(--tag-color, #6b7280);
+    border: 1px solid color-mix(in srgb, var(--tag-color, #6b7280) 30%, transparent);
+    white-space: nowrap;
+}
+
+.tag-badge-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--tag-color, #6b7280);
+    flex-shrink: 0;
+}
+
+.tag-badge-name {
+    font-weight: 500;
+}
+
+.tag-badge-remove {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 0 2px;
+    font-size: 13px;
+    line-height: 1;
+    opacity: 0.6;
+    transition: opacity 0.15s;
+}
+
+.tag-badge-remove:hover {
+    opacity: 1;
+}
+
+.tag-badge--removable {
+    padding-right: 4px;
+}
+
+.file-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 2px;
+}
+
+/* Tag input component */
+.tag-input-container {
+    position: relative;
+}
+
+.tag-input-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.tag-input-field {
+    flex: 1;
+    min-width: 120px;
+    padding: 6px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 13px;
+}
+
+.tag-input-field:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.tag-color-picker {
+    width: 32px;
+    height: 32px;
+    padding: 2px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-surface);
+    cursor: pointer;
+}
+
+.tag-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    margin-top: 4px;
+    padding: 4px 0;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    list-style: none;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.tag-suggestion-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.1s;
+}
+
+.tag-suggestion-item:hover {
+    background: var(--color-bg);
+}
+
+.tag-suggestion-name {
+    flex: 1;
+}
+
+.tag-suggestion-count {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+}
+
+/* Bulk tag dialog */
+.bulk-tag-dialog {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 10px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-bg);
+}
+
+/* Tag dialog (modal) extras */
+.tag-dialog-existing {
+    margin-top: 16px;
+}
+
+.tag-dialog-existing-label {
+    display: block;
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+}
+
+.tag-dialog-existing-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* Tag filter view header */
+.tag-filter-header {
+    gap: 12px;
+}
+
+.tag-filter-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.tag-filter-label {
+    font-size: 16px;
+    color: var(--color-text-secondary);
+    font-weight: 400;
+}
+
+.tag-badge--lg {
+    font-size: 15px;
+    padding: 4px 14px;
+    border-radius: 16px;
+}
+
+.tag-badge--lg .tag-badge-dot {
+    width: 9px;
+    height: 9px;
+}
+
+.tag-badge--lg .tag-badge-name {
+    font-weight: 600;
+}

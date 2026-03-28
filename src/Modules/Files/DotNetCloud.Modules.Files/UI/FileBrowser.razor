@@ -46,15 +46,18 @@ else if (_activeSection == FileSidebarSection.SharedByMe)
 else if (_activeSection == FileSidebarSection.Tags && ActiveTag is not null)
 {
     <div class="files-browser">
-        <div class="files-header">
-            <h1>
-                @if (ActiveTag.Color is not null)
-                {
-                    <span class="tag-dot-lg" style="background:@ActiveTag.Color" aria-hidden="true"></span>
-                }
-                @ActiveTag.Name
-            </h1>
-            <span class="files-header-subtitle">@TaggedNodes.Count files</span>
+        <div class="files-header tag-filter-header">
+            <div class="tag-filter-title">
+                <span class="tag-filter-label">Files tagged</span>
+                <span class="tag-badge tag-badge--lg" style="@(ActiveTag.Color is not null ? $"--tag-color:{ActiveTag.Color}" : "")">
+                    @if (ActiveTag.Color is not null)
+                    {
+                        <span class="tag-badge-dot" aria-hidden="true"></span>
+                    }
+                    <span class="tag-badge-name">@ActiveTag.Name</span>
+                </span>
+            </div>
+            <span class="files-header-subtitle">@TaggedNodes.Count @(TaggedNodes.Count == 1 ? "file" : "files")</span>
         </div>
 
         @if (TaggedNodes.Count == 0)
@@ -333,7 +336,7 @@ else
                             <div class="file-tags" aria-label="Tags">
                                 @foreach (var tag in node.Tags)
                                 {
-                                    <TagBadge Tag="tag" />
+                                    <TagBadge Tag="tag" OnRemove="() => HandleInlineTagRemove(node.Id, tag)" />
                                 }
                             </div>
                         }
@@ -401,7 +404,50 @@ else
         OnDownload="HandleContextDownload"
         OnVersionHistory="HandleContextVersionHistory"
         OnDelete="HandleContextDelete"
+        OnTag="HandleContextTag"
         OnDismiss="DismissContextMenu" />
+
+    @if (_showSingleTagDialog && _tagTargetNodeIds.Count > 0)
+    {
+        <div class="dialog-overlay" @onclick="HideSingleTagDialog">
+            <div class="dialog" @onclick:stopPropagation>
+                <div class="dialog-header">
+                    <h3>
+                        @if (_tagTargetNodeIds.Count == 1)
+                        {
+                            <text>Tag: @(_nodes.FirstOrDefault(n => n.Id == _tagTargetNodeIds[0])?.Name ?? "file")</text>
+                        }
+                        else
+                        {
+                            <text>Tag @_tagTargetNodeIds.Count files</text>
+                        }
+                    </h3>
+                </div>
+                <div class="dialog-body">
+                    <TagInput ExistingTags="UserTags" OnTagAdded="HandleSingleTagAdd" />
+                    @if (_tagTargetNodeIds.Count == 1)
+                    {
+                        var taggedNode = _nodes.FirstOrDefault(n => n.Id == _tagTargetNodeIds[0]);
+                        @if (taggedNode is not null && taggedNode.Tags.Count > 0)
+                        {
+                            <div class="tag-dialog-existing">
+                                <span class="tag-dialog-existing-label">Current tags</span>
+                                <div class="tag-dialog-existing-list">
+                                    @foreach (var tag in taggedNode.Tags)
+                                    {
+                                        <TagBadge Tag="tag" OnRemove="HandleSingleTagRemove" />
+                                    }
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+                <div class="dialog-footer">
+                    <button class="btn btn-sm" @onclick="HideSingleTagDialog">Close</button>
+                </div>
+            </div>
+        </div>
+    }
 
     @if (_showRenameDialog && _renameNode is not null)
     {

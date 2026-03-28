@@ -67,6 +67,13 @@
 
         <div class="context-menu-separator" role="separator"></div>
 
+        <button class="context-menu-item" role="menuitem" @onclick="HandleTag">
+            <span class="context-menu-icon" aria-hidden="true">🏷️</span>
+            <span>Tag</span>
+        </button>
+
+        <div class="context-menu-separator" role="separator"></div>
+
         <button class="context-menu-item context-menu-item--danger" role="menuitem" @onclick="HandleDelete">
             <span class="context-menu-icon" aria-hidden="true">🗑️</span>
             <span>Delete</span>
