@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 20260328 (WS-4 Phase C — Windows sync client testing handoff)
+Last updated: 20260328 (WS-4 Phase C — Linux sync client testing handoff)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -60,7 +60,7 @@ Archived context:
 - Security audit desktop client validation on `Windows11-TestDNC`: **COMPLETE** (2026-03-23).
 - Security audit closeout + merge validation on `mint22`: **COMPLETE** (2026-03-23).
 - Post-closeout Windows runtime smoke: **COMPLETE** (2026-03-23). 4/4 targeted tests passed; login launch path verified reachable.
-- **Active cycle (20260328):** WS-4 live verification 50/66 passed. Phase A (browser, 39), Phase B (API, 6), Phase D (security/observability, 5) done. Phase C (sync client, 12 items) in progress — Windows handoff active.
+- **Active cycle (20260328):** WS-4 live verification 58/66 passed. Windows Phase C complete (8 pass, 2 deferred, 1 skip). Linux Phase C handoff active for mint-dnc-client.
 
 ## Environment
 
@@ -82,13 +82,13 @@ Archived context:
 
 ## Active Handoff
 
-**Target machine:** `Windows11-TestDNC`
+**Target machine:** `mint-dnc-client`
 **Status:** READY FOR EXECUTION
-**Context:** WS-4 Live Verification — Phase C Sync Client Tests (Windows)
+**Context:** WS-4 Live Verification — Phase C Sync Client Tests (Linux)
 
 ### Objective
 
-Execute Phase C sync client end-to-end tests on Windows using SyncTray. Record results per test case. **Do NOT run TC-1.48** (that is the Linux test, reserved for `mint-dnc-client`).
+Execute Phase C sync client end-to-end tests on Linux using SyncTray. Record results per test case. This includes **TC-1.48** (Linux launch) which was excluded from the Windows run. **Do NOT run TC-1.47** (that is the Windows launch test, already completed).
 
 **Server:** `https://mint22:5443/`
 **Test account:** `testdude@llabmik.net` / `TestMilk01!`
@@ -97,23 +97,22 @@ Execute Phase C sync client end-to-end tests on Windows using SyncTray. Record r
 ### Prerequisites
 
 1. Pull latest `main`:
-   ```powershell
-   cd D:\Repos\dotnetcloud
-   git pull origin main
+   ```bash
+   cd ~/Repos/dotnetcloud
+   git pull
    ```
 2. Build SyncTray:
-   ```powershell
-   dotnet build src\Clients\DotNetCloud.Client.SyncTray\DotNetCloud.Client.SyncTray.csproj
+   ```bash
+   dotnet build src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj
    ```
-   Or use the published installer if already deployed:
-   - Installer ZIP: `artifacts\installers\dotnetcloud-desktop-client-win-x64-0.1.0-alpha.zip`
-   - SyncTray EXE: `%ProgramFiles%\DotNetCloud\DesktopClient\SyncTray\DotNetCloud.Client.SyncTray.exe`
-3. Ensure `mint22:5443` is reachable from Windows11-TestDNC.
-4. Sync directory: `C:\Users\benk\Documents\synctray` (or user-selected during account setup).
+   Or use the published tarball if available:
+   - `artifacts/installers/dotnetcloud-desktop-client-linux-x64-0.1.0-alpha.tar.gz`
+3. Ensure `mint22:5443` is reachable from mint-dnc-client.
+4. Sync directory: `~/synctray` (or user-selected during account setup).
 
 ### Architecture Note
 
-SyncService has been merged into SyncTray — **single Avalonia process** owns the full sync lifecycle. No separate service, no IPC. On startup SyncTray resolves `ISyncContextManager` (via `AddSyncContextManager`) and loads contexts in-process (`LoadContextsAsync` from `App.StartSyncManagerAsync`). Single-instance enforced via file lock.
+SyncService has been merged into SyncTray — **single Avalonia process** owns the full sync lifecycle. No separate service, no IPC. On startup SyncTray resolves `ISyncContextManager` (via `AddSyncContextManager`) and loads contexts in-process. Single-instance enforced via file lock.
 
 ### Test Execution (11 tests)
 
@@ -123,15 +122,14 @@ Execute each test and record result as **PASS** or **FAIL (reason)** in the resu
 
 #### TC-1.46 — Rapid-save debounce behavior
 1. SyncTray running with synced account + local folder.
-2. Save same file rapidly 10 times (e.g., open in Notepad, Ctrl+S repeatedly with small edits).
-3. Check SyncTray logs: `%LOCALAPPDATA%\DotNetCloud\logs\sync-tray.log`
+2. Save same file rapidly 10 times (e.g., open in text editor, save repeatedly with small edits).
+3. Check SyncTray logs: `~/.local/share/DotNetCloud/logs/sync-tray.log`
 4. **Pass:** At most 2 sync cycles triggered (FSW debouncer coalesces events).
 
-#### TC-1.47 — Launch SyncTray on Windows
-1. Run SyncTray (from build output or installed path).
-2. Verify tray icon appears in system tray.
-3. Verify app is responsive (right-click tray icon → menu opens).
-4. **Pass:** Tray icon visible, single-instance lock active (`%LOCALAPPDATA%\DotNetCloud\locks\sync-tray.instance.lock` exists).
+#### TC-1.48 — Launch SyncTray on Linux
+1. Run SyncTray from terminal: `dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj` or run the published binary.
+2. Verify tray icon appears in system tray (may need a system tray extension on some DEs).
+3. **Pass:** SyncTray launches under user session, tray icon visible.
 
 #### TC-1.49 — Add account via OAuth2
 1. In SyncTray, click Add Account (tray menu or settings window).
@@ -141,13 +139,13 @@ Execute each test and record result as **PASS** or **FAIL (reason)** in the resu
 5. **Pass:** Account appears connected in SyncTray UI, sync context created.
 
 #### TC-1.50 — Server-to-local file sync
-1. In browser (`https://mint22:5443/`), upload or create a new file (e.g., `test-server-to-local.txt`).
+1. In browser (`https://mint22:5443/`), upload or create a new file (e.g., `test-server-to-local-linux.txt`).
 2. Wait for SyncTray sync cycle to complete (watch tray icon or logs).
 3. Check local sync folder for the new file.
 4. **Pass:** File appears in local sync folder with correct content.
 
 #### TC-1.51 — Local-to-server file sync
-1. Create a file in the local sync folder (e.g., `test-local-to-server.txt`).
+1. Create a file in the local sync folder (e.g., `test-local-to-server-linux.txt`).
 2. Wait for SyncTray sync cycle.
 3. Check web UI for the new file.
 4. **Pass:** File appears in server web UI with correct content.
@@ -157,27 +155,29 @@ Execute each test and record result as **PASS** or **FAIL (reason)** in the resu
 2. Edit the file on server (web UI) AND locally before sync settles.
 3. Allow sync cycle to run.
 4. **Pass:** Conflict copy created (e.g., `conflict-test (conflict).txt`), both versions preserved.
+5. **Note:** Windows deferred this test — try to trigger a genuine race condition if possible.
 
 #### TC-1.53 — Offline queue and reconnect
-1. Disable network on Windows11-TestDNC (airplane mode or disable adapter).
+1. Disable network on mint-dnc-client (`nmcli networking off` or disconnect cable).
 2. Make local file changes (create/edit files in sync folder).
-3. Re-enable network.
+3. Re-enable network (`nmcli networking on`).
 4. **Pass:** Queued changes sync automatically after reconnect without manual intervention.
+5. **Note:** Windows deferred this (VM limitation). Linux should be able to test this directly.
 
 #### TC-1.54 — Upload 100MB+ file through sync
-1. Place a file ≥100 MB in the synced folder.
+1. Generate or place a file ≥100 MB in the synced folder (e.g., `dd if=/dev/urandom of=~/synctray/largefile.bin bs=1M count=105`).
 2. Wait for upload to complete (monitor logs or tray status).
 3. Verify file appears in web UI.
 4. **Pass:** Large file uploads successfully (chunked transfer in logs).
 
 #### TC-1.55 — SyncTray status indicators
-1. Observe idle state (tray icon should show idle/green).
+1. Observe idle state (tray icon).
 2. Trigger a sync (add a file) — watch for syncing indicator.
 3. Disconnect network — watch for offline/error indicator.
 4. **Pass:** Tray icon/status reflects idle, syncing, and offline states correctly.
 
 #### TC-1.56 — Selective sync exclusion
-1. In SyncTray settings or create `.syncignore` file in sync root, exclude a folder (e.g., `ExcludedFolder`).
+1. In SyncTray settings or create `.syncignore` file in sync root, exclude a folder (e.g., `ExcludedFolder/`).
 2. On server, add a file under that folder.
 3. Wait for sync cycle.
 4. **Pass:** Excluded folder content is NOT synced locally.
@@ -188,31 +188,38 @@ Execute each test and record result as **PASS** or **FAIL (reason)** in the resu
 3. **Pass:** Both accounts sync independently with no cross-over.
 4. **If only one account available:** Mark as SKIP (environment-gated, requires second account).
 
-### Results Table (Windows)
+### Results Table (Linux)
 
 Fill in after each test:
 
 | Test ID | Test Name | Result | Notes |
 |---------|-----------|--------|-------|
-| TC-1.46 | FSW debounce | ✅ PASS | 20 FSW events from 10 rapid saves coalesced into 1 sync pass (500ms debounce timer added in 0.27.7) |
-| TC-1.47 | Launch SyncTray Windows | ✅ PASS | Tray icon visible, single-instance lock active, menu responsive |
-| TC-1.49 | OAuth2 account add | ✅ PASS | OAuth2 PKCE flow completes, account connected, green icon |
-| TC-1.50 | Server → local sync | ✅ PASS | NotificationsController.cs downloaded via chunk 304 fallback (fixed in 0.27.3) |
-| TC-1.51 | Local → server sync | ✅ PASS | File created locally, FSW detected, uploaded in 92ms, server acknowledged |
-| TC-1.52 | Conflict copy | DEFERRED | Server PUT + local edit race didn't trigger conflict — sync engine uploads local version as new version. Needs manual two-client test |
-| TC-1.53 | Offline queue + reconnect | DEFERRED | VM environment — cannot disable network adapter |
-| TC-1.54 | 100MB+ file upload | ✅ PASS | 105MB file uploaded via chunked transfer in 13.9s, parallel chunk uploads confirmed |
-| TC-1.55 | Status indicators | ✅ PASS | Idle/syncing states observed in logs and tray icon color changes |
-| TC-1.56 | Selective sync exclusion | ✅ PASS | `.syncignore` rule `test/` prevented server file `test/excluded.txt` from syncing locally. Hot-reload fix added in 0.27.8 |
-| TC-1.57 | Multi-account sync | SKIP | Environment-gated — only one account/server available |
+| TC-1.46 | FSW debounce | | |
+| TC-1.48 | Launch SyncTray Linux | | |
+| TC-1.49 | OAuth2 account add | | |
+| TC-1.50 | Server → local sync | | |
+| TC-1.51 | Local → server sync | | |
+| TC-1.52 | Conflict copy | | |
+| TC-1.53 | Offline queue + reconnect | | |
+| TC-1.54 | 100MB+ file upload | | |
+| TC-1.55 | Status indicators | | |
+| TC-1.56 | Selective sync exclusion | | |
+| TC-1.57 | Multi-account sync | | |
+
+### Windows Results Reference (Completed)
+
+For comparison — Windows Phase C results (archived in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`):
+- 8 PASS: TC-1.46, 1.47, 1.49, 1.50, 1.51, 1.54, 1.55, 1.56
+- 2 DEFERRED: TC-1.52 (conflict), TC-1.53 (offline — VM limitation)
+- 1 SKIP: TC-1.57 (multi-account — environment-gated)
 
 ### After Completion
 
 1. Fill in the results table above.
 2. Commit and push:
-   ```powershell
+   ```bash
    git add docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md
-   git commit -m "WS-4 Phase C: Windows sync client test results"
+   git commit -m "WS-4 Phase C: Linux sync client test results"
    git push origin main
    ```
-3. Relay back to moderator with commit hash so `mint22` can pull results and prepare Linux handoff.
+3. Relay back to moderator with commit hash so `mint22` can pull results and consolidate.

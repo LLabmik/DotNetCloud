@@ -3559,3 +3559,34 @@ Pivoted to `WebApplicationFactory<Program>` in-process integration tests:
 5. **OIDC client fix** — Added `Permissions.Scopes.Email` to both desktop + mobile clients in `OidcClientSeeder.cs`
 
 **Total WS-4 score: 50 of 66 passed** — remaining: 12 sync client (Phase C), 1 i18n, 2 blocked (SQL Server, telemetry)
+
+---
+
+## Archived: WS-4 Phase C — Windows Sync Client Tests (20260328)
+
+**Target machine:** `Windows11-TestDNC`
+
+**What was tested:** Phase C sync client end-to-end tests using SyncTray on Windows.
+
+**Results (8 PASS, 2 DEFERRED, 1 SKIP):**
+
+| Test ID | Test Name | Result | Notes |
+|---------|-----------|--------|-------|
+| TC-1.46 | FSW debounce | ✅ PASS | 20 FSW events from 10 rapid saves coalesced into 1 sync pass (500ms debounce timer added in 0.27.7) |
+| TC-1.47 | Launch SyncTray Windows | ✅ PASS | Tray icon visible, single-instance lock active, menu responsive |
+| TC-1.49 | OAuth2 account add | ✅ PASS | OAuth2 PKCE flow completes, account connected, green icon |
+| TC-1.50 | Server → local sync | ✅ PASS | NotificationsController.cs downloaded via chunk 304 fallback (fixed in 0.27.3) |
+| TC-1.51 | Local → server sync | ✅ PASS | File created locally, FSW detected, uploaded in 92ms, server acknowledged |
+| TC-1.52 | Conflict copy | DEFERRED | Server PUT + local edit race didn't trigger conflict — sync engine uploads local version as new version. Needs manual two-client test |
+| TC-1.53 | Offline queue + reconnect | DEFERRED | VM environment — cannot disable network adapter |
+| TC-1.54 | 100MB+ file upload | ✅ PASS | 105MB file uploaded via chunked transfer in 13.9s, parallel chunk uploads confirmed |
+| TC-1.55 | Status indicators | ✅ PASS | Idle/syncing states observed in logs and tray icon color changes |
+| TC-1.56 | Selective sync exclusion | ✅ PASS | `.syncignore` rule `test/` prevented server file `test/excluded.txt` from syncing locally. Hot-reload fix added in 0.27.8 |
+| TC-1.57 | Multi-account sync | SKIP | Environment-gated — only one account/server available |
+
+**Code fixes made during testing:**
+- 0.27.3: Chunk 304 fallback fix for server→local sync
+- 0.27.7: 500ms FSW debounce timer
+- 0.27.8: .syncignore hot-reload fix
+- SyncStreamListener added for real-time sync events
+- SettingsViewModel enhanced with folder browser
