@@ -1762,6 +1762,26 @@ textarea.input { resize: vertical; min-height: 60px; }
     color: var(--color-selected-text, #1e293b);
 }
 
+.comment-indicator {
+    margin-left: 6px;
+    font-size: 0.85em;
+    opacity: 0.8;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.comment-indicator:hover {
+    opacity: 1;
+}
+
+.meta-sep {
+    margin: 0 4px;
+    opacity: 0.5;
+}
+
 /* --- Auth Layout --- */
 .auth-layout {
     min-height: 100vh;

@@ -37,6 +37,9 @@ public sealed class FileNodeViewModel
 
     /// <summary>Tags applied to this node (includes name and color for badge rendering).</summary>
     public IReadOnlyList<FileTagViewModel> Tags { get; set; } = [];
+
+    /// <summary>Number of comments on this node (0 means no comments).</summary>
+    public int CommentCount { get; set; }
 }
 
 /// <summary>

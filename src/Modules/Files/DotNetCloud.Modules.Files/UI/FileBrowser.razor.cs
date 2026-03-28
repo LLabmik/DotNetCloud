@@ -166,9 +166,12 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     private Guid _commentsNodeId;
     private string? _commentsFileName;
     private List<FileCommentViewModel> _commentItems = [];
+    private Guid _currentUserId;
 
     protected override async Task OnInitializedAsync()
     {
+        var caller = await GetCallerContextAsync();
+        _currentUserId = caller.UserId;
         await LoadCollaboraCapabilitiesAsync();
         await LoadCurrentFolderAsync();
         await LoadTrashCountAsync();
@@ -745,13 +748,23 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         var caller = await GetCallerContextAsync();
         var versions = await VersionService.ListVersionsAsync(nodeId, caller);
         var maxVersion = versions.Count > 0 ? versions.Max(v => v.VersionNumber) : 0;
+
+        // Resolve display names for all unique version authors
+        var versionUserIds = versions.Select(v => v.CreatedByUserId).Distinct().ToList();
+        var versionNameMap = new Dictionary<Guid, string>();
+        foreach (var uid in versionUserIds)
+        {
+            var user = await UserManagementService.GetUserAsync(uid);
+            versionNameMap[uid] = user?.DisplayName ?? uid.ToString()[..8];
+        }
+
         _versionHistoryItems = versions.Select(v => new FileVersionViewModel
         {
             Id = v.Id,
             VersionNumber = v.VersionNumber,
             Label = v.Label,
             CreatedAt = v.CreatedAt,
-            AuthorName = v.CreatedByUserId.ToString()[..8],
+            AuthorName = versionNameMap[v.CreatedByUserId],
             SizeBytes = v.Size,
             IsCurrent = v.VersionNumber == maxVersion
         }).ToList();
@@ -831,6 +844,16 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     {
         var caller = await GetCallerContextAsync();
         var comments = await CommentService.GetCommentsAsync(_commentsNodeId, caller);
+
+        // Resolve display names for all unique comment authors
+        var userIds = comments.Select(c => c.CreatedByUserId).Distinct().ToList();
+        var nameMap = new Dictionary<Guid, string>();
+        foreach (var uid in userIds)
+        {
+            var user = await UserManagementService.GetUserAsync(uid);
+            nameMap[uid] = user?.DisplayName ?? uid.ToString()[..8];
+        }
+
         _commentItems = comments.Select(c => new FileCommentViewModel
         {
             Id = c.Id,
@@ -838,7 +861,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             ParentCommentId = c.ParentCommentId,
             Content = c.Content,
             CreatedByUserId = c.CreatedByUserId,
-            AuthorName = c.CreatedByUserId.ToString()[..8],
+            AuthorName = nameMap[c.CreatedByUserId],
             CreatedAt = c.CreatedAt,
             UpdatedAt = c.UpdatedAt,
             ReplyCount = c.ReplyCount
@@ -852,6 +875,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         var caller = await GetCallerContextAsync();
         await CommentService.AddCommentAsync(_commentsNodeId, content, null, caller);
         await LoadCommentsAsync();
+        UpdateNodeCommentCount(_commentsNodeId, _commentItems.Count);
     }
 
     /// <summary>Handles adding a reply to an existing comment.</summary>
@@ -860,6 +884,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         var caller = await GetCallerContextAsync();
         await CommentService.AddCommentAsync(_commentsNodeId, args.Content, args.ParentCommentId, caller);
         await LoadCommentsAsync();
+        UpdateNodeCommentCount(_commentsNodeId, _commentItems.Count);
     }
 
     /// <summary>Handles editing an existing comment.</summary>
@@ -876,6 +901,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         var caller = await GetCallerContextAsync();
         await CommentService.DeleteCommentAsync(commentId, caller);
         _commentItems.RemoveAll(c => c.Id == commentId);
+        UpdateNodeCommentCount(_commentsNodeId, _commentItems.Count);
         StateHasChanged();
     }
 
@@ -1700,6 +1726,19 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             : await FileService.ListRootAsync(caller);
 
         _nodes = nodes.Select(ToViewModel).ToList();
+
+        // Fetch comment counts for all visible nodes in a single query
+        var nodeIds = _nodes.Select(n => n.Id).ToList();
+        if (nodeIds.Count > 0)
+        {
+            var counts = await CommentService.GetCommentCountsAsync(nodeIds, caller);
+            foreach (var node in _nodes)
+            {
+                if (counts.TryGetValue(node.Id, out var count))
+                    node.CommentCount = count;
+            }
+        }
+
         StateHasChanged();
     }
 
@@ -1966,5 +2005,12 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
                 FileCount = 0
             }).ToList()
         };
+    }
+
+    private void UpdateNodeCommentCount(Guid nodeId, int count)
+    {
+        var node = _nodes.FirstOrDefault(n => n.Id == nodeId);
+        if (node is not null)
+            node.CommentCount = count;
     }
 }

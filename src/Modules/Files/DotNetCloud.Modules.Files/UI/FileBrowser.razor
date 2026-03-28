@@ -83,8 +83,14 @@ else if (_activeSection == FileSidebarSection.Tags && ActiveTag is not null)
                                 @if (node.NodeType == "File")
                                 {
                                     @FormatSize(node.Size)
+                                    <span class="meta-sep">·</span>
                                 }
-                                <text> </text>@node.UpdatedAt.ToString("MMM d, yyyy")
+                                @node.UpdatedAt.ToString("MMM d, yyyy")
+                                @if (node.CommentCount > 0)
+                                {
+                                    <button class="comment-indicator" title="@node.CommentCount comment(s)"
+                                            @onclick="() => HandleContextComments(node.Id)">💬</button>
+                                }
                             </span>
                         </div>
                     </div>
@@ -344,8 +350,15 @@ else
                             @if (node.NodeType == "File")
                             {
                                 @FormatSize(node.Size)
+                                <span class="meta-sep">·</span>
                             }
-                            <text> </text>@node.UpdatedAt.ToString("MMM d, yyyy")
+                            @node.UpdatedAt.ToString("MMM d, yyyy")
+                            @if (node.CommentCount > 0)
+                            {
+                                <button class="comment-indicator" title="@node.CommentCount comment(s)"
+                                        @onclick:stopPropagation
+                                        @onclick="() => HandleContextComments(node.Id)">💬</button>
+                            }
                         </span>
                     </div>
 
@@ -503,7 +516,7 @@ else
 {
     <CommentsPanel
         FileName="@_commentsFileName"
-        CurrentUserId="UserId"
+        CurrentUserId="_currentUserId"
         InitialComments="_commentItems"
         OnClose="HideComments"
         OnAddComment="HandleAddComment"

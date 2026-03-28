@@ -162,4 +162,21 @@ internal sealed class CommentService : ICommentService
         UpdatedAt = comment.UpdatedAt,
         ReplyCount = replyCount
     };
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyDictionary<Guid, int>> GetCommentCountsAsync(IReadOnlyList<Guid> nodeIds, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+        ArgumentNullException.ThrowIfNull(nodeIds);
+
+        if (nodeIds.Count == 0)
+            return new Dictionary<Guid, int>();
+
+        return await _db.FileComments
+            .AsNoTracking()
+            .Where(c => nodeIds.Contains(c.FileNodeId))
+            .GroupBy(c => c.FileNodeId)
+            .Select(g => new { NodeId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.NodeId, x => x.Count, cancellationToken);
+    }
 }

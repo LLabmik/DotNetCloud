@@ -22,4 +22,7 @@ public interface ICommentService
 
     /// <summary>Gets a single comment by ID.</summary>
     Task<FileCommentDto?> GetCommentAsync(Guid commentId, CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>Returns comment counts for a batch of file/folder node IDs.</summary>
+    Task<IReadOnlyDictionary<Guid, int>> GetCommentCountsAsync(IReadOnlyList<Guid> nodeIds, CallerContext caller, CancellationToken cancellationToken = default);
 }
