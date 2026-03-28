@@ -311,6 +311,9 @@ public sealed class SettingsViewModel : ViewModelBase
     /// <summary>Opens the folder browser for a specific account to configure selective sync.</summary>
     public ICommand ChooseFoldersCommand { get; }
 
+    /// <summary>Opens the local sync folder in the system file explorer.</summary>
+    public ICommand OpenSyncFolderCommand { get; }
+
     // ── Constructor ───────────────────────────────────────────────────────
 
     /// <summary>Initializes a new <see cref="SettingsViewModel"/>.</summary>
@@ -341,6 +344,7 @@ public sealed class SettingsViewModel : ViewModelBase
         EditSyncIgnoreFileCommand = new RelayCommand(OpenSyncIgnoreInEditor);
         RefreshConflictsCommand = new AsyncRelayCommand(RefreshConflictsAsync);
         ChooseFoldersCommand = new AsyncRelayCommand<Guid>(ShowFolderBrowserForAccountAsync);
+        OpenSyncFolderCommand = new RelayCommand<string>(OpenSyncFolder);
 
         // Forward account list changes from the tray view-model.
         _trayVm.PropertyChanged += (_, e) =>
@@ -545,6 +549,21 @@ public sealed class SettingsViewModel : ViewModelBase
             _syncIgnore.SetUserPatterns(_userIgnorePatterns.ToList());
             UpdateIgnoreTestResult();
             await PersistIgnoreRulesAsync();
+        }
+    }
+
+    private static void OpenSyncFolder(string folderPath)
+    {
+        if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath))
+            return;
+
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = folderPath, UseShellExecute = true });
+        }
+        catch
+        {
+            // Best-effort — ignore if the system file explorer fails to open.
         }
     }
 
@@ -897,6 +916,29 @@ internal sealed class RelayCommand : ICommand
 
     /// <summary>Raises <see cref="CanExecuteChanged"/>.</summary>
     public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+}
+
+/// <summary>Simple synchronous relay command with a typed parameter.</summary>
+internal sealed class RelayCommand<T> : ICommand
+{
+    private readonly Action<T> _execute;
+
+    internal RelayCommand(Action<T> execute) => _execute = execute;
+
+#pragma warning disable CS0067
+    /// <inheritdoc/>
+    public event EventHandler? CanExecuteChanged;
+#pragma warning restore CS0067
+
+    /// <inheritdoc/>
+    public bool CanExecute(object? parameter) => true;
+
+    /// <inheritdoc/>
+    public void Execute(object? parameter)
+    {
+        if (parameter is T typedParam)
+            _execute(typedParam);
+    }
 }
 
 /// <summary>Async relay command (parameterless).</summary>

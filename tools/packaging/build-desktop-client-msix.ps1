@@ -157,13 +157,11 @@ $solutionRoot = (Resolve-Path "$PSScriptRoot/../..").Path
 $outputRoot = (Resolve-Path (New-Item -ItemType Directory -Force -Path $OutputDir)).Path
 
 $syncTrayProject = Join-Path $solutionRoot "src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj"
-$syncServiceProject = Join-Path $solutionRoot "src/Clients/DotNetCloud.Client.SyncService/DotNetCloud.Client.SyncService.csproj"
 $manifestTemplate = Join-Path $solutionRoot "tools/packaging/msix/AppxManifest.xml.template"
 
 $msixVersion = Convert-ToMsixVersion -InputVersion $Version
 $stagingRoot = Join-Path $solutionRoot "artifacts/desktop-client-msix/$Version"
 $publishRoot = Join-Path $stagingRoot "SyncTray"
-$servicePublishRoot = Join-Path $stagingRoot "SyncService"
 $assetsRoot = Join-Path $stagingRoot "Assets"
 
 $outputMsix = Join-Path $outputRoot "dotnetcloud-sync-tray-win-x64-$Version.msix"
@@ -173,7 +171,6 @@ if (Test-Path $stagingRoot) {
 }
 
 New-Item -ItemType Directory -Force -Path $publishRoot | Out-Null
-New-Item -ItemType Directory -Force -Path $servicePublishRoot | Out-Null
 New-Item -ItemType Directory -Force -Path $assetsRoot | Out-Null
 
 Write-Host "`n[1/4] Publishing desktop client binaries for win-x64..." -ForegroundColor Yellow
@@ -183,12 +180,6 @@ dotnet publish $syncTrayProject `
     --runtime win-x64 `
     --self-contained true `
     --output $publishRoot
-
-dotnet publish $syncServiceProject `
-    --configuration $Configuration `
-    --runtime win-x64 `
-    --self-contained true `
-    --output $servicePublishRoot
 
 Write-Host "[2/4] Generating MSIX assets and manifest..." -ForegroundColor Yellow
 
@@ -205,7 +196,6 @@ $manifestContent = $manifestContent.Replace("__VERSION__", $msixVersion)
 $manifestContent = $manifestContent.Replace("__DISPLAY_NAME__", $PackageDisplayName)
 $manifestContent = $manifestContent.Replace("__PUBLISHER_DISPLAY_NAME__", $PublisherDisplayName)
 $manifestContent = $manifestContent.Replace("__EXECUTABLE__", "SyncTray/dotnetcloud-sync-tray.exe")
-$manifestContent = $manifestContent.Replace("__SERVICE_EXECUTABLE__", "SyncService/dotnetcloud-sync-service.exe")
 
 Set-Content -Path (Join-Path $stagingRoot "AppxManifest.xml") -Value $manifestContent -Encoding UTF8
 

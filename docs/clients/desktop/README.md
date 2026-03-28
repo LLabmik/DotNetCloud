@@ -1,19 +1,19 @@
 # DotNetCloud Desktop Client
 
-> **Last Updated:** 2026-03-10
+> **Last Updated:** 2026-03-28
 
 ---
 
 ## Overview
 
-The DotNetCloud desktop client provides bidirectional file synchronization between a local folder and a DotNetCloud server. It consists of two components:
+The DotNetCloud desktop client provides bidirectional file synchronization between a local folder and a DotNetCloud server. It is a single-process desktop client composed of the tray app plus shared core libraries:
 
 | Component | Project | Type | Purpose |
 |---|---|---|---|
-| **SyncService** | `DotNetCloud.Client.SyncService` | .NET Worker Service | Background sync engine (Windows Service / systemd) |
-| **SyncTray** | `DotNetCloud.Client.SyncTray` | Avalonia Desktop App | Tray icon, settings, notifications |
+| **SyncTray** | `DotNetCloud.Client.SyncTray` | Avalonia Desktop App | Tray icon, settings, notifications, and sync lifecycle host |
+| **Client.Core** | `DotNetCloud.Client.Core` | Shared library | Sync engine, API client, auth, local state, conflict handling |
 
-Both components use the shared `DotNetCloud.Client.Core` library for sync logic, API communication, authentication, and local state management.
+`DotNetCloud.Client.SyncTray` uses `DotNetCloud.Client.Core` directly via in-process DI registration (`AddSyncContextManager`) with no separate service process.
 
 ---
 
@@ -26,7 +26,7 @@ Both components use the shared `DotNetCloud.Client.Core` library for sync logic,
 - **Selective sync** — choose which folders to sync
 - **Single-account today** — one desktop client account per OS user install (multi-account support is not yet available)
 - **Resume** — interrupted transfers resume automatically
-- **Cross-platform** — Windows (Service + tray) and Linux (systemd + tray)
+- **Cross-platform** — Windows and Linux tray app with in-process sync engine
 
 ---
 
@@ -42,17 +42,11 @@ DotNetCloud.Client.Core           (shared library)
 ├── LocalState/                   SQLite state database
 └── SelectiveSync/                Folder include/exclude configuration
 
-DotNetCloud.Client.SyncService    (background service)
-├── ContextManager/               Multi-context lifecycle management
-├── Ipc/                          Named Pipe / Unix socket server
-├── SyncWorker.cs                 BackgroundService entry point
-└── Program.cs
-
 DotNetCloud.Client.SyncTray       (Avalonia tray app)
 ├── Views/                        Settings window, Add Account dialog
 ├── ViewModels/                   MVVM view models
 ├── Notifications/                Windows balloon tip (current) / Linux libnotify
-├── Ipc/                          IPC client connection
+├── Startup/                      OS integration (autostart + launcher)
 ├── TrayIconManager.cs            Tray icon + context menu
 ├── App.axaml.cs
 └── Program.cs
@@ -66,13 +60,13 @@ Current status note:
 
 ## How It Works
 
-1. **SyncService** runs as a system-level background service
-2. It manages one or more **SyncContexts** (each = one server account ↔ one local folder)
+1. **SyncTray** runs as a single per-user desktop process with singleton lock enforcement
+2. At startup it resolves `ISyncContextManager` (from `DotNetCloud.Client.Core`) and loads persisted contexts
 3. Each context runs a **SyncEngine** that uses:
    - `FileSystemWatcher` for instant local change detection
    - Periodic full scans as a safety net (default: every 5 minutes)
    - REST API calls for server-side change detection
-4. **SyncTray** connects to SyncService via IPC to display status and accept user commands
+4. Tray UI and sync manager communicate in-process (no separate service, no IPC)
 5. **Conflicts** are resolved by creating conflict copies — both versions are preserved
 
 ---

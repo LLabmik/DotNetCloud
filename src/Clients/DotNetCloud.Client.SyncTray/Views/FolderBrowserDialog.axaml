@@ -12,7 +12,7 @@
 
     <DockPanel>
         <TextBlock DockPanel.Dock="Top"
-                   Text="Select which folders to sync. Unchecked folders will be excluded."
+                   Text="These are the folders inside your sync folder on the server. Uncheck any you don't want synced to this device."
                    FontSize="12"
                    Margin="12,12,12,0"
                    TextWrapping="Wrap"
@@ -23,9 +23,9 @@
                     HorizontalAlignment="Right"
                     Spacing="8"
                     Margin="12">
-            <Button Content="Sync All Folders"
+            <Button Content="Cancel"
                     Click="OnSkip" />
-            <Button Content="Save"
+            <Button Content="Save Selection"
                     Classes="accent"
                     Click="OnSave" />
         </StackPanel>

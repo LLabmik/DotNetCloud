@@ -128,45 +128,85 @@
                     </Border>
 
                     <Border Classes="card" IsVisible="{Binding HasAccount}">
-                        <StackPanel Spacing="10">
-                            <TextBlock Text="Connected Account"
-                                       FontSize="16"
-                                       FontWeight="SemiBold" />
+                        <ContentControl Content="{Binding PrimaryAccount}">
+                            <ContentControl.ContentTemplate>
+                                <DataTemplate DataType="vm:AccountViewModel">
+                                    <StackPanel Spacing="12">
 
-                            <ContentControl Content="{Binding PrimaryAccount}">
-                                <ContentControl.ContentTemplate>
-                                    <DataTemplate DataType="vm:AccountViewModel">
-                                        <Grid ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
-                                            <TextBlock Grid.Row="0" Grid.Column="0"
-                                                       Text="{Binding DisplayName}"
-                                                       FontSize="18"
+                                        <!-- Account identity -->
+                                        <StackPanel Spacing="2">
+                                            <TextBlock Text="{Binding DisplayName}"
+                                                       FontSize="16"
                                                        FontWeight="SemiBold" />
-                                            <TextBlock Grid.Row="1" Grid.Column="0"
-                                                       Text="{Binding State}"
+                                            <TextBlock Text="{Binding ServerBaseUrl}"
+                                                       FontSize="11"
+                                                       Foreground="#7A8BA4" />
+                                        </StackPanel>
+
+                                        <Separator Background="#263247" Margin="0,2" />
+
+                                        <!-- Sync folder -->
+                                        <StackPanel Spacing="4">
+                                            <TextBlock Text="Sync Folder"
                                                        FontSize="12"
-                                                       Foreground="#A7B4C8" />
-                                            <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3"
-                                                       Text="{Binding LastError}"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#9AACCA" />
+                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                <Border Grid.Column="0"
+                                                        Background="#0E1520"
+                                                        BorderBrush="#263247"
+                                                        BorderThickness="1"
+                                                        CornerRadius="4"
+                                                        Padding="8,6"
+                                                        VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding LocalFolderPath}"
+                                                               FontSize="12"
+                                                               FontFamily="Consolas, Courier New, monospace"
+                                                               Foreground="#C8D4E8"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               ToolTip.Tip="{Binding LocalFolderPath}" />
+                                                </Border>
+                                                <Button Grid.Column="1"
+                                                        Content="Open Folder"
+                                                        Command="{Binding $parent[Window].DataContext.OpenSyncFolderCommand}"
+                                                        CommandParameter="{Binding LocalFolderPath}" />
+                                            </Grid>
+                                        </StackPanel>
+
+                                        <!-- Status -->
+                                        <StackPanel Spacing="2">
+                                            <TextBlock FontSize="12" Foreground="#9AACCA">
+                                                <TextBlock.Text>
+                                                    <MultiBinding StringFormat="Status: {0}">
+                                                        <Binding Path="State" />
+                                                    </MultiBinding>
+                                                </TextBlock.Text>
+                                            </TextBlock>
+                                            <TextBlock Text="{Binding LastError}"
                                                        FontSize="12"
                                                        Foreground="#FF7B88"
                                                        TextWrapping="Wrap"
                                                        IsVisible="{Binding LastError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                                            <Button Grid.Row="0" Grid.Column="1" Grid.RowSpan="2"
-                                                    Content="Choose folders"
-                                                    Margin="8,0,8,0"
-                                                    VerticalAlignment="Center"
+                                        </StackPanel>
+
+                                        <Separator Background="#263247" Margin="0,2" />
+
+                                        <!-- Actions -->
+                                        <StackPanel Orientation="Horizontal" Spacing="8"
+                                                    HorizontalAlignment="Right">
+                                            <Button Content="Choose Folders"
                                                     Command="{Binding $parent[Window].DataContext.ChooseFoldersCommand}"
                                                     CommandParameter="{Binding ContextId}" />
-                                            <Button Grid.Row="0" Grid.Column="2" Grid.RowSpan="2"
-                                                    Content="Remove"
+                                            <Button Content="Remove Account"
                                                     Classes="danger"
                                                     Command="{Binding $parent[Window].DataContext.RemoveAccountCommand}"
                                                     CommandParameter="{Binding ContextId}" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </ContentControl.ContentTemplate>
-                            </ContentControl>
-                        </StackPanel>
+                                        </StackPanel>
+
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ContentControl.ContentTemplate>
+                        </ContentControl>
                     </Border>
 
                 </DockPanel>

@@ -1,17 +1,17 @@
 # Files Module — Desktop Sync Architecture & Protocol
 
-> **Last Updated:** 2026-03-03
+> **Last Updated:** 2026-03-28
 
 ---
 
 ## Overview
 
-DotNetCloud provides a desktop sync client that keeps a local folder in bidirectional sync with the server. The client consists of two components:
+DotNetCloud provides a desktop sync client that keeps a local folder in bidirectional sync with the server. The current desktop client is single-process and hosts the sync lifecycle in the tray app:
 
 | Component | Project | Purpose |
 |---|---|---|
-| **SyncService** | `DotNetCloud.Client.SyncService` | Background worker service (Windows Service / systemd) |
-| **SyncTray** | `DotNetCloud.Client.SyncTray` | Avalonia tray icon app for status and settings |
+| **SyncTray** | `DotNetCloud.Client.SyncTray` | Avalonia tray icon app for status, settings, and sync lifecycle host |
+| **Client.Core** | `DotNetCloud.Client.Core` | Shared sync engine, API client, auth, and local state logic |
 
 The shared sync logic lives in `DotNetCloud.Client.Core`.
 
@@ -20,30 +20,22 @@ The shared sync logic lives in `DotNetCloud.Client.Core`.
 ## Architecture
 
 ```
-┌─────────────────────┐     IPC (Named Pipe / Unix Socket)     ┌──────────────────┐
-│   SyncService       │◄──────────────────────────────────────►│   SyncTray       │
-│   (BackgroundService)│                                        │   (Avalonia App)  │
-│                     │                                        │                  │
-│ ┌─────────────────┐ │                                        │ • Tray icon      │
-│ │ SyncContextMgr  │ │                                        │ • Settings UI    │
-│ │  ├─ Context A   │ │                                        │ • Notifications  │
-│ │  │  └─ SyncEngine│ │                                        │ • Quick actions  │
-│ │  ├─ Context B   │ │                                        └──────────────────┘
-│ │  │  └─ SyncEngine│ │
-│ │  └─ ...         │ │
-│ └─────────────────┘ │
-│                     │
-│ ┌─────────────────┐ │     HTTPS / REST API
-│ │ API Client      │◄├────────────────────────►  DotNetCloud Server
-│ │ Chunked Transfer│ │
-│ │ OAuth2 PKCE     │ │
-│ └─────────────────┘ │
-│                     │
-│ ┌─────────────────┐ │
-│ │ Local State DB  │ │     SQLite (per context)
-│ │ (SQLite)        │ │
-│ └─────────────────┘ │
-└─────────────────────┘
+┌─────────────────────────────────────────────┐
+│  SyncTray (Avalonia, single process)        │
+│                                             │
+│  ┌───────────────────────────────────────┐  │
+│  │ ISyncContextManager (in-process)      │  │
+│  │  ├─ Context A -> SyncEngine           │  │
+│  │  ├─ Context B -> SyncEngine           │  │
+│  │  └─ ...                               │  │
+│  └───────────────────────────────────────┘  │
+│                                             │
+│  UI: Tray icon, settings, notifications     │
+└─────────────────────────────────────────────┘
+         │
+         │ HTTPS / REST API
+         ▼
+      DotNetCloud Server
 ```
 
 ---
@@ -225,9 +217,9 @@ The sync engine automatically refreshes expired access tokens using the refresh 
 
 ---
 
-## IPC Protocol
+## In-Process Command Surface
 
-SyncTray communicates with SyncService via Named Pipe (Windows) or Unix domain socket (Linux).
+SyncTray now invokes `ISyncContextManager` directly in-process (no separate service process, no IPC transport).
 
 ### Commands
 
@@ -266,7 +258,7 @@ SyncTray communicates with SyncService via Named Pipe (Windows) or Unix domain s
 
 ## Platform Support
 
-| Platform | Service Registration | IPC Transport |
+| Platform | Background Model | Transport |
 |---|---|---|
-| Windows | Windows Service (`AddWindowsService()`) | Named Pipe |
-| Linux | systemd unit (`AddSystemd()`) | Unix domain socket |
+| Windows | SyncTray process (per-user session) | In-process calls |
+| Linux | SyncTray process (per-user session) | In-process calls |

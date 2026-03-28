@@ -23,7 +23,7 @@ The DotNetCloud sync client keeps a folder on your computer automatically synchr
 
 1. Download the latest `dotnetcloud-sync-tray-win-x64-<version>.msix` from [GitHub Releases](https://github.com/LLabmik/DotNetCloud/releases)
 2. Double-click the `.msix` file to launch the installer
-3. Click **Install** — this installs the SyncTray app and registers the background sync service
+3. Click **Install** — this installs the SyncTray app, which owns sync directly in the desktop process
 4. After installation, the SyncTray icon appears in your system tray (bottom-right of your taskbar; click the `^` arrow if you don't see it)
 5. SyncTray starts automatically on login
 
@@ -33,7 +33,7 @@ The DotNetCloud sync client keeps a folder on your computer automatically synchr
 
 1. Download `dotnetcloud-desktop-client-win-x64-<version>.zip` from GitHub Releases
 2. Extract the zip to a folder
-3. Run `install.cmd` from an elevated Command Prompt to install the Windows Service
+3. Run `install.cmd` from an elevated Command Prompt to install desktop client files
 4. Run SyncTray from the Start menu or the extracted folder
 
 ### Linux
@@ -227,7 +227,7 @@ For more details, see the [Troubleshooting Guide](../clients/desktop/TROUBLESHOO
 ### Linux
 
 1. Download the new `.tar.gz` and re-run `sudo ./install.sh`
-2. The installer stops the service, replaces binaries, and restarts
+2. The installer replaces binaries and launcher integration
 
 ---
 
@@ -259,7 +259,7 @@ uninstall.cmd
 sudo ./uninstall.sh
 ```
 
-> **Your files are safe:** Uninstalling removes the sync service and tray app but does **not** delete your local sync folder or any files on the server.
+> **Your files are safe:** Uninstalling removes the tray app but does **not** delete your local sync folder or any files on the server.
 
 ---
 
@@ -269,7 +269,7 @@ sudo ./uninstall.sh
 |---|---|---|
 | Sync folder | `%USERPROFILE%\DotNetCloud\{server}` | `~/DotNetCloud/{server}` |
 | Sync state database | `%ProgramData%\DotNetCloud\Sync\{contextId}\state.db` | `/var/lib/dotnetcloud/sync/{contextId}/state.db` |
-| Service logs | `%ProgramData%\DotNetCloud\Sync\logs\` | `/var/log/dotnetcloud/` |
+| Sync engine logs | `%ProgramData%\DotNetCloud\Sync\logs\` | `/var/log/dotnetcloud/` |
 | Tray app logs | `%LOCALAPPDATA%\DotNetCloud\logs\` | `~/.local/share/dotnetcloud/logs/` |
 
 ---

@@ -13,7 +13,7 @@
 
 > Required model: one desktop-client installation and account setup per OS user account.
 > On shared machines, each OS user must install/run the client from their own login session.
-> Shared-machine hard isolation across multiple concurrently active OS users is planned but not yet enforced in the service IPC/context layer.
+> Shared-machine hard isolation across multiple concurrently active OS users is planned but not yet fully enforced across all local sync state boundaries.
 
 ---
 
@@ -25,7 +25,7 @@
 
    - `dotnetcloud-sync-tray-win-x64-<version>.msix`
 
-   This installs both the SyncTray desktop app and registers the `DotNetCloudSync` Windows Service automatically.
+   This installs the SyncTray desktop app (which owns sync in-process).
 
 2. **Alternative (ZIP + installer scripts):** Download installer bundle from GitHub Releases:
 
@@ -45,16 +45,16 @@
    .\Install-DesktopClient.ps1
    ```
 
-5. **Verify service is running:**
+5. **Verify package is installed:**
 
    ```powershell
-   Get-Service DotNetCloudSync
+   Get-AppxPackage -Name "DotNetCloud.SyncTray"
    ```
 
 6. **Run SyncTray:**
 
    ```powershell
-   & "$env:ProgramFiles\DotNetCloud\DesktopClient\SyncTray\dotnetcloud-sync-tray.exe"
+   Start-Process "shell:AppsFolder\DotNetCloud.SyncTray_xrs2wr7p8d2rc!SyncTray"
    ```
 
 7. **Auto-start SyncTray on login:** Installer registers a per-user startup entry.
@@ -96,7 +96,7 @@
 7. **Know which install model you are using:**
 
    - Official Linux release installer: installs a system service named `dotnetcloud-sync` and stores service data under `/var/lib/dotnetcloud/sync`.
-   - Local/source or non-root development runs may instead use per-user paths under `~/.local/share/DotNetCloud` and a per-user IPC socket under `$XDG_RUNTIME_DIR/dotnetcloud/sync.sock`.
+   - Local/source or non-root development runs may instead use per-user paths under `~/.local/share/DotNetCloud`.
 
 ## Updating to a New Client Version
 
@@ -104,7 +104,7 @@
 
 1. Download the new `dotnetcloud-desktop-client-win-x64-<version>.zip`.
 2. Extract and run `Install-DesktopClient.ps1` again as Administrator.
-3. The installer updates binaries and service configuration in place, then restarts `DotNetCloudSync`.
+3. The installer updates the existing package in place and preserves sync state/config under existing data paths.
 
 ### Linux
 

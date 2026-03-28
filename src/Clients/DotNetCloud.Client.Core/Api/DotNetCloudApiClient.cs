@@ -260,7 +260,19 @@ public sealed class DotNetCloudApiClient : IDotNetCloudApiClient
         if (response.StatusCode == HttpStatusCode.NotModified)
         {
             response.Dispose();
-            return Stream.Null;
+
+            // If the client does not currently have the chunk cached, callers can hit a
+            // 304-without-local-cache edge case. Retry once without conditional headers.
+            _logger.LogWarning(
+                "Chunk {ChunkHash} returned 304 Not Modified; retrying chunk download without If-None-Match.",
+                chunkHash);
+
+            var unconditionalResponse = await SendWithRetryAsync(
+                () => CreateAuthenticatedRequest(HttpMethod.Get, $"api/v1/files/chunks/{chunkHash}"),
+                cancellationToken);
+
+            unconditionalResponse.EnsureSuccessStatusCode();
+            return await unconditionalResponse.Content.ReadAsStreamAsync(cancellationToken);
         }
 
         response.EnsureSuccessStatusCode();

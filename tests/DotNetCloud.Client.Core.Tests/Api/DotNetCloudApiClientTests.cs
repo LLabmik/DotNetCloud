@@ -421,20 +421,40 @@ public class DotNetCloudApiClientTests
     // ── ETag / If-None-Match (Issue #49) ────────────────────────────────────
 
     [TestMethod]
-    public async Task DownloadChunkByHashAsync_304NotModified_ReturnsStreamNull()
+    public async Task DownloadChunkByHashAsync_304NotModified_RetriesWithoutConditionalAndReturnsStream()
     {
-        string? capturedIfNoneMatch = null;
+        string? firstIfNoneMatch = null;
+        string? secondIfNoneMatch = null;
+        var callCount = 0;
+        var rawBytes = new byte[] { 9, 8, 7, 6 };
+
         var client = CreateMockHttpClient(req =>
         {
-            capturedIfNoneMatch = req.Headers.IfNoneMatch.FirstOrDefault()?.Tag;
-            return new HttpResponseMessage(HttpStatusCode.NotModified);
+            callCount++;
+
+            if (callCount == 1)
+            {
+                firstIfNoneMatch = req.Headers.IfNoneMatch.FirstOrDefault()?.Tag;
+                return new HttpResponseMessage(HttpStatusCode.NotModified);
+            }
+
+            secondIfNoneMatch = req.Headers.IfNoneMatch.FirstOrDefault()?.Tag;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(rawBytes),
+            };
         });
         var apiClient = new DotNetCloudApiClient(client, NullLogger<DotNetCloudApiClient>.Instance);
 
         var result = await apiClient.DownloadChunkByHashAsync("abc123hash");
 
-        Assert.AreSame(Stream.Null, result, "Should return Stream.Null on 304.");
-        Assert.AreEqual("\"abc123hash\"", capturedIfNoneMatch, "If-None-Match header should contain the chunk hash.");
+        Assert.AreEqual(2, callCount, "304 response should trigger one unconditional retry.");
+        Assert.AreEqual("\"abc123hash\"", firstIfNoneMatch, "First request should use If-None-Match with the chunk hash.");
+        Assert.IsNull(secondIfNoneMatch, "Retry request should omit If-None-Match.");
+
+        using var ms = new MemoryStream();
+        await result.CopyToAsync(ms);
+        CollectionAssert.AreEqual(rawBytes, ms.ToArray(), "Retry response content should be returned to caller.");
     }
 
     [TestMethod]

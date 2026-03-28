@@ -113,7 +113,7 @@ Execute Phase C sync client end-to-end tests on Windows using SyncTray. Record r
 
 ### Architecture Note
 
-SyncService has been merged into SyncTray — **single Avalonia process** owns the full sync lifecycle. No separate service, no IPC. On startup SyncTray calls `ISyncContextManager.StartSyncManagerAsync()` directly. Single-instance enforced via file lock.
+SyncService has been merged into SyncTray — **single Avalonia process** owns the full sync lifecycle. No separate service, no IPC. On startup SyncTray resolves `ISyncContextManager` (via `AddSyncContextManager`) and loads contexts in-process (`LoadContextsAsync` from `App.StartSyncManagerAsync`). Single-instance enforced via file lock.
 
 ### Test Execution (11 tests)
 
@@ -194,17 +194,17 @@ Fill in after each test:
 
 | Test ID | Test Name | Result | Notes |
 |---------|-----------|--------|-------|
-| TC-1.46 | FSW debounce | | |
-| TC-1.47 | Launch SyncTray Windows | | |
-| TC-1.49 | OAuth2 account add | | |
-| TC-1.50 | Server → local sync | | |
-| TC-1.51 | Local → server sync | | |
-| TC-1.52 | Conflict copy | | |
-| TC-1.53 | Offline queue + reconnect | | |
-| TC-1.54 | 100MB+ file upload | | |
-| TC-1.55 | Status indicators | | |
-| TC-1.56 | Selective sync exclusion | | |
-| TC-1.57 | Multi-account sync | | |
+| TC-1.46 | FSW debounce | ✅ PASS | 20 FSW events from 10 rapid saves coalesced into 1 sync pass (500ms debounce timer added in 0.27.7) |
+| TC-1.47 | Launch SyncTray Windows | ✅ PASS | Tray icon visible, single-instance lock active, menu responsive |
+| TC-1.49 | OAuth2 account add | ✅ PASS | OAuth2 PKCE flow completes, account connected, green icon |
+| TC-1.50 | Server → local sync | ✅ PASS | NotificationsController.cs downloaded via chunk 304 fallback (fixed in 0.27.3) |
+| TC-1.51 | Local → server sync | ✅ PASS | File created locally, FSW detected, uploaded in 92ms, server acknowledged |
+| TC-1.52 | Conflict copy | DEFERRED | Server PUT + local edit race didn't trigger conflict — sync engine uploads local version as new version. Needs manual two-client test |
+| TC-1.53 | Offline queue + reconnect | DEFERRED | VM environment — cannot disable network adapter |
+| TC-1.54 | 100MB+ file upload | ✅ PASS | 105MB file uploaded via chunked transfer in 13.9s, parallel chunk uploads confirmed |
+| TC-1.55 | Status indicators | ✅ PASS | Idle/syncing states observed in logs and tray icon color changes |
+| TC-1.56 | Selective sync exclusion | ✅ PASS | `.syncignore` rule `test/` prevented server file `test/excluded.txt` from syncing locally. Hot-reload fix added in 0.27.8 |
+| TC-1.57 | Multi-account sync | SKIP | Environment-gated — only one account/server available |
 
 ### After Completion
 

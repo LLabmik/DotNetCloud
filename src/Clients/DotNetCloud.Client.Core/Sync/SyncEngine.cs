@@ -53,6 +53,14 @@ public sealed class SyncEngine : ISyncEngine
     private bool _paused;
     private readonly SemaphoreSlim _syncLock = new(1, 1);
     private int _syncRerunRequested;
+    private CancellationTokenSource? _fswDebounceCts;
+    private readonly object _fswDebounceLock = new();
+
+    /// <summary>
+    /// Delay after the last FSW event before triggering a sync pass.
+    /// Exposed as internal for test overrides.
+    /// </summary>
+    internal TimeSpan FswDebounceDelay { get; set; } = TimeSpan.FromMilliseconds(500);
 
     /// <inheritdoc/>
     public event EventHandler<SyncStatusChangedEventArgs>? StatusChanged;
@@ -152,12 +160,18 @@ public sealed class SyncEngine : ISyncEngine
             _pollingFallback = true;
         }
 
+        // Load the access token before starting the SSE listener or periodic scan.
+        // RefreshAccessTokenAsync reads from the token store and refreshes if expired,
+        // ensuring both _api.AccessToken and _streamListener.AccessToken are valid.
+        await RefreshAccessTokenAsync(context, cancellationToken);
+
         _periodicScanTask = RunPeriodicScanAsync(context, _cts.Token);
 
         // Start SSE listener if available — enables push-based sync
         if (_streamListener is not null)
         {
             _streamListener.AccessToken = _api.AccessToken;
+            _streamListener.AccessTokenRefreshCallback = token => RefreshAccessTokenAsync(context, token, forceRefresh: true);
             _streamListener.SyncChanged += OnSseNotification;
             _streamListener.Start(_cts.Token);
             _logger.LogInformation("SSE sync stream listener started for context {ContextId}.", context.Id);
@@ -340,10 +354,19 @@ public sealed class SyncEngine : ISyncEngine
     {
         _cts?.Cancel();
 
+        // Cancel any pending FSW debounce timer.
+        lock (_fswDebounceLock)
+        {
+            _fswDebounceCts?.Cancel();
+            _fswDebounceCts?.Dispose();
+            _fswDebounceCts = null;
+        }
+
         // Stop SSE listener
         if (_streamListener is not null)
         {
             _streamListener.SyncChanged -= OnSseNotification;
+            _streamListener.AccessTokenRefreshCallback = null;
             await _streamListener.StopAsync();
         }
 
@@ -1320,22 +1343,26 @@ public sealed class SyncEngine : ISyncEngine
         }
     }
 
-    private async Task RefreshAccessTokenAsync(SyncContext context, CancellationToken cancellationToken)
+    private async Task<string?> RefreshAccessTokenAsync(SyncContext context, CancellationToken cancellationToken, bool forceRefresh = false)
     {
         var tokens = await _tokenStore.LoadAsync(context.AccountKey, cancellationToken);
         if (tokens is null)
         {
             _logger.LogWarning("No tokens found for context {ContextId}.", context.Id);
-            return;
+            return null;
         }
 
         _logger.LogInformation(
             "Token state for context {ContextId}: IsExpired={IsExpired}, CanRefresh={CanRefresh}, ExpiresAt={ExpiresAt}.",
             context.Id, tokens.IsExpired, tokens.CanRefresh, tokens.ExpiresAt);
 
-        if (tokens.IsExpired && tokens.CanRefresh)
+        if ((forceRefresh || tokens.IsExpired) && tokens.CanRefresh)
         {
-            _logger.LogInformation("Refreshing expired access token for context {ContextId}.", context.Id);
+            _logger.LogInformation(
+                forceRefresh
+                    ? "Refreshing access token after SSE unauthorized response for context {ContextId}."
+                    : "Refreshing expired access token for context {ContextId}.",
+                context.Id);
             var refreshed = await _api.RefreshTokenAsync(tokens.RefreshToken!, OAuthConstants.ClientId, cancellationToken);
             tokens = new TokenInfo
             {
@@ -1349,6 +1376,12 @@ public sealed class SyncEngine : ISyncEngine
         }
 
         _api.AccessToken = tokens.AccessToken;
+        if (_streamListener is not null)
+        {
+            _streamListener.AccessToken = tokens.AccessToken;
+        }
+
+        return tokens.AccessToken;
     }
 
     private async Task<string> ResolveLocalPathAsync(
@@ -1650,6 +1683,14 @@ public sealed class SyncEngine : ISyncEngine
         if (_activeContext is null || _paused)
             return;
 
+        // Hot-reload .syncignore when the user edits it so new rules take
+        // effect immediately without restarting the engine.
+        if (Path.GetFileName(e.FullPath).Equals(".syncignore", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogInformation("Reloading .syncignore rules (file changed on disk).");
+            _syncIgnore.Initialize(_activeContext.LocalFolderPath);
+        }
+
         // Pre-filter: skip events for known-ignored files to reduce unnecessary sync passes.
         var relativePath = Path.GetRelativePath(_activeContext.LocalFolderPath, e.FullPath);
         if (_syncIgnore.IsIgnored(relativePath))
@@ -1659,7 +1700,7 @@ public sealed class SyncEngine : ISyncEngine
             "FileSystemWatcher trigger: ChangeType={ChangeType}, Path={Path}.",
             e.ChangeType,
             e.FullPath);
-        _ = Task.Run(() => SyncAsync(_activeContext, _cts?.Token ?? default));
+        ScheduleDebouncedSync();
     }
 
     private void OnFileSystemRenamed(object sender, RenamedEventArgs e)
@@ -1676,7 +1717,35 @@ public sealed class SyncEngine : ISyncEngine
             "FileSystemWatcher trigger: ChangeType=Renamed, OldPath={OldPath}, NewPath={NewPath}.",
             e.OldFullPath,
             e.FullPath);
-        _ = Task.Run(() => SyncAsync(_activeContext, _cts?.Token ?? default));
+        ScheduleDebouncedSync();
+    }
+
+    /// <summary>
+    /// Resets the FSW debounce timer. A sync pass fires only after
+    /// <see cref="FswDebounceDelay"/> elapses with no further events.
+    /// </summary>
+    private void ScheduleDebouncedSync()
+    {
+        lock (_fswDebounceLock)
+        {
+            _fswDebounceCts?.Cancel();
+            _fswDebounceCts?.Dispose();
+            _fswDebounceCts = new CancellationTokenSource();
+            var token = _fswDebounceCts.Token;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(FswDebounceDelay, token);
+                    if (_activeContext is not null)
+                        await SyncAsync(_activeContext, _cts?.Token ?? default);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Debounce reset — new event arrived, this timer is superseded.
+                }
+            }, CancellationToken.None);
+        }
     }
 
     // Issue #57: handle FSW.Error to detect internal buffer overflows or watch failures.

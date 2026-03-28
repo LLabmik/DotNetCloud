@@ -1403,3 +1403,51 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Upgrade/release notes with migration caveats — `docs/admin/PHASE_3_RELEASE_NOTES.md`
 
 **Notes:** Phase 3.8 complete. All four documentation deliverables created: admin operations guide covering all three PIM modules, three user guides (one per module) with workflows for contact/calendar/note management plus DAV sync setup and import/export, three API reference docs with full REST + DAV endpoint specifications including schemas and error codes, and release notes with upgrade instructions and known limitations. Doc indexes updated: `docs/api/README.md` links module API references; `README.md` links admin guide, user guides, and release notes. Phase 3 documentation milestone (Milestone D) is now fully complete.
+
+---
+
+## Future: Multi-Root Sync (Scoped for Future Phase)
+
+> **Priority:** Medium — enhances sync client usability significantly  
+> **Prerequisite:** Phase 1 sync client stable and shipping  
+> **Effort estimate:** Medium (client changes are straightforward; server already supports `folderId` scoping)
+
+### Overview
+
+Allow users to sync multiple local folders (e.g. Documents, Pictures, Desktop) to separate server-side virtual roots, rather than requiring everything under a single sync folder. This is the approach used by Nextcloud, Syncthing, and Dropbox.
+
+### Current State (already supports multi-context)
+
+- `SyncContextManager._contexts` is a `Dictionary<Guid, RunningContext>` — **multiple contexts already work**
+- `AddContextAsync` has **no single-context limit** — each call creates a new context with its own engine, state DB, and token store
+- Server-side `GET /api/v1/files/sync/changes?folderId={id}` and `GET /api/v1/files/sync/tree?folderId={id}` already accept an optional `folderId` for scoping to a sub-tree
+- The single-account limit is only enforced in the **UI** (`CanAddAccount => !HasAccount`), not the engine
+
+### What's Needed
+
+#### Server-Side
+- ☐ API for managing per-device sync root mappings (`POST /api/v1/sync/roots`, `GET /api/v1/sync/roots`)
+- ☐ Each root maps a server folder ID to a client-chosen local path label
+- ☐ SSE stream scoped per root (or multiplexed with root ID in event payload)
+
+#### Client-Side
+- ☐ `SyncContextRegistration` gains a `ServerFolderId` (nullable `Guid?`) — when set, the engine passes it to `sync/changes` and `sync/tree`
+- ☐ `SyncEngine` passes `folderId` query param to API calls when `ServerFolderId` is set
+- ☐ Settings UI: "Add Sync Folder" button under the account — opens a server folder picker + local folder chooser
+- ☐ Each sync root gets its own card in the Accounts tab showing local path, server path, status, and remove button
+- ☐ Each root has independent selective sync, state DB, and chunk cache
+- ☐ Tray menu shows per-root "Open Folder" entries
+
+#### UX Flow
+1. User connects account (as today — creates a default "all files" root)
+2. User clicks "Add Sync Folder" in Settings
+3. Server folder picker shows top-level server folders (Documents, Photos, etc.)
+4. User picks server folder + chooses local path (e.g. `C:\Users\benk\Documents`)
+5. New sync context starts for that root pair
+
+### Workaround (Available Today)
+Power users can create directory junctions inside the sync folder:
+```powershell
+New-Item -ItemType Junction -Path "C:\Users\benk\synctray\Documents" -Target "C:\Users\benk\Documents"
+```
+The sync engine follows junction contents transparently. Caveat: deleting the junction server-side could affect real local files.

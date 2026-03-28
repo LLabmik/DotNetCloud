@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
 
@@ -18,6 +19,12 @@ public sealed class SyncStreamListener : IAsyncDisposable
 
     /// <summary>Access token for authenticated requests.</summary>
     public string? AccessToken { get; set; }
+
+    /// <summary>
+    /// Optional callback used when SSE receives HTTP 401 responses.
+    /// Should return a refreshed access token when possible.
+    /// </summary>
+    public Func<CancellationToken, Task<string?>>? AccessTokenRefreshCallback { get; set; }
 
     /// <summary>Fires when the server notifies that new changes are available.</summary>
     public event EventHandler<SyncChangedEventArgs>? SyncChanged;
@@ -65,6 +72,7 @@ public sealed class SyncStreamListener : IAsyncDisposable
     {
         var attempt = 0;
         const int maxBackoffSeconds = 60;
+        const int maxUnauthorizedAttempts = 3;
 
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -77,6 +85,56 @@ public sealed class SyncStreamListener : IAsyncDisposable
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 break;
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                IsConnected = false;
+                attempt++;
+
+                // Try a single token refresh on the first 401
+                if (attempt == 1)
+                {
+                    var refreshed = await TryRefreshAccessTokenAsync(cancellationToken);
+                    if (refreshed)
+                    {
+                        _logger.LogInformation(
+                            "SSE token refreshed after 401. Retrying connection.");
+                        try
+                        {
+                            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            break;
+                        }
+
+                        continue;
+                    }
+                }
+
+                // After maxUnauthorizedAttempts (or refresh failed on first try), give up
+                if (attempt >= maxUnauthorizedAttempts)
+                {
+                    _logger.LogWarning(
+                        "SSE endpoint returned 401 on {Attempt} consecutive attempts. " +
+                        "Disabling SSE for this session; sync will use periodic polling.",
+                        attempt);
+                    break;
+                }
+
+                var backoff = Math.Min((int)Math.Pow(2, attempt), maxBackoffSeconds);
+                _logger.LogWarning(ex,
+                    "SSE connection unauthorized (attempt {Attempt}/{Max}). Reconnecting in {Backoff}s.",
+                    attempt, maxUnauthorizedAttempts, backoff);
+
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(backoff), cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
             }
             catch (Exception ex)
             {
@@ -99,6 +157,31 @@ public sealed class SyncStreamListener : IAsyncDisposable
         }
 
         IsConnected = false;
+    }
+
+    private async Task<bool> TryRefreshAccessTokenAsync(CancellationToken cancellationToken)
+    {
+        if (AccessTokenRefreshCallback is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var refreshed = await AccessTokenRefreshCallback(cancellationToken);
+            if (!string.IsNullOrWhiteSpace(refreshed))
+            {
+                AccessToken = refreshed;
+                _logger.LogInformation("SSE access token refreshed after unauthorized response.");
+                return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "SSE token refresh callback failed.");
+        }
+
+        return false;
     }
 
     private async Task ConnectAndListenAsync(CancellationToken cancellationToken)

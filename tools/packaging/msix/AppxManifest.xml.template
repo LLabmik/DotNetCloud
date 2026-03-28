@@ -3,9 +3,8 @@
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
   xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
-  xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap uap5 desktop6 rescap">
+  IgnorableNamespaces="uap uap5 rescap">
   <Identity Name="__IDENTITY_NAME__" Publisher="__PUBLISHER__" Version="__VERSION__" ProcessorArchitecture="x64" />
 
   <Properties>
@@ -36,16 +35,11 @@
         <uap5:Extension Category="windows.startupTask" Executable="__EXECUTABLE__" EntryPoint="Windows.FullTrustApplication">
           <uap5:StartupTask TaskId="DotNetCloudSyncTray" Enabled="true" DisplayName="DotNetCloud SyncTray" />
         </uap5:Extension>
-        <desktop6:Extension Category="windows.service" Executable="__SERVICE_EXECUTABLE__" EntryPoint="Windows.FullTrustApplication">
-          <desktop6:Service Name="DotNetCloudSync" StartupType="auto" StartAccount="localSystem" />
-        </desktop6:Extension>
       </Extensions>
     </Application>
   </Applications>
 
   <Capabilities>
     <rescap:Capability Name="runFullTrust" />
-    <rescap:Capability Name="packagedServices" />
-    <rescap:Capability Name="localSystemServices" />
   </Capabilities>
 </Package>
