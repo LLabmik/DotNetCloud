@@ -339,26 +339,29 @@ After completing Phase A, open DevTools (F12) > Network and grab:
 - Pass criteria: Tag is no longer associated.
 - **Result:** Pass (2026-03-28)
 
-#### TC-1.37 Add comment to file
+#### TC-1.37 Add comment to file — ✅ Pass
 - Setup: Select any file, open Comments panel (via context menu or preview header).
 - Steps:
 	1. Type a comment in the compose area.
 	2. Click "Post" (or Ctrl+Enter).
 - Pass criteria: Comment appears with author and timestamp.
+- **Result:** Pass (2026-03-28)
 
-#### TC-1.38 Reply to comment (threaded)
+#### TC-1.38 Reply to comment (threaded) — ✅ Pass
 - Setup: File with at least one existing comment.
 - Steps:
 	1. Click "Reply" on an existing comment.
 	2. Type reply text and submit.
 - Pass criteria: Reply is nested under root comment.
+- **Result:** Pass (2026-03-28)
 
-#### TC-1.39 Edit and delete comment
+#### TC-1.39 Edit and delete comment — ✅ Pass
 - Setup: File with own comment.
 - Steps:
 	1. Click "Edit" on own comment, change text, save.
 	2. Click "Delete" on own comment.
 - Pass criteria: Edit persists, then deletion removes or marks comment per design.
+- **Result:** Pass (2026-03-28)
 
 ---
 
