@@ -44,6 +44,9 @@ public partial class FileContextMenu : ComponentBase
     /// <summary>Raised when the user selects "Version History".</summary>
     [Parameter] public EventCallback<Guid> OnVersionHistory { get; set; }
 
+    /// <summary>Raised when the user selects "Comments".</summary>
+    [Parameter] public EventCallback<Guid> OnComments { get; set; }
+
     /// <summary>Raised when the user selects "Delete".</summary>
     [Parameter] public EventCallback<Guid> OnDelete { get; set; }
 
@@ -60,6 +63,7 @@ public partial class FileContextMenu : ComponentBase
     private async Task HandleShare() => await OnShare.InvokeAsync(NodeId);
     private async Task HandleDownload() => await OnDownload.InvokeAsync(NodeId);
     private async Task HandleVersionHistory() => await OnVersionHistory.InvokeAsync(NodeId);
+    private async Task HandleComments() => await OnComments.InvokeAsync(NodeId);
     private async Task HandleDelete() => await OnDelete.InvokeAsync(NodeId);
     private async Task HandleTag() => await OnTag.InvokeAsync(NodeId);
 

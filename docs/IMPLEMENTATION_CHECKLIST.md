@@ -2019,6 +2019,19 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Add/edit version labels
   - ✓ Delete old versions
 
+#### Comments Panel
+- ✓ Create comments side panel (`CommentsPanel.razor`):
+  - ✓ List threaded comments with author and timestamp
+  - ✓ Add new top-level comment
+  - ✓ Reply to existing comment (nested thread)
+  - ✓ Edit own comments
+  - ✓ Delete own comments (soft-delete)
+  - ✓ Expand/collapse reply threads
+  - ✓ Relative time display (e.g., "2h ago")
+  - ✓ Context menu "Comments" option
+  - ✓ "Comments" button in file preview header
+  - ✓ Ctrl+Enter keyboard shortcut to submit
+
 #### Settings & Admin UI
 - ✓ Create Files module settings page (`FilesAdminSettings.razor`):
   - ✓ Default quota for new users

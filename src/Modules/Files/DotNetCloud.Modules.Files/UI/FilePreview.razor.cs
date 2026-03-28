@@ -46,6 +46,9 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
     /// <summary>Invoked when the user clicks the Share button.</summary>
     [Parameter] public EventCallback<FileNodeViewModel> OnShare { get; set; }
 
+    /// <summary>Invoked when the user clicks the Comments button.</summary>
+    [Parameter] public EventCallback<FileNodeViewModel> OnComments { get; set; }
+
     private ElementReference _overlayRef;
     private ElementReference _codeRef;
     private DotNetObjectReference<FilePreview>? _gestureDotNetRef;

@@ -403,6 +403,7 @@ else
         OnShare="HandleContextShare"
         OnDownload="HandleContextDownload"
         OnVersionHistory="HandleContextVersionHistory"
+        OnComments="HandleContextComments"
         OnDelete="HandleContextDelete"
         OnTag="HandleContextTag"
         OnDismiss="DismissContextMenu" />
@@ -470,7 +471,8 @@ else
         ApiBaseUrl="@ApiBaseUrl"
         OnClose="HidePreview"
         OnShare="HandlePreviewShare"
-        OnDownload="HandlePreviewDownload" />
+        OnDownload="HandlePreviewDownload"
+        OnComments="HandlePreviewComments" />
 }
 
 @if (IsShowDocumentEditor && EditorNode is not null)
@@ -495,6 +497,19 @@ else
         OnRestoreVersion="HandleRestoreVersion"
         OnDeleteVersion="HandleDeleteVersion"
         OnLabelSaved="HandleVersionLabelSaved" />
+}
+
+@if (_showComments && _commentsFileName is not null)
+{
+    <CommentsPanel
+        FileName="@_commentsFileName"
+        CurrentUserId="UserId"
+        InitialComments="_commentItems"
+        OnClose="HideComments"
+        OnAddComment="HandleAddComment"
+        OnReplyComment="HandleReplyComment"
+        OnEditComment="HandleEditComment"
+        OnDeleteComment="HandleDeleteComment" />
 }
 
     @if (_showFolderPicker)

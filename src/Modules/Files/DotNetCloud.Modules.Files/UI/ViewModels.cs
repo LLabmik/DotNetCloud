@@ -420,3 +420,36 @@ public sealed class AdminSettingsViewModel
     /// <summary>Maximum concurrent Collabora editing sessions (0 = unlimited).</summary>
     public int CollaboraMaxSessions { get; set; }
 }
+
+/// <summary>
+/// View model for displaying a comment in the comments panel.
+/// </summary>
+public sealed class FileCommentViewModel
+{
+    /// <summary>Comment ID.</summary>
+    public Guid Id { get; init; }
+
+    /// <summary>File node ID.</summary>
+    public Guid FileNodeId { get; init; }
+
+    /// <summary>Parent comment ID (null for top-level).</summary>
+    public Guid? ParentCommentId { get; init; }
+
+    /// <summary>Comment text content.</summary>
+    public string Content { get; set; } = string.Empty;
+
+    /// <summary>User ID who wrote the comment.</summary>
+    public Guid CreatedByUserId { get; init; }
+
+    /// <summary>Display name of the comment author.</summary>
+    public string AuthorName { get; init; } = string.Empty;
+
+    /// <summary>When the comment was created.</summary>
+    public DateTime CreatedAt { get; init; }
+
+    /// <summary>When the comment was last edited (null if never).</summary>
+    public DateTime? UpdatedAt { get; init; }
+
+    /// <summary>Number of replies.</summary>
+    public int ReplyCount { get; set; }
+}

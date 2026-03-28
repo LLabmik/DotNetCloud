@@ -21,6 +21,7 @@
                 {
                     <button class="btn btn-sm" @onclick="Share" title="Share this file">Share</button>
                 }
+                <button class="btn btn-sm" @onclick="() => OnComments.InvokeAsync(DisplayNode)" title="Comments">💬 Comments</button>
                 <button class="btn btn-sm" @onclick="Download" title="Download file">Download</button>
                 <button class="btn-icon" @onclick="OnClose" title="Close preview (Esc)">✕</button>
             </div>

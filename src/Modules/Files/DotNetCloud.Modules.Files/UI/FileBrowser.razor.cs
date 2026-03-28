@@ -32,6 +32,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     [Inject] private IVersionService VersionService { get; set; } = default!;
     [Inject] private IShareService ShareService { get; set; } = default!;
     [Inject] private ITagService TagService { get; set; } = default!;
+    [Inject] private ICommentService CommentService { get; set; } = default!;
     [Inject] private IUserManagementService UserManagementService { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
@@ -159,6 +160,12 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     private Guid _versionHistoryNodeId;
     private string? _versionHistoryFileName;
     private List<FileVersionViewModel> _versionHistoryItems = [];
+
+    // Comments panel
+    private bool _showComments;
+    private Guid _commentsNodeId;
+    private string? _commentsFileName;
+    private List<FileCommentViewModel> _commentItems = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -793,6 +800,85 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         await VersionService.LabelVersionAsync(args.VersionId, args.Label, caller);
     }
 
+    // ── Comments panel ───────────────────────────────────────────────────────
+
+    /// <summary>Context menu: Open comments panel for a file.</summary>
+    protected async Task HandleContextComments(Guid nodeId)
+    {
+        _showContextMenu = false;
+        var node = _nodes.FirstOrDefault(n => n.Id == nodeId);
+        if (node is null) return;
+
+        _commentsNodeId = nodeId;
+        _commentsFileName = node.Name;
+        _commentItems = [];
+        _showComments = true;
+        StateHasChanged();
+
+        await LoadCommentsAsync();
+    }
+
+    /// <summary>Hides the comments panel.</summary>
+    protected void HideComments()
+    {
+        _showComments = false;
+        _commentsFileName = null;
+        _commentItems = [];
+    }
+
+    /// <summary>Loads comments for the current node.</summary>
+    private async Task LoadCommentsAsync()
+    {
+        var caller = await GetCallerContextAsync();
+        var comments = await CommentService.GetCommentsAsync(_commentsNodeId, caller);
+        _commentItems = comments.Select(c => new FileCommentViewModel
+        {
+            Id = c.Id,
+            FileNodeId = c.FileNodeId,
+            ParentCommentId = c.ParentCommentId,
+            Content = c.Content,
+            CreatedByUserId = c.CreatedByUserId,
+            AuthorName = c.CreatedByUserId.ToString()[..8],
+            CreatedAt = c.CreatedAt,
+            UpdatedAt = c.UpdatedAt,
+            ReplyCount = c.ReplyCount
+        }).ToList();
+        StateHasChanged();
+    }
+
+    /// <summary>Handles adding a new top-level comment.</summary>
+    protected async Task HandleAddComment(string content)
+    {
+        var caller = await GetCallerContextAsync();
+        await CommentService.AddCommentAsync(_commentsNodeId, content, null, caller);
+        await LoadCommentsAsync();
+    }
+
+    /// <summary>Handles adding a reply to an existing comment.</summary>
+    protected async Task HandleReplyComment((Guid ParentCommentId, string Content) args)
+    {
+        var caller = await GetCallerContextAsync();
+        await CommentService.AddCommentAsync(_commentsNodeId, args.Content, args.ParentCommentId, caller);
+        await LoadCommentsAsync();
+    }
+
+    /// <summary>Handles editing an existing comment.</summary>
+    protected async Task HandleEditComment((Guid CommentId, string Content) args)
+    {
+        var caller = await GetCallerContextAsync();
+        await CommentService.EditCommentAsync(args.CommentId, args.Content, caller);
+        await LoadCommentsAsync();
+    }
+
+    /// <summary>Handles deleting a comment.</summary>
+    protected async Task HandleDeleteComment(Guid commentId)
+    {
+        var caller = await GetCallerContextAsync();
+        await CommentService.DeleteCommentAsync(commentId, caller);
+        _commentItems.RemoveAll(c => c.Id == commentId);
+        StateHasChanged();
+    }
+
     // ── Inline rename ────────────────────────────────────────────────────────
 
     /// <summary>Confirms the inline rename operation.</summary>
@@ -1378,6 +1464,12 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     {
         HidePreview();
         await DownloadNodeAsync(node);
+    }
+
+    /// <summary>Opens the comments panel from file preview.</summary>
+    protected async Task HandlePreviewComments(FileNodeViewModel node)
+    {
+        await HandleContextComments(node.Id);
     }
 
     /// <summary>Closes the editor and triggers file download for the current editor node.</summary>

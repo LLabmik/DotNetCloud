@@ -1,0 +1,177 @@
+@namespace DotNetCloud.Modules.Files.UI
+
+@*
+    Comments side panel — displays threaded comments on a file.
+    Supports adding, replying, editing, and deleting comments.
+    Code-behind: CommentsPanel.razor.cs
+*@
+
+<div class="comments-panel" role="complementary" aria-label="Comments">
+    <div class="comments-panel-header">
+        <h3 class="comments-panel-title">Comments</h3>
+        @if (FileName is not null)
+        {
+            <span class="comments-panel-filename" title="@FileName">@FileName</span>
+        }
+        <button class="btn-icon" @onclick="OnClose" title="Close" aria-label="Close comments">✕</button>
+    </div>
+
+    <div class="comments-panel-compose">
+        <textarea class="comments-compose-input"
+                  placeholder="Add a comment…"
+                  @bind="_newCommentText"
+                  @bind:event="oninput"
+                  @onkeydown="HandleNewCommentKeyDown"
+                  rows="2"
+                  maxlength="5000"
+                  aria-label="New comment"></textarea>
+        <div class="comments-compose-actions">
+            <button class="btn btn-primary btn-sm"
+                    disabled="@(string.IsNullOrWhiteSpace(_newCommentText) || _isSubmitting)"
+                    @onclick="SubmitNewComment">
+                @(_isSubmitting ? "Posting…" : "Post")
+            </button>
+        </div>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="comments-panel-loading">
+            <p>Loading comments…</p>
+        </div>
+    }
+    else if (TopLevelComments.Count == 0)
+    {
+        <div class="comments-panel-empty">
+            <p>No comments yet</p>
+            <p class="text-muted">Be the first to add a comment.</p>
+        </div>
+    }
+    else
+    {
+        <div class="comments-list">
+            @foreach (var comment in TopLevelComments)
+            {
+                <div class="comment-item" id="comment-@comment.Id">
+                    <div class="comment-header">
+                        <span class="comment-author">@comment.AuthorName</span>
+                        <span class="comment-date" title="@comment.CreatedAt.ToString("O")">
+                            @FormatRelativeTime(comment.CreatedAt)
+                        </span>
+                        @if (comment.UpdatedAt.HasValue)
+                        {
+                            <span class="comment-edited" title="Edited @comment.UpdatedAt.Value.ToString("O")">(edited)</span>
+                        }
+                    </div>
+
+                    @if (_editingCommentId == comment.Id)
+                    {
+                        <div class="comment-edit-form">
+                            <textarea class="comments-compose-input"
+                                      @bind="_editCommentText"
+                                      @bind:event="oninput"
+                                      @onkeydown="HandleEditKeyDown"
+                                      rows="2"
+                                      maxlength="5000"></textarea>
+                            <div class="comment-edit-actions">
+                                <button class="btn btn-primary btn-sm"
+                                        disabled="@(string.IsNullOrWhiteSpace(_editCommentText) || _isSubmitting)"
+                                        @onclick="SaveEdit">Save</button>
+                                <button class="btn btn-sm" @onclick="CancelEdit">Cancel</button>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="comment-body">@comment.Content</div>
+                    }
+
+                    <div class="comment-actions">
+                        @if (CanEditOrDelete(comment))
+                        {
+                            <button class="btn-link comment-action-btn" @onclick="() => StartEdit(comment)">Edit</button>
+                            <button class="btn-link comment-action-btn comment-action-btn--danger" @onclick="() => DeleteComment(comment)">Delete</button>
+                        }
+                        <button class="btn-link comment-action-btn" @onclick="() => StartReply(comment)">Reply</button>
+                        @if (comment.ReplyCount > 0)
+                        {
+                            <button class="btn-link comment-action-btn"
+                                    @onclick="() => ToggleReplies(comment.Id)">
+                                @(IsExpanded(comment.Id) ? "Hide" : "Show") @comment.ReplyCount @(comment.ReplyCount == 1 ? "reply" : "replies")
+                            </button>
+                        }
+                    </div>
+
+                    @if (_replyingToId == comment.Id)
+                    {
+                        <div class="comment-reply-form">
+                            <textarea class="comments-compose-input"
+                                      placeholder="Write a reply…"
+                                      @bind="_replyText"
+                                      @bind:event="oninput"
+                                      @onkeydown="HandleReplyKeyDown"
+                                      rows="2"
+                                      maxlength="5000"></textarea>
+                            <div class="comment-edit-actions">
+                                <button class="btn btn-primary btn-sm"
+                                        disabled="@(string.IsNullOrWhiteSpace(_replyText) || _isSubmitting)"
+                                        @onclick="SubmitReply">Reply</button>
+                                <button class="btn btn-sm" @onclick="CancelReply">Cancel</button>
+                            </div>
+                        </div>
+                    }
+
+                    @if (IsExpanded(comment.Id))
+                    {
+                        var replies = GetReplies(comment.Id);
+                        @foreach (var reply in replies)
+                        {
+                            <div class="comment-item comment-reply" id="comment-@reply.Id">
+                                <div class="comment-header">
+                                    <span class="comment-author">@reply.AuthorName</span>
+                                    <span class="comment-date" title="@reply.CreatedAt.ToString("O")">
+                                        @FormatRelativeTime(reply.CreatedAt)
+                                    </span>
+                                    @if (reply.UpdatedAt.HasValue)
+                                    {
+                                        <span class="comment-edited" title="Edited @reply.UpdatedAt.Value.ToString("O")">(edited)</span>
+                                    }
+                                </div>
+
+                                @if (_editingCommentId == reply.Id)
+                                {
+                                    <div class="comment-edit-form">
+                                        <textarea class="comments-compose-input"
+                                                  @bind="_editCommentText"
+                                                  @bind:event="oninput"
+                                                  @onkeydown="HandleEditKeyDown"
+                                                  rows="2"
+                                                  maxlength="5000"></textarea>
+                                        <div class="comment-edit-actions">
+                                            <button class="btn btn-primary btn-sm"
+                                                    disabled="@(string.IsNullOrWhiteSpace(_editCommentText) || _isSubmitting)"
+                                                    @onclick="SaveEdit">Save</button>
+                                            <button class="btn btn-sm" @onclick="CancelEdit">Cancel</button>
+                                        </div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="comment-body">@reply.Content</div>
+                                }
+
+                                <div class="comment-actions">
+                                    @if (CanEditOrDelete(reply))
+                                    {
+                                        <button class="btn-link comment-action-btn" @onclick="() => StartEdit(reply)">Edit</button>
+                                        <button class="btn-link comment-action-btn comment-action-btn--danger" @onclick="() => DeleteComment(reply)">Delete</button>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
