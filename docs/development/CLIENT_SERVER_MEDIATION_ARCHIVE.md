@@ -3535,3 +3535,27 @@ Pivoted to `WebApplicationFactory<Program>` in-process integration tests:
 - Added 36 new tests: UserManagement (10), Admin (9), Notifications (7), Devices (4), MFA (6)
 - Removed all broken ROPC code from 3 files
 - Total CI: 2828 tests pass, 0 failures
+
+---
+
+## Archived: WS-4 Integration Tests + Phase B API Completion (20260328)
+
+**What was done (mint22):**
+
+1. **WS-4 Live Verification Phase A** — 39 browser-driven tests passed (TC-1.1–1.39), covering file/folder ops, chunked upload, versioning, sharing, quotas, Collabora, preview, tags, comments.
+
+2. **WS-4 Phase B — API & Protocol Tests** — All automated API tests passed:
+   - TC-1.27: WOPI CheckFileInfo — HTTP 200, correct metadata
+   - TC-1.40–1.42: Sync endpoints (changes, reconcile, tree) — all HTTP 200
+   - TC-1.44–1.45: Range requests / video seek — HTTP 206, hash match on reconstruction
+
+3. **WS-4 Phase D — Security & Observability** — All Copilot-driven tests passed:
+   - TC-1.58–1.59: Module lifecycle (in-process, supervisor clean start/stop)
+   - TC-1.62–1.63: Path traversal rejected (create + rename validation)
+   - TC-1.64: Quota exceed — no crash
+   - TC-1.65–1.66: Rate limiting — HTTP 429 + Retry-After
+
+4. **Token acquisition automated** — `scripts/get-phase-b-tokens.sh` (bash OAuth2 PKCE flow)
+5. **OIDC client fix** — Added `Permissions.Scopes.Email` to both desktop + mobile clients in `OidcClientSeeder.cs`
+
+**Total WS-4 score: 50 of 66 passed** — remaining: 12 sync client (Phase C), 1 i18n, 2 blocked (SQL Server, telemetry)

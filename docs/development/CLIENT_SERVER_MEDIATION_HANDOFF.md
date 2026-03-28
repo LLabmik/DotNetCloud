@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 20260325 (36 API verification integration tests added; broken ROPC removed)
+Last updated: 20260328 (WS-4 Phase C — Windows sync client testing handoff)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -60,7 +60,7 @@ Archived context:
 - Security audit desktop client validation on `Windows11-TestDNC`: **COMPLETE** (2026-03-23).
 - Security audit closeout + merge validation on `mint22`: **COMPLETE** (2026-03-23).
 - Post-closeout Windows runtime smoke: **COMPLETE** (2026-03-23). 4/4 targeted tests passed; login launch path verified reachable.
-- **Active cycle (20260325):** Added 36 API verification integration tests covering UserManagement, Admin, Notifications, Devices, and MFA endpoints. Removed broken password grant (ROPC) code. Enhanced WebApplicationFactory with admin role claim support. All 2828 CI tests pass.
+- **Active cycle (20260328):** WS-4 live verification 50/66 passed. Phase A (browser, 39), Phase B (API, 6), Phase D (security/observability, 5) done. Phase C (sync client, 12 items) in progress — Windows handoff active.
 
 ## Environment
 
@@ -82,53 +82,137 @@ Archived context:
 
 ## Active Handoff
 
-**Target machine:** N/A (no cross-machine action needed)
-**Status:** COMPLETE (20260325)
+**Target machine:** `Windows11-TestDNC`
+**Status:** READY FOR EXECUTION
+**Context:** WS-4 Live Verification — Phase C Sync Client Tests (Windows)
 
-### WS-4 API Verification — Integration Tests Added
+### Objective
 
-**What was done (mint22):**
+Execute Phase C sync client end-to-end tests on Windows using SyncTray. Record results per test case. **Do NOT run TC-1.48** (that is the Linux test, reserved for `mint-dnc-client`).
 
-1. **36 new integration tests** covering previously untested API endpoints:
-   - `UserManagementEndpointTests` (10 tests): Admin CRUD, list/get/update/delete users, enable/disable, auth enforcement
-   - `AdminEndpointTests` (9 tests): Settings CRUD round-trip, modules list, health check, admin policy enforcement
-   - `NotificationsEndpointTests` (7 tests): Unread list/count, mark-read/mark-all-read, auth enforcement
-   - `DeviceEndpointTests` (4 tests): List devices, delete non-existent, auth enforcement
-   - `MfaEndpointTests` (6 tests): MFA status, TOTP setup, backup codes, auth enforcement
+**Server:** `https://mint22:5443/`
+**Test account:** `testdude@llabmik.net` / `TestMilk01!`
+**OAuth client_id:** `dotnetcloud-desktop`
 
-2. **WebApplicationFactory enhanced** with admin auth support:
-   - `x-test-user-roles` header support in both TestAuthHandler and TestUserStartupFilter
-   - `AddRoleClaims()` maps "Administrator" role to `dnc:perm=admin` claim
-   - New `CreateAdminApiClient(Guid)` convenience method
+### Prerequisites
 
-3. **Broken ROPC code removed** from 3 files:
-   - `AuthServiceExtensions.cs`: Removed `AllowPasswordFlow()`
-   - `OpenIddictEndpointsExtensions.cs`: Removed ~60-line password grant handler
-   - `OidcClientSeeder.cs`: Removed `Permissions.GrantTypes.Password` from both clients
+1. Pull latest `main`:
+   ```powershell
+   cd D:\Repos\dotnetcloud
+   git pull origin main
+   ```
+2. Build SyncTray:
+   ```powershell
+   dotnet build src\Clients\DotNetCloud.Client.SyncTray\DotNetCloud.Client.SyncTray.csproj
+   ```
+   Or use the published installer if already deployed:
+   - Installer ZIP: `artifacts\installers\dotnetcloud-desktop-client-win-x64-0.1.0-alpha.zip`
+   - SyncTray EXE: `%ProgramFiles%\DotNetCloud\DesktopClient\SyncTray\DotNetCloud.Client.SyncTray.exe`
+3. Ensure `mint22:5443` is reachable from Windows11-TestDNC.
+4. Sync directory: `C:\Users\benk\Documents\synctray` (or user-selected during account setup).
 
-4. **All 2828 CI tests pass** (0 failures, 2 platform-gated skips)
+### Architecture Note
 
-**Why ROPC was removed:** Despite correct API calls (`AllowPasswordFlow()`, seeder permissions), OpenIddict refused to list `password` in the discovery document or accept password grants at runtime. Root cause unclear — may be an OpenIddict 7.x regression or configuration ordering issue. Integration tests via `WebApplicationFactory` provide better coverage anyway (in-process, no TLS/cert issues, CI-friendly).
+SyncService has been merged into SyncTray — **single Avalonia process** owns the full sync lifecycle. No separate service, no IPC. On startup SyncTray calls `ISyncContextManager.StartSyncManagerAsync()` directly. Single-instance enforced via file lock.
 
-**Test infrastructure change:**
-- `DotNetCloudWebApplicationFactory` now supports role-based test auth via `x-test-user-roles` header
-- Admin endpoints verified with full `RequireAdmin` policy enforcement
+### Test Execution (11 tests)
 
-**Commit:** `8f5c37d`
+Execute each test and record result as **PASS** or **FAIL (reason)** in the results table at the bottom.
 
-#### WS-4 Status
+---
 
-API endpoint verification is now automated via integration tests. Coverage summary:
-- Health: 3 tests (existing)
-- Auth: 7 tests (existing)
-- User Management: 10 tests (new)
-- Admin: 9 tests (new)
-- Notifications: 7 tests (new)
-- Devices: 4 tests (new)
-- MFA: 6 tests (new)
-- Chat REST: 40+ tests (existing)
-- Files REST: 6+ tests (existing)
-- SignalR: 5 tests (existing)
-- Sync flow: 2 tests (existing)
+#### TC-1.46 — Rapid-save debounce behavior
+1. SyncTray running with synced account + local folder.
+2. Save same file rapidly 10 times (e.g., open in Notepad, Ctrl+S repeatedly with small edits).
+3. Check SyncTray logs: `%LOCALAPPDATA%\DotNetCloud\logs\sync-tray.log`
+4. **Pass:** At most 2 sync cycles triggered (FSW debouncer coalesces events).
 
-Total integration tests: 169 (up from 133)
+#### TC-1.47 — Launch SyncTray on Windows
+1. Run SyncTray (from build output or installed path).
+2. Verify tray icon appears in system tray.
+3. Verify app is responsive (right-click tray icon → menu opens).
+4. **Pass:** Tray icon visible, single-instance lock active (`%LOCALAPPDATA%\DotNetCloud\locks\sync-tray.instance.lock` exists).
+
+#### TC-1.49 — Add account via OAuth2
+1. In SyncTray, click Add Account (tray menu or settings window).
+2. Browser opens to `https://mint22:5443/` login page.
+3. Log in with `testdude@llabmik.net` / `TestMilk01!`.
+4. Complete OAuth2 PKCE consent flow.
+5. **Pass:** Account appears connected in SyncTray UI, sync context created.
+
+#### TC-1.50 — Server-to-local file sync
+1. In browser (`https://mint22:5443/`), upload or create a new file (e.g., `test-server-to-local.txt`).
+2. Wait for SyncTray sync cycle to complete (watch tray icon or logs).
+3. Check local sync folder for the new file.
+4. **Pass:** File appears in local sync folder with correct content.
+
+#### TC-1.51 — Local-to-server file sync
+1. Create a file in the local sync folder (e.g., `test-local-to-server.txt`).
+2. Wait for SyncTray sync cycle.
+3. Check web UI for the new file.
+4. **Pass:** File appears in server web UI with correct content.
+
+#### TC-1.52 — Conflict copy on concurrent edits
+1. Ensure a file exists both locally and on server (e.g., `conflict-test.txt`).
+2. Edit the file on server (web UI) AND locally before sync settles.
+3. Allow sync cycle to run.
+4. **Pass:** Conflict copy created (e.g., `conflict-test (conflict).txt`), both versions preserved.
+
+#### TC-1.53 — Offline queue and reconnect
+1. Disable network on Windows11-TestDNC (airplane mode or disable adapter).
+2. Make local file changes (create/edit files in sync folder).
+3. Re-enable network.
+4. **Pass:** Queued changes sync automatically after reconnect without manual intervention.
+
+#### TC-1.54 — Upload 100MB+ file through sync
+1. Place a file ≥100 MB in the synced folder.
+2. Wait for upload to complete (monitor logs or tray status).
+3. Verify file appears in web UI.
+4. **Pass:** Large file uploads successfully (chunked transfer in logs).
+
+#### TC-1.55 — SyncTray status indicators
+1. Observe idle state (tray icon should show idle/green).
+2. Trigger a sync (add a file) — watch for syncing indicator.
+3. Disconnect network — watch for offline/error indicator.
+4. **Pass:** Tray icon/status reflects idle, syncing, and offline states correctly.
+
+#### TC-1.56 — Selective sync exclusion
+1. In SyncTray settings or create `.syncignore` file in sync root, exclude a folder (e.g., `ExcludedFolder`).
+2. On server, add a file under that folder.
+3. Wait for sync cycle.
+4. **Pass:** Excluded folder content is NOT synced locally.
+
+#### TC-1.57 — Multi-account independent sync
+1. Add a second account in SyncTray (if available — different user or different server).
+2. Make changes in each account's scope.
+3. **Pass:** Both accounts sync independently with no cross-over.
+4. **If only one account available:** Mark as SKIP (environment-gated, requires second account).
+
+### Results Table (Windows)
+
+Fill in after each test:
+
+| Test ID | Test Name | Result | Notes |
+|---------|-----------|--------|-------|
+| TC-1.46 | FSW debounce | | |
+| TC-1.47 | Launch SyncTray Windows | | |
+| TC-1.49 | OAuth2 account add | | |
+| TC-1.50 | Server → local sync | | |
+| TC-1.51 | Local → server sync | | |
+| TC-1.52 | Conflict copy | | |
+| TC-1.53 | Offline queue + reconnect | | |
+| TC-1.54 | 100MB+ file upload | | |
+| TC-1.55 | Status indicators | | |
+| TC-1.56 | Selective sync exclusion | | |
+| TC-1.57 | Multi-account sync | | |
+
+### After Completion
+
+1. Fill in the results table above.
+2. Commit and push:
+   ```powershell
+   git add docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md
+   git commit -m "WS-4 Phase C: Windows sync client test results"
+   git push origin main
+   ```
+3. Relay back to moderator with commit hash so `mint22` can pull results and prepare Linux handoff.
