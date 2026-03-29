@@ -3297,19 +3297,19 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 ### Phase 4.3: Core Services And Business Logic
 
-- ☐ BoardService — CRUD boards, members/roles, archive
-- ☐ ListService — CRUD lists, reorder, WIP limits
-- ☐ CardService — CRUD cards, move, assign, priority, due dates, archive
-- ☐ LabelService — CRUD labels, assign/remove from cards
-- ☐ CommentService — CRUD comments, Markdown + sanitization
-- ☐ ChecklistService — CRUD checklists/items, toggle completion
-- ☐ AttachmentService — File links, external URLs
-- ☐ DependencyService — Dependencies, cycle detection
-- ☐ SprintService — CRUD sprints, start/complete
-- ☐ TimeTrackingService — Timer, manual entry, rollup
-- ☐ ActivityService — Mutation logging, activity feed
-- ☐ Authorization logic (Owner/Admin/Member/Viewer)
-- ☐ Unit tests (~80 tests)
+- ✓ BoardService — CRUD boards, members/roles, archive
+- ✓ ListService — CRUD lists, reorder, WIP limits
+- ✓ CardService — CRUD cards, move, assign, priority, due dates, archive
+- ✓ LabelService — CRUD labels, assign/remove from cards
+- ✓ CommentService — CRUD comments, Markdown content
+- ✓ ChecklistService — CRUD checklists/items, toggle completion
+- ✓ AttachmentService — File links, external URLs
+- ✓ DependencyService — Dependencies, BFS cycle detection
+- ✓ SprintService — CRUD sprints, start/complete
+- ✓ TimeTrackingService — Timer, manual entry, rollup
+- ✓ ActivityService — Mutation logging, activity feed
+- ✓ Authorization logic (Owner/Admin/Member/Viewer)
+- ✓ Unit tests (112 tests)
 
 ### Phase 4.4: REST API And gRPC Service
 

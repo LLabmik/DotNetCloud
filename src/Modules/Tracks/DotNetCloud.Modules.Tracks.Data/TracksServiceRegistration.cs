@@ -1,3 +1,4 @@
+using DotNetCloud.Modules.Tracks.Data.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -13,7 +14,18 @@ public static class TracksServiceRegistration
     /// </summary>
     public static IServiceCollection AddTracksServices(this IServiceCollection services, IConfiguration configuration)
     {
-        // Services will be registered here as they are implemented in Phase 4.3
+        services.AddScoped<ActivityService>();
+        services.AddScoped<BoardService>();
+        services.AddScoped<ListService>();
+        services.AddScoped<CardService>();
+        services.AddScoped<LabelService>();
+        services.AddScoped<CommentService>();
+        services.AddScoped<ChecklistService>();
+        services.AddScoped<AttachmentService>();
+        services.AddScoped<DependencyService>();
+        services.AddScoped<SprintService>();
+        services.AddScoped<TimeTrackingService>();
+
         return services;
     }
 }

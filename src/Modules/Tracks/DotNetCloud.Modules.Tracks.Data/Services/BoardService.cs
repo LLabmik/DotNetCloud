@@ -1,0 +1,353 @@
+using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Errors;
+using DotNetCloud.Core.Events;
+using DotNetCloud.Modules.Tracks.Models;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+
+namespace DotNetCloud.Modules.Tracks.Data.Services;
+
+/// <summary>
+/// Service for managing project boards.
+/// </summary>
+public sealed class BoardService
+{
+    private readonly TracksDbContext _db;
+    private readonly IEventBus _eventBus;
+    private readonly ActivityService _activityService;
+    private readonly ILogger<BoardService> _logger;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="BoardService"/> class.
+    /// </summary>
+    public BoardService(TracksDbContext db, IEventBus eventBus, ActivityService activityService, ILogger<BoardService> logger)
+    {
+        _db = db;
+        _eventBus = eventBus;
+        _activityService = activityService;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Creates a new board and adds the caller as owner.
+    /// </summary>
+    public async Task<BoardDto> CreateBoardAsync(CreateBoardDto dto, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+
+        var board = new Board
+        {
+            Title = dto.Title,
+            Description = dto.Description,
+            Color = dto.Color,
+            OwnerId = caller.UserId
+        };
+
+        board.Members.Add(new BoardMember
+        {
+            BoardId = board.Id,
+            UserId = caller.UserId,
+            Role = BoardMemberRole.Owner,
+            JoinedAt = DateTime.UtcNow
+        });
+
+        _db.Boards.Add(board);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Board {BoardId} '{Title}' created by user {UserId}",
+            board.Id, board.Title, caller.UserId);
+
+        await _activityService.LogAsync(board.Id, caller.UserId, "board.created", "Board", board.Id,
+            $"{{\"title\":\"{board.Title}\"}}", cancellationToken);
+
+        await _eventBus.PublishAsync(new BoardCreatedEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            BoardId = board.Id,
+            Title = board.Title,
+            OwnerId = caller.UserId
+        }, caller, cancellationToken);
+
+        return await GetBoardDtoAsync(board.Id, cancellationToken)
+            ?? throw new System.InvalidOperationException("Board was created but could not be retrieved.");
+    }
+
+    /// <summary>
+    /// Gets a board by ID. Returns null if the caller is not a member.
+    /// </summary>
+    public async Task<BoardDto?> GetBoardAsync(Guid boardId, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        var isMember = await _db.BoardMembers
+            .AnyAsync(m => m.BoardId == boardId && m.UserId == caller.UserId, cancellationToken);
+
+        if (!isMember)
+            return null;
+
+        return await GetBoardDtoAsync(boardId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Lists all boards the caller is a member of.
+    /// </summary>
+    public async Task<IReadOnlyList<BoardDto>> ListBoardsAsync(CallerContext caller, bool includeArchived = false, CancellationToken cancellationToken = default)
+    {
+        var boardIds = await _db.BoardMembers
+            .Where(m => m.UserId == caller.UserId)
+            .Select(m => m.BoardId)
+            .ToListAsync(cancellationToken);
+
+        var query = _db.Boards
+            .AsNoTracking()
+            .Include(b => b.Members)
+            .Include(b => b.Labels)
+            .Include(b => b.Lists)
+            .Where(b => boardIds.Contains(b.Id) && !b.IsDeleted);
+
+        if (!includeArchived)
+            query = query.Where(b => !b.IsArchived);
+
+        var boards = await query
+            .OrderByDescending(b => b.UpdatedAt)
+            .ToListAsync(cancellationToken);
+
+        return boards.Select(MapToDto).ToList();
+    }
+
+    /// <summary>
+    /// Updates an existing board. Requires Admin or Owner role.
+    /// </summary>
+    public async Task<BoardDto> UpdateBoardAsync(Guid boardId, UpdateBoardDto dto, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+
+        await EnsureBoardRoleAsync(boardId, caller.UserId, BoardMemberRole.Admin, cancellationToken);
+
+        var board = await _db.Boards
+            .FirstOrDefaultAsync(b => b.Id == boardId && !b.IsDeleted, cancellationToken)
+            ?? throw new ValidationException(ErrorCodes.BoardNotFound, "Board not found.");
+
+        if (dto.Title is not null) board.Title = dto.Title;
+        if (dto.Description is not null) board.Description = dto.Description;
+        if (dto.Color is not null) board.Color = dto.Color;
+        if (dto.IsArchived.HasValue) board.IsArchived = dto.IsArchived.Value;
+
+        board.UpdatedAt = DateTime.UtcNow;
+        board.ETag = Guid.NewGuid().ToString("N");
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Board {BoardId} updated by user {UserId}", boardId, caller.UserId);
+
+        await _activityService.LogAsync(boardId, caller.UserId, "board.updated", "Board", boardId, null, cancellationToken);
+
+        return await GetBoardDtoAsync(boardId, cancellationToken)
+            ?? throw new System.InvalidOperationException("Board was updated but could not be retrieved.");
+    }
+
+    /// <summary>
+    /// Soft-deletes a board. Requires Owner role.
+    /// </summary>
+    public async Task DeleteBoardAsync(Guid boardId, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        await EnsureBoardRoleAsync(boardId, caller.UserId, BoardMemberRole.Owner, cancellationToken);
+
+        var board = await _db.Boards
+            .FirstOrDefaultAsync(b => b.Id == boardId && !b.IsDeleted, cancellationToken)
+            ?? throw new ValidationException(ErrorCodes.BoardNotFound, "Board not found.");
+
+        board.IsDeleted = true;
+        board.DeletedAt = DateTime.UtcNow;
+        board.UpdatedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Board {BoardId} deleted by user {UserId}", boardId, caller.UserId);
+
+        await _eventBus.PublishAsync(new BoardDeletedEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            BoardId = boardId,
+            DeletedByUserId = caller.UserId,
+            IsPermanent = false
+        }, caller, cancellationToken);
+    }
+
+    /// <summary>
+    /// Adds a member to the board. Requires Admin or Owner role.
+    /// </summary>
+    public async Task<BoardMemberDto> AddMemberAsync(Guid boardId, Guid userId, BoardMemberRole role, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        await EnsureBoardRoleAsync(boardId, caller.UserId, BoardMemberRole.Admin, cancellationToken);
+
+        var exists = await _db.BoardMembers
+            .AnyAsync(m => m.BoardId == boardId && m.UserId == userId, cancellationToken);
+
+        if (exists)
+            throw new ValidationException(ErrorCodes.NotBoardMember, "User is already a board member.");
+
+        // Cannot add another Owner
+        if (role == BoardMemberRole.Owner)
+            throw new ValidationException(ErrorCodes.InsufficientBoardRole, "Cannot add another owner. Transfer ownership instead.");
+
+        var member = new BoardMember
+        {
+            BoardId = boardId,
+            UserId = userId,
+            Role = role,
+            JoinedAt = DateTime.UtcNow
+        };
+
+        _db.BoardMembers.Add(member);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("User {UserId} added to board {BoardId} as {Role} by {CallerId}",
+            userId, boardId, role, caller.UserId);
+
+        await _activityService.LogAsync(boardId, caller.UserId, "member.added", "BoardMember", member.Id,
+            $"{{\"userId\":\"{userId}\",\"role\":\"{role}\"}}", cancellationToken);
+
+        return new BoardMemberDto
+        {
+            UserId = userId,
+            Role = role,
+            JoinedAt = member.JoinedAt
+        };
+    }
+
+    /// <summary>
+    /// Removes a member from the board. Requires Admin or Owner role.
+    /// </summary>
+    public async Task RemoveMemberAsync(Guid boardId, Guid userId, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        await EnsureBoardRoleAsync(boardId, caller.UserId, BoardMemberRole.Admin, cancellationToken);
+
+        var member = await _db.BoardMembers
+            .FirstOrDefaultAsync(m => m.BoardId == boardId && m.UserId == userId, cancellationToken)
+            ?? throw new ValidationException(ErrorCodes.NotBoardMember, "User is not a board member.");
+
+        if (member.Role == BoardMemberRole.Owner)
+            throw new ValidationException(ErrorCodes.InsufficientBoardRole, "Cannot remove the board owner.");
+
+        _db.BoardMembers.Remove(member);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("User {UserId} removed from board {BoardId} by {CallerId}",
+            userId, boardId, caller.UserId);
+
+        await _activityService.LogAsync(boardId, caller.UserId, "member.removed", "BoardMember", member.Id,
+            $"{{\"userId\":\"{userId}\"}}", cancellationToken);
+    }
+
+    /// <summary>
+    /// Updates a member's role. Requires Owner role.
+    /// </summary>
+    public async Task UpdateMemberRoleAsync(Guid boardId, Guid userId, BoardMemberRole newRole, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        await EnsureBoardRoleAsync(boardId, caller.UserId, BoardMemberRole.Owner, cancellationToken);
+
+        var member = await _db.BoardMembers
+            .FirstOrDefaultAsync(m => m.BoardId == boardId && m.UserId == userId, cancellationToken)
+            ?? throw new ValidationException(ErrorCodes.NotBoardMember, "User is not a board member.");
+
+        if (member.Role == BoardMemberRole.Owner && newRole != BoardMemberRole.Owner)
+            throw new ValidationException(ErrorCodes.InsufficientBoardRole, "Cannot demote the board owner.");
+
+        member.Role = newRole;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("User {UserId} role changed to {Role} on board {BoardId} by {CallerId}",
+            userId, newRole, boardId, caller.UserId);
+    }
+
+    /// <summary>
+    /// Gets the caller's role on a board, or null if not a member.
+    /// </summary>
+    public async Task<BoardMemberRole?> GetMemberRoleAsync(Guid boardId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        var member = await _db.BoardMembers
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m => m.BoardId == boardId && m.UserId == userId, cancellationToken);
+
+        return member?.Role;
+    }
+
+    /// <summary>
+    /// Ensures the user has at least the specified role on the board.
+    /// </summary>
+    internal async Task EnsureBoardRoleAsync(Guid boardId, Guid userId, BoardMemberRole minimumRole, CancellationToken cancellationToken = default)
+    {
+        var member = await _db.BoardMembers
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m => m.BoardId == boardId && m.UserId == userId, cancellationToken);
+
+        if (member is null)
+            throw new ValidationException(ErrorCodes.NotBoardMember, "You are not a member of this board.");
+
+        if (member.Role < minimumRole)
+            throw new ValidationException(ErrorCodes.InsufficientBoardRole,
+                $"Requires at least {minimumRole} role. You have {member.Role}.");
+    }
+
+    /// <summary>
+    /// Ensures the user is at least a Viewer on the board.
+    /// </summary>
+    internal async Task EnsureBoardMemberAsync(Guid boardId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        await EnsureBoardRoleAsync(boardId, userId, BoardMemberRole.Viewer, cancellationToken);
+    }
+
+    private async Task<BoardDto?> GetBoardDtoAsync(Guid boardId, CancellationToken cancellationToken)
+    {
+        var board = await _db.Boards
+            .AsNoTracking()
+            .Include(b => b.Members)
+            .Include(b => b.Labels)
+            .Include(b => b.Lists)
+            .FirstOrDefaultAsync(b => b.Id == boardId && !b.IsDeleted, cancellationToken);
+
+        return board is null ? null : MapToDto(board);
+    }
+
+    private static BoardDto MapToDto(Board b) => new()
+    {
+        Id = b.Id,
+        OwnerId = b.OwnerId,
+        Title = b.Title,
+        Description = b.Description,
+        Color = b.Color,
+        IsArchived = b.IsArchived,
+        IsDeleted = b.IsDeleted,
+        DeletedAt = b.DeletedAt,
+        CreatedAt = b.CreatedAt,
+        UpdatedAt = b.UpdatedAt,
+        ETag = b.ETag,
+        Members = b.Members.Select(m => new BoardMemberDto
+        {
+            UserId = m.UserId,
+            Role = m.Role,
+            JoinedAt = m.JoinedAt
+        }).ToList(),
+        Lists = b.Lists.Where(l => !l.IsArchived).OrderBy(l => l.Position).Select(l => new BoardListDto
+        {
+            Id = l.Id,
+            BoardId = l.BoardId,
+            Title = l.Title,
+            Color = l.Color,
+            Position = (int)l.Position,
+            CardLimit = l.CardLimit,
+            CardCount = l.Cards.Count(c => !c.IsDeleted && !c.IsArchived),
+            CreatedAt = l.CreatedAt,
+            UpdatedAt = l.UpdatedAt
+        }).ToList(),
+        Labels = b.Labels.Select(l => new LabelDto
+        {
+            Id = l.Id,
+            BoardId = l.BoardId,
+            Title = l.Title,
+            Color = l.Color
+        }).ToList()
+    };
+}
