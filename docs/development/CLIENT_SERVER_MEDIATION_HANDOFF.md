@@ -61,7 +61,7 @@ Archived context:
 - Security audit closeout + merge validation on `mint22`: **COMPLETE** (2026-03-23).
 - Post-closeout Windows runtime smoke: **COMPLETE** (2026-03-23). 4/4 targeted tests passed; login launch path verified reachable.
 - **Active cycle (20260328–20260329):** WS-4 live verification 58/66 passed. Windows Phase C complete (8 pass, 2 deferred, 1 skip). Linux Phase C complete (10 pass, 1 skip). Both deferred Windows tests (TC-1.52 conflict, TC-1.53 offline) passed on Linux.
-- **Current (20260329):** SyncTray icon enhancement — adding white status symbols to colored circle tray icons. Starting on Windows.
+- **Current (20260329):** SyncTray icon enhancement — symbol overlays implemented on Windows. Ready for Linux verification.
 
 ## Environment
 
@@ -83,89 +83,51 @@ Archived context:
 
 ## Active Handoff
 
-**Target machine:** Windows11-TestDNC
+**Target machine:** mint-dnc-client
 **Status:** READY FOR PICKUP
-**Context:** SyncTray tray icon enhancement — add white status symbols to colored circles
+**Context:** SyncTray tray icon enhancement — verify symbol overlays render correctly on Linux
 
 ### Overview
 
-The current SyncTray tray icons are plain colored circles. We're adding a **white symbol overlay** to each circle so the status is immediately clear without relying solely on color. This also improves accessibility for colorblind users.
+White status symbol overlays have been implemented in `TrayIconManager.cs` on Windows (`290311b`). All 6 tray states now render a white symbol inside the colored circle. This needs visual verification on Linux.
 
-**Full design plan:** `docs/SYNCTRAY_ICON_ENHANCEMENT_PLAN.md`
+### What Was Implemented (commit `290311b`)
 
-### Color + Symbol Mapping (Updated)
+**File modified:** `src/Clients/DotNetCloud.Client.SyncTray/TrayIconManager.cs`
 
-| TrayState | Color | Hex | Symbol | Description |
-|-----------|-------|-----|--------|-------------|
-| **Idle** | Green | `#00B040` | ✓ Checkmark | Two joined line segments |
-| **Syncing** | Blue | `#0078D4` | ⟳ Sync arrows | Two opposing curved/straight arrows |
-| **Paused** | RebeccaPurple | `#663399` | ⏸ Pause bars | Two vertical rectangles |
-| **Error** | Crimson | `#C41E3A` | ✕ X mark | Two crossing diagonal lines |
-| **Conflict** | Dark Orange | `#FF8C00` | ! Exclamation | Vertical line + dot |
-| **Offline** | Grey | `#707070` | — Dash | Horizontal line |
+Changes:
+1. **Paused color** changed from Amber `#FFA500` → RebeccaPurple `#663399` (avoids collision with Conflict orange)
+2. **Symbol drawing pipeline** added between circle rendering and chat badge rendering
+3. **Helper methods** added: `SetWhitePixel()`, `DrawAntiAliasedLine()`, `DrawFilledCircleAt()`
+4. **Per-state symbol methods** added:
+   - `DrawCheckmark()` — ✓ checkmark (Idle/Green)
+   - `DrawSyncArrows()` — ⟳ opposing arrows (Syncing/Blue)
+   - `DrawPauseBars()` — ⏸ two vertical bars (Paused/Purple)
+   - `DrawXMark()` — ✕ crossing diagonals (Error/Crimson)
+   - `DrawExclamation()` — ! stem + dot (Conflict/Orange)
+   - `DrawDash()` — horizontal line (Offline/Grey)
 
-**Color changes from current code:**
-- `Paused` changed from Amber `#FFA500` → RebeccaPurple `#663399` (was too similar to Conflict)
+Rendering order: Circle → Symbol → Chat badge (badge on top of everything).
 
-### Implementation Instructions
+All drawing uses pixel-level anti-aliased compositing with distance-from-segment math. No new dependencies.
 
-**File to modify:** `src/Clients/DotNetCloud.Client.SyncTray/TrayIconManager.cs`
+### Verification Checklist
 
-**Approach:** Pixel-level drawing (extend existing `CreateCircleBitmap()` approach). No new dependencies.
+Build, install, and visually verify all 6 states on Linux:
 
-1. **Update the color mapping** in `CreateStatusIcon()`:
-   - Change `TrayState.Paused` from `(0xFF, 0xA5, 0x00)` to `(0x66, 0x33, 0x99)` (RebeccaPurple)
-
-2. **Add a reusable anti-aliased line helper:**
-   ```csharp
-   private static void DrawAntiAliasedLine(byte[] pixels, int size, float x0, float y0, float x1, float y1, float thickness, byte r, byte g, byte b)
-   ```
-   - Xiaolin Wu's algorithm or distance-from-line approach
-   - Used for: checkmark, X mark, dash, sync arrows
-
-3. **Add a filled-circle-at helper** (for exclamation dot):
-   ```csharp
-   private static void DrawFilledCircleAt(byte[] pixels, int size, float cx, float cy, float radius, byte r, byte g, byte b)
-   ```
-
-4. **Add per-state symbol drawing methods** (all draw white `255,255,255` into the pixel buffer):
-   - `DrawCheckmark()` — two line segments joined at (~12, 20), short leg up-left, long leg up-right, stroke ~2.5px
-   - `DrawSyncArrows()` — two opposing arrows suggesting circular motion, stroke ~2px
-   - `DrawPauseBars()` — two filled rectangles (x=11-13 and x=18-20, y=9-22)
-   - `DrawXMark()` — two diagonal lines crossing at center, stroke ~2.5px
-   - `DrawExclamation()` — vertical line (y=8-18) + dot at (15.5, 22)
-   - `DrawDash()` — single horizontal line at vertical center, stroke ~2.5px
-
-5. **Wire it into `CreateCircleBitmap()`** — call `DrawStatusSymbol()` after the circle loop, before the badge loop. Pass the `TrayState` into the method (add parameter).
-
-6. **Rendering order must be:** Circle → Symbol → Chat badge (badge on top of everything)
-
-### Symbol Rendering Specs
-
-- **Canvas:** 32×32 pixels, circle radius ~14px
-- **Symbol area:** ~50-60% of circle diameter (symbols span roughly 14-16px)
-- **Symbol color:** White `(255, 255, 255)` — premultiplied alpha, composited over the circle color
-- **Anti-aliasing:** Required on all symbol edges for professional appearance
-- **Only draw white pixels inside the circle bounds** (don't bleed outside the circle edge)
-
-### Testing Checklist
-
-After implementation, visually verify all 6 states. To trigger each state:
-- **Idle:** Normal state after sync completes
-- **Syncing:** Drop a file in the sync folder
-- **Paused:** Pause sync from tray menu
-- **Error:** Temporarily break server connectivity (wrong URL in config)
-- **Conflict:** Modify same file on both client and server between syncs
-- **Offline:** Stop the SyncService
-
-Verify:
 - ☐ All 6 symbols render clearly at 32×32
 - ☐ Symbols are centered within the circle
 - ☐ Anti-aliasing looks clean (no jagged edges)
 - ☐ Chat badge (if present) renders on top of symbols
 - ☐ Colors are correct (especially Paused = purple, not amber)
 - ☐ No visual artifacts or bleeding outside circle
+- ☐ 76 SyncTray tests still pass on Linux
 
-### After Completion
+### How to Trigger Each State
 
-Commit, push, and provide relay message for `mint-dnc-client` to verify the same icons on Linux.
+- **Idle:** Normal state after sync completes
+- **Syncing:** Drop a file in the sync folder
+- **Paused:** Pause sync from tray menu
+- **Error:** Temporarily break server connectivity (wrong URL in config)
+- **Conflict:** Modify same file on both client and server between syncs
+- **Offline:** Stop the SyncService
