@@ -206,4 +206,80 @@ public class TracksEventTests
         var ids = events.Select(e => e.EventId).ToHashSet();
         Assert.AreEqual(events.Length, ids.Count, "All events should have unique EventIds");
     }
+
+    // ── Planning Poker Events ──
+
+    [TestMethod]
+    public void PokerSessionStartedEvent_ImplementsIEvent()
+    {
+        var e = new PokerSessionStartedEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            SessionId = Guid.NewGuid(),
+            CardId = Guid.NewGuid(),
+            BoardId = Guid.NewGuid(),
+            StartedByUserId = Guid.NewGuid()
+        };
+
+        Assert.IsInstanceOfType(e, typeof(IEvent));
+        Assert.AreNotEqual(Guid.Empty, e.SessionId);
+        Assert.AreNotEqual(Guid.Empty, e.CardId);
+    }
+
+    [TestMethod]
+    public void PokerSessionRevealedEvent_ImplementsIEvent()
+    {
+        var e = new PokerSessionRevealedEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            SessionId = Guid.NewGuid(),
+            CardId = Guid.NewGuid(),
+            BoardId = Guid.NewGuid(),
+            VoteCount = 5
+        };
+
+        Assert.IsInstanceOfType(e, typeof(IEvent));
+        Assert.AreEqual(5, e.VoteCount);
+    }
+
+    [TestMethod]
+    public void PokerSessionCompletedEvent_ImplementsIEvent()
+    {
+        var e = new PokerSessionCompletedEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            SessionId = Guid.NewGuid(),
+            CardId = Guid.NewGuid(),
+            BoardId = Guid.NewGuid(),
+            AcceptedEstimate = "8",
+            StoryPoints = 8,
+            AcceptedByUserId = Guid.NewGuid()
+        };
+
+        Assert.IsInstanceOfType(e, typeof(IEvent));
+        Assert.AreEqual("8", e.AcceptedEstimate);
+        Assert.AreEqual(8, e.StoryPoints);
+    }
+
+    [TestMethod]
+    public void PokerSessionCompletedEvent_NonNumericEstimate_StoryPointsNull()
+    {
+        var e = new PokerSessionCompletedEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            SessionId = Guid.NewGuid(),
+            CardId = Guid.NewGuid(),
+            BoardId = Guid.NewGuid(),
+            AcceptedEstimate = "XL",
+            StoryPoints = null,
+            AcceptedByUserId = Guid.NewGuid()
+        };
+
+        Assert.IsNull(e.StoryPoints);
+        Assert.AreEqual("XL", e.AcceptedEstimate);
+    }
 }

@@ -1,0 +1,33 @@
+{
+  "id": "dotnetcloud.tracks",
+  "name": "Tracks",
+  "version": "1.0.0",
+  "description": "Kanban boards and project management with lists, cards, labels, sprints, time tracking, dependencies, and integrated planning poker.",
+  "author": "DotNetCloud",
+  "requiredCapabilities": [
+    "INotificationService",
+    "IUserDirectory",
+    "ICurrentUserContext",
+    "IAuditLogger",
+    "IRealtimeBroadcaster"
+  ],
+  "publishedEvents": [
+    "BoardCreatedEvent",
+    "BoardDeletedEvent",
+    "CardCreatedEvent",
+    "CardMovedEvent",
+    "CardUpdatedEvent",
+    "CardDeletedEvent",
+    "CardAssignedEvent",
+    "CardCommentAddedEvent",
+    "SprintStartedEvent",
+    "SprintCompletedEvent",
+    "PokerSessionStartedEvent",
+    "PokerSessionRevealedEvent",
+    "PokerSessionCompletedEvent"
+  ],
+  "subscribedEvents": [
+    "FileDeletedEvent"
+  ],
+  "minCoreVersion": "1.0.0"
+}

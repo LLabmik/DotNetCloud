@@ -327,6 +327,18 @@ public static class ErrorCodes
     /// <summary>Error code for invalid time entry (end before start).</summary>
     public const string InvalidTimeEntry = "TRACKS_INVALID_TIME_ENTRY";
 
+    /// <summary>Error code for poker session not found.</summary>
+    public const string PokerSessionNotFound = "TRACKS_POKER_SESSION_NOT_FOUND";
+
+    /// <summary>Error code for attempting to vote when session is not in Voting state.</summary>
+    public const string PokerSessionNotVoting = "TRACKS_POKER_NOT_VOTING";
+
+    /// <summary>Error code for card already having an active poker session.</summary>
+    public const string PokerSessionAlreadyActive = "TRACKS_POKER_ALREADY_ACTIVE";
+
+    /// <summary>Error code for invalid poker estimate value.</summary>
+    public const string PokerInvalidEstimate = "TRACKS_POKER_INVALID_ESTIMATE";
+
     // Import / Migration
     /// <summary>Error code for unsupported import data type.</summary>
     public const string ImportUnsupportedDataType = "IMPORT_UNSUPPORTED_DATA_TYPE";

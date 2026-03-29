@@ -1,0 +1,235 @@
+syntax = "proto3";
+
+option csharp_namespace = "DotNetCloud.Modules.Tracks.Host.Protos";
+
+package dotnetcloud.tracks;
+
+// TracksGrpcService: gRPC service for the Tracks module.
+// The core server calls these RPCs to interact with the Tracks module.
+service TracksGrpcService {
+  // Creates a new board.
+  rpc CreateBoard (CreateBoardRequest) returns (BoardResponse);
+
+  // Gets a board by ID.
+  rpc GetBoard (GetBoardRequest) returns (BoardResponse);
+
+  // Lists boards for a user.
+  rpc ListBoards (ListBoardsRequest) returns (ListBoardsResponse);
+
+  // Creates a new list in a board.
+  rpc CreateList (CreateListRequest) returns (ListResponse);
+
+  // Creates a new card in a list.
+  rpc CreateCard (CreateCardRequest) returns (CardResponse);
+
+  // Gets a card by ID.
+  rpc GetCard (GetCardRequest) returns (CardResponse);
+
+  // Moves a card to a different list or position.
+  rpc MoveCard (MoveCardRequest) returns (CardResponse);
+
+  // Starts a planning poker session for a card.
+  rpc StartPokerSession (StartPokerSessionRequest) returns (PokerSessionResponse);
+
+  // Submits a vote in a poker session.
+  rpc SubmitPokerVote (SubmitPokerVoteRequest) returns (PokerSessionResponse);
+
+  // Reveals all votes in a poker session.
+  rpc RevealPokerSession (RevealPokerSessionRequest) returns (PokerSessionResponse);
+
+  // Accepts an estimate and completes a poker session.
+  rpc AcceptPokerEstimate (AcceptPokerEstimateRequest) returns (PokerSessionResponse);
+}
+
+// --- CreateBoard ---
+
+message CreateBoardRequest {
+  string user_id = 1;
+  string title = 2;
+  string description = 3;
+  string color = 4;
+}
+
+message BoardResponse {
+  bool success = 1;
+  string error_message = 2;
+  BoardMessage board = 3;
+}
+
+// --- GetBoard ---
+
+message GetBoardRequest {
+  string board_id = 1;
+  string user_id = 2;
+}
+
+// --- ListBoards ---
+
+message ListBoardsRequest {
+  string user_id = 1;
+  int32 skip = 2;
+  int32 take = 3;
+  bool include_archived = 4;
+}
+
+message ListBoardsResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated BoardMessage boards = 3;
+}
+
+// --- CreateList ---
+
+message CreateListRequest {
+  string board_id = 1;
+  string user_id = 2;
+  string title = 3;
+  string color = 4;
+}
+
+message ListResponse {
+  bool success = 1;
+  string error_message = 2;
+  BoardListMessage list = 3;
+}
+
+// --- CreateCard ---
+
+message CreateCardRequest {
+  string list_id = 1;
+  string user_id = 2;
+  string title = 3;
+  string description = 4;
+  string priority = 5;        // None, Low, Medium, High, Critical
+  string due_date = 6;        // ISO 8601 timestamp or empty
+  int32 story_points = 7;
+}
+
+message CardResponse {
+  bool success = 1;
+  string error_message = 2;
+  CardMessage card = 3;
+}
+
+// --- GetCard ---
+
+message GetCardRequest {
+  string card_id = 1;
+  string user_id = 2;
+}
+
+// --- MoveCard ---
+
+message MoveCardRequest {
+  string card_id = 1;
+  string user_id = 2;
+  string target_list_id = 3;
+  double position = 4;
+}
+
+// --- Shared Messages ---
+
+message BoardMessage {
+  string id = 1;
+  string owner_id = 2;
+  string title = 3;
+  string description = 4;
+  string color = 5;
+  bool is_archived = 6;
+  string etag = 7;
+  string created_at = 8;      // ISO 8601 timestamp
+  string updated_at = 9;
+  int32 list_count = 10;
+  int32 card_count = 11;
+  int32 member_count = 12;
+}
+
+message BoardListMessage {
+  string id = 1;
+  string board_id = 2;
+  string title = 3;
+  double position = 4;
+  string color = 5;
+  int32 card_limit = 6;       // 0 = no limit
+  bool is_archived = 7;
+  string created_at = 8;
+  string updated_at = 9;
+  int32 card_count = 10;
+}
+
+message CardMessage {
+  string id = 1;
+  string list_id = 2;
+  string title = 3;
+  string description = 4;
+  double position = 5;
+  string due_date = 6;
+  string priority = 7;
+  int32 story_points = 8;
+  bool is_archived = 9;
+  string created_by_user_id = 10;
+  string etag = 11;
+  string created_at = 12;
+  string updated_at = 13;
+  int32 comment_count = 14;
+  int32 attachment_count = 15;
+  int32 checklist_item_count = 16;
+  int32 checklist_completed_count = 17;
+  repeated string assigned_user_ids = 18;
+  repeated string label_ids = 19;
+}
+
+// --- Planning Poker ---
+
+message StartPokerSessionRequest {
+  string card_id = 1;
+  string user_id = 2;
+  string scale = 3;            // Fibonacci, TShirt, PowersOfTwo, Custom
+  string custom_scale_values = 4;  // JSON array, only when scale=Custom
+}
+
+message SubmitPokerVoteRequest {
+  string session_id = 1;
+  string user_id = 2;
+  string estimate = 3;
+}
+
+message RevealPokerSessionRequest {
+  string session_id = 1;
+  string user_id = 2;
+}
+
+message AcceptPokerEstimateRequest {
+  string session_id = 1;
+  string user_id = 2;
+  string accepted_estimate = 3;
+  int32 story_points = 4;     // 0 = not set
+}
+
+message PokerSessionResponse {
+  bool success = 1;
+  string error_message = 2;
+  PokerSessionMessage session = 3;
+}
+
+message PokerSessionMessage {
+  string id = 1;
+  string card_id = 2;
+  string board_id = 3;
+  string created_by_user_id = 4;
+  string scale = 5;
+  string custom_scale_values = 6;
+  string status = 7;
+  string accepted_estimate = 8;
+  int32 round = 9;
+  string created_at = 10;
+  string updated_at = 11;
+  repeated PokerVoteMessage votes = 12;
+}
+
+message PokerVoteMessage {
+  string user_id = 1;
+  string estimate = 2;        // Empty until revealed
+  int32 round = 3;
+  string voted_at = 4;
+}

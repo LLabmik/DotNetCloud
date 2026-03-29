@@ -3289,10 +3289,11 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 ### Phase 4.2: Data Model And Module Scaffold
 
-- ☐ `DotNetCloud.Modules.Tracks/` — TracksModule.cs, TracksModuleManifest.cs
-- ☐ `DotNetCloud.Modules.Tracks.Data/` — TracksDbContext, 16 entity models, EF configurations, initial migration
-- ☐ `DotNetCloud.Modules.Tracks.Host/` — gRPC host scaffold
-- ☐ Solution integration (DotNetCloud.sln)
+- ✓ `DotNetCloud.Modules.Tracks/` — TracksModule.cs, TracksModuleManifest.cs
+- ✓ `DotNetCloud.Modules.Tracks.Data/` — TracksDbContext, 16 entity models, EF configurations, initial migration
+- ✓ `DotNetCloud.Modules.Tracks.Host/` — gRPC host scaffold
+- ✓ Solution integration (DotNetCloud.sln)
+- ✓ Planning poker: PokerSession + PokerVote entities, DTOs, events, EF configs, gRPC RPCs, error codes
 
 ### Phase 4.3: Core Services And Business Logic
 

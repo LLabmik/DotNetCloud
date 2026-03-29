@@ -324,3 +324,109 @@ public sealed record SprintCompletedEvent : IEvent
     /// </summary>
     public int TotalCardCount { get; init; }
 }
+
+/// <summary>
+/// Raised when a planning poker session is started for a card.
+/// </summary>
+public sealed record PokerSessionStartedEvent : IEvent
+{
+    /// <inheritdoc />
+    public required Guid EventId { get; init; }
+
+    /// <inheritdoc />
+    public required DateTime CreatedAt { get; init; }
+
+    /// <summary>
+    /// The ID of the poker session.
+    /// </summary>
+    public required Guid SessionId { get; init; }
+
+    /// <summary>
+    /// The card being estimated.
+    /// </summary>
+    public required Guid CardId { get; init; }
+
+    /// <summary>
+    /// The board the card belongs to.
+    /// </summary>
+    public required Guid BoardId { get; init; }
+
+    /// <summary>
+    /// The user who started the session.
+    /// </summary>
+    public required Guid StartedByUserId { get; init; }
+}
+
+/// <summary>
+/// Raised when votes in a poker session are revealed.
+/// </summary>
+public sealed record PokerSessionRevealedEvent : IEvent
+{
+    /// <inheritdoc />
+    public required Guid EventId { get; init; }
+
+    /// <inheritdoc />
+    public required DateTime CreatedAt { get; init; }
+
+    /// <summary>
+    /// The ID of the poker session.
+    /// </summary>
+    public required Guid SessionId { get; init; }
+
+    /// <summary>
+    /// The card being estimated.
+    /// </summary>
+    public required Guid CardId { get; init; }
+
+    /// <summary>
+    /// The board the card belongs to.
+    /// </summary>
+    public required Guid BoardId { get; init; }
+
+    /// <summary>
+    /// Number of votes cast.
+    /// </summary>
+    public int VoteCount { get; init; }
+}
+
+/// <summary>
+/// Raised when a poker session is completed and an estimate is accepted.
+/// </summary>
+public sealed record PokerSessionCompletedEvent : IEvent
+{
+    /// <inheritdoc />
+    public required Guid EventId { get; init; }
+
+    /// <inheritdoc />
+    public required DateTime CreatedAt { get; init; }
+
+    /// <summary>
+    /// The ID of the poker session.
+    /// </summary>
+    public required Guid SessionId { get; init; }
+
+    /// <summary>
+    /// The card that was estimated.
+    /// </summary>
+    public required Guid CardId { get; init; }
+
+    /// <summary>
+    /// The board the card belongs to.
+    /// </summary>
+    public required Guid BoardId { get; init; }
+
+    /// <summary>
+    /// The accepted estimate value.
+    /// </summary>
+    public required string AcceptedEstimate { get; init; }
+
+    /// <summary>
+    /// The story points applied to the card, if numeric.
+    /// </summary>
+    public int? StoryPoints { get; init; }
+
+    /// <summary>
+    /// The user who accepted the estimate.
+    /// </summary>
+    public required Guid AcceptedByUserId { get; init; }
+}

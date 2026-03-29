@@ -1010,3 +1010,183 @@ public sealed record CreateTimeEntryDto
     /// </summary>
     public string? Description { get; init; }
 }
+
+// ─────────────────────────────────────────────
+// Planning Poker
+// ─────────────────────────────────────────────
+
+/// <summary>
+/// Status of a planning poker session.
+/// </summary>
+public enum PokerSessionStatus
+{
+    /// <summary>Voting is open — estimates are hidden.</summary>
+    Voting,
+
+    /// <summary>Votes have been revealed to all participants.</summary>
+    Revealed,
+
+    /// <summary>Session completed — an estimate was accepted and applied.</summary>
+    Completed,
+
+    /// <summary>Session was cancelled without accepting an estimate.</summary>
+    Cancelled
+}
+
+/// <summary>
+/// Predefined estimation scales for planning poker.
+/// </summary>
+public enum PokerScale
+{
+    /// <summary>Fibonacci sequence: 0, 1, 2, 3, 5, 8, 13, 21, 34.</summary>
+    Fibonacci,
+
+    /// <summary>T-shirt sizes: XS, S, M, L, XL, XXL.</summary>
+    TShirt,
+
+    /// <summary>Powers of two: 0, 1, 2, 4, 8, 16, 32.</summary>
+    PowersOfTwo,
+
+    /// <summary>Custom scale defined by the session creator.</summary>
+    Custom
+}
+
+/// <summary>
+/// Represents a planning poker estimation session for a card.
+/// </summary>
+public sealed record PokerSessionDto
+{
+    /// <summary>
+    /// Unique identifier for the session.
+    /// </summary>
+    public required Guid Id { get; init; }
+
+    /// <summary>
+    /// The card being estimated.
+    /// </summary>
+    public required Guid CardId { get; init; }
+
+    /// <summary>
+    /// The board the card belongs to.
+    /// </summary>
+    public required Guid BoardId { get; init; }
+
+    /// <summary>
+    /// The user who started the session.
+    /// </summary>
+    public required Guid CreatedByUserId { get; init; }
+
+    /// <summary>
+    /// The estimation scale used.
+    /// </summary>
+    public required PokerScale Scale { get; init; }
+
+    /// <summary>
+    /// Custom scale values when Scale is Custom (JSON array of strings).
+    /// </summary>
+    public string? CustomScaleValues { get; init; }
+
+    /// <summary>
+    /// Current session status.
+    /// </summary>
+    public required PokerSessionStatus Status { get; init; }
+
+    /// <summary>
+    /// The accepted estimate (set when Status is Completed).
+    /// </summary>
+    public string? AcceptedEstimate { get; init; }
+
+    /// <summary>
+    /// Current round number (increments on re-vote).
+    /// </summary>
+    public required int Round { get; init; }
+
+    /// <summary>
+    /// Votes cast in the current session. Empty until votes are revealed.
+    /// </summary>
+    public IReadOnlyList<PokerVoteDto> Votes { get; init; } = [];
+
+    /// <summary>
+    /// Timestamp when the session was created.
+    /// </summary>
+    public required DateTime CreatedAt { get; init; }
+
+    /// <summary>
+    /// Timestamp when the session was last updated.
+    /// </summary>
+    public required DateTime UpdatedAt { get; init; }
+}
+
+/// <summary>
+/// Represents a single vote in a planning poker session.
+/// </summary>
+public sealed record PokerVoteDto
+{
+    /// <summary>
+    /// The user who cast the vote.
+    /// </summary>
+    public required Guid UserId { get; init; }
+
+    /// <summary>
+    /// The voter's display name.
+    /// </summary>
+    public string? DisplayName { get; init; }
+
+    /// <summary>
+    /// The estimate value (e.g., "5", "M", "?").
+    /// </summary>
+    public required string Estimate { get; init; }
+
+    /// <summary>
+    /// Timestamp when the vote was cast.
+    /// </summary>
+    public required DateTime VotedAt { get; init; }
+
+    /// <summary>
+    /// Which round this vote belongs to.
+    /// </summary>
+    public required int Round { get; init; }
+}
+
+/// <summary>
+/// Request DTO for starting a planning poker session.
+/// </summary>
+public sealed record CreatePokerSessionDto
+{
+    /// <summary>
+    /// The estimation scale to use.
+    /// </summary>
+    public required PokerScale Scale { get; init; }
+
+    /// <summary>
+    /// Custom scale values when Scale is Custom (e.g., ["XS","S","M","L","XL"]).
+    /// </summary>
+    public string? CustomScaleValues { get; init; }
+}
+
+/// <summary>
+/// Request DTO for submitting a vote in a planning poker session.
+/// </summary>
+public sealed record SubmitPokerVoteDto
+{
+    /// <summary>
+    /// The estimate value (e.g., "5", "M", "?").
+    /// </summary>
+    public required string Estimate { get; init; }
+}
+
+/// <summary>
+/// Request DTO for accepting an estimate and completing a poker session.
+/// </summary>
+public sealed record AcceptPokerEstimateDto
+{
+    /// <summary>
+    /// The accepted estimate value to apply to the card's StoryPoints.
+    /// </summary>
+    public required string AcceptedEstimate { get; init; }
+
+    /// <summary>
+    /// The story points value to set on the card. Null for non-numeric scales.
+    /// </summary>
+    public int? StoryPoints { get; init; }
+}

@@ -622,4 +622,141 @@ public class TracksDtosTests
         Assert.AreEqual(2000, moved.Position);
         Assert.AreEqual("Original", moved.Title);
     }
+
+    // ── Planning Poker ──
+
+    [TestMethod]
+    public void PokerSessionStatus_HasExpectedValues()
+    {
+        Assert.AreEqual(0, (int)PokerSessionStatus.Voting);
+        Assert.AreEqual(1, (int)PokerSessionStatus.Revealed);
+        Assert.AreEqual(2, (int)PokerSessionStatus.Completed);
+        Assert.AreEqual(3, (int)PokerSessionStatus.Cancelled);
+    }
+
+    [TestMethod]
+    public void PokerScale_HasExpectedValues()
+    {
+        Assert.AreEqual(0, (int)PokerScale.Fibonacci);
+        Assert.AreEqual(1, (int)PokerScale.TShirt);
+        Assert.AreEqual(2, (int)PokerScale.PowersOfTwo);
+        Assert.AreEqual(3, (int)PokerScale.Custom);
+    }
+
+    [TestMethod]
+    public void PokerSessionDto_CanBeCreated_WithRequiredProperties()
+    {
+        var session = new PokerSessionDto
+        {
+            Id = Guid.NewGuid(),
+            CardId = Guid.NewGuid(),
+            BoardId = Guid.NewGuid(),
+            CreatedByUserId = Guid.NewGuid(),
+            Scale = PokerScale.Fibonacci,
+            Status = PokerSessionStatus.Voting,
+            Round = 1,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        Assert.AreNotEqual(Guid.Empty, session.Id);
+        Assert.AreEqual(PokerScale.Fibonacci, session.Scale);
+        Assert.AreEqual(PokerSessionStatus.Voting, session.Status);
+        Assert.AreEqual(1, session.Round);
+        Assert.IsNull(session.AcceptedEstimate);
+        Assert.IsNull(session.CustomScaleValues);
+    }
+
+    [TestMethod]
+    public void PokerSessionDto_Votes_DefaultToEmpty()
+    {
+        var session = new PokerSessionDto
+        {
+            Id = Guid.NewGuid(),
+            CardId = Guid.NewGuid(),
+            BoardId = Guid.NewGuid(),
+            CreatedByUserId = Guid.NewGuid(),
+            Scale = PokerScale.Fibonacci,
+            Status = PokerSessionStatus.Voting,
+            Round = 1,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        Assert.AreEqual(0, session.Votes.Count);
+    }
+
+    [TestMethod]
+    public void PokerVoteDto_CanBeCreated_WithRequiredProperties()
+    {
+        var vote = new PokerVoteDto
+        {
+            UserId = Guid.NewGuid(),
+            Estimate = "8",
+            VotedAt = DateTime.UtcNow,
+            Round = 1
+        };
+
+        Assert.AreEqual("8", vote.Estimate);
+        Assert.AreEqual(1, vote.Round);
+        Assert.IsNull(vote.DisplayName);
+    }
+
+    [TestMethod]
+    public void CreatePokerSessionDto_CanBeCreated()
+    {
+        var dto = new CreatePokerSessionDto
+        {
+            Scale = PokerScale.TShirt,
+            CustomScaleValues = null
+        };
+
+        Assert.AreEqual(PokerScale.TShirt, dto.Scale);
+    }
+
+    [TestMethod]
+    public void CreatePokerSessionDto_CustomScale_IncludesValues()
+    {
+        var dto = new CreatePokerSessionDto
+        {
+            Scale = PokerScale.Custom,
+            CustomScaleValues = "[\"XS\",\"S\",\"M\",\"L\",\"XL\"]"
+        };
+
+        Assert.AreEqual(PokerScale.Custom, dto.Scale);
+        Assert.IsNotNull(dto.CustomScaleValues);
+    }
+
+    [TestMethod]
+    public void SubmitPokerVoteDto_CanBeCreated()
+    {
+        var dto = new SubmitPokerVoteDto { Estimate = "13" };
+        Assert.AreEqual("13", dto.Estimate);
+    }
+
+    [TestMethod]
+    public void AcceptPokerEstimateDto_CanBeCreated()
+    {
+        var dto = new AcceptPokerEstimateDto
+        {
+            AcceptedEstimate = "8",
+            StoryPoints = 8
+        };
+
+        Assert.AreEqual("8", dto.AcceptedEstimate);
+        Assert.AreEqual(8, dto.StoryPoints);
+    }
+
+    [TestMethod]
+    public void AcceptPokerEstimateDto_NonNumericScale_StoryPointsNull()
+    {
+        var dto = new AcceptPokerEstimateDto
+        {
+            AcceptedEstimate = "L",
+            StoryPoints = null
+        };
+
+        Assert.AreEqual("L", dto.AcceptedEstimate);
+        Assert.IsNull(dto.StoryPoints);
+    }
 }
