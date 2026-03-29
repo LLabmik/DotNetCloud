@@ -87,7 +87,7 @@
 | Phase 3.6 | 4 | 4 | 0 | 0 |
 | Phase 3.7 | 5 | 5 | 0 | 0 |
 | Phase 3.8 | 4 | 4 | 0 | 0 |
-| Phase 4.1 | 5 | 0 | 0 | 5 |
+| Phase 4.1 | 5 | 5 | 0 | 0 |
 | Phase 4.2 | 4 | 0 | 0 | 4 |
 | Phase 4.3 | 13 | 0 | 0 | 13 |
 | Phase 4.4 | 16 | 0 | 0 | 16 |
@@ -1421,15 +1421,15 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 > **Detailed plan:** `docs/PHASE_4_IMPLEMENTATION_PLAN.md`
 
 ### Section: Phase 4.1 - Architecture And Contracts
-**STATUS:** not started
+**STATUS:** completed ✅
 **DELIVERABLES:**
-- ☐ `TracksDto.cs` — DTOs for Board, BoardList, Card, Label, CardAssignment, CardComment, CardAttachment, Sprint, TimeEntry, CardDependency
-- ☐ `TracksEvents.cs` — Domain events (BoardCreated, BoardDeleted, CardCreated, CardMoved, CardUpdated, CardDeleted, CardAssigned, CardCommentAdded, SprintStarted, SprintCompleted)
-- ☐ `ITracksDirectory` capability interface (Public tier)
-- ☐ Error codes: `TRACKS_` domain codes in `ErrorCodes.cs`
-- ☐ Unit tests for all new DTOs and events
+- ✓ `TracksDtos.cs` — 21 DTO records: BoardDto, BoardMemberDto, BoardListDto, CardDto, CardAssignmentDto, LabelDto, CardCommentDto, CardAttachmentDto, CardChecklistDto, ChecklistItemDto, CardDependencyDto, SprintDto, TimeEntryDto, BoardActivityDto + 7 request DTOs (Create/Update Board/Card/List/Label/Sprint/TimeEntry, MoveCard) + 4 enums (BoardMemberRole, CardPriority, CardDependencyType, SprintStatus)
+- ✓ `TracksEvents.cs` — 10 domain events: BoardCreatedEvent, BoardDeletedEvent, CardCreatedEvent, CardMovedEvent, CardUpdatedEvent, CardDeletedEvent, CardAssignedEvent, CardCommentAddedEvent, SprintStartedEvent, SprintCompletedEvent
+- ✓ `ITracksDirectory` capability interface (Public tier) with board/card lookup + CardSummary record
+- ✓ 15 `TRACKS_` error codes in `ErrorCodes.cs` (board/list/card/label/sprint/comment/checklist/time entry not found, role checks, WIP limit, dependency cycle, sprint transitions)
+- ✓ 49 unit tests: 34 DTO tests, 10 event tests, 5 capability tests — all passing (246 total Core tests, 0 failures)
 
-**Notes:** Adds Tracks contracts to DotNetCloud.Core following the same pattern as Contacts/Calendar/Notes DTOs and events.
+**Notes:** Phase 4.1 complete. All Tracks contracts added to DotNetCloud.Core following established PIM module patterns. Tracks is an optional module — no hard dependencies from Core. ITracksDirectory provides both board and card lookups for cross-module integration. Ready for Phase 4.2 (Data Model & Module Scaffold).
 
 ---
 

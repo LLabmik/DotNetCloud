@@ -281,6 +281,52 @@ public static class ErrorCodes
     /// <summary>Error code for unsafe Markdown content detected.</summary>
     public const string NoteUnsafeContent = "NOTE_UNSAFE_CONTENT";
 
+    // Tracks (Project Management)
+    /// <summary>Error code for board not found.</summary>
+    public const string BoardNotFound = "TRACKS_BOARD_NOT_FOUND";
+
+    /// <summary>Error code for board list not found.</summary>
+    public const string BoardListNotFound = "TRACKS_LIST_NOT_FOUND";
+
+    /// <summary>Error code for card not found.</summary>
+    public const string CardNotFound = "TRACKS_CARD_NOT_FOUND";
+
+    /// <summary>Error code for label not found.</summary>
+    public const string LabelNotFound = "TRACKS_LABEL_NOT_FOUND";
+
+    /// <summary>Error code for sprint not found.</summary>
+    public const string SprintNotFound = "TRACKS_SPRINT_NOT_FOUND";
+
+    /// <summary>Error code for comment not found.</summary>
+    public const string CommentNotFound = "TRACKS_COMMENT_NOT_FOUND";
+
+    /// <summary>Error code for checklist not found.</summary>
+    public const string ChecklistNotFound = "TRACKS_CHECKLIST_NOT_FOUND";
+
+    /// <summary>Error code for time entry not found.</summary>
+    public const string TimeEntryNotFound = "TRACKS_TIME_ENTRY_NOT_FOUND";
+
+    /// <summary>Error code for user not a member of the board.</summary>
+    public const string NotBoardMember = "TRACKS_NOT_BOARD_MEMBER";
+
+    /// <summary>Error code for insufficient board role.</summary>
+    public const string InsufficientBoardRole = "TRACKS_INSUFFICIENT_ROLE";
+
+    /// <summary>Error code for WIP limit exceeded on a list.</summary>
+    public const string WipLimitExceeded = "TRACKS_WIP_LIMIT_EXCEEDED";
+
+    /// <summary>Error code for card dependency cycle detected.</summary>
+    public const string DependencyCycleDetected = "TRACKS_DEPENDENCY_CYCLE";
+
+    /// <summary>Error code for board already has an active sprint.</summary>
+    public const string ActiveSprintExists = "TRACKS_ACTIVE_SPRINT_EXISTS";
+
+    /// <summary>Error code for invalid sprint state transition.</summary>
+    public const string InvalidSprintTransition = "TRACKS_INVALID_SPRINT_TRANSITION";
+
+    /// <summary>Error code for invalid time entry (end before start).</summary>
+    public const string InvalidTimeEntry = "TRACKS_INVALID_TIME_ENTRY";
+
     // Import / Migration
     /// <summary>Error code for unsupported import data type.</summary>
     public const string ImportUnsupportedDataType = "IMPORT_UNSUPPORTED_DATA_TYPE";

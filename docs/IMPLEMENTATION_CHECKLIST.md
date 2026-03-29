@@ -3281,11 +3281,11 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 ### Phase 4.1: Architecture And Contracts
 
-- ☐ `TracksDto.cs` — DTOs for Board, BoardList, Card, Label, Assignment, Comment, Attachment, Sprint, TimeEntry, Dependency
-- ☐ `TracksEvents.cs` — BoardCreated, BoardDeleted, CardCreated, CardMoved, CardUpdated, CardDeleted, CardAssigned, CardCommentAdded, SprintStarted, SprintCompleted
-- ☐ `ITracksDirectory` capability interface (Public tier)
-- ☐ `TRACKS_` error codes in `ErrorCodes.cs`
-- ☐ Unit tests for new DTOs and events
+- ✓ `TracksDto.cs` — DTOs for Board, BoardList, Card, Label, Assignment, Comment, Attachment, Sprint, TimeEntry, Dependency
+- ✓ `TracksEvents.cs` — BoardCreated, BoardDeleted, CardCreated, CardMoved, CardUpdated, CardDeleted, CardAssigned, CardCommentAdded, SprintStarted, SprintCompleted
+- ✓ `ITracksDirectory` capability interface (Public tier)
+- ✓ `TRACKS_` error codes in `ErrorCodes.cs`
+- ✓ Unit tests for new DTOs and events
 
 ### Phase 4.2: Data Model And Module Scaffold
 

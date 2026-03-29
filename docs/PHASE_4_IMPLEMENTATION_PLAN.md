@@ -3,12 +3,21 @@
 > **Goal:** Kanban boards + Jira-like project tracking as a process-isolated module.
 > **Module ID:** `dotnetcloud.tracks`
 > **Namespace:** `DotNetCloud.Modules.Tracks`
+> **Optional:** Yes — Tracks is not a required module. Installations can operate without it. The module is listed in `SetupCommand.cs` optional modules and can be enabled/disabled from the admin UI.
+
+---
+
+## Design Constraints
+
+- **Optional module:** Core platform and other modules must function without Tracks installed. No hard dependencies from Core → Tracks. Cross-module references (e.g., file attachments on cards) use the event bus and capability system — if Tracks isn't installed, those events simply have no subscribers.
+- **Process-isolated:** Runs as a separate process communicating via gRPC, following the standard module pattern.
+- **Self-contained data:** Tracks has its own `TracksDbContext` and database schema. No foreign keys to other module tables.
 
 ---
 
 ## Overview
 
-Tracks is a project management module providing kanban boards with lists, cards, labels, due dates, assignments, sprints, time tracking, and dependencies. It follows the exact same 3-tier module pattern as Files, Chat, Contacts, Calendar, and Notes (module library → data layer → gRPC host).
+Tracks is an **optional** project management module providing kanban boards with lists, cards, labels, due dates, assignments, sprints, time tracking, and dependencies. Not all installations will have Tracks enabled — the core platform and all other modules operate independently of it. It follows the exact same 3-tier module pattern as Files, Chat, Contacts, Calendar, and Notes (module library → data layer → gRPC host).
 
 **Key differentiator from NextCloud Deck:** Tracks adds sprint management, time tracking, card dependencies, and board templates — closer to Jira/Linear than a basic kanban tool, while keeping the simplicity of board-based workflows.
 
