@@ -3351,7 +3351,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ 58 controller/gRPC unit tests (199 total Tracks tests, incl. 29 TeamServiceTests)
 
 #### Deferred
-- ☐ Cross-module integration (file attachment events, chat) → Phase 4.6
+- ✓ Cross-module integration (file attachment events via FileDeletedEventHandler + ICardAttachmentCleanupService) → completed in Phase 4.6
 
 ### Phase 4.5: Web UI (Blazor)
 
@@ -3362,7 +3362,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Board settings (members, labels, archive)
 - ✓ Team management (create/edit teams, roles, members)
 - ✓ Filters and search
-- ☐ Real-time SignalR updates (deferred to Phase 4.6)
+- ✓ Real-time SignalR updates (Blazor ITracksSignalRService event subscriptions, completed in Phase 4.6)
 - ✓ Responsive layout
 - ✓ CSS consistent with theme
 - ✓ ITracksApiClient / TracksApiClient HTTP service
@@ -3371,10 +3371,16 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 ### Phase 4.6: Real-time And Notifications
 
-- ☐ TracksHub (SignalR)
-- ☐ Notification integration (assignment, due date, mention, sprint)
-- ☐ Activity feed (per-board real-time)
-- ☐ @mention support in descriptions/comments
+- ✓ TracksRealtimeService — IRealtimeBroadcaster delegation, board/team group broadcast
+- ✓ TracksRealtimeEventHandler — 12 event types (card/board/sprint/team lifecycle)
+- ✓ TracksNotificationService — Card assignment, sprint, team membership notifications via INotificationService
+- ✓ ITracksSignalRService + NullTracksSignalRService — Blazor component event interface
+- ✓ MentionParser — GeneratedRegex @username extraction with IUserDirectory resolution
+- ✓ FileDeletedEventHandler + ICardAttachmentCleanupService — Cross-module file cleanup
+- ✓ TracksPage.razor.cs — Real-time event subscriptions (card, list, comment, sprint, member actions)
+- ✓ TracksModule.cs — Full event handler registration (13 event subscriptions in InitializeAsync)
+- ✓ TracksServiceRegistration — DI for realtime, notification, SignalR, cleanup services
+- ✓ 39 new unit tests (238 total Tracks tests)
 
 ### Phase 4.7: Advanced Features
 

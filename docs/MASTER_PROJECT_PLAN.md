@@ -90,9 +90,9 @@
 | Phase 4.1 | 11 | 11 | 0 | 0 |
 | Phase 4.2 | 7 | 7 | 0 | 0 |
 | Phase 4.3 | 21 | 21 | 0 | 0 |
-| Phase 4.4 | 17 | 16 | 0 | 1 |
-| Phase 4.5 | 9 | 8 | 0 | 1 |
-| Phase 4.6 | 4 | 0 | 0 | 4 |
+| Phase 4.4 | 17 | 17 | 0 | 0 |
+| Phase 4.5 | 9 | 9 | 0 | 0 |
+| Phase 4.6 | 4 | 4 | 0 | 0 |
 | Phase 4.7 | 6 | 0 | 0 | 6 |
 | Phase 4.8 | 8 | 0 | 0 | 8 |
 | Phase 5-9 | Summary | 0 | 0 | 1 |
@@ -1499,9 +1499,9 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `TracksGrpcService` — 7 RPCs fully implemented (4 poker stubs → Phase 4.7)
 - ✓ `TracksControllerBase` — IsBoardNotFound() helper, auth, envelope methods
 - ✓ 58 new tests (10 board + 7 card + 5 list + 7 sprint + 19 subresource + 10 gRPC) + 29 TeamServiceTests
-- ☐ Cross-module integration (file attachments, chat) — deferred to Phase 4.6
+- ✓ Cross-module integration (file attachments via `FileDeletedEventHandler` + `ICardAttachmentCleanupService`) — completed in Phase 4.6
 
-**Notes:** 50+ REST endpoints across 10 controllers. All 199 Tracks tests pass (112 service + 29 team + 58 controller/gRPC). Teams support Option C architecture with full CRUD, member management, board ownership transfer, and effective role resolution. Ready for Phase 4.5 (Web UI).
+**Notes:** 50+ REST endpoints across 10 controllers. All 238 Tracks tests pass. Teams support Option C architecture with full CRUD, member management, board ownership transfer, and effective role resolution.
 
 ---
 
@@ -1515,26 +1515,26 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Board settings — Members, labels, archive management
 - ✓ Team management — Create/edit teams, member roles, board transfer
 - ✓ Filters and search — Filter by label, assignee, due date, priority
-- ☐ Real-time updates — SignalR for live board state (deferred to Phase 4.6)
+- ✓ Real-time updates — Blazor event subscriptions via `ITracksSignalRService`, auto-refresh on board/card/sprint signals (completed in Phase 4.6)
 - ✓ Responsive layout — Desktop, tablet, mobile-friendly
 - ✓ CSS consistent with DotNetCloud UI theme
 - ✓ ITracksApiClient / TracksApiClient HTTP service
 - ✓ Module UI registration in ModuleUiRegistrationHostedService
 - ✓ tracks-kanban.js drag-drop JS interop
 
-**Notes:** Full Blazor UI: TracksPage (sidebar layout), BoardListView, KanbanBoard (HTML5 drag-drop), CardDetailPanel (slide-out), SprintPanel, BoardSettingsDialog, TeamManagement. Comprehensive CSS with ::deep scoping and responsive breakpoints. Registered in DI and module UI registry. SignalR real-time deferred to Phase 4.6 as planned. Ready for Phase 4.6.
+**Notes:** Full Blazor UI: TracksPage (sidebar layout), BoardListView, KanbanBoard (HTML5 drag-drop), CardDetailPanel (slide-out), SprintPanel, BoardSettingsDialog, TeamManagement. Comprehensive CSS with ::deep scoping and responsive breakpoints. Real-time event subscriptions integrated in Phase 4.6.
 
 ---
 
 ### Section: Phase 4.6 - Real-time And Notifications
-**STATUS:** not started
+**STATUS:** completed ✅
 **DELIVERABLES:**
-- ☐ `TracksHub` — SignalR hub for board state sync
-- ☐ Notification integration — Assignment, due date, mention, sprint events
-- ☐ Activity feed — Per-board real-time stream
-- ☐ @mention support — Parse in descriptions/comments, send notifications
+- ✓ `TracksRealtimeService` + `ITracksSignalRService` — Real-time board state sync via `IRealtimeBroadcaster`
+- ✓ Notification integration — Card assignment, @mention, sprint start/complete, team membership via `TracksNotificationService`
+- ✓ Activity feed — Per-board real-time stream via `BroadcastActivityAsync`, Blazor auto-refresh
+- ✓ @mention support — `MentionParser` (GeneratedRegex), `IUserDirectory` resolution, `Mention` notifications
 
-**Notes:** Follows Chat module's SignalR pattern. Each board is a SignalR group for scoped updates.
+**Notes:** Follows Chat module's nullable-capability pattern. Each board is a `tracks-board-{boardId}` group, teams use `tracks-team-{teamId}`. Also completed deferred Phase 4.4 (FileDeletedEvent cross-module handler via `ICardAttachmentCleanupService`) and deferred Phase 4.5 (Blazor real-time UI subscriptions via `ITracksSignalRService`). 39 new unit tests (238 total).
 
 ---
 

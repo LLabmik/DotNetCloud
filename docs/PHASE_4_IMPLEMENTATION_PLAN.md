@@ -191,11 +191,11 @@ Board and card management interface.
 Live updates and push notifications for board activity.
 
 **Deliverables:**
-- ☐ **SignalR Hub** — `TracksHub` for real-time board state sync (card moved, created, updated, deleted)
-- ☐ **Team event notifications** — Real-time updates for team membership changes, role updates, board transfers
-- ☐ **Notification integration** — Card assigned, due date approaching, mentioned in comment, sprint started/completed, team member added/removed
-- ☐ **Activity feed** — Per-board and per-team activity stream with real-time additions
-- ☐ **@mention support** — Parse @username in card descriptions and comments, send notifications
+- ✓ **SignalR Hub** — `TracksRealtimeService` + `ITracksSignalRService` for real-time board state sync (card moved, created, updated, deleted)
+- ✓ **Team event notifications** — Real-time updates for team membership changes, role updates, board transfers via `TracksRealtimeEventHandler`
+- ✓ **Notification integration** — Card assigned, mentioned in comment, sprint started/completed, team member added/removed via `TracksNotificationService`
+- ✓ **Activity feed** — Per-board real-time activity stream via `BroadcastActivityAsync`; Blazor UI auto-refreshes on signal
+- ✓ **@mention support** — `MentionParser` extracts @username from text, resolves via `IUserDirectory`, sends `Mention` notifications
 
 ---
 

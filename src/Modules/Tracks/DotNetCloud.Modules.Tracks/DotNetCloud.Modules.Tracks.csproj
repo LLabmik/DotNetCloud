@@ -21,6 +21,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core\DotNetCloud.Core.csproj" />
     <ProjectReference Include="..\..\..\UI\DotNetCloud.UI.Shared\DotNetCloud.UI.Shared.csproj" />
+    <!-- Cross-module: needed for FileDeletedEvent type in event handler. At runtime, events flow via serialized event bus. -->
+    <ProjectReference Include="..\..\Files\DotNetCloud.Modules.Files\DotNetCloud.Modules.Files.csproj" />
   </ItemGroup>
 
 </Project>

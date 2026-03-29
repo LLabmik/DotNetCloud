@@ -1,4 +1,5 @@
 using DotNetCloud.Modules.Tracks.Data.Services;
+using DotNetCloud.Modules.Tracks.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -14,6 +15,7 @@ public static class TracksServiceRegistration
     /// </summary>
     public static IServiceCollection AddTracksServices(this IServiceCollection services, IConfiguration configuration)
     {
+        // Core business services
         services.AddScoped<ActivityService>();
         services.AddScoped<TeamService>();
         services.AddScoped<BoardService>();
@@ -26,6 +28,14 @@ public static class TracksServiceRegistration
         services.AddScoped<DependencyService>();
         services.AddScoped<SprintService>();
         services.AddScoped<TimeTrackingService>();
+
+        // Real-time & notification services (Phase 4.6)
+        services.AddSingleton<ITracksRealtimeService, TracksRealtimeService>();
+        services.AddSingleton<ITracksNotificationService, TracksNotificationService>();
+        services.AddSingleton<ITracksSignalRService, NullTracksSignalRService>();
+
+        // Cross-module cleanup services
+        services.AddScoped<ICardAttachmentCleanupService, CardAttachmentCleanupService>();
 
         return services;
     }

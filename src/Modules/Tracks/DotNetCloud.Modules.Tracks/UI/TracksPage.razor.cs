@@ -10,6 +10,7 @@ namespace DotNetCloud.Modules.Tracks.UI;
 public partial class TracksPage : ComponentBase, IDisposable
 {
     [Inject] private ITracksApiClient ApiClient { get; set; } = default!;
+    [Inject] private ITracksSignalRService SignalRService { get; set; } = default!;
 
     private enum TracksView { Boards, Board, Teams }
 
@@ -36,6 +37,7 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     protected override async Task OnInitializedAsync()
     {
+        SubscribeToRealtimeEvents();
         await LoadInitialDataAsync();
     }
 
@@ -313,6 +315,69 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     public void Dispose()
     {
-        // Future: dispose SignalR connections
+        SignalRService.CardActionReceived -= OnCardActionReceived;
+        SignalRService.ListActionReceived -= OnListActionReceived;
+        SignalRService.CommentActionReceived -= OnCommentActionReceived;
+        SignalRService.SprintActionReceived -= OnSprintActionReceived;
+        SignalRService.BoardMemberActionReceived -= OnBoardMemberActionReceived;
+    }
+
+    // ── Real-time Event Subscriptions ───────────────────────
+
+    private void SubscribeToRealtimeEvents()
+    {
+        SignalRService.CardActionReceived += OnCardActionReceived;
+        SignalRService.ListActionReceived += OnListActionReceived;
+        SignalRService.CommentActionReceived += OnCommentActionReceived;
+        SignalRService.SprintActionReceived += OnSprintActionReceived;
+        SignalRService.BoardMemberActionReceived += OnBoardMemberActionReceived;
+    }
+
+    private async void OnCardActionReceived(Guid boardId, Guid cardId, string action)
+    {
+        if (_selectedBoard?.Id != boardId) return;
+        await InvokeAsync(async () =>
+        {
+            await RefreshBoardDataAsync();
+            StateHasChanged();
+        });
+    }
+
+    private async void OnListActionReceived(Guid boardId, Guid listId, string action)
+    {
+        if (_selectedBoard?.Id != boardId) return;
+        await InvokeAsync(async () =>
+        {
+            await RefreshBoardDataAsync();
+            StateHasChanged();
+        });
+    }
+
+    private async void OnCommentActionReceived(Guid boardId, Guid cardId, Guid commentId, string action)
+    {
+        if (_selectedCard?.Id != cardId) return;
+        await InvokeAsync(async () =>
+        {
+            _selectedCard = await ApiClient.GetCardAsync(cardId);
+            StateHasChanged();
+        });
+    }
+
+    private async void OnSprintActionReceived(Guid boardId, Guid sprintId, string action)
+    {
+        if (_selectedBoard?.Id != boardId) return;
+        await InvokeAsync(async () =>
+        {
+            await RefreshSprintsAsync();
+        });
+    }
+
+    private async void OnBoardMemberActionReceived(Guid boardId, Guid userId, string action)
+    {
+        if (_selectedBoard?.Id != boardId) return;
+        await InvokeAsync(async () =>
+        {
+            await RefreshBoardAsync();
+        });
     }
 }

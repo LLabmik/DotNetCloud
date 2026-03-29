@@ -1,7 +1,11 @@
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Modules;
+using DotNetCloud.Modules.Files.Events;
+using DotNetCloud.Modules.Tracks.Events;
+using DotNetCloud.Modules.Tracks.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DotNetCloud.Modules.Tracks;
 
@@ -16,6 +20,10 @@ public sealed class TracksModule : IModuleLifecycle
     private bool _initialized;
     private bool _running;
 
+    // Event handlers
+    private TracksRealtimeEventHandler? _realtimeHandler;
+    private FileDeletedEventHandler? _fileDeletedHandler;
+
     /// <inheritdoc />
     public IModuleManifest Manifest { get; } = new TracksModuleManifest();
 
@@ -29,10 +37,33 @@ public sealed class TracksModule : IModuleLifecycle
 
         _eventBus = context.Services.GetRequiredService<IEventBus>();
 
-        _initialized = true;
-        _logger?.LogInformation("Tracks module initialized successfully");
+        // Register real-time event handler — broadcasts board state changes to connected clients
+        var realtimeService = context.Services.GetRequiredService<ITracksRealtimeService>();
+        _realtimeHandler = new TracksRealtimeEventHandler(
+            realtimeService,
+            context.Services.GetService<ILogger<TracksRealtimeEventHandler>>() ?? NullLogger<TracksRealtimeEventHandler>.Instance);
 
-        await Task.CompletedTask;
+        await _eventBus.SubscribeAsync<CardCreatedEvent>(_realtimeHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<CardUpdatedEvent>(_realtimeHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<CardMovedEvent>(_realtimeHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<CardDeletedEvent>(_realtimeHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<CardAssignedEvent>(_realtimeHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<CardCommentAddedEvent>(_realtimeHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<BoardCreatedEvent>(_realtimeHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<BoardDeletedEvent>(_realtimeHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<SprintStartedEvent>(_realtimeHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<SprintCompletedEvent>(_realtimeHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<TeamCreatedEvent>(_realtimeHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<TeamDeletedEvent>(_realtimeHandler, cancellationToken);
+
+        // Register cross-module file cleanup handler
+        _fileDeletedHandler = new FileDeletedEventHandler(
+            context.Services,
+            context.Services.GetService<ILogger<FileDeletedEventHandler>>() ?? NullLogger<FileDeletedEventHandler>.Instance);
+        await _eventBus.SubscribeAsync(_fileDeletedHandler, cancellationToken);
+
+        _initialized = true;
+        _logger?.LogInformation("Tracks module initialized successfully with real-time and cross-module event handlers");
     }
 
     /// <inheritdoc />
@@ -53,9 +84,33 @@ public sealed class TracksModule : IModuleLifecycle
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
         _running = false;
-        _logger?.LogInformation("Tracks module stopped");
 
-        await Task.CompletedTask;
+        // Unregister all event handlers
+        if (_eventBus is not null)
+        {
+            if (_realtimeHandler is not null)
+            {
+                await _eventBus.UnsubscribeAsync<CardCreatedEvent>(_realtimeHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<CardUpdatedEvent>(_realtimeHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<CardMovedEvent>(_realtimeHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<CardDeletedEvent>(_realtimeHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<CardAssignedEvent>(_realtimeHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<CardCommentAddedEvent>(_realtimeHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<BoardCreatedEvent>(_realtimeHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<BoardDeletedEvent>(_realtimeHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<SprintStartedEvent>(_realtimeHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<SprintCompletedEvent>(_realtimeHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<TeamCreatedEvent>(_realtimeHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<TeamDeletedEvent>(_realtimeHandler, cancellationToken);
+            }
+
+            if (_fileDeletedHandler is not null)
+            {
+                await _eventBus.UnsubscribeAsync(_fileDeletedHandler, cancellationToken);
+            }
+        }
+
+        _logger?.LogInformation("Tracks module stopped");
     }
 
     /// <inheritdoc />
