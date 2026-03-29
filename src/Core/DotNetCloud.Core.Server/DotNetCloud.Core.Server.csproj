@@ -47,6 +47,9 @@
     <ProjectReference Include="..\..\Modules\Files\DotNetCloud.Modules.Files.Host\DotNetCloud.Modules.Files.Host.csproj" />
     <ProjectReference Include="..\..\Modules\Notes\DotNetCloud.Modules.Notes.Data\DotNetCloud.Modules.Notes.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Notes\DotNetCloud.Modules.Notes.Host\DotNetCloud.Modules.Notes.Host.csproj" />
+    <ProjectReference Include="..\..\Modules\Tracks\DotNetCloud.Modules.Tracks\DotNetCloud.Modules.Tracks.csproj" />
+    <ProjectReference Include="..\..\Modules\Tracks\DotNetCloud.Modules.Tracks.Data\DotNetCloud.Modules.Tracks.Data.csproj" />
+    <ProjectReference Include="..\..\Modules\Tracks\DotNetCloud.Modules.Tracks.Host\DotNetCloud.Modules.Tracks.Host.csproj" />
     <ProjectReference Include="..\..\UI\DotNetCloud.UI.Web\DotNetCloud.UI.Web.csproj" />
     <ProjectReference Include="..\..\UI\DotNetCloud.UI.Web.Client\DotNetCloud.UI.Web.Client.csproj" />
   </ItemGroup>

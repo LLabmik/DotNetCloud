@@ -53,7 +53,15 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
             Icon: "📝",
             SortOrder: 50,
             RouteKey: "notes.page",
-            ComponentType: typeof(DotNetCloud.Modules.Notes.UI.NotesPage))
+            ComponentType: typeof(DotNetCloud.Modules.Notes.UI.NotesPage)),
+        new(
+            ModuleId: "dotnetcloud.tracks",
+            Label: "Tracks",
+            Href: "/apps/tracks",
+            Icon: "📊",
+            SortOrder: 60,
+            RouteKey: "tracks.page",
+            ComponentType: typeof(DotNetCloud.Modules.Tracks.UI.TracksPage))
     ];
 
     private readonly IServiceScopeFactory _scopeFactory;

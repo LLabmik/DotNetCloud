@@ -3355,15 +3355,19 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 ### Phase 4.5: Web UI (Blazor)
 
-- ☐ Board list page (grid/list, create dialog)
-- ☐ Board kanban view (drag-and-drop)
-- ☐ Card detail slide-out panel
-- ☐ Sprint management (planning, backlog, progress)
-- ☐ Board settings (members, labels, archive)
-- ☐ Filters and search
-- ☐ Real-time SignalR updates
-- ☐ Responsive layout
-- ☐ CSS consistent with theme
+- ✓ Board list page (grid/list, create dialog)
+- ✓ Board kanban view (drag-and-drop)
+- ✓ Card detail slide-out panel
+- ✓ Sprint management (planning, backlog, progress)
+- ✓ Board settings (members, labels, archive)
+- ✓ Team management (create/edit teams, roles, members)
+- ✓ Filters and search
+- ☐ Real-time SignalR updates (deferred to Phase 4.6)
+- ✓ Responsive layout
+- ✓ CSS consistent with theme
+- ✓ ITracksApiClient / TracksApiClient HTTP service
+- ✓ Module UI registration + DI setup
+- ✓ tracks-kanban.js drag-drop JS interop
 
 ### Phase 4.6: Real-time And Notifications
 

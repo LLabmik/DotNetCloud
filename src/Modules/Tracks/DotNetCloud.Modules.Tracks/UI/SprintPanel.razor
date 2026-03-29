@@ -1,0 +1,107 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+
+<div class="tracks-sprint-panel">
+    <div class="tracks-sprint-header">
+        <h3>🏃 Sprints</h3>
+        <button class="btn btn-sm btn-primary" @onclick="OpenCreateDialog">+ New Sprint</button>
+    </div>
+
+    @if (Sprints.Count == 0)
+    {
+        <p class="tracks-muted">No sprints yet. Create one to start planning.</p>
+    }
+    else
+    {
+        @foreach (var sprint in Sprints.OrderByDescending(s => s.Status == SprintStatus.Active)
+                                       .ThenByDescending(s => s.CreatedAt))
+        {
+            <div class="tracks-sprint-card @(sprint.Status == SprintStatus.Active ? "active" : "")">
+                <div class="tracks-sprint-card-header">
+                    <strong>@sprint.Title</strong>
+                    <span class="tracks-sprint-status badge @GetStatusBadgeClass(sprint.Status)">
+                        @sprint.Status
+                    </span>
+                </div>
+                @if (!string.IsNullOrEmpty(sprint.Goal))
+                {
+                    <p class="tracks-sprint-goal">@sprint.Goal</p>
+                }
+                <div class="tracks-sprint-meta">
+                    @if (sprint.StartDate.HasValue && sprint.EndDate.HasValue)
+                    {
+                        <span>📅 @sprint.StartDate.Value.ToString("MMM d") – @sprint.EndDate.Value.ToString("MMM d")</span>
+                    }
+                    <span>🎴 @sprint.CardCount cards</span>
+                    @if (sprint.TotalStoryPoints > 0)
+                    {
+                        var pct = sprint.TotalStoryPoints > 0
+                            ? (sprint.CompletedStoryPoints * 100 / sprint.TotalStoryPoints)
+                            : 0;
+                        <span>📊 @sprint.CompletedStoryPoints/@sprint.TotalStoryPoints SP (@pct%)</span>
+                    }
+                </div>
+                @if (sprint.TotalStoryPoints > 0)
+                {
+                    <div class="tracks-progress-bar">
+                        <div class="tracks-progress-fill"
+                             style="width: @(sprint.TotalStoryPoints > 0 ? (sprint.CompletedStoryPoints * 100 / sprint.TotalStoryPoints) : 0)%">
+                        </div>
+                    </div>
+                }
+                <div class="tracks-sprint-actions">
+                    @if (sprint.Status == SprintStatus.Planning)
+                    {
+                        <button class="btn btn-sm btn-primary" @onclick="() => StartSprintAsync(sprint.Id)">
+                            ▶ Start
+                        </button>
+                    }
+                    @if (sprint.Status == SprintStatus.Active)
+                    {
+                        <button class="btn btn-sm btn-outline" @onclick="() => CompleteSprintAsync(sprint.Id)">
+                            ✅ Complete
+                        </button>
+                    }
+                    @if (sprint.Status != SprintStatus.Active)
+                    {
+                        <button class="btn btn-sm btn-danger" @onclick="() => DeleteSprintAsync(sprint.Id)">
+                            Delete
+                        </button>
+                    }
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@* ── Create Sprint Dialog ── *@
+@if (_showCreateDialog)
+{
+    <DncModal Title="Create Sprint" OnClose="() => _showCreateDialog = false">
+        <EditForm Model="_createModel" OnValidSubmit="CreateSprintAsync">
+            <div class="form-group">
+                <label>Title</label>
+                <InputText class="form-control" @bind-Value="_createModel.Title" placeholder="Sprint 1" />
+            </div>
+            <div class="form-group">
+                <label>Goal (optional)</label>
+                <InputTextArea class="form-control" @bind-Value="_createModel.Goal" rows="2"
+                               placeholder="What should this sprint achieve?" />
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Start Date</label>
+                    <InputDate class="form-control" @bind-Value="_createModel.StartDate" />
+                </div>
+                <div class="form-group">
+                    <label>End Date</label>
+                    <InputDate class="form-control" @bind-Value="_createModel.EndDate" />
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary"
+                        @onclick="() => _showCreateDialog = false">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Sprint</button>
+            </div>
+        </EditForm>
+    </DncModal>
+}

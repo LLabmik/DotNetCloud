@@ -1,0 +1,1703 @@
+/* ══════════════════════════════════════════════════════════════
+   Tracks Module – Master Stylesheet
+   Scoped to TracksPage.razor; uses ::deep for child components.
+   All colors reference --color-* variables from app.css.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ─────────── Layout ─────────── */
+
+.tracks-layout {
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.tracks-sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+    overflow-y: auto;
+}
+
+.tracks-sidebar-header {
+    padding: 16px 16px 8px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+::deep .tracks-sidebar-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+.tracks-nav {
+    display: flex;
+    flex-direction: column;
+    padding: 8px;
+    gap: 2px;
+}
+
+.tracks-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    transition: background var(--transition), color var(--transition);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tracks-nav-item:hover {
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+
+.tracks-nav-item.active {
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+    color: var(--color-primary);
+    font-weight: 600;
+}
+
+.tracks-nav-icon {
+    flex-shrink: 0;
+    width: 20px;
+    text-align: center;
+    font-size: 14px;
+}
+
+.tracks-board-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.tracks-sidebar-section {
+    padding: 8px;
+    border-top: 1px solid var(--color-border);
+}
+
+.tracks-sidebar-section-header {
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-muted);
+}
+
+.tracks-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--color-bg);
+}
+
+.tracks-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+
+/* ─────────── Board List View ─────────── */
+
+::deep .tracks-board-list {
+    padding: 24px;
+    overflow-y: auto;
+    height: 100%;
+}
+
+::deep .tracks-board-list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+::deep .tracks-board-list-header h2 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .tracks-board-list-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+::deep .tracks-search-input {
+    padding: 7px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 13px;
+    min-width: 180px;
+    outline: none;
+    transition: border-color var(--transition);
+}
+
+::deep .tracks-search-input:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 15%, transparent);
+}
+
+::deep .tracks-filter-select {
+    padding: 7px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 13px;
+    cursor: pointer;
+    outline: none;
+}
+
+::deep .tracks-filter-select:focus {
+    border-color: var(--color-primary);
+}
+
+::deep .tracks-board-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+::deep .tracks-board-card {
+    background: var(--color-surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform var(--transition), box-shadow var(--transition);
+    border: 1px solid var(--color-border);
+}
+
+::deep .tracks-board-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,.1);
+}
+
+::deep .tracks-board-card-color {
+    height: 6px;
+}
+
+::deep .tracks-board-card-body {
+    padding: 16px;
+}
+
+::deep .tracks-board-card-body h3 {
+    margin: 0 0 6px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+::deep .tracks-board-card-body p {
+    margin: 0 0 12px;
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+::deep .tracks-board-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--color-muted);
+}
+
+::deep .tracks-board-card-meta span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+::deep .tracks-team-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+    color: var(--color-primary);
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* ─────────── Empty State ─────────── */
+
+::deep .tracks-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    text-align: center;
+    color: var(--color-text-secondary);
+}
+
+::deep .tracks-empty-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.6;
+}
+
+::deep .tracks-empty-state h3 {
+    margin: 0 0 8px;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+::deep .tracks-empty-state p {
+    margin: 0 0 20px;
+    font-size: 14px;
+    max-width: 360px;
+}
+
+/* ─────────── Kanban Board ─────────── */
+
+::deep .tracks-kanban {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+::deep .tracks-kanban-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-surface);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+::deep .tracks-kanban-header h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--color-text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+::deep .tracks-kanban-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+::deep .tracks-filter-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+::deep .tracks-kanban-columns {
+    display: flex;
+    gap: 12px;
+    padding: 16px;
+    overflow-x: auto;
+    flex: 1;
+    min-height: 0;
+    align-items: flex-start;
+}
+
+::deep .tracks-kanban-column {
+    flex-shrink: 0;
+    width: 300px;
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: color-mix(in srgb, var(--color-bg) 80%, var(--color-surface) 20%);
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+}
+
+::deep .tracks-kanban-column-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+::deep .tracks-kanban-column-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+::deep .tracks-column-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+::deep .tracks-card-count {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--color-muted);
+    padding: 1px 6px;
+    border-radius: 100px;
+    background: var(--color-bg);
+}
+
+::deep .tracks-card-count.wip-exceeded {
+    background: color-mix(in srgb, var(--color-danger) 15%, transparent);
+    color: var(--color-danger);
+    font-weight: 700;
+}
+
+::deep .tracks-kanban-column-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+::deep .tracks-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--color-muted);
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 13px;
+    transition: background var(--transition), color var(--transition);
+}
+
+::deep .tracks-icon-btn:hover {
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+
+::deep .tracks-danger-btn:hover {
+    background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+    color: var(--color-danger);
+}
+
+::deep .tracks-kanban-cards {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 60px;
+}
+
+::deep .tracks-kanban-cards.drag-over {
+    background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+}
+
+::deep .tracks-kanban-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: box-shadow var(--transition), transform var(--transition);
+    user-select: none;
+}
+
+::deep .tracks-kanban-card:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+}
+
+::deep .tracks-kanban-card.dragging {
+    opacity: 0.5;
+    transform: rotate(2deg);
+}
+
+::deep .tracks-kanban-card-labels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 6px;
+}
+
+::deep .tracks-label-chip {
+    height: 6px;
+    width: 32px;
+    border-radius: 3px;
+}
+
+::deep .tracks-kanban-card-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text);
+    margin: 0 0 6px;
+    line-height: 1.35;
+    word-break: break-word;
+}
+
+::deep .tracks-kanban-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+::deep .tracks-kanban-card-icons {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--color-muted);
+}
+
+::deep .tracks-kanban-card-icons span {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+::deep .tracks-priority-icon {
+    font-size: 12px;
+}
+
+::deep .tracks-due-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 100px;
+    font-weight: 500;
+}
+
+::deep .tracks-due-badge.overdue {
+    background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+    color: var(--color-danger);
+}
+
+::deep .tracks-due-badge.due-soon {
+    background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+    color: var(--color-warning);
+}
+
+::deep .tracks-due-badge.on-track {
+    color: var(--color-muted);
+}
+
+::deep .tracks-card-assignees {
+    display: flex;
+    align-items: center;
+    gap: -4px;
+}
+
+::deep .tracks-avatar-xs {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+    color: var(--color-primary);
+    font-size: 9px;
+    font-weight: 700;
+    border: 2px solid var(--color-surface);
+    margin-left: -4px;
+}
+
+::deep .tracks-avatar-xs:first-child {
+    margin-left: 0;
+}
+
+::deep .tracks-checklist-progress {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
+    color: var(--color-muted);
+}
+
+::deep .tracks-checklist-progress.all-done {
+    color: var(--color-success);
+}
+
+/* Inline add card */
+::deep .tracks-add-card-area {
+    padding: 8px;
+    border-top: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+::deep .tracks-add-card-input {
+    width: 100%;
+    padding: 7px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 13px;
+    outline: none;
+}
+
+::deep .tracks-add-card-input:focus {
+    border-color: var(--color-primary);
+}
+
+::deep .tracks-add-card-btn,
+::deep .tracks-add-list-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 6px;
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: var(--color-muted);
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: var(--radius);
+    transition: background var(--transition), color var(--transition);
+}
+
+::deep .tracks-add-card-btn:hover,
+::deep .tracks-add-list-btn:hover {
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+
+/* Add list column */
+::deep .tracks-add-list-column {
+    flex-shrink: 0;
+    width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    background: color-mix(in srgb, var(--color-bg) 50%, transparent);
+    border: 2px dashed var(--color-border);
+    border-radius: var(--radius);
+    min-height: 80px;
+    justify-content: center;
+}
+
+/* ─────────── Board Area (board + sprints side by side) ─────────── */
+
+.tracks-board-area {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+::deep .tracks-board-area > .tracks-kanban {
+    flex: 1;
+    min-width: 0;
+}
+
+/* ─────────── Card Detail Panel ─────────── */
+
+::deep .tracks-card-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 100;
+    display: flex;
+    justify-content: flex-end;
+    animation: tracks-fade-in 150ms ease;
+}
+
+@keyframes tracks-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes tracks-slide-in {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+}
+
+::deep .tracks-card-panel {
+    width: 560px;
+    max-width: 95vw;
+    height: 100%;
+    background: var(--color-surface);
+    box-shadow: -4px 0 20px rgba(0,0,0,.15);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    animation: tracks-slide-in 200ms ease;
+}
+
+::deep .tracks-card-panel-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 20px 20px 12px;
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+    gap: 12px;
+}
+
+::deep .tracks-card-panel-header h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--color-text);
+    flex: 1;
+    min-width: 0;
+}
+
+::deep .tracks-card-title-input {
+    width: 100%;
+    padding: 4px 8px;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--color-text);
+    background: transparent;
+    outline: none;
+}
+
+::deep .tracks-card-title-input:focus {
+    border-color: var(--color-primary);
+    background: var(--color-surface);
+}
+
+::deep .tracks-card-panel-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+::deep .tracks-card-panel-main {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    min-width: 0;
+}
+
+::deep .tracks-card-panel-sidebar {
+    width: 200px;
+    flex-shrink: 0;
+    padding: 20px 16px;
+    border-left: 1px solid var(--color-border);
+    overflow-y: auto;
+    background: var(--color-bg);
+}
+
+::deep .tracks-card-section {
+    margin-bottom: 24px;
+}
+
+::deep .tracks-card-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+::deep .tracks-card-section-header h4 {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-muted);
+}
+
+::deep .tracks-card-description-input {
+    width: 100%;
+    min-height: 80px;
+    padding: 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 13px;
+    line-height: 1.5;
+    resize: vertical;
+    outline: none;
+    font-family: inherit;
+}
+
+::deep .tracks-card-description-input:focus {
+    border-color: var(--color-primary);
+}
+
+/* Sidebar properties */
+::deep .tracks-sidebar-prop {
+    margin-bottom: 16px;
+}
+
+::deep .tracks-sidebar-prop label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--color-muted);
+    margin-bottom: 4px;
+}
+
+::deep .tracks-sidebar-prop .tracks-filter-select,
+::deep .tracks-sidebar-prop .tracks-input {
+    width: 100%;
+}
+
+::deep .tracks-input {
+    padding: 7px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 13px;
+    outline: none;
+    transition: border-color var(--transition);
+}
+
+::deep .tracks-input:focus {
+    border-color: var(--color-primary);
+}
+
+::deep .tracks-textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 13px;
+    line-height: 1.45;
+    resize: vertical;
+    outline: none;
+    font-family: inherit;
+}
+
+::deep .tracks-textarea:focus {
+    border-color: var(--color-primary);
+}
+
+/* Assignees in card panel */
+::deep .tracks-assignee-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+::deep .tracks-assignee-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px 3px 3px;
+    border-radius: 100px;
+    background: var(--color-bg);
+    font-size: 12px;
+    color: var(--color-text);
+}
+
+::deep .tracks-assignee-chip button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border: none;
+    background: transparent;
+    color: var(--color-muted);
+    cursor: pointer;
+    font-size: 11px;
+}
+
+::deep .tracks-assignee-chip button:hover {
+    color: var(--color-danger);
+}
+
+/* Labels in card panel */
+::deep .tracks-label-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+::deep .tracks-label-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 100px;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+::deep .tracks-label-tag button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border: none;
+    background: rgba(255,255,255,0.3);
+    color: #fff;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 10px;
+}
+
+/* Checklists */
+::deep .tracks-checklist {
+    margin-bottom: 16px;
+}
+
+::deep .tracks-checklist-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+::deep .tracks-checklist-header h5 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+::deep .tracks-checklist-progress-bar {
+    width: 100%;
+    height: 4px;
+    background: var(--color-border);
+    border-radius: 2px;
+    margin-bottom: 8px;
+    overflow: hidden;
+}
+
+::deep .tracks-checklist-progress-fill {
+    height: 100%;
+    background: var(--color-success);
+    border-radius: 2px;
+    transition: width 300ms ease;
+}
+
+::deep .tracks-checklist-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+}
+
+::deep .tracks-checklist-item input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--color-primary);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+::deep .tracks-checklist-item span {
+    font-size: 13px;
+    color: var(--color-text);
+}
+
+::deep .tracks-checklist-item span.completed {
+    text-decoration: line-through;
+    color: var(--color-muted);
+}
+
+::deep .tracks-checklist-add {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+/* Comments */
+::deep .tracks-comment-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+::deep .tracks-comment {
+    padding: 10px 12px;
+    background: var(--color-bg);
+    border-radius: var(--radius);
+}
+
+::deep .tracks-comment-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+::deep .tracks-comment-author {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+::deep .tracks-comment-author strong {
+    font-size: 13px;
+    color: var(--color-text);
+}
+
+::deep .tracks-comment-date {
+    font-size: 11px;
+    color: var(--color-muted);
+}
+
+::deep .tracks-comment-body {
+    font-size: 13px;
+    color: var(--color-text);
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+::deep .tracks-comment-add {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    margin-top: 8px;
+}
+
+::deep .tracks-comment-add textarea {
+    flex: 1;
+}
+
+/* Attachments */
+::deep .tracks-attachment-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+::deep .tracks-attachment-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    background: var(--color-bg);
+    border-radius: var(--radius);
+    font-size: 13px;
+}
+
+::deep .tracks-attachment-item a {
+    color: var(--color-primary);
+    text-decoration: none;
+}
+
+::deep .tracks-attachment-item a:hover {
+    text-decoration: underline;
+}
+
+/* Time entries */
+::deep .tracks-time-entry-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+::deep .tracks-time-entry {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    background: var(--color-bg);
+    border-radius: var(--radius);
+    font-size: 12px;
+    color: var(--color-text-secondary);
+}
+
+::deep .tracks-time-total {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-text);
+    margin-bottom: 8px;
+}
+
+::deep .tracks-timer-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 100px;
+    font-size: 12px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: background var(--transition);
+}
+
+::deep .tracks-timer-btn.start {
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+}
+
+::deep .tracks-timer-btn.start:hover {
+    background: color-mix(in srgb, var(--color-success) 25%, transparent);
+}
+
+::deep .tracks-timer-btn.stop {
+    background: color-mix(in srgb, var(--color-danger) 15%, transparent);
+    color: var(--color-danger);
+}
+
+::deep .tracks-timer-btn.stop:hover {
+    background: color-mix(in srgb, var(--color-danger) 25%, transparent);
+}
+
+/* Activity log */
+::deep .tracks-activity-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+::deep .tracks-activity-item {
+    display: flex;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    padding: 4px 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+::deep .tracks-activity-item:last-child {
+    border-bottom: none;
+}
+
+::deep .tracks-activity-item strong {
+    color: var(--color-text);
+}
+
+/* Card panel actions (archive/delete) */
+::deep .tracks-card-actions {
+    display: flex;
+    gap: 8px;
+    padding: 16px 20px;
+    border-top: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+/* ─────────── Sprint Panel ─────────── */
+
+::deep .tracks-sprint-panel {
+    width: 320px;
+    flex-shrink: 0;
+    background: var(--color-surface);
+    border-left: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+::deep .tracks-sprint-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+::deep .tracks-sprint-panel-header h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .tracks-sprint-list {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+::deep .tracks-sprint-card {
+    padding: 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-bg);
+}
+
+::deep .tracks-sprint-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+::deep .tracks-sprint-card-header h4 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+::deep .tracks-sprint-status {
+    display: inline-flex;
+    padding: 2px 8px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+::deep .tracks-sprint-status.planning {
+    background: color-mix(in srgb, var(--color-muted) 15%, transparent);
+    color: var(--color-muted);
+}
+
+::deep .tracks-sprint-status.active {
+    background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+    color: var(--color-primary);
+}
+
+::deep .tracks-sprint-status.completed {
+    background: color-mix(in srgb, var(--color-success) 15%, transparent);
+    color: var(--color-success);
+}
+
+::deep .tracks-sprint-dates {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    margin-bottom: 8px;
+}
+
+::deep .tracks-sprint-progress {
+    margin-bottom: 8px;
+}
+
+::deep .tracks-sprint-progress-bar {
+    width: 100%;
+    height: 6px;
+    background: var(--color-border);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 4px;
+}
+
+::deep .tracks-sprint-progress-fill {
+    height: 100%;
+    background: var(--color-primary);
+    border-radius: 3px;
+    transition: width 300ms ease;
+}
+
+::deep .tracks-sprint-progress-text {
+    font-size: 11px;
+    color: var(--color-muted);
+}
+
+::deep .tracks-sprint-goal {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    font-style: italic;
+    margin-bottom: 8px;
+}
+
+::deep .tracks-sprint-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+/* ─────────── Board Settings Dialog ─────────── */
+
+::deep .tracks-dialog-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: tracks-fade-in 150ms ease;
+}
+
+::deep .tracks-dialog {
+    background: var(--color-surface);
+    border-radius: calc(var(--radius) + 4px);
+    box-shadow: 0 8px 32px rgba(0,0,0,.18);
+    width: 520px;
+    max-width: 92vw;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+::deep .tracks-dialog-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+::deep .tracks-dialog-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .tracks-dialog-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+::deep .tracks-dialog-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 20px;
+    border-top: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+/* Settings sections */
+::deep .tracks-settings-section {
+    margin-bottom: 24px;
+}
+
+::deep .tracks-settings-section h4 {
+    margin: 0 0 12px;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--color-muted);
+}
+
+/* Color picker */
+::deep .tracks-color-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+::deep .tracks-color-swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: transform var(--transition), border-color var(--transition);
+}
+
+::deep .tracks-color-swatch:hover {
+    transform: scale(1.15);
+}
+
+::deep .tracks-color-swatch.selected {
+    border-color: var(--color-text);
+    box-shadow: 0 0 0 2px var(--color-surface);
+}
+
+/* Member list in settings */
+::deep .tracks-member-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+::deep .tracks-member-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    background: var(--color-bg);
+    border-radius: var(--radius);
+}
+
+::deep .tracks-member-info {
+    flex: 1;
+    min-width: 0;
+}
+
+::deep .tracks-member-name {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+::deep .tracks-member-date {
+    display: block;
+    font-size: 11px;
+    color: var(--color-muted);
+}
+
+::deep .tracks-add-member-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-top: 8px;
+}
+
+::deep .tracks-add-member-row .tracks-input {
+    flex: 1;
+}
+
+/* Avatar shared */
+::deep .tracks-avatar-sm {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+    color: var(--color-primary);
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+::deep .tracks-avatar-more {
+    background: var(--color-border);
+    color: var(--color-text-secondary);
+    font-size: 10px;
+}
+
+/* Danger zone */
+::deep .tracks-danger-zone {
+    padding: 16px;
+    border: 1px solid color-mix(in srgb, var(--color-danger) 30%, var(--color-border));
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--color-danger) 4%, transparent);
+}
+
+::deep .tracks-danger-zone h4 {
+    color: var(--color-danger) !important;
+    margin-bottom: 8px;
+}
+
+/* Form groups */
+::deep .tracks-form-group {
+    margin-bottom: 14px;
+}
+
+::deep .tracks-form-group label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    margin-bottom: 4px;
+}
+
+::deep .tracks-form-group .tracks-input,
+::deep .tracks-form-group .tracks-textarea,
+::deep .tracks-form-group .tracks-filter-select {
+    width: 100%;
+}
+
+::deep .tracks-form-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+/* Label management in settings */
+::deep .tracks-label-manager {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+::deep .tracks-label-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: var(--color-bg);
+    border-radius: var(--radius);
+}
+
+::deep .tracks-label-color-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+::deep .tracks-label-row span {
+    flex: 1;
+    font-size: 13px;
+    color: var(--color-text);
+}
+
+/* ─────────── Team Management ─────────── */
+
+::deep .tracks-teams {
+    padding: 24px;
+    overflow-y: auto;
+    height: 100%;
+}
+
+::deep .tracks-teams-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+::deep .tracks-teams-header h2 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .tracks-team-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
+}
+
+::deep .tracks-team-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px;
+    transition: box-shadow var(--transition);
+}
+
+::deep .tracks-team-card.selected {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 20%, transparent);
+}
+
+::deep .tracks-team-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+::deep .tracks-team-card-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+::deep .tracks-team-card-meta {
+    display: flex;
+    gap: 10px;
+}
+
+::deep .tracks-team-stat {
+    font-size: 12px;
+    color: var(--color-muted);
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+::deep .tracks-team-description {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    margin: 0 0 10px;
+    line-height: 1.4;
+}
+
+::deep .tracks-team-members-preview {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 12px;
+}
+
+::deep .tracks-team-members-preview .tracks-avatar-sm {
+    margin-left: -6px;
+    border: 2px solid var(--color-surface);
+}
+
+::deep .tracks-team-members-preview .tracks-avatar-sm:first-child {
+    margin-left: 0;
+}
+
+::deep .tracks-team-card-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* Team expanded section */
+::deep .tracks-team-expanded {
+    border-top: 1px solid var(--color-border);
+    margin-top: 12px;
+    padding-top: 12px;
+}
+
+::deep .tracks-team-section {
+    margin-bottom: 16px;
+}
+
+::deep .tracks-team-section h4 {
+    margin: 0 0 10px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+/* ─────────── Toast Notifications ─────────── */
+
+::deep .tracks-toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 300;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.15);
+    animation: tracks-slide-in-bottom 200ms ease;
+}
+
+@keyframes tracks-slide-in-bottom {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+::deep .tracks-toast-error {
+    background: var(--color-danger);
+    color: #fff;
+}
+
+::deep .tracks-toast-error .tracks-icon-btn {
+    color: rgba(255,255,255,0.7);
+}
+
+::deep .tracks-toast-error .tracks-icon-btn:hover {
+    color: #fff;
+    background: rgba(255,255,255,0.15);
+}
+
+/* ─────────── Responsive ─────────── */
+
+@media (max-width: 900px) {
+    .tracks-sidebar {
+        width: 200px;
+    }
+
+    ::deep .tracks-kanban-column {
+        width: 260px;
+    }
+
+    ::deep .tracks-card-panel {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    ::deep .tracks-card-panel-body {
+        flex-direction: column;
+    }
+
+    ::deep .tracks-card-panel-sidebar {
+        width: 100%;
+        border-left: none;
+        border-top: 1px solid var(--color-border);
+    }
+
+    ::deep .tracks-sprint-panel {
+        width: 260px;
+    }
+}
+
+@media (max-width: 640px) {
+    .tracks-layout {
+        flex-direction: column;
+    }
+
+    .tracks-sidebar {
+        width: 100%;
+        max-height: 200px;
+        border-right: none;
+        border-bottom: 1px solid var(--color-border);
+    }
+
+    ::deep .tracks-board-grid,
+    ::deep .tracks-team-grid {
+        grid-template-columns: 1fr;
+    }
+
+    ::deep .tracks-sprint-panel {
+        width: 100%;
+        max-height: 40vh;
+        border-left: none;
+        border-top: 1px solid var(--color-border);
+    }
+
+    .tracks-board-area {
+        flex-direction: column;
+    }
+
+    ::deep .tracks-dialog {
+        width: 100%;
+        max-width: 100%;
+        max-height: 100%;
+        border-radius: 0;
+    }
+}

@@ -1,0 +1,180 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+@inject Microsoft.JSInterop.IJSRuntime JS
+
+<div class="tracks-kanban">
+    @* ── Board Header ── *@
+    <div class="tracks-kanban-header">
+        <h2>
+            @if (!string.IsNullOrEmpty(Board.Color))
+            {
+                <span class="tracks-board-dot" style="background: @Board.Color;"></span>
+            }
+            @Board.Title
+        </h2>
+        <div class="tracks-kanban-toolbar">
+            <div class="tracks-filter-group">
+                <input type="text" class="tracks-search-input" placeholder="Filter cards..."
+                       @bind="_filterText" @bind:event="oninput" />
+                <select class="tracks-filter-select" @bind="_priorityFilter">
+                    <option value="">All priorities</option>
+                    <option value="Urgent">🔴 Urgent</option>
+                    <option value="High">🟠 High</option>
+                    <option value="Medium">🟡 Medium</option>
+                    <option value="Low">🟢 Low</option>
+                </select>
+                @if (Board.Labels.Count > 0)
+                {
+                    <select class="tracks-filter-select" @bind="_labelFilter">
+                        <option value="">All labels</option>
+                        @foreach (var label in Board.Labels)
+                        {
+                            <option value="@label.Id">@label.Title</option>
+                        }
+                    </select>
+                }
+            </div>
+            <button class="btn btn-sm btn-outline" @onclick="() => OnRefreshRequested.InvokeAsync()">↻ Refresh</button>
+        </div>
+    </div>
+
+    @* ── Board Columns ── *@
+    <div class="tracks-kanban-columns" id="tracks-kanban-columns">
+        @foreach (var list in Lists)
+        {
+            var listCards = GetFilteredCards(list.Id);
+            var isWipExceeded = list.CardLimit.HasValue && listCards.Count >= list.CardLimit.Value;
+
+            <div class="tracks-kanban-column"
+                 data-list-id="@list.Id"
+                 @ondragover="HandleDragOver"
+                 @ondragover:preventDefault
+                 @ondrop="() => HandleDropOnList(list.Id)">
+                <div class="tracks-kanban-column-header">
+                    <div class="tracks-kanban-column-title">
+                        @if (!string.IsNullOrEmpty(list.Color))
+                        {
+                            <span class="tracks-column-dot" style="background: @list.Color;"></span>
+                        }
+                        <span>@list.Title</span>
+                        <span class="tracks-card-count @(isWipExceeded ? "wip-exceeded" : "")">
+                            @listCards.Count@(list.CardLimit.HasValue ? $"/{list.CardLimit}" : "")
+                        </span>
+                    </div>
+                    <div class="tracks-kanban-column-actions">
+                        <button class="tracks-icon-btn" title="Add card"
+                                @onclick="() => BeginAddCard(list.Id)">+</button>
+                        <button class="tracks-icon-btn" title="Delete list"
+                                @onclick="() => DeleteListAsync(list.Id)">×</button>
+                    </div>
+                </div>
+
+                <div class="tracks-kanban-cards">
+                    @foreach (var card in listCards)
+                    {
+                        <div class="tracks-kanban-card @(card.IsArchived ? "archived" : "") @GetPriorityClass(card.Priority)"
+                             draggable="true"
+                             data-card-id="@card.Id"
+                             @ondragstart="() => HandleDragStart(card)"
+                             @onclick="() => OnCardSelected.InvokeAsync(card.Id)">
+                            @if (card.Labels.Count > 0)
+                            {
+                                <div class="tracks-card-labels">
+                                    @foreach (var label in card.Labels)
+                                    {
+                                        <span class="tracks-card-label" style="background: @label.Color;"
+                                              title="@label.Title"></span>
+                                    }
+                                </div>
+                            }
+                            <div class="tracks-card-title">@card.Title</div>
+                            <div class="tracks-card-meta">
+                                @if (card.Priority != CardPriority.None)
+                                {
+                                    <span class="tracks-card-priority" title="@card.Priority">@GetPriorityIcon(card.Priority)</span>
+                                }
+                                @if (card.DueDate.HasValue)
+                                {
+                                    <span class="tracks-card-due @(IsOverdue(card.DueDate.Value) ? "overdue" : "")">
+                                        📅 @card.DueDate.Value.ToLocalTime().ToString("MMM d")
+                                    </span>
+                                }
+                                @if (card.StoryPoints.HasValue)
+                                {
+                                    <span class="tracks-card-points">@card.StoryPoints SP</span>
+                                }
+                                @if (card.Checklists.Count > 0)
+                                {
+                                    var totalItems = card.Checklists.Sum(c => c.Items.Count);
+                                    var doneItems = card.Checklists.Sum(c => c.Items.Count(i => i.IsCompleted));
+                                    <span class="tracks-card-checklist @(doneItems == totalItems && totalItems > 0 ? "complete" : "")">
+                                        ☑ @doneItems/@totalItems
+                                    </span>
+                                }
+                                @if (card.CommentCount > 0)
+                                {
+                                    <span class="tracks-card-comments">💬 @card.CommentCount</span>
+                                }
+                                @if (card.AttachmentCount > 0)
+                                {
+                                    <span class="tracks-card-attachments">📎 @card.AttachmentCount</span>
+                                }
+                            </div>
+                            @if (card.Assignments.Count > 0)
+                            {
+                                <div class="tracks-card-assignees">
+                                    @foreach (var assign in card.Assignments.Take(3))
+                                    {
+                                        <span class="tracks-avatar-sm" title="@(assign.DisplayName ?? "User")">
+                                            @GetInitials(assign.DisplayName)
+                                        </span>
+                                    }
+                                    @if (card.Assignments.Count > 3)
+                                    {
+                                        <span class="tracks-avatar-sm tracks-avatar-more">
+                                            +@(card.Assignments.Count - 3)
+                                        </span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    @if (_addingCardToList == list.Id)
+                    {
+                        <div class="tracks-kanban-card-add">
+                            <input type="text" class="form-control" placeholder="Card title..."
+                                   @bind="_newCardTitle" @bind:event="oninput"
+                                   @onkeydown="HandleAddCardKeyDown" />
+                            <div class="tracks-card-add-actions">
+                                <button class="btn btn-sm btn-primary" @onclick="SubmitNewCardAsync">Add</button>
+                                <button class="btn btn-sm btn-secondary" @onclick="CancelAddCard">Cancel</button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @* ── Add List Column ── *@
+        <div class="tracks-kanban-add-list">
+            @if (_showAddList)
+            {
+                <div class="tracks-add-list-form">
+                    <input type="text" class="form-control" placeholder="List title..."
+                           @bind="_newListTitle" @bind:event="oninput"
+                           @onkeydown="HandleAddListKeyDown" />
+                    <div class="tracks-card-add-actions">
+                        <button class="btn btn-sm btn-primary" @onclick="SubmitNewListAsync">Add</button>
+                        <button class="btn btn-sm btn-secondary" @onclick="() => _showAddList = false">Cancel</button>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <button class="tracks-add-list-btn" @onclick="() => _showAddList = true">
+                    + Add list
+                </button>
+            }
+        </div>
+    </div>
+</div>

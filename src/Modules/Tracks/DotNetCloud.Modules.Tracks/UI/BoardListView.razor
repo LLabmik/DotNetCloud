@@ -1,0 +1,125 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+
+<div class="tracks-board-list">
+    <div class="tracks-board-list-header">
+        <h2>My Boards</h2>
+        <div class="tracks-board-list-actions">
+            <div class="tracks-filter-group">
+                <input type="text" class="tracks-search-input" placeholder="Search boards..."
+                       @bind="_searchQuery" @bind:event="oninput" />
+                @if (Teams.Count > 0)
+                {
+                    <select class="tracks-filter-select" @bind="_teamFilter">
+                        <option value="">All</option>
+                        <option value="personal">Personal</option>
+                        @foreach (var team in Teams)
+                        {
+                            <option value="@team.Id">@team.Name</option>
+                        }
+                    </select>
+                }
+            </div>
+            <button class="btn btn-primary" @onclick="OpenCreateDialog">
+                + New Board
+            </button>
+        </div>
+    </div>
+
+    @if (FilteredBoards.Count == 0)
+    {
+        <div class="tracks-empty-state">
+            <div class="tracks-empty-icon">📋</div>
+            <h3>No boards yet</h3>
+            <p>Create your first board to start tracking work.</p>
+            <button class="btn btn-primary" @onclick="OpenCreateDialog">Create Board</button>
+        </div>
+    }
+    else
+    {
+        <div class="tracks-board-grid">
+            @foreach (var board in FilteredBoards)
+            {
+                <div class="tracks-board-card" @onclick="() => OnBoardSelected.InvokeAsync(board.Id)">
+                    <div class="tracks-board-card-header"
+                         style="@(!string.IsNullOrEmpty(board.Color) ? $"border-top: 4px solid {board.Color};" : "")">
+                        <h3>@board.Title</h3>
+                        @if (board.TeamId.HasValue)
+                        {
+                            var team = Teams.FirstOrDefault(t => t.Id == board.TeamId.Value);
+                            @if (team is not null)
+                            {
+                                <span class="tracks-team-badge">👥 @team.Name</span>
+                            }
+                        }
+                    </div>
+                    @if (!string.IsNullOrEmpty(board.Description))
+                    {
+                        <p class="tracks-board-card-desc">@TruncateText(board.Description, 120)</p>
+                    }
+                    <div class="tracks-board-card-footer">
+                        <span class="tracks-board-meta">
+                            @board.Members.Count member@(board.Members.Count != 1 ? "s" : "")
+                        </span>
+                        <span class="tracks-board-meta">
+                            @board.Lists.Count list@(board.Lists.Count != 1 ? "s" : "")
+                        </span>
+                        @if (board.IsArchived)
+                        {
+                            <span class="badge badge-muted">Archived</span>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@* ── Create Board Dialog ── *@
+@if (_showCreateDialog)
+{
+    <DncModal Title="Create Board" OnClose="CloseCreateDialog">
+        <EditForm Model="_createModel" OnValidSubmit="CreateBoardAsync">
+            <div class="form-group">
+                <label>Title</label>
+                <InputText class="form-control" @bind-Value="_createModel.Title" placeholder="Board title" />
+            </div>
+            <div class="form-group">
+                <label>Description (optional)</label>
+                <InputTextArea class="form-control" @bind-Value="_createModel.Description" rows="3"
+                               placeholder="What is this board for?" />
+            </div>
+            <div class="form-group">
+                <label>Color</label>
+                <div class="tracks-color-picker">
+                    @foreach (var color in _boardColors)
+                    {
+                        <button type="button"
+                                class="tracks-color-swatch @(_createModel.Color == color ? "selected" : "")"
+                                style="background: @color;"
+                                @onclick="() => _createModel.Color = color">
+                        </button>
+                    }
+                </div>
+            </div>
+            @if (Teams.Count > 0)
+            {
+                <div class="form-group">
+                    <label>Team (optional)</label>
+                    <select class="form-control" @bind="_createTeamId">
+                        <option value="">Personal board</option>
+                        @foreach (var team in Teams)
+                        {
+                            <option value="@team.Id">@team.Name</option>
+                        }
+                    </select>
+                </div>
+            }
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" @onclick="CloseCreateDialog">Cancel</button>
+                <button type="submit" class="btn btn-primary" disabled="@_isCreating">
+                    @(_isCreating ? "Creating..." : "Create Board")
+                </button>
+            </div>
+        </EditForm>
+    </DncModal>
+}

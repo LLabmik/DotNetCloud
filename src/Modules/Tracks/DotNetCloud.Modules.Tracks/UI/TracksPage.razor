@@ -1,0 +1,140 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+
+<div class="tracks-layout">
+    @* ── Sidebar ── *@
+    <div class="tracks-sidebar">
+        <div class="tracks-sidebar-header">
+            <h3>Tracks</h3>
+        </div>
+
+        <nav class="tracks-nav">
+            <button class="tracks-nav-item @(_view == TracksView.Boards ? "active" : "")"
+                    @onclick="ShowBoardList">
+                <span class="tracks-nav-icon">📋</span> My Boards
+            </button>
+            <button class="tracks-nav-item @(_view == TracksView.Teams ? "active" : "")"
+                    @onclick="ShowTeams">
+                <span class="tracks-nav-icon">👥</span> Teams
+            </button>
+        </nav>
+
+        @if (_view == TracksView.Board && _selectedBoard is not null)
+        {
+            <div class="tracks-sidebar-section">
+                <div class="tracks-sidebar-section-header">
+                    <span>Board</span>
+                </div>
+                <button class="tracks-nav-item active" @onclick="() => {}">
+                    @if (!string.IsNullOrEmpty(_selectedBoard.Color))
+                    {
+                        <span class="tracks-board-dot" style="background: @_selectedBoard.Color;"></span>
+                    }
+                    @_selectedBoard.Title
+                </button>
+                <button class="tracks-nav-item @(_showSprints ? "active" : "")"
+                        @onclick="ToggleSprints">
+                    <span class="tracks-nav-icon">🏃</span> Sprints
+                </button>
+                <button class="tracks-nav-item"
+                        @onclick="ShowBoardSettings">
+                    <span class="tracks-nav-icon">⚙</span> Settings
+                </button>
+                <button class="tracks-nav-item" @onclick="ShowBoardList">
+                    <span class="tracks-nav-icon">←</span> All Boards
+                </button>
+            </div>
+        }
+
+        @if (_teams.Count > 0)
+        {
+            <div class="tracks-sidebar-section">
+                <div class="tracks-sidebar-section-header">
+                    <span>Teams</span>
+                </div>
+                @foreach (var team in _teams.Take(5))
+                {
+                    <button class="tracks-nav-item"
+                            @onclick="() => SelectTeam(team.Id)">
+                        <span class="tracks-nav-icon">👥</span>
+                        @team.Name
+                    </button>
+                }
+            </div>
+        }
+    </div>
+
+    @* ── Main Content ── *@
+    <div class="tracks-main">
+        @if (_isLoading)
+        {
+            <div class="tracks-loading">
+                <DncLoadingIndicator />
+            </div>
+        }
+        else if (_errorMessage is not null)
+        {
+            <DncErrorDisplay Message="@_errorMessage" />
+        }
+        else
+        {
+            @switch (_view)
+            {
+                case TracksView.Boards:
+                    <BoardListView Boards="_boards"
+                                   Teams="_teams"
+                                   OnBoardSelected="SelectBoard"
+                                   OnBoardCreated="HandleBoardCreated"
+                                   OnBoardDeleted="HandleBoardDeleted" />
+                    break;
+
+                case TracksView.Board:
+                    @if (_selectedBoard is not null)
+                    {
+                        <div class="tracks-board-area">
+                            <KanbanBoard Board="_selectedBoard"
+                                         Lists="_boardLists"
+                                         CardsByList="_cardsByList"
+                                         OnCardSelected="SelectCard"
+                                         OnCardMoved="HandleCardMoved"
+                                         OnCardCreated="HandleCardCreated"
+                                         OnListCreated="HandleListCreated"
+                                         OnListDeleted="HandleListDeleted"
+                                         OnRefreshRequested="RefreshBoardAsync" />
+
+                            @if (_showSprints)
+                            {
+                                <SprintPanel BoardId="_selectedBoard.Id"
+                                             Sprints="_sprints"
+                                             OnSprintChanged="RefreshSprintsAsync" />
+                            }
+                        </div>
+
+                        @if (_selectedCard is not null)
+                        {
+                            <CardDetailPanel Card="_selectedCard"
+                                             Board="_selectedBoard"
+                                             OnClose="CloseCardDetail"
+                                             OnCardUpdated="HandleCardUpdated"
+                                             OnCardDeleted="HandleCardDeleted" />
+                        }
+
+                        @if (_showBoardSettings)
+                        {
+                            <BoardSettingsDialog Board="_selectedBoard"
+                                                 Teams="_teams"
+                                                 OnClose="CloseBoardSettings"
+                                                 OnBoardUpdated="HandleBoardUpdated"
+                                                 OnBoardDeleted="HandleBoardDeletedFromSettings" />
+                        }
+                    }
+                    break;
+
+                case TracksView.Teams:
+                    <TeamManagement Teams="_teams"
+                                    OnTeamSelected="SelectTeam"
+                                    OnRefreshRequested="RefreshTeamsAsync" />
+                    break;
+            }
+        }
+    </div>
+</div>

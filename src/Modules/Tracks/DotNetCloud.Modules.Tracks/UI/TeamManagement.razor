@@ -1,0 +1,165 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+
+<div class="tracks-teams">
+    <div class="tracks-teams-header">
+        <h2>Teams</h2>
+        <div class="tracks-teams-actions">
+            <button class="btn btn-primary" @onclick="() => _showCreateDialog = true">+ New Team</button>
+        </div>
+    </div>
+
+    @if (_teams.Count == 0)
+    {
+        <div class="tracks-empty-state">
+            <span class="tracks-empty-icon">👥</span>
+            <h3>No teams yet</h3>
+            <p>Create a team to collaborate on boards together.</p>
+            <button class="btn btn-primary" @onclick="() => _showCreateDialog = true">Create Team</button>
+        </div>
+    }
+    else
+    {
+        <div class="tracks-team-grid">
+            @foreach (var team in _teams)
+            {
+                <div class="tracks-team-card @(_selectedTeamId == team.Id ? "selected" : "")">
+                    <div class="tracks-team-card-header">
+                        <h3>@team.Name</h3>
+                        <div class="tracks-team-card-meta">
+                            <span class="tracks-team-stat" title="Members">👥 @team.Members.Count</span>
+                            <span class="tracks-team-stat" title="Boards">📋 @team.BoardCount</span>
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(team.Description))
+                    {
+                        <p class="tracks-team-description">@team.Description</p>
+                    }
+
+                    <div class="tracks-team-members-preview">
+                        @foreach (var member in team.Members.Take(5))
+                        {
+                            <span class="tracks-avatar-sm" title="@(member.DisplayName ?? "User") (@member.Role)">
+                                @GetInitials(member.DisplayName)
+                            </span>
+                        }
+                        @if (team.Members.Count > 5)
+                        {
+                            <span class="tracks-avatar-sm tracks-avatar-more">+@(team.Members.Count - 5)</span>
+                        }
+                    </div>
+
+                    <div class="tracks-team-card-actions">
+                        <button class="btn btn-sm btn-outline" @onclick="() => OnTeamSelected.InvokeAsync(team.Id)">
+                            View Boards
+                        </button>
+                        <button class="btn btn-sm btn-outline" @onclick="() => ExpandTeam(team.Id)">
+                            @(_selectedTeamId == team.Id ? "Close" : "Manage")
+                        </button>
+                    </div>
+
+                    @if (_selectedTeamId == team.Id)
+                    {
+                        <div class="tracks-team-expanded">
+                            @* ── Edit Team Details ── *@
+                            <div class="tracks-team-section">
+                                <h4>Team Details</h4>
+                                <div class="tracks-form-group">
+                                    <label>Name</label>
+                                    <input type="text" class="tracks-input" @bind="_editName" />
+                                </div>
+                                <div class="tracks-form-group">
+                                    <label>Description</label>
+                                    <textarea class="tracks-textarea" rows="2" @bind="_editDescription"></textarea>
+                                </div>
+                                <div class="tracks-form-actions">
+                                    <button class="btn btn-sm btn-primary" @onclick="() => UpdateTeamAsync(team.Id)">Save</button>
+                                </div>
+                            </div>
+
+                            @* ── Members ── *@
+                            <div class="tracks-team-section">
+                                <h4>Members (@team.Members.Count)</h4>
+                                <div class="tracks-member-list">
+                                    @foreach (var member in team.Members)
+                                    {
+                                        <div class="tracks-member-row">
+                                            <span class="tracks-avatar-sm">@GetInitials(member.DisplayName)</span>
+                                            <div class="tracks-member-info">
+                                                <span class="tracks-member-name">@(member.DisplayName ?? member.UserId.ToString()[..8])</span>
+                                                <span class="tracks-member-date">Joined @member.JoinedAt.ToString("MMM d, yyyy")</span>
+                                            </div>
+                                            <select class="tracks-filter-select"
+                                                    value="@member.Role"
+                                                    @onchange="e => UpdateMemberRoleAsync(team.Id, member.UserId, e)">
+                                                <option value="Member">Member</option>
+                                                <option value="Manager">Manager</option>
+                                                <option value="Owner">Owner</option>
+                                            </select>
+                                            <button class="tracks-icon-btn tracks-danger-btn"
+                                                    title="Remove member"
+                                                    @onclick="() => RemoveMemberAsync(team.Id, member.UserId)">✕</button>
+                                        </div>
+                                    }
+                                </div>
+
+                                <div class="tracks-add-member-row">
+                                    <input type="text" class="tracks-input" placeholder="User ID (GUID)"
+                                           @bind="_addMemberUserId" />
+                                    <select class="tracks-filter-select" @bind="_addMemberRole">
+                                        <option value="Member">Member</option>
+                                        <option value="Manager">Manager</option>
+                                        <option value="Owner">Owner</option>
+                                    </select>
+                                    <button class="btn btn-sm btn-primary" @onclick="() => AddMemberAsync(team.Id)">Add</button>
+                                </div>
+                            </div>
+
+                            @* ── Danger Zone ── *@
+                            <div class="tracks-team-section tracks-danger-zone">
+                                <h4>Danger Zone</h4>
+                                <button class="btn btn-sm btn-danger" @onclick="() => DeleteTeamAsync(team.Id)">Delete Team</button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    @* ── Create Team Dialog ── *@
+    @if (_showCreateDialog)
+    {
+        <div class="tracks-dialog-overlay" @onclick="() => _showCreateDialog = false">
+            <div class="tracks-dialog" @onclick:stopPropagation>
+                <div class="tracks-dialog-header">
+                    <h3>Create Team</h3>
+                    <button class="tracks-icon-btn" @onclick="() => _showCreateDialog = false">✕</button>
+                </div>
+                <div class="tracks-dialog-body">
+                    <div class="tracks-form-group">
+                        <label>Team Name *</label>
+                        <input type="text" class="tracks-input" @bind="_newTeamName" placeholder="e.g. Engineering" />
+                    </div>
+                    <div class="tracks-form-group">
+                        <label>Description</label>
+                        <textarea class="tracks-textarea" rows="3" @bind="_newTeamDescription"
+                                  placeholder="What does this team do?"></textarea>
+                    </div>
+                </div>
+                <div class="tracks-dialog-footer">
+                    <button class="btn btn-outline" @onclick="() => _showCreateDialog = false">Cancel</button>
+                    <button class="btn btn-primary" @onclick="CreateTeamAsync"
+                            disabled="@string.IsNullOrWhiteSpace(_newTeamName)">Create</button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="tracks-toast tracks-toast-error">
+            <span>@_errorMessage</span>
+            <button class="tracks-icon-btn" @onclick="() => _errorMessage = null">✕</button>
+        </div>
+    }
+</div>

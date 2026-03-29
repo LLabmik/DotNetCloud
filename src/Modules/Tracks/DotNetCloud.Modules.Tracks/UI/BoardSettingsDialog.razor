@@ -1,0 +1,114 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+
+<DncModal Title="Board Settings" OnClose="OnClose">
+    <div class="tracks-settings">
+        @* ── General ── *@
+        <div class="tracks-settings-section">
+            <h4>General</h4>
+            <div class="form-group">
+                <label>Title</label>
+                <input type="text" class="form-control" @bind="_title" />
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea class="form-control" rows="3" @bind="_description"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Color</label>
+                <div class="tracks-color-picker">
+                    @foreach (var color in _colors)
+                    {
+                        <button type="button"
+                                class="tracks-color-swatch @(_color == color ? "selected" : "")"
+                                style="background: @color;"
+                                @onclick="() => _color = color">
+                        </button>
+                    }
+                </div>
+            </div>
+            <button class="btn btn-primary" @onclick="SaveGeneralAsync">Save Changes</button>
+        </div>
+
+        @* ── Members ── *@
+        <div class="tracks-settings-section">
+            <h4>Members</h4>
+            <div class="tracks-members-list">
+                @foreach (var member in Board.Members)
+                {
+                    <div class="tracks-member-row">
+                        <span class="tracks-avatar-sm">@GetInitials(member.DisplayName)</span>
+                        <span class="tracks-member-name">@(member.DisplayName ?? member.UserId.ToString()[..8])</span>
+                        <select class="form-control form-control-sm tracks-role-select"
+                                value="@member.Role"
+                                @onchange="e => UpdateMemberRoleAsync(member.UserId, e)">
+                            <option value="Viewer">Viewer</option>
+                            <option value="Member">Member</option>
+                            <option value="Admin">Admin</option>
+                            <option value="Owner">Owner</option>
+                        </select>
+                        <button class="tracks-icon-btn" title="Remove member"
+                                @onclick="() => RemoveMemberAsync(member.UserId)">×</button>
+                    </div>
+                }
+            </div>
+            <div class="tracks-add-member">
+                <input type="text" class="form-control form-control-sm"
+                       placeholder="User ID to add..." @bind="_addMemberInput" />
+                <button class="btn btn-sm btn-primary" @onclick="AddMemberAsync">Add</button>
+            </div>
+        </div>
+
+        @* ── Labels ── *@
+        <div class="tracks-settings-section">
+            <h4>Labels</h4>
+            @foreach (var label in Board.Labels)
+            {
+                <div class="tracks-label-row">
+                    <span class="tracks-label-pill" style="background: @label.Color;">@label.Title</span>
+                    <button class="tracks-icon-btn" @onclick="() => DeleteLabelAsync(label.Id)">×</button>
+                </div>
+            }
+            <div class="tracks-add-label">
+                <input type="text" class="form-control form-control-sm" placeholder="Label name"
+                       @bind="_newLabelTitle" />
+                <div class="tracks-color-picker-sm">
+                    @foreach (var c in _labelColors)
+                    {
+                        <button type="button"
+                                class="tracks-color-swatch-sm @(_newLabelColor == c ? "selected" : "")"
+                                style="background: @c;"
+                                @onclick="() => _newLabelColor = c">
+                        </button>
+                    }
+                </div>
+                <button class="btn btn-sm btn-primary" @onclick="CreateLabelAsync">Add Label</button>
+            </div>
+        </div>
+
+        @* ── Transfer to Team ── *@
+        @if (Teams.Count > 0)
+        {
+            <div class="tracks-settings-section">
+                <h4>Team</h4>
+                @if (Board.TeamId.HasValue)
+                {
+                    var team = Teams.FirstOrDefault(t => t.Id == Board.TeamId.Value);
+                    <p>This board belongs to team <strong>@(team?.Name ?? "Unknown")</strong>.</p>
+                }
+                else
+                {
+                    <p>This is a personal board.</p>
+                }
+            </div>
+        }
+
+        @* ── Archive / Delete ── *@
+        <div class="tracks-settings-section tracks-settings-danger">
+            <h4>Danger Zone</h4>
+            <button class="btn btn-outline" @onclick="ArchiveBoardAsync">
+                @(Board.IsArchived ? "Unarchive Board" : "Archive Board")
+            </button>
+            <button class="btn btn-danger" @onclick="DeleteBoardAsync">Delete Board</button>
+        </div>
+    </div>
+</DncModal>
