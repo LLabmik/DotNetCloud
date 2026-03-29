@@ -84,7 +84,11 @@ public sealed class SyncIgnoreParser : ISyncIgnoreParser
         var syncIgnorePath = Path.Combine(syncRoot, ".syncignore");
         if (File.Exists(syncIgnorePath))
         {
-            foreach (var line in File.ReadAllLines(syncIgnorePath))
+            // Use FileShare.ReadWrite so we can read even if the file is still
+            // held open by the download process (avoids IOException on FSW reload).
+            using var stream = new FileStream(syncIgnorePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var reader = new StreamReader(stream);
+            while (reader.ReadLine() is { } line)
             {
                 var trimmed = line.Trim();
                 if (trimmed.Length == 0 || trimmed.StartsWith('#'))

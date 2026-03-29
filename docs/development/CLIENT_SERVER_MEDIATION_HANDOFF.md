@@ -61,7 +61,7 @@ Archived context:
 - Security audit closeout + merge validation on `mint22`: **COMPLETE** (2026-03-23).
 - Post-closeout Windows runtime smoke: **COMPLETE** (2026-03-23). 4/4 targeted tests passed; login launch path verified reachable.
 - **Active cycle (20260328–20260329):** WS-4 live verification 58/66 passed. Windows Phase C complete (8 pass, 2 deferred, 1 skip). Linux Phase C complete (10 pass, 1 skip). Both deferred Windows tests (TC-1.52 conflict, TC-1.53 offline) passed on Linux.
-- **Current (20260329):** TC-1.54 retest on Windows after `SyncEngine` file stability check code changes (commit `38c32f4`).
+- **Current (20260329):** TC-1.54 retest **PASSED** on Windows. Bug found: .syncignore file lock crash on initial sync — fixed in `SyncIgnoreParser` (FileShare.ReadWrite) and `SyncEngine` (try-catch safety net). 186/186 tests pass.
 
 ## Environment
 
@@ -83,78 +83,28 @@ Archived context:
 
 ## Active Handoff
 
-**Target machine:** `Windows11-TestDNC`
-**Status:** READY
-**Context:** WS-4 — Retest TC-1.54 (100MB+ file upload) after file stability code changes
-**Summary:** Linux testing revealed that large files generated with `dd` could be caught mid-write by the FSW. Code changes were made to `SyncEngine` to add a pre-upload file stability check. Windows needs to retest TC-1.54 to confirm the new behavior works correctly on Windows.
+**Target machine:** (none — cycle complete)
+**Status:** COMPLETE
+**Context:** WS-4 — TC-1.54 retest results (Windows) + .syncignore crash fix
 
-### Objective
-
-Retest **TC-1.54** (100MB+ file upload through sync) on Windows. The SyncEngine now includes a `WaitForFileStabilityAsync()` check that samples file size before and after a 1-second delay. If the file is still growing, it throws `FileStillGrowingException` and defers the upload without consuming retry budget.
-
-**What changed (commit `38c32f4`):**
-- New: `src/Clients/DotNetCloud.Client.Core/Platform/FileStillGrowingException.cs`
-- Modified: `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs`
-  - Added `FileStabilityDelay` property (1s default)
-  - Added `WaitForFileStabilityAsync()` — checks file size before/after delay
-  - Added catch handler for `FileStillGrowingException` — defers upload, retries in 5s, does NOT consume retry count
-- New: `tests/DotNetCloud.Client.Core.Tests/Sync/SyncEngineTests.cs` — unit tests for stability check
-
-**Server:** `https://mint22:5443/`
-**Test account:** `testdude@llabmik.net` / `TestMilk01!`
-**OAuth client_id:** `dotnetcloud-desktop`
-
-### Prerequisites
-
-1. Pull latest `main`:
-   ```powershell
-   cd C:\Users\benk\Repos\dotnetcloud
-   git pull
-   ```
-2. Build SyncTray:
-   ```powershell
-   dotnet build src\Clients\DotNetCloud.Client.SyncTray\DotNetCloud.Client.SyncTray.csproj
-   ```
-3. Ensure `mint22:5443` is reachable from Windows11-TestDNC.
-4. Sync directory: `C:\Users\benk\Documents\synctray` (or wherever previously configured).
-5. SyncTray running with synced account.
-
-### Test Execution
-
-#### TC-1.54 — Upload 100MB+ file through sync (RETEST)
-
-1. Generate a 105 MB file in the synced folder:
-   ```powershell
-   $bytes = New-Object byte[] (105 * 1024 * 1024)
-   [System.Random]::new().NextBytes($bytes)
-   [System.IO.File]::WriteAllBytes("C:\Users\benk\Documents\synctray\largefile-retest.bin", $bytes)
-   ```
-2. Wait for SyncTray to detect and upload the file (monitor logs in `%LOCALAPPDATA%\DotNetCloud\logs\sync-tray.log`).
-3. Verify in logs:
-   - File stability check should PASS (file is fully written before FSW fires, since `WriteAllBytes` is atomic).
-   - No `FileStillGrowingException` expected for this scenario.
-   - Chunked upload completes successfully.
-4. Verify file appears in web UI at `https://mint22:5443/`.
-5. **Pass criteria:** File uploads without error, appears on server with correct size (110100480 bytes).
-
-**Bonus (optional):** To explicitly test the stability check deferral:
-1. Start a slow copy of a large file into the sync folder (e.g., use `robocopy` with `/IPG:100` throttle, or copy from a USB 2.0 source).
-2. Watch logs for `Deferring upload of ... file size changed during stability check` message.
-3. After copy completes, watch for automatic retry and successful upload.
-
-### Results Table
+### TC-1.54 Retest Results (Windows11-TestDNC, 2026-03-29)
 
 | Test ID | Test Name | Result | Notes |
 |---------|-----------|--------|-------|
-| TC-1.54 | 100MB+ file upload (retest) | | |
+| TC-1.54 | 100MB+ file upload (retest) | **PASS** | 105MB file uploaded in ~12s, 110100480 bytes confirmed on server. No FileStillGrowingException (atomic write). Stability check passed silently. |
 
-### After Completion
+### Bug Found & Fixed During Testing
 
-1. Fill in the results table above.
-2. Commit and push:
-   ```powershell
-   git add docs\development\CLIENT_SERVER_MEDIATION_HANDOFF.md
-   git commit -m "WS-4: TC-1.54 retest results (Windows, post-stability-check)"
-   git push origin main
-   ```
-3. Relay back to moderator with commit hash.
+**Crash:** SyncTray crashed on initial sync with unhandled `System.IO.IOException` in `SyncIgnoreParser.Initialize()`.
+
+**Root cause:** When the sync engine downloads `.syncignore`, FSW fires a `Changed` event. The `.syncignore` reload handler calls `File.ReadAllLines()` which requires exclusive read access. If the download process still holds a write lock, the read fails with "file in use by another process" → unhandled exception → process termination.
+
+**Fix (two changes):**
+1. `SyncIgnoreParser.Initialize()` — replaced `File.ReadAllLines()` with `FileStream(FileShare.ReadWrite)` so it can read even while the file is still being written by the download.
+2. `SyncEngine.OnFileSystemChanged()` — added `try-catch (IOException)` around the `.syncignore` reload as a safety net. Logs a warning and skips; next FSW event or sync pass will pick it up.
+
+**Files changed:**
+- `src/Clients/DotNetCloud.Client.Core/SyncIgnore/SyncIgnoreParser.cs`
+- `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs`
+
+**Tests:** 186/186 pass (DotNetCloud.Client.Core.Tests). Crash did not recur after fix.

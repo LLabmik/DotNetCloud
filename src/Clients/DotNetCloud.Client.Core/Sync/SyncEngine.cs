@@ -1745,8 +1745,17 @@ public sealed class SyncEngine : ISyncEngine
         // effect immediately without restarting the engine.
         if (Path.GetFileName(e.FullPath).Equals(".syncignore", StringComparison.OrdinalIgnoreCase))
         {
-            _logger.LogInformation("Reloading .syncignore rules (file changed on disk).");
-            _syncIgnore.Initialize(_activeContext.LocalFolderPath);
+            try
+            {
+                _logger.LogInformation("Reloading .syncignore rules (file changed on disk).");
+                _syncIgnore.Initialize(_activeContext.LocalFolderPath);
+            }
+            catch (IOException ex)
+            {
+                // File may still be locked by the download process; skip this
+                // reload — the next FSW event or sync pass will pick it up.
+                _logger.LogWarning(ex, "Could not reload .syncignore (file locked); will retry on next change.");
+            }
         }
 
         // Pre-filter: skip events for known-ignored files to reduce unnecessary sync passes.
