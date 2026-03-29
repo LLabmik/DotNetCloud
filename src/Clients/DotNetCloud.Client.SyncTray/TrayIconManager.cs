@@ -551,14 +551,11 @@ public sealed class TrayIconManager : IDisposable
     /// <summary>Draws ⏸ pause bars symbol (Paused state).</summary>
     private static void DrawPauseBars(byte[] pixels, int size, float centre, float radius)
     {
-        // Two vertical rectangles: left bar x=11..13, right bar x=18..20, y=9..22.
-        for (int py = 9; py <= 22; py++)
-        {
-            for (int px = 11; px <= 13; px++)
-                SetWhitePixel(pixels, size, px, py, 1f, centre, radius);
-            for (int px = 18; px <= 20; px++)
-                SetWhitePixel(pixels, size, px, py, 1f, centre, radius);
-        }
+        // Two vertical bars, symmetrically placed around circle centre.
+        // centre = 15.5 → left bar at x=12, right bar at x=19 (3.5px offset each).
+        const float barWidth = 3.0f;
+        DrawAntiAliasedLine(pixels, size, centre - 3.5f, 9f, centre - 3.5f, 22f, barWidth, centre, radius);
+        DrawAntiAliasedLine(pixels, size, centre + 3.5f, 9f, centre + 3.5f, 22f, barWidth, centre, radius);
     }
 
     /// <summary>Draws ✕ X mark symbol (Error state).</summary>
