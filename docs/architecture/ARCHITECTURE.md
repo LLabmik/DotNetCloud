@@ -529,7 +529,7 @@ Other modules can leverage AI through the `ILlmProvider` capability:
 | Email | Draft replies, summarize threads |
 | Files | Content summarization, document Q&A |
 | Search | Semantic search, natural language queries |
-| Deck | Generate card descriptions, sprint summaries |
+| Tracks | Generate card descriptions, sprint summaries |
 
 ### Privacy & Data Sovereignty
 
@@ -573,7 +573,7 @@ DotNetCloud.sln
 │   │   ├── DotNetCloud.Modules.Notes/
 │   │   ├── DotNetCloud.Modules.Music/
 │   │   ├── DotNetCloud.Modules.Email/
-│   │   ├── DotNetCloud.Modules.Deck/
+│   │   ├── DotNetCloud.Modules.Tracks/
 │   │   ├── DotNetCloud.Modules.Photos/
 │   │   ├── DotNetCloud.Modules.Bookmarks/
 │   │   ├── DotNetCloud.Modules.Announcements/
@@ -1095,11 +1095,11 @@ All dependencies are open source with permissive or compatible licenses. Zero co
 
 **Milestone:** Full PIM suite. CalDAV/CardDAV compatibility with existing apps.
 
-### Phase 4: Project Management (Deck)
+### Phase 4: Project Management (Tracks)
 
 **Goal:** Kanban boards + Jira-like project tracking.
 
-- Deck module (boards, lists, cards, labels, due dates, assignments, sprints, time tracking, dependencies)
+- Tracks module (boards, lists, cards, labels, due dates, assignments, sprints, time tracking, dependencies)
 - Cross-module integration (cards reference files, chat messages)
 
 **Milestone:** Teams manage projects with boards.

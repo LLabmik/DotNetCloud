@@ -461,7 +461,7 @@ internal static class SetupCommand
             "dotnetcloud.contacts",
             "dotnetcloud.calendar",
             "dotnetcloud.notes",
-            "dotnetcloud.deck"
+            "dotnetcloud.tracks"
         };
 
         var previouslyEnabled = config.EnabledModules.ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -477,7 +477,7 @@ internal static class SetupCommand
         if (beginnerMode)
         {
             ConsoleOutput.WriteInfo("Keeping the first install simple: only the required modules are enabled.");
-            ConsoleOutput.WriteInfo("You can enable Contacts, Calendar, Notes, and Deck later from the admin UI.");
+            ConsoleOutput.WriteInfo("You can enable Contacts, Calendar, Notes, and Tracks later from the admin UI.");
         }
         else if (optionalModules.Length > 0)
         {

@@ -87,7 +87,15 @@
 | Phase 3.6 | 4 | 4 | 0 | 0 |
 | Phase 3.7 | 5 | 5 | 0 | 0 |
 | Phase 3.8 | 4 | 4 | 0 | 0 |
-| Phase 4-9 | Summary | 0 | 0 | 1 |
+| Phase 4.1 | 5 | 0 | 0 | 5 |
+| Phase 4.2 | 4 | 0 | 0 | 4 |
+| Phase 4.3 | 13 | 0 | 0 | 13 |
+| Phase 4.4 | 16 | 0 | 0 | 16 |
+| Phase 4.5 | 9 | 0 | 0 | 9 |
+| Phase 4.6 | 4 | 0 | 0 | 4 |
+| Phase 4.7 | 6 | 0 | 0 | 6 |
+| Phase 4.8 | 8 | 0 | 0 | 8 |
+| Phase 5-9 | Summary | 0 | 0 | 1 |
 | Infrastructure | Summary | 0 | 0 | 1 |
 | Documentation | Summary | 0 | 0 | 1 |
 
@@ -1403,6 +1411,141 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Upgrade/release notes with migration caveats — `docs/admin/PHASE_3_RELEASE_NOTES.md`
 
 **Notes:** Phase 3.8 complete. All four documentation deliverables created: admin operations guide covering all three PIM modules, three user guides (one per module) with workflows for contact/calendar/note management plus DAV sync setup and import/export, three API reference docs with full REST + DAV endpoint specifications including schemas and error codes, and release notes with upgrade instructions and known limitations. Doc indexes updated: `docs/api/README.md` links module API references; `README.md` links admin guide, user guides, and release notes. Phase 3 documentation milestone (Milestone D) is now fully complete.
+
+---
+
+## Phase 4: Project Management (Tracks)
+
+> **Goal:** Kanban boards + Jira-like project tracking as a process-isolated module.
+> **Module ID:** `dotnetcloud.tracks`
+> **Detailed plan:** `docs/PHASE_4_IMPLEMENTATION_PLAN.md`
+
+### Section: Phase 4.1 - Architecture And Contracts
+**STATUS:** not started
+**DELIVERABLES:**
+- ☐ `TracksDto.cs` — DTOs for Board, BoardList, Card, Label, CardAssignment, CardComment, CardAttachment, Sprint, TimeEntry, CardDependency
+- ☐ `TracksEvents.cs` — Domain events (BoardCreated, BoardDeleted, CardCreated, CardMoved, CardUpdated, CardDeleted, CardAssigned, CardCommentAdded, SprintStarted, SprintCompleted)
+- ☐ `ITracksDirectory` capability interface (Public tier)
+- ☐ Error codes: `TRACKS_` domain codes in `ErrorCodes.cs`
+- ☐ Unit tests for all new DTOs and events
+
+**Notes:** Adds Tracks contracts to DotNetCloud.Core following the same pattern as Contacts/Calendar/Notes DTOs and events.
+
+---
+
+### Section: Phase 4.2 - Data Model And Module Scaffold
+**STATUS:** not started
+**DELIVERABLES:**
+- ☐ `DotNetCloud.Modules.Tracks/` — Module library (TracksModule.cs, TracksModuleManifest.cs)
+- ☐ `DotNetCloud.Modules.Tracks.Data/` — TracksDbContext, 16 entity models, EF configurations, initial migration
+- ☐ `DotNetCloud.Modules.Tracks.Host/` — gRPC host scaffold
+- ☐ Solution integration (add all three projects to DotNetCloud.sln)
+
+**Notes:** 16 entities: Board, BoardMember, BoardList, Card, CardAssignment, Label, CardLabel, CardComment, CardAttachment, CardChecklist, ChecklistItem, CardDependency, Sprint, SprintCard, TimeEntry, BoardActivity.
+
+---
+
+### Section: Phase 4.3 - Core Services And Business Logic
+**STATUS:** not started
+**DELIVERABLES:**
+- ☐ `BoardService` — CRUD boards, manage members/roles, archive/unarchive
+- ☐ `ListService` — CRUD lists, reorder (gap-based positioning), WIP limit enforcement
+- ☐ `CardService` — CRUD cards, move between lists, assign/unassign users, priority, due dates, archive
+- ☐ `LabelService` — CRUD labels per board, assign/remove from cards
+- ☐ `CommentService` — CRUD comments with Markdown rendering + sanitization
+- ☐ `ChecklistService` — CRUD checklists and items, toggle completion
+- ☐ `AttachmentService` — Link files (Files module or URL), remove
+- ☐ `DependencyService` — Add/remove card dependencies, cycle detection
+- ☐ `SprintService` — CRUD sprints, start/complete, move cards in/out
+- ☐ `TimeTrackingService` — Start/stop timer, manual entry, duration rollup
+- ☐ `ActivityService` — Log mutations, query activity feed per board/card
+- ☐ Authorization logic — Board role checks (Owner/Admin/Member/Viewer)
+- ☐ Unit tests (~80 tests covering all services)
+
+**Notes:** Reuses Markdig + HtmlSanitizer pipeline from Notes for Markdown rendering. Gap-based position management (intervals of 1000) for card/list reorder.
+
+---
+
+### Section: Phase 4.4 - REST API And gRPC Service
+**STATUS:** not started
+**DELIVERABLES:**
+- ☐ `BoardsController` — CRUD boards, GET /boards/{id}/activity
+- ☐ Board members endpoints — GET/POST/DELETE members, PUT role
+- ☐ `ListsController` — CRUD lists, PUT /lists/reorder
+- ☐ `CardsController` — CRUD cards, PUT move, PUT reorder
+- ☐ Card assignments — POST/DELETE assign
+- ☐ Card labels — POST/DELETE labels
+- ☐ `CommentsController` — CRUD comments
+- ☐ `ChecklistsController` — CRUD checklists + items, toggle
+- ☐ `AttachmentsController` — CRUD attachments
+- ☐ `DependenciesController` — CRUD dependencies
+- ☐ `SprintsController` — CRUD sprints, start/complete
+- ☐ `TimeEntriesController` — CRUD time entries, timer start/stop
+- ☐ Board export/import (JSON)
+- ☐ `tracks.proto` — Proto definition
+- ☐ `TracksGrpcService` — gRPC server implementation
+- ☐ `TracksLifecycleService` — Module lifecycle
+
+**Notes:** ~40 REST endpoints following existing controller patterns. gRPC service for core ↔ module communication.
+
+---
+
+### Section: Phase 4.5 - Web UI (Blazor)
+**STATUS:** not started
+**DELIVERABLES:**
+- ☐ Board list page — Grid/list of boards, create board dialog
+- ☐ Board view — Full kanban with drag-and-drop cards between lists
+- ☐ Card detail panel — Slide-out with description, assignments, labels, checklists, comments, attachments, time, dependencies, activity
+- ☐ Sprint management — Planning view, backlog → sprint, progress indicators
+- ☐ Board settings — Members, labels, archive management
+- ☐ Filters and search — Filter by label, assignee, due date, priority
+- ☐ Real-time updates — SignalR for live board state
+- ☐ Responsive layout — Desktop, tablet, mobile-friendly
+- ☐ CSS consistent with DotNetCloud UI theme
+
+**Notes:** Drag-and-drop via HTML5 drag API or JS interop library. Card detail as slide-out panel (not separate page) for fast workflow.
+
+---
+
+### Section: Phase 4.6 - Real-time And Notifications
+**STATUS:** not started
+**DELIVERABLES:**
+- ☐ `TracksHub` — SignalR hub for board state sync
+- ☐ Notification integration — Assignment, due date, mention, sprint events
+- ☐ Activity feed — Per-board real-time stream
+- ☐ @mention support — Parse in descriptions/comments, send notifications
+
+**Notes:** Follows Chat module's SignalR pattern. Each board is a SignalR group for scoped updates.
+
+---
+
+### Section: Phase 4.7 - Advanced Features
+**STATUS:** not started
+**DELIVERABLES:**
+- ☐ Board templates — Kanban, Scrum, Bug Tracking, Personal TODO
+- ☐ Card templates — Save/create cards from templates
+- ☐ Due date reminders — Background dispatch service
+- ☐ Board analytics — Cycle time, time-in-list, per-user workload
+- ☐ Sprint reports — Velocity chart, burndown data endpoints
+- ☐ Bulk operations — Multi-select cards for move/label/assign/archive
+
+**Notes:** Templates seeded as JSON definitions. Analytics endpoints return chart-ready data (frontend renders).
+
+---
+
+### Section: Phase 4.8 - Testing Documentation And Release
+**STATUS:** not started
+**DELIVERABLES:**
+- ☐ Unit tests — Full service coverage, authorization, cycle detection
+- ☐ Integration tests — REST API + gRPC tests
+- ☐ Security tests — Board role auth, tenant isolation, Markdown XSS
+- ☐ Performance tests — Large board (1000+ cards), reorder operations
+- ☐ Admin documentation — Module config, permissions
+- ☐ User guide — Boards, cards, sprints, time tracking
+- ☐ API documentation — All REST endpoints
+- ☐ README roadmap status update
+
+**Notes:** Follows Phase 3.7/3.8 pattern for testing and docs.
 
 ---
 

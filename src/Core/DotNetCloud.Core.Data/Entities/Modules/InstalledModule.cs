@@ -66,7 +66,7 @@ public class InstalledModule
     ///   <item><description><strong>dotnetcloud.files</strong> - File storage and sync</description></item>
     ///   <item><description><strong>dotnetcloud.chat</strong> - Real-time messaging</description></item>
     ///   <item><description><strong>dotnetcloud.calendar</strong> - Calendar and events</description></item>
-    ///   <item><description><strong>dotnetcloud.deck</strong> - Project management</description></item>
+    ///   <item><description><strong>dotnetcloud.tracks</strong> - Project management</description></item>
     ///   <item><description><strong>dotnetcloud.ai</strong> - AI assistant</description></item>
     /// </list>
     /// <para>Immutable after installation.</para>

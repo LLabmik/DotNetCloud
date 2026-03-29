@@ -15,7 +15,7 @@
 3. [Phase 1: Files (Public Launch)](#phase-1-files-public-launch)
 4. [Phase 2: Chat & Notifications](#phase-2-chat--notifications)
 5. [Phase 3: Contacts, Calendar & Notes](#phase-3-contacts-calendar--notes)
-6. [Phase 4: Project Management (Deck)](#phase-4-project-management-deck)
+6. [Phase 4: Project Management (Tracks)](#phase-4-project-management-tracks)
 7. [Phase 5: Media (Photos, Music, Video)](#phase-5-media-photos-music-video)
 8. [Phase 6: Email & Bookmarks](#phase-6-email--bookmarks)
 9. [Phase 7: Video Calling & Screen Sharing](#phase-7-video-calling--screen-sharing)
@@ -3271,3 +3271,117 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ User guides for import, sharing, sync, troubleshooting
 - ✓ API docs for all new REST and DAV endpoints
 - ✓ Upgrade/release notes with migration caveats
+
+---
+
+## Phase 4: Project Management (Tracks)
+
+> Module ID: `dotnetcloud.tracks` | Namespace: `DotNetCloud.Modules.Tracks`
+> Detailed plan: `docs/PHASE_4_IMPLEMENTATION_PLAN.md`
+
+### Phase 4.1: Architecture And Contracts
+
+- ☐ `TracksDto.cs` — DTOs for Board, BoardList, Card, Label, Assignment, Comment, Attachment, Sprint, TimeEntry, Dependency
+- ☐ `TracksEvents.cs` — BoardCreated, BoardDeleted, CardCreated, CardMoved, CardUpdated, CardDeleted, CardAssigned, CardCommentAdded, SprintStarted, SprintCompleted
+- ☐ `ITracksDirectory` capability interface (Public tier)
+- ☐ `TRACKS_` error codes in `ErrorCodes.cs`
+- ☐ Unit tests for new DTOs and events
+
+### Phase 4.2: Data Model And Module Scaffold
+
+- ☐ `DotNetCloud.Modules.Tracks/` — TracksModule.cs, TracksModuleManifest.cs
+- ☐ `DotNetCloud.Modules.Tracks.Data/` — TracksDbContext, 16 entity models, EF configurations, initial migration
+- ☐ `DotNetCloud.Modules.Tracks.Host/` — gRPC host scaffold
+- ☐ Solution integration (DotNetCloud.sln)
+
+### Phase 4.3: Core Services And Business Logic
+
+- ☐ BoardService — CRUD boards, members/roles, archive
+- ☐ ListService — CRUD lists, reorder, WIP limits
+- ☐ CardService — CRUD cards, move, assign, priority, due dates, archive
+- ☐ LabelService — CRUD labels, assign/remove from cards
+- ☐ CommentService — CRUD comments, Markdown + sanitization
+- ☐ ChecklistService — CRUD checklists/items, toggle completion
+- ☐ AttachmentService — File links, external URLs
+- ☐ DependencyService — Dependencies, cycle detection
+- ☐ SprintService — CRUD sprints, start/complete
+- ☐ TimeTrackingService — Timer, manual entry, rollup
+- ☐ ActivityService — Mutation logging, activity feed
+- ☐ Authorization logic (Owner/Admin/Member/Viewer)
+- ☐ Unit tests (~80 tests)
+
+### Phase 4.4: REST API And gRPC Service
+
+#### REST API (~40 endpoints)
+- ☐ BoardsController — CRUD + activity
+- ☐ Board members — CRUD + role management
+- ☐ ListsController — CRUD + reorder
+- ☐ CardsController — CRUD + move + reorder
+- ☐ Card assignments
+- ☐ Card labels
+- ☐ CommentsController
+- ☐ ChecklistsController + items
+- ☐ AttachmentsController
+- ☐ DependenciesController
+- ☐ SprintsController — CRUD + start/complete
+- ☐ TimeEntriesController — CRUD + timer
+- ☐ Board export/import (JSON)
+
+#### gRPC
+- ☐ tracks.proto definition
+- ☐ TracksGrpcService
+- ☐ TracksLifecycleService
+
+### Phase 4.5: Web UI (Blazor)
+
+- ☐ Board list page (grid/list, create dialog)
+- ☐ Board kanban view (drag-and-drop)
+- ☐ Card detail slide-out panel
+- ☐ Sprint management (planning, backlog, progress)
+- ☐ Board settings (members, labels, archive)
+- ☐ Filters and search
+- ☐ Real-time SignalR updates
+- ☐ Responsive layout
+- ☐ CSS consistent with theme
+
+### Phase 4.6: Real-time And Notifications
+
+- ☐ TracksHub (SignalR)
+- ☐ Notification integration (assignment, due date, mention, sprint)
+- ☐ Activity feed (per-board real-time)
+- ☐ @mention support in descriptions/comments
+
+### Phase 4.7: Advanced Features
+
+- ☐ Board templates (Kanban, Scrum, Bug Tracking, Personal TODO)
+- ☐ Card templates
+- ☐ Due date reminders (background service)
+- ☐ Board analytics (cycle time, workload)
+- ☐ Sprint reports (velocity, burndown data)
+- ☐ Bulk operations (multi-select cards)
+
+### Phase 4.8: Testing, Documentation And Release
+
+#### Unit Tests
+- ☐ Service coverage (all 11 services)
+- ☐ Authorization tests
+- ☐ Dependency cycle detection tests
+
+#### Integration Tests
+- ☐ REST API endpoint tests
+- ☐ gRPC service tests
+
+#### Security Tests
+- ☐ Board role authorization
+- ☐ Tenant isolation
+- ☐ Markdown XSS prevention
+
+#### Performance
+- ☐ Large board (1000+ cards)
+- ☐ Reorder operations
+
+#### Documentation
+- ☐ Admin docs (module config, permissions)
+- ☐ User guide (boards, cards, sprints, time tracking)
+- ☐ API documentation (all endpoints)
+- ☐ README roadmap status update
