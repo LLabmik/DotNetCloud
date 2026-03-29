@@ -26,9 +26,9 @@ DotNetCloud gives you full control of your data by running your own cloud server
 | 📝 **Document Editing** | Browser-based editing via Collabora Online (LibreOffice-based) | ✅ Phase 1 |
 | 💬 **Chat** | Real-time messaging, channels, direct messages | ✅ Phase 2 |
 | 📱 **Android App** | Mobile client with photo auto-upload | ✅ Phase 2 |
-| 👤 **Contacts** | Contact management with CardDAV support | Phase 3 |
-| 📅 **Calendar** | Events, scheduling, CalDAV support | Phase 3 |
-| 📝 **Notes** | Markdown-based note taking | Phase 3 |
+| 👤 **Contacts** | Contact management with CardDAV support | ✅ Phase 3 |
+| 📅 **Calendar** | Events, scheduling, CalDAV support | ✅ Phase 3 |
+| 📝 **Notes** | Markdown-based note taking | ✅ Phase 3 |
 | 📋 **Deck** | Kanban boards and project management | Phase 4 |
 | 🖼️ **Photos** | Photo/video library and management | Phase 5 |
 | 🎵 **Music** | Music player with equalizer and playlists | Phase 5 |
@@ -48,7 +48,7 @@ See [MASTER_PROJECT_PLAN.md](docs/MASTER_PROJECT_PLAN.md) for the full phased im
 | **Phase 0** | Foundation — core platform, auth, module system, CLI, web shell, observability | ✅ Complete |
 | **Phase 1** | Files + Desktop Sync Client — file browser, upload/download, sharing, Collabora editing, bulk operations, trash, tags, versioning, Windows & Linux sync | ✅ Complete |
 | **Phase 2** | Chat + Notifications + Android — real-time messaging, push notifications, Android MAUI client | ✅ Complete |
-| **Phase 3** | Contacts + Calendar + Notes + NextCloud Migration | � In Progress |
+| **Phase 3** | Contacts + Calendar + Notes + NextCloud Migration | ✅ Complete |
 | **Phase 4** | Project Management (Deck) | ⬜ Planned |
 | **Phase 5** | Photos + Music | ⬜ Planned |
 | **Phase 6** | Email + Bookmarks | ⬜ Planned |
@@ -200,7 +200,7 @@ Planning to migrate? DotNetCloud will include a migration tool:
 dotnetcloud migrate --from nextcloud --data-dir /var/www/nextcloud
 ```
 
-Imports users, files, calendars, contacts, and bookmarks. Available starting in Phase 3.
+Imports users, files, calendars, contacts, and bookmarks.
 
 ---
 
