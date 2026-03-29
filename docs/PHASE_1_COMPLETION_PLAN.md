@@ -179,8 +179,8 @@
 - ☐ Test: rapid-save a file 10 times → verify ≤2 sync cycles (E2E verification) `[verification-only]`
 
 ### 4.2 End-to-End Sync Verification
-- ☐ Install SyncService on Windows as a Windows Service `[verification-only]`
-- ☐ Install SyncService on Linux as a systemd unit `[verification-only]`
+- ☐ Install SyncTray on Windows `[verification-only]`
+- ☐ Install SyncTray on Linux `[verification-only]`
 - ☐ Add account via SyncTray OAuth2 flow `[verification-only]`
 - ☐ Create a file on server → verify it appears in local sync folder `[verification-only]`
 - ☐ Create a file in local sync folder → verify it appears on server `[verification-only]`

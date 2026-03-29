@@ -95,6 +95,8 @@ public class SyncEngineTests
 
         // Speed up Tier 2 retries so locked file tests don't take 6+ seconds.
         _engine.Tier2RetryDelay = TimeSpan.Zero;
+        // Skip stability delay in tests that don't specifically test it.
+        _engine.FileStabilityDelay = TimeSpan.Zero;
     }
 
     [TestCleanup]
@@ -378,6 +380,7 @@ public class SyncEngineTests
             _lockedFileReaderMock.Object,
             NullLogger<SyncEngine>.Instance);
         engine.Tier2RetryDelay = TimeSpan.Zero;
+        engine.FileStabilityDelay = TimeSpan.Zero;
 
         // Set up token mock used by RefreshAccessTokenAsync
         // (engine uses _api.AccessToken assignment, not token store, in this test)
@@ -439,6 +442,7 @@ public class SyncEngineTests
             _lockedFileReaderMock.Object,
             NullLogger<SyncEngine>.Instance);
         engine.Tier2RetryDelay = TimeSpan.Zero;
+        engine.FileStabilityDelay = TimeSpan.Zero;
 
         // Lock the file so Tiers 1 and 2 fail.
         using var lockStream = new FileStream(filePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
@@ -493,6 +497,7 @@ public class SyncEngineTests
             _lockedFileReaderMock.Object,
             NullLogger<SyncEngine>.Instance);
         engine.Tier2RetryDelay = TimeSpan.Zero;
+        engine.FileStabilityDelay = TimeSpan.Zero;
 
         // Lock file with FileShare.None so Tiers 1 and 2 both fail.
         using var lockStream = new FileStream(filePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
@@ -531,6 +536,118 @@ public class SyncEngineTests
 
         // Assert: ReleaseSnapshot was called at least once (from SyncAsync finally block).
         _lockedFileReaderMock.Verify(r => r.ReleaseSnapshot(), Times.AtLeastOnce);
+    }
+
+    // ── File stability (still-growing detection) ──────────────────────────
+
+    [TestMethod]
+    public async Task SyncAsync_FileGrowingDuringStabilityCheck_DefersUploadWithoutIncrementingRetry()
+    {
+        // Arrange: a file that will grow during the stability delay window.
+        var filePath = Path.Combine(_tempDir, "growing-file.bin");
+        File.WriteAllBytes(filePath, new byte[1024]);
+
+        _stateDbMock
+            .Setup(db => db.UpdateOperationRetryAsync(
+                It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(),
+                It.IsAny<DateTime?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        const int originalRetryCount = 0;
+        var pendingOp = new PendingUpload { Id = 100, LocalPath = filePath, RetryCount = originalRetryCount };
+        _stateDbMock
+            .Setup(db => db.GetPendingOperationsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([pendingOp]);
+
+        var engine = new SyncEngine(
+            _apiMock.Object,
+            new Mock<ITokenStore>().Object,
+            new Mock<IChunkedTransferClient>().Object,
+            new Mock<IConflictResolver>().Object,
+            _stateDbMock.Object,
+            new SelectiveSyncConfig(),
+            new DotNetCloud.Client.Core.SyncIgnore.SyncIgnoreParser(),
+            _lockedFileReaderMock.Object,
+            NullLogger<SyncEngine>.Instance);
+        engine.Tier2RetryDelay = TimeSpan.Zero;
+        // Use a short stability delay so the test runs fast.
+        engine.FileStabilityDelay = TimeSpan.FromMilliseconds(200);
+
+        // Simulate growth: append data after the stability check reads the initial size.
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(100); // midway through the 200ms stability window
+            await using var fs = new FileStream(filePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+            fs.Write(new byte[2048]);
+        });
+
+        // Act
+        await engine.StartAsync(_context);
+        await engine.SyncAsync(_context);
+        await engine.StopAsync();
+
+        // Assert: deferred via UpdateOperationRetryAsync with unchanged RetryCount.
+        _stateDbMock.Verify(db => db.UpdateOperationRetryAsync(
+            It.IsAny<string>(),
+            100,
+            originalRetryCount,
+            It.IsAny<DateTime?>(),
+            It.IsAny<string?>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+
+        // Assert: NOT removed (not counted as completed).
+        _stateDbMock.Verify(db => db.RemoveOperationAsync(
+            It.IsAny<string>(), 100, It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task SyncAsync_FileStableBeforeUpload_ProceedsNormally()
+    {
+        // Arrange: a file that does NOT grow — upload should proceed.
+        var filePath = Path.Combine(_tempDir, "stable-file.txt");
+        File.WriteAllText(filePath, "stable content");
+
+        var transferMock = new Mock<IChunkedTransferClient>();
+        var expectedNodeId = Guid.NewGuid();
+        transferMock
+            .Setup(t => t.UploadAsync(
+                It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(),
+                It.IsAny<IProgress<TransferProgress>>(), It.IsAny<CancellationToken>(),
+                It.IsAny<string?>(), It.IsAny<int?>()))
+            .ReturnsAsync(expectedNodeId);
+
+        var pendingOp = new PendingUpload { Id = 101, LocalPath = filePath, RetryCount = 0 };
+        _stateDbMock
+            .Setup(db => db.GetPendingOperationsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([pendingOp]);
+
+        var engine = new SyncEngine(
+            _apiMock.Object,
+            new Mock<ITokenStore>().Object,
+            transferMock.Object,
+            new Mock<IConflictResolver>().Object,
+            _stateDbMock.Object,
+            new SelectiveSyncConfig(),
+            new DotNetCloud.Client.Core.SyncIgnore.SyncIgnoreParser(),
+            _lockedFileReaderMock.Object,
+            NullLogger<SyncEngine>.Instance);
+        engine.Tier2RetryDelay = TimeSpan.Zero;
+        engine.FileStabilityDelay = TimeSpan.FromMilliseconds(50);
+
+        // Act
+        await engine.StartAsync(_context);
+        await engine.SyncAsync(_context);
+        await engine.StopAsync();
+
+        // Assert: upload proceeded (UploadAsync was called).
+        transferMock.Verify(t => t.UploadAsync(
+            It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(),
+            It.IsAny<IProgress<TransferProgress>>(), It.IsAny<CancellationToken>(),
+            It.IsAny<string?>(), It.IsAny<int?>()), Times.Once);
+
+        // Assert: operation completed (removed from queue).
+        _stateDbMock.Verify(db => db.RemoveOperationAsync(
+            It.IsAny<string>(), 101, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [TestMethod]
@@ -583,6 +700,7 @@ public class SyncEngineTests
             _lockedFileReaderMock.Object,
             NullLogger<SyncEngine>.Instance);
         engine.Tier2RetryDelay = TimeSpan.Zero;
+        engine.FileStabilityDelay = TimeSpan.Zero;
 
         var progressEvents = new List<FileTransferProgressEventArgs>();
         var completeEvents = new List<FileTransferCompleteEventArgs>();
@@ -642,6 +760,7 @@ public class SyncEngineTests
             _lockedFileReaderMock.Object,
             NullLogger<SyncEngine>.Instance);
         engine.Tier2RetryDelay = TimeSpan.Zero;
+        engine.FileStabilityDelay = TimeSpan.Zero;
 
         // No event subscribers — should not throw.
         await engine.StartAsync(_context);

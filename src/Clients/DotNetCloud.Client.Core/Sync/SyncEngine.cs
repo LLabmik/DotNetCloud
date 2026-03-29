@@ -62,6 +62,13 @@ public sealed class SyncEngine : ISyncEngine
     /// </summary>
     internal TimeSpan FswDebounceDelay { get; set; } = TimeSpan.FromMilliseconds(500);
 
+    /// <summary>
+    /// Delay for the file-stability check before uploading. If a file's size changes
+    /// during this window, the upload is deferred (the file is still being written).
+    /// Exposed as internal for test overrides.
+    /// </summary>
+    internal TimeSpan FileStabilityDelay { get; set; } = TimeSpan.FromSeconds(1);
+
     /// <inheritdoc/>
     public event EventHandler<SyncStatusChangedEventArgs>? StatusChanged;
 
@@ -935,6 +942,18 @@ public sealed class SyncEngine : ISyncEngine
                     ncEx.Message, op.Id);
                 await _stateDb.MoveToFailedAsync(context.StateDatabasePath, op, ncEx.Message, cancellationToken);
             }
+            catch (FileStillGrowingException growEx)
+            {
+                // File is still being written — defer without consuming the retry budget.
+                _logger.LogInformation(
+                    "Deferring upload of {Path} — file size changed during stability check ({InitialSize} → {FinalSize} bytes). Will retry in 5 seconds. (Operation {OpId})",
+                    growEx.FilePath, growEx.InitialSize, growEx.FinalSize, op.Id);
+
+                // Schedule a short retry without incrementing RetryCount.
+                await _stateDb.UpdateOperationRetryAsync(
+                    context.StateDatabasePath, op.Id, op.RetryCount,
+                    DateTime.UtcNow.AddSeconds(5), growEx.Message, cancellationToken);
+            }
             catch (LockedFileException lockEx)
             {
                 // Locked files are not sync failures — defer without consuming the retry budget.
@@ -1157,6 +1176,10 @@ public sealed class SyncEngine : ISyncEngine
                     Direction = "upload",
                     Progress = p,
                 }));
+
+            // Stability check: ensure the file is not still being written to (e.g. by dd, a download manager).
+            // If the size changes during the delay window, defer the upload.
+            await WaitForFileStabilityAsync(upload.LocalPath, cancellationToken);
 
             // Read POSIX mode on Linux before opening the file stream.
             int? posixMode = null;
@@ -1520,6 +1543,41 @@ public sealed class SyncEngine : ISyncEngine
         try
         { return (int)File.GetUnixFileMode(path); }
         catch { return null; }
+    }
+
+    /// <summary>
+    /// Checks that a file's size is stable (not actively being written to) by sampling
+    /// the size before and after <see cref="FileStabilityDelay"/>. Throws
+    /// <see cref="FileStillGrowingException"/> if the size changed.
+    /// </summary>
+    private async Task WaitForFileStabilityAsync(string path, CancellationToken cancellationToken)
+    {
+        long sizeBefore;
+        try
+        {
+            sizeBefore = new FileInfo(path).Length;
+        }
+        catch (FileNotFoundException)
+        {
+            return; // File vanished — let the caller handle the missing file.
+        }
+
+        await Task.Delay(FileStabilityDelay, cancellationToken);
+
+        long sizeAfter;
+        try
+        {
+            sizeAfter = new FileInfo(path).Length;
+        }
+        catch (FileNotFoundException)
+        {
+            return;
+        }
+
+        if (sizeBefore != sizeAfter)
+        {
+            throw new FileStillGrowingException(path, sizeBefore, sizeAfter);
+        }
     }
 
     /// <summary>

@@ -1261,7 +1261,7 @@ This phase implements the core Files module, which is the primary public-facing 
 
 1. File storage and management backend
 2. File browser UI
-3. Desktop sync client (SyncService, SyncTray)
+3. Desktop sync client (SyncTray — single process, sync engine in-process)
 4. Collabora CODE integration for online document editing
 5. Complete REST API with bulk operations
 6. Comprehensive documentation
@@ -1277,7 +1277,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - [ ] Storage quotas enforce per-user limits and display usage
 - [ ] Collabora CODE integration enables browser-based document editing via WOPI
 - ✓ File browser Blazor UI supports grid/list view, drag-drop, preview, and sharing
-- [ ] Desktop sync client (SyncService + SyncTray) syncs files bidirectionally
+- [ ] Desktop sync client (SyncTray) syncs files bidirectionally
 - ✓ Bulk operations (move, copy, delete) work via REST API
 - [ ] All unit and integration tests pass against PostgreSQL and SQL Server
 - [ ] gRPC communication with the Files module host works correctly
@@ -2204,6 +2204,8 @@ This phase implements the core Files module, which is the primary public-facing 
 ---
 
 ## Phase 1.15: Client.SyncService — Background Sync Worker
+
+> **Note (2026-03-29):** SyncService has been merged into SyncTray. The sync engine now runs in-process inside the Avalonia tray app. The items below are historical — they were implemented in SyncService and then absorbed into SyncTray.
 
 ### DotNetCloud.Client.SyncService Project
 

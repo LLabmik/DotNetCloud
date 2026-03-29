@@ -1,37 +1,23 @@
 # Desktop Client — Troubleshooting
 
-> **Last Updated:** 2026-03-22
+> **Last Updated:** 2026-03-29
+
+> **Architecture note:** SyncService has been merged into SyncTray. There is now a **single process** — the Avalonia tray app owns the full sync lifecycle (sync engine, file watcher, chunked upload/download). No separate service, no IPC. Single-instance is enforced via file lock.
 
 ---
 
 ## Common Issues
 
-### SyncTray Shows "Service not running"
+### SyncTray Shows "Not syncing" or Sync Not Starting
 
-**Cause:** The SyncService is not running or cannot be reached via IPC.
+**Cause:** SyncTray may have failed to start the sync engine, or no account is configured.
 
 **Fix:**
 
-- **Windows:** Check if the service is running:
-  ```powershell
-  Get-Service DotNetCloudSync
-  ```
-  Start it if stopped:
-  ```powershell
-  Start-Service DotNetCloudSync
-  ```
-
-- **Linux (official release installer):** Check the system service:
-  ```bash
-  sudo systemctl status dotnetcloud-sync
-  sudo systemctl start dotnetcloud-sync
-  ```
-
-- **Linux (local/source install):** If you are running a local publish or development install instead of the release installer, you may be using a per-user service:
-  ```bash
-  systemctl --user status dotnetcloud-sync.service
-  systemctl --user restart dotnetcloud-sync.service
-  ```
+- Ensure an account is configured: right-click tray icon → Settings → Accounts
+- Check SyncTray logs for errors (see [Logs](#logs) section below)
+- Try restarting SyncTray
+- If running from source: `dotnet run --project src/Clients/DotNetCloud.Client.SyncTray/DotNetCloud.Client.SyncTray.csproj`
 
 ### Tray Icon Shows Error (Red Exclamation)
 
@@ -59,7 +45,7 @@
 2. Resume sync via context menu → **"Resume syncing"**
 3. Check selective sync settings — the folder may be excluded
 4. Force a sync: context menu → **"Sync now"**
-5. Check SyncService logs for errors
+5. Check SyncTray logs for errors (see [Logs](#logs) section below)
 
 ### Conflict Files Appearing
 
@@ -116,30 +102,29 @@ report (conflict - Ben - 2025-07-14).docx  ← local version
 2. **Linux:** Copy the `.crt` to `/usr/local/share/ca-certificates/` and run `sudo update-ca-certificates`
 3. After installing the cert, restart the sync service and try Add Account again
 
-### SyncService Crashes on Startup
+### SyncTray Crashes on Startup
 
 **Fix:**
 
-1. Check the service logs:
-   - **Windows:** Event Viewer → Application log
-   - **Linux (official release installer):** `sudo journalctl -u dotnetcloud-sync --no-pager -n 200`
-   - **Linux (local/source install):** `journalctl --user -u dotnetcloud-sync.service --no-pager -n 200`
+1. Check the logs:
+   - **Windows:** `%LOCALAPPDATA%\DotNetCloud\logs\sync-tray*.log`
+   - **Linux:** `~/.local/share/DotNetCloud/logs/sync-tray*.log`
+   - Or run from a terminal to see console output
 2. Common causes:
-   - Missing .NET runtime
-   - Invalid configuration file
-   - Port conflict (IPC named pipe or socket in use)
+   - Missing .NET runtime (if not using self-contained publish)
+   - Corrupt sync state database
+   - Another SyncTray instance already running (file lock conflict)
 
 ---
 
 ## Logs
 
-### SyncService Logs
+### SyncTray Logs
 
-The SyncService uses Serilog for structured logging.
+SyncTray uses Serilog for structured logging. Since the sync engine runs in-process, all sync logs are in the SyncTray log files.
 
-- **Windows:** `%ProgramData%\DotNetCloud\Sync\logs\sync-service*.log`
-- **Linux (official release installer):** `/var/lib/dotnetcloud/sync/logs/sync-service*.log`
-- **Linux (local/source install):** `~/.local/share/DotNetCloud/logs/sync-service*.log`
+- **Windows:** `%LOCALAPPDATA%\DotNetCloud\logs\sync-tray*.log`
+- **Linux:** `~/.local/share/DotNetCloud/logs/sync-tray*.log`
 
 Logs include:
 
@@ -147,30 +132,21 @@ Logs include:
 - File upload/download operations
 - Conflict detection events
 - Authentication token refresh
-- IPC command handling
+- FSW (FileSystemWatcher) events and debounce
+- File stability checks
 - Error details with stack traces
 
 ### Viewing Logs
 
 ```powershell
 # Windows — view recent log entries
-Get-Content "$env:ProgramData\DotNetCloud\Sync\logs\sync-service*.log" -Tail 50
+Get-Content "$env:LOCALAPPDATA\DotNetCloud\logs\sync-tray*.log" -Tail 50
 ```
 
 ```bash
-# Linux official release install — view recent log entries
-tail -50 /var/lib/dotnetcloud/sync/logs/sync-service*.log
-
-# Linux local/source install — view recent log entries
-tail -50 ~/.local/share/DotNetCloud/logs/sync-service*.log
+# Linux — view recent log entries
+tail -50 ~/.local/share/DotNetCloud/logs/sync-tray*.log
 ```
-
-### SyncTray Logs
-
-SyncTray logs to the console (when run from a terminal) and to a file:
-
-- **Windows:** `%LOCALAPPDATA%\DotNetCloud\logs\sync-tray*.log`
-- **Linux:** `~/.local/share/DotNetCloud/logs/sync-tray*.log`
 
 ---
 
@@ -184,35 +160,15 @@ Right-click the tray icon → the tooltip shows:
 - Number of files pending sync
 - Storage quota usage
 
-### Check IPC Connection
-
-If SyncTray cannot connect to SyncService:
-
-- **Windows:** Verify the named pipe exists:
-  ```powershell
-  Get-ChildItem \\.\pipe\ | Where-Object Name -like "*dotnetcloud*"
-  ```
-
-- **Linux (official release installer):** Verify the Unix socket exists:
-  ```bash
-  sudo ls -la /run/dotnetcloud/sync.sock
-  ```
-
-- **Linux (local/source install):** Verify the per-user Unix socket exists:
-  ```bash
-  ls -la "$XDG_RUNTIME_DIR/dotnetcloud/sync.sock"
-  ```
-
 ### Force Full Resync
 
 If sync state becomes inconsistent:
 
-1. Stop SyncService
+1. Close SyncTray
 2. Delete the SQLite state database for the affected context:
-   - **Windows:** `%ProgramData%\DotNetCloud\Sync\{contextId}\state.db` (also `-wal` and `-shm` files)
-   - **Linux (official release installer):** `/var/lib/dotnetcloud/sync/{contextId}/state.db`
-   - **Linux (local/source install):** `~/.local/share/DotNetCloud/Sync/{contextId}/state.db`
-3. Start SyncService
+   - **Windows:** `%LOCALAPPDATA%\DotNetCloud\Sync\{contextId}\state.db` (also `-wal` and `-shm` files)
+   - **Linux:** `~/.local/share/DotNetCloud/Sync/{contextId}/state.db`
+3. Restart SyncTray
 4. The next sync pass will do a full reconciliation
 
 To list existing sync contexts:
@@ -240,7 +196,7 @@ ls -d ~/.local/share/DotNetCloud/Sync/*/
 2. Review the [Sync Protocol](SYNC_PROTOCOL.md) for technical details
 3. Open an issue on the DotNetCloud repository with:
    - OS and version
-   - SyncService and SyncTray version
+   - SyncTray version and OS
    - Relevant log entries
    - Steps to reproduce
 

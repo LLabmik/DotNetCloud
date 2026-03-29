@@ -1,6 +1,6 @@
 # Desktop Client — Setup & Installation
 
-> **Last Updated:** 2026-03-22
+> **Last Updated:** 2026-03-29
 
 ---
 
@@ -73,30 +73,26 @@
    cd linux-x64
    ```
 
-3. **Install service + launcher:**
+3. **Install SyncTray + launcher:**
 
    ```bash
    sudo ./install.sh
    ```
 
-4. **Verify the installed background service is running:**
-
-   ```bash
-   sudo systemctl status dotnetcloud-sync --no-pager
-   ```
-
-5. **Launch SyncTray in your desktop session:**
+4. **Launch SyncTray in your desktop session:**
 
    ```bash
    dotnetcloud-sync-tray
    ```
 
-6. **Auto-start SyncTray on login:** Open SyncTray, go to `Settings -> General`, and enable `Start DotNetCloud Sync at graphical login`. This writes `~/.config/autostart/dotnetcloud-sync-tray.desktop` (or `$XDG_CONFIG_HOME/autostart/...`).
+5. **Auto-start SyncTray on login:** Open SyncTray, go to `Settings -> General`, and enable `Start DotNetCloud Sync at graphical login`. This writes `~/.config/autostart/dotnetcloud-sync-tray.desktop` (or `$XDG_CONFIG_HOME/autostart/...`).
 
-7. **Know which install model you are using:**
+6. **Know which install model you are using:**
 
-   - Official Linux release installer: installs a system service named `dotnetcloud-sync` and stores service data under `/var/lib/dotnetcloud/sync`.
+   - Official Linux release installer: installs SyncTray to `/opt/dotnetcloud-desktop-client/SyncTray/` and creates a launcher symlink.
    - Local/source or non-root development runs may instead use per-user paths under `~/.local/share/DotNetCloud`.
+
+> **Note:** There is no separate background service. SyncTray is a single process that owns the full sync lifecycle (sync engine, file watcher, chunked uploads/downloads). Single-instance enforcement is via file lock.
 
 ## Updating to a New Client Version
 
@@ -110,7 +106,7 @@
 
 1. Download the new `dotnetcloud-desktop-client-linux-x64-<version>.tar.gz`.
 2. Extract and run `sudo ./install.sh` again.
-3. The installer stops `dotnetcloud-sync`, replaces binaries, and restarts the service.
+3. The installer replaces binaries in place and preserves sync state/config.
 
 ## Multi-User Machine Guidance (Current)
 

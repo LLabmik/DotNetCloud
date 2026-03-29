@@ -1,6 +1,8 @@
 # TraySync Client Build, Install, and Verification Walkthrough
 
-> **Last Updated:** 2026-03-22
+> **Last Updated:** 2026-03-29
+
+> **Architecture note:** SyncService has been merged into SyncTray. There is now a **single process** — the Avalonia tray app owns the full sync lifecycle. No separate service, no IPC.
 
 This guide walks you through building, installing, and validating DotNetCloud desktop tray sync across your test machines.
 
@@ -13,8 +15,8 @@ This guide walks you through building, installing, and validating DotNetCloud de
 
 ## What You Will Validate
 
-- ✓ Linux SyncService + SyncTray installer install
-- ✓ Windows SyncService + SyncTray installer install
+- ✓ Linux SyncTray installer install
+- ✓ Windows SyncTray installer install
 - ✓ Both clients connect to `mint22`
 - ✓ Server-mediated bidirectional file sync: `mint-dnc-client` <-> `mint22` <-> `Windows11-TestDNC` (no direct client-to-client sync)
 - ✓ Conflict handling, delete propagation, and offline/reconnect behavior
@@ -73,11 +75,10 @@ tar -xzf dotnetcloud-desktop-client-linux-x64-<VERSION>.tar.gz
 cd linux-x64
 ```
 
-### 1.2 Install SyncService + launcher
+### 1.2 Install SyncTray + launcher
 
 ```bash
 sudo ./install.sh
-sudo systemctl status dotnetcloud-sync --no-pager
 ```
 
 ### 1.3 Run SyncTray
@@ -113,11 +114,10 @@ Expand-Archive -Path ".\dotnetcloud-desktop-client-win-x64-<VERSION>.zip" -Desti
 Set-Location ".\dotnetcloud-desktop-client-win-x64-<VERSION>"
 ```
 
-### 2.2 Install SyncService + tray startup shortcut
+### 2.2 Install SyncTray + tray startup shortcut
 
 ```powershell
 .\Install-DesktopClient.ps1
-Get-Service DotNetCloudSync
 ```
 
 ### 2.3 Run SyncTray
@@ -224,16 +224,12 @@ Record each test as you run it:
 ### Linux
 
 ```bash
-sudo systemctl status dotnetcloud-sync --no-pager
-sudo journalctl -u dotnetcloud-sync --no-pager -n 200
-tail -50 /var/lib/dotnetcloud/sync/logs/sync-service*.log
+tail -50 ~/.local/share/DotNetCloud/logs/sync-tray*.log
 ```
 
 ### Windows
 
 ```powershell
-Get-Service DotNetCloudSync
-Get-Content "$env:ProgramData\DotNetCloud\Sync\logs\sync-service*.log" -Tail 50
 Get-Content "$env:LOCALAPPDATA\DotNetCloud\logs\sync-tray*.log" -Tail 50
 ```
 
@@ -259,23 +255,19 @@ sudo ./uninstall.sh
 2. Download version `B` (`B > A`) installer archive.
 3. Run `sudo ./install.sh` from the version `B` extracted folder.
 4. Verify `dotnetcloud-sync` restarts and account configuration remains intact.
-5. Verify new file changes still sync to `mint22` and `Windows11-TestDNC`.
 
 ### Windows (`Windows11-TestDNC`)
 
 1. Install version `A` and complete baseline sync checks.
 2. Download version `B` (`B > A`) installer zip.
 3. Run `Install-DesktopClient.ps1` from the version `B` extracted folder (elevated PowerShell).
-4. Verify `DotNetCloudSync` service is running and tray launches normally.
+4. Verify tray launches normally and account configuration remains intact.
 5. Verify new file changes still sync to `mint22` and `mint-dnc-client`.
 
 ## Notes
 
-- Published executable names are:
-  - `dotnetcloud-sync-service`
-  - `dotnetcloud-sync-tray`
+- Published executable name: `dotnetcloud-sync-tray` (single process — no separate service)
 - Installer filenames are versioned:
   - `dotnetcloud-desktop-client-linux-x64-<version>.tar.gz`
   - `dotnetcloud-desktop-client-win-x64-<version>.zip`
-- Linux IPC socket path is `/run/dotnetcloud/sync.sock`.
 - If `mint22` uses a self-signed TLS cert, browser/API trust warnings may appear until CA trust is configured on each client.
