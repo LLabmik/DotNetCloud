@@ -1,4 +1,7 @@
-using DotNetCloud.Modules.Tracks.Data;
+using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Errors;
+using DotNetCloud.Modules.Tracks.Data.Services;
 using DotNetCloud.Modules.Tracks.Host.Protos;
 using Grpc.Core;
 
@@ -8,103 +11,190 @@ namespace DotNetCloud.Modules.Tracks.Host.Services;
 /// gRPC service implementation for the Tracks module.
 /// Exposes board, list, and card operations over gRPC for the core server to invoke.
 /// </summary>
-/// <remarks>
-/// Full implementation will be added in Phase 4.3/4.4. This scaffold provides
-/// the service structure and connection points.
-/// </remarks>
 public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServiceBase
 {
-    private readonly TracksDbContext _db;
+    private readonly BoardService _boardService;
+    private readonly ListService _listService;
+    private readonly CardService _cardService;
     private readonly ILogger<TracksGrpcService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TracksGrpcService"/> class.
     /// </summary>
-    public TracksGrpcService(TracksDbContext db, ILogger<TracksGrpcService> logger)
+    public TracksGrpcService(
+        BoardService boardService,
+        ListService listService,
+        CardService cardService,
+        ILogger<TracksGrpcService> logger)
     {
-        _db = db;
+        _boardService = boardService;
+        _listService = listService;
+        _cardService = cardService;
         _logger = logger;
     }
 
     /// <inheritdoc />
-    public override Task<BoardResponse> CreateBoard(CreateBoardRequest request, ServerCallContext context)
+    public override async Task<BoardResponse> CreateBoard(CreateBoardRequest request, ServerCallContext context)
     {
         _logger.LogInformation("CreateBoard called for user {UserId}", request.UserId);
-        return Task.FromResult(new BoardResponse
+        try
         {
-            Success = false,
-            ErrorMessage = "Not implemented yet. Full implementation in Phase 4.3."
-        });
+            var caller = ParseCaller(request.UserId);
+            var dto = new CreateBoardDto
+            {
+                Title = request.Title,
+                Description = string.IsNullOrEmpty(request.Description) ? null : request.Description,
+                Color = string.IsNullOrEmpty(request.Color) ? null : request.Color
+            };
+            var board = await _boardService.CreateBoardAsync(dto, caller, context.CancellationToken);
+            return new BoardResponse { Success = true, Board = MapBoard(board) };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "CreateBoard failed");
+            return new BoardResponse { Success = false, ErrorMessage = ex.Message };
+        }
     }
 
     /// <inheritdoc />
-    public override Task<BoardResponse> GetBoard(GetBoardRequest request, ServerCallContext context)
+    public override async Task<BoardResponse> GetBoard(GetBoardRequest request, ServerCallContext context)
     {
-        return Task.FromResult(new BoardResponse
+        try
         {
-            Success = false,
-            ErrorMessage = "Not implemented yet. Full implementation in Phase 4.3."
-        });
+            var caller = ParseCaller(request.UserId);
+            var boardId = Guid.Parse(request.BoardId);
+            var board = await _boardService.GetBoardAsync(boardId, caller, context.CancellationToken);
+            if (board is null)
+                return new BoardResponse { Success = false, ErrorMessage = "Board not found." };
+            return new BoardResponse { Success = true, Board = MapBoard(board) };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetBoard failed");
+            return new BoardResponse { Success = false, ErrorMessage = ex.Message };
+        }
     }
 
     /// <inheritdoc />
-    public override Task<ListBoardsResponse> ListBoards(ListBoardsRequest request, ServerCallContext context)
+    public override async Task<ListBoardsResponse> ListBoards(ListBoardsRequest request, ServerCallContext context)
     {
-        return Task.FromResult(new ListBoardsResponse
+        try
         {
-            Success = false,
-            ErrorMessage = "Not implemented yet. Full implementation in Phase 4.3."
-        });
+            var caller = ParseCaller(request.UserId);
+            var boards = await _boardService.ListBoardsAsync(caller, request.IncludeArchived, context.CancellationToken);
+            var response = new ListBoardsResponse { Success = true };
+            foreach (var board in boards)
+                response.Boards.Add(MapBoard(board));
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ListBoards failed");
+            return new ListBoardsResponse { Success = false, ErrorMessage = ex.Message };
+        }
     }
 
     /// <inheritdoc />
-    public override Task<ListResponse> CreateList(CreateListRequest request, ServerCallContext context)
+    public override async Task<ListResponse> CreateList(CreateListRequest request, ServerCallContext context)
     {
-        return Task.FromResult(new ListResponse
+        try
         {
-            Success = false,
-            ErrorMessage = "Not implemented yet. Full implementation in Phase 4.3."
-        });
+            var caller = ParseCaller(request.UserId);
+            var boardId = Guid.Parse(request.BoardId);
+            var dto = new CreateBoardListDto
+            {
+                Title = request.Title,
+                Color = string.IsNullOrEmpty(request.Color) ? null : request.Color
+            };
+            var list = await _listService.CreateListAsync(boardId, dto, caller, context.CancellationToken);
+            return new ListResponse { Success = true, List = MapList(list) };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "CreateList failed");
+            return new ListResponse { Success = false, ErrorMessage = ex.Message };
+        }
     }
 
     /// <inheritdoc />
-    public override Task<CardResponse> CreateCard(CreateCardRequest request, ServerCallContext context)
+    public override async Task<CardResponse> CreateCard(CreateCardRequest request, ServerCallContext context)
     {
-        return Task.FromResult(new CardResponse
+        try
         {
-            Success = false,
-            ErrorMessage = "Not implemented yet. Full implementation in Phase 4.3."
-        });
+            var caller = ParseCaller(request.UserId);
+            var listId = Guid.Parse(request.ListId);
+            var priority = Enum.TryParse<CardPriority>(request.Priority, true, out var p) ? p : CardPriority.None;
+            DateTime? dueDate = DateTime.TryParse(request.DueDate, out var dd) ? dd : null;
+            var dto = new CreateCardDto
+            {
+                Title = request.Title,
+                Description = string.IsNullOrEmpty(request.Description) ? null : request.Description,
+                Priority = priority,
+                DueDate = dueDate,
+                StoryPoints = request.StoryPoints > 0 ? request.StoryPoints : null,
+                AssigneeIds = [],
+                LabelIds = []
+            };
+            var card = await _cardService.CreateCardAsync(listId, dto, caller, context.CancellationToken);
+            return new CardResponse { Success = true, Card = MapCard(card) };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "CreateCard failed");
+            return new CardResponse { Success = false, ErrorMessage = ex.Message };
+        }
     }
 
     /// <inheritdoc />
-    public override Task<CardResponse> GetCard(GetCardRequest request, ServerCallContext context)
+    public override async Task<CardResponse> GetCard(GetCardRequest request, ServerCallContext context)
     {
-        return Task.FromResult(new CardResponse
+        try
         {
-            Success = false,
-            ErrorMessage = "Not implemented yet. Full implementation in Phase 4.3."
-        });
+            var caller = ParseCaller(request.UserId);
+            var cardId = Guid.Parse(request.CardId);
+            var card = await _cardService.GetCardAsync(cardId, caller, context.CancellationToken);
+            if (card is null)
+                return new CardResponse { Success = false, ErrorMessage = "Card not found." };
+            return new CardResponse { Success = true, Card = MapCard(card) };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetCard failed");
+            return new CardResponse { Success = false, ErrorMessage = ex.Message };
+        }
     }
 
     /// <inheritdoc />
-    public override Task<CardResponse> MoveCard(MoveCardRequest request, ServerCallContext context)
+    public override async Task<CardResponse> MoveCard(MoveCardRequest request, ServerCallContext context)
     {
-        return Task.FromResult(new CardResponse
+        try
         {
-            Success = false,
-            ErrorMessage = "Not implemented yet. Full implementation in Phase 4.3."
-        });
+            var caller = ParseCaller(request.UserId);
+            var cardId = Guid.Parse(request.CardId);
+            var dto = new MoveCardDto
+            {
+                TargetListId = Guid.Parse(request.TargetListId),
+                Position = (int)request.Position
+            };
+            var card = await _cardService.MoveCardAsync(cardId, dto, caller, context.CancellationToken);
+            return new CardResponse { Success = true, Card = MapCard(card) };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "MoveCard failed");
+            return new CardResponse { Success = false, ErrorMessage = ex.Message };
+        }
     }
 
     /// <inheritdoc />
     public override Task<PokerSessionResponse> StartPokerSession(StartPokerSessionRequest request, ServerCallContext context)
     {
         _logger.LogInformation("StartPokerSession called for card {CardId} by user {UserId}", request.CardId, request.UserId);
+        // Planning poker gRPC implementation deferred to Phase 4.7 (Advanced Features)
         return Task.FromResult(new PokerSessionResponse
         {
             Success = false,
-            ErrorMessage = "Not implemented yet. Full implementation in Phase 4.3."
+            ErrorMessage = "Planning poker gRPC not yet implemented. Use REST API."
         });
     }
 
@@ -114,7 +204,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         return Task.FromResult(new PokerSessionResponse
         {
             Success = false,
-            ErrorMessage = "Not implemented yet. Full implementation in Phase 4.3."
+            ErrorMessage = "Planning poker gRPC not yet implemented. Use REST API."
         });
     }
 
@@ -124,7 +214,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         return Task.FromResult(new PokerSessionResponse
         {
             Success = false,
-            ErrorMessage = "Not implemented yet. Full implementation in Phase 4.3."
+            ErrorMessage = "Planning poker gRPC not yet implemented. Use REST API."
         });
     }
 
@@ -134,7 +224,76 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         return Task.FromResult(new PokerSessionResponse
         {
             Success = false,
-            ErrorMessage = "Not implemented yet. Full implementation in Phase 4.3."
+            ErrorMessage = "Planning poker gRPC not yet implemented. Use REST API."
         });
+    }
+
+    // ─── Mapping Helpers ──────────────────────────────────────────────────
+
+    private static CallerContext ParseCaller(string userId)
+    {
+        return new CallerContext(Guid.Parse(userId), [], CallerType.Module);
+    }
+
+    private static BoardMessage MapBoard(BoardDto dto)
+    {
+        return new BoardMessage
+        {
+            Id = dto.Id.ToString(),
+            OwnerId = dto.OwnerId.ToString(),
+            Title = dto.Title,
+            Description = dto.Description ?? "",
+            Color = dto.Color ?? "",
+            IsArchived = dto.IsArchived,
+            Etag = dto.ETag ?? "",
+            CreatedAt = dto.CreatedAt.ToString("O"),
+            UpdatedAt = dto.UpdatedAt.ToString("O"),
+            ListCount = dto.Lists.Count,
+            CardCount = dto.Lists.Sum(l => l.CardCount),
+            MemberCount = dto.Members.Count
+        };
+    }
+
+    private static BoardListMessage MapList(BoardListDto dto)
+    {
+        return new BoardListMessage
+        {
+            Id = dto.Id.ToString(),
+            BoardId = dto.BoardId.ToString(),
+            Title = dto.Title,
+            Position = dto.Position,
+            Color = dto.Color ?? "",
+            CardLimit = dto.CardLimit ?? 0,
+            CreatedAt = dto.CreatedAt.ToString("O"),
+            UpdatedAt = dto.UpdatedAt.ToString("O"),
+            CardCount = dto.CardCount
+        };
+    }
+
+    private static CardMessage MapCard(CardDto dto)
+    {
+        var msg = new CardMessage
+        {
+            Id = dto.Id.ToString(),
+            ListId = dto.ListId.ToString(),
+            Title = dto.Title,
+            Description = dto.Description ?? "",
+            Position = dto.Position,
+            DueDate = dto.DueDate?.ToString("O") ?? "",
+            Priority = dto.Priority.ToString(),
+            StoryPoints = dto.StoryPoints ?? 0,
+            IsArchived = dto.IsArchived,
+            CreatedByUserId = "",
+            Etag = "",
+            CreatedAt = dto.CreatedAt.ToString("O"),
+            UpdatedAt = dto.UpdatedAt.ToString("O"),
+            CommentCount = dto.CommentCount,
+            AttachmentCount = dto.AttachmentCount
+        };
+        foreach (var a in dto.Assignments)
+            msg.AssignedUserIds.Add(a.UserId.ToString());
+        foreach (var l in dto.Labels)
+            msg.LabelIds.Add(l.Id.ToString());
+        return msg;
     }
 }

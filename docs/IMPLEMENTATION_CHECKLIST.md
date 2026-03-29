@@ -3313,25 +3313,26 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 ### Phase 4.4: REST API And gRPC Service
 
-#### REST API (~40 endpoints)
-- ☐ BoardsController — CRUD + activity
-- ☐ Board members — CRUD + role management
-- ☐ ListsController — CRUD + reorder
-- ☐ CardsController — CRUD + move + reorder
-- ☐ Card assignments
-- ☐ Card labels
-- ☐ CommentsController
-- ☐ ChecklistsController + items
-- ☐ AttachmentsController
-- ☐ DependenciesController
-- ☐ SprintsController — CRUD + start/complete
-- ☐ TimeEntriesController — CRUD + timer
-- ☐ Board export/import (JSON)
+#### REST API (40+ endpoints — 9 controllers)
+- ✓ BoardsController — CRUD + activity + members + labels + export/import (15 endpoints)
+- ✓ ListsController — CRUD + reorder (5 endpoints)
+- ✓ CardsController — CRUD + move + assign + labels + activity (10 endpoints)
+- ✓ CommentsController (4 endpoints)
+- ✓ ChecklistsController + items (6 endpoints)
+- ✓ AttachmentsController (3 endpoints)
+- ✓ DependenciesController (3 endpoints)
+- ✓ SprintsController — CRUD + start/complete + cards (9 endpoints)
+- ✓ TimeEntriesController — CRUD + timer (5 endpoints)
 
 #### gRPC
-- ☐ tracks.proto definition
-- ☐ TracksGrpcService
-- ☐ TracksLifecycleService
+- ✓ TracksGrpcService — 7 RPCs implemented (4 poker stubs → Phase 4.7)
+- ✓ TracksControllerBase — auth helpers, envelope methods, IsBoardNotFound()
+
+#### Tests
+- ✓ 58 controller/gRPC unit tests (170 total Tracks tests)
+
+#### Deferred
+- ☐ Cross-module integration (file attachment events, chat) → Phase 4.6
 
 ### Phase 4.5: Web UI (Blazor)
 

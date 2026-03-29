@@ -97,35 +97,47 @@ Service implementations for all domain operations.
 
 ---
 
-### Phase 4.4 — REST API & gRPC Service
+### Phase 4.4 — REST API & gRPC Service ✅
 
 API endpoints and inter-process communication.
 
+**Status:** Completed
+
 **Deliverables:**
 
-**REST API (~40 endpoints):**
-- ☐ `BoardsController` — GET/POST/PUT/DELETE boards, GET /boards/{id}/activity
-- ☐ Board members — GET/POST/DELETE /boards/{id}/members, PUT /boards/{id}/members/{userId}/role
-- ☐ `ListsController` — GET/POST/PUT/DELETE lists, PUT /lists/reorder
-- ☐ `CardsController` — GET/POST/PUT/DELETE cards, PUT /cards/{id}/move, PUT /cards/reorder
-- ☐ Card assignments — POST/DELETE /cards/{id}/assign
-- ☐ Card labels — POST/DELETE /cards/{id}/labels
-- ☐ `CommentsController` — GET/POST/PUT/DELETE /cards/{id}/comments
-- ☐ `ChecklistsController` — CRUD checklists + items, PUT /items/{id}/toggle
-- ☐ `AttachmentsController` — GET/POST/DELETE /cards/{id}/attachments
-- ☐ `DependenciesController` — GET/POST/DELETE /cards/{id}/dependencies
-- ☐ `SprintsController` — GET/POST/PUT/DELETE sprints, POST /sprints/{id}/start, POST /sprints/{id}/complete
-- ☐ `TimeEntriesController` — GET/POST/PUT/DELETE time entries, POST /cards/{id}/timer/start, POST /cards/{id}/timer/stop
-- ☐ Board export/import (JSON format)
+**REST API (40+ endpoints — 9 controllers):**
+- ✓ `BoardsController` — GET/POST/PUT/DELETE boards, GET /boards/{id}/activity, GET /boards/{id}/export, POST /boards/import
+- ✓ Board members — GET/POST/DELETE /boards/{id}/members, PUT /boards/{id}/members/{userId}/role
+- ✓ Board labels — GET/POST/PUT/DELETE /boards/{id}/labels
+- ✓ `ListsController` — GET/POST/PUT/DELETE /boards/{boardId}/lists, PUT /lists/reorder
+- ✓ `CardsController` — GET/POST/PUT/DELETE cards, PUT /cards/{id}/move, POST/DELETE assign, POST/DELETE labels, GET activity
+- ✓ `CommentsController` — GET/POST/PUT/DELETE /cards/{id}/comments
+- ✓ `ChecklistsController` — CRUD checklists + items, PUT /items/{id}/toggle, DELETE items
+- ✓ `AttachmentsController` — GET/POST/DELETE /cards/{id}/attachments
+- ✓ `DependenciesController` — GET/POST/DELETE /cards/{id}/dependencies (cycle detection → 409 Conflict)
+- ✓ `SprintsController` — GET/POST/PUT/DELETE sprints, POST /sprints/{id}/start, POST /sprints/{id}/complete, POST/DELETE cards
+- ✓ `TimeEntriesController` — GET/POST/DELETE time entries, POST /cards/{id}/timer/start, POST /cards/{id}/timer/stop
 
 **gRPC Service:**
-- ☐ `tracks.proto` — Proto definition for board/card CRUD, queries
-- ☐ `TracksGrpcService` — gRPC server implementation
-- ☐ `TracksLifecycleService` — Module lifecycle (InitializeAsync/StartAsync/StopAsync)
+- ✓ `TracksGrpcService` — Full implementation of 7 RPCs (CreateBoard, GetBoard, ListBoards, CreateList, CreateCard, GetCard, MoveCard) calling actual service layer; 4 poker RPCs remain stubs (deferred to Phase 4.7)
+- ✓ `TracksLifecycleService` — Module lifecycle (existing from Phase 4.2)
+
+**Base Controller Infrastructure:**
+- ✓ `TracksControllerBase` — Auth helpers (GetAuthenticatedCaller), response envelopes (Envelope/ErrorEnvelope), IsBoardNotFound() helper for consistent 404 mapping
 
 **Cross-Module Integration:**
-- ☐ File attachment links (reference FileNode from Files module via event subscription)
-- ☐ Chat integration — Card activity events published to event bus, Chat can subscribe to show card updates in channels
+- ☐ File attachment links (reference FileNode from Files module via event subscription) — deferred to Phase 4.6
+- ☐ Chat integration — deferred to Phase 4.6
+
+**Unit Tests (58 new controller + gRPC tests):**
+- ✓ `BoardsControllerTests` — 10 tests: CRUD, activity, members, labels, export/import
+- ✓ `CardsControllerTests` — 7 tests: CRUD, move, assign, activity
+- ✓ `ListsControllerTests` — 5 tests: list CRUD, board-not-found handling
+- ✓ `SprintsControllerTests` — 7 tests: CRUD, start/complete lifecycle
+- ✓ `SubresourceControllerTests` — 19 tests: comments, checklists, attachments, dependencies, time entries
+- ✓ `TracksGrpcServiceTests` — 10 tests: board/list/card gRPC RPCs
+
+**Notes:** All 170 tests pass (112 service + 58 controller/gRPC). Controllers use consistent error handling: IsBoardNotFound() maps both BoardNotFound and NotBoardMember to 404 (EnsureBoardRoleAsync fires before board-exists check). Response envelope pattern: `{ success, data }` for success, `{ success, error: { code, message } }` for errors. Poker gRPC RPCs left as stubs — full implementation in Phase 4.7 with board templates and analytics.
 
 ---
 

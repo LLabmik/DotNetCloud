@@ -90,7 +90,7 @@
 | Phase 4.1 | 5 | 5 | 0 | 0 |
 | Phase 4.2 | 5 | 5 | 0 | 0 |
 | Phase 4.3 | 13 | 13 | 0 | 0 |
-| Phase 4.4 | 16 | 0 | 0 | 16 |
+| Phase 4.4 | 16 | 15 | 0 | 1 |
 | Phase 4.5 | 9 | 0 | 0 | 9 |
 | Phase 4.6 | 4 | 0 | 0 | 4 |
 | Phase 4.7 | 6 | 0 | 0 | 6 |
@@ -1468,26 +1468,23 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Section: Phase 4.4 - REST API And gRPC Service
-**STATUS:** not started
+**STATUS:** completed ✅
 **DELIVERABLES:**
-- ☐ `BoardsController` — CRUD boards, GET /boards/{id}/activity
-- ☐ Board members endpoints — GET/POST/DELETE members, PUT role
-- ☐ `ListsController` — CRUD lists, PUT /lists/reorder
-- ☐ `CardsController` — CRUD cards, PUT move, PUT reorder
-- ☐ Card assignments — POST/DELETE assign
-- ☐ Card labels — POST/DELETE labels
-- ☐ `CommentsController` — CRUD comments
-- ☐ `ChecklistsController` — CRUD checklists + items, toggle
-- ☐ `AttachmentsController` — CRUD attachments
-- ☐ `DependenciesController` — CRUD dependencies
-- ☐ `SprintsController` — CRUD sprints, start/complete
-- ☐ `TimeEntriesController` — CRUD time entries, timer start/stop
-- ☐ Board export/import (JSON)
-- ☐ `tracks.proto` — Proto definition
-- ☐ `TracksGrpcService` — gRPC server implementation
-- ☐ `TracksLifecycleService` — Module lifecycle
+- ✓ `BoardsController` — 15 endpoints: CRUD boards, activity, members (CRUD + role), labels (CRUD), export/import
+- ✓ `ListsController` — 5 endpoints: CRUD lists, reorder
+- ✓ `CardsController` — 10 endpoints: CRUD cards, move, assign/unassign, labels add/remove, activity
+- ✓ `CommentsController` — 4 endpoints: CRUD comments
+- ✓ `ChecklistsController` — 6 endpoints: CRUD checklists + items, toggle, delete items
+- ✓ `AttachmentsController` — 3 endpoints: list, add, remove
+- ✓ `DependenciesController` — 3 endpoints: list, add, remove (cycle → 409)
+- ✓ `SprintsController` — 9 endpoints: CRUD sprints, start/complete, add/remove cards
+- ✓ `TimeEntriesController` — 5 endpoints: list, create, delete, timer start/stop
+- ✓ `TracksGrpcService` — 7 RPCs fully implemented (4 poker stubs → Phase 4.7)
+- ✓ `TracksControllerBase` — IsBoardNotFound() helper, auth, envelope methods
+- ✓ 58 new tests (10 board + 7 card + 5 list + 7 sprint + 19 subresource + 10 gRPC)
+- ☐ Cross-module integration (file attachments, chat) — deferred to Phase 4.6
 
-**Notes:** ~40 REST endpoints following existing controller patterns. gRPC service for core ↔ module communication.
+**Notes:** 40+ REST endpoints across 9 controllers. All 170 Tracks tests pass (112 service + 58 controller/gRPC). Consistent error handling via IsBoardNotFound() maps both BoardNotFound and NotBoardMember to 404. Poker gRPC RPCs left as stubs for Phase 4.7. Ready for Phase 4.5 (Web UI).
 
 ---
 

@@ -11,6 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Grpc.Core.Testing" Version="2.46.6" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.3" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
     <PackageReference Include="Moq" Version="4.20.72" />
@@ -21,6 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks\DotNetCloud.Modules.Tracks.csproj" />
     <ProjectReference Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks.Data\DotNetCloud.Modules.Tracks.Data.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks.Host\DotNetCloud.Modules.Tracks.Host.csproj" />
   </ItemGroup>
 
   <ItemGroup>

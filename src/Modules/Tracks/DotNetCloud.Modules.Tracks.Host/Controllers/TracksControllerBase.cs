@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Errors;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -60,5 +61,15 @@ public abstract class TracksControllerBase : ControllerBase
     protected static object ErrorEnvelope(string code, string message)
     {
         return new { success = false, error = new { code, message } };
+    }
+
+    /// <summary>
+    /// Checks whether a <see cref="ValidationException"/> represents a board-level "not found"
+    /// condition (board doesn't exist or user isn't a member).
+    /// </summary>
+    protected static bool IsBoardNotFound(ValidationException ex)
+    {
+        return ex.Errors.ContainsKey(ErrorCodes.BoardNotFound)
+            || ex.Errors.ContainsKey(ErrorCodes.NotBoardMember);
     }
 }
