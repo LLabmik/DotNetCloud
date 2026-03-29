@@ -32,11 +32,13 @@ public class TracksGrpcServiceTests
         var boardService = new BoardService(_db, eventBus.Object, activityService, teamService, new Mock<ILogger<BoardService>>().Object);
         var listService = new ListService(_db, boardService, activityService, new Mock<ILogger<ListService>>().Object);
         var cardService = new CardService(_db, boardService, activityService, eventBus.Object, new Mock<ILogger<CardService>>().Object);
+        var pokerService = new PokerService(_db, boardService, activityService, new Mock<ILogger<PokerService>>().Object);
 
         _grpcService = new GrpcTracksService(
             boardService,
             listService,
             cardService,
+            pokerService,
             new Mock<ILogger<GrpcTracksService>>().Object);
     }
 
@@ -183,8 +185,9 @@ public class TracksGrpcServiceTests
     }
 
     [TestMethod]
-    public async Task StartPokerSession_ReturnsNotImplemented()
+    public async Task StartPokerSession_InvalidCard_ReturnsFalse()
     {
+        // Using a random card ID that doesn't exist in the database
         var request = new StartPokerSessionRequest
         {
             CardId = Guid.NewGuid().ToString(),
@@ -192,8 +195,8 @@ public class TracksGrpcServiceTests
             Scale = "Fibonacci"
         };
         var response = await _grpcService.StartPokerSession(request, CreateContext());
+        // Poker is implemented — it returns a domain error (card not found / not a board member)
         Assert.IsFalse(response.Success);
-        Assert.IsTrue(response.ErrorMessage.Contains("not yet implemented"));
     }
 
     private static ServerCallContext CreateContext()

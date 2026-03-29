@@ -83,6 +83,12 @@ public class TracksDbContext : DbContext
     /// <summary>Tracks-specific team role assignments (maps Core team members to Tracks roles).</summary>
     public DbSet<TeamRole> TeamRoles => Set<TeamRole>();
 
+    /// <summary>Board templates for pre-configured board creation.</summary>
+    public DbSet<BoardTemplate> BoardTemplates => Set<BoardTemplate>();
+
+    /// <summary>Card templates for pre-configured card creation.</summary>
+    public DbSet<CardTemplate> CardTemplates => Set<CardTemplate>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -107,5 +113,7 @@ public class TracksDbContext : DbContext
         modelBuilder.ApplyConfiguration(new PokerSessionConfiguration());
         modelBuilder.ApplyConfiguration(new PokerVoteConfiguration());
         modelBuilder.ApplyConfiguration(new TeamRoleConfiguration());
+        modelBuilder.ApplyConfiguration(new BoardTemplateConfiguration());
+        modelBuilder.ApplyConfiguration(new CardTemplateConfiguration());
     }
 }

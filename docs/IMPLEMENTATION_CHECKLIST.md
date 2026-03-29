@@ -3344,7 +3344,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ TeamsController — CRUD teams + members + transfer boards + team boards (10 endpoints)
 
 #### gRPC
-- ✓ TracksGrpcService — 7 RPCs implemented (4 poker stubs → Phase 4.7)
+- ✓ TracksGrpcService — 7 RPCs implemented + 4 poker RPCs implemented in Phase 4.7
 - ✓ TracksControllerBase — auth helpers, envelope methods, IsBoardNotFound()
 
 #### Tests
@@ -3384,12 +3384,15 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 ### Phase 4.7: Advanced Features
 
-- ☐ Board templates (Kanban, Scrum, Bug Tracking, Personal TODO)
-- ☐ Card templates
-- ☐ Due date reminders (background service)
-- ☐ Board analytics (cycle time, workload)
-- ☐ Sprint reports (velocity, burndown data)
-- ☐ Bulk operations (multi-select cards)
+- ✓ Board templates (Kanban, Scrum, Bug Tracking, Personal TODO) — `BoardTemplateService`, `BoardTemplatesController`, seeded on startup
+- ✓ Card templates — `CardTemplateService`, `CardTemplatesController`
+- ✓ Due date reminders (background service) — `DueDateReminderService` (IHostedService)
+- ✓ Board analytics (cycle time, workload) — `AnalyticsService.GetBoardAnalyticsAsync`
+- ✓ Team analytics — `AnalyticsService.GetTeamAnalyticsAsync`
+- ✓ Sprint reports (velocity, burndown data) — `SprintReportService`
+- ✓ Bulk operations (multi-select cards) — `BulkOperationService` (move/assign/label/archive), `BulkOperationsController`
+- ✓ Poker gRPC RPCs — StartPokerSession, SubmitPokerVote, RevealPokerSession, AcceptPokerEstimate (deferred from 4.4)
+- ✓ Unit tests — 92 new tests; 291 total Tracks tests passing
 
 ### Phase 4.8: Testing, Documentation And Release
 

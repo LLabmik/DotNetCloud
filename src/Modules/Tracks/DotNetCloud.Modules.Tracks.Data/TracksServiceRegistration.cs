@@ -29,6 +29,15 @@ public static class TracksServiceRegistration
         services.AddScoped<SprintService>();
         services.AddScoped<TimeTrackingService>();
 
+        // Phase 4.7 services
+        services.AddScoped<BoardTemplateService>();
+        services.AddScoped<CardTemplateService>();
+        services.AddScoped<AnalyticsService>();
+        services.AddScoped<SprintReportService>();
+        services.AddScoped<BulkOperationService>();
+        services.AddScoped<PokerService>();
+        services.AddHostedService<DueDateReminderService>();
+
         // Real-time & notification services (Phase 4.6)
         services.AddSingleton<ITracksRealtimeService, TracksRealtimeService>();
         services.AddSingleton<ITracksNotificationService, TracksNotificationService>();

@@ -1202,6 +1202,333 @@ public sealed record AcceptPokerEstimateDto
 }
 
 // ─────────────────────────────────────────────
+// Board & Card Templates
+// ─────────────────────────────────────────────
+
+/// <summary>
+/// Represents a board template for creating pre-configured boards.
+/// </summary>
+public sealed record BoardTemplateDto
+{
+    /// <summary>Unique identifier.</summary>
+    public required Guid Id { get; init; }
+
+    /// <summary>Template name (e.g., "Kanban", "Scrum", "Bug Tracking").</summary>
+    public required string Name { get; init; }
+
+    /// <summary>Template description.</summary>
+    public string? Description { get; init; }
+
+    /// <summary>Template category for grouping.</summary>
+    public string? Category { get; init; }
+
+    /// <summary>Whether this is a system-provided template.</summary>
+    public bool IsBuiltIn { get; init; }
+
+    /// <summary>The user who created this template. Null for built-in templates.</summary>
+    public Guid? CreatedByUserId { get; init; }
+
+    /// <summary>JSON-serialized template definition (lists, labels, default cards).</summary>
+    public required string DefinitionJson { get; init; }
+
+    /// <summary>Timestamp when the template was created.</summary>
+    public required DateTime CreatedAt { get; init; }
+}
+
+/// <summary>
+/// Request DTO for creating a board from a template.
+/// </summary>
+public sealed record CreateBoardFromTemplateDto
+{
+    /// <summary>Title for the new board.</summary>
+    public required string Title { get; init; }
+
+    /// <summary>Optional description override.</summary>
+    public string? Description { get; init; }
+
+    /// <summary>Optional team ID for team-owned boards.</summary>
+    public Guid? TeamId { get; init; }
+
+    /// <summary>Optional color override.</summary>
+    public string? Color { get; init; }
+}
+
+/// <summary>
+/// Request DTO for saving a board as a template.
+/// </summary>
+public sealed record SaveBoardAsTemplateDto
+{
+    /// <summary>Name for the template.</summary>
+    public required string Name { get; init; }
+
+    /// <summary>Optional description.</summary>
+    public string? Description { get; init; }
+
+    /// <summary>Optional category.</summary>
+    public string? Category { get; init; }
+}
+
+/// <summary>
+/// Represents a card template for creating pre-configured cards.
+/// </summary>
+public sealed record CardTemplateDto
+{
+    /// <summary>Unique identifier.</summary>
+    public required Guid Id { get; init; }
+
+    /// <summary>The board this template belongs to.</summary>
+    public required Guid BoardId { get; init; }
+
+    /// <summary>Template name.</summary>
+    public required string Name { get; init; }
+
+    /// <summary>Default card title pattern.</summary>
+    public string? TitlePattern { get; init; }
+
+    /// <summary>Default card description (Markdown).</summary>
+    public string? Description { get; init; }
+
+    /// <summary>Default priority.</summary>
+    public CardPriority Priority { get; init; }
+
+    /// <summary>Default label IDs to apply.</summary>
+    public IReadOnlyList<Guid> LabelIds { get; init; } = [];
+
+    /// <summary>JSON-serialized checklist definitions.</summary>
+    public string? ChecklistsJson { get; init; }
+
+    /// <summary>The user who created this template.</summary>
+    public required Guid CreatedByUserId { get; init; }
+
+    /// <summary>Timestamp when the template was created.</summary>
+    public required DateTime CreatedAt { get; init; }
+}
+
+/// <summary>
+/// Request DTO for saving a card as a template.
+/// </summary>
+public sealed record SaveCardAsTemplateDto
+{
+    /// <summary>Name for the template.</summary>
+    public required string Name { get; init; }
+
+    /// <summary>Whether to include the card's checklists.</summary>
+    public bool IncludeChecklists { get; init; } = true;
+
+    /// <summary>Whether to include the card's labels.</summary>
+    public bool IncludeLabels { get; init; } = true;
+}
+
+/// <summary>
+/// Request DTO for creating a card from a template.
+/// </summary>
+public sealed record CreateCardFromTemplateDto
+{
+    /// <summary>Override title. If null, uses the template's title pattern.</summary>
+    public string? Title { get; init; }
+}
+
+// ─────────────────────────────────────────────
+// Analytics & Sprint Reports
+// ─────────────────────────────────────────────
+
+/// <summary>
+/// Board analytics summary with key metrics.
+/// </summary>
+public sealed record BoardAnalyticsDto
+{
+    /// <summary>Board identifier.</summary>
+    public required Guid BoardId { get; init; }
+
+    /// <summary>Total number of cards on the board.</summary>
+    public int TotalCards { get; init; }
+
+    /// <summary>Number of cards completed (archived).</summary>
+    public int CompletedCards { get; init; }
+
+    /// <summary>Number of cards past their due date.</summary>
+    public int OverdueCards { get; init; }
+
+    /// <summary>Average time (hours) a card spends from creation to archive.</summary>
+    public double AverageCycleTimeHours { get; init; }
+
+    /// <summary>Cards per list (list name → count).</summary>
+    public IReadOnlyDictionary<string, int> CardsByList { get; init; } = new Dictionary<string, int>();
+
+    /// <summary>Cards per assignee (user ID → count).</summary>
+    public IReadOnlyDictionary<Guid, int> CardsByAssignee { get; init; } = new Dictionary<Guid, int>();
+
+    /// <summary>Cards completed per day over the period.</summary>
+    public IReadOnlyList<DailyCompletionDto> CompletionsOverTime { get; init; } = [];
+}
+
+/// <summary>
+/// A single day's completion count for charts.
+/// </summary>
+public sealed record DailyCompletionDto
+{
+    /// <summary>The date.</summary>
+    public required DateOnly Date { get; init; }
+
+    /// <summary>Number of cards completed on this date.</summary>
+    public int Count { get; init; }
+}
+
+/// <summary>
+/// Team-level analytics aggregating across all team boards.
+/// </summary>
+public sealed record TeamAnalyticsDto
+{
+    /// <summary>Team identifier.</summary>
+    public required Guid TeamId { get; init; }
+
+    /// <summary>Number of boards owned by this team.</summary>
+    public int BoardCount { get; init; }
+
+    /// <summary>Total cards across all team boards.</summary>
+    public int TotalCards { get; init; }
+
+    /// <summary>Completed cards across all team boards.</summary>
+    public int CompletedCards { get; init; }
+
+    /// <summary>Cards per member (user ID → count).</summary>
+    public IReadOnlyDictionary<Guid, int> CardsByMember { get; init; } = new Dictionary<Guid, int>();
+}
+
+/// <summary>
+/// Sprint velocity data for velocity charts.
+/// </summary>
+public sealed record SprintVelocityDto
+{
+    /// <summary>Sprint identifier.</summary>
+    public required Guid SprintId { get; init; }
+
+    /// <summary>Sprint title.</summary>
+    public required string Title { get; init; }
+
+    /// <summary>Total story points committed when sprint started.</summary>
+    public int CommittedPoints { get; init; }
+
+    /// <summary>Story points completed by sprint end.</summary>
+    public int CompletedPoints { get; init; }
+
+    /// <summary>Number of cards committed.</summary>
+    public int CommittedCards { get; init; }
+
+    /// <summary>Number of cards completed.</summary>
+    public int CompletedCards { get; init; }
+}
+
+/// <summary>
+/// Sprint burndown chart data point.
+/// </summary>
+public sealed record BurndownPointDto
+{
+    /// <summary>The date.</summary>
+    public required DateOnly Date { get; init; }
+
+    /// <summary>Remaining story points at end of day.</summary>
+    public int RemainingPoints { get; init; }
+
+    /// <summary>Ideal remaining points (linear).</summary>
+    public int IdealPoints { get; init; }
+}
+
+/// <summary>
+/// Sprint report containing velocity and burndown data.
+/// </summary>
+public sealed record SprintReportDto
+{
+    /// <summary>Sprint identifier.</summary>
+    public required Guid SprintId { get; init; }
+
+    /// <summary>Sprint title.</summary>
+    public required string Title { get; init; }
+
+    /// <summary>Sprint status.</summary>
+    public required SprintStatus Status { get; init; }
+
+    /// <summary>Cards committed to this sprint.</summary>
+    public int TotalCards { get; init; }
+
+    /// <summary>Cards completed (archived).</summary>
+    public int CompletedCards { get; init; }
+
+    /// <summary>Total story points committed.</summary>
+    public int TotalPoints { get; init; }
+
+    /// <summary>Story points completed.</summary>
+    public int CompletedPoints { get; init; }
+
+    /// <summary>Burndown data points for charting.</summary>
+    public IReadOnlyList<BurndownPointDto> BurndownData { get; init; } = [];
+}
+
+// ─────────────────────────────────────────────
+// Bulk Operations
+// ─────────────────────────────────────────────
+
+/// <summary>
+/// Request DTO for bulk card operations.
+/// </summary>
+public sealed record BulkCardOperationDto
+{
+    /// <summary>Card IDs to operate on.</summary>
+    public required IReadOnlyList<Guid> CardIds { get; init; }
+}
+
+/// <summary>
+/// Request DTO for bulk moving cards to a target list.
+/// </summary>
+public sealed record BulkMoveCardsDto
+{
+    /// <summary>Card IDs to move.</summary>
+    public required IReadOnlyList<Guid> CardIds { get; init; }
+
+    /// <summary>Target list to move cards to.</summary>
+    public required Guid TargetListId { get; init; }
+}
+
+/// <summary>
+/// Request DTO for bulk assigning cards to a user.
+/// </summary>
+public sealed record BulkAssignCardsDto
+{
+    /// <summary>Card IDs to assign.</summary>
+    public required IReadOnlyList<Guid> CardIds { get; init; }
+
+    /// <summary>User to assign the cards to.</summary>
+    public required Guid UserId { get; init; }
+}
+
+/// <summary>
+/// Request DTO for bulk applying a label to cards.
+/// </summary>
+public sealed record BulkLabelCardsDto
+{
+    /// <summary>Card IDs to label.</summary>
+    public required IReadOnlyList<Guid> CardIds { get; init; }
+
+    /// <summary>Label to apply.</summary>
+    public required Guid LabelId { get; init; }
+}
+
+/// <summary>
+/// Result of a bulk operation.
+/// </summary>
+public sealed record BulkOperationResultDto
+{
+    /// <summary>Number of cards successfully processed.</summary>
+    public int SuccessCount { get; init; }
+
+    /// <summary>Number of cards that failed.</summary>
+    public int FailedCount { get; init; }
+
+    /// <summary>Card IDs that failed with error messages.</summary>
+    public IReadOnlyDictionary<Guid, string> Failures { get; init; } = new Dictionary<Guid, string>();
+}
+
+// ─────────────────────────────────────────────
 // Tracks Teams
 // ─────────────────────────────────────────────
 

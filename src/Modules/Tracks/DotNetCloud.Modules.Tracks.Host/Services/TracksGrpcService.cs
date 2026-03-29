@@ -16,6 +16,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
     private readonly BoardService _boardService;
     private readonly ListService _listService;
     private readonly CardService _cardService;
+    private readonly PokerService _pokerService;
     private readonly ILogger<TracksGrpcService> _logger;
 
     /// <summary>
@@ -25,11 +26,13 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         BoardService boardService,
         ListService listService,
         CardService cardService,
+        PokerService pokerService,
         ILogger<TracksGrpcService> logger)
     {
         _boardService = boardService;
         _listService = listService;
         _cardService = cardService;
+        _pokerService = pokerService;
         _logger = logger;
     }
 
@@ -187,48 +190,109 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
     }
 
     /// <inheritdoc />
-    public override Task<PokerSessionResponse> StartPokerSession(StartPokerSessionRequest request, ServerCallContext context)
+    public override async Task<PokerSessionResponse> StartPokerSession(StartPokerSessionRequest request, ServerCallContext context)
     {
         _logger.LogInformation("StartPokerSession called for card {CardId} by user {UserId}", request.CardId, request.UserId);
-        // Planning poker gRPC implementation deferred to Phase 4.7 (Advanced Features)
-        return Task.FromResult(new PokerSessionResponse
+        try
         {
-            Success = false,
-            ErrorMessage = "Planning poker gRPC not yet implemented. Use REST API."
-        });
+            var caller = ParseCaller(request.UserId);
+            var dto = new CreatePokerSessionDto
+            {
+                Scale = Enum.TryParse<PokerScale>(request.Scale, true, out var scale) ? scale : PokerScale.Fibonacci,
+                CustomScaleValues = string.IsNullOrEmpty(request.CustomScaleValues) ? null : request.CustomScaleValues
+            };
+            var session = await _pokerService.StartSessionAsync(Guid.Parse(request.CardId), dto, caller, context.CancellationToken);
+            return new PokerSessionResponse { Success = true, Session = MapPokerSession(session) };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "StartPokerSession failed");
+            return new PokerSessionResponse { Success = false, ErrorMessage = ex.Message };
+        }
     }
 
     /// <inheritdoc />
-    public override Task<PokerSessionResponse> SubmitPokerVote(SubmitPokerVoteRequest request, ServerCallContext context)
+    public override async Task<PokerSessionResponse> SubmitPokerVote(SubmitPokerVoteRequest request, ServerCallContext context)
     {
-        return Task.FromResult(new PokerSessionResponse
+        try
         {
-            Success = false,
-            ErrorMessage = "Planning poker gRPC not yet implemented. Use REST API."
-        });
+            var caller = ParseCaller(request.UserId);
+            var dto = new SubmitPokerVoteDto { Estimate = request.Estimate };
+            var session = await _pokerService.SubmitVoteAsync(Guid.Parse(request.SessionId), dto, caller, context.CancellationToken);
+            return new PokerSessionResponse { Success = true, Session = MapPokerSession(session) };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "SubmitPokerVote failed");
+            return new PokerSessionResponse { Success = false, ErrorMessage = ex.Message };
+        }
     }
 
     /// <inheritdoc />
-    public override Task<PokerSessionResponse> RevealPokerSession(RevealPokerSessionRequest request, ServerCallContext context)
+    public override async Task<PokerSessionResponse> RevealPokerSession(RevealPokerSessionRequest request, ServerCallContext context)
     {
-        return Task.FromResult(new PokerSessionResponse
+        try
         {
-            Success = false,
-            ErrorMessage = "Planning poker gRPC not yet implemented. Use REST API."
-        });
+            var caller = ParseCaller(request.UserId);
+            var session = await _pokerService.RevealSessionAsync(Guid.Parse(request.SessionId), caller, context.CancellationToken);
+            return new PokerSessionResponse { Success = true, Session = MapPokerSession(session) };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "RevealPokerSession failed");
+            return new PokerSessionResponse { Success = false, ErrorMessage = ex.Message };
+        }
     }
 
     /// <inheritdoc />
-    public override Task<PokerSessionResponse> AcceptPokerEstimate(AcceptPokerEstimateRequest request, ServerCallContext context)
+    public override async Task<PokerSessionResponse> AcceptPokerEstimate(AcceptPokerEstimateRequest request, ServerCallContext context)
     {
-        return Task.FromResult(new PokerSessionResponse
+        try
         {
-            Success = false,
-            ErrorMessage = "Planning poker gRPC not yet implemented. Use REST API."
-        });
+            var caller = ParseCaller(request.UserId);
+            var dto = new AcceptPokerEstimateDto
+            {
+                AcceptedEstimate = request.AcceptedEstimate,
+                StoryPoints = request.StoryPoints > 0 ? request.StoryPoints : null
+            };
+            var session = await _pokerService.AcceptEstimateAsync(Guid.Parse(request.SessionId), dto, caller, context.CancellationToken);
+            return new PokerSessionResponse { Success = true, Session = MapPokerSession(session) };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "AcceptPokerEstimate failed");
+            return new PokerSessionResponse { Success = false, ErrorMessage = ex.Message };
+        }
     }
 
     // ─── Mapping Helpers ──────────────────────────────────────────────────
+
+    private static PokerSessionMessage MapPokerSession(PokerSessionDto dto)
+    {
+        var msg = new PokerSessionMessage
+        {
+            Id = dto.Id.ToString(),
+            CardId = dto.CardId.ToString(),
+            BoardId = dto.BoardId.ToString(),
+            CreatedByUserId = dto.CreatedByUserId.ToString(),
+            Scale = dto.Scale.ToString(),
+            CustomScaleValues = dto.CustomScaleValues ?? "",
+            Status = dto.Status.ToString(),
+            AcceptedEstimate = dto.AcceptedEstimate ?? "",
+            Round = dto.Round,
+            CreatedAt = dto.CreatedAt.ToString("O"),
+            UpdatedAt = dto.UpdatedAt.ToString("O")
+        };
+        foreach (var vote in dto.Votes)
+            msg.Votes.Add(new PokerVoteMessage
+            {
+                UserId = vote.UserId.ToString(),
+                Estimate = vote.Estimate,
+                Round = vote.Round,
+                VotedAt = vote.VotedAt.ToString("O")
+            });
+        return msg;
+    }
 
     private static CallerContext ParseCaller(string userId)
     {

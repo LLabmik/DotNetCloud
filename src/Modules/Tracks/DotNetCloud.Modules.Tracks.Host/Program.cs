@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Tracks;
 using DotNetCloud.Modules.Tracks.Data;
+using DotNetCloud.Modules.Tracks.Data.Services;
 using DotNetCloud.Modules.Tracks.Host.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -36,6 +37,13 @@ app.MapControllers();
 
 // Health check endpoint
 app.MapHealthChecks("/health");
+
+// Seed built-in board templates on startup
+using (var scope = app.Services.CreateScope())
+{
+    var boardTemplateService = scope.ServiceProvider.GetRequiredService<BoardTemplateService>();
+    await boardTemplateService.SeedBuiltInTemplatesAsync();
+}
 
 // Minimal info endpoint
 app.MapGet("/", () => Results.Ok(new

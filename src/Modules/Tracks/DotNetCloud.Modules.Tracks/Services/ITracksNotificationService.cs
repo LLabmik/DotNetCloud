@@ -26,4 +26,7 @@ public interface ITracksNotificationService
 
     /// <summary>Notifies card assignees that a comment was added.</summary>
     Task NotifyCommentAddedAsync(Guid boardId, Guid cardId, string cardTitle, Guid commentAuthorId, IReadOnlyList<Guid> cardAssigneeIds, CancellationToken cancellationToken = default);
+
+    /// <summary>Notifies an assignee that a card is due within 24 hours.</summary>
+    Task NotifyDueSoonAsync(Guid boardId, Guid cardId, string cardTitle, DateTime dueDate, Guid assigneeUserId, CancellationToken cancellationToken = default);
 }

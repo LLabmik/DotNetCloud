@@ -245,4 +245,35 @@ internal sealed class TracksNotificationService : ITracksNotificationService
             _logger.LogError(ex, "Failed to send comment notification for card {CardId}", cardId);
         }
     }
+
+    /// <inheritdoc />
+    public async Task NotifyDueSoonAsync(Guid boardId, Guid cardId, string cardTitle, DateTime dueDate, Guid assigneeUserId, CancellationToken cancellationToken = default)
+    {
+        if (_notificationService is null) return;
+
+        var hoursRemaining = (int)Math.Round((dueDate - DateTime.UtcNow).TotalHours);
+        var timeLabel = hoursRemaining <= 1 ? "less than an hour" : $"{hoursRemaining} hours";
+
+        var notification = new NotificationDto
+        {
+            Id = Guid.NewGuid(),
+            UserId = assigneeUserId,
+            SourceModuleId = ModuleId,
+            Type = NotificationType.Reminder,
+            Title = $"Card due soon: \"{cardTitle}\"",
+            Message = $"This card is due in {timeLabel}.",
+            Priority = NotificationPriority.High,
+            ActionUrl = $"/apps/tracks?board={boardId}&card={cardId}",
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        try
+        {
+            await _notificationService.SendAsync(assigneeUserId, notification, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send due-date reminder to user {UserId} for card {CardId}", assigneeUserId, cardId);
+        }
+    }
 }

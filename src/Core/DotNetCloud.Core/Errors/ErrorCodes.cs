@@ -354,6 +354,18 @@ public static class ErrorCodes
     /// <summary>Error code for user already a team member.</summary>
     public const string TracksAlreadyTeamMember = "TRACKS_ALREADY_TEAM_MEMBER";
 
+    /// <summary>Error code for board template not found.</summary>
+    public const string BoardTemplateNotFound = "TRACKS_BOARD_TEMPLATE_NOT_FOUND";
+
+    /// <summary>Error code for card template not found.</summary>
+    public const string CardTemplateNotFound = "TRACKS_CARD_TEMPLATE_NOT_FOUND";
+
+    /// <summary>Error code for invalid template definition.</summary>
+    public const string InvalidTemplateDefinition = "TRACKS_INVALID_TEMPLATE";
+
+    /// <summary>Error code for bulk operation with no valid card IDs.</summary>
+    public const string BulkOperationEmpty = "TRACKS_BULK_OPERATION_EMPTY";
+
     // Import / Migration
     /// <summary>Error code for unsupported import data type.</summary>
     public const string ImportUnsupportedDataType = "IMPORT_UNSUPPORTED_DATA_TYPE";

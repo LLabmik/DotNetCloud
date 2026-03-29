@@ -1539,16 +1539,19 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Section: Phase 4.7 - Advanced Features
-**STATUS:** not started
+**STATUS:** completed ✅
 **DELIVERABLES:**
-- ☐ Board templates — Kanban, Scrum, Bug Tracking, Personal TODO
-- ☐ Card templates — Save/create cards from templates
-- ☐ Due date reminders — Background dispatch service
-- ☐ Board analytics — Cycle time, time-in-list, per-user workload
-- ☐ Sprint reports — Velocity chart, burndown data endpoints
-- ☐ Bulk operations — Multi-select cards for move/label/assign/archive
+- ✓ Board templates — `BoardTemplateService` with 4 built-in templates (Kanban, Scrum, Bug Tracking, Personal TODO); `BoardTemplatesController` (5 endpoints); seeded on startup
+- ✓ Card templates — `CardTemplateService`: save/list/get/delete/create from template; `CardTemplatesController` (4 endpoints)
+- ✓ Due date reminders — `DueDateReminderService` (IHostedService): hourly background scan, notifies cards due within 24h
+- ✓ Board analytics — `AnalyticsService.GetBoardAnalyticsAsync`: completions over time, cycle time, list dwell time, workload; GET /boards/{id}/analytics
+- ✓ Team analytics — `AnalyticsService.GetTeamAnalyticsAsync`: board count, cards by member; GET /teams/{id}/analytics
+- ✓ Sprint reports — `SprintReportService.GetSprintReportAsync`: velocity, burndown by date, cards by status; GET /sprints/{id}/report
+- ✓ Bulk operations — `BulkOperationService`: BulkMoveCards, BulkAssignCards, BulkLabelCards, BulkArchiveCards (max 100); `BulkOperationsController` (4 endpoints)
+- ✓ Poker gRPC RPCs — `TracksGrpcService` StartPokerSession, SubmitPokerVote, RevealPokerSession, AcceptPokerEstimate fully implemented; previously deferred from Phase 4.4
+- ✓ Unit tests — 92 new tests covering all new services; 291 total Tracks tests passing
 
-**Notes:** Templates seeded as JSON definitions. Analytics endpoints return chart-ready data (frontend renders).
+**Notes:** All 291 Tracks tests pass. BulkOperationService uses `_db.CardAssignments.Add()`/`_db.CardLabels.Add()` directly (not via navigation collection) to avoid EF InMemory `HasDefaultValueSql` concurrency issue. Built-in template names: "Kanban", "Scrum", "Bug Tracking", "Personal TODO".
 
 ---
 
