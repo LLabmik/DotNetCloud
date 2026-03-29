@@ -422,7 +422,7 @@ public sealed class TrayIconManager : IDisposable
         return TrayChatBadgeKind.None;
     }
 
-    private static Bitmap CreateCircleBitmap(int size, int r, int g, int b, TrayState state, TrayChatBadgeKind badgeKind)
+    internal static Bitmap CreateCircleBitmap(int size, int r, int g, int b, TrayState state, TrayChatBadgeKind badgeKind)
     {
         var bmp = new WriteableBitmap(
             new PixelSize(size, size),
@@ -511,7 +511,7 @@ public sealed class TrayIconManager : IDisposable
     // ── Symbol drawing ────────────────────────────────────────────────────
 
     /// <summary>Dispatches to the appropriate symbol drawing method for the given tray state.</summary>
-    private static void DrawStatusSymbol(byte[] pixels, int size, float centre, float radius, TrayState state)
+    internal static void DrawStatusSymbol(byte[] pixels, int size, float centre, float radius, TrayState state)
     {
         switch (state)
         {

@@ -61,7 +61,7 @@ Archived context:
 - Security audit closeout + merge validation on `mint22`: **COMPLETE** (2026-03-23).
 - Post-closeout Windows runtime smoke: **COMPLETE** (2026-03-23). 4/4 targeted tests passed; login launch path verified reachable.
 - **Active cycle (20260328–20260329):** WS-4 live verification 58/66 passed. Windows Phase C complete (8 pass, 2 deferred, 1 skip). Linux Phase C complete (10 pass, 1 skip). Both deferred Windows tests (TC-1.52 conflict, TC-1.53 offline) passed on Linux.
-- **Current (20260329):** SyncTray icon enhancement — symbol overlays implemented on Windows. Ready for Linux verification.
+- **Current (20260329):** SyncTray icon enhancement — symbol overlays verified on Linux. 85/85 tests pass. Visual + programmatic verification complete.
 
 ## Environment
 
@@ -83,51 +83,7 @@ Archived context:
 
 ## Active Handoff
 
-**Target machine:** mint-dnc-client
-**Status:** READY FOR PICKUP
-**Context:** SyncTray tray icon enhancement — verify symbol overlays render correctly on Linux
+**Status:** IDLE — no pending handoff
+**Last completed:** SyncTray icon enhancement Linux verification (2026-03-29)
 
-### Overview
-
-White status symbol overlays have been implemented in `TrayIconManager.cs` on Windows (`290311b`). All 6 tray states now render a white symbol inside the colored circle. This needs visual verification on Linux.
-
-### What Was Implemented (commit `290311b`)
-
-**File modified:** `src/Clients/DotNetCloud.Client.SyncTray/TrayIconManager.cs`
-
-Changes:
-1. **Paused color** changed from Amber `#FFA500` → RebeccaPurple `#663399` (avoids collision with Conflict orange)
-2. **Symbol drawing pipeline** added between circle rendering and chat badge rendering
-3. **Helper methods** added: `SetWhitePixel()`, `DrawAntiAliasedLine()`, `DrawFilledCircleAt()`
-4. **Per-state symbol methods** added:
-   - `DrawCheckmark()` — ✓ checkmark (Idle/Green)
-   - `DrawSyncArrows()` — ⟳ opposing arrows (Syncing/Blue)
-   - `DrawPauseBars()` — ⏸ two vertical bars (Paused/Purple)
-   - `DrawXMark()` — ✕ crossing diagonals (Error/Crimson)
-   - `DrawExclamation()` — ! stem + dot (Conflict/Orange)
-   - `DrawDash()` — horizontal line (Offline/Grey)
-
-Rendering order: Circle → Symbol → Chat badge (badge on top of everything).
-
-All drawing uses pixel-level anti-aliased compositing with distance-from-segment math. No new dependencies.
-
-### Verification Checklist
-
-Build, install, and visually verify all 6 states on Linux:
-
-- ☐ All 6 symbols render clearly at 32×32
-- ☐ Symbols are centered within the circle
-- ☐ Anti-aliasing looks clean (no jagged edges)
-- ☐ Chat badge (if present) renders on top of symbols
-- ☐ Colors are correct (especially Paused = purple, not amber)
-- ☐ No visual artifacts or bleeding outside circle
-- ☐ 76 SyncTray tests still pass on Linux
-
-### How to Trigger Each State
-
-- **Idle:** Normal state after sync completes
-- **Syncing:** Drop a file in the sync folder
-- **Paused:** Pause sync from tray menu
-- **Error:** Temporarily break server connectivity (wrong URL in config)
-- **Conflict:** Modify same file on both client and server between syncs
-- **Offline:** Stop the SyncService
+All icon symbol overlays verified on Linux. 85/85 tests pass. No outstanding cross-machine work.

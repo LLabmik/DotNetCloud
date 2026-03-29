@@ -5,6 +5,22 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: SyncTray Icon Enhancement — Linux Verification (2026-03-29)
+
+**Original target:** mint-dnc-client
+**Result:** VERIFIED — all 6 symbol overlays render correctly on Linux.
+
+Verification summary:
+- Build: 0 warnings, 0 errors on Linux (.NET 10)
+- Tests: 85/85 pass (76 original + 9 new symbol rendering tests added)
+- Programmatic verification: all 6 states produce ≥20 white symbol pixels, no bleed outside circle
+- Visual verification: user confirmed tray icons look good on Linux Mint 22
+- Paused color confirmed RebeccaPurple `#663399` (not amber)
+- New tests added: `DrawStatusSymbol_AllStates_ProduceWhiteSymbolPixels` (6 DataRow), `SymbolsStayWithinCircle`, `CheckmarkSymmetry`, `PauseBars_TwoDistinctRegions`
+- `CreateCircleBitmap` and `DrawStatusSymbol` changed from private to internal for testability
+
+---
+
 ## Archived: WS-4 TC-1.54 Retest + .syncignore Crash Fix (2026-03-29)
 
 **Original target:** Windows11-TestDNC
