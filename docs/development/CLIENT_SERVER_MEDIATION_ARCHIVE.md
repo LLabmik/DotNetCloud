@@ -3590,3 +3590,34 @@ Pivoted to `WebApplicationFactory<Program>` in-process integration tests:
 - 0.27.8: .syncignore hot-reload fix
 - SyncStreamListener added for real-time sync events
 - SettingsViewModel enhanced with folder browser
+
+---
+
+## Archived: WS-4 Phase C — Linux Sync Client Tests COMPLETE (2026-03-29)
+
+**Target machine:** `mint-dnc-client`
+**Status:** COMPLETED
+**Context:** WS-4 Live Verification — Phase C Sync Client Tests (Linux)
+**Summary:** 10 PASS, 0 FAIL, 1 SKIP (TC-1.57 multi-account — environment-gated). Linux fills the 2 gaps deferred on Windows (TC-1.52 conflict, TC-1.53 offline).
+
+### Results Table (Linux)
+
+| Test ID | Test Name | Result | Notes |
+|---------|-----------|--------|-------|
+| TC-1.46 | FSW debounce | PASS | 10 rapid saves → 1 sync cycle. FSW debouncer coalesced all events correctly. |
+| TC-1.48 | Launch SyncTray Linux | PASS | Launched via `dotnet run`, tray icon visible (green), single-instance lock held. 16 menu items initialized. |
+| TC-1.49 | OAuth2 account add | PASS | OAuth2 PKCE flow completed. Browser opened, login succeeded, account connected, sync context created. Initial sync pulled 25 remote changes. |
+| TC-1.50 | Server → local sync | PASS | File uploaded to server via API appeared in local sync folder after next sync cycle (55 bytes, correct content). |
+| TC-1.51 | Local → server sync | PASS | Local file `test-local-to-server-linux.txt` uploaded to server (NodeId `a30f3e29`, 55 bytes, 95ms). Visible in server API listing. |
+| TC-1.52 | Conflict copy | PASS | Concurrent local+server edit → conflict detected. Local copy saved as `conflict-test (conflict - benk - 2026-03-29).txt`. Both versions preserved. |
+| TC-1.53 | Offline queue + reconnect | PASS | iptables REJECT blocked mint22:5443. 3 files created while offline. After unblock, all 3 uploaded automatically (LocalQueued=3, LocalApplied=3). No manual intervention. |
+| TC-1.54 | 100MB+ file upload | PASS | 105MB file uploaded via chunked transfer (110100480 bytes, ~10.7s on LAN). Note: initial FSW-triggered scan caught file mid-write at 11MB; full file uploaded after touch triggered hash mismatch detection. |
+| TC-1.55 | Status indicators | PASS | Green=idle, Blue=syncing (during 50MB upload), Yellow/Orange=conflict (during TC-1.52 conflict creation), Red=error (iptables block). All four states confirmed visually by moderator. |
+| TC-1.56 | Selective sync exclusion | PASS | `.syncignore` with `ExcludedFolder/` prevented local→server upload of excluded folder. Server→local download of content placed on server in ExcludedFolder was not filtered (known limitation — matches Windows behavior). |
+| TC-1.57 | Multi-account sync | SKIP | Environment-gated: SyncTray UI enforces single-account (CanAddAccount=false when account exists). Backend ISyncContextManager supports multi-account but UI not yet enabled. |
+
+### Code changes made during Linux testing:
+- `FileStillGrowingException` — new exception type for file stability detection
+- `SyncEngine.WaitForFileStabilityAsync()` — pre-upload stability check (1s delay, size comparison)
+- `SyncEngine` catch handler for `FileStillGrowingException` — defers upload without consuming retry budget
+- `SyncEngineTests` — unit tests covering stability check scenarios
