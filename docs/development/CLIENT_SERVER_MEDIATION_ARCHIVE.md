@@ -5,6 +5,14 @@ Archived: 2026-03-08. Full git history preserved in commits up to `8e02b52`.
 This file contains historical reference from the client/server mediation sessions.
 Only consult this if you encounter a regression or need to understand a past fix.
 
+## Archived: WS-4 TC-1.54 Retest + .syncignore Crash Fix (2026-03-29)
+
+**Original target:** Windows11-TestDNC
+
+TC-1.54 (100MB+ file upload retest) **PASSED** on Windows. Bug found during testing: SyncTray crashed on initial sync due to `.syncignore` file lock. Fixed in `SyncIgnoreParser` (FileShare.ReadWrite) and `SyncEngine` (try-catch safety net). 186/186 tests pass.
+
+---
+
 ## Archived: WS-4 API Verification Bootstrap — Token Acquisition Investigation COMPLETE (2026-03-25)
 
 **Original target:** monolith (Windows 11)

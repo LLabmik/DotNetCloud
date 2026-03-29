@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 20260329 (WS-4 — TC-1.54 retest handoff for Windows after file stability code changes)
+Last updated: 20260329 (SyncTray icon enhancement — add status symbols to tray icons)
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -61,7 +61,7 @@ Archived context:
 - Security audit closeout + merge validation on `mint22`: **COMPLETE** (2026-03-23).
 - Post-closeout Windows runtime smoke: **COMPLETE** (2026-03-23). 4/4 targeted tests passed; login launch path verified reachable.
 - **Active cycle (20260328–20260329):** WS-4 live verification 58/66 passed. Windows Phase C complete (8 pass, 2 deferred, 1 skip). Linux Phase C complete (10 pass, 1 skip). Both deferred Windows tests (TC-1.52 conflict, TC-1.53 offline) passed on Linux.
-- **Current (20260329):** TC-1.54 retest **PASSED** on Windows. Bug found: .syncignore file lock crash on initial sync — fixed in `SyncIgnoreParser` (FileShare.ReadWrite) and `SyncEngine` (try-catch safety net). 186/186 tests pass.
+- **Current (20260329):** SyncTray icon enhancement — adding white status symbols to colored circle tray icons. Starting on Windows.
 
 ## Environment
 
@@ -83,28 +83,89 @@ Archived context:
 
 ## Active Handoff
 
-**Target machine:** (none — cycle complete)
-**Status:** COMPLETE
-**Context:** WS-4 — TC-1.54 retest results (Windows) + .syncignore crash fix
+**Target machine:** Windows11-TestDNC
+**Status:** READY FOR PICKUP
+**Context:** SyncTray tray icon enhancement — add white status symbols to colored circles
 
-### TC-1.54 Retest Results (Windows11-TestDNC, 2026-03-29)
+### Overview
 
-| Test ID | Test Name | Result | Notes |
-|---------|-----------|--------|-------|
-| TC-1.54 | 100MB+ file upload (retest) | **PASS** | 105MB file uploaded in ~12s, 110100480 bytes confirmed on server. No FileStillGrowingException (atomic write). Stability check passed silently. |
+The current SyncTray tray icons are plain colored circles. We're adding a **white symbol overlay** to each circle so the status is immediately clear without relying solely on color. This also improves accessibility for colorblind users.
 
-### Bug Found & Fixed During Testing
+**Full design plan:** `docs/SYNCTRAY_ICON_ENHANCEMENT_PLAN.md`
 
-**Crash:** SyncTray crashed on initial sync with unhandled `System.IO.IOException` in `SyncIgnoreParser.Initialize()`.
+### Color + Symbol Mapping (Updated)
 
-**Root cause:** When the sync engine downloads `.syncignore`, FSW fires a `Changed` event. The `.syncignore` reload handler calls `File.ReadAllLines()` which requires exclusive read access. If the download process still holds a write lock, the read fails with "file in use by another process" → unhandled exception → process termination.
+| TrayState | Color | Hex | Symbol | Description |
+|-----------|-------|-----|--------|-------------|
+| **Idle** | Green | `#00B040` | ✓ Checkmark | Two joined line segments |
+| **Syncing** | Blue | `#0078D4` | ⟳ Sync arrows | Two opposing curved/straight arrows |
+| **Paused** | RebeccaPurple | `#663399` | ⏸ Pause bars | Two vertical rectangles |
+| **Error** | Crimson | `#C41E3A` | ✕ X mark | Two crossing diagonal lines |
+| **Conflict** | Dark Orange | `#FF8C00` | ! Exclamation | Vertical line + dot |
+| **Offline** | Grey | `#707070` | — Dash | Horizontal line |
 
-**Fix (two changes):**
-1. `SyncIgnoreParser.Initialize()` — replaced `File.ReadAllLines()` with `FileStream(FileShare.ReadWrite)` so it can read even while the file is still being written by the download.
-2. `SyncEngine.OnFileSystemChanged()` — added `try-catch (IOException)` around the `.syncignore` reload as a safety net. Logs a warning and skips; next FSW event or sync pass will pick it up.
+**Color changes from current code:**
+- `Paused` changed from Amber `#FFA500` → RebeccaPurple `#663399` (was too similar to Conflict)
 
-**Files changed:**
-- `src/Clients/DotNetCloud.Client.Core/SyncIgnore/SyncIgnoreParser.cs`
-- `src/Clients/DotNetCloud.Client.Core/Sync/SyncEngine.cs`
+### Implementation Instructions
 
-**Tests:** 186/186 pass (DotNetCloud.Client.Core.Tests). Crash did not recur after fix.
+**File to modify:** `src/Clients/DotNetCloud.Client.SyncTray/TrayIconManager.cs`
+
+**Approach:** Pixel-level drawing (extend existing `CreateCircleBitmap()` approach). No new dependencies.
+
+1. **Update the color mapping** in `CreateStatusIcon()`:
+   - Change `TrayState.Paused` from `(0xFF, 0xA5, 0x00)` to `(0x66, 0x33, 0x99)` (RebeccaPurple)
+
+2. **Add a reusable anti-aliased line helper:**
+   ```csharp
+   private static void DrawAntiAliasedLine(byte[] pixels, int size, float x0, float y0, float x1, float y1, float thickness, byte r, byte g, byte b)
+   ```
+   - Xiaolin Wu's algorithm or distance-from-line approach
+   - Used for: checkmark, X mark, dash, sync arrows
+
+3. **Add a filled-circle-at helper** (for exclamation dot):
+   ```csharp
+   private static void DrawFilledCircleAt(byte[] pixels, int size, float cx, float cy, float radius, byte r, byte g, byte b)
+   ```
+
+4. **Add per-state symbol drawing methods** (all draw white `255,255,255` into the pixel buffer):
+   - `DrawCheckmark()` — two line segments joined at (~12, 20), short leg up-left, long leg up-right, stroke ~2.5px
+   - `DrawSyncArrows()` — two opposing arrows suggesting circular motion, stroke ~2px
+   - `DrawPauseBars()` — two filled rectangles (x=11-13 and x=18-20, y=9-22)
+   - `DrawXMark()` — two diagonal lines crossing at center, stroke ~2.5px
+   - `DrawExclamation()` — vertical line (y=8-18) + dot at (15.5, 22)
+   - `DrawDash()` — single horizontal line at vertical center, stroke ~2.5px
+
+5. **Wire it into `CreateCircleBitmap()`** — call `DrawStatusSymbol()` after the circle loop, before the badge loop. Pass the `TrayState` into the method (add parameter).
+
+6. **Rendering order must be:** Circle → Symbol → Chat badge (badge on top of everything)
+
+### Symbol Rendering Specs
+
+- **Canvas:** 32×32 pixels, circle radius ~14px
+- **Symbol area:** ~50-60% of circle diameter (symbols span roughly 14-16px)
+- **Symbol color:** White `(255, 255, 255)` — premultiplied alpha, composited over the circle color
+- **Anti-aliasing:** Required on all symbol edges for professional appearance
+- **Only draw white pixels inside the circle bounds** (don't bleed outside the circle edge)
+
+### Testing Checklist
+
+After implementation, visually verify all 6 states. To trigger each state:
+- **Idle:** Normal state after sync completes
+- **Syncing:** Drop a file in the sync folder
+- **Paused:** Pause sync from tray menu
+- **Error:** Temporarily break server connectivity (wrong URL in config)
+- **Conflict:** Modify same file on both client and server between syncs
+- **Offline:** Stop the SyncService
+
+Verify:
+- ☐ All 6 symbols render clearly at 32×32
+- ☐ Symbols are centered within the circle
+- ☐ Anti-aliasing looks clean (no jagged edges)
+- ☐ Chat badge (if present) renders on top of symbols
+- ☐ Colors are correct (especially Paused = purple, not amber)
+- ☐ No visual artifacts or bleeding outside circle
+
+### After Completion
+
+Commit, push, and provide relay message for `mint-dnc-client` to verify the same icons on Linux.
