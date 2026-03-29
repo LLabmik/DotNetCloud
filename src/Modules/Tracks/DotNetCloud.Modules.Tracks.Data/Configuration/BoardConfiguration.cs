@@ -39,9 +39,13 @@ public sealed class BoardConfiguration : IEntityTypeConfiguration<Board>
         // Soft-delete query filter
         builder.HasQueryFilter(b => !b.IsDeleted);
 
+        // TeamId references a Core team — no FK enforcement (cross-DB), app-level validation only
         // Indexes
         builder.HasIndex(b => b.OwnerId)
             .HasDatabaseName("ix_boards_owner_id");
+
+        builder.HasIndex(b => b.TeamId)
+            .HasDatabaseName("ix_boards_team_id");
 
         builder.HasIndex(b => b.IsArchived)
             .HasDatabaseName("ix_boards_is_archived");

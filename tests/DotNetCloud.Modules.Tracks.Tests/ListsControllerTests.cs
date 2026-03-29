@@ -27,7 +27,8 @@ public class ListsControllerTests
         _db = TestHelpers.CreateDb();
         var eventBus = new Mock<IEventBus>();
         var activityService = new ActivityService(_db, new Mock<ILogger<ActivityService>>().Object);
-        _boardService = new BoardService(_db, eventBus.Object, activityService, new Mock<ILogger<BoardService>>().Object);
+        var teamService = new TeamService(_db, eventBus.Object, new Mock<ILogger<TeamService>>().Object);
+        _boardService = new BoardService(_db, eventBus.Object, activityService, teamService, new Mock<ILogger<BoardService>>().Object);
         var listService = new ListService(_db, _boardService, activityService, new Mock<ILogger<ListService>>().Object);
 
         _controller = new ListsController(listService, new Mock<ILogger<ListsController>>().Object);

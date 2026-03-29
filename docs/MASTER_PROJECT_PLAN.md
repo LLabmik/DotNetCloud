@@ -87,10 +87,10 @@
 | Phase 3.6 | 4 | 4 | 0 | 0 |
 | Phase 3.7 | 5 | 5 | 0 | 0 |
 | Phase 3.8 | 4 | 4 | 0 | 0 |
-| Phase 4.1 | 5 | 5 | 0 | 0 |
-| Phase 4.2 | 5 | 5 | 0 | 0 |
-| Phase 4.3 | 13 | 13 | 0 | 0 |
-| Phase 4.4 | 16 | 15 | 0 | 1 |
+| Phase 4.1 | 11 | 11 | 0 | 0 |
+| Phase 4.2 | 7 | 7 | 0 | 0 |
+| Phase 4.3 | 21 | 21 | 0 | 0 |
+| Phase 4.4 | 17 | 16 | 0 | 1 |
 | Phase 4.5 | 9 | 0 | 0 | 9 |
 | Phase 4.6 | 4 | 0 | 0 | 4 |
 | Phase 4.7 | 6 | 0 | 0 | 6 |
@@ -1428,8 +1428,13 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `ITracksDirectory` capability interface (Public tier) with board/card lookup + CardSummary record
 - ✓ 15 `TRACKS_` error codes in `ErrorCodes.cs` (board/list/card/label/sprint/comment/checklist/time entry not found, role checks, WIP limit, dependency cycle, sprint transitions)
 - ✓ 49 unit tests: 34 DTO tests, 10 event tests, 5 capability tests — all passing (246 total Core tests, 0 failures)
+- ✓ `ITeamDirectory` capability interface (Restricted tier) — cross-module read-only team/membership access with `TeamInfo` and `TeamMemberInfo` records
+- ✓ `ITeamManager` capability interface (Restricted tier) — cross-module team CRUD and member management (CreateTeam, UpdateTeam, DeleteTeam, AddMember, RemoveMember)
+- ✓ Tracks team DTOs: `TracksTeamDto`, `TracksTeamMemberDto`, `CreateTracksTeamDto`, `UpdateTracksTeamDto`, `TransferBoardDto`, `TracksTeamMemberRole` enum
+- ✓ Tracks team events: `TeamCreatedEvent`, `TeamDeletedEvent`
+- ✓ Tracks team error codes: `TracksTeamNotFound`, `TracksNotTeamMember`, `TracksInsufficientTeamRole`, `TracksTeamHasBoards`, `TracksAlreadyTeamMember`
 
-**Notes:** Phase 4.1 complete. All Tracks contracts added to DotNetCloud.Core following established PIM module patterns. Tracks is an optional module — no hard dependencies from Core. ITracksDirectory provides both board and card lookups for cross-module integration. Ready for Phase 4.2 (Data Model & Module Scaffold).
+**Notes:** Phase 4.1 complete. All Tracks contracts added to DotNetCloud.Core. Added Option C team architecture: Core owns team identity/membership (ITeamDirectory + ITeamManager), Tracks extends with module-specific role overlay. Ready for Phase 4.2.
 
 ---
 
@@ -1441,8 +1446,10 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `DotNetCloud.Modules.Tracks.Host/` — gRPC host scaffold (Program.cs, TracksGrpcService with 11 RPCs incl. 4 poker RPCs, TracksLifecycleService, TracksHealthCheck, InProcessEventBus, TracksControllerBase, tracks_service.proto)
 - ✓ Solution integration (all 3 projects in DotNetCloud.sln + DotNetCloud.CI.slnf)
 - ✓ Integrated planning poker: PokerSession/PokerVote entities, PokerSessionStatus/PokerScale enums, 6 DTOs, 3 events, 4 error codes, 14 new unit tests
+- ✓ `TeamRole` entity — Option C design: `CoreTeamId` + `UserId` → `TracksTeamMemberRole` (Member/Manager/Owner). Unique index on (CoreTeamId, UserId).
+- ✓ `Board.TeamId` (nullable Guid) references Core team ID — cross-DB reference, app-level validation only (no FK)
 
-**Notes:** Full 3-tier module scaffold following established patterns (Files, Notes, Chat). 18 entities (16 base + PokerSession + PokerVote). Includes integrated planning poker for agile estimation — sessions support multiple scales (Fibonacci, T-shirt, Powers of Two, Custom), multi-round voting, hidden-until-revealed votes, and accepted estimate auto-applies to card StoryPoints. Builds with 0 errors. All 2,863 tests pass. Ready for Phase 4.3 (Core Services & Business Logic).
+**Notes:** Full 3-tier module scaffold. 18 entities + TeamRole. Includes integrated planning poker and Option C team model (Core teams = identity, Tracks extends with roles). Board.TeamId is a cross-DB reference to Core teams. Builds with 0 errors. Ready for Phase 4.3.
 
 ---
 
@@ -1462,8 +1469,17 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `ActivityService` — Log mutations, query activity feed per board/card
 - ✓ Authorization logic — Board role checks (Owner/Admin/Member/Viewer) via EnsureBoardRoleAsync/EnsureBoardMemberAsync
 - ✓ Unit tests (112 tests covering all 11 services)
+- ✓ `TeamService` — Option C implementation: Core teams via ITeamDirectory (read) + ITeamManager (write), Tracks TeamRoles overlay
+  - ✓ Team CRUD (create → Core team + Tracks Owner role, update, delete with block/cascade)
+  - ✓ Member management (add/remove/update role, Owner cannot be removed/is last-owner protected)
+  - ✓ Board transfer (personal ↔ team, requires board Owner + team Manager)
+  - ✓ `GetEffectiveBoardRoleAsync` — merges direct board membership + team-derived role (higher wins)
+  - ✓ Graceful degradation when ITeamDirectory/ITeamManager not injected (nullable capabilities)
+- ✓ `TeamDirectoryService` — ITeamDirectory implementation in Core.Auth (reads from CoreDbContext)
+- ✓ `TeamManagerService` — ITeamManager implementation in Core.Auth (writes to CoreDbContext)
+- ✓ DI registration for ITeamDirectory + ITeamManager as scoped services in AuthServiceExtensions
 
-**Notes:** All 11 services implemented with full authorization, event bus integration, and activity logging. Gap-based positioning (intervals of 1000) for card/list/checklist reorder. BFS cycle detection for BlockedBy dependencies. Sprint lifecycle: Planning→Active→Completed with single active sprint per board. Timer-based and manual time tracking. 112 unit tests pass (exceeded ~80 target). Builds with 0 errors. Ready for Phase 4.4 (REST API & gRPC Service).
+**Notes:** All 11 services + TeamService (12 total). Option C team architecture: Core owns team identity/membership, Tracks stores module-specific role assignments (TeamRole entity). Team role mapping: Owner→BoardOwner, Manager→BoardAdmin, Member→BoardMember. 29 new TeamServiceTests. Ready for Phase 4.4.
 
 ---
 
@@ -1479,12 +1495,13 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `DependenciesController` — 3 endpoints: list, add, remove (cycle → 409)
 - ✓ `SprintsController` — 9 endpoints: CRUD sprints, start/complete, add/remove cards
 - ✓ `TimeEntriesController` — 5 endpoints: list, create, delete, timer start/stop
+- ✓ `TeamsController` — 10 endpoints: CRUD teams, add/remove/update members, transfer board, list team boards
 - ✓ `TracksGrpcService` — 7 RPCs fully implemented (4 poker stubs → Phase 4.7)
 - ✓ `TracksControllerBase` — IsBoardNotFound() helper, auth, envelope methods
-- ✓ 58 new tests (10 board + 7 card + 5 list + 7 sprint + 19 subresource + 10 gRPC)
+- ✓ 58 new tests (10 board + 7 card + 5 list + 7 sprint + 19 subresource + 10 gRPC) + 29 TeamServiceTests
 - ☐ Cross-module integration (file attachments, chat) — deferred to Phase 4.6
 
-**Notes:** 40+ REST endpoints across 9 controllers. All 170 Tracks tests pass (112 service + 58 controller/gRPC). Consistent error handling via IsBoardNotFound() maps both BoardNotFound and NotBoardMember to 404. Poker gRPC RPCs left as stubs for Phase 4.7. Ready for Phase 4.5 (Web UI).
+**Notes:** 50+ REST endpoints across 10 controllers. All 199 Tracks tests pass (112 service + 29 team + 58 controller/gRPC). Teams support Option C architecture with full CRUD, member management, board ownership transfer, and effective role resolution. Ready for Phase 4.5 (Web UI).
 
 ---
 

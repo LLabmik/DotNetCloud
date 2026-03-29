@@ -28,7 +28,8 @@ public class TracksGrpcServiceTests
         _db = TestHelpers.CreateDb();
         var eventBus = new Mock<IEventBus>();
         var activityService = new ActivityService(_db, new Mock<ILogger<ActivityService>>().Object);
-        var boardService = new BoardService(_db, eventBus.Object, activityService, new Mock<ILogger<BoardService>>().Object);
+        var teamService = new TeamService(_db, eventBus.Object, new Mock<ILogger<TeamService>>().Object);
+        var boardService = new BoardService(_db, eventBus.Object, activityService, teamService, new Mock<ILogger<BoardService>>().Object);
         var listService = new ListService(_db, boardService, activityService, new Mock<ILogger<ListService>>().Object);
         var cardService = new CardService(_db, boardService, activityService, eventBus.Object, new Mock<ILogger<CardService>>().Object);
 

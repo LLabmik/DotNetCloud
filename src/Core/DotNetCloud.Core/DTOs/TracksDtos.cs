@@ -16,6 +16,11 @@ public sealed record BoardDto
     public required Guid OwnerId { get; init; }
 
     /// <summary>
+    /// Optional team that owns this board. Null for personal boards.
+    /// </summary>
+    public Guid? TeamId { get; init; }
+
+    /// <summary>
     /// Board title.
     /// </summary>
     public required string Title { get; init; }
@@ -733,6 +738,11 @@ public sealed record CreateBoardDto
     /// Hex color code for UI display.
     /// </summary>
     public string? Color { get; init; }
+
+    /// <summary>
+    /// Optional team ID. When set, the board is owned by the team.
+    /// </summary>
+    public Guid? TeamId { get; init; }
 }
 
 /// <summary>
@@ -1189,4 +1199,140 @@ public sealed record AcceptPokerEstimateDto
     /// The story points value to set on the card. Null for non-numeric scales.
     /// </summary>
     public int? StoryPoints { get; init; }
+}
+
+// ─────────────────────────────────────────────
+// Tracks Teams
+// ─────────────────────────────────────────────
+
+/// <summary>
+/// Role a user can have on a Tracks team.
+/// </summary>
+public enum TracksTeamMemberRole
+{
+    /// <summary>Standard team member — inherits Board Member access on team boards.</summary>
+    Member,
+
+    /// <summary>Team manager — can manage members and inherits Board Admin access on team boards.</summary>
+    Manager,
+
+    /// <summary>Team owner — full control including team deletion. Inherits Board Owner access on team boards.</summary>
+    Owner
+}
+
+/// <summary>
+/// Represents a Tracks team that can own boards and sprints.
+/// Team identity comes from Core; this DTO combines Core team info with Tracks-specific role data.
+/// </summary>
+public sealed record TracksTeamDto
+{
+    /// <summary>
+    /// Core team ID.
+    /// </summary>
+    public required Guid Id { get; init; }
+
+    /// <summary>
+    /// Organization the team belongs to.
+    /// </summary>
+    public required Guid OrganizationId { get; init; }
+
+    /// <summary>
+    /// Team name (from Core).
+    /// </summary>
+    public required string Name { get; init; }
+
+    /// <summary>
+    /// Optional team description (from Core).
+    /// </summary>
+    public string? Description { get; init; }
+
+    /// <summary>
+    /// Timestamp when the team was created.
+    /// </summary>
+    public required DateTime CreatedAt { get; init; }
+
+    /// <summary>
+    /// Members of this team with their Tracks-specific roles.
+    /// </summary>
+    public IReadOnlyList<TracksTeamMemberDto> Members { get; init; } = [];
+
+    /// <summary>
+    /// Number of boards owned by this team in the Tracks module.
+    /// </summary>
+    public int BoardCount { get; init; }
+}
+
+/// <summary>
+/// Represents a user's membership on a Tracks team.
+/// </summary>
+public sealed record TracksTeamMemberDto
+{
+    /// <summary>
+    /// The user's ID.
+    /// </summary>
+    public required Guid UserId { get; init; }
+
+    /// <summary>
+    /// The user's display name.
+    /// </summary>
+    public string? DisplayName { get; init; }
+
+    /// <summary>
+    /// The member's role on this team.
+    /// </summary>
+    public required TracksTeamMemberRole Role { get; init; }
+
+    /// <summary>
+    /// Timestamp when the user joined the team.
+    /// </summary>
+    public required DateTime JoinedAt { get; init; }
+}
+
+/// <summary>
+/// Request DTO for creating a new Tracks team.
+/// </summary>
+public sealed record CreateTracksTeamDto
+{
+    /// <summary>
+    /// Team name.
+    /// </summary>
+    public required string Name { get; init; }
+
+    /// <summary>
+    /// Optional team description.
+    /// </summary>
+    public string? Description { get; init; }
+
+    /// <summary>
+    /// Organization ID for the team. If null, the system default organization is used.
+    /// </summary>
+    public Guid? OrganizationId { get; init; }
+}
+
+/// <summary>
+/// Request DTO for updating an existing Tracks team.
+/// Only non-null fields are applied.
+/// </summary>
+public sealed record UpdateTracksTeamDto
+{
+    /// <summary>
+    /// Updated name.
+    /// </summary>
+    public string? Name { get; init; }
+
+    /// <summary>
+    /// Updated description.
+    /// </summary>
+    public string? Description { get; init; }
+}
+
+/// <summary>
+/// Request DTO for transferring a board to or from a team.
+/// </summary>
+public sealed record TransferBoardDto
+{
+    /// <summary>
+    /// The team ID to transfer the board to. Null to make it a personal board.
+    /// </summary>
+    public Guid? TeamId { get; init; }
 }

@@ -27,7 +27,8 @@ public class CommentServiceTests
         _caller = TestHelpers.CreateCaller();
         _eventBusMock = new Mock<IEventBus>();
         var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
-        var boardService = new BoardService(_db, _eventBusMock.Object, activityService, NullLogger<BoardService>.Instance);
+        var teamService = new TeamService(_db, _eventBusMock.Object, NullLogger<TeamService>.Instance);
+        var boardService = new BoardService(_db, _eventBusMock.Object, activityService, teamService, NullLogger<BoardService>.Instance);
         _service = new CommentService(_db, boardService, activityService, _eventBusMock.Object, NullLogger<CommentService>.Instance);
         _board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId);
         _list = await TestHelpers.SeedListAsync(_db, _board.Id);

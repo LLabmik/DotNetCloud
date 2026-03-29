@@ -339,6 +339,21 @@ public static class ErrorCodes
     /// <summary>Error code for invalid poker estimate value.</summary>
     public const string PokerInvalidEstimate = "TRACKS_POKER_INVALID_ESTIMATE";
 
+    /// <summary>Error code for team not found.</summary>
+    public const string TracksTeamNotFound = "TRACKS_TEAM_NOT_FOUND";
+
+    /// <summary>Error code for user not a member of the team.</summary>
+    public const string TracksNotTeamMember = "TRACKS_NOT_TEAM_MEMBER";
+
+    /// <summary>Error code for insufficient team role.</summary>
+    public const string TracksInsufficientTeamRole = "TRACKS_INSUFFICIENT_TEAM_ROLE";
+
+    /// <summary>Error code for team still having boards (cannot delete).</summary>
+    public const string TracksTeamHasBoards = "TRACKS_TEAM_HAS_BOARDS";
+
+    /// <summary>Error code for user already a team member.</summary>
+    public const string TracksAlreadyTeamMember = "TRACKS_ALREADY_TEAM_MEMBER";
+
     // Import / Migration
     /// <summary>Error code for unsupported import data type.</summary>
     public const string ImportUnsupportedDataType = "IMPORT_UNSUPPORTED_DATA_TYPE";

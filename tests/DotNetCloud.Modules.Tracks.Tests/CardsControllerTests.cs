@@ -29,7 +29,8 @@ public class CardsControllerTests
         _db = TestHelpers.CreateDb();
         var eventBus = new Mock<IEventBus>();
         var activityService = new ActivityService(_db, new Mock<ILogger<ActivityService>>().Object);
-        _boardService = new BoardService(_db, eventBus.Object, activityService, new Mock<ILogger<BoardService>>().Object);
+        var teamService = new TeamService(_db, eventBus.Object, new Mock<ILogger<TeamService>>().Object);
+        _boardService = new BoardService(_db, eventBus.Object, activityService, teamService, new Mock<ILogger<BoardService>>().Object);
         _listService = new ListService(_db, _boardService, activityService, new Mock<ILogger<ListService>>().Object);
         _cardService = new CardService(_db, _boardService, activityService, eventBus.Object, new Mock<ILogger<CardService>>().Object);
         var labelService = new LabelService(_db, _boardService, activityService, new Mock<ILogger<LabelService>>().Object);

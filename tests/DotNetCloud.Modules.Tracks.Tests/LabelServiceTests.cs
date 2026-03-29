@@ -24,7 +24,8 @@ public class LabelServiceTests
         _db = TestHelpers.CreateDb();
         _caller = TestHelpers.CreateCaller();
         var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
-        var boardService = new BoardService(_db, new Mock<IEventBus>().Object, activityService, NullLogger<BoardService>.Instance);
+        var teamService = new TeamService(_db, new Mock<IEventBus>().Object, NullLogger<TeamService>.Instance);
+        var boardService = new BoardService(_db, new Mock<IEventBus>().Object, activityService, teamService, NullLogger<BoardService>.Instance);
         _service = new LabelService(_db, boardService, activityService, NullLogger<LabelService>.Instance);
         _board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId);
     }

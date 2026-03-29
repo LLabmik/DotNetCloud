@@ -24,7 +24,8 @@ public class BoardServiceTests
         _db = TestHelpers.CreateDb();
         _eventBusMock = new Mock<IEventBus>();
         var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
-        _service = new BoardService(_db, _eventBusMock.Object, activityService, NullLogger<BoardService>.Instance);
+        var teamService = new TeamService(_db, _eventBusMock.Object, NullLogger<TeamService>.Instance);
+        _service = new BoardService(_db, _eventBusMock.Object, activityService, teamService, NullLogger<BoardService>.Instance);
         _caller = TestHelpers.CreateCaller();
     }
 

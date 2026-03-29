@@ -80,6 +80,9 @@ public class TracksDbContext : DbContext
     /// <summary>Planning poker votes.</summary>
     public DbSet<PokerVote> PokerVotes => Set<PokerVote>();
 
+    /// <summary>Tracks-specific team role assignments (maps Core team members to Tracks roles).</summary>
+    public DbSet<TeamRole> TeamRoles => Set<TeamRole>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -103,5 +106,6 @@ public class TracksDbContext : DbContext
         modelBuilder.ApplyConfiguration(new BoardActivityConfiguration());
         modelBuilder.ApplyConfiguration(new PokerSessionConfiguration());
         modelBuilder.ApplyConfiguration(new PokerVoteConfiguration());
+        modelBuilder.ApplyConfiguration(new TeamRoleConfiguration());
     }
 }

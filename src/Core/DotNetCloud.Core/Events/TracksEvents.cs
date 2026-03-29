@@ -430,3 +430,47 @@ public sealed record PokerSessionCompletedEvent : IEvent
     /// </summary>
     public required Guid AcceptedByUserId { get; init; }
 }
+
+// ─── Team Events ──────────────────────────────────────────────────────
+
+/// <summary>
+/// Raised when a new team is created.
+/// </summary>
+public sealed record TeamCreatedEvent : IEvent
+{
+    /// <inheritdoc />
+    public required Guid EventId { get; init; }
+
+    /// <inheritdoc />
+    public required DateTime CreatedAt { get; init; }
+
+    /// <summary>The ID of the newly created team.</summary>
+    public required Guid TeamId { get; init; }
+
+    /// <summary>The name of the team.</summary>
+    public required string Name { get; init; }
+
+    /// <summary>The ID of the user who created the team.</summary>
+    public required Guid CreatedByUserId { get; init; }
+}
+
+/// <summary>
+/// Raised when a team is deleted.
+/// </summary>
+public sealed record TeamDeletedEvent : IEvent
+{
+    /// <inheritdoc />
+    public required Guid EventId { get; init; }
+
+    /// <inheritdoc />
+    public required DateTime CreatedAt { get; init; }
+
+    /// <summary>The ID of the deleted team.</summary>
+    public required Guid TeamId { get; init; }
+
+    /// <summary>The ID of the user who deleted the team.</summary>
+    public required Guid DeletedByUserId { get; init; }
+
+    /// <summary>Whether boards were cascade-deleted along with the team.</summary>
+    public bool CascadeBoards { get; init; }
+}

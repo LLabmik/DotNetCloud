@@ -14,6 +14,7 @@ public class BoardsController : TracksControllerBase
     private readonly BoardService _boardService;
     private readonly ActivityService _activityService;
     private readonly LabelService _labelService;
+    private readonly TeamService _teamService;
     private readonly ILogger<BoardsController> _logger;
 
     /// <summary>
@@ -23,11 +24,13 @@ public class BoardsController : TracksControllerBase
         BoardService boardService,
         ActivityService activityService,
         LabelService labelService,
+        TeamService teamService,
         ILogger<BoardsController> logger)
     {
         _boardService = boardService;
         _activityService = activityService;
         _labelService = labelService;
+        _teamService = teamService;
         _logger = logger;
     }
 
@@ -93,6 +96,27 @@ public class BoardsController : TracksControllerBase
         catch (ValidationException ex)
         {
             return NotFound(ErrorEnvelope(ErrorCodes.BoardNotFound, ex.Message));
+        }
+    }
+
+    /// <summary>Transfers a board to or from a team.</summary>
+    [HttpPost("{boardId:guid}/transfer")]
+    public async Task<IActionResult> TransferBoardAsync(
+        Guid boardId,
+        [FromBody] TransferBoardDto dto)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            await _teamService.TransferBoardAsync(boardId, dto.TeamId, caller);
+            return Ok(Envelope(new { transferred = true, teamId = dto.TeamId }));
+        }
+        catch (ValidationException ex)
+        {
+            if (IsBoardNotFound(ex))
+                return NotFound(ErrorEnvelope(ErrorCodes.BoardNotFound, ex.Message));
+
+            return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
         }
     }
 

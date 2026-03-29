@@ -3286,6 +3286,12 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `ITracksDirectory` capability interface (Public tier)
 - ✓ `TRACKS_` error codes in `ErrorCodes.cs`
 - ✓ Unit tests for new DTOs and events
+- ✓ `ITeamDirectory` capability interface (Restricted tier) — cross-module team read access
+- ✓ `ITeamManager` capability interface (Restricted tier) — cross-module team write access
+- ✓ `TracksTeamDto`, `TracksTeamMemberDto`, `CreateTracksTeamDto`, `UpdateTracksTeamDto`, `TransferBoardDto` DTOs
+- ✓ `TracksTeamMemberRole` enum (Member, Manager, Owner)
+- ✓ `TeamCreatedEvent`, `TeamDeletedEvent` events
+- ✓ Tracks team error codes: `TracksTeamNotFound`, `TracksNotTeamMember`, `TracksInsufficientTeamRole`, `TracksTeamHasBoards`, `TracksAlreadyTeamMember`
 
 ### Phase 4.2: Data Model And Module Scaffold
 
@@ -3294,6 +3300,9 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `DotNetCloud.Modules.Tracks.Host/` — gRPC host scaffold
 - ✓ Solution integration (DotNetCloud.sln)
 - ✓ Planning poker: PokerSession + PokerVote entities, DTOs, events, EF configs, gRPC RPCs, error codes
+- ✓ `TeamRole` entity (CoreTeamId, UserId, TracksTeamMemberRole) — Option C: Core teams + Tracks role overlay
+- ✓ `TeamRoleConfiguration.cs` — unique index on (CoreTeamId, UserId), string conversion for Role
+- ✓ `Board.TeamId` (nullable Guid) — cross-DB reference to Core team, no FK enforcement
 
 ### Phase 4.3: Core Services And Business Logic
 
@@ -3310,10 +3319,19 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ ActivityService — Mutation logging, activity feed
 - ✓ Authorization logic (Owner/Admin/Member/Viewer)
 - ✓ Unit tests (112 tests)
+- ✓ TeamService — Option C implementation (Core teams + Tracks role overlay)
+  - ✓ Team CRUD via ITeamManager capability
+  - ✓ Member add/remove/update role via ITeamManager + TeamRoles
+  - ✓ Board transfer (personal ↔ team)
+  - ✓ GetEffectiveBoardRole (direct member + team-derived role, higher wins)
+  - ✓ Graceful degradation when ITeamDirectory/ITeamManager not available
+- ✓ TeamDirectoryService — ITeamDirectory implementation (Core.Auth)
+- ✓ TeamManagerService — ITeamManager implementation (Core.Auth)
+- ✓ DI registration for ITeamDirectory + ITeamManager in AuthServiceExtensions
 
 ### Phase 4.4: REST API And gRPC Service
 
-#### REST API (40+ endpoints — 9 controllers)
+#### REST API (40+ endpoints — 10 controllers)
 - ✓ BoardsController — CRUD + activity + members + labels + export/import (15 endpoints)
 - ✓ ListsController — CRUD + reorder (5 endpoints)
 - ✓ CardsController — CRUD + move + assign + labels + activity (10 endpoints)
@@ -3323,13 +3341,14 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ DependenciesController (3 endpoints)
 - ✓ SprintsController — CRUD + start/complete + cards (9 endpoints)
 - ✓ TimeEntriesController — CRUD + timer (5 endpoints)
+- ✓ TeamsController — CRUD teams + members + transfer boards + team boards (10 endpoints)
 
 #### gRPC
 - ✓ TracksGrpcService — 7 RPCs implemented (4 poker stubs → Phase 4.7)
 - ✓ TracksControllerBase — auth helpers, envelope methods, IsBoardNotFound()
 
 #### Tests
-- ✓ 58 controller/gRPC unit tests (170 total Tracks tests)
+- ✓ 58 controller/gRPC unit tests (199 total Tracks tests, incl. 29 TeamServiceTests)
 
 #### Deferred
 - ☐ Cross-module integration (file attachment events, chat) → Phase 4.6

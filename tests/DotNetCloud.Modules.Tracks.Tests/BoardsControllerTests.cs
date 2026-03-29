@@ -32,13 +32,15 @@ public class BoardsControllerTests
         var loggerLabelMock = new Mock<ILogger<LabelService>>();
 
         var activityService = new ActivityService(db, loggerActivityMock.Object);
-        _boardService = new BoardService(db, eventBusMock.Object, activityService, loggerBoardMock.Object);
+        var teamService = new TeamService(db, eventBusMock.Object, new Mock<ILogger<TeamService>>().Object);
+        _boardService = new BoardService(db, eventBusMock.Object, activityService, teamService, loggerBoardMock.Object);
         var labelService = new LabelService(db, _boardService, activityService, loggerLabelMock.Object);
 
         _controller = new BoardsController(
             _boardService,
             activityService,
             labelService,
+            teamService,
             new Mock<ILogger<BoardsController>>().Object);
 
         SetupControllerContext(_controller, _userId);

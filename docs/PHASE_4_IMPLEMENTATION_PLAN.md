@@ -35,6 +35,14 @@ Core DTOs, events, and capability interfaces added to `DotNetCloud.Core`.
 - ✓ `ITracksDirectory` capability interface (Public tier) — board/card lookup for cross-module integration + CardSummary record
 - ✓ Error codes: 15 `TRACKS_` domain codes in `ErrorCodes.cs`
 - ✓ Unit tests — 49 tests: 34 DTO, 10 event, 5 capability (all passing)
+- ✓ `ITeamDirectory` capability interface (Restricted tier) — cross-module read-only team/membership access with `TeamInfo` and `TeamMemberInfo` records (5 methods: GetTeam, GetTeamsForUser, IsTeamMember, GetTeamMember, GetTeamMembers)
+- ✓ `ITeamManager` capability interface (Restricted tier) — cross-module team CRUD and member management (5 methods: CreateTeam, UpdateTeam, DeleteTeam, AddMember, RemoveMember)
+- ✓ Tracks team DTOs: `TracksTeamDto`, `TracksTeamMemberDto`, `CreateTracksTeamDto`, `UpdateTracksTeamDto`, `TransferBoardDto`, `TracksTeamMemberRole` enum (Member/Manager/Owner)
+- ✓ Tracks team events: `TeamCreatedEvent`, `TeamDeletedEvent`
+- ✓ Tracks team error codes: `TracksTeamNotFound`, `TracksNotTeamMember`, `TracksInsufficientTeamRole`, `TracksTeamHasBoards`, `TracksAlreadyTeamMember`
+
+**Teams Architecture — Option C (Core teams = identity, Tracks extends with roles):**
+Core platform owns team identity and membership via `ITeamDirectory` (read) and `ITeamManager` (write). Tracks stores module-specific role assignments in a `TeamRole` entity that maps Core team members to Tracks-specific roles (Member/Manager/Owner). This allows each module to define its own role semantics while sharing a single team identity across the platform. No cross-DB foreign keys — application-level validation only.
 
 ---
 
@@ -69,6 +77,9 @@ Module projects + EF Core data layer.
 | **SprintCard** | Card ↔ Sprint | SprintId, CardId |
 | **TimeEntry** | Time tracking | CardId, UserId, StartTime, EndTime, Duration, Description |
 | **BoardActivity** | Audit log per board | BoardId, UserId, Action, EntityType, EntityId, Details (JSON), CreatedAt |
+| **TeamRole** | Tracks role overlay for Core teams (Option C) | CoreTeamId, UserId, Role (Member/Manager/Owner), AssignedAt |
+
+`Board.TeamId` (nullable Guid) is a cross-DB reference to a Core team. No FK enforcement — app-level validation only.
 
 ---
 
@@ -92,8 +103,18 @@ Service implementations for all domain operations.
 - ✓ `ActivityService` — Log all mutations, query activity feed per board/card
 - ✓ Authorization logic — Board role checks via EnsureBoardRoleAsync (Owner/Admin/Member/Viewer)
 - ✓ Unit tests (112 tests covering all 11 services — exceeded ~80 target)
+- ✓ `TeamService` — Option C implementation: Core teams via ITeamDirectory (read) + ITeamManager (write), Tracks TeamRoles overlay
+  - ✓ Team CRUD (create → Core team + Tracks Owner role, update via ITeamManager, delete with block/cascade)
+  - ✓ Member add/remove/update role (ITeamManager + TeamRoles). Owner protected from removal; last-owner demotion blocked.
+  - ✓ Board transfer (personal ↔ team). Requires board Owner role + team Manager role on target.
+  - ✓ `GetEffectiveBoardRoleAsync` — merges direct board membership + team-derived role (higher wins). Team role mapping: Owner→BoardOwner, Manager→BoardAdmin, Member→BoardMember. Core team members without a Tracks role get default BoardMember access.
+  - ✓ Graceful degradation — ITeamDirectory/ITeamManager injected as nullable; operations fail cleanly when capabilities unavailable.
+- ✓ `TeamDirectoryService` — ITeamDirectory implementation in Core.Auth (reads from CoreDbContext)
+- ✓ `TeamManagerService` — ITeamManager implementation in Core.Auth (writes to CoreDbContext)
+- ✓ DI registration for ITeamDirectory + ITeamManager as scoped services in AuthServiceExtensions
+- ✓ 29 TeamServiceTests (team CRUD, member management, board transfer, effective role resolution, error cases)
 
-**Notes:** All services follow established DI patterns (TracksDbContext, IEventBus, ILogger). Authorization enforced through BoardService.EnsureBoardRoleAsync/EnsureBoardMemberAsync. Gap-based positioning (intervals of 1000) for cards, lists, and checklists. BFS cycle detection prevents circular BlockedBy dependencies. Sprint lifecycle: Planning→Active→Completed with single active sprint per board constraint. Timer creates entry with null EndTime; stop calculates duration (min 1 minute). All mutations logged via ActivityService and relevant domain events published.
+**Notes:** 12 services total (11 original + TeamService). Option C team architecture: Core owns team identity/membership, Tracks stores module-specific role assignments in TeamRole entity. `GetEffectiveBoardRoleAsync` resolves the effective board role by checking both direct BoardMember entries and team-derived roles, returning whichever is higher. All services follow established DI patterns. 141 total service-level tests (112 original + 29 team).
 
 ---
 
@@ -105,7 +126,7 @@ API endpoints and inter-process communication.
 
 **Deliverables:**
 
-**REST API (40+ endpoints — 9 controllers):**
+**REST API (50+ endpoints — 10 controllers):**
 - ✓ `BoardsController` — GET/POST/PUT/DELETE boards, GET /boards/{id}/activity, GET /boards/{id}/export, POST /boards/import
 - ✓ Board members — GET/POST/DELETE /boards/{id}/members, PUT /boards/{id}/members/{userId}/role
 - ✓ Board labels — GET/POST/PUT/DELETE /boards/{id}/labels
@@ -117,6 +138,7 @@ API endpoints and inter-process communication.
 - ✓ `DependenciesController` — GET/POST/DELETE /cards/{id}/dependencies (cycle detection → 409 Conflict)
 - ✓ `SprintsController` — GET/POST/PUT/DELETE sprints, POST /sprints/{id}/start, POST /sprints/{id}/complete, POST/DELETE cards
 - ✓ `TimeEntriesController` — GET/POST/DELETE time entries, POST /cards/{id}/timer/start, POST /cards/{id}/timer/stop
+- ✓ `TeamsController` — 10 endpoints: POST /teams (create), GET /teams (list), GET /teams/{id} (get), PUT /teams/{id} (update), DELETE /teams/{id} (delete, ?cascade=true), POST /teams/{id}/members (add), DELETE /teams/{id}/members/{userId} (remove), PUT /teams/{id}/members/{userId}/role (update role), POST /teams/{id}/transfer-board (transfer), GET /teams/{id}/boards (list team boards)
 
 **gRPC Service:**
 - ✓ `TracksGrpcService` — Full implementation of 7 RPCs (CreateBoard, GetBoard, ListBoards, CreateList, CreateCard, GetCard, MoveCard) calling actual service layer; 4 poker RPCs remain stubs (deferred to Phase 4.7)
@@ -137,7 +159,7 @@ API endpoints and inter-process communication.
 - ✓ `SubresourceControllerTests` — 19 tests: comments, checklists, attachments, dependencies, time entries
 - ✓ `TracksGrpcServiceTests` — 10 tests: board/list/card gRPC RPCs
 
-**Notes:** All 170 tests pass (112 service + 58 controller/gRPC). Controllers use consistent error handling: IsBoardNotFound() maps both BoardNotFound and NotBoardMember to 404 (EnsureBoardRoleAsync fires before board-exists check). Response envelope pattern: `{ success, data }` for success, `{ success, error: { code, message } }` for errors. Poker gRPC RPCs left as stubs — full implementation in Phase 4.7 with board templates and analytics.
+**Notes:** All 199 tests pass (141 service/team + 58 controller/gRPC). Controllers use consistent error handling: IsBoardNotFound() maps both BoardNotFound and NotBoardMember to 404. TeamsController follows same pattern with TracksTeamNotFound/TracksNotTeamMember/TracksInsufficientTeamRole error codes. Response envelope pattern: `{ success, data }` for success, `{ success, error: { code, message } }` for errors. Poker gRPC RPCs left as stubs — full implementation in Phase 4.7 with board templates and analytics.
 
 ---
 
@@ -151,7 +173,9 @@ Board and card management interface.
 - ☐ **Card detail panel** — Slide-out panel showing card details, description (Markdown editor), assignments, labels, checklists, comments, attachments, time entries, dependencies, activity log
 - ☐ **Sprint management** — Sprint planning view, backlog → sprint drag, sprint burndown/progress
 - ☐ **Board settings** — Members, labels, archive management, board delete
-- ☐ **Filters & search** — Filter cards by label, assignee, due date, priority; search across boards
+- ☐ **Team management page** — Create/edit teams, manage team members and Tracks-specific roles (Owner/Manager/Member), transfer boards to teams
+- ☐ **Team board view** — Team-scoped board list, team member role badges, team-owned board indicators
+- ☐ **Filters & search** — Filter cards by label, assignee, due date, priority; search across boards; filter boards by team
 - ☐ **Real-time updates** — SignalR integration for live board state (card moves, new cards, comments)
 - ☐ **Responsive layout** — Works on desktop and tablet; mobile-friendly card detail
 - ☐ CSS styling consistent with existing DotNetCloud UI theme
@@ -164,8 +188,9 @@ Live updates and push notifications for board activity.
 
 **Deliverables:**
 - ☐ **SignalR Hub** — `TracksHub` for real-time board state sync (card moved, created, updated, deleted)
-- ☐ **Notification integration** — Card assigned, due date approaching, mentioned in comment, sprint started/completed
-- ☐ **Activity feed** — Per-board activity stream with real-time additions
+- ☐ **Team event notifications** — Real-time updates for team membership changes, role updates, board transfers
+- ☐ **Notification integration** — Card assigned, due date approaching, mentioned in comment, sprint started/completed, team member added/removed
+- ☐ **Activity feed** — Per-board and per-team activity stream with real-time additions
 - ☐ **@mention support** — Parse @username in card descriptions and comments, send notifications
 
 ---
@@ -179,8 +204,10 @@ Board templates, automation, and analytics.
 - ☐ **Card templates** — Save card as template, create card from template
 - ☐ **Due date reminders** — Background service dispatching reminders (like Calendar's ReminderDispatchService)
 - ☐ **Board analytics** — Cards completed over time, average cycle time (list → list), time in each list, per-user workload
+- ☐ **Team analytics** — Team productivity metrics, boards per team, member activity, cross-team workload comparison
 - ☐ **Sprint reports** — Velocity chart, burndown chart data (API endpoints returning chart-ready data)
 - ☐ **Bulk operations** — Multi-select cards for move, label, assign, archive
+- ☐ **Bulk team operations** — Assign team to multiple boards, batch role updates across team members
 
 ---
 
@@ -189,13 +216,13 @@ Board templates, automation, and analytics.
 Comprehensive testing and documentation.
 
 **Deliverables:**
-- ☐ Unit tests — Full coverage of services, authorization, dependency cycle detection
-- ☐ Integration tests — REST API endpoint tests, gRPC service tests
-- ☐ Security tests — Board role authorization, tenant isolation, Markdown XSS prevention
-- ☐ Performance tests — Large board (1000+ cards) rendering, drag-and-drop reorder
-- ☐ Admin documentation — Module configuration, storage, permissions
-- ☐ User guide — Board management, card workflows, sprints, time tracking
-- ☐ API documentation — All REST endpoints documented
+- ☐ Unit tests — Full coverage of services, authorization, dependency cycle detection, team role resolution
+- ☐ Integration tests — REST API endpoint tests, gRPC service tests, cross-module team capability tests
+- ☐ Security tests — Board role authorization, team role escalation prevention, tenant isolation, Markdown XSS prevention
+- ☐ Performance tests — Large board (1000+ cards) rendering, drag-and-drop reorder, team with many members
+- ☐ Admin documentation — Module configuration, storage, permissions, team management
+- ☐ User guide — Board management, card workflows, sprints, time tracking, team workflows
+- ☐ API documentation — All REST endpoints documented (including Teams endpoints)
 - ☐ Update README roadmap status
 
 ---
@@ -213,6 +240,9 @@ Cards can reference files from the Files module (via `FileNodeId`) or external U
 
 ### Authorization Model
 - **Board-level roles:** Owner, Admin, Member, Viewer
+- **Team-level roles (Tracks-specific):** Owner, Manager, Member — mapped to board roles via `GetEffectiveBoardRoleAsync`
+- Team Owner → BoardOwner, Team Manager → BoardAdmin, Team Member → BoardMember
+- Core team members without a Tracks role get default BoardMember access to team-owned boards
 - Owner/Admin: full board management, member management
 - Member: create/edit/move cards, comment
 - Viewer: read-only access

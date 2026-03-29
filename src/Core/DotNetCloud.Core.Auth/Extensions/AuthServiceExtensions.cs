@@ -202,6 +202,8 @@ public static class AuthServiceExtensions
         // Capability implementations
         // -----------------------------------------------------------------
         services.AddScoped<IUserDirectory, UserDirectoryService>();
+        services.AddScoped<ITeamDirectory, TeamDirectoryService>();
+        services.AddScoped<ITeamManager, TeamManagerService>();
         services.AddScoped<IUserManager, UserManagerService>();
         services.AddScoped<ICurrentUserContext, CurrentUserContextService>();
         services.AddHttpContextAccessor();

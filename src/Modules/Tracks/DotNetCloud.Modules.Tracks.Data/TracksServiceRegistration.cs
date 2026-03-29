@@ -15,6 +15,7 @@ public static class TracksServiceRegistration
     public static IServiceCollection AddTracksServices(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddScoped<ActivityService>();
+        services.AddScoped<TeamService>();
         services.AddScoped<BoardService>();
         services.AddScoped<ListService>();
         services.AddScoped<CardService>();

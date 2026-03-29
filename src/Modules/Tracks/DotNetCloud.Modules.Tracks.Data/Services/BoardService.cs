@@ -16,16 +16,18 @@ public sealed class BoardService
     private readonly TracksDbContext _db;
     private readonly IEventBus _eventBus;
     private readonly ActivityService _activityService;
+    private readonly TeamService _teamService;
     private readonly ILogger<BoardService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BoardService"/> class.
     /// </summary>
-    public BoardService(TracksDbContext db, IEventBus eventBus, ActivityService activityService, ILogger<BoardService> logger)
+    public BoardService(TracksDbContext db, IEventBus eventBus, ActivityService activityService, TeamService teamService, ILogger<BoardService> logger)
     {
         _db = db;
         _eventBus = eventBus;
         _activityService = activityService;
+        _teamService = teamService;
         _logger = logger;
     }
 
@@ -36,11 +38,18 @@ public sealed class BoardService
     {
         ArgumentNullException.ThrowIfNull(dto);
 
+        // If a team is specified, verify the caller is at least a Manager on that team
+        if (dto.TeamId.HasValue)
+        {
+            await _teamService.EnsureTracksTeamRoleAsync(dto.TeamId.Value, caller.UserId, TracksTeamMemberRole.Manager, cancellationToken);
+        }
+
         var board = new Board
         {
             Title = dto.Title,
             Description = dto.Description,
             Color = dto.Color,
+            TeamId = dto.TeamId,
             OwnerId = caller.UserId
         };
 
@@ -79,10 +88,10 @@ public sealed class BoardService
     /// </summary>
     public async Task<BoardDto?> GetBoardAsync(Guid boardId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        var isMember = await _db.BoardMembers
-            .AnyAsync(m => m.BoardId == boardId && m.UserId == caller.UserId, cancellationToken);
+        // Check effective role (direct membership or team-derived)
+        var effectiveRole = await _teamService.GetEffectiveBoardRoleAsync(boardId, caller.UserId, cancellationToken);
 
-        if (!isMember)
+        if (effectiveRole is null)
             return null;
 
         return await GetBoardDtoAsync(boardId, cancellationToken);
@@ -93,17 +102,33 @@ public sealed class BoardService
     /// </summary>
     public async Task<IReadOnlyList<BoardDto>> ListBoardsAsync(CallerContext caller, bool includeArchived = false, CancellationToken cancellationToken = default)
     {
-        var boardIds = await _db.BoardMembers
+        // Direct board memberships
+        var directBoardIds = await _db.BoardMembers
             .Where(m => m.UserId == caller.UserId)
             .Select(m => m.BoardId)
             .ToListAsync(cancellationToken);
+
+        // Team-derived board access: find all teams the user has a Tracks role in, then their boards
+        var teamIds = await _db.TeamRoles
+            .Where(r => r.UserId == caller.UserId)
+            .Select(r => r.CoreTeamId)
+            .ToListAsync(cancellationToken);
+
+        var teamBoardIds = teamIds.Count > 0
+            ? await _db.Boards
+                .Where(b => b.TeamId != null && teamIds.Contains(b.TeamId.Value) && !b.IsDeleted)
+                .Select(b => b.Id)
+                .ToListAsync(cancellationToken)
+            : [];
+
+        var allBoardIds = directBoardIds.Union(teamBoardIds).Distinct().ToList();
 
         var query = _db.Boards
             .AsNoTracking()
             .Include(b => b.Members)
             .Include(b => b.Labels)
             .Include(b => b.Lists)
-            .Where(b => boardIds.Contains(b.Id) && !b.IsDeleted);
+            .Where(b => allBoardIds.Contains(b.Id) && !b.IsDeleted);
 
         if (!includeArchived)
             query = query.Where(b => !b.IsArchived);
@@ -264,31 +289,27 @@ public sealed class BoardService
 
     /// <summary>
     /// Gets the caller's role on a board, or null if not a member.
+    /// Considers both direct membership and team-derived access.
     /// </summary>
     public async Task<BoardMemberRole?> GetMemberRoleAsync(Guid boardId, Guid userId, CancellationToken cancellationToken = default)
     {
-        var member = await _db.BoardMembers
-            .AsNoTracking()
-            .FirstOrDefaultAsync(m => m.BoardId == boardId && m.UserId == userId, cancellationToken);
-
-        return member?.Role;
+        return await _teamService.GetEffectiveBoardRoleAsync(boardId, userId, cancellationToken);
     }
 
     /// <summary>
     /// Ensures the user has at least the specified role on the board.
+    /// Considers both direct membership and team-derived access.
     /// </summary>
     internal async Task EnsureBoardRoleAsync(Guid boardId, Guid userId, BoardMemberRole minimumRole, CancellationToken cancellationToken = default)
     {
-        var member = await _db.BoardMembers
-            .AsNoTracking()
-            .FirstOrDefaultAsync(m => m.BoardId == boardId && m.UserId == userId, cancellationToken);
+        var effectiveRole = await _teamService.GetEffectiveBoardRoleAsync(boardId, userId, cancellationToken);
 
-        if (member is null)
+        if (effectiveRole is null)
             throw new ValidationException(ErrorCodes.NotBoardMember, "You are not a member of this board.");
 
-        if (member.Role < minimumRole)
+        if (effectiveRole.Value < minimumRole)
             throw new ValidationException(ErrorCodes.InsufficientBoardRole,
-                $"Requires at least {minimumRole} role. You have {member.Role}.");
+                $"Requires at least {minimumRole} role. You have {effectiveRole.Value}.");
     }
 
     /// <summary>
@@ -315,6 +336,7 @@ public sealed class BoardService
     {
         Id = b.Id,
         OwnerId = b.OwnerId,
+        TeamId = b.TeamId,
         Title = b.Title,
         Description = b.Description,
         Color = b.Color,

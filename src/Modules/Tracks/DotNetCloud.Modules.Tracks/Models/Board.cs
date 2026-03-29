@@ -17,6 +17,9 @@ public sealed class Board
     /// <summary>ID of the user who created the board.</summary>
     public Guid OwnerId { get; set; }
 
+    /// <summary>Optional Core team ID that owns this board. Null for personal boards.</summary>
+    public Guid? TeamId { get; set; }
+
     /// <summary>Hex color code for UI display (e.g., "#3B82F6").</summary>
     public string? Color { get; set; }
 
