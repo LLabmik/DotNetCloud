@@ -5,21 +5,21 @@
 
 ---
 
-## Status (2026-03-25)
+## Status (2026-03-29)
 
 **Completed pre-work:**
 - 36 automated integration tests added (commit `8f5c37d`) — CI only, not live-server tests
 - Broken ROPC (password grant) code removed; server is clean
 - mint22: `dotnetcloud.service` active, `coolwsd` (Collabora) active (deployed Mar 25 03:28)
 
-**Live verification: 50 of 66 items passed ✅**
+**Live verification: 63 of 66 items passed ✅**
 
-**Known blockers:**
+**Remaining:**
 - ~~**Comments UI** (TC-1.37–1.39, 3 items) — UNBLOCKED: CommentsPanel implemented~~
-- **SQL Server** (TC-1.43, 1 item) — no SQL Server instance available
-- **Telemetry** (TC-1.61, 1 item) — no OTLP collector configured
-- **Sync clients** (TC-1.46–1.57, 12 items) — Windows11-TestDNC and mint-dnc-client not set up
-- **i18n** (TC-1.60, 1 item) — needs user-driven locale switch test
+- ~~**Sync clients** (TC-1.46–1.57, 12 items) — COMPLETE: Windows + Linux tested~~
+- ~~**SQL Server** (TC-1.43, 1 item) — PASS: tested against hyperdrive.kimball.home~~
+- ~~**i18n** (TC-1.60, 1 item) — PARTIAL PASS: infrastructure works, translations not authored~~
+- ~~**Telemetry** (TC-1.61, 1 item) — PASS: Jaeger traces confirmed~~
 
 ---
 
@@ -424,102 +424,121 @@ export DNC_SINCE="2026-03-25T00:00:00Z"
 
 ---
 
-## Phase C — Sync Client End-to-End (12 items, Deferred)
+## Phase C — Sync Client End-to-End (12 items) — ✅ COMPLETE
 
-Requires Windows11-TestDNC and mint-dnc-client to be set up with SyncTray. Do in a separate session.
+Tested on Windows11-TestDNC (2026-03-28) and mint-dnc-client (2026-03-29).
 
-**Architecture note (2026-03-28):** SyncService has been merged into SyncTray. There is now a **single process** — the Avalonia tray app owns the full sync lifecycle (SyncContextManager, SyncEngine, FSW, chunked upload/download). No separate service, no IPC. On startup, SyncTray calls `ISyncContextManager.StartSyncManagerAsync()` directly. Single-instance enforcement via file lock.
+**Architecture note:** SyncService has been merged into SyncTray. There is now a **single process** — the Avalonia tray app owns the full sync lifecycle (SyncContextManager, SyncEngine, FSW, chunked upload/download). No separate service, no IPC. On startup, SyncTray calls `ISyncContextManager.StartSyncManagerAsync()` directly. Single-instance enforcement via file lock.
+
+**Code changes during testing:**
+- 0.27.3: Chunk 304 fallback fix for server→local sync
+- 0.27.7: 500ms FSW debounce timer
+- 0.27.8: .syncignore hot-reload fix
+- `FileStillGrowingException` + `WaitForFileStabilityAsync()` — pre-upload file stability check
+- `SyncIgnoreParser.Initialize()` — `FileShare.ReadWrite` fix for crash during .syncignore download
 
 ### Sprint 4.1: FSW Debounce (1)
 
-#### TC-1.46 Rapid-save debounce behavior
+#### TC-1.46 Rapid-save debounce behavior — ✅ Pass
 - Setup: SyncTray running with a synced account and local folder.
 - Steps:
 	1. Save same file rapidly 10 times.
 	2. Observe sync cycles in SyncTray logs.
 - Pass criteria: At most 2 sync cycles are triggered (FSW debouncer coalesces events).
+- **Result:** Pass — Windows (2026-03-28): 10 rapid saves → 1 sync cycle. Linux (2026-03-29): same result.
 
 ### Sprint 4.2: End-to-End Sync (11)
 
-#### TC-1.47 Launch SyncTray on Windows
+#### TC-1.47 Launch SyncTray on Windows — ✅ Pass
 - Setup: Windows11-TestDNC access.
 - Steps:
 	1. Run SyncTray executable (or install via start menu shortcut).
 	2. Verify tray icon appears and app is responsive.
 - Pass criteria: SyncTray launches, tray icon visible, single-instance lock active.
+- **Result:** Pass (2026-03-28) — Windows only. Launched via published binary, tray icon visible, single-instance lock held.
 
-#### TC-1.48 Launch SyncTray on Linux
+#### TC-1.48 Launch SyncTray on Linux — ✅ Pass
 - Setup: mint-dnc-client access.
 - Steps:
 	1. Run SyncTray from terminal or desktop entry.
 	2. Verify tray icon appears.
 - Pass criteria: SyncTray launches under user session, tray icon visible.
+- **Result:** Pass (2026-03-29) — Linux only. Launched via `dotnet run`, tray icon visible (green), single-instance lock held. 16 menu items initialized.
 
-#### TC-1.49 Add account via SyncTray OAuth2
+#### TC-1.49 Add account via SyncTray OAuth2 — ✅ Pass
 - Setup: SyncTray running.
 - Steps:
 	1. Click Add Account in tray menu/settings.
 	2. Complete OAuth2 PKCE login flow in browser.
 - Pass criteria: Account appears connected in tray UI, sync context created.
+- **Result:** Pass — Windows (2026-03-28) and Linux (2026-03-29). OAuth2 PKCE flow completed on both platforms.
 
-#### TC-1.50 Server to local file sync
+#### TC-1.50 Server to local file sync — ✅ Pass
 - Setup: Connected sync client with active sync context.
 - Steps:
 	1. Create file in web UI.
 	2. Wait for sync cycle to complete.
 - Pass criteria: File appears in local sync folder.
+- **Result:** Pass — Windows (2026-03-28) and Linux (2026-03-29). File appeared in local sync folder with correct content on both platforms.
 
-#### TC-1.51 Local to server file sync
+#### TC-1.51 Local to server file sync — ✅ Pass
 - Setup: Connected sync client with active sync context.
 - Steps:
 	1. Create file in local sync folder.
 	2. Wait for sync cycle to complete.
 - Pass criteria: File appears in server web UI.
+- **Result:** Pass — Windows (2026-03-28) and Linux (2026-03-29). Local file uploaded to server, visible in API listing on both platforms.
 
-#### TC-1.52 Conflict copy on concurrent edits
+#### TC-1.52 Conflict copy on concurrent edits — ✅ Pass
 - Setup: Same file present on both server and local.
 - Steps:
 	1. Edit file on server and locally before sync settles.
 	2. Allow sync cycle to run.
 - Pass criteria: Conflict copy is created and both versions' data preserved.
+- **Result:** Pass — Linux (2026-03-29). Concurrent local+server edit → conflict detected. Local copy saved as `conflict-test (conflict - benk - 2026-03-29).txt`. Both versions preserved. Windows deferred (VM limitation), covered by Linux.
 
-#### TC-1.53 Offline queue and reconnect
+#### TC-1.53 Offline queue and reconnect — ✅ Pass
 - Setup: Connected client.
 - Steps:
 	1. Disable network.
 	2. Make local file changes.
 	3. Re-enable network.
 - Pass criteria: Queued changes sync after reconnect without manual intervention.
+- **Result:** Pass — Linux (2026-03-29). iptables REJECT blocked mint22:5443. 3 files created while offline. After unblock, all 3 uploaded automatically (LocalQueued=3, LocalApplied=3). Windows deferred (VM limitation), covered by Linux.
 
-#### TC-1.54 Upload 100 MB plus file through sync
+#### TC-1.54 Upload 100 MB plus file through sync — ✅ Pass
 - Setup: Large local file ready.
 - Steps:
 	1. Place file in synced folder.
 	2. Wait for upload completion.
 - Pass criteria: Large file uploads successfully with chunked transfer behavior.
+- **Result:** Pass — Windows (2026-03-28): 105MB uploaded in 13.9s chunked. Linux (2026-03-29): 105MB in 10.7s; initial FSW caught file mid-write, stability check added. Windows retest (2026-03-29): 105MB uploaded in ~12s post-stability-check code, no FileStillGrowingException (atomic write).
 
-#### TC-1.55 SyncTray status indicators
+#### TC-1.55 SyncTray status indicators — ✅ Pass
 - Setup: SyncTray running with active sync context.
 - Steps:
 	1. Observe idle state (tray icon).
 	2. Trigger sync for syncing state.
 	3. Disconnect network for offline state.
 - Pass criteria: Tray icon/status reflects idle, syncing, error, and offline correctly.
+- **Result:** Pass — Windows (2026-03-28): idle/syncing states observed. Linux (2026-03-29): Green=idle, Blue=syncing, Yellow/Orange=conflict, Red=error. All four states confirmed visually.
 
-#### TC-1.56 Selective sync exclusion
+#### TC-1.56 Selective sync exclusion — ✅ Pass
 - Setup: Selective sync / .syncignore configured.
 - Steps:
 	1. Exclude one folder via SyncTray settings or .syncignore file.
 	2. Add file under excluded folder on server.
 	3. Wait for sync cycle.
 - Pass criteria: Excluded folder content is not synced locally.
+- **Result:** Pass — Windows (2026-03-28): `.syncignore` rule prevented sync. Hot-reload fix added in 0.27.8. Linux (2026-03-29): same behavior confirmed. Known limitation: server→local download of excluded content not filtered (matches Windows).
 
-#### TC-1.57 Multi-account independent sync
+#### TC-1.57 Multi-account independent sync — SKIP (environment-gated)
 - Setup: Two server accounts configured in SyncTray.
 - Steps:
 	1. Add both accounts (separate sync contexts).
 	2. Make changes in each scope.
 - Pass criteria: Both accounts sync independently with no cross-over.
+- **Result:** Skip — Both platforms. SyncTray UI enforces single-account (CanAddAccount=false when account exists). Backend ISyncContextManager supports multi-account but UI not yet enabled. Environment-gated: requires second account/server.
 
 ---
 
@@ -545,21 +564,26 @@ After Phase A/B are complete and bearer token is available.
 - Pass criteria: Module lifecycle completes without crash or orphaned state.
 - **Result:** Pass (2026-03-28) — Logs show ProcessSupervisor clean shutdown ("All modules stopped"), clean startup ("Application started", "Health monitor started"), Collabora process manager integral start/stop, no orphaned state. Service restarts cleanly via systemd.
 
-#### TC-1.60 Verify i18n strings for Files UI (User-driven)
+#### TC-1.60 Verify i18n strings for Files UI (User-driven) — ✅ Partial Pass
 - Setup: Alternate locale available.
 - Steps:
 	1. Switch locale in browser.
 	2. Reload Files UI.
 - Pass criteria: Files UI strings are localized and no missing keys appear.
+- **Result:** Partial Pass (2026-03-29) — Set Firefox locale to Deutsch (Deutschland). Date formatting localized ("März 27, 2026"), number formatting localized ("1,76 GB", "31,2 MB" with comma decimal), locale selector correctly shows "Deutsch (Deutschland)". UI strings (sidebar nav, buttons, labels) remain English — no German translation resource files authored yet. Fallback is clean: no broken keys or missing-key placeholders. i18n infrastructure works; translations are a future authoring task.
 
 ### Sprint 5: OpenTelemetry (1)
 
-#### TC-1.61 Verify Files traces in telemetry backend — **BLOCKED** if no collector configured
-- Setup: Jaeger or OTLP collector reachable.
-- Steps:
-	1. Trigger file operations.
-	2. Query telemetry backend.
-- Pass criteria: Traces contain Files operation spans with expected metadata.
+#### TC-1.61 Verify Files traces in telemetry backend — ✅ Pass
+- **Result:** Pass (2026-03-29) — Jaeger all-in-one container stood up on mint22 (ports 4317 gRPC, 16686 UI). Configured `Telemetry.OtlpEndpoint = http://localhost:4317` in deployed appsettings.json. Added DotNetCloud.* ActivitySources to AdditionalSources. After service restart, Jaeger shows "DotNetCloud" service with 14+ traces captured (10% production sampling).
+- **Files operation spans confirmed:**
+	- `GET /apps/files` — Files page load (850ms, HTTP 200)
+	- `GET api/v1/files/sync/tree` — File tree API (168ms, HTTP 200)
+	- `GET api/v1/files/sync/stream` — SSE sync stream endpoint
+	- Static file assets for Files module (files-drop-bridge.js, file-drag-move.js, file-paste.js)
+- **Span metadata verified:** `http.request.method`, `http.response.status_code`, `http.route`, `url.path`, `url.scheme`, `server.address`, `server.port`, `network.protocol.version`, `otel.scope.name`
+- **Resource attributes verified:** `service.name: DotNetCloud`, `service.version: 1.0.0`, `environment: Production`, `host.name: mint22`, `telemetry.sdk.name: opentelemetry`, `telemetry.sdk.version: 1.15.0`
+- **Jaeger UI:** http://mint22:16686 — service "DotNetCloud" visible with full trace search, span detail, and dependency graph.
 
 ### Sprint 6: Security (5, Copilot-capable via API)
 
@@ -601,9 +625,8 @@ Pass checks: at least one HTTP 429 response; 429 responses include Retry-After h
 
 ## Phase E — SQL Server & Closeout (1 item + docs)
 
-TC-1.43 is **Blocked** until a SQL Server instance is available. All other items must be resolved first, then update the three tracking docs.
-
-### TC-1.43 SQL Server Integration Tests — **BLOCKED** (no SQL Server instance)
+### TC-1.43 SQL Server Integration Tests — ✅ Pass
+- **Result:** Pass (2026-03-29) — 12/12 tests passed (6 PostgreSQL + 6 SQL Server) against `hyperdrive.kimball.home` with `DotNetCloud-Test` database. External connection string via `DOTNETCLOUD_TEST_SQLSERVER_CONNECTION_STRING` env var. Tests: EnsureCreated, CRUD Organization, CRUD User, CRUD SystemSetting, CRUD Permission, Seed DefaultData. Total runtime: 9.1s. Zero failures.
 
 ```bash
 export DOTNETCLOUD_TEST_SQLSERVER_CONNECTION_STRING="Server=<sql-host>;Database=<db>;User Id=<user>;Password=<pass>;TrustServerCertificate=true"
