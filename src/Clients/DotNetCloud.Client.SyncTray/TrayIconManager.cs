@@ -400,7 +400,7 @@ public sealed class TrayIconManager : IDisposable
         {
             TrayState.Idle => (0x00, 0xB0, 0x40),     // Green
             TrayState.Syncing => (0x00, 0x78, 0xD4),   // Windows blue
-            TrayState.Paused => (0xFF, 0xA5, 0x00),    // Amber
+            TrayState.Paused => (0x66, 0x33, 0x99),    // RebeccaPurple
             TrayState.Error => (0xC4, 0x1E, 0x3A),     // Crimson
             TrayState.Conflict => (0xFF, 0x8C, 0x00),  // Dark orange
             _ => (0x70, 0x70, 0x70),                   // Grey (Offline)
@@ -408,7 +408,7 @@ public sealed class TrayIconManager : IDisposable
 
         var badgeKind = GetChatBadgeKind(chatUnreadCount, chatHasMentions);
 
-        return new WindowIcon(CreateCircleBitmap(32, r, g, b, badgeKind));
+        return new WindowIcon(CreateCircleBitmap(32, r, g, b, state, badgeKind));
     }
 
     internal static TrayChatBadgeKind GetChatBadgeKind(int chatUnreadCount, bool chatHasMentions)
@@ -422,7 +422,7 @@ public sealed class TrayIconManager : IDisposable
         return TrayChatBadgeKind.None;
     }
 
-    private static Bitmap CreateCircleBitmap(int size, int r, int g, int b, TrayChatBadgeKind badgeKind)
+    private static Bitmap CreateCircleBitmap(int size, int r, int g, int b, TrayState state, TrayChatBadgeKind badgeKind)
     {
         var bmp = new WriteableBitmap(
             new PixelSize(size, size),
@@ -468,6 +468,9 @@ public sealed class TrayIconManager : IDisposable
             }
         }
 
+        // Draw status symbol overlay on top of circle, before badge.
+        DrawStatusSymbol(pixels, size, centre, radius, state);
+
         if (badgeKind is not TrayChatBadgeKind.None)
         {
             var (badgeR, badgeG, badgeB) = badgeKind == TrayChatBadgeKind.Mention
@@ -503,6 +506,193 @@ public sealed class TrayIconManager : IDisposable
 
         System.Runtime.InteropServices.Marshal.Copy(pixels, 0, fb.Address, pixels.Length);
         return bmp;
+    }
+
+    // ── Symbol drawing ────────────────────────────────────────────────────
+
+    /// <summary>Dispatches to the appropriate symbol drawing method for the given tray state.</summary>
+    private static void DrawStatusSymbol(byte[] pixels, int size, float centre, float radius, TrayState state)
+    {
+        switch (state)
+        {
+            case TrayState.Idle:     DrawCheckmark(pixels, size, centre, radius); break;
+            case TrayState.Syncing:  DrawSyncArrows(pixels, size, centre, radius); break;
+            case TrayState.Paused:   DrawPauseBars(pixels, size, centre, radius); break;
+            case TrayState.Error:    DrawXMark(pixels, size, centre, radius); break;
+            case TrayState.Conflict: DrawExclamation(pixels, size, centre, radius); break;
+            case TrayState.Offline:  DrawDash(pixels, size, centre, radius); break;
+        }
+    }
+
+    /// <summary>Draws a ✓ checkmark symbol (Idle state).</summary>
+    private static void DrawCheckmark(byte[] pixels, int size, float centre, float radius)
+    {
+        // Short leg: lower-left to vertex, Long leg: vertex to upper-right.
+        DrawAntiAliasedLine(pixels, size, 8f, 16f, 12f, 20f, 2.5f, centre, radius);
+        DrawAntiAliasedLine(pixels, size, 12f, 20f, 22f, 10f, 2.5f, centre, radius);
+    }
+
+    /// <summary>Draws ⟳ sync arrows symbol (Syncing state).</summary>
+    private static void DrawSyncArrows(byte[] pixels, int size, float centre, float radius)
+    {
+        const float stroke = 2f;
+
+        // Top arrow pointing right.
+        DrawAntiAliasedLine(pixels, size, 10f, 12f, 21f, 12f, stroke, centre, radius);
+        DrawAntiAliasedLine(pixels, size, 21f, 12f, 18f, 9f, stroke, centre, radius);
+        DrawAntiAliasedLine(pixels, size, 21f, 12f, 18f, 15f, stroke, centre, radius);
+
+        // Bottom arrow pointing left.
+        DrawAntiAliasedLine(pixels, size, 21f, 19f, 10f, 19f, stroke, centre, radius);
+        DrawAntiAliasedLine(pixels, size, 10f, 19f, 13f, 16f, stroke, centre, radius);
+        DrawAntiAliasedLine(pixels, size, 10f, 19f, 13f, 22f, stroke, centre, radius);
+    }
+
+    /// <summary>Draws ⏸ pause bars symbol (Paused state).</summary>
+    private static void DrawPauseBars(byte[] pixels, int size, float centre, float radius)
+    {
+        // Two vertical rectangles: left bar x=11..13, right bar x=18..20, y=9..22.
+        for (int py = 9; py <= 22; py++)
+        {
+            for (int px = 11; px <= 13; px++)
+                SetWhitePixel(pixels, size, px, py, 1f, centre, radius);
+            for (int px = 18; px <= 20; px++)
+                SetWhitePixel(pixels, size, px, py, 1f, centre, radius);
+        }
+    }
+
+    /// <summary>Draws ✕ X mark symbol (Error state).</summary>
+    private static void DrawXMark(byte[] pixels, int size, float centre, float radius)
+    {
+        DrawAntiAliasedLine(pixels, size, 9f, 9f, 22f, 22f, 2.5f, centre, radius);
+        DrawAntiAliasedLine(pixels, size, 22f, 9f, 9f, 22f, 2.5f, centre, radius);
+    }
+
+    /// <summary>Draws ! exclamation mark symbol (Conflict state).</summary>
+    private static void DrawExclamation(byte[] pixels, int size, float centre, float radius)
+    {
+        // Vertical stem.
+        DrawAntiAliasedLine(pixels, size, 15.5f, 8f, 15.5f, 18f, 3f, centre, radius);
+        // Dot below.
+        DrawFilledCircleAt(pixels, size, 15.5f, 22f, 1.8f, centre, radius);
+    }
+
+    /// <summary>Draws — horizontal dash symbol (Offline state).</summary>
+    private static void DrawDash(byte[] pixels, int size, float centre, float radius)
+    {
+        DrawAntiAliasedLine(pixels, size, 9f, 15.5f, 22f, 15.5f, 2.5f, centre, radius);
+    }
+
+    // ── Pixel drawing helpers ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Composites a white pixel with the given alpha onto the pixel buffer,
+    /// only if the pixel is within the circle bounds.
+    /// </summary>
+    private static void SetWhitePixel(byte[] pixels, int size, int px, int py, float alpha, float centre, float radius)
+    {
+        if ((uint)px >= (uint)size || (uint)py >= (uint)size) return;
+        if (alpha <= 0f) return;
+
+        // Only draw inside circle bounds.
+        float dx = px - centre;
+        float dy = py - centre;
+        if (MathF.Sqrt(dx * dx + dy * dy) > radius) return;
+
+        alpha = Math.Clamp(alpha, 0f, 1f);
+        int idx = (py * size + px) * 4;
+        float inv = 1f - alpha;
+
+        // Premultiplied alpha composite: white (255,255,255) over existing.
+        pixels[idx + 0] = (byte)Math.Clamp(255f * alpha + pixels[idx + 0] * inv, 0, 255); // B
+        pixels[idx + 1] = (byte)Math.Clamp(255f * alpha + pixels[idx + 1] * inv, 0, 255); // G
+        pixels[idx + 2] = (byte)Math.Clamp(255f * alpha + pixels[idx + 2] * inv, 0, 255); // R
+        pixels[idx + 3] = (byte)Math.Max(pixels[idx + 3], (byte)(alpha * 255f));           // A
+    }
+
+    /// <summary>
+    /// Draws an anti-aliased line with the given thickness using a
+    /// distance-from-line-segment approach. Composites white over existing pixels.
+    /// </summary>
+    private static void DrawAntiAliasedLine(
+        byte[] pixels, int size,
+        float x0, float y0, float x1, float y1,
+        float thickness,
+        float centre, float radius)
+    {
+        float halfThick = thickness / 2f;
+        float ldx = x1 - x0;
+        float ldy = y1 - y0;
+        float lenSq = ldx * ldx + ldy * ldy;
+
+        if (lenSq < 0.001f)
+        {
+            // Degenerate line (point).
+            DrawFilledCircleAt(pixels, size, x0, y0, halfThick, centre, radius);
+            return;
+        }
+
+        int minX = Math.Max(0, (int)MathF.Floor(Math.Min(x0, x1) - halfThick - 1));
+        int maxX = Math.Min(size - 1, (int)MathF.Ceiling(Math.Max(x0, x1) + halfThick + 1));
+        int minY = Math.Max(0, (int)MathF.Floor(Math.Min(y0, y1) - halfThick - 1));
+        int maxY = Math.Min(size - 1, (int)MathF.Ceiling(Math.Max(y0, y1) + halfThick + 1));
+
+        for (int py = minY; py <= maxY; py++)
+        {
+            for (int px = minX; px <= maxX; px++)
+            {
+                float t = ((px - x0) * ldx + (py - y0) * ldy) / lenSq;
+                t = Math.Clamp(t, 0f, 1f);
+
+                float closestX = x0 + t * ldx;
+                float closestY = y0 + t * ldy;
+                float ddx = px - closestX;
+                float ddy = py - closestY;
+                float dist = MathF.Sqrt(ddx * ddx + ddy * ddy);
+
+                if (dist <= halfThick)
+                {
+                    SetWhitePixel(pixels, size, px, py, 1f, centre, radius);
+                }
+                else if (dist <= halfThick + 1f)
+                {
+                    float a = halfThick + 1f - dist;
+                    SetWhitePixel(pixels, size, px, py, a, centre, radius);
+                }
+            }
+        }
+    }
+
+    /// <summary>Draws a filled anti-aliased circle at the given position (used for exclamation dot).</summary>
+    private static void DrawFilledCircleAt(
+        byte[] pixels, int size,
+        float cx, float cy, float circleRadius,
+        float centre, float outerRadius)
+    {
+        int minX = Math.Max(0, (int)MathF.Floor(cx - circleRadius - 1));
+        int maxX = Math.Min(size - 1, (int)MathF.Ceiling(cx + circleRadius + 1));
+        int minY = Math.Max(0, (int)MathF.Floor(cy - circleRadius - 1));
+        int maxY = Math.Min(size - 1, (int)MathF.Ceiling(cy + circleRadius + 1));
+
+        for (int py = minY; py <= maxY; py++)
+        {
+            for (int px = minX; px <= maxX; px++)
+            {
+                float dx = px - cx;
+                float dy = py - cy;
+                float dist = MathF.Sqrt(dx * dx + dy * dy);
+
+                if (dist <= circleRadius)
+                {
+                    SetWhitePixel(pixels, size, px, py, 1f, centre, outerRadius);
+                }
+                else if (dist <= circleRadius + 1f)
+                {
+                    float a = circleRadius + 1f - dist;
+                    SetWhitePixel(pixels, size, px, py, a, centre, outerRadius);
+                }
+            }
+        }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
