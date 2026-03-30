@@ -137,7 +137,11 @@ public sealed class BoardService
             .OrderByDescending(b => b.UpdatedAt)
             .ToListAsync(cancellationToken);
 
-        return boards.Select(MapToDto).ToList();
+        // Compute card counts for all active lists across all boards in a single query
+        var allListIds = boards.SelectMany(b => b.Lists.Where(l => !l.IsArchived).Select(l => l.Id)).ToList();
+        var cardCounts = await GetCardCountsByListAsync(allListIds, cancellationToken);
+
+        return boards.Select(b => MapToDto(b, cardCounts)).ToList();
     }
 
     /// <summary>
@@ -329,10 +333,26 @@ public sealed class BoardService
             .Include(b => b.Lists)
             .FirstOrDefaultAsync(b => b.Id == boardId && !b.IsDeleted, cancellationToken);
 
-        return board is null ? null : MapToDto(board);
+        if (board is null) return null;
+
+        var listIds = board.Lists.Where(l => !l.IsArchived).Select(l => l.Id).ToList();
+        var cardCounts = await GetCardCountsByListAsync(listIds, cancellationToken);
+
+        return MapToDto(board, cardCounts);
     }
 
-    private static BoardDto MapToDto(Board b) => new()
+    private async Task<Dictionary<Guid, int>> GetCardCountsByListAsync(IReadOnlyList<Guid> listIds, CancellationToken cancellationToken)
+    {
+        if (listIds.Count == 0) return new Dictionary<Guid, int>();
+
+        return await _db.Cards
+            .Where(c => listIds.Contains(c.ListId) && !c.IsDeleted && !c.IsArchived)
+            .GroupBy(c => c.ListId)
+            .Select(g => new { ListId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.ListId, x => x.Count, cancellationToken);
+    }
+
+    private static BoardDto MapToDto(Board b, Dictionary<Guid, int>? cardCounts = null) => new()
     {
         Id = b.Id,
         OwnerId = b.OwnerId,
@@ -360,7 +380,7 @@ public sealed class BoardService
             Color = l.Color,
             Position = (int)l.Position,
             CardLimit = l.CardLimit,
-            CardCount = l.Cards.Count(c => !c.IsDeleted && !c.IsArchived),
+            CardCount = cardCounts is not null && cardCounts.TryGetValue(l.Id, out var count) ? count : 0,
             CreatedAt = l.CreatedAt,
             UpdatedAt = l.UpdatedAt
         }).ToList(),

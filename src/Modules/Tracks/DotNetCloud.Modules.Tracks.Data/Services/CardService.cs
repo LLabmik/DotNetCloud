@@ -161,6 +161,9 @@ public sealed class CardService
             .Include(c => c.Assignments)
             .Include(c => c.CardLabels).ThenInclude(cl => cl.Label)
             .Include(c => c.Checklists).ThenInclude(ch => ch.Items)
+            .Include(c => c.Comments.Where(cm => !cm.IsDeleted))
+            .Include(c => c.Attachments)
+            .Include(c => c.TimeEntries)
             .Where(c => c.ListId == listId && !c.IsDeleted);
 
         if (!includeArchived)
