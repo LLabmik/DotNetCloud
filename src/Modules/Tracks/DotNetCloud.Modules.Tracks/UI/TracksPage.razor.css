@@ -193,31 +193,55 @@
     cursor: pointer;
     transition: transform var(--transition), box-shadow var(--transition);
     border: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
 }
 
 ::deep .tracks-board-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,.1);
+    box-shadow: 0 6px 20px rgba(0,0,0,.12);
+    border-color: color-mix(in srgb, var(--color-primary) 30%, var(--color-border));
+}
+
+::deep .tracks-board-card--archived {
+    opacity: 0.7;
 }
 
 ::deep .tracks-board-card-color {
-    height: 6px;
+    height: 4px;
+    flex-shrink: 0;
 }
 
 ::deep .tracks-board-card-body {
     padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
 }
 
-::deep .tracks-board-card-body h3 {
-    margin: 0 0 6px;
+::deep .tracks-board-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+::deep .tracks-board-card-header h3 {
+    margin: 0;
     font-size: 15px;
     font-weight: 600;
     color: var(--color-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
 }
 
-::deep .tracks-board-card-body p {
-    margin: 0 0 12px;
+::deep .tracks-board-card-desc {
+    margin: 0;
     font-size: 13px;
+    line-height: 1.5;
     color: var(--color-text-secondary);
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -225,18 +249,42 @@
     overflow: hidden;
 }
 
-::deep .tracks-board-card-meta {
+::deep .tracks-board-card-footer {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 14px;
+    margin-top: auto;
+    padding-top: 10px;
+    border-top: 1px solid var(--color-border);
+}
+
+::deep .tracks-board-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     font-size: 12px;
     color: var(--color-muted);
 }
 
-::deep .tracks-board-card-meta span {
-    display: flex;
+::deep .tracks-board-meta svg {
+    opacity: 0.6;
+}
+
+::deep .tracks-badge {
+    display: inline-flex;
     align-items: center;
-    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 100px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    flex-shrink: 0;
+}
+
+::deep .tracks-badge--muted {
+    background: color-mix(in srgb, var(--color-muted) 15%, transparent);
+    color: var(--color-muted);
 }
 
 ::deep .tracks-team-badge {
@@ -1539,6 +1587,43 @@
 ::deep .tracks-danger-zone h4 {
     color: var(--color-danger) !important;
     margin-bottom: 8px;
+}
+
+/* Settings danger zone */
+::deep .tracks-settings-danger {
+    padding: 16px;
+    border: 1px solid color-mix(in srgb, var(--color-danger) 30%, var(--color-border));
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--color-danger) 4%, transparent);
+}
+
+::deep .tracks-settings-danger h4 {
+    color: var(--color-danger) !important;
+}
+
+/* Confirmation inline dialog */
+::deep .tracks-confirm-dialog {
+    margin-top: 12px;
+    padding: 12px 16px;
+    border: 1px solid color-mix(in srgb, var(--color-danger) 40%, var(--color-border));
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--color-danger) 6%, var(--color-surface));
+}
+
+::deep .tracks-confirm-content p {
+    margin: 0 0 6px;
+    font-size: 13px;
+}
+
+::deep .tracks-confirm-content p.text-muted {
+    font-size: 12px;
+    color: var(--color-muted);
+}
+
+::deep .tracks-confirm-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
 }
 
 /* Form groups */

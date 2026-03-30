@@ -82,6 +82,7 @@
                 case TracksView.Boards:
                     <BoardListView Boards="_boards"
                                    Teams="_teams"
+                                   InitialTeamFilter="@_initialTeamFilter"
                                    OnBoardSelected="SelectBoard"
                                    OnBoardCreated="HandleBoardCreated"
                                    OnBoardDeleted="HandleBoardDeleted" />

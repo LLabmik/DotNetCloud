@@ -77,6 +77,7 @@ public partial class TracksPage : ComponentBase, IDisposable
         _selectedCard = null;
         _showBoardSettings = false;
         _showSprints = false;
+        _initialTeamFilter = null;
     }
 
     private void ShowTeams()
@@ -115,10 +116,14 @@ public partial class TracksPage : ComponentBase, IDisposable
         }
     }
 
-    private async Task SelectTeam(Guid teamId)
+    private string? _initialTeamFilter;
+
+    private void SelectTeam(Guid teamId)
     {
-        _view = TracksView.Teams;
-        await Task.CompletedTask;
+        _initialTeamFilter = teamId.ToString();
+        _view = TracksView.Boards;
+        _selectedBoard = null;
+        _selectedCard = null;
     }
 
     // ── Board Data ──────────────────────────────────────────

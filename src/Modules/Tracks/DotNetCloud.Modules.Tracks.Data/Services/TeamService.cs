@@ -321,16 +321,34 @@ public sealed class TeamService
     }
 
     /// <summary>
-    /// Updates a member's Tracks role. Requires Owner role.
-    /// Owners can promote members to Manager or co-Owner.
+    /// Updates a member's Tracks role. Requires at least Manager role.
+    /// Managers can set Member/Manager roles. Only Owners can promote to Owner.
     /// </summary>
     public async Task UpdateMemberRoleAsync(Guid coreTeamId, Guid userId, TracksTeamMemberRole newRole, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        await EnsureTracksTeamRoleAsync(coreTeamId, caller.UserId, TracksTeamMemberRole.Owner, cancellationToken);
+        // Caller must be at least Manager
+        var callerRole = await _db.TeamRoles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(r => r.CoreTeamId == coreTeamId && r.UserId == caller.UserId, cancellationToken)
+            ?? throw new ValidationException(ErrorCodes.TracksNotTeamMember, "You are not a team member.");
+
+        if (callerRole.Role < TracksTeamMemberRole.Manager)
+            throw new ValidationException(ErrorCodes.TracksInsufficientTeamRole,
+                "You must be at least a Manager to update member roles.");
+
+        // Only Owners can promote to Owner
+        if (newRole == TracksTeamMemberRole.Owner && callerRole.Role != TracksTeamMemberRole.Owner)
+            throw new ValidationException(ErrorCodes.TracksInsufficientTeamRole,
+                "Only team Owners can promote members to Owner.");
 
         var tracksRole = await _db.TeamRoles
             .FirstOrDefaultAsync(r => r.CoreTeamId == coreTeamId && r.UserId == userId, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.TracksNotTeamMember, "User is not a team member.");
+
+        // Managers cannot demote Owners
+        if (tracksRole.Role == TracksTeamMemberRole.Owner && callerRole.Role != TracksTeamMemberRole.Owner)
+            throw new ValidationException(ErrorCodes.TracksInsufficientTeamRole,
+                "Only Owners can change another Owner's role.");
 
         // Prevent demoting the last owner
         if (tracksRole.Role == TracksTeamMemberRole.Owner && newRole != TracksTeamMemberRole.Owner)
@@ -383,11 +401,18 @@ public sealed class TeamService
             }
 
             var tracksRole = await _db.TeamRoles
-                .AsNoTracking()
                 .FirstOrDefaultAsync(r => r.CoreTeamId == targetCoreTeamId.Value && r.UserId == caller.UserId, cancellationToken);
 
             if (tracksRole is null)
                 throw new ValidationException(ErrorCodes.TracksNotTeamMember, "You are not a member of this team.");
+
+            // Auto-promote board owner to Manager if they're only a Member
+            if (tracksRole.Role < TracksTeamMemberRole.Manager)
+            {
+                tracksRole.Role = TracksTeamMemberRole.Manager;
+                _logger.LogInformation("Auto-promoted user {UserId} to Manager on team {TeamId} after board transfer",
+                    caller.UserId, targetCoreTeamId.Value);
+            }
         }
 
         board.TeamId = targetCoreTeamId;

@@ -149,10 +149,46 @@
         @* ── Archive / Delete ── *@
         <div class="tracks-settings-section tracks-settings-danger">
             <h4>Danger Zone</h4>
-            <button class="btn btn-outline" @onclick="ArchiveBoardAsync">
+            <button class="btn btn-outline" @onclick="ShowArchiveConfirm">
                 @(Board.IsArchived ? "Unarchive Board" : "Archive Board")
             </button>
-            <button class="btn btn-danger" @onclick="DeleteBoardAsync">Delete Board</button>
+            <button class="btn btn-danger" @onclick="ShowDeleteConfirm">Delete Board</button>
+
+            @if (_showArchiveConfirm)
+            {
+                <div class="tracks-confirm-dialog">
+                    <div class="tracks-confirm-content">
+                        <p><strong>@(Board.IsArchived ? "Unarchive" : "Archive") this board?</strong></p>
+                        <p class="text-muted">
+                            @(Board.IsArchived
+                                ? "This board will become active again and visible to all members."
+                                : "Archived boards are hidden from the board list. You can unarchive it later.")
+                        </p>
+                        <div class="tracks-confirm-actions">
+                            <button class="btn btn-outline btn-sm" @onclick="ArchiveBoardAsync">
+                                @(Board.IsArchived ? "Yes, Unarchive" : "Yes, Archive")
+                            </button>
+                            <button class="btn btn-sm" @onclick="HideArchiveConfirm">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @if (_showDeleteConfirm)
+            {
+                <div class="tracks-confirm-dialog">
+                    <div class="tracks-confirm-content">
+                        <p><strong>Permanently delete this board?</strong></p>
+                        <p class="text-muted">This action cannot be undone. All lists, cards, and activity for this board will be permanently deleted.</p>
+                        <div class="tracks-confirm-actions">
+                            <button class="btn btn-danger btn-sm" @onclick="DeleteBoardAsync">
+                                Delete Permanently
+                            </button>
+                            <button class="btn btn-sm" @onclick="HideDeleteConfirm">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            }
         </div>
     </div>
 </DncModal>

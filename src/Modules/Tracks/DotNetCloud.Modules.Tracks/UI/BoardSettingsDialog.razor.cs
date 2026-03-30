@@ -25,6 +25,8 @@ public partial class BoardSettingsDialog : ComponentBase
     private string _newLabelColor = "#3b82f6";
     private string _selectedTeamId = "";
     private string _transferError = "";
+    private bool _showArchiveConfirm;
+    private bool _showDeleteConfirm;
 
     private static readonly string[] _colors =
     [
@@ -99,8 +101,12 @@ public partial class BoardSettingsDialog : ComponentBase
         await RefreshBoardAsync();
     }
 
+    private void ShowArchiveConfirm() => _showArchiveConfirm = true;
+    private void HideArchiveConfirm() => _showArchiveConfirm = false;
+
     private async Task ArchiveBoardAsync()
     {
+        _showArchiveConfirm = false;
         var updated = await ApiClient.UpdateBoardAsync(Board.Id, new UpdateBoardDto
         {
             IsArchived = !Board.IsArchived
@@ -108,8 +114,12 @@ public partial class BoardSettingsDialog : ComponentBase
         if (updated is not null) await OnBoardUpdated.InvokeAsync(updated);
     }
 
+    private void ShowDeleteConfirm() => _showDeleteConfirm = true;
+    private void HideDeleteConfirm() => _showDeleteConfirm = false;
+
     private async Task DeleteBoardAsync()
     {
+        _showDeleteConfirm = false;
         await ApiClient.DeleteBoardAsync(Board.Id);
         await OnBoardDeleted.InvokeAsync(Board.Id);
     }
@@ -162,7 +172,7 @@ public partial class BoardSettingsDialog : ComponentBase
     private static string GetEffectiveRoleLabel(TracksTeamMemberRole role) => role switch
     {
         TracksTeamMemberRole.Owner => "Owner",
-        TracksTeamMemberRole.Manager => "Admin",
+        TracksTeamMemberRole.Manager => "Manager",
         TracksTeamMemberRole.Member => "Member",
         _ => "Viewer"
     };

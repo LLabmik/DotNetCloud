@@ -16,14 +16,25 @@ public partial class BoardListView : ComponentBase
     [Parameter] public EventCallback<Guid> OnBoardSelected { get; set; }
     [Parameter] public EventCallback<BoardDto> OnBoardCreated { get; set; }
     [Parameter] public EventCallback<Guid> OnBoardDeleted { get; set; }
+    [Parameter] public string? InitialTeamFilter { get; set; }
 
     private string _searchQuery = "";
     private string _teamFilter = "";
+    private string? _appliedInitialFilter;
     private bool _showCreateDialog;
     private bool _isCreating;
     private string _createTeamId = "";
 
     private readonly CreateBoardModel _createModel = new();
+
+    protected override void OnParametersSet()
+    {
+        if (InitialTeamFilter is not null && InitialTeamFilter != _appliedInitialFilter)
+        {
+            _teamFilter = InitialTeamFilter;
+            _appliedInitialFilter = InitialTeamFilter;
+        }
+    }
 
     private static readonly string[] _boardColors =
     [
