@@ -168,6 +168,7 @@ public sealed class BoardService
         if (dto.Description is not null) board.Description = dto.Description;
         if (dto.Color is not null) board.Color = dto.Color;
         if (dto.IsArchived.HasValue) board.IsArchived = dto.IsArchived.Value;
+        if (dto.LockSwimlanes.HasValue) board.LockSwimlanes = dto.LockSwimlanes.Value;
 
         board.UpdatedAt = DateTime.UtcNow;
         board.ETag = Guid.NewGuid().ToString("N");
@@ -381,6 +382,7 @@ public sealed class BoardService
         Title = b.Title,
         Description = b.Description,
         Color = b.Color,
+        LockSwimlanes = b.LockSwimlanes,
         IsArchived = b.IsArchived,
         IsDeleted = b.IsDeleted,
         DeletedAt = b.DeletedAt,

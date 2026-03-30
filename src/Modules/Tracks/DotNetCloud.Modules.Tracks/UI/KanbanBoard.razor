@@ -156,6 +156,8 @@
         }
 
         @* ── Add Swimlane Column ── *@
+        @if (!Board.LockSwimlanes)
+        {
         <div class="tracks-kanban-add-swimlane">
             @if (_showAddSwimlane)
             {
@@ -176,5 +178,6 @@
                 </button>
             }
         </div>
+        }
     </div>
 </div>

@@ -23,6 +23,9 @@ public sealed class Board
     /// <summary>Hex color code for UI display (e.g., "#3B82F6").</summary>
     public string? Color { get; set; }
 
+    /// <summary>Whether adding new swimlanes is locked.</summary>
+    public bool LockSwimlanes { get; set; }
+
     /// <summary>Whether the board has been archived.</summary>
     public bool IsArchived { get; set; }
 

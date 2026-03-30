@@ -1360,6 +1360,26 @@
     margin-bottom: 24px;
 }
 
+::deep .tracks-checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+::deep .tracks-checkbox-group label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+::deep .tracks-setting-hint {
+    font-size: 11px;
+    color: var(--color-muted);
+    margin-left: 24px;
+}
+
 ::deep .tracks-settings-section h4 {
     margin: 0 0 12px;
     font-size: 13px;

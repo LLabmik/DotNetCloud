@@ -24,6 +24,9 @@ public static class TracksDbInitializer
         // Schema migration: add CardNumber column if missing (EnsureCreated won't alter existing tables)
         await MigrateCardNumberAsync(db, logger, cancellationToken);
 
+        // Schema migration: add LockSwimlanes column if missing
+        await MigrateLockSwimlanesAsync(db, logger, cancellationToken);
+
         logger?.LogInformation("Tracks database initialized");
     }
 
@@ -121,5 +124,37 @@ public static class TracksDbInitializer
             """, cancellationToken);
 
         logger?.LogInformation("Tracks swimlane schema compatibility check complete");
+    }
+
+    private static async Task MigrateLockSwimlanesAsync(
+        TracksDbContext db,
+        ILogger? logger,
+        CancellationToken cancellationToken)
+    {
+        var conn = db.Database.GetDbConnection();
+        await conn.OpenAsync(cancellationToken);
+        try
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT COUNT(*) FROM information_schema.columns
+                WHERE table_name = 'Boards' AND column_name = 'LockSwimlanes';
+                """;
+            var exists = Convert.ToInt64(await cmd.ExecuteScalarAsync(cancellationToken)) > 0;
+            if (exists)
+                return;
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+
+        logger?.LogInformation("Adding LockSwimlanes column to Boards table...");
+
+        await db.Database.ExecuteSqlRawAsync("""
+            ALTER TABLE "Boards" ADD COLUMN "LockSwimlanes" boolean NOT NULL DEFAULT false;
+            """, cancellationToken);
+
+        logger?.LogInformation("LockSwimlanes migration complete");
     }
 }

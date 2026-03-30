@@ -36,6 +36,11 @@ public sealed record BoardDto
     public string? Color { get; init; }
 
     /// <summary>
+    /// Whether adding new swimlanes is locked.
+    /// </summary>
+    public bool LockSwimlanes { get; init; }
+
+    /// <summary>
     /// Whether the board has been archived.
     /// </summary>
     public bool IsArchived { get; init; }
@@ -775,6 +780,11 @@ public sealed record UpdateBoardDto
     /// Updated archived state.
     /// </summary>
     public bool? IsArchived { get; init; }
+
+    /// <summary>
+    /// Updated lock-swimlanes state.
+    /// </summary>
+    public bool? LockSwimlanes { get; init; }
 }
 
 /// <summary>
