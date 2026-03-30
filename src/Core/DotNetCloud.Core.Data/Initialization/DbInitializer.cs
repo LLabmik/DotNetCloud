@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Data.Context;
+using DotNetCloud.Core.Data.Entities.Organizations;
 using DotNetCloud.Core.Data.Entities.Permissions;
 using DotNetCloud.Core.Data.Entities.Settings;
 using Microsoft.EntityFrameworkCore;
@@ -78,6 +79,7 @@ public class DbInitializer
                         await SeedDefaultRolesAsync(cancellationToken);
                         await SeedDefaultPermissionsAsync(cancellationToken);
                         await SeedSystemSettingsAsync(cancellationToken);
+                        await SeedDefaultOrganizationAsync(cancellationToken);
 
                         // Commit transaction
                         await transaction.CommitAsync(cancellationToken);
@@ -98,6 +100,7 @@ public class DbInitializer
                 await SeedDefaultRolesAsync(cancellationToken);
                 await SeedDefaultPermissionsAsync(cancellationToken);
                 await SeedSystemSettingsAsync(cancellationToken);
+                await SeedDefaultOrganizationAsync(cancellationToken);
 
                 _logger.LogInformation("Database initialization completed successfully (in-memory).");
             }
@@ -531,5 +534,32 @@ public class DbInitializer
         await _context.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Seeded {Count} default system settings.", defaultSettings.Length);
+    }
+
+    /// <summary>
+    /// Seeds a default organization if none exists.
+    /// Every DotNetCloud instance requires at least one organization for team creation.
+    /// </summary>
+    private async Task SeedDefaultOrganizationAsync(CancellationToken cancellationToken)
+    {
+        var exists = await _context.Organizations.AnyAsync(cancellationToken);
+        if (exists)
+        {
+            _logger.LogInformation("Organizations already exist. Skipping default organization seeding.");
+            return;
+        }
+
+        var org = new Organization
+        {
+            Id = Guid.Parse("00000000-0000-0000-0000-000000000001"),
+            Name = "Default",
+            Description = "Default organization",
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.Organizations.Add(org);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Seeded default organization '{Name}' ({Id}).", org.Name, org.Id);
     }
 }

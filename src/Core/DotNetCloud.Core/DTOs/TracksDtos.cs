@@ -218,6 +218,11 @@ public sealed record CardDto
     public required Guid BoardId { get; init; }
 
     /// <summary>
+    /// Human-readable sequential card number, unique per board (e.g. #1, #2, …).
+    /// </summary>
+    public int CardNumber { get; init; }
+
+    /// <summary>
     /// Card title.
     /// </summary>
     public required string Title { get; init; }

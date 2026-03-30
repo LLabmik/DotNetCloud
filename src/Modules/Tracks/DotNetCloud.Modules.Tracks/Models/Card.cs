@@ -14,6 +14,9 @@ public sealed class Card
     /// <summary>The list this card belongs to.</summary>
     public Guid ListId { get; set; }
 
+    /// <summary>Human-readable sequential card number, unique per board (e.g. #1, #2, …).</summary>
+    public int CardNumber { get; set; }
+
     /// <summary>Card title.</summary>
     public required string Title { get; set; }
 

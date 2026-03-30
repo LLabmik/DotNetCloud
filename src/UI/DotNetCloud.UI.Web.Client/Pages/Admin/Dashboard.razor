@@ -23,6 +23,15 @@ else
         </div>
 
         <div class="dashboard-card">
+            <div class="card-icon">🏢</div>
+            <div class="card-content">
+                <h3>Organizations</h3>
+                <p class="card-value">@_orgCount</p>
+            </div>
+            <a href="/admin/organizations" class="card-link">Manage</a>
+        </div>
+
+        <div class="dashboard-card">
             <div class="card-icon">📦</div>
             <div class="card-content">
                 <h3>Modules</h3>
@@ -56,6 +65,7 @@ else
 
     private bool _loading = true;
     private int _userCount;
+    private int _orgCount;
     private int _moduleCount;
     private int _settingsCount;
     private HealthReportDto? _health;
@@ -65,13 +75,15 @@ else
         try
         {
             var usersTask = Api.ListUsersAsync(page: 1, pageSize: 1);
+            var orgsTask = Api.ListOrganizationsAsync();
             var modulesTask = Api.ListModulesAsync();
             var settingsTask = Api.ListSettingsAsync();
             var healthTask = Api.GetHealthAsync();
 
-            await Task.WhenAll(usersTask, modulesTask, settingsTask, healthTask);
+            await Task.WhenAll(usersTask, orgsTask, modulesTask, settingsTask, healthTask);
 
             _userCount = usersTask.Result.TotalCount;
+            _orgCount = orgsTask.Result.Count;
             _moduleCount = modulesTask.Result.Count;
             _settingsCount = settingsTask.Result.Count;
             _health = healthTask.Result;

@@ -1,0 +1,235 @@
+@page "/admin/organizations"
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveAutoRenderMode(prerender: false))
+@attribute [Authorize(Policy = "RequireAdmin")]
+@inject DotNetCloudApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Organizations - DotNetCloud</PageTitle>
+
+<div class="page-header">
+    <h1>Organizations</h1>
+    <button class="btn btn-primary" @onclick="() => _showCreate = true">Create Organization</button>
+</div>
+
+@if (_loading)
+{
+    <LoadingIndicator Message="Loading organizations..." />
+}
+else
+{
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Description</th>
+                    <th>Teams</th>
+                    <th>Members</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_orgs.Count == 0)
+                {
+                    <tr>
+                        <td colspan="6" class="text-center">No organizations found.</td>
+                    </tr>
+                }
+                @foreach (var org in _orgs)
+                {
+                    <tr>
+                        <td><strong>@org.Name</strong></td>
+                        <td>@(org.Description ?? "—")</td>
+                        <td>@org.TeamCount</td>
+                        <td>@org.MemberCount</td>
+                        <td>@org.CreatedAt.ToString("yyyy-MM-dd")</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline" @onclick="() => StartEdit(org)">Edit</button>
+                            @if (_orgs.Count > 1)
+                            {
+                                <button class="btn btn-sm btn-danger" @onclick="() => DeleteAsync(org)">Delete</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (_showCreate)
+{
+    <DncModal Title="Create Organization" StartVisible OnClose="() => _showCreate = false">
+        <div class="form-group">
+            <label>Name *</label>
+            <input type="text" class="form-control" @bind="_createName" placeholder="Organization name" />
+        </div>
+        <div class="form-group">
+            <label>Description</label>
+            <textarea class="form-control" rows="3" @bind="_createDescription" placeholder="Optional description"></textarea>
+        </div>
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="alert alert-danger">@_error</div>
+        }
+        <div class="form-actions">
+            <button class="btn btn-secondary" @onclick="() => _showCreate = false">Cancel</button>
+            <button class="btn btn-primary" @onclick="CreateAsync" disabled="@_saving">
+                @(_saving ? "Creating..." : "Create")
+            </button>
+        </div>
+    </DncModal>
+}
+
+@if (_showEdit)
+{
+    <DncModal Title="Edit Organization" StartVisible OnClose="() => _showEdit = false">
+        <div class="form-group">
+            <label>Name *</label>
+            <input type="text" class="form-control" @bind="_editName" />
+        </div>
+        <div class="form-group">
+            <label>Description</label>
+            <textarea class="form-control" rows="3" @bind="_editDescription"></textarea>
+        </div>
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="alert alert-danger">@_error</div>
+        }
+        <div class="form-actions">
+            <button class="btn btn-secondary" @onclick="() => _showEdit = false">Cancel</button>
+            <button class="btn btn-primary" @onclick="SaveEditAsync" disabled="@_saving">
+                @(_saving ? "Saving..." : "Save")
+            </button>
+        </div>
+    </DncModal>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _showCreate;
+    private bool _showEdit;
+    private bool _saving;
+    private string _error = "";
+    private string _createName = "";
+    private string? _createDescription;
+    private string _editName = "";
+    private string? _editDescription;
+    private Guid _editId;
+    private IReadOnlyList<OrganizationDto> _orgs = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _orgs = await Api.ListOrganizationsAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_createName))
+        {
+            _error = "Name is required.";
+            return;
+        }
+
+        _saving = true;
+        _error = "";
+        try
+        {
+            await Api.CreateOrganizationAsync(new CreateOrganizationDto
+            {
+                Name = _createName.Trim(),
+                Description = string.IsNullOrWhiteSpace(_createDescription) ? null : _createDescription.Trim()
+            });
+            _showCreate = false;
+            _createName = "";
+            _createDescription = null;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void StartEdit(OrganizationDto org)
+    {
+        _editId = org.Id;
+        _editName = org.Name;
+        _editDescription = org.Description;
+        _error = "";
+        _showEdit = true;
+    }
+
+    private async Task SaveEditAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_editName))
+        {
+            _error = "Name is required.";
+            return;
+        }
+
+        _saving = true;
+        _error = "";
+        try
+        {
+            await Api.UpdateOrganizationAsync(_editId, new UpdateOrganizationDto
+            {
+                Name = _editName.Trim(),
+                Description = _editDescription?.Trim()
+            });
+            _showEdit = false;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task DeleteAsync(OrganizationDto org)
+    {
+        _error = "";
+        try
+        {
+            var success = await Api.DeleteOrganizationAsync(org.Id);
+            if (success)
+            {
+                await LoadAsync();
+            }
+            else
+            {
+                _error = "Failed to delete organization.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+}

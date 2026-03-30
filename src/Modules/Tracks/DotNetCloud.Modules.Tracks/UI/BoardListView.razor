@@ -77,7 +77,7 @@
 @* ── Create Board Dialog ── *@
 @if (_showCreateDialog)
 {
-    <DncModal Title="Create Board" OnClose="CloseCreateDialog">
+    <DncModal Title="Create Board" StartVisible OnClose="CloseCreateDialog">
         <EditForm Model="_createModel" OnValidSubmit="CreateBoardAsync">
             <div class="form-group">
                 <label>Title</label>

@@ -485,6 +485,49 @@ public sealed class DotNetCloudApiClient
     }
 
     // -----------------------------------------------------------------------
+    // Organizations
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Lists all organizations.
+    /// </summary>
+    public async Task<IReadOnlyList<OrganizationDto>> ListOrganizationsAsync(CancellationToken ct = default)
+    {
+        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<IReadOnlyList<OrganizationDto>>>(
+            "api/v1/core/admin/organizations", ct);
+        return envelope?.Data ?? [];
+    }
+
+    /// <summary>
+    /// Creates a new organization.
+    /// </summary>
+    public async Task<OrganizationDto?> CreateOrganizationAsync(CreateOrganizationDto dto, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsJsonAsync("api/v1/core/admin/organizations", dto, ct);
+        response.EnsureSuccessStatusCode();
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<OrganizationDto>>(ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Updates an organization.
+    /// </summary>
+    public async Task<bool> UpdateOrganizationAsync(Guid id, UpdateOrganizationDto dto, CancellationToken ct = default)
+    {
+        var response = await _http.PutAsJsonAsync($"api/v1/core/admin/organizations/{id}", dto, ct);
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>
+    /// Deletes an organization.
+    /// </summary>
+    public async Task<bool> DeleteOrganizationAsync(Guid id, CancellationToken ct = default)
+    {
+        var response = await _http.DeleteAsync($"api/v1/core/admin/organizations/{id}", ct);
+        return response.IsSuccessStatusCode;
+    }
+
+    // -----------------------------------------------------------------------
     // Response envelope
     // -----------------------------------------------------------------------
 

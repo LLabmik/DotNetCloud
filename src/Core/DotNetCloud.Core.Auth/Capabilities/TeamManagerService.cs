@@ -23,6 +23,21 @@ public sealed class TeamManagerService : ITeamManager
     /// <inheritdoc />
     public async Task<TeamInfo> CreateTeamAsync(Guid organizationId, string name, string? description, Guid createdByUserId, CancellationToken cancellationToken = default)
     {
+        // When no organization is specified, use the first available organization.
+        if (organizationId == Guid.Empty)
+        {
+            var defaultOrg = await _dbContext.Organizations
+                .Where(o => !o.IsDeleted)
+                .OrderBy(o => o.CreatedAt)
+                .Select(o => o.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (defaultOrg == Guid.Empty)
+                throw new InvalidOperationException("No organization exists. Create an organization first.");
+
+            organizationId = defaultOrg;
+        }
+
         var team = new Team
         {
             Id = Guid.NewGuid(),

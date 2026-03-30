@@ -76,7 +76,7 @@
 @* ── Create Sprint Dialog ── *@
 @if (_showCreateDialog)
 {
-    <DncModal Title="Create Sprint" OnClose="() => _showCreateDialog = false">
+    <DncModal Title="Create Sprint" StartVisible OnClose="() => _showCreateDialog = false">
         <EditForm Model="_createModel" OnValidSubmit="CreateSprintAsync">
             <div class="form-group">
                 <label>Title</label>

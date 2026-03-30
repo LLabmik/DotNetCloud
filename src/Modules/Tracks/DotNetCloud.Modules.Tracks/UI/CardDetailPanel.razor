@@ -11,7 +11,7 @@
                 }
                 else
                 {
-                    <h2 @onclick="BeginEditTitle">@Card.Title</h2>
+                    <h2 @onclick="BeginEditTitle"><span class="tracks-card-number">#@Card.CardNumber</span> @Card.Title</h2>
                 }
                 <span class="tracks-card-list-name">
                     in <strong>@_listName</strong>

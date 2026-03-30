@@ -62,9 +62,15 @@ public sealed class CardService
             .Where(c => c.ListId == listId && !c.IsDeleted)
             .MaxAsync(c => (double?)c.Position, cancellationToken) ?? 0;
 
+        // Assign next sequential card number (globally unique across the system)
+        var maxCardNumber = await _db.Cards
+            .IgnoreQueryFilters()
+            .MaxAsync(c => (int?)c.CardNumber, cancellationToken) ?? 0;
+
         var card = new Card
         {
             ListId = listId,
+            CardNumber = maxCardNumber + 1,
             Title = dto.Title,
             Description = dto.Description,
             Priority = dto.Priority,
@@ -394,6 +400,7 @@ public sealed class CardService
         Id = c.Id,
         ListId = c.ListId,
         BoardId = c.List?.BoardId ?? Guid.Empty,
+        CardNumber = c.CardNumber,
         Title = c.Title,
         Description = c.Description,
         Position = (int)c.Position,

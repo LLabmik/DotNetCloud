@@ -18,6 +18,7 @@ using DotNetCloud.Modules.Chat.Data;
 using DotNetCloud.Modules.Contacts.Data;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Notes.Data;
+using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.UI.Web.Client.Services;
 using DotNetCloud.UI.Web.Services;
@@ -115,6 +116,9 @@ public class Program
 
                         var notesDbContext = scope.ServiceProvider.GetRequiredService<NotesDbContext>();
                         await EnsureModuleTablesCreatedAsync(notesDbContext, "Notes", logger);
+
+                        var tracksDbContext = scope.ServiceProvider.GetRequiredService<TracksDbContext>();
+                        await EnsureModuleTablesCreatedAsync(tracksDbContext, "Boards", logger);
                     }
                     catch (InvalidOperationException ex)
                     {
@@ -139,6 +143,9 @@ public class Program
 
                     var notesDbContext = scope.ServiceProvider.GetRequiredService<NotesDbContext>();
                     await EnsureModuleTablesCreatedAsync(notesDbContext, "Notes", logger);
+
+                    var tracksDbContext = scope.ServiceProvider.GetRequiredService<TracksDbContext>();
+                    await EnsureModuleTablesCreatedAsync(tracksDbContext, "Boards", logger);
                 }
 
                 // Mark the application as ready for traffic now that DB is initialized
@@ -228,11 +235,14 @@ public class Program
             ConfigureModuleDbContext(options, provider, connectionString));
         builder.Services.AddDbContext<NotesDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString));
+        builder.Services.AddDbContext<TracksDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString));
         builder.Services.AddFilesServices(builder.Configuration);
         builder.Services.AddChatServices(builder.Configuration);
         builder.Services.AddContactsServices(builder.Configuration);
         builder.Services.AddCalendarServices(builder.Configuration);
         builder.Services.AddNotesServices(builder.Configuration);
+        builder.Services.AddTracksServices(builder.Configuration);
         builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
         builder.Services.AddSingleton<DotNetCloud.Core.Capabilities.ICrossModuleLinkResolver, CrossModuleLinkResolver>();
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.INotificationService, NotificationService>();

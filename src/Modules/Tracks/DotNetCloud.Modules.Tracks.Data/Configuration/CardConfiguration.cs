@@ -14,6 +14,9 @@ public sealed class CardConfiguration : IEntityTypeConfiguration<Card>
     {
         builder.HasKey(c => c.Id);
 
+        builder.Property(c => c.CardNumber)
+            .IsRequired();
+
         builder.Property(c => c.Title)
             .IsRequired()
             .HasMaxLength(500);
@@ -71,5 +74,9 @@ public sealed class CardConfiguration : IEntityTypeConfiguration<Card>
 
         builder.HasIndex(c => c.CreatedAt)
             .HasDatabaseName("ix_cards_created_at");
+
+        builder.HasIndex(c => c.CardNumber)
+            .IsUnique()
+            .HasDatabaseName("ix_cards_card_number");
     }
 }

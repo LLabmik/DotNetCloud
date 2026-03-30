@@ -48,9 +48,25 @@
     [Parameter]
     public bool CloseOnOverlayClick { get; set; } = true;
 
+    /// <summary>
+    /// When true the dialog is visible immediately upon rendering.
+    /// Useful when the parent conditionally renders the modal with <c>@if</c>.
+    /// </summary>
+    [Parameter]
+    public bool StartVisible { get; set; }
+
     /// <summary>Raised when the dialog is closed.</summary>
     [Parameter]
     public EventCallback OnClose { get; set; }
+
+    /// <inheritdoc />
+    protected override void OnInitialized()
+    {
+        if (StartVisible)
+        {
+            _visible = true;
+        }
+    }
 
     /// <summary>Shows the dialog.</summary>
     public void Show()
