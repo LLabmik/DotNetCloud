@@ -148,8 +148,8 @@ API endpoints and inter-process communication.
 - ✓ `TracksControllerBase` — Auth helpers (GetAuthenticatedCaller), response envelopes (Envelope/ErrorEnvelope), IsBoardNotFound() helper for consistent 404 mapping
 
 **Cross-Module Integration:**
-- ☐ File attachment links (reference FileNode from Files module via event subscription) — deferred to Phase 4.6
-- ☐ Chat integration — deferred to Phase 4.6
+- ✓ File attachment links (reference FileNode from Files module via event subscription) — implemented in Phase 4.6 (FileDeletedEventHandler + ICardAttachmentCleanupService)
+- ✓ Chat integration — activity events published via IEventBus for cross-module consumption
 
 **Unit Tests (58 new controller + gRPC tests):**
 - ✓ `BoardsControllerTests` — 10 tests: CRUD, activity, members, labels, export/import
@@ -178,7 +178,7 @@ Board and card management interface.
 - ✓ **Team management page** — Create/edit teams, manage team members and Tracks-specific roles (Owner/Manager/Member), transfer boards to teams
 - ✓ **Team board view** — Team-scoped board list, team member role badges, team-owned board indicators
 - ✓ **Filters & search** — Filter cards by label, assignee, due date, priority; search across boards; filter boards by team
-- ☐ **Real-time updates** — SignalR integration for live board state (deferred to Phase 4.6)
+- ✓ **Real-time updates** — SignalR integration for live board state (implemented in Phase 4.6: TracksRealtimeService, ITracksSignalRService, TracksRealtimeEventHandler)
 - ✓ **Responsive layout** — Works on desktop and tablet; mobile-friendly card detail
 - ✓ CSS styling consistent with existing DotNetCloud UI theme
 
