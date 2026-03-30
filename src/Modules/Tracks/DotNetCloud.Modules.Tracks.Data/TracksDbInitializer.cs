@@ -19,6 +19,8 @@ public static class TracksDbInitializer
         ArgumentNullException.ThrowIfNull(db);
         await db.Database.EnsureCreatedAsync(cancellationToken);
 
+        await MigrateSwimlaneSchemaAsync(db, logger, cancellationToken);
+
         // Schema migration: add CardNumber column if missing (EnsureCreated won't alter existing tables)
         await MigrateCardNumberAsync(db, logger, cancellationToken);
 
@@ -66,5 +68,58 @@ public static class TracksDbInitializer
             """, cancellationToken);
 
         logger?.LogInformation("CardNumber migration complete");
+    }
+
+    private static async Task MigrateSwimlaneSchemaAsync(
+        TracksDbContext db,
+        ILogger? logger,
+        CancellationToken cancellationToken)
+    {
+        var providerName = db.Database.ProviderName;
+        if (!string.Equals(providerName, "Npgsql.EntityFrameworkCore.PostgreSQL", StringComparison.Ordinal))
+        {
+            logger?.LogDebug("Skipping swimlane schema migration for provider {ProviderName}", providerName);
+            return;
+        }
+
+        logger?.LogInformation("Checking Tracks swimlane schema compatibility...");
+
+        await db.Database.ExecuteSqlRawAsync("""
+            DO $$
+            BEGIN
+                IF to_regclass('public."BoardLists"') IS NOT NULL AND to_regclass('public."BoardSwimlanes"') IS NULL THEN
+                    ALTER TABLE "BoardLists" RENAME TO "BoardSwimlanes";
+                END IF;
+
+                IF EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name = 'Cards' AND column_name = 'ListId'
+                ) AND NOT EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name = 'Cards' AND column_name = 'SwimlaneId'
+                ) THEN
+                    ALTER TABLE "Cards" RENAME COLUMN "ListId" TO "SwimlaneId";
+                END IF;
+
+                IF to_regclass('public."ix_board_lists_board_position"') IS NOT NULL
+                    AND to_regclass('public."ix_board_swimlanes_board_position"') IS NULL THEN
+                    ALTER INDEX "ix_board_lists_board_position" RENAME TO "ix_board_swimlanes_board_position";
+                END IF;
+
+                IF to_regclass('public."ix_board_lists_is_archived"') IS NOT NULL
+                    AND to_regclass('public."ix_board_swimlanes_is_archived"') IS NULL THEN
+                    ALTER INDEX "ix_board_lists_is_archived" RENAME TO "ix_board_swimlanes_is_archived";
+                END IF;
+
+                IF to_regclass('public."ix_cards_list_position"') IS NOT NULL
+                    AND to_regclass('public."ix_cards_swimlane_position"') IS NULL THEN
+                    ALTER INDEX "ix_cards_list_position" RENAME TO "ix_cards_swimlane_position";
+                END IF;
+            END $$;
+            """, cancellationToken);
+
+        logger?.LogInformation("Tracks swimlane schema compatibility check complete");
     }
 }

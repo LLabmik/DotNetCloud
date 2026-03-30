@@ -35,7 +35,7 @@ public partial class CardDetailPanel : ComponentBase
     private string _dueDate = "";
     private string _storyPoints = "";
     private string _newCommentContent = "";
-    private string _listName = "";
+    private string _swimlaneName = "";
 
     // Pickers
     private bool _showAssignInput;
@@ -53,9 +53,9 @@ public partial class CardDetailPanel : ComponentBase
         _dueDate = Card.DueDate?.ToString("yyyy-MM-dd") ?? "";
         _storyPoints = Card.StoryPoints?.ToString() ?? "";
 
-        // Resolve list name
-        var list = Board.Lists.FirstOrDefault(l => l.Id == Card.ListId);
-        _listName = list?.Title ?? "Unknown";
+        // Resolve swimlane name
+        var swimlane = Board.Swimlanes.FirstOrDefault(l => l.Id == Card.SwimlaneId);
+        _swimlaneName = swimlane?.Title ?? "Unknown";
 
         // Load sub-resources in parallel
         var commentsTask = ApiClient.ListCommentsAsync(Card.Id);

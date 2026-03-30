@@ -97,42 +97,42 @@ public sealed class TracksApiClient : ITracksApiClient
         response.EnsureSuccessStatusCode();
     }
 
-    // ── Lists ───────────────────────────────────────────────
+    // ── Swimlanes ───────────────────────────────────────────
 
-    public async Task<IReadOnlyList<BoardListDto>> ListListsAsync(Guid boardId, CancellationToken ct = default)
-        => await ReadDataAsync<IReadOnlyList<BoardListDto>>($"api/v1/boards/{boardId}/lists", ct) ?? [];
+    public async Task<IReadOnlyList<BoardSwimlaneDto>> ListSwimlanesAsync(Guid boardId, CancellationToken ct = default)
+        => await ReadDataAsync<IReadOnlyList<BoardSwimlaneDto>>($"api/v1/boards/{boardId}/swimlanes", ct) ?? [];
 
-    public async Task<BoardListDto?> CreateListAsync(Guid boardId, CreateBoardListDto dto, CancellationToken ct = default)
+    public async Task<BoardSwimlaneDto?> CreateSwimlaneAsync(Guid boardId, CreateBoardSwimlaneDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/boards/{boardId}/lists", dto, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/boards/{boardId}/swimlanes", dto, ct);
         response.EnsureSuccessStatusCode();
-        return await ReadDataFromResponseAsync<BoardListDto>(response, ct);
+        return await ReadDataFromResponseAsync<BoardSwimlaneDto>(response, ct);
     }
 
-    public async Task<BoardListDto?> UpdateListAsync(Guid boardId, Guid listId, UpdateBoardListDto dto, CancellationToken ct = default)
+    public async Task<BoardSwimlaneDto?> UpdateSwimlaneAsync(Guid boardId, Guid swimlaneId, UpdateBoardSwimlaneDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PutAsJsonAsync($"api/v1/boards/{boardId}/lists/{listId}", dto, ct);
+        var response = await _httpClient.PutAsJsonAsync($"api/v1/boards/{boardId}/swimlanes/{swimlaneId}", dto, ct);
         response.EnsureSuccessStatusCode();
-        return await ReadDataFromResponseAsync<BoardListDto>(response, ct);
+        return await ReadDataFromResponseAsync<BoardSwimlaneDto>(response, ct);
     }
 
-    public async Task DeleteListAsync(Guid boardId, Guid listId, CancellationToken ct = default)
+    public async Task DeleteSwimlaneAsync(Guid boardId, Guid swimlaneId, CancellationToken ct = default)
     {
-        var response = await _httpClient.DeleteAsync($"api/v1/boards/{boardId}/lists/{listId}", ct);
+        var response = await _httpClient.DeleteAsync($"api/v1/boards/{boardId}/swimlanes/{swimlaneId}", ct);
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task ReorderListsAsync(Guid boardId, IReadOnlyList<Guid> listIds, CancellationToken ct = default)
+    public async Task ReorderSwimlanesAsync(Guid boardId, IReadOnlyList<Guid> swimlaneIds, CancellationToken ct = default)
     {
-        var response = await _httpClient.PutAsJsonAsync($"api/v1/boards/{boardId}/lists/reorder", new { ListIds = listIds }, ct);
+        var response = await _httpClient.PutAsJsonAsync($"api/v1/boards/{boardId}/swimlanes/reorder", new { SwimlaneIds = swimlaneIds }, ct);
         response.EnsureSuccessStatusCode();
     }
 
     // ── Cards ───────────────────────────────────────────────
 
-    public async Task<IReadOnlyList<CardDto>> ListCardsAsync(Guid listId, bool includeArchived = false, CancellationToken ct = default)
+    public async Task<IReadOnlyList<CardDto>> ListCardsAsync(Guid swimlaneId, bool includeArchived = false, CancellationToken ct = default)
     {
-        var url = $"api/v1/lists/{listId}/cards";
+        var url = $"api/v1/swimlanes/{swimlaneId}/cards";
         if (includeArchived) url += "?includeArchived=true";
         return await ReadDataAsync<IReadOnlyList<CardDto>>(url, ct) ?? [];
     }
@@ -140,9 +140,9 @@ public sealed class TracksApiClient : ITracksApiClient
     public Task<CardDto?> GetCardAsync(Guid cardId, CancellationToken ct = default)
         => ReadDataAsync<CardDto>($"api/v1/cards/{cardId}", ct);
 
-    public async Task<CardDto?> CreateCardAsync(Guid listId, CreateCardDto dto, CancellationToken ct = default)
+    public async Task<CardDto?> CreateCardAsync(Guid swimlaneId, CreateCardDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/lists/{listId}/cards", dto, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/swimlanes/{swimlaneId}/cards", dto, ct);
         response.EnsureSuccessStatusCode();
         return await ReadDataFromResponseAsync<CardDto>(response, ct);
     }

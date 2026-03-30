@@ -18,7 +18,7 @@ public class PokerServiceTests
     private BoardService _boardService = null!;
     private CallerContext _caller;
     private Board _board = null!;
-    private BoardList _list = null!;
+    private BoardSwimlane _swimlane = null!;
     private Card _card = null!;
 
     [TestInitialize]
@@ -32,8 +32,8 @@ public class PokerServiceTests
         _boardService = new BoardService(_db, mock.Object, activityService, teamService, NullLogger<BoardService>.Instance);
         _service = new PokerService(_db, _boardService, activityService, NullLogger<PokerService>.Instance);
         _board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId);
-        _list = await TestHelpers.SeedListAsync(_db, _board.Id);
-        _card = await TestHelpers.SeedCardAsync(_db, _list.Id, _caller.UserId);
+        _swimlane = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
+        _card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId);
     }
 
     [TestCleanup]

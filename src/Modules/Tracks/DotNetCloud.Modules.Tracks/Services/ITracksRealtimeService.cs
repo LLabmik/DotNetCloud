@@ -7,10 +7,10 @@ namespace DotNetCloud.Modules.Tracks.Services;
 public interface ITracksRealtimeService
 {
     /// <summary>Broadcasts a card action (created, updated, moved, deleted, assigned, unassigned) to board members.</summary>
-    Task BroadcastCardActionAsync(Guid boardId, Guid cardId, string action, Guid? fromListId = null, Guid? toListId = null, Guid? targetUserId = null, CancellationToken cancellationToken = default);
+    Task BroadcastCardActionAsync(Guid boardId, Guid cardId, string action, Guid? fromSwimlaneId = null, Guid? toSwimlaneId = null, Guid? targetUserId = null, CancellationToken cancellationToken = default);
 
-    /// <summary>Broadcasts a list action (created, updated, deleted) to board members.</summary>
-    Task BroadcastListActionAsync(Guid boardId, Guid listId, string action, CancellationToken cancellationToken = default);
+    /// <summary>Broadcasts a swimlane action (created, updated, deleted) to board members.</summary>
+    Task BroadcastSwimlaneActionAsync(Guid boardId, Guid swimlaneId, string action, CancellationToken cancellationToken = default);
 
     /// <summary>Broadcasts a comment action (added, updated, deleted) to board members.</summary>
     Task BroadcastCommentActionAsync(Guid boardId, Guid cardId, Guid commentId, string action, CancellationToken cancellationToken = default);

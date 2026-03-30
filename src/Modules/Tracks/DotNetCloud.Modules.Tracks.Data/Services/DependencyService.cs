@@ -37,14 +37,14 @@ public sealed class DependencyService
             throw new ValidationException(ErrorCodes.DependencyCycleDetected, "A card cannot depend on itself.");
 
         var card = await _db.Cards
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
 
-        await _boardService.EnsureBoardRoleAsync(card.List!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
+        await _boardService.EnsureBoardRoleAsync(card.Swimlane!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
 
         var dependsOnCard = await _db.Cards
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .FirstOrDefaultAsync(c => c.Id == dependsOnCardId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Depends-on card not found.");
 
@@ -77,7 +77,7 @@ public sealed class DependencyService
         _logger.LogInformation("Dependency added: Card {CardId} {Type} Card {DependsOnCardId} by user {UserId}",
             cardId, type, dependsOnCardId, caller.UserId);
 
-        await _activityService.LogAsync(card.List.BoardId, caller.UserId, "dependency.added", "CardDependency", dependency.Id,
+        await _activityService.LogAsync(card.Swimlane.BoardId, caller.UserId, "dependency.added", "CardDependency", dependency.Id,
             $"{{\"cardId\":\"{cardId}\",\"dependsOnCardId\":\"{dependsOnCardId}\",\"type\":\"{type}\"}}", cancellationToken);
 
         return new CardDependencyDto
@@ -96,11 +96,11 @@ public sealed class DependencyService
     {
         var card = await _db.Cards
             .AsNoTracking()
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
 
-        await _boardService.EnsureBoardMemberAsync(card.List!.BoardId, caller.UserId, cancellationToken);
+        await _boardService.EnsureBoardMemberAsync(card.Swimlane!.BoardId, caller.UserId, cancellationToken);
 
         var dependencies = await _db.CardDependencies
             .AsNoTracking()
@@ -123,11 +123,11 @@ public sealed class DependencyService
     public async Task RemoveDependencyAsync(Guid cardId, Guid dependsOnCardId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         var card = await _db.Cards
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
 
-        await _boardService.EnsureBoardRoleAsync(card.List!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
+        await _boardService.EnsureBoardRoleAsync(card.Swimlane!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
 
         var dependency = await _db.CardDependencies
             .FirstOrDefaultAsync(d => d.CardId == cardId && d.DependsOnCardId == dependsOnCardId, cancellationToken);
@@ -142,7 +142,7 @@ public sealed class DependencyService
         _logger.LogInformation("Dependency removed: Card {CardId} no longer depends on Card {DependsOnCardId}",
             cardId, dependsOnCardId);
 
-        await _activityService.LogAsync(card.List.BoardId, caller.UserId, "dependency.removed", "CardDependency", dependency.Id,
+        await _activityService.LogAsync(card.Swimlane.BoardId, caller.UserId, "dependency.removed", "CardDependency", dependency.Id,
             $"{{\"cardId\":\"{cardId}\",\"dependsOnCardId\":\"{dependsOnCardId}\"}}", cancellationToken);
     }
 

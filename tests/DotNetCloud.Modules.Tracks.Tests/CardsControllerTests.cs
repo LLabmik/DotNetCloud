@@ -19,7 +19,7 @@ public class CardsControllerTests
     private TracksDbContext _db = null!;
     private CardsController _controller = null!;
     private BoardService _boardService = null!;
-    private ListService _listService = null!;
+    private SwimlaneService _swimlaneService = null!;
     private CardService _cardService = null!;
     private readonly Guid _userId = Guid.NewGuid();
 
@@ -31,7 +31,7 @@ public class CardsControllerTests
         var activityService = new ActivityService(_db, new Mock<ILogger<ActivityService>>().Object);
         var teamService = new TeamService(_db, eventBus.Object, new Mock<ILogger<TeamService>>().Object);
         _boardService = new BoardService(_db, eventBus.Object, activityService, teamService, new Mock<ILogger<BoardService>>().Object);
-        _listService = new ListService(_db, _boardService, activityService, new Mock<ILogger<ListService>>().Object);
+        _swimlaneService = new SwimlaneService(_db, _boardService, activityService, new Mock<ILogger<SwimlaneService>>().Object);
         _cardService = new CardService(_db, _boardService, activityService, eventBus.Object, new Mock<ILogger<CardService>>().Object);
         var labelService = new LabelService(_db, _boardService, activityService, new Mock<ILogger<LabelService>>().Object);
 
@@ -55,7 +55,7 @@ public class CardsControllerTests
     {
         var caller = TestHelpers.CreateCaller(_userId);
         var board = await _boardService.CreateBoardAsync(new CreateBoardDto { Title = "Board" }, caller);
-        var list = await _listService.CreateListAsync(board.Id, new CreateBoardListDto { Title = "Todo" }, caller);
+        var list = await _swimlaneService.CreateSwimlaneAsync(board.Id, new CreateBoardSwimlaneDto { Title = "Todo" }, caller);
 
         var dto = new CreateCardDto
         {
@@ -86,7 +86,7 @@ public class CardsControllerTests
     [TestMethod]
     public async Task MoveCard_ReturnsNotFound_WhenCardDoesNotExist()
     {
-        var dto = new MoveCardDto { TargetListId = Guid.NewGuid(), Position = 1000 };
+        var dto = new MoveCardDto { TargetSwimlaneId = Guid.NewGuid(), Position = 1000 };
         var result = await _controller.MoveCardAsync(Guid.NewGuid(), dto);
         Assert.IsInstanceOfType<NotFoundObjectResult>(result);
     }

@@ -11,13 +11,13 @@ using Moq;
 namespace DotNetCloud.Modules.Tracks.Tests;
 
 /// <summary>
-/// Unit tests for <see cref="ListsController"/>.
+/// Unit tests for <see cref="SwimlanesController"/>.
 /// </summary>
 [TestClass]
-public class ListsControllerTests
+public class SwimlanesControllerTests
 {
     private TracksDbContext _db = null!;
-    private ListsController _controller = null!;
+    private SwimlanesController _controller = null!;
     private BoardService _boardService = null!;
     private readonly Guid _userId = Guid.NewGuid();
 
@@ -29,16 +29,16 @@ public class ListsControllerTests
         var activityService = new ActivityService(_db, new Mock<ILogger<ActivityService>>().Object);
         var teamService = new TeamService(_db, eventBus.Object, new Mock<ILogger<TeamService>>().Object);
         _boardService = new BoardService(_db, eventBus.Object, activityService, teamService, new Mock<ILogger<BoardService>>().Object);
-        var listService = new ListService(_db, _boardService, activityService, new Mock<ILogger<ListService>>().Object);
+        var swimlaneService = new SwimlaneService(_db, _boardService, activityService, new Mock<ILogger<SwimlaneService>>().Object);
 
-        _controller = new ListsController(listService, new Mock<ILogger<ListsController>>().Object);
+        _controller = new SwimlanesController(swimlaneService, new Mock<ILogger<SwimlanesController>>().Object);
         BoardsControllerTests.SetupControllerContext(_controller, _userId);
     }
 
     [TestMethod]
     public async Task ListLists_ReturnsNotFound_WhenBoardDoesNotExist()
     {
-        var result = await _controller.ListListsAsync(Guid.NewGuid());
+        var result = await _controller.ListSwimlanesAsync(Guid.NewGuid());
         Assert.IsInstanceOfType<NotFoundObjectResult>(result);
     }
 
@@ -47,31 +47,31 @@ public class ListsControllerTests
     {
         var caller = TestHelpers.CreateCaller(_userId);
         var board = await _boardService.CreateBoardAsync(new CreateBoardDto { Title = "Board" }, caller);
-        var dto = new CreateBoardListDto { Title = "Todo" };
-        var result = await _controller.CreateListAsync(board.Id, dto);
+        var dto = new CreateBoardSwimlaneDto { Title = "Todo" };
+        var result = await _controller.CreateSwimlaneAsync(board.Id, dto);
         Assert.IsInstanceOfType<CreatedResult>(result);
     }
 
     [TestMethod]
     public async Task CreateList_ReturnsNotFound_WhenBoardDoesNotExist()
     {
-        var dto = new CreateBoardListDto { Title = "Todo" };
-        var result = await _controller.CreateListAsync(Guid.NewGuid(), dto);
+        var dto = new CreateBoardSwimlaneDto { Title = "Todo" };
+        var result = await _controller.CreateSwimlaneAsync(Guid.NewGuid(), dto);
         Assert.IsInstanceOfType<NotFoundObjectResult>(result);
     }
 
     [TestMethod]
     public async Task DeleteList_ReturnsNotFound_WhenListDoesNotExist()
     {
-        var result = await _controller.DeleteListAsync(Guid.NewGuid(), Guid.NewGuid());
+        var result = await _controller.DeleteSwimlaneAsync(Guid.NewGuid(), Guid.NewGuid());
         Assert.IsInstanceOfType<NotFoundObjectResult>(result);
     }
 
     [TestMethod]
     public async Task UpdateList_ReturnsNotFound_WhenListDoesNotExist()
     {
-        var dto = new UpdateBoardListDto { Title = "Updated" };
-        var result = await _controller.UpdateListAsync(Guid.NewGuid(), Guid.NewGuid(), dto);
+        var dto = new UpdateBoardSwimlaneDto { Title = "Updated" };
+        var result = await _controller.UpdateSwimlaneAsync(Guid.NewGuid(), Guid.NewGuid(), dto);
         Assert.IsInstanceOfType<NotFoundObjectResult>(result);
     }
 }

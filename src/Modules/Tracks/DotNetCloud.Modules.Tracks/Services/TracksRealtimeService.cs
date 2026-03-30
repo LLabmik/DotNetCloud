@@ -26,19 +26,19 @@ internal sealed class TracksRealtimeService : ITracksRealtimeService
     private static string TeamGroup(Guid teamId) => $"tracks-team-{teamId}";
 
     /// <inheritdoc />
-    public async Task BroadcastCardActionAsync(Guid boardId, Guid cardId, string action, Guid? fromListId, Guid? toListId, Guid? targetUserId, CancellationToken cancellationToken)
+    public async Task BroadcastCardActionAsync(Guid boardId, Guid cardId, string action, Guid? fromSwimlaneId, Guid? toSwimlaneId, Guid? targetUserId, CancellationToken cancellationToken)
     {
         if (_broadcaster is null) return;
         await _broadcaster.BroadcastAsync(BoardGroup(boardId), "TracksCardAction",
-            new { boardId, cardId, action, fromListId, toListId, targetUserId }, cancellationToken);
+            new { boardId, cardId, action, fromSwimlaneId, toSwimlaneId, targetUserId }, cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task BroadcastListActionAsync(Guid boardId, Guid listId, string action, CancellationToken cancellationToken)
+    public async Task BroadcastSwimlaneActionAsync(Guid boardId, Guid swimlaneId, string action, CancellationToken cancellationToken)
     {
         if (_broadcaster is null) return;
-        await _broadcaster.BroadcastAsync(BoardGroup(boardId), "TracksListAction",
-            new { boardId, listId, action }, cancellationToken);
+        await _broadcaster.BroadcastAsync(BoardGroup(boardId), "TracksSwimlaneAction",
+            new { boardId, swimlaneId, action }, cancellationToken);
     }
 
     /// <inheritdoc />

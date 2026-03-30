@@ -22,10 +22,10 @@ public interface ITracksSignalRService
     event Action<Guid, Guid, string>? CardActionReceived;
 
     /// <summary>
-    /// Raised when a list action occurs on a board (created, updated, deleted).
-    /// Args: boardId, listId, action.
+    /// Raised when a swimlane action occurs on a board (created, updated, deleted).
+    /// Args: boardId, swimlaneId, action.
     /// </summary>
-    event Action<Guid, Guid, string>? ListActionReceived;
+    event Action<Guid, Guid, string>? SwimlaneActionReceived;
 
     /// <summary>
     /// Raised when a comment action occurs on a card (added, updated, deleted).
@@ -71,7 +71,7 @@ internal sealed class NullTracksSignalRService : ITracksSignalRService
 #pragma warning disable CS0067 // Event is never used — intentional for null-object stub
     public event Action<Guid, Guid, string>? CardActionReceived;
     /// <inheritdoc />
-    public event Action<Guid, Guid, string>? ListActionReceived;
+    public event Action<Guid, Guid, string>? SwimlaneActionReceived;
     /// <inheritdoc />
     public event Action<Guid, Guid, Guid, string>? CommentActionReceived;
     /// <inheritdoc />

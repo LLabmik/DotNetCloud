@@ -18,7 +18,7 @@ public class SprintServiceTests
     private Mock<IEventBus> _eventBusMock;
     private CallerContext _caller;
     private Board _board;
-    private BoardList _list;
+    private BoardSwimlane _swimlane;
 
     [TestInitialize]
     public async Task Setup()
@@ -31,7 +31,7 @@ public class SprintServiceTests
         var boardService = new BoardService(_db, _eventBusMock.Object, activityService, teamService, NullLogger<BoardService>.Instance);
         _service = new SprintService(_db, boardService, activityService, _eventBusMock.Object, NullLogger<SprintService>.Instance);
         _board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId);
-        _list = await TestHelpers.SeedListAsync(_db, _board.Id);
+        _swimlane = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
     }
 
     [TestCleanup]
@@ -191,7 +191,7 @@ public class SprintServiceTests
     public async Task AddCardToSprint_AddsCard()
     {
         var sprint = await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S1" }, _caller);
-        var card = await TestHelpers.SeedCardAsync(_db, _list.Id, _caller.UserId);
+        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId);
 
         await _service.AddCardToSprintAsync(sprint.Id, card.Id, _caller);
 
@@ -202,7 +202,7 @@ public class SprintServiceTests
     public async Task AddCardToSprint_AlreadyAdded_IsIdempotent()
     {
         var sprint = await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S1" }, _caller);
-        var card = await TestHelpers.SeedCardAsync(_db, _list.Id, _caller.UserId);
+        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId);
 
         await _service.AddCardToSprintAsync(sprint.Id, card.Id, _caller);
         await _service.AddCardToSprintAsync(sprint.Id, card.Id, _caller);
@@ -215,7 +215,7 @@ public class SprintServiceTests
     public async Task RemoveCardFromSprint_RemovesCard()
     {
         var sprint = await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S1" }, _caller);
-        var card = await TestHelpers.SeedCardAsync(_db, _list.Id, _caller.UserId);
+        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId);
         await _service.AddCardToSprintAsync(sprint.Id, card.Id, _caller);
 
         await _service.RemoveCardFromSprintAsync(sprint.Id, card.Id, _caller);

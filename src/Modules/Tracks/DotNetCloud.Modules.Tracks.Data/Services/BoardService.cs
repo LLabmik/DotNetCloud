@@ -131,7 +131,7 @@ public sealed class BoardService
             .AsNoTracking()
             .Include(b => b.Members)
             .Include(b => b.Labels)
-            .Include(b => b.Lists)
+            .Include(b => b.Swimlanes)
             .Where(b => allBoardIds.Contains(b.Id) && !b.IsDeleted);
 
         if (!includeArchived)
@@ -142,8 +142,8 @@ public sealed class BoardService
             .ToListAsync(cancellationToken);
 
         // Compute card counts for all active lists across all boards in a single query
-        var allListIds = boards.SelectMany(b => b.Lists.Where(l => !l.IsArchived).Select(l => l.Id)).ToList();
-        var cardCounts = await GetCardCountsByListAsync(allListIds, cancellationToken);
+        var allSwimlaneIds = boards.SelectMany(b => b.Swimlanes.Where(l => !l.IsArchived).Select(l => l.Id)).ToList();
+        var cardCounts = await GetCardCountsByListAsync(allSwimlaneIds, cancellationToken);
 
         var memberIds = boards.SelectMany(b => b.Members.Select(m => m.UserId)).Distinct().ToList();
         var displayNames = await ResolveDisplayNamesAsync(memberIds, cancellationToken);
@@ -340,12 +340,12 @@ public sealed class BoardService
             .AsNoTracking()
             .Include(b => b.Members)
             .Include(b => b.Labels)
-            .Include(b => b.Lists)
+            .Include(b => b.Swimlanes)
             .FirstOrDefaultAsync(b => b.Id == boardId && !b.IsDeleted, cancellationToken);
 
         if (board is null) return null;
 
-        var listIds = board.Lists.Where(l => !l.IsArchived).Select(l => l.Id).ToList();
+        var listIds = board.Swimlanes.Where(l => !l.IsArchived).Select(l => l.Id).ToList();
         var cardCounts = await GetCardCountsByListAsync(listIds, cancellationToken);
 
         var memberIds = board.Members.Select(m => m.UserId).Distinct().ToList();
@@ -359,10 +359,10 @@ public sealed class BoardService
         if (listIds.Count == 0) return new Dictionary<Guid, int>();
 
         return await _db.Cards
-            .Where(c => listIds.Contains(c.ListId) && !c.IsDeleted && !c.IsArchived)
-            .GroupBy(c => c.ListId)
-            .Select(g => new { ListId = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.ListId, x => x.Count, cancellationToken);
+            .Where(c => listIds.Contains(c.SwimlaneId) && !c.IsDeleted && !c.IsArchived)
+            .GroupBy(c => c.SwimlaneId)
+            .Select(g => new { SwimlaneId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.SwimlaneId, x => x.Count, cancellationToken);
     }
 
     private async Task<IReadOnlyDictionary<Guid, string>> ResolveDisplayNamesAsync(IReadOnlyList<Guid> userIds, CancellationToken cancellationToken)
@@ -394,7 +394,7 @@ public sealed class BoardService
             Role = m.Role,
             JoinedAt = m.JoinedAt
         }).ToList(),
-        Lists = b.Lists.Where(l => !l.IsArchived).OrderBy(l => l.Position).Select(l => new BoardListDto
+        Swimlanes = b.Swimlanes.Where(l => !l.IsArchived).OrderBy(l => l.Position).Select(l => new BoardSwimlaneDto
         {
             Id = l.Id,
             BoardId = l.BoardId,

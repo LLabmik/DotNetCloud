@@ -19,7 +19,7 @@ public static class TracksServiceRegistration
         services.AddScoped<ActivityService>();
         services.AddScoped<TeamService>();
         services.AddScoped<BoardService>();
-        services.AddScoped<ListService>();
+        services.AddScoped<SwimlaneService>();
         services.AddScoped<CardService>();
         services.AddScoped<LabelService>();
         services.AddScoped<CommentService>();

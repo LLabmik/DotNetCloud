@@ -5,12 +5,12 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 namespace DotNetCloud.Modules.Tracks.Data.Configuration;
 
 /// <summary>
-/// EF Core configuration for the <see cref="BoardList"/> entity.
+/// EF Core configuration for the <see cref="BoardSwimlane"/> entity.
 /// </summary>
-public sealed class BoardListConfiguration : IEntityTypeConfiguration<BoardList>
+public sealed class BoardSwimlaneConfiguration : IEntityTypeConfiguration<BoardSwimlane>
 {
     /// <inheritdoc />
-    public void Configure(EntityTypeBuilder<BoardList> builder)
+    public void Configure(EntityTypeBuilder<BoardSwimlane> builder)
     {
         builder.HasKey(l => l.Id);
 
@@ -33,15 +33,15 @@ public sealed class BoardListConfiguration : IEntityTypeConfiguration<BoardList>
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
         builder.HasOne(l => l.Board)
-            .WithMany(b => b.Lists)
+            .WithMany(b => b.Swimlanes)
             .HasForeignKey(l => l.BoardId)
             .OnDelete(DeleteBehavior.Cascade);
 
         // Indexes
         builder.HasIndex(l => new { l.BoardId, l.Position })
-            .HasDatabaseName("ix_board_lists_board_position");
+            .HasDatabaseName("ix_board_swimlanes_board_position");
 
         builder.HasIndex(l => l.IsArchived)
-            .HasDatabaseName("ix_board_lists_is_archived");
+            .HasDatabaseName("ix_board_swimlanes_is_archived");
     }
 }

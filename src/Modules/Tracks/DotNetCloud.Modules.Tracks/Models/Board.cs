@@ -42,7 +42,7 @@ public sealed class Board
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>Lists (columns) belonging to this board.</summary>
-    public ICollection<BoardList> Lists { get; set; } = new List<BoardList>();
+    public ICollection<BoardSwimlane> Swimlanes { get; set; } = new List<BoardSwimlane>();
 
     /// <summary>Members who have access to this board.</summary>
     public ICollection<BoardMember> Members { get; set; } = new List<BoardMember>();

@@ -18,14 +18,14 @@ public partial class TracksPage : ComponentBase, IDisposable
     private bool _isLoading = true;
     private string? _errorMessage;
 
-    // Board list state
+    // Board overview state
     private readonly List<BoardDto> _boards = [];
     private readonly List<TracksTeamDto> _teams = [];
 
     // Active board state
     private BoardDto? _selectedBoard;
-    private readonly List<BoardListDto> _boardLists = [];
-    private readonly Dictionary<Guid, List<CardDto>> _cardsByList = new();
+    private readonly List<BoardSwimlaneDto> _boardSwimlanes = [];
+    private readonly Dictionary<Guid, List<CardDto>> _cardsBySwimlane = new();
     private readonly List<SprintDto> _sprints = [];
 
     // Card detail
@@ -70,7 +70,7 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     // ── Navigation ──────────────────────────────────────────
 
-    private void ShowBoardList()
+    private void ShowBoardSwimlane()
     {
         _view = TracksView.Boards;
         _selectedBoard = null;
@@ -132,21 +132,21 @@ public partial class TracksPage : ComponentBase, IDisposable
     {
         if (_selectedBoard is null) return;
 
-        var listsTask = ApiClient.ListListsAsync(_selectedBoard.Id);
+        var swimlanesTask = ApiClient.ListSwimlanesAsync(_selectedBoard.Id);
         var sprintsTask = ApiClient.ListSprintsAsync(_selectedBoard.Id);
-        await Task.WhenAll(listsTask, sprintsTask);
+        await Task.WhenAll(swimlanesTask, sprintsTask);
 
-        _boardLists.Clear();
-        _boardLists.AddRange((await listsTask).OrderBy(l => l.Position));
+        _boardSwimlanes.Clear();
+        _boardSwimlanes.AddRange((await swimlanesTask).OrderBy(swimlane => swimlane.Position));
 
         _sprints.Clear();
         _sprints.AddRange(await sprintsTask);
 
-        _cardsByList.Clear();
-        foreach (var list in _boardLists)
+        _cardsBySwimlane.Clear();
+        foreach (var swimlane in _boardSwimlanes)
         {
-            var cards = await ApiClient.ListCardsAsync(list.Id);
-            _cardsByList[list.Id] = cards.OrderBy(c => c.Position).ToList();
+            var cards = await ApiClient.ListCardsAsync(swimlane.Id);
+            _cardsBySwimlane[swimlane.Id] = cards.OrderBy(c => c.Position).ToList();
         }
     }
 
@@ -214,7 +214,7 @@ public partial class TracksPage : ComponentBase, IDisposable
         _boards.RemoveAll(b => b.Id == boardId);
         if (_selectedBoard?.Id == boardId)
         {
-            ShowBoardList();
+            ShowBoardSwimlane();
         }
         await Task.CompletedTask;
     }
@@ -230,7 +230,7 @@ public partial class TracksPage : ComponentBase, IDisposable
     private async Task HandleBoardDeletedFromSettings(Guid boardId)
     {
         await HandleBoardDeleted(boardId);
-        ShowBoardList();
+        ShowBoardSwimlane();
         await LoadInitialDataAsync();
     }
 
@@ -238,13 +238,13 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     private async Task HandleCardMoved(CardDto card)
     {
-        // Remove from old list, add to new
-        foreach (var (_, cards) in _cardsByList)
+        // Remove from the previous swimlane, then add to the new swimlane.
+        foreach (var (_, cards) in _cardsBySwimlane)
         {
             cards.RemoveAll(c => c.Id == card.Id);
         }
 
-        if (_cardsByList.TryGetValue(card.ListId, out var targetCards))
+        if (_cardsBySwimlane.TryGetValue(card.SwimlaneId, out var targetCards))
         {
             targetCards.Add(card);
             targetCards.Sort((a, b) => a.Position.CompareTo(b.Position));
@@ -255,7 +255,7 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     private async Task HandleCardCreated(CardDto card)
     {
-        if (_cardsByList.TryGetValue(card.ListId, out var cards))
+        if (_cardsBySwimlane.TryGetValue(card.SwimlaneId, out var cards))
         {
             cards.Add(card);
             cards.Sort((a, b) => a.Position.CompareTo(b.Position));
@@ -267,7 +267,7 @@ public partial class TracksPage : ComponentBase, IDisposable
     {
         _selectedCard = card;
 
-        foreach (var (_, cards) in _cardsByList)
+        foreach (var (_, cards) in _cardsBySwimlane)
         {
             var index = cards.FindIndex(c => c.Id == card.Id);
             if (index >= 0)
@@ -281,7 +281,7 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     private async Task HandleCardDeleted(Guid cardId)
     {
-        foreach (var (_, cards) in _cardsByList)
+        foreach (var (_, cards) in _cardsBySwimlane)
         {
             cards.RemoveAll(c => c.Id == cardId);
         }
@@ -293,20 +293,20 @@ public partial class TracksPage : ComponentBase, IDisposable
         await Task.CompletedTask;
     }
 
-    // ── List Events ─────────────────────────────────────────
+    // ── Swimlane Events ─────────────────────────────────────
 
-    private async Task HandleListCreated(BoardListDto list)
+    private async Task HandleSwimlaneCreated(BoardSwimlaneDto swimlane)
     {
-        _boardLists.Add(list);
-        _boardLists.Sort((a, b) => a.Position.CompareTo(b.Position));
-        _cardsByList[list.Id] = [];
+        _boardSwimlanes.Add(swimlane);
+        _boardSwimlanes.Sort((a, b) => a.Position.CompareTo(b.Position));
+        _cardsBySwimlane[swimlane.Id] = [];
         await Task.CompletedTask;
     }
 
-    private async Task HandleListDeleted(Guid listId)
+    private async Task HandleSwimlaneDeleted(Guid swimlaneId)
     {
-        _boardLists.RemoveAll(l => l.Id == listId);
-        _cardsByList.Remove(listId);
+        _boardSwimlanes.RemoveAll(l => l.Id == swimlaneId);
+        _cardsBySwimlane.Remove(swimlaneId);
         await Task.CompletedTask;
     }
 
@@ -321,7 +321,7 @@ public partial class TracksPage : ComponentBase, IDisposable
     public void Dispose()
     {
         SignalRService.CardActionReceived -= OnCardActionReceived;
-        SignalRService.ListActionReceived -= OnListActionReceived;
+        SignalRService.SwimlaneActionReceived -= OnSwimlaneActionReceived;
         SignalRService.CommentActionReceived -= OnCommentActionReceived;
         SignalRService.SprintActionReceived -= OnSprintActionReceived;
         SignalRService.BoardMemberActionReceived -= OnBoardMemberActionReceived;
@@ -332,7 +332,7 @@ public partial class TracksPage : ComponentBase, IDisposable
     private void SubscribeToRealtimeEvents()
     {
         SignalRService.CardActionReceived += OnCardActionReceived;
-        SignalRService.ListActionReceived += OnListActionReceived;
+        SignalRService.SwimlaneActionReceived += OnSwimlaneActionReceived;
         SignalRService.CommentActionReceived += OnCommentActionReceived;
         SignalRService.SprintActionReceived += OnSprintActionReceived;
         SignalRService.BoardMemberActionReceived += OnBoardMemberActionReceived;
@@ -348,7 +348,7 @@ public partial class TracksPage : ComponentBase, IDisposable
         });
     }
 
-    private async void OnListActionReceived(Guid boardId, Guid listId, string action)
+    private async void OnSwimlaneActionReceived(Guid boardId, Guid swimlaneId, string action)
     {
         if (_selectedBoard?.Id != boardId) return;
         await InvokeAsync(async () =>

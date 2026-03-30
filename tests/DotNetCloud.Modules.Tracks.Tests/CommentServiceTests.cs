@@ -17,7 +17,7 @@ public class CommentServiceTests
     private Mock<IEventBus> _eventBusMock;
     private CallerContext _caller;
     private Board _board;
-    private BoardList _list;
+    private BoardSwimlane _swimlane;
     private Card _card;
 
     [TestInitialize]
@@ -31,8 +31,8 @@ public class CommentServiceTests
         var boardService = new BoardService(_db, _eventBusMock.Object, activityService, teamService, NullLogger<BoardService>.Instance);
         _service = new CommentService(_db, boardService, activityService, _eventBusMock.Object, NullLogger<CommentService>.Instance);
         _board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId);
-        _list = await TestHelpers.SeedListAsync(_db, _board.Id);
-        _card = await TestHelpers.SeedCardAsync(_db, _list.Id, _caller.UserId);
+        _swimlane = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
+        _card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId);
     }
 
     [TestCleanup]

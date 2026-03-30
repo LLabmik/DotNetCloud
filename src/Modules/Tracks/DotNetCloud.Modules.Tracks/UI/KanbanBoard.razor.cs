@@ -6,20 +6,20 @@ using Microsoft.AspNetCore.Components.Web;
 namespace DotNetCloud.Modules.Tracks.UI;
 
 /// <summary>
-/// Full kanban board with drag-and-drop cards between lists.
+/// Full kanban board with drag-and-drop cards between swimlanes.
 /// </summary>
 public partial class KanbanBoard : ComponentBase
 {
     [Inject] private ITracksApiClient ApiClient { get; set; } = default!;
 
     [Parameter, EditorRequired] public BoardDto Board { get; set; } = default!;
-    [Parameter, EditorRequired] public List<BoardListDto> Lists { get; set; } = [];
-    [Parameter, EditorRequired] public Dictionary<Guid, List<CardDto>> CardsByList { get; set; } = new();
+    [Parameter, EditorRequired] public List<BoardSwimlaneDto> Swimlanes { get; set; } = [];
+    [Parameter, EditorRequired] public Dictionary<Guid, List<CardDto>> CardsBySwimlane { get; set; } = new();
     [Parameter] public EventCallback<Guid> OnCardSelected { get; set; }
     [Parameter] public EventCallback<CardDto> OnCardMoved { get; set; }
     [Parameter] public EventCallback<CardDto> OnCardCreated { get; set; }
-    [Parameter] public EventCallback<BoardListDto> OnListCreated { get; set; }
-    [Parameter] public EventCallback<Guid> OnListDeleted { get; set; }
+    [Parameter] public EventCallback<BoardSwimlaneDto> OnSwimlaneCreated { get; set; }
+    [Parameter] public EventCallback<Guid> OnSwimlaneDeleted { get; set; }
     [Parameter] public EventCallback OnRefreshRequested { get; set; }
 
     // Filters
@@ -28,19 +28,19 @@ public partial class KanbanBoard : ComponentBase
     private string _labelFilter = "";
 
     // Card add
-    private Guid? _addingCardToList;
+    private Guid? _addingCardToSwimlane;
     private string _newCardTitle = "";
 
-    // List add
-    private bool _showAddList;
-    private string _newListTitle = "";
+    // Swimlane add
+    private bool _showAddSwimlane;
+    private string _newSwimlaneTitle = "";
 
     // Drag state
     private CardDto? _draggedCard;
 
-    private IReadOnlyList<CardDto> GetFilteredCards(Guid listId)
+    private IReadOnlyList<CardDto> GetFilteredCards(Guid swimlaneId)
     {
-        if (!CardsByList.TryGetValue(listId, out var cards)) return [];
+        if (!CardsBySwimlane.TryGetValue(swimlaneId, out var cards)) return [];
 
         IEnumerable<CardDto> filtered = cards.Where(c => !c.IsArchived && !c.IsDeleted);
 
@@ -70,23 +70,23 @@ public partial class KanbanBoard : ComponentBase
 
     private void HandleDragOver() { /* Allow drop */ }
 
-    private async Task HandleDropOnList(Guid targetListId)
+    private async Task HandleDropOnSwimlane(Guid targetSwimlaneId)
     {
         if (_draggedCard is null) return;
 
         var card = _draggedCard;
         _draggedCard = null;
 
-        if (card.ListId == targetListId) return;
+        if (card.SwimlaneId == targetSwimlaneId) return;
 
         try
         {
-            var targetCards = CardsByList.TryGetValue(targetListId, out var tc) ? tc : [];
+            var targetCards = CardsBySwimlane.TryGetValue(targetSwimlaneId, out var tc) ? tc : [];
             var position = targetCards.Count > 0 ? targetCards.Max(c => c.Position) + 1000 : 1000;
 
             var moved = await ApiClient.MoveCardAsync(card.Id, new MoveCardDto
             {
-                TargetListId = targetListId,
+                TargetSwimlaneId = targetSwimlaneId,
                 Position = position
             });
 
@@ -103,15 +103,15 @@ public partial class KanbanBoard : ComponentBase
 
     // ── Add Card ────────────────────────────────────────────
 
-    private void BeginAddCard(Guid listId)
+    private void BeginAddCard(Guid swimlaneId)
     {
-        _addingCardToList = listId;
+        _addingCardToSwimlane = swimlaneId;
         _newCardTitle = "";
     }
 
     private void CancelAddCard()
     {
-        _addingCardToList = null;
+        _addingCardToSwimlane = null;
         _newCardTitle = "";
     }
 
@@ -123,11 +123,11 @@ public partial class KanbanBoard : ComponentBase
 
     private async Task SubmitNewCardAsync()
     {
-        if (_addingCardToList is null || string.IsNullOrWhiteSpace(_newCardTitle)) return;
+        if (_addingCardToSwimlane is null || string.IsNullOrWhiteSpace(_newCardTitle)) return;
 
         try
         {
-            var card = await ApiClient.CreateCardAsync(_addingCardToList.Value, new CreateCardDto
+            var card = await ApiClient.CreateCardAsync(_addingCardToSwimlane.Value, new CreateCardDto
             {
                 Title = _newCardTitle.Trim()
             });
@@ -145,45 +145,45 @@ public partial class KanbanBoard : ComponentBase
         }
     }
 
-    // ── Add List ────────────────────────────────────────────
+    // ── Add Swimlane ────────────────────────────────────────
 
-    private async Task HandleAddListKeyDown(KeyboardEventArgs e)
+    private async Task HandleAddSwimlaneKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter") await SubmitNewListAsync();
-        else if (e.Key == "Escape") _showAddList = false;
+        if (e.Key == "Enter") await SubmitNewSwimlaneAsync();
+        else if (e.Key == "Escape") _showAddSwimlane = false;
     }
 
-    private async Task SubmitNewListAsync()
+    private async Task SubmitNewSwimlaneAsync()
     {
-        if (string.IsNullOrWhiteSpace(_newListTitle)) return;
+        if (string.IsNullOrWhiteSpace(_newSwimlaneTitle)) return;
 
         try
         {
-            var list = await ApiClient.CreateListAsync(Board.Id, new CreateBoardListDto
+            var swimlane = await ApiClient.CreateSwimlaneAsync(Board.Id, new CreateBoardSwimlaneDto
             {
-                Title = _newListTitle.Trim()
+                Title = _newSwimlaneTitle.Trim()
             });
 
-            if (list is not null)
+            if (swimlane is not null)
             {
-                await OnListCreated.InvokeAsync(list);
+                await OnSwimlaneCreated.InvokeAsync(swimlane);
             }
 
-            _newListTitle = "";
-            _showAddList = false;
+            _newSwimlaneTitle = "";
+            _showAddSwimlane = false;
         }
         catch
         {
-            // List creation failed
+            // Swimlane creation failed
         }
     }
 
-    private async Task DeleteListAsync(Guid listId)
+    private async Task DeleteSwimlaneAsync(Guid swimlaneId)
     {
         try
         {
-            await ApiClient.DeleteListAsync(Board.Id, listId);
-            await OnListDeleted.InvokeAsync(listId);
+            await ApiClient.DeleteSwimlaneAsync(Board.Id, swimlaneId);
+            await OnSwimlaneDeleted.InvokeAsync(swimlaneId);
         }
         catch
         {

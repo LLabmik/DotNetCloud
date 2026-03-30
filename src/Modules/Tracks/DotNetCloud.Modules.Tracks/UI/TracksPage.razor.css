@@ -632,7 +632,7 @@
 }
 
 ::deep .tracks-add-card-btn,
-::deep .tracks-add-list-btn {
+::deep .tracks-add-swimlane-btn {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -649,13 +649,13 @@
 }
 
 ::deep .tracks-add-card-btn:hover,
-::deep .tracks-add-list-btn:hover {
+::deep .tracks-add-swimlane-btn:hover {
     background: var(--color-bg);
     color: var(--color-text);
 }
 
-/* Add list column */
-::deep .tracks-add-list-column {
+/* Add swimlane column */
+::deep .tracks-add-swimlane-column {
     flex-shrink: 0;
     width: 300px;
     display: flex;

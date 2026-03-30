@@ -29,19 +29,19 @@ public interface ITracksApiClient
     Task<LabelDto?> UpdateLabelAsync(Guid boardId, Guid labelId, UpdateLabelDto dto, CancellationToken ct = default);
     Task DeleteLabelAsync(Guid boardId, Guid labelId, CancellationToken ct = default);
 
-    // ── Lists ───────────────────────────────────────────────
+    // ── Swimlanes ───────────────────────────────────────────
 
-    Task<IReadOnlyList<BoardListDto>> ListListsAsync(Guid boardId, CancellationToken ct = default);
-    Task<BoardListDto?> CreateListAsync(Guid boardId, CreateBoardListDto dto, CancellationToken ct = default);
-    Task<BoardListDto?> UpdateListAsync(Guid boardId, Guid listId, UpdateBoardListDto dto, CancellationToken ct = default);
-    Task DeleteListAsync(Guid boardId, Guid listId, CancellationToken ct = default);
-    Task ReorderListsAsync(Guid boardId, IReadOnlyList<Guid> listIds, CancellationToken ct = default);
+    Task<IReadOnlyList<BoardSwimlaneDto>> ListSwimlanesAsync(Guid boardId, CancellationToken ct = default);
+    Task<BoardSwimlaneDto?> CreateSwimlaneAsync(Guid boardId, CreateBoardSwimlaneDto dto, CancellationToken ct = default);
+    Task<BoardSwimlaneDto?> UpdateSwimlaneAsync(Guid boardId, Guid swimlaneId, UpdateBoardSwimlaneDto dto, CancellationToken ct = default);
+    Task DeleteSwimlaneAsync(Guid boardId, Guid swimlaneId, CancellationToken ct = default);
+    Task ReorderSwimlanesAsync(Guid boardId, IReadOnlyList<Guid> swimlaneIds, CancellationToken ct = default);
 
     // ── Cards ───────────────────────────────────────────────
 
-    Task<IReadOnlyList<CardDto>> ListCardsAsync(Guid listId, bool includeArchived = false, CancellationToken ct = default);
+    Task<IReadOnlyList<CardDto>> ListCardsAsync(Guid swimlaneId, bool includeArchived = false, CancellationToken ct = default);
     Task<CardDto?> GetCardAsync(Guid cardId, CancellationToken ct = default);
-    Task<CardDto?> CreateCardAsync(Guid listId, CreateCardDto dto, CancellationToken ct = default);
+    Task<CardDto?> CreateCardAsync(Guid swimlaneId, CreateCardDto dto, CancellationToken ct = default);
     Task<CardDto?> UpdateCardAsync(Guid cardId, UpdateCardDto dto, CancellationToken ct = default);
     Task DeleteCardAsync(Guid cardId, CancellationToken ct = default);
     Task<CardDto?> MoveCardAsync(Guid cardId, MoveCardDto dto, CancellationToken ct = default);

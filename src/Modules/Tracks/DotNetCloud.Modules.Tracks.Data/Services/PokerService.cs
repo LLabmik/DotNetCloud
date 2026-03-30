@@ -47,11 +47,11 @@ public sealed class PokerService
         ArgumentNullException.ThrowIfNull(dto);
 
         var card = await _db.Cards
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
 
-        await _boardService.EnsureBoardRoleAsync(card.List!.BoardId, caller.UserId, BoardMemberRole.Admin, cancellationToken);
+        await _boardService.EnsureBoardRoleAsync(card.Swimlane!.BoardId, caller.UserId, BoardMemberRole.Admin, cancellationToken);
 
         // Check for active session
         var activeExists = await _db.PokerSessions
@@ -65,7 +65,7 @@ public sealed class PokerService
         var session = new PokerSession
         {
             CardId = cardId,
-            BoardId = card.List.BoardId,
+            BoardId = card.Swimlane.BoardId,
             CreatedByUserId = caller.UserId,
             Scale = dto.Scale,
             CustomScaleValues = dto.CustomScaleValues,
@@ -79,7 +79,7 @@ public sealed class PokerService
         _logger.LogInformation("Poker session {SessionId} started for card {CardId} by user {UserId}",
             session.Id, cardId, caller.UserId);
 
-        await _activityService.LogAsync(card.List.BoardId, caller.UserId, "poker.started", "PokerSession", session.Id,
+        await _activityService.LogAsync(card.Swimlane.BoardId, caller.UserId, "poker.started", "PokerSession", session.Id,
             $"{{\"cardId\":\"{cardId}\",\"scale\":\"{dto.Scale}\"}}", cancellationToken);
 
         return MapToDto(session);
@@ -109,12 +109,12 @@ public sealed class PokerService
     public async Task<IReadOnlyList<PokerSessionDto>> GetCardSessionsAsync(Guid cardId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         var card = await _db.Cards
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
 
-        await _boardService.EnsureBoardMemberAsync(card.List!.BoardId, caller.UserId, cancellationToken);
+        await _boardService.EnsureBoardMemberAsync(card.Swimlane!.BoardId, caller.UserId, cancellationToken);
 
         var sessions = await _db.PokerSessions
             .AsNoTracking()

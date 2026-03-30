@@ -8,7 +8,7 @@
 ## Table of Contents
 
 - [Boards](#boards)
-- [Lists](#lists)
+- [Swimlanes](#swimlanes)
 - [Cards](#cards)
 - [Comments](#comments)
 - [Checklists](#checklists)
@@ -256,7 +256,7 @@ DELETE /api/v1/boards/{boardId}/labels/{labelId}
 GET /api/v1/boards/{boardId}/export
 ```
 
-Exports the board as JSON including lists, cards, labels, and members.
+Exports the board as JSON including swimlanes, cards, labels, and members.
 
 **Response:** `200 OK` — JSON export object
 
@@ -276,25 +276,25 @@ Creates a new board from an exported JSON structure.
 
 ---
 
-## Lists
+## Swimlanes
 
-### List Lists
+### List Swimlanes
 
 ```
-GET /api/v1/boards/{boardId}/lists
+GET /api/v1/boards/{boardId}/swimlanes
 ```
 
-**Response:** `200 OK` — `BoardListDto[]`
+**Response:** `200 OK` — `BoardSwimlaneDto[]`
 
 ---
 
-### Create List
+### Create Swimlane
 
 ```
-POST /api/v1/boards/{boardId}/lists
+POST /api/v1/boards/{boardId}/swimlanes
 ```
 
-**Request Body:** `CreateBoardListDto`
+**Request Body:** `CreateBoardSwimlaneDto`
 
 ```json
 {
@@ -304,17 +304,17 @@ POST /api/v1/boards/{boardId}/lists
 }
 ```
 
-**Response:** `201 Created` — `BoardListDto`
+**Response:** `201 Created` — `BoardSwimlaneDto`
 
 ---
 
-### Update List
+### Update Swimlane
 
 ```
-PUT /api/v1/boards/{boardId}/lists/{listId}
+PUT /api/v1/boards/{boardId}/swimlanes/{swimlaneId}
 ```
 
-**Request Body:** `UpdateBoardListDto`
+**Request Body:** `UpdateBoardSwimlaneDto`
 
 ```json
 {
@@ -324,31 +324,31 @@ PUT /api/v1/boards/{boardId}/lists/{listId}
 }
 ```
 
-**Response:** `200 OK` — `BoardListDto`
+**Response:** `200 OK` — `BoardSwimlaneDto`
 
 ---
 
-### Delete List
+### Delete Swimlane
 
 ```
-DELETE /api/v1/boards/{boardId}/lists/{listId}
+DELETE /api/v1/boards/{boardId}/swimlanes/{swimlaneId}
 ```
 
 **Response:** `204 No Content`
 
 ---
 
-### Reorder Lists
+### Reorder Swimlanes
 
 ```
-PUT /api/v1/boards/{boardId}/lists/reorder
+PUT /api/v1/boards/{boardId}/swimlanes/reorder
 ```
 
-**Request Body:** `ReorderListsRequest`
+**Request Body:** `ReorderSwimlanesRequest`
 
 ```json
 {
-  "listIds": [
+  "swimlaneIds": [
     "11111111-1111-1111-1111-111111111111",
     "22222222-2222-2222-2222-222222222222",
     "33333333-3333-3333-3333-333333333333"
@@ -365,7 +365,7 @@ PUT /api/v1/boards/{boardId}/lists/reorder
 ### List Cards
 
 ```
-GET /api/v1/lists/{listId}/cards
+GET /api/v1/swimlanes/{swimlaneId}/cards
 ```
 
 **Response:** `200 OK` — `CardDto[]`
@@ -385,7 +385,7 @@ GET /api/v1/cards/{cardId}
 ### Create Card
 
 ```
-POST /api/v1/lists/{listId}/cards
+POST /api/v1/swimlanes/{swimlaneId}/cards
 ```
 
 **Request Body:** `CreateCardDto`
@@ -451,7 +451,7 @@ PUT /api/v1/cards/{cardId}/move
 
 ```json
 {
-  "targetListId": "22222222-2222-2222-2222-222222222222",
+  "targetSwimlaneId": "22222222-2222-2222-2222-222222222222",
   "position": 10000
 }
 ```
@@ -1336,7 +1336,7 @@ POST /api/v1/boards/{boardId}/bulk/cards/move
     "11111111-1111-1111-1111-111111111111",
     "22222222-2222-2222-2222-222222222222"
   ],
-  "targetListId": "33333333-3333-3333-3333-333333333333"
+  "targetSwimlaneId": "33333333-3333-3333-3333-333333333333"
 }
 ```
 

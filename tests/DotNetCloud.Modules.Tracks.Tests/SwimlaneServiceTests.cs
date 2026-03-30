@@ -11,10 +11,10 @@ using DotNetCloud.Core.Events;
 namespace DotNetCloud.Modules.Tracks.Tests;
 
 [TestClass]
-public class ListServiceTests
+public class SwimlaneServiceTests
 {
     private TracksDbContext _db;
-    private ListService _service;
+    private SwimlaneService _service;
     private BoardService _boardService;
     private CallerContext _caller;
     private Board _board;
@@ -27,7 +27,7 @@ public class ListServiceTests
         var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
         var teamService = new TeamService(_db, new Mock<IEventBus>().Object, NullLogger<TeamService>.Instance);
         _boardService = new BoardService(_db, new Mock<IEventBus>().Object, activityService, teamService, NullLogger<BoardService>.Instance);
-        _service = new ListService(_db, _boardService, activityService, NullLogger<ListService>.Instance);
+        _service = new SwimlaneService(_db, _boardService, activityService, NullLogger<SwimlaneService>.Instance);
         _board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId);
     }
 
@@ -39,9 +39,9 @@ public class ListServiceTests
     [TestMethod]
     public async Task CreateList_ValidDto_ReturnsList()
     {
-        var dto = new CreateBoardListDto { Title = "To Do", Color = "#00FF00", CardLimit = 5 };
+        var dto = new CreateBoardSwimlaneDto { Title = "To Do", Color = "#00FF00", CardLimit = 5 };
 
-        var result = await _service.CreateListAsync(_board.Id, dto, _caller);
+        var result = await _service.CreateSwimlaneAsync(_board.Id, dto, _caller);
 
         Assert.IsNotNull(result);
         Assert.AreEqual("To Do", result.Title);
@@ -53,8 +53,8 @@ public class ListServiceTests
     [TestMethod]
     public async Task CreateList_PositionAppendsAfterLast()
     {
-        await _service.CreateListAsync(_board.Id, new CreateBoardListDto { Title = "First" }, _caller);
-        var second = await _service.CreateListAsync(_board.Id, new CreateBoardListDto { Title = "Second" }, _caller);
+        await _service.CreateSwimlaneAsync(_board.Id, new CreateBoardSwimlaneDto { Title = "First" }, _caller);
+        var second = await _service.CreateSwimlaneAsync(_board.Id, new CreateBoardSwimlaneDto { Title = "Second" }, _caller);
 
         Assert.IsTrue(second.Position > 0);
     }
@@ -66,7 +66,7 @@ public class ListServiceTests
         await TestHelpers.AddMemberAsync(_db, _board.Id, viewerCaller.UserId, BoardMemberRole.Viewer);
 
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _service.CreateListAsync(_board.Id, new CreateBoardListDto { Title = "Nope" }, viewerCaller));
+            () => _service.CreateSwimlaneAsync(_board.Id, new CreateBoardSwimlaneDto { Title = "Nope" }, viewerCaller));
     }
 
     // ─── Get Lists ────────────────────────────────────────────────────
@@ -74,10 +74,10 @@ public class ListServiceTests
     [TestMethod]
     public async Task GetLists_ReturnsOrderedLists()
     {
-        await _service.CreateListAsync(_board.Id, new CreateBoardListDto { Title = "A" }, _caller);
-        await _service.CreateListAsync(_board.Id, new CreateBoardListDto { Title = "B" }, _caller);
+        await _service.CreateSwimlaneAsync(_board.Id, new CreateBoardSwimlaneDto { Title = "A" }, _caller);
+        await _service.CreateSwimlaneAsync(_board.Id, new CreateBoardSwimlaneDto { Title = "B" }, _caller);
 
-        var results = await _service.GetListsAsync(_board.Id, _caller);
+        var results = await _service.GetSwimlanesAsync(_board.Id, _caller);
 
         Assert.AreEqual(2, results.Count);
         Assert.AreEqual("A", results[0].Title);
@@ -87,11 +87,11 @@ public class ListServiceTests
     [TestMethod]
     public async Task GetLists_ExcludesArchived()
     {
-        var list = await TestHelpers.SeedListAsync(_db, _board.Id, "Archived");
+        var list = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id, "Archived");
         list.IsArchived = true;
         await _db.SaveChangesAsync();
 
-        var results = await _service.GetListsAsync(_board.Id, _caller);
+        var results = await _service.GetSwimlanesAsync(_board.Id, _caller);
 
         Assert.AreEqual(0, results.Count);
     }
@@ -101,9 +101,9 @@ public class ListServiceTests
     [TestMethod]
     public async Task UpdateList_ChangesTitle()
     {
-        var list = await TestHelpers.SeedListAsync(_db, _board.Id);
+        var list = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
 
-        var result = await _service.UpdateListAsync(list.Id, new UpdateBoardListDto { Title = "Updated" }, _caller);
+        var result = await _service.UpdateSwimlaneAsync(list.Id, new UpdateBoardSwimlaneDto { Title = "Updated" }, _caller);
 
         Assert.AreEqual("Updated", result.Title);
     }
@@ -113,11 +113,11 @@ public class ListServiceTests
     [TestMethod]
     public async Task DeleteList_ArchivesList()
     {
-        var list = await TestHelpers.SeedListAsync(_db, _board.Id);
+        var list = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
 
-        await _service.DeleteListAsync(list.Id, _caller);
+        await _service.DeleteSwimlaneAsync(list.Id, _caller);
 
-        var dbList = await _db.BoardLists.FindAsync(list.Id);
+        var dbList = await _db.BoardSwimlanes.FindAsync(list.Id);
         Assert.IsTrue(dbList!.IsArchived);
     }
 
@@ -126,10 +126,10 @@ public class ListServiceTests
     {
         var memberCaller = TestHelpers.CreateCaller();
         await TestHelpers.AddMemberAsync(_db, _board.Id, memberCaller.UserId, BoardMemberRole.Member);
-        var list = await TestHelpers.SeedListAsync(_db, _board.Id);
+        var list = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
 
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
-            () => _service.DeleteListAsync(list.Id, memberCaller));
+            () => _service.DeleteSwimlaneAsync(list.Id, memberCaller));
     }
 
     // ─── Reorder ──────────────────────────────────────────────────────
@@ -137,13 +137,13 @@ public class ListServiceTests
     [TestMethod]
     public async Task ReorderLists_UpdatesPositions()
     {
-        var list1 = await TestHelpers.SeedListAsync(_db, _board.Id, "First");
-        var list2 = await TestHelpers.SeedListAsync(_db, _board.Id, "Second");
+        var list1 = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id, "First");
+        var list2 = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id, "Second");
 
-        await _service.ReorderListsAsync(_board.Id, [list2.Id, list1.Id], _caller);
+        await _service.ReorderSwimlanesAsync(_board.Id, [list2.Id, list1.Id], _caller);
 
-        var reordered1 = await _db.BoardLists.FindAsync(list1.Id);
-        var reordered2 = await _db.BoardLists.FindAsync(list2.Id);
+        var reordered1 = await _db.BoardSwimlanes.FindAsync(list1.Id);
+        var reordered2 = await _db.BoardSwimlanes.FindAsync(list2.Id);
         Assert.IsTrue(reordered2!.Position < reordered1!.Position);
     }
 }

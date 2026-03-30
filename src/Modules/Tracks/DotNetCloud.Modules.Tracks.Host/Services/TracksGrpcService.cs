@@ -9,12 +9,12 @@ namespace DotNetCloud.Modules.Tracks.Host.Services;
 
 /// <summary>
 /// gRPC service implementation for the Tracks module.
-/// Exposes board, list, and card operations over gRPC for the core server to invoke.
+/// Exposes board, swimlane, and card operations over gRPC for the core server to invoke.
 /// </summary>
 public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServiceBase
 {
     private readonly BoardService _boardService;
-    private readonly ListService _listService;
+    private readonly SwimlaneService _swimlaneService;
     private readonly CardService _cardService;
     private readonly PokerService _pokerService;
     private readonly ILogger<TracksGrpcService> _logger;
@@ -24,13 +24,13 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
     /// </summary>
     public TracksGrpcService(
         BoardService boardService,
-        ListService listService,
+        SwimlaneService swimlaneService,
         CardService cardService,
         PokerService pokerService,
         ILogger<TracksGrpcService> logger)
     {
         _boardService = boardService;
-        _listService = listService;
+        _swimlaneService = swimlaneService;
         _cardService = cardService;
         _pokerService = pokerService;
         _logger = logger;
@@ -98,24 +98,24 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
     }
 
     /// <inheritdoc />
-    public override async Task<ListResponse> CreateList(CreateListRequest request, ServerCallContext context)
+    public override async Task<SwimlaneResponse> CreateSwimlane(CreateSwimlaneRequest request, ServerCallContext context)
     {
         try
         {
             var caller = ParseCaller(request.UserId);
             var boardId = Guid.Parse(request.BoardId);
-            var dto = new CreateBoardListDto
+            var dto = new CreateBoardSwimlaneDto
             {
                 Title = request.Title,
                 Color = string.IsNullOrEmpty(request.Color) ? null : request.Color
             };
-            var list = await _listService.CreateListAsync(boardId, dto, caller, context.CancellationToken);
-            return new ListResponse { Success = true, List = MapList(list) };
+            var swimlane = await _swimlaneService.CreateSwimlaneAsync(boardId, dto, caller, context.CancellationToken);
+            return new SwimlaneResponse { Success = true, Swimlane = MapSwimlane(swimlane) };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "CreateList failed");
-            return new ListResponse { Success = false, ErrorMessage = ex.Message };
+            _logger.LogError(ex, "CreateSwimlane failed");
+            return new SwimlaneResponse { Success = false, ErrorMessage = ex.Message };
         }
     }
 
@@ -125,7 +125,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         try
         {
             var caller = ParseCaller(request.UserId);
-            var listId = Guid.Parse(request.ListId);
+            var swimlaneId = Guid.Parse(request.SwimlaneId);
             var priority = Enum.TryParse<CardPriority>(request.Priority, true, out var p) ? p : CardPriority.None;
             DateTime? dueDate = DateTime.TryParse(request.DueDate, out var dd) ? dd : null;
             var dto = new CreateCardDto
@@ -138,7 +138,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
                 AssigneeIds = [],
                 LabelIds = []
             };
-            var card = await _cardService.CreateCardAsync(listId, dto, caller, context.CancellationToken);
+            var card = await _cardService.CreateCardAsync(swimlaneId, dto, caller, context.CancellationToken);
             return new CardResponse { Success = true, Card = MapCard(card) };
         }
         catch (Exception ex)
@@ -176,7 +176,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
             var cardId = Guid.Parse(request.CardId);
             var dto = new MoveCardDto
             {
-                TargetListId = Guid.Parse(request.TargetListId),
+                TargetSwimlaneId = Guid.Parse(request.TargetSwimlaneId),
                 Position = (int)request.Position
             };
             var card = await _cardService.MoveCardAsync(cardId, dto, caller, context.CancellationToken);
@@ -312,15 +312,15 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
             Etag = dto.ETag ?? "",
             CreatedAt = dto.CreatedAt.ToString("O"),
             UpdatedAt = dto.UpdatedAt.ToString("O"),
-            ListCount = dto.Lists.Count,
-            CardCount = dto.Lists.Sum(l => l.CardCount),
+            SwimlaneCount = dto.Swimlanes.Count,
+            CardCount = dto.Swimlanes.Sum(l => l.CardCount),
             MemberCount = dto.Members.Count
         };
     }
 
-    private static BoardListMessage MapList(BoardListDto dto)
+    private static BoardSwimlaneMessage MapSwimlane(BoardSwimlaneDto dto)
     {
-        return new BoardListMessage
+        return new BoardSwimlaneMessage
         {
             Id = dto.Id.ToString(),
             BoardId = dto.BoardId.ToString(),
@@ -339,7 +339,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         var msg = new CardMessage
         {
             Id = dto.Id.ToString(),
-            ListId = dto.ListId.ToString(),
+            SwimlaneId = dto.SwimlaneId.ToString(),
             Title = dto.Title,
             Description = dto.Description ?? "",
             Position = dto.Position,

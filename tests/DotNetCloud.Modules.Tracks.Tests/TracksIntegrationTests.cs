@@ -24,7 +24,7 @@ public class TracksIntegrationTests
 {
     private TracksDbContext _db = null!;
     private BoardService _boardService = null!;
-    private ListService _listService = null!;
+    private SwimlaneService _swimlaneService = null!;
     private CardService _cardService = null!;
     private SprintService _sprintService = null!;
     private CommentService _commentService = null!;
@@ -68,7 +68,7 @@ public class TracksIntegrationTests
         _teamService = new TeamService(_db, _eventBusMock.Object, NullLogger<TeamService>.Instance,
             _teamDirectoryMock.Object, _teamManagerMock.Object);
         _boardService = new BoardService(_db, _eventBusMock.Object, _activityService, _teamService, NullLogger<BoardService>.Instance);
-        _listService = new ListService(_db, _boardService, _activityService, NullLogger<ListService>.Instance);
+        _swimlaneService = new SwimlaneService(_db, _boardService, _activityService, NullLogger<SwimlaneService>.Instance);
         _cardService = new CardService(_db, _boardService, _activityService, _eventBusMock.Object, NullLogger<CardService>.Instance);
         _sprintService = new SprintService(_db, _boardService, _activityService, _eventBusMock.Object, NullLogger<SprintService>.Instance);
         _commentService = new CommentService(_db, _boardService, _activityService, _eventBusMock.Object, NullLogger<CommentService>.Instance);
@@ -139,8 +139,8 @@ public class TracksIntegrationTests
         // Create board, two lists
         var caller = TestHelpers.CreateCaller(_userId);
         var board = await _boardService.CreateBoardAsync(new CreateBoardDto { Title = "Card Flow Board" }, caller);
-        var todoList = await _listService.CreateListAsync(board.Id, new CreateBoardListDto { Title = "To Do" }, caller);
-        var doneList = await _listService.CreateListAsync(board.Id, new CreateBoardListDto { Title = "Done" }, caller);
+        var todoList = await _swimlaneService.CreateSwimlaneAsync(board.Id, new CreateBoardSwimlaneDto { Title = "To Do" }, caller);
+        var doneList = await _swimlaneService.CreateSwimlaneAsync(board.Id, new CreateBoardSwimlaneDto { Title = "Done" }, caller);
 
         // Create card
         var createResult = await controller.CreateCardAsync(todoList.Id, new CreateCardDto { Title = "Task 1", Description = "Do something" });
@@ -152,12 +152,12 @@ public class TracksIntegrationTests
         var cardId = cards[0].Id;
 
         // Move card
-        var moveResult = await controller.MoveCardAsync(cardId, new MoveCardDto { TargetListId = doneList.Id, Position = 1000 });
+        var moveResult = await controller.MoveCardAsync(cardId, new MoveCardDto { TargetSwimlaneId = doneList.Id, Position = 1000 });
         Assert.IsInstanceOfType<OkObjectResult>(moveResult);
 
         // Verify card moved
         var movedCard = await _cardService.GetCardAsync(cardId, caller);
-        Assert.AreEqual(doneList.Id, movedCard!.ListId);
+        Assert.AreEqual(doneList.Id, movedCard!.SwimlaneId);
     }
 
     // ─── Sprints Controller Integration ──────────────────────────────
@@ -208,7 +208,7 @@ public class TracksIntegrationTests
 
         var caller = TestHelpers.CreateCaller(_userId);
         var board = await _boardService.CreateBoardAsync(new CreateBoardDto { Title = "Comment Board" }, caller);
-        var list = await _listService.CreateListAsync(board.Id, new CreateBoardListDto { Title = "List" }, caller);
+        var list = await _swimlaneService.CreateSwimlaneAsync(board.Id, new CreateBoardSwimlaneDto { Title = "List" }, caller);
         var card = await _cardService.CreateCardAsync(list.Id, new CreateCardDto { Title = "Task" }, caller);
 
         // Add comment
@@ -234,7 +234,7 @@ public class TracksIntegrationTests
 
         var caller = TestHelpers.CreateCaller(_userId);
         var board = await _boardService.CreateBoardAsync(new CreateBoardDto { Title = "Checklist Board" }, caller);
-        var list = await _listService.CreateListAsync(board.Id, new CreateBoardListDto { Title = "List" }, caller);
+        var list = await _swimlaneService.CreateSwimlaneAsync(board.Id, new CreateBoardSwimlaneDto { Title = "List" }, caller);
         var card = await _cardService.CreateCardAsync(list.Id, new CreateCardDto { Title = "Task" }, caller);
 
         // Create checklist
@@ -287,7 +287,7 @@ public class TracksIntegrationTests
 
         var caller = TestHelpers.CreateCaller(_userId);
         var board = await _boardService.CreateBoardAsync(new CreateBoardDto { Title = "Time Board" }, caller);
-        var list = await _listService.CreateListAsync(board.Id, new CreateBoardListDto { Title = "List" }, caller);
+        var list = await _swimlaneService.CreateSwimlaneAsync(board.Id, new CreateBoardSwimlaneDto { Title = "List" }, caller);
         var card = await _cardService.CreateCardAsync(list.Id, new CreateCardDto { Title = "Timed Task" }, caller);
 
         // Log time
@@ -317,10 +317,10 @@ public class TracksIntegrationTests
         Assert.IsNotNull(board);
 
         // 2. Create lists (kanban columns)
-        var backlog = await _listService.CreateListAsync(board.Id, new CreateBoardListDto { Title = "Backlog" }, caller);
-        var inProgress = await _listService.CreateListAsync(board.Id, new CreateBoardListDto { Title = "In Progress", CardLimit = 3 }, caller);
-        var review = await _listService.CreateListAsync(board.Id, new CreateBoardListDto { Title = "Review" }, caller);
-        var done = await _listService.CreateListAsync(board.Id, new CreateBoardListDto { Title = "Done" }, caller);
+        var backlog = await _swimlaneService.CreateSwimlaneAsync(board.Id, new CreateBoardSwimlaneDto { Title = "Backlog" }, caller);
+        var inProgress = await _swimlaneService.CreateSwimlaneAsync(board.Id, new CreateBoardSwimlaneDto { Title = "In Progress", CardLimit = 3 }, caller);
+        var review = await _swimlaneService.CreateSwimlaneAsync(board.Id, new CreateBoardSwimlaneDto { Title = "Review" }, caller);
+        var done = await _swimlaneService.CreateSwimlaneAsync(board.Id, new CreateBoardSwimlaneDto { Title = "Done" }, caller);
 
         // 3. Create labels
         var bugLabel = await _labelService.CreateLabelAsync(board.Id, new CreateLabelDto { Title = "Bug", Color = "#FF0000" }, caller);
@@ -341,14 +341,14 @@ public class TracksIntegrationTests
         await _checklistService.AddItemAsync(checklist.Id, "OIDC discovery", caller);
 
         // 7. Move card through pipeline: Backlog → In Progress → Review → Done
-        await _cardService.MoveCardAsync(card1.Id, new MoveCardDto { TargetListId = inProgress.Id, Position = 1000 }, caller);
+        await _cardService.MoveCardAsync(card1.Id, new MoveCardDto { TargetSwimlaneId = inProgress.Id, Position = 1000 }, caller);
         var movedCard = await _cardService.GetCardAsync(card1.Id, caller);
-        Assert.AreEqual(inProgress.Id, movedCard!.ListId);
+        Assert.AreEqual(inProgress.Id, movedCard!.SwimlaneId);
 
-        await _cardService.MoveCardAsync(card1.Id, new MoveCardDto { TargetListId = review.Id, Position = 1000 }, caller);
-        await _cardService.MoveCardAsync(card1.Id, new MoveCardDto { TargetListId = done.Id, Position = 1000 }, caller);
+        await _cardService.MoveCardAsync(card1.Id, new MoveCardDto { TargetSwimlaneId = review.Id, Position = 1000 }, caller);
+        await _cardService.MoveCardAsync(card1.Id, new MoveCardDto { TargetSwimlaneId = done.Id, Position = 1000 }, caller);
         var doneCard = await _cardService.GetCardAsync(card1.Id, caller);
-        Assert.AreEqual(done.Id, doneCard!.ListId);
+        Assert.AreEqual(done.Id, doneCard!.SwimlaneId);
 
         // 8. Add dependency: card3 is blocked by card2
         await _db.CardDependencies.AddAsync(new CardDependency
@@ -399,8 +399,8 @@ public class TracksIntegrationTests
         var board = await _boardService.CreateBoardAsync(
             new CreateBoardDto { Title = "gRPC Board" }, caller);
 
-        var list = await _listService.CreateListAsync(board.Id,
-            new CreateBoardListDto { Title = "Backlog" }, caller);
+        var list = await _swimlaneService.CreateSwimlaneAsync(board.Id,
+            new CreateBoardSwimlaneDto { Title = "Backlog" }, caller);
 
         var card = await _cardService.CreateCardAsync(list.Id,
             new CreateCardDto { Title = "gRPC Card", Description = "Created via service layer" }, caller);
@@ -408,7 +408,7 @@ public class TracksIntegrationTests
         // Verify the full chain
         var retrievedBoard = await _boardService.GetBoardAsync(board.Id, caller);
         Assert.IsNotNull(retrievedBoard);
-        Assert.AreEqual(1, retrievedBoard.Lists.Count);
+        Assert.AreEqual(1, retrievedBoard.Swimlanes.Count);
 
         var cards = await _cardService.ListCardsAsync(list.Id, caller);
         Assert.AreEqual(1, cards.Count);
@@ -448,7 +448,7 @@ public class TracksIntegrationTests
     {
         var caller = TestHelpers.CreateCaller(_userId);
         var board = await _boardService.CreateBoardAsync(new CreateBoardDto { Title = "Concurrent Board" }, caller);
-        var list = await _listService.CreateListAsync(board.Id, new CreateBoardListDto { Title = "Tasks" }, caller);
+        var list = await _swimlaneService.CreateSwimlaneAsync(board.Id, new CreateBoardSwimlaneDto { Title = "Tasks" }, caller);
 
         // Add multiple members
         var user2 = TestHelpers.CreateCaller();

@@ -81,9 +81,9 @@ public sealed record CardCreatedEvent : IEvent
     public required Guid BoardId { get; init; }
 
     /// <summary>
-    /// The list the card was created in.
+    /// The swimlane the card was created in.
     /// </summary>
-    public required Guid ListId { get; init; }
+    public required Guid SwimlaneId { get; init; }
 
     /// <summary>
     /// The ID of the user who created the card.
@@ -92,7 +92,7 @@ public sealed record CardCreatedEvent : IEvent
 }
 
 /// <summary>
-/// Raised when a card is moved to a different list or position.
+/// Raised when a card is moved to a different swimlane or position.
 /// </summary>
 public sealed record CardMovedEvent : IEvent
 {
@@ -113,14 +113,14 @@ public sealed record CardMovedEvent : IEvent
     public required Guid BoardId { get; init; }
 
     /// <summary>
-    /// The list the card was moved from.
+    /// The swimlane the card was moved from.
     /// </summary>
-    public required Guid FromListId { get; init; }
+    public required Guid FromSwimlaneId { get; init; }
 
     /// <summary>
-    /// The list the card was moved to.
+    /// The swimlane the card was moved to.
     /// </summary>
-    public required Guid ToListId { get; init; }
+    public required Guid ToSwimlaneId { get; init; }
 
     /// <summary>
     /// The ID of the user who moved the card.

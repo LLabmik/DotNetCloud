@@ -29,7 +29,7 @@ public class AttachmentServiceTests
         var boardService = new BoardService(_db, new Mock<IEventBus>().Object, activityService, teamService, NullLogger<BoardService>.Instance);
         _service = new AttachmentService(_db, boardService, activityService, NullLogger<AttachmentService>.Instance);
         _board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId);
-        var list = await TestHelpers.SeedListAsync(_db, _board.Id);
+        var list = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
         _card = await TestHelpers.SeedCardAsync(_db, list.Id, _caller.UserId);
     }
 

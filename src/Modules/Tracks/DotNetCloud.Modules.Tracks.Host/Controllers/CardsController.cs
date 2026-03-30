@@ -33,21 +33,21 @@ public class CardsController : TracksControllerBase
 
     // ─── Card CRUD ────────────────────────────────────────────────────────
 
-    /// <summary>Lists cards in a list.</summary>
-    [HttpGet("lists/{listId:guid}/cards")]
+    /// <summary>Lists cards in a swimlane.</summary>
+    [HttpGet("swimlanes/{swimlaneId:guid}/cards")]
     public async Task<IActionResult> ListCardsAsync(
-        Guid listId,
+        Guid swimlaneId,
         [FromQuery] bool includeArchived = false)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            var cards = await _cardService.ListCardsAsync(listId, caller, includeArchived);
+            var cards = await _cardService.ListCardsAsync(swimlaneId, caller, includeArchived);
             return Ok(Envelope(cards));
         }
         catch (ValidationException ex)
         {
-            return NotFound(ErrorEnvelope(ErrorCodes.BoardListNotFound, ex.Message));
+            return NotFound(ErrorEnvelope(ErrorCodes.BoardSwimlaneNotFound, ex.Message));
         }
     }
 
@@ -62,20 +62,20 @@ public class CardsController : TracksControllerBase
             : Ok(Envelope(card));
     }
 
-    /// <summary>Creates a new card in a list.</summary>
-    [HttpPost("lists/{listId:guid}/cards")]
-    public async Task<IActionResult> CreateCardAsync(Guid listId, [FromBody] CreateCardDto dto)
+    /// <summary>Creates a new card in a swimlane.</summary>
+    [HttpPost("swimlanes/{swimlaneId:guid}/cards")]
+    public async Task<IActionResult> CreateCardAsync(Guid swimlaneId, [FromBody] CreateCardDto dto)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            var card = await _cardService.CreateCardAsync(listId, dto, caller);
+            var card = await _cardService.CreateCardAsync(swimlaneId, dto, caller);
             return Created($"/api/v1/cards/{card.Id}", Envelope(card));
         }
         catch (ValidationException ex)
         {
-            return ex.Errors.ContainsKey(ErrorCodes.BoardListNotFound)
-                ? NotFound(ErrorEnvelope(ErrorCodes.BoardListNotFound, ex.Message))
+            return ex.Errors.ContainsKey(ErrorCodes.BoardSwimlaneNotFound)
+                ? NotFound(ErrorEnvelope(ErrorCodes.BoardSwimlaneNotFound, ex.Message))
                 : BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
         }
     }
@@ -114,7 +114,7 @@ public class CardsController : TracksControllerBase
         }
     }
 
-    /// <summary>Moves a card to another list at a given position.</summary>
+    /// <summary>Moves a card to another swimlane at a given position.</summary>
     [HttpPut("cards/{cardId:guid}/move")]
     public async Task<IActionResult> MoveCardAsync(Guid cardId, [FromBody] MoveCardDto dto)
     {
@@ -126,7 +126,7 @@ public class CardsController : TracksControllerBase
         }
         catch (ValidationException ex)
         {
-            return ex.Errors.ContainsKey(ErrorCodes.CardNotFound) || ex.Errors.ContainsKey(ErrorCodes.BoardListNotFound)
+            return ex.Errors.ContainsKey(ErrorCodes.CardNotFound) || ex.Errors.ContainsKey(ErrorCodes.BoardSwimlaneNotFound)
                 ? NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, ex.Message))
                 : BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
         }

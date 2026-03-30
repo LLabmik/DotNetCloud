@@ -25,7 +25,7 @@ public class SubresourceControllerTests
     private DependenciesController _dependenciesController = null!;
     private TimeEntriesController _timeEntriesController = null!;
     private BoardService _boardService = null!;
-    private ListService _listService = null!;
+    private SwimlaneService _swimlaneService = null!;
     private CardService _cardService = null!;
     private readonly Guid _userId = Guid.NewGuid();
 
@@ -37,7 +37,7 @@ public class SubresourceControllerTests
         var activityService = new ActivityService(_db, new Mock<ILogger<ActivityService>>().Object);
         var teamService = new TeamService(_db, eventBus.Object, new Mock<ILogger<TeamService>>().Object);
         _boardService = new BoardService(_db, eventBus.Object, activityService, teamService, new Mock<ILogger<BoardService>>().Object);
-        _listService = new ListService(_db, _boardService, activityService, new Mock<ILogger<ListService>>().Object);
+        _swimlaneService = new SwimlaneService(_db, _boardService, activityService, new Mock<ILogger<SwimlaneService>>().Object);
         _cardService = new CardService(_db, _boardService, activityService, eventBus.Object, new Mock<ILogger<CardService>>().Object);
         var commentService = new CommentService(_db, _boardService, activityService, eventBus.Object, new Mock<ILogger<CommentService>>().Object);
         var checklistService = new ChecklistService(_db, _boardService, activityService, new Mock<ILogger<ChecklistService>>().Object);
@@ -85,7 +85,7 @@ public class SubresourceControllerTests
     [TestMethod]
     public async Task CreateComment_ReturnsCreated_WhenValid()
     {
-        var (_, cardId) = await CreateBoardListCard();
+        var (_, cardId) = await CreateBoardSwimlaneCard();
         var request = new CreateCommentRequest { Content = "Great work!" };
         var result = await _commentsController.CreateCommentAsync(cardId, request);
         Assert.IsInstanceOfType<CreatedResult>(result);
@@ -103,7 +103,7 @@ public class SubresourceControllerTests
     [TestMethod]
     public async Task CreateChecklist_ReturnsCreated_WhenValid()
     {
-        var (_, cardId) = await CreateBoardListCard();
+        var (_, cardId) = await CreateBoardSwimlaneCard();
         var request = new CreateChecklistRequest { Title = "TODO" };
         var result = await _checklistsController.CreateChecklistAsync(cardId, request);
         Assert.IsInstanceOfType<CreatedResult>(result);
@@ -128,7 +128,7 @@ public class SubresourceControllerTests
     [TestMethod]
     public async Task AddAttachment_ReturnsCreated_WhenValid()
     {
-        var (_, cardId) = await CreateBoardListCard();
+        var (_, cardId) = await CreateBoardSwimlaneCard();
         var request = new AddAttachmentRequest { FileName = "doc.pdf", Url = "https://example.com/doc.pdf" };
         var result = await _attachmentsController.AddAttachmentAsync(cardId, request);
         Assert.IsInstanceOfType<CreatedResult>(result);
@@ -191,7 +191,7 @@ public class SubresourceControllerTests
     [TestMethod]
     public async Task StartTimer_ReturnsOk_WhenValid()
     {
-        var (_, cardId) = await CreateBoardListCard();
+        var (_, cardId) = await CreateBoardSwimlaneCard();
         var result = await _timeEntriesController.StartTimerAsync(cardId);
         Assert.IsInstanceOfType<OkObjectResult>(result);
     }
@@ -199,7 +199,7 @@ public class SubresourceControllerTests
     [TestMethod]
     public async Task CreateTimeEntry_ReturnsCreated_WhenValid()
     {
-        var (_, cardId) = await CreateBoardListCard();
+        var (_, cardId) = await CreateBoardSwimlaneCard();
         var dto = new CreateTimeEntryDto
         {
             StartTime = DateTime.UtcNow.AddHours(-2),
@@ -219,11 +219,11 @@ public class SubresourceControllerTests
 
     // ─── Helpers ────────────────────────────────────────────────────
 
-    private async Task<(Guid boardId, Guid cardId)> CreateBoardListCard()
+    private async Task<(Guid boardId, Guid cardId)> CreateBoardSwimlaneCard()
     {
         var caller = TestHelpers.CreateCaller(_userId);
         var board = await _boardService.CreateBoardAsync(new CreateBoardDto { Title = "Board" }, caller);
-        var list = await _listService.CreateListAsync(board.Id, new CreateBoardListDto { Title = "Todo" }, caller);
+        var list = await _swimlaneService.CreateSwimlaneAsync(board.Id, new CreateBoardSwimlaneDto { Title = "Todo" }, caller);
         var card = await _cardService.CreateCardAsync(list.Id, new CreateCardDto
         {
             Title = "Card",

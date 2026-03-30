@@ -14,7 +14,7 @@
 4. Choose visibility: **Public** (all org members can see) or **Private** (invite only)
 5. Click **Create**
 
-Your board starts with no lists. Add columns like "To Do", "In Progress", and "Done" to define your workflow.
+Your board starts with no swimlanes. Add columns like "To Do", "In Progress", and "Done" to define your workflow.
 
 ### Board Layout
 
@@ -35,18 +35,18 @@ Your board starts with no lists. Add columns like "To Do", "In Progress", and "D
 
 ## Boards
 
-### Managing Lists (Columns)
+### Managing Swimlanes (Columns)
 
-- **Add a list:** Click **+ Add List** at the right edge of the board
-- **Rename a list:** Click on the list title and edit inline
-- **Reorder lists:** Drag a list header to a new position, or use the API `PUT /api/v1/boards/{boardId}/lists/reorder`
-- **Delete a list:** Open the list menu → Delete (cards are not deleted, they become unassigned)
+- **Add a swimlane:** Click **+ Add Swimlane** at the right edge of the board
+- **Rename a swimlane:** Click on the swimlane title and edit inline
+- **Reorder swimlanes:** Drag a swimlane header to a new position, or use the API `PUT /api/v1/boards/{boardId}/swimlanes/reorder`
+- **Delete a swimlane:** Open the swimlane menu → Delete (cards are not deleted, they become unassigned)
 
 ### Board Members
 
 Access **Board Settings → Members** to manage who can see and edit the board.
 
-| Role | Can View | Can Edit Cards | Can Manage Lists | Can Manage Members | Can Delete Board |
+| Role | Can View | Can Edit Cards | Can Manage Swimlanes | Can Manage Members | Can Delete Board |
 |---|---|---|---|---|---|
 | **Owner** | ✓ | ✓ | ✓ | ✓ | ✓ |
 | **Admin** | ✓ | ✓ | ✓ | ✓ | ✗ |
@@ -68,7 +68,7 @@ Board owners can transfer ownership to another member via **Board Settings → T
 
 ### Import / Export
 
-- **Export:** Download a board as JSON including all lists, cards, labels, and members
+- **Export:** Download a board as JSON including all swimlanes, cards, labels, and members
 - **Import:** Upload a JSON file to create a new board from exported data
 
 ---
@@ -77,7 +77,7 @@ Board owners can transfer ownership to another member via **Board Settings → T
 
 ### Creating Cards
 
-1. Click **+ Add card** at the bottom of any list
+1. Click **+ Add card** at the bottom of any swimlane
 2. Enter a title and press Enter
 3. Click the card to open the detail view for adding description, assignees, labels, due date, etc.
 
@@ -100,9 +100,9 @@ Board owners can transfer ownership to another member via **Board Settings → T
 
 ### Moving Cards
 
-- **Drag and drop** a card between lists on the board
-- **Card menu → Move** to select a target list and position
-- Cards can be moved between lists within the same board
+- **Drag and drop** a card between swimlanes on the board
+- **Card menu → Move** to select a target swimlane and position
+- Cards can be moved between swimlanes within the same board
 
 ### Archiving Cards
 
@@ -173,7 +173,7 @@ Planning → Active → Completed
 1. **Create Sprint:** Set a name, start date, and end date
 2. **Add Cards:** Assign cards from the backlog to the sprint
 3. **Start Sprint:** Activates the sprint (only one sprint can be active per board)
-4. **Work:** Move cards through lists as work progresses
+4. **Work:** Move cards through swimlanes as work progresses
 5. **Complete Sprint:** Ends the sprint; unfinished cards can be moved to the next sprint
 
 ### Sprint Reports
@@ -254,7 +254,7 @@ Perform batch actions on multiple cards:
 
 | Operation | Description |
 |---|---|
-| **Bulk Move** | Move selected cards to a target list |
+| **Bulk Move** | Move selected cards to a target swimlane |
 | **Bulk Assign** | Assign a user to multiple cards |
 | **Bulk Label** | Apply a label to multiple cards |
 | **Bulk Archive** | Archive multiple cards at once |
@@ -270,7 +270,7 @@ Access bulk operations from the board toolbar after selecting cards.
 Save a board structure as a reusable template:
 
 1. Open board menu → **Save as Template**
-2. The template captures lists, labels, and board settings (not cards)
+2. The template captures swimlanes, labels, and board settings (not cards)
 3. Create new boards from the template via **New Board → From Template**
 
 ### Card Templates
@@ -301,8 +301,8 @@ Access the activity feed from the board sidebar or the card detail view.
 
 View aggregate metrics for a board:
 
-- Total cards, cards per list, cards per member
-- Average time in each list (cycle time)
+- Total cards, cards per swimlane, cards per member
+- Average time in each swimlane (cycle time)
 - Cards created vs. completed over time
 
 ### Sprint Velocity

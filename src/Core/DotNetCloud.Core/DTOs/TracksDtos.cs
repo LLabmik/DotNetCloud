@@ -66,9 +66,9 @@ public sealed record BoardDto
     public IReadOnlyList<BoardMemberDto> Members { get; init; } = [];
 
     /// <summary>
-    /// Lists (columns) in this board.
+    /// Swimlanes (columns) in this board.
     /// </summary>
-    public IReadOnlyList<BoardListDto> Lists { get; init; } = [];
+    public IReadOnlyList<BoardSwimlaneDto> Swimlanes { get; init; } = [];
 
     /// <summary>
     /// Labels available on this board.
@@ -92,7 +92,7 @@ public enum BoardMemberRole
     /// <summary>Can create, edit, and move cards.</summary>
     Member,
 
-    /// <summary>Can manage lists, labels, and members.</summary>
+    /// <summary>Can manage swimlanes, labels, and members.</summary>
     Admin,
 
     /// <summary>Full control including board deletion.</summary>
@@ -128,7 +128,7 @@ public sealed record BoardMemberDto
 /// <summary>
 /// Represents a column (list) within a board.
 /// </summary>
-public sealed record BoardListDto
+public sealed record BoardSwimlaneDto
 {
     /// <summary>
     /// Unique identifier for the list.
@@ -210,7 +210,7 @@ public sealed record CardDto
     /// <summary>
     /// The list this card is in.
     /// </summary>
-    public required Guid ListId { get; init; }
+    public required Guid SwimlaneId { get; init; }
 
     /// <summary>
     /// The board this card belongs to (denormalized for convenience).
@@ -780,7 +780,7 @@ public sealed record UpdateBoardDto
 /// <summary>
 /// Request DTO for creating a new list on a board.
 /// </summary>
-public sealed record CreateBoardListDto
+public sealed record CreateBoardSwimlaneDto
 {
     /// <summary>
     /// List title.
@@ -802,7 +802,7 @@ public sealed record CreateBoardListDto
 /// Request DTO for updating a list.
 /// Only non-null fields are applied.
 /// </summary>
-public sealed record UpdateBoardListDto
+public sealed record UpdateBoardSwimlaneDto
 {
     /// <summary>
     /// Updated title.
@@ -906,7 +906,7 @@ public sealed record MoveCardDto
     /// <summary>
     /// Target list ID.
     /// </summary>
-    public required Guid TargetListId { get; init; }
+    public required Guid TargetSwimlaneId { get; init; }
 
     /// <summary>
     /// Target position within the list.
@@ -1233,7 +1233,7 @@ public sealed record BoardTemplateDto
     /// <summary>The user who created this template. Null for built-in templates.</summary>
     public Guid? CreatedByUserId { get; init; }
 
-    /// <summary>JSON-serialized template definition (lists, labels, default cards).</summary>
+    /// <summary>JSON-serialized template definition (swimlanes, labels, default cards).</summary>
     public required string DefinitionJson { get; init; }
 
     /// <summary>Timestamp when the template was created.</summary>
@@ -1491,7 +1491,7 @@ public sealed record BulkMoveCardsDto
     public required IReadOnlyList<Guid> CardIds { get; init; }
 
     /// <summary>Target list to move cards to.</summary>
-    public required Guid TargetListId { get; init; }
+    public required Guid TargetSwimlaneId { get; init; }
 }
 
 /// <summary>

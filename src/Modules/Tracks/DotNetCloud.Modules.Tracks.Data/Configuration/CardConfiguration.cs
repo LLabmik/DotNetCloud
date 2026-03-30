@@ -44,17 +44,17 @@ public sealed class CardConfiguration : IEntityTypeConfiguration<Card>
             .IsRequired()
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-        builder.HasOne(c => c.List)
+        builder.HasOne(c => c.Swimlane)
             .WithMany(l => l.Cards)
-            .HasForeignKey(c => c.ListId)
+            .HasForeignKey(c => c.SwimlaneId)
             .OnDelete(DeleteBehavior.Cascade);
 
         // Soft-delete query filter
         builder.HasQueryFilter(c => !c.IsDeleted);
 
         // Indexes
-        builder.HasIndex(c => new { c.ListId, c.Position })
-            .HasDatabaseName("ix_cards_list_position");
+        builder.HasIndex(c => new { c.SwimlaneId, c.Position })
+            .HasDatabaseName("ix_cards_swimlane_position");
 
         builder.HasIndex(c => c.CreatedByUserId)
             .HasDatabaseName("ix_cards_created_by");

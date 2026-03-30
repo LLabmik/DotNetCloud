@@ -118,7 +118,7 @@ public class Program
                         await EnsureModuleTablesCreatedAsync(notesDbContext, "Notes", logger);
 
                         var tracksDbContext = scope.ServiceProvider.GetRequiredService<TracksDbContext>();
-                        await EnsureModuleTablesCreatedAsync(tracksDbContext, "Boards", logger);
+                        await TracksDbInitializer.InitializeAsync(tracksDbContext, logger);
                     }
                     catch (InvalidOperationException ex)
                     {
@@ -145,7 +145,7 @@ public class Program
                     await EnsureModuleTablesCreatedAsync(notesDbContext, "Notes", logger);
 
                     var tracksDbContext = scope.ServiceProvider.GetRequiredService<TracksDbContext>();
-                    await EnsureModuleTablesCreatedAsync(tracksDbContext, "Boards", logger);
+                    await TracksDbInitializer.InitializeAsync(tracksDbContext, logger);
                 }
 
                 // Mark the application as ready for traffic now that DB is initialized

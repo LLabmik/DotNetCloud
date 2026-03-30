@@ -39,11 +39,11 @@ public sealed class CommentService
         ArgumentException.ThrowIfNullOrWhiteSpace(content);
 
         var card = await _db.Cards
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
 
-        await _boardService.EnsureBoardRoleAsync(card.List!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
+        await _boardService.EnsureBoardRoleAsync(card.Swimlane!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
 
         var comment = new CardComment
         {
@@ -59,7 +59,7 @@ public sealed class CommentService
         _logger.LogInformation("Comment {CommentId} added to card {CardId} by user {UserId}",
             comment.Id, cardId, caller.UserId);
 
-        await _activityService.LogAsync(card.List.BoardId, caller.UserId, "comment.added", "CardComment", comment.Id,
+        await _activityService.LogAsync(card.Swimlane.BoardId, caller.UserId, "comment.added", "CardComment", comment.Id,
             $"{{\"cardId\":\"{cardId}\"}}", cancellationToken);
 
         await _eventBus.PublishAsync(new CardCommentAddedEvent
@@ -68,7 +68,7 @@ public sealed class CommentService
             CreatedAt = DateTime.UtcNow,
             CommentId = comment.Id,
             CardId = cardId,
-            BoardId = card.List.BoardId,
+            BoardId = card.Swimlane.BoardId,
             UserId = caller.UserId
         }, caller, cancellationToken);
 
@@ -82,11 +82,11 @@ public sealed class CommentService
     {
         var card = await _db.Cards
             .AsNoTracking()
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
 
-        await _boardService.EnsureBoardMemberAsync(card.List!.BoardId, caller.UserId, cancellationToken);
+        await _boardService.EnsureBoardMemberAsync(card.Swimlane!.BoardId, caller.UserId, cancellationToken);
 
         var comments = await _db.CardComments
             .AsNoTracking()
@@ -128,14 +128,14 @@ public sealed class CommentService
     public async Task DeleteCommentAsync(Guid commentId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         var comment = await _db.CardComments
-            .Include(c => c.Card).ThenInclude(c => c!.List)
+            .Include(c => c.Card).ThenInclude(c => c!.Swimlane)
             .FirstOrDefaultAsync(c => c.Id == commentId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CommentNotFound, "Comment not found.");
 
         // Author can always delete their own comment; otherwise requires Admin
         if (comment.UserId != caller.UserId)
         {
-            await _boardService.EnsureBoardRoleAsync(comment.Card!.List!.BoardId, caller.UserId,
+            await _boardService.EnsureBoardRoleAsync(comment.Card!.Swimlane!.BoardId, caller.UserId,
                 BoardMemberRole.Admin, cancellationToken);
         }
 

@@ -66,7 +66,7 @@ public class TracksDtosTests
 
         // Assert
         Assert.AreEqual(0, board.Members.Count);
-        Assert.AreEqual(0, board.Lists.Count);
+        Assert.AreEqual(0, board.Swimlanes.Count);
         Assert.AreEqual(0, board.Labels.Count);
     }
 
@@ -97,13 +97,13 @@ public class TracksDtosTests
         Assert.AreEqual(BoardMemberRole.Admin, member.Role);
     }
 
-    // ── BoardList ──
+    // ── BoardSwimlane ──
 
     [TestMethod]
-    public void BoardListDto_CanBeCreated_WithRequiredProperties()
+    public void BoardSwimlaneDto_CanBeCreated_WithRequiredProperties()
     {
         // Arrange & Act
-        var list = new BoardListDto
+        var swimlane = new BoardSwimlaneDto
         {
             Id = Guid.NewGuid(),
             BoardId = Guid.NewGuid(),
@@ -114,10 +114,10 @@ public class TracksDtosTests
         };
 
         // Assert
-        Assert.AreEqual("To Do", list.Title);
-        Assert.AreEqual(0, list.Position);
-        Assert.IsNull(list.CardLimit);
-        Assert.AreEqual(0, list.CardCount);
+        Assert.AreEqual("To Do", swimlane.Title);
+        Assert.AreEqual(0, swimlane.Position);
+        Assert.IsNull(swimlane.CardLimit);
+        Assert.AreEqual(0, swimlane.CardCount);
     }
 
     // ── Card ──
@@ -129,7 +129,7 @@ public class TracksDtosTests
         var card = new CardDto
         {
             Id = Guid.NewGuid(),
-            ListId = Guid.NewGuid(),
+            SwimlaneId = Guid.NewGuid(),
             BoardId = Guid.NewGuid(),
             Title = "Implement auth",
             Position = 1000,
@@ -154,7 +154,7 @@ public class TracksDtosTests
         var card = new CardDto
         {
             Id = Guid.NewGuid(),
-            ListId = Guid.NewGuid(),
+            SwimlaneId = Guid.NewGuid(),
             BoardId = Guid.NewGuid(),
             Title = "Test",
             Position = 0,
@@ -177,7 +177,7 @@ public class TracksDtosTests
         var card = new CardDto
         {
             Id = Guid.NewGuid(),
-            ListId = Guid.NewGuid(),
+            SwimlaneId = Guid.NewGuid(),
             BoardId = Guid.NewGuid(),
             Title = "Test",
             Position = 0,
@@ -533,12 +533,12 @@ public class TracksDtosTests
         // Arrange & Act
         var dto = new MoveCardDto
         {
-            TargetListId = Guid.NewGuid(),
+            TargetSwimlaneId = Guid.NewGuid(),
             Position = 2000
         };
 
         // Assert
-        Assert.AreNotEqual(Guid.Empty, dto.TargetListId);
+        Assert.AreNotEqual(Guid.Empty, dto.TargetSwimlaneId);
         Assert.AreEqual(2000, dto.Position);
     }
 
@@ -606,7 +606,7 @@ public class TracksDtosTests
         var card = new CardDto
         {
             Id = Guid.NewGuid(),
-            ListId = Guid.NewGuid(),
+            SwimlaneId = Guid.NewGuid(),
             BoardId = Guid.NewGuid(),
             Title = "Original",
             Position = 1000,
@@ -615,10 +615,10 @@ public class TracksDtosTests
         };
 
         // Act
-        var moved = card with { ListId = Guid.NewGuid(), Position = 2000 };
+        var moved = card with { SwimlaneId = Guid.NewGuid(), Position = 2000 };
 
         // Assert
-        Assert.AreNotEqual(card.ListId, moved.ListId);
+        Assert.AreNotEqual(card.SwimlaneId, moved.SwimlaneId);
         Assert.AreEqual(2000, moved.Position);
         Assert.AreEqual("Original", moved.Title);
     }

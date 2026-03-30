@@ -9,7 +9,7 @@
 
         <nav class="tracks-nav">
             <button class="tracks-nav-item @(_view == TracksView.Boards ? "active" : "")"
-                    @onclick="ShowBoardList">
+                    @onclick="ShowBoardSwimlane">
                 <span class="tracks-nav-icon">📋</span> My Boards
             </button>
             <button class="tracks-nav-item @(_view == TracksView.Teams ? "active" : "")"
@@ -39,7 +39,7 @@
                         @onclick="ShowBoardSettings">
                     <span class="tracks-nav-icon">⚙</span> Settings
                 </button>
-                <button class="tracks-nav-item" @onclick="ShowBoardList">
+                <button class="tracks-nav-item" @onclick="ShowBoardSwimlane">
                     <span class="tracks-nav-icon">←</span> All Boards
                 </button>
             </div>
@@ -93,13 +93,13 @@
                     {
                         <div class="tracks-board-area">
                             <KanbanBoard Board="_selectedBoard"
-                                         Lists="_boardLists"
-                                         CardsByList="_cardsByList"
+                                         Swimlanes="_boardSwimlanes"
+                                         CardsBySwimlane="_cardsBySwimlane"
                                          OnCardSelected="SelectCard"
                                          OnCardMoved="HandleCardMoved"
                                          OnCardCreated="HandleCardCreated"
-                                         OnListCreated="HandleListCreated"
-                                         OnListDeleted="HandleListDeleted"
+                                         OnSwimlaneCreated="HandleSwimlaneCreated"
+                                         OnSwimlaneDeleted="HandleSwimlaneDeleted"
                                          OnRefreshRequested="RefreshBoardAsync" />
 
                             @if (_showSprints)

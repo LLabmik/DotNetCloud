@@ -32,8 +32,8 @@ public class TracksDbContext : DbContext
     /// <summary>Board membership records.</summary>
     public DbSet<BoardMember> BoardMembers => Set<BoardMember>();
 
-    /// <summary>Board lists (columns).</summary>
-    public DbSet<BoardList> BoardLists => Set<BoardList>();
+    /// <summary>Board swimlanes (columns).</summary>
+    public DbSet<BoardSwimlane> BoardSwimlanes => Set<BoardSwimlane>();
 
     /// <summary>Cards (work items).</summary>
     public DbSet<Card> Cards => Set<Card>();
@@ -96,7 +96,7 @@ public class TracksDbContext : DbContext
 
         modelBuilder.ApplyConfiguration(new BoardConfiguration());
         modelBuilder.ApplyConfiguration(new BoardMemberConfiguration());
-        modelBuilder.ApplyConfiguration(new BoardListConfiguration());
+        modelBuilder.ApplyConfiguration(new BoardSwimlaneConfiguration());
         modelBuilder.ApplyConfiguration(new CardConfiguration());
         modelBuilder.ApplyConfiguration(new CardAssignmentConfiguration());
         modelBuilder.ApplyConfiguration(new LabelConfiguration());

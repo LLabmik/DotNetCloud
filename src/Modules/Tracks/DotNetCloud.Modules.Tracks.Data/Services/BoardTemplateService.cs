@@ -15,18 +15,18 @@ public sealed class BoardTemplateService
 {
     private readonly TracksDbContext _db;
     private readonly BoardService _boardService;
-    private readonly ListService _listService;
+    private readonly SwimlaneService _swimlaneService;
     private readonly LabelService _labelService;
     private readonly ILogger<BoardTemplateService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BoardTemplateService"/> class.
     /// </summary>
-    public BoardTemplateService(TracksDbContext db, BoardService boardService, ListService listService, LabelService labelService, ILogger<BoardTemplateService> logger)
+    public BoardTemplateService(TracksDbContext db, BoardService boardService, SwimlaneService swimlaneService, LabelService labelService, ILogger<BoardTemplateService> logger)
     {
         _db = db;
         _boardService = boardService;
-        _listService = listService;
+        _swimlaneService = swimlaneService;
         _labelService = labelService;
         _logger = logger;
     }
@@ -105,7 +105,7 @@ public sealed class BoardTemplateService
         {
             foreach (var listDef in definition.Lists)
             {
-                await _listService.CreateListAsync(board.Id, new CreateBoardListDto
+                await _swimlaneService.CreateSwimlaneAsync(board.Id, new CreateBoardSwimlaneDto
                 {
                     Title = listDef.Title,
                     Color = listDef.Color,
@@ -133,14 +133,14 @@ public sealed class BoardTemplateService
 
         var board = await _db.Boards
             .AsNoTracking()
-            .Include(b => b.Lists.OrderBy(l => l.Position))
+            .Include(b => b.Swimlanes.OrderBy(l => l.Position))
             .Include(b => b.Labels)
             .FirstOrDefaultAsync(b => b.Id == boardId && !b.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.BoardNotFound, "Board not found.");
 
         var definition = new TemplateDefinition
         {
-            Lists = board.Lists.Select(l => new TemplateListDefinition
+            Lists = board.Swimlanes.Select(l => new TemplateListDefinition
             {
                 Title = l.Title,
                 Color = l.Color,

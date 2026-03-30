@@ -31,7 +31,7 @@ public sealed class BulkOperationService
     }
 
     /// <summary>
-    /// Moves multiple cards to a target list. Cards that belong to different boards from the target list are skipped.
+    /// Moves multiple cards to a target swimlane. Cards that belong to different boards from the target swimlane are skipped.
     /// </summary>
     public async Task<BulkOperationResultDto> BulkMoveCardsAsync(BulkMoveCardsDto dto, CallerContext caller, CancellationToken cancellationToken = default)
     {
@@ -40,24 +40,24 @@ public sealed class BulkOperationService
         if (dto.CardIds.Count == 0)
             throw new ValidationException(ErrorCodes.BulkOperationEmpty, "No card IDs provided.");
 
-        var targetList = await _db.BoardLists
-            .FirstOrDefaultAsync(l => l.Id == dto.TargetListId && !l.IsArchived, cancellationToken)
-            ?? throw new ValidationException(ErrorCodes.BoardListNotFound, "Target list not found or archived.");
+        var targetSwimlane = await _db.BoardSwimlanes
+            .FirstOrDefaultAsync(l => l.Id == dto.TargetSwimlaneId && !l.IsArchived, cancellationToken)
+            ?? throw new ValidationException(ErrorCodes.BoardSwimlaneNotFound, "Target swimlane not found or archived.");
 
-        await _boardService.EnsureBoardRoleAsync(targetList.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
+        await _boardService.EnsureBoardRoleAsync(targetSwimlane.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
 
         var normalizedIds = dto.CardIds.Take(MaxBulkSize).ToList();
         var cards = await _db.Cards
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .Where(c => normalizedIds.Contains(c.Id) && !c.IsDeleted)
             .ToListAsync(cancellationToken);
 
         var successes = 0;
         var failures = new Dictionary<Guid, string>();
 
-        // Calculate starting position for moved cards (append to end of target list)
+        // Calculate starting position for moved cards (append to end of the target swimlane)
         var maxPos = await _db.Cards
-            .Where(c => c.ListId == dto.TargetListId && !c.IsDeleted)
+            .Where(c => c.SwimlaneId == dto.TargetSwimlaneId && !c.IsDeleted)
             .MaxAsync(c => (double?)c.Position, cancellationToken) ?? 0;
 
         var posStep = 1000.0;
@@ -71,14 +71,14 @@ public sealed class BulkOperationService
                 continue;
             }
 
-            // Card must be on the same board as the target list
-            if (card.List?.BoardId != targetList.BoardId)
+            // Card must be on the same board as the target swimlane
+            if (card.Swimlane?.BoardId != targetSwimlane.BoardId)
             {
                 failures[cardId] = "Card belongs to a different board.";
                 continue;
             }
 
-            card.ListId = dto.TargetListId;
+            card.SwimlaneId = dto.TargetSwimlaneId;
             maxPos += posStep;
             card.Position = maxPos;
             successes++;
@@ -87,12 +87,12 @@ public sealed class BulkOperationService
         if (successes > 0)
         {
             await _db.SaveChangesAsync(cancellationToken);
-            await _activityService.LogAsync(targetList.BoardId, caller.UserId, "bulk.move",
-                "Card", Guid.Empty, $"{{\"count\":{successes},\"targetListId\":\"{dto.TargetListId}\"}}",
+            await _activityService.LogAsync(targetSwimlane.BoardId, caller.UserId, "bulk.move",
+                "Card", Guid.Empty, $"{{\"count\":{successes},\"targetSwimlaneId\":\"{dto.TargetSwimlaneId}\"}}",
                 cancellationToken);
 
-            _logger.LogInformation("Bulk moved {Count} cards to list {ListId} by user {UserId}",
-                successes, dto.TargetListId, caller.UserId);
+            _logger.LogInformation("Bulk moved {Count} cards to swimlane {SwimlaneId} by user {UserId}",
+                successes, dto.TargetSwimlaneId, caller.UserId);
         }
 
         return new BulkOperationResultDto
@@ -115,13 +115,13 @@ public sealed class BulkOperationService
 
         var normalizedIds = dto.CardIds.Take(MaxBulkSize).ToList();
         var cards = await _db.Cards
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .Include(c => c.Assignments)
             .Where(c => normalizedIds.Contains(c.Id) && !c.IsDeleted)
             .ToListAsync(cancellationToken);
 
         // Verify board membership for all cards' boards
-        var boardIds = cards.Select(c => c.List?.BoardId).Where(id => id.HasValue).Select(id => id!.Value).Distinct();
+        var boardIds = cards.Select(c => c.Swimlane?.BoardId).Where(id => id.HasValue).Select(id => id!.Value).Distinct();
         var accessibleBoardIds = new HashSet<Guid>();
         foreach (var boardId in boardIds)
         {
@@ -148,7 +148,7 @@ public sealed class BulkOperationService
                 continue;
             }
 
-            if (card.List?.BoardId is not { } boardId || !accessibleBoardIds.Contains(boardId))
+            if (card.Swimlane?.BoardId is not { } boardId || !accessibleBoardIds.Contains(boardId))
             {
                 failures[cardId] = "Insufficient board access.";
                 continue;
@@ -203,7 +203,7 @@ public sealed class BulkOperationService
 
         var normalizedIds = dto.CardIds.Take(MaxBulkSize).ToList();
         var cards = await _db.Cards
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .Include(c => c.CardLabels)
             .Where(c => normalizedIds.Contains(c.Id) && !c.IsDeleted)
             .ToListAsync(cancellationToken);
@@ -220,7 +220,7 @@ public sealed class BulkOperationService
                 continue;
             }
 
-            if (card.List?.BoardId != label.BoardId)
+            if (card.Swimlane?.BoardId != label.BoardId)
             {
                 failures[cardId] = "Card is on a different board from the label.";
                 continue;
@@ -269,11 +269,11 @@ public sealed class BulkOperationService
 
         var normalizedIds = dto.CardIds.Take(MaxBulkSize).ToList();
         var cards = await _db.Cards
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .Where(c => normalizedIds.Contains(c.Id) && !c.IsDeleted && !c.IsArchived)
             .ToListAsync(cancellationToken);
 
-        var boardIds = cards.Select(c => c.List?.BoardId).Where(id => id.HasValue).Select(id => id!.Value).Distinct();
+        var boardIds = cards.Select(c => c.Swimlane?.BoardId).Where(id => id.HasValue).Select(id => id!.Value).Distinct();
         var accessibleBoardIds = new HashSet<Guid>();
         foreach (var boardId in boardIds)
         {
@@ -297,7 +297,7 @@ public sealed class BulkOperationService
                 continue;
             }
 
-            if (card.List?.BoardId is not { } boardId || !accessibleBoardIds.Contains(boardId))
+            if (card.Swimlane?.BoardId is not { } boardId || !accessibleBoardIds.Contains(boardId))
             {
                 failures[cardId] = "Insufficient board access.";
                 continue;

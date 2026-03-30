@@ -132,14 +132,14 @@ public sealed class LabelService
     public async Task AddLabelToCardAsync(Guid cardId, Guid labelId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         var card = await _db.Cards
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
 
-        await _boardService.EnsureBoardRoleAsync(card.List!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
+        await _boardService.EnsureBoardRoleAsync(card.Swimlane!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
 
         var labelExists = await _db.Labels
-            .AnyAsync(l => l.Id == labelId && l.BoardId == card.List.BoardId, cancellationToken);
+            .AnyAsync(l => l.Id == labelId && l.BoardId == card.Swimlane.BoardId, cancellationToken);
 
         if (!labelExists)
             throw new ValidationException(ErrorCodes.LabelNotFound, "Label not found on this board.");
@@ -166,11 +166,11 @@ public sealed class LabelService
     public async Task RemoveLabelFromCardAsync(Guid cardId, Guid labelId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         var card = await _db.Cards
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
 
-        await _boardService.EnsureBoardRoleAsync(card.List!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
+        await _boardService.EnsureBoardRoleAsync(card.Swimlane!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
 
         var cardLabel = await _db.CardLabels
             .FirstOrDefaultAsync(cl => cl.CardId == cardId && cl.LabelId == labelId, cancellationToken);

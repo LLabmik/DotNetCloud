@@ -39,37 +39,37 @@
 
     @* ── Board Columns ── *@
     <div class="tracks-kanban-columns" id="tracks-kanban-columns">
-        @foreach (var list in Lists)
+        @foreach (var swimlane in Swimlanes)
         {
-            var listCards = GetFilteredCards(list.Id);
-            var isWipExceeded = list.CardLimit.HasValue && listCards.Count >= list.CardLimit.Value;
+            var swimlaneCards = GetFilteredCards(swimlane.Id);
+            var isWipExceeded = swimlane.CardLimit.HasValue && swimlaneCards.Count >= swimlane.CardLimit.Value;
 
             <div class="tracks-kanban-column"
-                 data-list-id="@list.Id"
+                 data-swimlane-id="@swimlane.Id"
                  @ondragover="HandleDragOver"
                  @ondragover:preventDefault
-                 @ondrop="() => HandleDropOnList(list.Id)">
+                 @ondrop="() => HandleDropOnSwimlane(swimlane.Id)">
                 <div class="tracks-kanban-column-header">
                     <div class="tracks-kanban-column-title">
-                        @if (!string.IsNullOrEmpty(list.Color))
+                        @if (!string.IsNullOrEmpty(swimlane.Color))
                         {
-                            <span class="tracks-column-dot" style="background: @list.Color;"></span>
+                            <span class="tracks-column-dot" style="background: @swimlane.Color;"></span>
                         }
-                        <span>@list.Title</span>
+                        <span>@swimlane.Title</span>
                         <span class="tracks-card-count @(isWipExceeded ? "wip-exceeded" : "")">
-                            @listCards.Count@(list.CardLimit.HasValue ? $"/{list.CardLimit}" : "")
+                            @swimlaneCards.Count@(swimlane.CardLimit.HasValue ? $"/{swimlane.CardLimit}" : "")
                         </span>
                     </div>
                     <div class="tracks-kanban-column-actions">
                         <button class="tracks-icon-btn" title="Add card"
-                                @onclick="() => BeginAddCard(list.Id)">+</button>
-                        <button class="tracks-icon-btn" title="Delete list"
-                                @onclick="() => DeleteListAsync(list.Id)">×</button>
+                                @onclick="() => BeginAddCard(swimlane.Id)">+</button>
+                        <button class="tracks-icon-btn" title="Delete swimlane"
+                                @onclick="() => DeleteSwimlaneAsync(swimlane.Id)">×</button>
                     </div>
                 </div>
 
                 <div class="tracks-kanban-cards">
-                    @foreach (var card in listCards)
+                    @foreach (var card in swimlaneCards)
                     {
                         <div class="tracks-kanban-card @(card.IsArchived ? "archived" : "") @GetPriorityClass(card.Priority)"
                              draggable="true"
@@ -139,7 +139,7 @@
                         </div>
                     }
 
-                    @if (_addingCardToList == list.Id)
+                    @if (_addingCardToSwimlane == swimlane.Id)
                     {
                         <div class="tracks-kanban-card-add">
                             <input type="text" class="form-control" placeholder="Card title..."
@@ -155,24 +155,24 @@
             </div>
         }
 
-        @* ── Add List Column ── *@
-        <div class="tracks-kanban-add-list">
-            @if (_showAddList)
+        @* ── Add Swimlane Column ── *@
+        <div class="tracks-kanban-add-swimlane">
+            @if (_showAddSwimlane)
             {
-                <div class="tracks-add-list-form">
-                    <input type="text" class="form-control" placeholder="List title..."
-                           @bind="_newListTitle" @bind:event="oninput"
-                           @onkeydown="HandleAddListKeyDown" />
+                <div class="tracks-add-swimlane-form">
+                    <input type="text" class="form-control" placeholder="Swimlane title..."
+                           @bind="_newSwimlaneTitle" @bind:event="oninput"
+                           @onkeydown="HandleAddSwimlaneKeyDown" />
                     <div class="tracks-card-add-actions">
-                        <button class="btn btn-sm btn-primary" @onclick="SubmitNewListAsync">Add</button>
-                        <button class="btn btn-sm btn-secondary" @onclick="() => _showAddList = false">Cancel</button>
+                        <button class="btn btn-sm btn-primary" @onclick="SubmitNewSwimlaneAsync">Add</button>
+                        <button class="btn btn-sm btn-secondary" @onclick="() => _showAddSwimlane = false">Cancel</button>
                     </div>
                 </div>
             }
             else
             {
-                <button class="tracks-add-list-btn" @onclick="() => _showAddList = true">
-                    + Add list
+                <button class="tracks-add-swimlane-btn" @onclick="() => _showAddSwimlane = true">
+                    + Add Swimlane
                 </button>
             }
         </div>

@@ -38,7 +38,7 @@ internal sealed class TracksRealtimeEventHandler :
     {
         _logger.LogDebug("Broadcasting card created: {CardId} on board {BoardId}", @event.CardId, @event.BoardId);
         await _realtimeService.BroadcastCardActionAsync(@event.BoardId, @event.CardId, "created",
-            toListId: @event.ListId, cancellationToken: cancellationToken);
+            toSwimlaneId: @event.SwimlaneId, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc />
@@ -52,9 +52,9 @@ internal sealed class TracksRealtimeEventHandler :
     /// <inheritdoc />
     public async Task HandleAsync(CardMovedEvent @event, CancellationToken cancellationToken)
     {
-        _logger.LogDebug("Broadcasting card moved: {CardId} from {FromList} to {ToList}", @event.CardId, @event.FromListId, @event.ToListId);
+        _logger.LogDebug("Broadcasting card moved: {CardId} from {FromSwimlane} to {ToSwimlane}", @event.CardId, @event.FromSwimlaneId, @event.ToSwimlaneId);
         await _realtimeService.BroadcastCardActionAsync(@event.BoardId, @event.CardId, "moved",
-            fromListId: @event.FromListId, toListId: @event.ToListId, cancellationToken: cancellationToken);
+            fromSwimlaneId: @event.FromSwimlaneId, toSwimlaneId: @event.ToSwimlaneId, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc />

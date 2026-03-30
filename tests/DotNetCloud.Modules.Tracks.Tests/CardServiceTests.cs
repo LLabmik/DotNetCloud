@@ -18,7 +18,7 @@ public class CardServiceTests
     private Mock<IEventBus> _eventBusMock;
     private CallerContext _caller;
     private Board _board;
-    private BoardList _list;
+    private BoardSwimlane _swimlane;
 
     [TestInitialize]
     public async Task Setup()
@@ -31,7 +31,7 @@ public class CardServiceTests
         var boardService = new BoardService(_db, _eventBusMock.Object, activityService, teamService, NullLogger<BoardService>.Instance);
         _service = new CardService(_db, boardService, activityService, _eventBusMock.Object, NullLogger<CardService>.Instance);
         _board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId);
-        _list = await TestHelpers.SeedListAsync(_db, _board.Id);
+        _swimlane = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
     }
 
     [TestCleanup]
@@ -51,7 +51,7 @@ public class CardServiceTests
             LabelIds = []
         };
 
-        var result = await _service.CreateCardAsync(_list.Id, dto, _caller);
+        var result = await _service.CreateCardAsync(_swimlane.Id, dto, _caller);
 
         Assert.IsNotNull(result);
         Assert.AreEqual("Task 1", result.Title);
@@ -62,7 +62,7 @@ public class CardServiceTests
     [TestMethod]
     public async Task CreateCard_WipLimitExceeded_Throws()
     {
-        var limitList = await TestHelpers.SeedListAsync(_db, _board.Id, "Limited", cardLimit: 1);
+        var limitList = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id, "Limited", cardLimit: 1);
         await TestHelpers.SeedCardAsync(_db, limitList.Id, _caller.UserId);
 
         var dto = new CreateCardDto { Title = "Over limit", AssigneeIds = [], LabelIds = [] };
@@ -76,7 +76,7 @@ public class CardServiceTests
     {
         var dto = new CreateCardDto { Title = "Event Card", AssigneeIds = [], LabelIds = [] };
 
-        await _service.CreateCardAsync(_list.Id, dto, _caller);
+        await _service.CreateCardAsync(_swimlane.Id, dto, _caller);
 
         _eventBusMock.Verify(
             eb => eb.PublishAsync(
@@ -91,7 +91,7 @@ public class CardServiceTests
     [TestMethod]
     public async Task GetCard_AsMember_ReturnsCard()
     {
-        var card = await TestHelpers.SeedCardAsync(_db, _list.Id, _caller.UserId);
+        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId);
 
         var result = await _service.GetCardAsync(card.Id, _caller);
 
@@ -102,7 +102,7 @@ public class CardServiceTests
     [TestMethod]
     public async Task GetCard_NonMember_Throws()
     {
-        var card = await TestHelpers.SeedCardAsync(_db, _list.Id, _caller.UserId);
+        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId);
         var otherCaller = TestHelpers.CreateCaller();
 
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
@@ -112,7 +112,7 @@ public class CardServiceTests
     [TestMethod]
     public async Task GetCard_Deleted_ReturnsNull()
     {
-        var card = await TestHelpers.SeedCardAsync(_db, _list.Id, _caller.UserId);
+        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId);
         card.IsDeleted = true;
         await _db.SaveChangesAsync();
 
@@ -126,13 +126,13 @@ public class CardServiceTests
     [TestMethod]
     public async Task ListCards_ReturnsCardsInOrder()
     {
-        var card1 = await TestHelpers.SeedCardAsync(_db, _list.Id, _caller.UserId, "Card 1");
+        var card1 = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId, "Card 1");
         card1.Position = 1000;
-        var card2 = await TestHelpers.SeedCardAsync(_db, _list.Id, _caller.UserId, "Card 2");
+        var card2 = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId, "Card 2");
         card2.Position = 2000;
         await _db.SaveChangesAsync();
 
-        var results = await _service.ListCardsAsync(_list.Id, _caller);
+        var results = await _service.ListCardsAsync(_swimlane.Id, _caller);
 
         Assert.AreEqual(2, results.Count);
         Assert.AreEqual("Card 1", results[0].Title);
@@ -144,7 +144,7 @@ public class CardServiceTests
     [TestMethod]
     public async Task UpdateCard_ChangesFields()
     {
-        var card = await TestHelpers.SeedCardAsync(_db, _list.Id, _caller.UserId);
+        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId);
 
         var result = await _service.UpdateCardAsync(card.Id,
             new UpdateCardDto { Title = "Updated", Priority = CardPriority.Urgent }, _caller);
@@ -158,25 +158,25 @@ public class CardServiceTests
     [TestMethod]
     public async Task MoveCard_ToAnotherList_UpdatesList()
     {
-        var card = await TestHelpers.SeedCardAsync(_db, _list.Id, _caller.UserId);
-        var targetList = await TestHelpers.SeedListAsync(_db, _board.Id, "Done");
+        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId);
+        var targetList = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id, "Done");
 
         var result = await _service.MoveCardAsync(card.Id,
-            new MoveCardDto { TargetListId = targetList.Id, Position = 1000 }, _caller);
+            new MoveCardDto { TargetSwimlaneId = targetList.Id, Position = 1000 }, _caller);
 
-        Assert.AreEqual(targetList.Id, result.ListId);
+        Assert.AreEqual(targetList.Id, result.SwimlaneId);
     }
 
     [TestMethod]
     public async Task MoveCard_WipLimitOnTarget_Throws()
     {
-        var targetList = await TestHelpers.SeedListAsync(_db, _board.Id, "Limited", cardLimit: 1);
+        var targetList = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id, "Limited", cardLimit: 1);
         await TestHelpers.SeedCardAsync(_db, targetList.Id, _caller.UserId, "Existing");
-        var card = await TestHelpers.SeedCardAsync(_db, _list.Id, _caller.UserId, "Moving");
+        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId, "Moving");
 
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
             () => _service.MoveCardAsync(card.Id,
-                new MoveCardDto { TargetListId = targetList.Id, Position = 2000 }, _caller));
+                new MoveCardDto { TargetSwimlaneId = targetList.Id, Position = 2000 }, _caller));
     }
 
     // ─── Delete ───────────────────────────────────────────────────────
@@ -184,7 +184,7 @@ public class CardServiceTests
     [TestMethod]
     public async Task DeleteCard_SoftDeletes()
     {
-        var card = await TestHelpers.SeedCardAsync(_db, _list.Id, _caller.UserId);
+        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId);
 
         await _service.DeleteCardAsync(card.Id, _caller);
 
@@ -195,7 +195,7 @@ public class CardServiceTests
     [TestMethod]
     public async Task DeleteCard_PublishesEvent()
     {
-        var card = await TestHelpers.SeedCardAsync(_db, _list.Id, _caller.UserId);
+        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId);
 
         await _service.DeleteCardAsync(card.Id, _caller);
 
@@ -212,7 +212,7 @@ public class CardServiceTests
     [TestMethod]
     public async Task AssignUser_AddsBoardMemberToCard()
     {
-        var card = await TestHelpers.SeedCardAsync(_db, _list.Id, _caller.UserId);
+        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId);
         var assigneeId = Guid.NewGuid();
         await TestHelpers.AddMemberAsync(_db, _board.Id, assigneeId, BoardMemberRole.Member);
 
@@ -225,7 +225,7 @@ public class CardServiceTests
     [TestMethod]
     public async Task AssignUser_AlreadyAssigned_IsIdempotent()
     {
-        var card = await TestHelpers.SeedCardAsync(_db, _list.Id, _caller.UserId);
+        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId);
         var assigneeId = Guid.NewGuid();
         await TestHelpers.AddMemberAsync(_db, _board.Id, assigneeId, BoardMemberRole.Member);
 
@@ -239,7 +239,7 @@ public class CardServiceTests
     [TestMethod]
     public async Task UnassignUser_RemovesAssignment()
     {
-        var card = await TestHelpers.SeedCardAsync(_db, _list.Id, _caller.UserId);
+        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId);
         var assigneeId = Guid.NewGuid();
         await TestHelpers.AddMemberAsync(_db, _board.Id, assigneeId, BoardMemberRole.Member);
         await _service.AssignUserAsync(card.Id, assigneeId, _caller);
@@ -253,7 +253,7 @@ public class CardServiceTests
     [TestMethod]
     public async Task UnassignUser_NotAssigned_IsIdempotent()
     {
-        var card = await TestHelpers.SeedCardAsync(_db, _list.Id, _caller.UserId);
+        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId);
 
         // Should not throw
         await _service.UnassignUserAsync(card.Id, Guid.NewGuid(), _caller);

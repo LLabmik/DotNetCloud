@@ -77,13 +77,13 @@ public sealed class CardTemplateService
 
         var card = await _db.Cards
             .AsNoTracking()
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .Include(c => c.CardLabels)
             .Include(c => c.Checklists).ThenInclude(cl => cl.Items)
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
 
-        await _boardService.EnsureBoardRoleAsync(card.List!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
+        await _boardService.EnsureBoardRoleAsync(card.Swimlane!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
 
         var labelIds = dto.IncludeLabels
             ? card.CardLabels.Select(cl => cl.LabelId).ToList()
@@ -102,7 +102,7 @@ public sealed class CardTemplateService
 
         var template = new CardTemplate
         {
-            BoardId = card.List.BoardId,
+            BoardId = card.Swimlane.BoardId,
             Name = dto.Name,
             TitlePattern = card.Title,
             Description = card.Description,
@@ -122,9 +122,9 @@ public sealed class CardTemplateService
     }
 
     /// <summary>
-    /// Creates a new card in a list from a card template.
+    /// Creates a new card in a swimlane from a card template.
     /// </summary>
-    public async Task<CardDto> CreateCardFromTemplateAsync(Guid templateId, Guid listId, CreateCardFromTemplateDto dto, CallerContext caller, CancellationToken cancellationToken = default)
+    public async Task<CardDto> CreateCardFromTemplateAsync(Guid templateId, Guid swimlaneId, CreateCardFromTemplateDto dto, CallerContext caller, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dto);
 
@@ -156,7 +156,7 @@ public sealed class CardTemplateService
             AssigneeIds = []
         };
 
-        var card = await _cardService.CreateCardAsync(listId, createCardDto, caller, cancellationToken);
+        var card = await _cardService.CreateCardAsync(swimlaneId, createCardDto, caller, cancellationToken);
 
         // Apply checklist definitions
         if (!string.IsNullOrEmpty(template.ChecklistsJson))
@@ -191,8 +191,8 @@ public sealed class CardTemplateService
             }
         }
 
-        _logger.LogInformation("Card {CardId} created from template {TemplateId} in list {ListId} by user {UserId}",
-            card.Id, templateId, listId, caller.UserId);
+        _logger.LogInformation("Card {CardId} created from template {TemplateId} in swimlane {SwimlaneId} by user {UserId}",
+            card.Id, templateId, swimlaneId, caller.UserId);
 
         // Return refreshed card with checklists
         return await _cardService.GetCardAsync(card.Id, caller, cancellationToken) ?? card;

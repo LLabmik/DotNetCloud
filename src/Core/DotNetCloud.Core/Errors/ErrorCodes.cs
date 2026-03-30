@@ -286,7 +286,7 @@ public static class ErrorCodes
     public const string BoardNotFound = "TRACKS_BOARD_NOT_FOUND";
 
     /// <summary>Error code for board list not found.</summary>
-    public const string BoardListNotFound = "TRACKS_LIST_NOT_FOUND";
+    public const string BoardSwimlaneNotFound = "TRACKS_SWIMLANE_NOT_FOUND";
 
     /// <summary>Error code for card not found.</summary>
     public const string CardNotFound = "TRACKS_CARD_NOT_FOUND";

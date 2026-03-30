@@ -56,26 +56,26 @@ internal static class TestHelpers
     }
 
     /// <summary>Seeds a list on a board.</summary>
-    public static async Task<BoardList> SeedListAsync(TracksDbContext db, Guid boardId, string title = "Test List", int? cardLimit = null)
+    public static async Task<BoardSwimlane> SeedSwimlaneAsync(TracksDbContext db, Guid boardId, string title = "Test List", int? cardLimit = null)
     {
-        var list = new BoardList
+        var list = new BoardSwimlane
         {
             BoardId = boardId,
             Title = title,
             Position = 1000.0,
             CardLimit = cardLimit
         };
-        db.BoardLists.Add(list);
+        db.BoardSwimlanes.Add(list);
         await db.SaveChangesAsync();
         return list;
     }
 
-    /// <summary>Seeds a card in a list.</summary>
-    public static async Task<Card> SeedCardAsync(TracksDbContext db, Guid listId, Guid createdByUserId, string title = "Test Card")
+    /// <summary>Seeds a card in a swimlane.</summary>
+    public static async Task<Card> SeedCardAsync(TracksDbContext db, Guid swimlaneId, Guid createdByUserId, string title = "Test Card")
     {
         var card = new Card
         {
-            ListId = listId,
+            SwimlaneId = swimlaneId,
             Title = title,
             Position = 1000.0,
             CreatedByUserId = createdByUserId

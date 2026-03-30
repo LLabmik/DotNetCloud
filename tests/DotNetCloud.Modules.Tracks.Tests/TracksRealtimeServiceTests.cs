@@ -37,16 +37,16 @@ public class TracksRealtimeServiceTests
     }
 
     [TestMethod]
-    public async Task BroadcastListAction_SendsToBoardGroup()
+    public async Task BroadcastSwimlaneAction_SendsToBoardGroup()
     {
         var boardId = Guid.NewGuid();
-        var listId = Guid.NewGuid();
+        var swimlaneId = Guid.NewGuid();
 
-        await _service.BroadcastListActionAsync(boardId, listId, "created");
+        await _service.BroadcastSwimlaneActionAsync(boardId, swimlaneId, "created");
 
         _broadcaster.Verify(b => b.BroadcastAsync(
             $"tracks-board-{boardId}",
-            "TracksListAction",
+            "TracksSwimlaneAction",
             It.IsAny<object>(),
             It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -162,7 +162,7 @@ public class TracksRealtimeServiceTests
 
         // These should all complete without throwing
         await service.BroadcastCardActionAsync(boardId, Guid.NewGuid(), "created");
-        await service.BroadcastListActionAsync(boardId, Guid.NewGuid(), "created");
+        await service.BroadcastSwimlaneActionAsync(boardId, Guid.NewGuid(), "created");
         await service.BroadcastCommentActionAsync(boardId, Guid.NewGuid(), Guid.NewGuid(), "added");
         await service.BroadcastSprintActionAsync(boardId, Guid.NewGuid(), "started");
         await service.BroadcastActivityAsync(boardId, Guid.NewGuid(), "test", "Board", Guid.NewGuid());

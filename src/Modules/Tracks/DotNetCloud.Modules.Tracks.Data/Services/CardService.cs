@@ -34,32 +34,32 @@ public sealed class CardService
     }
 
     /// <summary>
-    /// Creates a new card in a list. Requires Member role or higher. Enforces WIP limits.
+    /// Creates a new card in a swimlane. Requires Member role or higher. Enforces WIP limits.
     /// </summary>
-    public async Task<CardDto> CreateCardAsync(Guid listId, CreateCardDto dto, CallerContext caller, CancellationToken cancellationToken = default)
+    public async Task<CardDto> CreateCardAsync(Guid swimlaneId, CreateCardDto dto, CallerContext caller, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dto);
 
-        var list = await _db.BoardLists
-            .FirstOrDefaultAsync(l => l.Id == listId && !l.IsArchived, cancellationToken)
-            ?? throw new ValidationException(ErrorCodes.BoardListNotFound, "List not found.");
+        var swimlane = await _db.BoardSwimlanes
+            .FirstOrDefaultAsync(l => l.Id == swimlaneId && !l.IsArchived, cancellationToken)
+            ?? throw new ValidationException(ErrorCodes.BoardSwimlaneNotFound, "Swimlane not found.");
 
-        await _boardService.EnsureBoardRoleAsync(list.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
+        await _boardService.EnsureBoardRoleAsync(swimlane.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
 
         // WIP limit check
-        if (list.CardLimit.HasValue)
+        if (swimlane.CardLimit.HasValue)
         {
             var activeCount = await _db.Cards
-                .CountAsync(c => c.ListId == listId && !c.IsDeleted && !c.IsArchived, cancellationToken);
+                .CountAsync(c => c.SwimlaneId == swimlaneId && !c.IsDeleted && !c.IsArchived, cancellationToken);
 
-            if (activeCount >= list.CardLimit.Value)
+            if (activeCount >= swimlane.CardLimit.Value)
                 throw new ValidationException(ErrorCodes.WipLimitExceeded,
-                    $"List '{list.Title}' has reached its WIP limit of {list.CardLimit.Value}.");
+                    $"Swimlane '{swimlane.Title}' has reached its WIP limit of {swimlane.CardLimit.Value}.");
         }
 
         // Position: append after last card
         var maxPos = await _db.Cards
-            .Where(c => c.ListId == listId && !c.IsDeleted)
+            .Where(c => c.SwimlaneId == swimlaneId && !c.IsDeleted)
             .MaxAsync(c => (double?)c.Position, cancellationToken) ?? 0;
 
         // Assign next sequential card number (globally unique across the system)
@@ -69,7 +69,7 @@ public sealed class CardService
 
         var card = new Card
         {
-            ListId = listId,
+            SwimlaneId = swimlaneId,
             CardNumber = maxCardNumber + 1,
             Title = dto.Title,
             Description = dto.Description,
@@ -105,11 +105,11 @@ public sealed class CardService
         _db.Cards.Add(card);
         await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Card {CardId} '{Title}' created in list {ListId} by user {UserId}",
-            card.Id, card.Title, listId, caller.UserId);
+        _logger.LogInformation("Card {CardId} '{Title}' created in swimlane {SwimlaneId} by user {UserId}",
+            card.Id, card.Title, swimlaneId, caller.UserId);
 
-        await _activityService.LogAsync(list.BoardId, caller.UserId, "card.created", "Card", card.Id,
-            $"{{\"title\":\"{card.Title}\",\"listId\":\"{listId}\"}}", cancellationToken);
+        await _activityService.LogAsync(swimlane.BoardId, caller.UserId, "card.created", "Card", card.Id,
+            $"{{\"title\":\"{card.Title}\",\"swimlaneId\":\"{swimlaneId}\"}}", cancellationToken);
 
         await _eventBus.PublishAsync(new CardCreatedEvent
         {
@@ -117,8 +117,8 @@ public sealed class CardService
             CreatedAt = DateTime.UtcNow,
             CardId = card.Id,
             Title = card.Title,
-            BoardId = list.BoardId,
-            ListId = listId,
+            BoardId = swimlane.BoardId,
+            SwimlaneId = swimlaneId,
             CreatedByUserId = caller.UserId
         }, caller, cancellationToken);
 
@@ -133,28 +133,28 @@ public sealed class CardService
     {
         var card = await _db.Cards
             .AsNoTracking()
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken);
 
         if (card is null)
             return null;
 
-        await _boardService.EnsureBoardMemberAsync(card.List!.BoardId, caller.UserId, cancellationToken);
+        await _boardService.EnsureBoardMemberAsync(card.Swimlane!.BoardId, caller.UserId, cancellationToken);
 
         return await GetCardDtoAsync(cardId, cancellationToken);
     }
 
     /// <summary>
-    /// Lists cards in a list, ordered by position.
+    /// Lists cards in a swimlane, ordered by position.
     /// </summary>
-    public async Task<IReadOnlyList<CardDto>> ListCardsAsync(Guid listId, CallerContext caller, bool includeArchived = false, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<CardDto>> ListCardsAsync(Guid swimlaneId, CallerContext caller, bool includeArchived = false, CancellationToken cancellationToken = default)
     {
-        var list = await _db.BoardLists
+        var swimlane = await _db.BoardSwimlanes
             .AsNoTracking()
-            .FirstOrDefaultAsync(l => l.Id == listId, cancellationToken)
-            ?? throw new ValidationException(ErrorCodes.BoardListNotFound, "List not found.");
+            .FirstOrDefaultAsync(l => l.Id == swimlaneId, cancellationToken)
+            ?? throw new ValidationException(ErrorCodes.BoardSwimlaneNotFound, "Swimlane not found.");
 
-        await _boardService.EnsureBoardMemberAsync(list.BoardId, caller.UserId, cancellationToken);
+        await _boardService.EnsureBoardMemberAsync(swimlane.BoardId, caller.UserId, cancellationToken);
 
         var query = _db.Cards
             .AsNoTracking()
@@ -164,7 +164,7 @@ public sealed class CardService
             .Include(c => c.Comments.Where(cm => !cm.IsDeleted))
             .Include(c => c.Attachments)
             .Include(c => c.TimeEntries)
-            .Where(c => c.ListId == listId && !c.IsDeleted);
+            .Where(c => c.SwimlaneId == swimlaneId && !c.IsDeleted);
 
         if (!includeArchived)
             query = query.Where(c => !c.IsArchived);
@@ -184,11 +184,11 @@ public sealed class CardService
         ArgumentNullException.ThrowIfNull(dto);
 
         var card = await _db.Cards
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
 
-        await _boardService.EnsureBoardRoleAsync(card.List!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
+        await _boardService.EnsureBoardRoleAsync(card.Swimlane!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
 
         if (dto.Title is not null) card.Title = dto.Title;
         if (dto.Description is not null) card.Description = dto.Description;
@@ -204,14 +204,14 @@ public sealed class CardService
 
         _logger.LogInformation("Card {CardId} updated by user {UserId}", cardId, caller.UserId);
 
-        await _activityService.LogAsync(card.List.BoardId, caller.UserId, "card.updated", "Card", cardId, null, cancellationToken);
+        await _activityService.LogAsync(card.Swimlane.BoardId, caller.UserId, "card.updated", "Card", cardId, null, cancellationToken);
 
         await _eventBus.PublishAsync(new CardUpdatedEvent
         {
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
             CardId = cardId,
-            BoardId = card.List.BoardId,
+            BoardId = card.Swimlane.BoardId,
             UpdatedByUserId = caller.UserId
         }, caller, cancellationToken);
 
@@ -220,56 +220,56 @@ public sealed class CardService
     }
 
     /// <summary>
-    /// Moves a card to a different list and/or position. Enforces WIP limits.
+    /// Moves a card to a different swimlane and/or position. Enforces WIP limits.
     /// </summary>
     public async Task<CardDto> MoveCardAsync(Guid cardId, MoveCardDto dto, CallerContext caller, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dto);
 
         var card = await _db.Cards
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
 
-        await _boardService.EnsureBoardRoleAsync(card.List!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
+        await _boardService.EnsureBoardRoleAsync(card.Swimlane!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
 
-        var targetList = await _db.BoardLists
-            .FirstOrDefaultAsync(l => l.Id == dto.TargetListId && !l.IsArchived, cancellationToken)
-            ?? throw new ValidationException(ErrorCodes.BoardListNotFound, "Target list not found.");
+        var targetSwimlane = await _db.BoardSwimlanes
+            .FirstOrDefaultAsync(l => l.Id == dto.TargetSwimlaneId && !l.IsArchived, cancellationToken)
+            ?? throw new ValidationException(ErrorCodes.BoardSwimlaneNotFound, "Target swimlane not found.");
 
-        // WIP limit check on target list (skip if moving within same list)
-        if (card.ListId != dto.TargetListId && targetList.CardLimit.HasValue)
+        // WIP limit check on target swimlane (skip if moving within same swimlane)
+        if (card.SwimlaneId != dto.TargetSwimlaneId && targetSwimlane.CardLimit.HasValue)
         {
             var activeCount = await _db.Cards
-                .CountAsync(c => c.ListId == dto.TargetListId && !c.IsDeleted && !c.IsArchived, cancellationToken);
+                .CountAsync(c => c.SwimlaneId == dto.TargetSwimlaneId && !c.IsDeleted && !c.IsArchived, cancellationToken);
 
-            if (activeCount >= targetList.CardLimit.Value)
+            if (activeCount >= targetSwimlane.CardLimit.Value)
                 throw new ValidationException(ErrorCodes.WipLimitExceeded,
-                    $"Target list '{targetList.Title}' has reached its WIP limit of {targetList.CardLimit.Value}.");
+                    $"Target swimlane '{targetSwimlane.Title}' has reached its WIP limit of {targetSwimlane.CardLimit.Value}.");
         }
 
-        var fromListId = card.ListId;
-        card.ListId = dto.TargetListId;
+        var fromSwimlaneId = card.SwimlaneId;
+        card.SwimlaneId = dto.TargetSwimlaneId;
         card.Position = dto.Position;
         card.UpdatedAt = DateTime.UtcNow;
         card.ETag = Guid.NewGuid().ToString("N");
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Card {CardId} moved from list {FromListId} to {ToListId} by user {UserId}",
-            cardId, fromListId, dto.TargetListId, caller.UserId);
+        _logger.LogInformation("Card {CardId} moved from swimlane {FromSwimlaneId} to {ToSwimlaneId} by user {UserId}",
+            cardId, fromSwimlaneId, dto.TargetSwimlaneId, caller.UserId);
 
-        await _activityService.LogAsync(card.List.BoardId, caller.UserId, "card.moved", "Card", cardId,
-            $"{{\"from\":\"{fromListId}\",\"to\":\"{dto.TargetListId}\"}}", cancellationToken);
+        await _activityService.LogAsync(card.Swimlane.BoardId, caller.UserId, "card.moved", "Card", cardId,
+            $"{{\"from\":\"{fromSwimlaneId}\",\"to\":\"{dto.TargetSwimlaneId}\"}}", cancellationToken);
 
         await _eventBus.PublishAsync(new CardMovedEvent
         {
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
             CardId = cardId,
-            BoardId = card.List.BoardId,
-            FromListId = fromListId,
-            ToListId = dto.TargetListId,
+            BoardId = card.Swimlane.BoardId,
+            FromSwimlaneId = fromSwimlaneId,
+            ToSwimlaneId = dto.TargetSwimlaneId,
             MovedByUserId = caller.UserId
         }, caller, cancellationToken);
 
@@ -283,11 +283,11 @@ public sealed class CardService
     public async Task DeleteCardAsync(Guid cardId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         var card = await _db.Cards
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
 
-        await _boardService.EnsureBoardRoleAsync(card.List!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
+        await _boardService.EnsureBoardRoleAsync(card.Swimlane!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
 
         card.IsDeleted = true;
         card.DeletedAt = DateTime.UtcNow;
@@ -297,7 +297,7 @@ public sealed class CardService
 
         _logger.LogInformation("Card {CardId} deleted by user {UserId}", cardId, caller.UserId);
 
-        await _activityService.LogAsync(card.List.BoardId, caller.UserId, "card.deleted", "Card", cardId,
+        await _activityService.LogAsync(card.Swimlane.BoardId, caller.UserId, "card.deleted", "Card", cardId,
             $"{{\"title\":\"{card.Title}\"}}", cancellationToken);
 
         await _eventBus.PublishAsync(new CardDeletedEvent
@@ -305,7 +305,7 @@ public sealed class CardService
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
             CardId = cardId,
-            BoardId = card.List.BoardId,
+            BoardId = card.Swimlane.BoardId,
             DeletedByUserId = caller.UserId,
             IsPermanent = false
         }, caller, cancellationToken);
@@ -317,14 +317,14 @@ public sealed class CardService
     public async Task AssignUserAsync(Guid cardId, Guid userId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         var card = await _db.Cards
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
 
-        await _boardService.EnsureBoardRoleAsync(card.List!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
+        await _boardService.EnsureBoardRoleAsync(card.Swimlane!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
 
         // Target user must be a board member
-        await _boardService.EnsureBoardMemberAsync(card.List.BoardId, userId, cancellationToken);
+        await _boardService.EnsureBoardMemberAsync(card.Swimlane.BoardId, userId, cancellationToken);
 
         var alreadyAssigned = await _db.CardAssignments
             .AnyAsync(a => a.CardId == cardId && a.UserId == userId, cancellationToken);
@@ -342,7 +342,7 @@ public sealed class CardService
         card.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
-        await _activityService.LogAsync(card.List.BoardId, caller.UserId, "card.assigned", "Card", cardId,
+        await _activityService.LogAsync(card.Swimlane.BoardId, caller.UserId, "card.assigned", "Card", cardId,
             $"{{\"userId\":\"{userId}\"}}", cancellationToken);
 
         await _eventBus.PublishAsync(new CardAssignedEvent
@@ -350,7 +350,7 @@ public sealed class CardService
             EventId = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
             CardId = cardId,
-            BoardId = card.List.BoardId,
+            BoardId = card.Swimlane.BoardId,
             AssignedUserId = userId,
             AssignedByUserId = caller.UserId
         }, caller, cancellationToken);
@@ -362,11 +362,11 @@ public sealed class CardService
     public async Task UnassignUserAsync(Guid cardId, Guid userId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         var card = await _db.Cards
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.CardNotFound, "Card not found.");
 
-        await _boardService.EnsureBoardRoleAsync(card.List!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
+        await _boardService.EnsureBoardRoleAsync(card.Swimlane!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
 
         var assignment = await _db.CardAssignments
             .FirstOrDefaultAsync(a => a.CardId == cardId && a.UserId == userId, cancellationToken);
@@ -378,7 +378,7 @@ public sealed class CardService
         card.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
-        await _activityService.LogAsync(card.List.BoardId, caller.UserId, "card.unassigned", "Card", cardId,
+        await _activityService.LogAsync(card.Swimlane.BoardId, caller.UserId, "card.unassigned", "Card", cardId,
             $"{{\"userId\":\"{userId}\"}}", cancellationToken);
     }
 
@@ -386,7 +386,7 @@ public sealed class CardService
     {
         var card = await _db.Cards
             .AsNoTracking()
-            .Include(c => c.List)
+            .Include(c => c.Swimlane)
             .Include(c => c.Assignments)
             .Include(c => c.CardLabels).ThenInclude(cl => cl.Label)
             .Include(c => c.Checklists).ThenInclude(ch => ch.Items)
@@ -401,8 +401,8 @@ public sealed class CardService
     internal static CardDto MapToDto(Card c) => new()
     {
         Id = c.Id,
-        ListId = c.ListId,
-        BoardId = c.List?.BoardId ?? Guid.Empty,
+        SwimlaneId = c.SwimlaneId,
+        BoardId = c.Swimlane?.BoardId ?? Guid.Empty,
         CardNumber = c.CardNumber,
         Title = c.Title,
         Description = c.Description,
