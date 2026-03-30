@@ -102,15 +102,33 @@
                                     }
                                 </div>
 
-                                <div class="tracks-add-member-row">
-                                    <input type="text" class="tracks-input" placeholder="User ID (GUID)"
-                                           @bind="_addMemberUserId" />
+                                <div class="tracks-add-member-row" style="position: relative;">
+                                    <div style="flex: 1; position: relative;">
+                                        <input type="text" class="tracks-input" placeholder="Search by name or email..."
+                                               @bind="_addMemberSearch" @bind:event="oninput" @bind:after="SearchUsersAsync" />
+                                        @if (_searchResults.Count > 0)
+                                        {
+                                            <div class="tracks-search-dropdown">
+                                                @foreach (var user in _searchResults)
+                                                {
+                                                    <div class="tracks-search-item" @onclick="() => SelectUserForAdd(user)">
+                                                        <span class="tracks-avatar-sm">@GetInitials(user.DisplayName)</span>
+                                                        <div class="tracks-member-info">
+                                                            <span class="tracks-member-name">@user.DisplayName</span>
+                                                            <span class="tracks-member-date">@user.Email</span>
+                                                        </div>
+                                                    </div>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
                                     <select class="tracks-filter-select" @bind="_addMemberRole">
                                         <option value="Member">Member</option>
                                         <option value="Manager">Manager</option>
                                         <option value="Owner">Owner</option>
                                     </select>
-                                    <button class="btn btn-sm btn-primary" @onclick="() => AddMemberAsync(team.Id)">Add</button>
+                                    <button class="btn btn-sm btn-primary" @onclick="() => AddMemberAsync(team.Id)"
+                                            disabled="@(_selectedUserId == Guid.Empty)">Add</button>
                                 </div>
                             </div>
 

@@ -17,4 +17,15 @@ public interface IUserDirectory : ICapabilityInterface
     /// IDs that do not map to a user are omitted from the result.
     /// </summary>
     Task<IReadOnlyDictionary<Guid, string>> GetDisplayNamesAsync(IEnumerable<Guid> userIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Searches active users by display name or email (case-insensitive substring match).
+    /// Returns at most <paramref name="maxResults"/> results ordered by display name.
+    /// </summary>
+    Task<IReadOnlyList<UserSearchResult>> SearchUsersAsync(string searchTerm, int maxResults = 20, CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Lightweight result from a user directory search.
+/// </summary>
+public sealed record UserSearchResult(Guid Id, string DisplayName, string Email);

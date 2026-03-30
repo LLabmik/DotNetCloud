@@ -167,4 +167,140 @@ public class UserDirectoryServiceTests
         await Assert.ThrowsExactlyAsync<ArgumentNullException>(
             () => _service.GetDisplayNamesAsync(null!));
     }
+
+    // ---------------------------------------------------------------------------
+    // SearchUsersAsync
+    // ---------------------------------------------------------------------------
+
+    [TestMethod]
+    public async Task SearchUsersAsync_WhenMatchingByDisplayName_ReturnsResults()
+    {
+        // Arrange
+        _dbContext.Users.Add(new ApplicationUser { Id = Guid.NewGuid(), UserName = "alice", DisplayName = "Alice Smith", Email = "alice@example.com", IsActive = true });
+        _dbContext.Users.Add(new ApplicationUser { Id = Guid.NewGuid(), UserName = "bob", DisplayName = "Bob Jones", Email = "bob@example.com", IsActive = true });
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        var result = await _service.SearchUsersAsync("Alice");
+
+        // Assert
+        Assert.AreEqual(1, result.Count);
+        Assert.AreEqual("Alice Smith", result[0].DisplayName);
+    }
+
+    [TestMethod]
+    public async Task SearchUsersAsync_WhenMatchingByEmail_ReturnsResults()
+    {
+        // Arrange
+        _dbContext.Users.Add(new ApplicationUser { Id = Guid.NewGuid(), UserName = "alice", DisplayName = "Alice Smith", Email = "alice@example.com", IsActive = true });
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        var result = await _service.SearchUsersAsync("alice@example");
+
+        // Assert
+        Assert.AreEqual(1, result.Count);
+        Assert.AreEqual("alice@example.com", result[0].Email);
+    }
+
+    [TestMethod]
+    public async Task SearchUsersAsync_WhenNoMatch_ReturnsEmpty()
+    {
+        // Arrange
+        _dbContext.Users.Add(new ApplicationUser { Id = Guid.NewGuid(), UserName = "alice", DisplayName = "Alice Smith", Email = "alice@example.com", IsActive = true });
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        var result = await _service.SearchUsersAsync("zzzzz");
+
+        // Assert
+        Assert.AreEqual(0, result.Count);
+    }
+
+    [TestMethod]
+    public async Task SearchUsersAsync_WhenEmptySearch_ReturnsEmpty()
+    {
+        // Act
+        var result = await _service.SearchUsersAsync("");
+
+        // Assert
+        Assert.AreEqual(0, result.Count);
+    }
+
+    [TestMethod]
+    public async Task SearchUsersAsync_WhenWhitespace_ReturnsEmpty()
+    {
+        // Act
+        var result = await _service.SearchUsersAsync("   ");
+
+        // Assert
+        Assert.AreEqual(0, result.Count);
+    }
+
+    [TestMethod]
+    public async Task SearchUsersAsync_FiltersInactiveUsers()
+    {
+        // Arrange
+        _dbContext.Users.Add(new ApplicationUser { Id = Guid.NewGuid(), UserName = "active", DisplayName = "Active User", Email = "active@example.com", IsActive = true });
+        _dbContext.Users.Add(new ApplicationUser { Id = Guid.NewGuid(), UserName = "inactive", DisplayName = "Inactive User", Email = "inactive@example.com", IsActive = false });
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        var result = await _service.SearchUsersAsync("User");
+
+        // Assert
+        Assert.AreEqual(1, result.Count);
+        Assert.AreEqual("Active User", result[0].DisplayName);
+    }
+
+    [TestMethod]
+    public async Task SearchUsersAsync_RespectsMaxResults()
+    {
+        // Arrange
+        for (var i = 0; i < 5; i++)
+        {
+            _dbContext.Users.Add(new ApplicationUser { Id = Guid.NewGuid(), UserName = $"user{i}", DisplayName = $"Test User {i}", Email = $"user{i}@example.com", IsActive = true });
+        }
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        var result = await _service.SearchUsersAsync("Test", maxResults: 3);
+
+        // Assert
+        Assert.AreEqual(3, result.Count);
+    }
+
+    [TestMethod]
+    public async Task SearchUsersAsync_IsCaseInsensitive()
+    {
+        // Arrange
+        _dbContext.Users.Add(new ApplicationUser { Id = Guid.NewGuid(), UserName = "alice", DisplayName = "Alice Smith", Email = "alice@example.com", IsActive = true });
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        var result = await _service.SearchUsersAsync("aLiCe");
+
+        // Assert
+        Assert.AreEqual(1, result.Count);
+        Assert.AreEqual("Alice Smith", result[0].DisplayName);
+    }
+
+    [TestMethod]
+    public async Task SearchUsersAsync_OrdersByDisplayName()
+    {
+        // Arrange
+        _dbContext.Users.Add(new ApplicationUser { Id = Guid.NewGuid(), UserName = "charlie", DisplayName = "Charlie", Email = "c@example.com", IsActive = true });
+        _dbContext.Users.Add(new ApplicationUser { Id = Guid.NewGuid(), UserName = "alice", DisplayName = "Alice", Email = "a@example.com", IsActive = true });
+        _dbContext.Users.Add(new ApplicationUser { Id = Guid.NewGuid(), UserName = "bob", DisplayName = "Bob", Email = "b@example.com", IsActive = true });
+        await _dbContext.SaveChangesAsync();
+
+        // Act — all match since they share no common term, but all have @example.com
+        var result = await _service.SearchUsersAsync("example.com");
+
+        // Assert
+        Assert.AreEqual(3, result.Count);
+        Assert.AreEqual("Alice", result[0].DisplayName);
+        Assert.AreEqual("Bob", result[1].DisplayName);
+        Assert.AreEqual("Charlie", result[2].DisplayName);
+    }
 }

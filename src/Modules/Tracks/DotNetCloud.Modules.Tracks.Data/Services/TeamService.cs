@@ -20,6 +20,7 @@ public sealed class TeamService
     private readonly TracksDbContext _db;
     private readonly ITeamDirectory? _teamDirectory;
     private readonly ITeamManager? _teamManager;
+    private readonly IUserDirectory? _userDirectory;
     private readonly IEventBus _eventBus;
     private readonly ILogger<TeamService> _logger;
 
@@ -31,13 +32,15 @@ public sealed class TeamService
         IEventBus eventBus,
         ILogger<TeamService> logger,
         ITeamDirectory? teamDirectory = null,
-        ITeamManager? teamManager = null)
+        ITeamManager? teamManager = null,
+        IUserDirectory? userDirectory = null)
     {
         _db = db;
         _eventBus = eventBus;
         _logger = logger;
         _teamDirectory = teamDirectory;
         _teamManager = teamManager;
+        _userDirectory = userDirectory;
     }
 
     /// <summary>
@@ -126,6 +129,12 @@ public sealed class TeamService
             .Select(g => new { TeamId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.TeamId, x => x.Count, cancellationToken);
 
+        // Resolve display names for all members across all teams
+        var allUserIds = tracksRoles.Select(r => r.UserId).Distinct();
+        var displayNames = _userDirectory is not null
+            ? await _userDirectory.GetDisplayNamesAsync(allUserIds, cancellationToken)
+            : (IReadOnlyDictionary<Guid, string>)new Dictionary<Guid, string>();
+
         return coreTeams.Select(t =>
         {
             var teamRoles = tracksRoles.Where(r => r.CoreTeamId == t.Id).ToList();
@@ -142,6 +151,7 @@ public sealed class TeamService
                 Members = teamRoles.Select(r => new TracksTeamMemberDto
                 {
                     UserId = r.UserId,
+                    DisplayName = displayNames.GetValueOrDefault(r.UserId),
                     Role = r.Role,
                     JoinedAt = r.AssignedAt
                 }).ToList()
@@ -266,9 +276,18 @@ public sealed class TeamService
         _logger.LogInformation("User {UserId} added to team {TeamId} as {Role} by {CallerId}",
             userId, coreTeamId, role, caller.UserId);
 
+        // Resolve display name for the added member
+        string? displayName = null;
+        if (_userDirectory is not null)
+        {
+            var names = await _userDirectory.GetDisplayNamesAsync([userId], cancellationToken);
+            names.TryGetValue(userId, out displayName);
+        }
+
         return new TracksTeamMemberDto
         {
             UserId = userId,
+            DisplayName = displayName,
             Role = role,
             JoinedAt = teamRole.AssignedAt
         };
@@ -352,7 +371,8 @@ public sealed class TeamService
             .FirstOrDefaultAsync(b => b.Id == boardId && !b.IsDeleted, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.BoardNotFound, "Board not found.");
 
-        // If transferring to a team, verify caller has Manager+ Tracks role on that team
+        // If transferring to a team, verify caller is a team member.
+        // Board owners can transfer to any team they belong to (no Manager requirement).
         if (targetCoreTeamId.HasValue)
         {
             if (_teamDirectory is not null)
@@ -362,7 +382,12 @@ public sealed class TeamService
                     throw new ValidationException(ErrorCodes.TracksTeamNotFound, "Target team not found.");
             }
 
-            await EnsureTracksTeamRoleAsync(targetCoreTeamId.Value, caller.UserId, TracksTeamMemberRole.Manager, cancellationToken);
+            var tracksRole = await _db.TeamRoles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(r => r.CoreTeamId == targetCoreTeamId.Value && r.UserId == caller.UserId, cancellationToken);
+
+            if (tracksRole is null)
+                throw new ValidationException(ErrorCodes.TracksNotTeamMember, "You are not a member of this team.");
         }
 
         board.TeamId = targetCoreTeamId;
@@ -537,6 +562,12 @@ public sealed class TeamService
         var boardCount = await _db.Boards
             .CountAsync(b => b.TeamId == coreTeamId && !b.IsDeleted, cancellationToken);
 
+        // Resolve display names
+        var userIds = tracksRoles.Select(r => r.UserId).Distinct();
+        var displayNames = _userDirectory is not null
+            ? await _userDirectory.GetDisplayNamesAsync(userIds, cancellationToken)
+            : (IReadOnlyDictionary<Guid, string>)new Dictionary<Guid, string>();
+
         return new TracksTeamDto
         {
             Id = teamInfo.Id,
@@ -548,6 +579,7 @@ public sealed class TeamService
             Members = tracksRoles.Select(r => new TracksTeamMemberDto
             {
                 UserId = r.UserId,
+                DisplayName = displayNames.GetValueOrDefault(r.UserId),
                 Role = r.Role,
                 JoinedAt = r.AssignedAt
             }).ToList()

@@ -444,6 +444,17 @@ public sealed class TracksApiClient : ITracksApiClient
         return await ReadDataAsync<IReadOnlyList<BoardDto>>(url, ct) ?? [];
     }
 
+    public async Task TransferBoardAsync(Guid boardId, Guid? teamId, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/boards/{boardId}/transfer", new TransferBoardDto { TeamId = teamId }, ct);
+        response.EnsureSuccessStatusCode();
+    }
+
+    // ── User Search ─────────────────────────────────────────
+
+    public async Task<IReadOnlyList<UserSearchResultDto>> SearchUsersAsync(string searchTerm, CancellationToken ct = default)
+        => await ReadDataAsync<IReadOnlyList<UserSearchResultDto>>($"api/v1/teams/users/search?q={Uri.EscapeDataString(searchTerm)}", ct) ?? [];
+
     // ── Helpers ─────────────────────────────────────────────
 
     private async Task<T?> ReadDataAsync<T>(string url, CancellationToken ct)

@@ -127,3 +127,18 @@ public class UpdateUserDto
     /// </summary>
     public bool? IsActive { get; set; }
 }
+
+/// <summary>
+/// Lightweight DTO for user search results.
+/// </summary>
+public class UserSearchResultDto
+{
+    /// <summary>Gets or sets the user ID.</summary>
+    public Guid Id { get; set; }
+
+    /// <summary>Gets or sets the display name.</summary>
+    public string DisplayName { get; set; } = null!;
+
+    /// <summary>Gets or sets the email address.</summary>
+    public string Email { get; set; } = null!;
+}

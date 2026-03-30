@@ -23,6 +23,8 @@ public partial class BoardSettingsDialog : ComponentBase
     private string _addMemberInput = "";
     private string _newLabelTitle = "";
     private string _newLabelColor = "#3b82f6";
+    private string _selectedTeamId = "";
+    private string _transferError = "";
 
     private static readonly string[] _colors =
     [
@@ -112,6 +114,36 @@ public partial class BoardSettingsDialog : ComponentBase
         await OnBoardDeleted.InvokeAsync(Board.Id);
     }
 
+    private async Task TransferToTeamAsync()
+    {
+        _transferError = "";
+        if (!Guid.TryParse(_selectedTeamId, out var teamId)) return;
+        try
+        {
+            await ApiClient.TransferBoardAsync(Board.Id, teamId);
+            _selectedTeamId = "";
+            await RefreshBoardAsync();
+        }
+        catch (HttpRequestException)
+        {
+            _transferError = "Transfer failed. You must be a board owner and team manager.";
+        }
+    }
+
+    private async Task MakePersonalAsync()
+    {
+        _transferError = "";
+        try
+        {
+            await ApiClient.TransferBoardAsync(Board.Id, null);
+            await RefreshBoardAsync();
+        }
+        catch (HttpRequestException)
+        {
+            _transferError = "Failed to make personal. You must be the board owner.";
+        }
+    }
+
     private async Task RefreshBoardAsync()
     {
         var refreshed = await ApiClient.GetBoardAsync(Board.Id);
@@ -126,4 +158,12 @@ public partial class BoardSettingsDialog : ComponentBase
             ? $"{parts[0][0]}{parts[1][0]}".ToUpperInvariant()
             : name[..1].ToUpperInvariant();
     }
+
+    private static string GetEffectiveRoleLabel(TracksTeamMemberRole role) => role switch
+    {
+        TracksTeamMemberRole.Owner => "Owner",
+        TracksTeamMemberRole.Manager => "Admin",
+        TracksTeamMemberRole.Member => "Member",
+        _ => "Viewer"
+    };
 }

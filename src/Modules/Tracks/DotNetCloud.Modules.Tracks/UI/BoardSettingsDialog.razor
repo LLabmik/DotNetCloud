@@ -1,6 +1,6 @@
 @namespace DotNetCloud.Modules.Tracks.UI
 
-<DncModal Title="Board Settings" OnClose="OnClose">
+<DncModal Title="Board Settings" OnClose="OnClose" StartVisible="true" Wide="true">
     <div class="tracks-settings">
         @* ── General ── *@
         <div class="tracks-settings-section">
@@ -86,20 +86,64 @@
         </div>
 
         @* ── Transfer to Team ── *@
-        @if (Teams.Count > 0)
+        <div class="tracks-settings-section">
+            <h4>Team</h4>
+            @if (Board.TeamId.HasValue)
+            {
+                var currentTeam = Teams.FirstOrDefault(t => t.Id == Board.TeamId.Value);
+                <p>This board belongs to team <strong>@(currentTeam?.Name ?? "Unknown")</strong>.</p>
+                <button class="btn btn-outline btn-sm" @onclick="MakePersonalAsync">
+                    Make Personal
+                </button>
+            }
+            else
+            {
+                <p>This is a personal board.</p>
+            }
+            @if (Teams.Count > 0)
+            {
+                <div class="tracks-transfer-row">
+                    <select class="form-control form-control-sm" @bind="_selectedTeamId">
+                        <option value="">Transfer to team…</option>
+                        @foreach (var team in Teams.Where(t => t.Id != Board.TeamId))
+                        {
+                            <option value="@team.Id">@team.Name</option>
+                        }
+                    </select>
+                    <button class="btn btn-sm btn-primary"
+                            disabled="@string.IsNullOrEmpty(_selectedTeamId)"
+                            @onclick="TransferToTeamAsync">
+                        Transfer
+                    </button>
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(_transferError))
+            {
+                <p class="tracks-transfer-error">@_transferError</p>
+            }
+        </div>
+
+        @* ── Team Members (inherited access) ── *@
+        @if (Board.TeamId.HasValue)
         {
-            <div class="tracks-settings-section">
-                <h4>Team</h4>
-                @if (Board.TeamId.HasValue)
-                {
-                    var team = Teams.FirstOrDefault(t => t.Id == Board.TeamId.Value);
-                    <p>This board belongs to team <strong>@(team?.Name ?? "Unknown")</strong>.</p>
-                }
-                else
-                {
-                    <p>This is a personal board.</p>
-                }
-            </div>
+            var currentTeam = Teams.FirstOrDefault(t => t.Id == Board.TeamId.Value);
+            if (currentTeam is not null && currentTeam.Members.Count > 0)
+            {
+                <div class="tracks-settings-section">
+                    <h4>Team Members (@currentTeam.Members.Count)</h4>
+                    <p class="tracks-team-members-hint">These users have access via the <strong>@currentTeam.Name</strong> team.</p>
+                    <div class="tracks-team-members-list">
+                        @foreach (var tm in currentTeam.Members)
+                        {
+                            <div class="tracks-team-member-row">
+                                <span class="tracks-avatar-sm">@GetInitials(tm.DisplayName)</span>
+                                <span class="tracks-member-name">@(tm.DisplayName ?? tm.UserId.ToString()[..8])</span>
+                                <span class="tracks-team-role-badge">@GetEffectiveRoleLabel(tm.Role)</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
         }
 
         @* ── Archive / Delete ── *@

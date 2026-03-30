@@ -19,6 +19,7 @@ public class TeamServiceTests
     private Mock<IEventBus> _eventBusMock;
     private Mock<ITeamDirectory> _teamDirectoryMock;
     private Mock<ITeamManager> _teamManagerMock;
+    private Mock<IUserDirectory> _userDirectoryMock;
     private TeamService _service;
     private CallerContext _caller;
 
@@ -31,9 +32,13 @@ public class TeamServiceTests
         _eventBusMock = new Mock<IEventBus>();
         _teamDirectoryMock = new Mock<ITeamDirectory>();
         _teamManagerMock = new Mock<ITeamManager>();
+        _userDirectoryMock = new Mock<IUserDirectory>();
+        _userDirectoryMock
+            .Setup(u => u.GetDisplayNamesAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, string>());
         _service = new TeamService(
             _db, _eventBusMock.Object, NullLogger<TeamService>.Instance,
-            _teamDirectoryMock.Object, _teamManagerMock.Object);
+            _teamDirectoryMock.Object, _teamManagerMock.Object, _userDirectoryMock.Object);
         _caller = TestHelpers.CreateCaller();
     }
 
@@ -508,6 +513,107 @@ public class TeamServiceTests
         var role = await _service.GetEffectiveBoardRoleAsync(board.Id, _caller.UserId);
 
         Assert.IsNull(role);
+    }
+
+    // ─── Display Name Resolution ──────────────────────────────────────
+
+    [TestMethod]
+    public async Task ListTeams_ResolvesDisplayNamesForMembers()
+    {
+        var teamId = Guid.NewGuid();
+        var memberId = Guid.NewGuid();
+        _teamDirectoryMock
+            .Setup(d => d.GetTeamsForUserAsync(_caller.UserId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([MakeTeamInfo(teamId, "Team A")]);
+
+        _db.TeamRoles.Add(new TeamRole { CoreTeamId = teamId, UserId = _caller.UserId, Role = TracksTeamMemberRole.Owner, AssignedAt = DateTime.UtcNow });
+        _db.TeamRoles.Add(new TeamRole { CoreTeamId = teamId, UserId = memberId, Role = TracksTeamMemberRole.Member, AssignedAt = DateTime.UtcNow });
+        await _db.SaveChangesAsync();
+
+        _userDirectoryMock
+            .Setup(u => u.GetDisplayNamesAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, string>
+            {
+                [_caller.UserId] = "Admin User",
+                [memberId] = "Team Member"
+            });
+
+        var result = await _service.ListTeamsAsync(_caller);
+
+        Assert.AreEqual(1, result.Count);
+        var members = result[0].Members;
+        Assert.AreEqual(2, members.Count);
+
+        var ownerMember = members.First(m => m.UserId == _caller.UserId);
+        var regularMember = members.First(m => m.UserId == memberId);
+        Assert.AreEqual("Admin User", ownerMember.DisplayName);
+        Assert.AreEqual("Team Member", regularMember.DisplayName);
+    }
+
+    [TestMethod]
+    public async Task AddMember_ResolvesDisplayNameForNewMember()
+    {
+        var teamId = Guid.NewGuid();
+        var newUserId = Guid.NewGuid();
+        await SeedTeamRoleAsync(teamId, _caller.UserId, TracksTeamMemberRole.Manager);
+
+        _teamManagerMock
+            .Setup(m => m.AddMemberAsync(teamId, newUserId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        _userDirectoryMock
+            .Setup(u => u.GetDisplayNamesAsync(It.Is<IEnumerable<Guid>>(ids => ids.Contains(newUserId)), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, string> { [newUserId] = "New Member" });
+
+        var result = await _service.AddMemberAsync(teamId, newUserId, TracksTeamMemberRole.Member, _caller);
+
+        Assert.AreEqual("New Member", result.DisplayName);
+    }
+
+    [TestMethod]
+    public async Task BuildTeamDto_ResolvesDisplayNames()
+    {
+        var teamId = Guid.NewGuid();
+        await SeedTeamRoleAsync(teamId, _caller.UserId, TracksTeamMemberRole.Owner);
+
+        _teamDirectoryMock
+            .Setup(d => d.IsTeamMemberAsync(teamId, _caller.UserId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _teamDirectoryMock
+            .Setup(d => d.GetTeamAsync(teamId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(MakeTeamInfo(teamId, "My Team"));
+
+        _userDirectoryMock
+            .Setup(u => u.GetDisplayNamesAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, string> { [_caller.UserId] = "Owner Name" });
+
+        var result = await _service.GetTeamAsync(teamId, _caller);
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual(1, result.Members.Count);
+        Assert.AreEqual("Owner Name", result.Members[0].DisplayName);
+    }
+
+    [TestMethod]
+    public async Task ListTeams_WithoutUserDirectory_LeavesDisplayNameNull()
+    {
+        var teamId = Guid.NewGuid();
+        // Create service without IUserDirectory
+        var serviceNoUserDir = new TeamService(
+            _db, _eventBusMock.Object, NullLogger<TeamService>.Instance,
+            _teamDirectoryMock.Object, _teamManagerMock.Object);
+
+        _teamDirectoryMock
+            .Setup(d => d.GetTeamsForUserAsync(_caller.UserId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([MakeTeamInfo(teamId, "Team A")]);
+
+        _db.TeamRoles.Add(new TeamRole { CoreTeamId = teamId, UserId = _caller.UserId, Role = TracksTeamMemberRole.Owner, AssignedAt = DateTime.UtcNow });
+        await _db.SaveChangesAsync();
+
+        var result = await serviceNoUserDir.ListTeamsAsync(_caller);
+
+        Assert.AreEqual(1, result.Count);
+        Assert.IsNull(result[0].Members[0].DisplayName);
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────

@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Tracks.Data.Services;
@@ -13,14 +14,16 @@ namespace DotNetCloud.Modules.Tracks.Host.Controllers;
 public class TeamsController : TracksControllerBase
 {
     private readonly TeamService _teamService;
+    private readonly IUserDirectory _userDirectory;
     private readonly ILogger<TeamsController> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TeamsController"/> class.
     /// </summary>
-    public TeamsController(TeamService teamService, ILogger<TeamsController> logger)
+    public TeamsController(TeamService teamService, IUserDirectory userDirectory, ILogger<TeamsController> logger)
     {
         _teamService = teamService;
+        _userDirectory = userDirectory;
         _logger = logger;
     }
 
@@ -192,6 +195,19 @@ public class TeamsController : TracksControllerBase
     {
         return ex.Errors.ContainsKey(ErrorCodes.TracksTeamNotFound)
             || ex.Errors.ContainsKey(ErrorCodes.TracksNotTeamMember);
+    }
+
+    // ─── User Search (for member picker) ──────────────────────────────
+
+    /// <summary>Searches users by display name or email for the add-member picker.</summary>
+    [HttpGet("users/search")]
+    public async Task<IActionResult> SearchUsersAsync([FromQuery] string? q)
+    {
+        if (string.IsNullOrWhiteSpace(q) || q.Trim().Length < 2)
+            return Ok(Envelope(Array.Empty<object>()));
+
+        var results = await _userDirectory.SearchUsersAsync(q.Trim(), 20);
+        return Ok(Envelope(results));
     }
 }
 

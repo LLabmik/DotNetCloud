@@ -115,4 +115,9 @@ public interface ITracksApiClient
     Task RemoveTeamMemberAsync(Guid teamId, Guid userId, CancellationToken ct = default);
     Task UpdateTeamMemberRoleAsync(Guid teamId, Guid userId, TracksTeamMemberRole role, CancellationToken ct = default);
     Task<IReadOnlyList<BoardDto>> ListTeamBoardsAsync(Guid teamId, bool includeArchived = false, CancellationToken ct = default);
+    Task TransferBoardAsync(Guid boardId, Guid? teamId, CancellationToken ct = default);
+
+    // ── User Search ─────────────────────────────────────────
+
+    Task<IReadOnlyList<UserSearchResultDto>> SearchUsersAsync(string searchTerm, CancellationToken ct = default);
 }

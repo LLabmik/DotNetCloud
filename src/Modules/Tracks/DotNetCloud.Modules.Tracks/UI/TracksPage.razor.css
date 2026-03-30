@@ -1321,6 +1321,58 @@
     color: var(--color-muted);
 }
 
+::deep .tracks-transfer-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    align-items: center;
+}
+
+::deep .tracks-transfer-row select {
+    flex: 1;
+    min-width: 0;
+}
+
+::deep .tracks-transfer-error {
+    color: #ef4444;
+    font-size: 12px;
+    margin-top: 6px;
+    margin-bottom: 0;
+}
+
+::deep .tracks-team-members-hint {
+    font-size: 12px;
+    color: var(--color-muted);
+    margin: 0 0 8px;
+}
+
+::deep .tracks-team-members-list {
+    max-height: 180px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 6px;
+}
+
+::deep .tracks-team-member-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px;
+    border-radius: var(--radius);
+    background: var(--color-bg);
+}
+
+::deep .tracks-team-role-badge {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--color-muted);
+    flex-shrink: 0;
+}
+
 /* Color picker */
 ::deep .tracks-color-picker {
     display: flex;
@@ -1346,6 +1398,32 @@
     box-shadow: 0 0 0 2px var(--color-surface);
 }
 
+/* Small color picker (label editor) */
+::deep .tracks-color-picker-sm {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+::deep .tracks-color-swatch-sm {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    padding: 0;
+    transition: transform var(--transition), border-color var(--transition);
+}
+
+::deep .tracks-color-swatch-sm:hover {
+    transform: scale(1.15);
+}
+
+::deep .tracks-color-swatch-sm.selected {
+    border-color: var(--color-text);
+    box-shadow: 0 0 0 1px var(--color-surface);
+}
+
 /* Member list in settings */
 ::deep .tracks-member-list {
     display: flex;
@@ -1368,6 +1446,8 @@
 }
 
 ::deep .tracks-member-name {
+    flex: 1;
+    min-width: 0;
     display: block;
     font-size: 13px;
     font-weight: 500;
@@ -1375,6 +1455,11 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+::deep .tracks-role-select {
+    width: 100px;
+    flex-shrink: 0;
 }
 
 ::deep .tracks-member-date {
@@ -1392,6 +1477,34 @@
 
 ::deep .tracks-add-member-row .tracks-input {
     flex: 1;
+}
+
+::deep .tracks-search-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--bg-surface, #1e1e2e);
+    border: 1px solid var(--border-color, #3b3b4f);
+    border-radius: 6px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    margin-top: 2px;
+}
+
+::deep .tracks-search-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+::deep .tracks-search-item:hover {
+    background: color-mix(in srgb, var(--color-primary) 10%, transparent);
 }
 
 /* Avatar shared */

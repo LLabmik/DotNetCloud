@@ -527,6 +527,48 @@ public sealed class DotNetCloudApiClient
         return response.IsSuccessStatusCode;
     }
 
+    /// <summary>
+    /// Lists members of an organization.
+    /// </summary>
+    public async Task<IReadOnlyList<OrganizationMemberDto>> ListOrganizationMembersAsync(Guid orgId, CancellationToken ct = default)
+    {
+        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<IReadOnlyList<OrganizationMemberDto>>>(
+            $"api/v1/core/admin/organizations/{orgId}/members", ct);
+        return envelope?.Data ?? [];
+    }
+
+    /// <summary>
+    /// Lists users that are not members of the specified organization.
+    /// </summary>
+    public async Task<IReadOnlyList<OrganizationMemberDto>> ListNonMembersAsync(Guid orgId, string? search = null, CancellationToken ct = default)
+    {
+        var url = $"api/v1/core/admin/organizations/{orgId}/non-members";
+        if (!string.IsNullOrWhiteSpace(search))
+            url += $"?search={Uri.EscapeDataString(search)}";
+        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<IReadOnlyList<OrganizationMemberDto>>>(url, ct);
+        return envelope?.Data ?? [];
+    }
+
+    /// <summary>
+    /// Adds a user to an organization.
+    /// </summary>
+    public async Task<bool> AddOrganizationMemberAsync(Guid orgId, Guid userId, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsJsonAsync(
+            $"api/v1/core/admin/organizations/{orgId}/members",
+            new AddOrganizationMemberDto { UserId = userId }, ct);
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>
+    /// Removes a user from an organization.
+    /// </summary>
+    public async Task<bool> RemoveOrganizationMemberAsync(Guid orgId, Guid userId, CancellationToken ct = default)
+    {
+        var response = await _http.DeleteAsync($"api/v1/core/admin/organizations/{orgId}/members/{userId}", ct);
+        return response.IsSuccessStatusCode;
+    }
+
     // -----------------------------------------------------------------------
     // Response envelope
     // -----------------------------------------------------------------------

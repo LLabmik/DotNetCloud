@@ -255,7 +255,7 @@ public class TracksIntegrationTests
     [TestMethod]
     public async Task TeamsController_CreateAndManageMembers()
     {
-        var controller = new TeamsController(_teamService, NullLogger<TeamsController>.Instance);
+        var controller = new TeamsController(_teamService, new Mock<IUserDirectory>().Object, NullLogger<TeamsController>.Instance);
         SetupContext(controller, _userId);
 
         // Create team

@@ -1,5 +1,6 @@
 using DotNetCloud.Core.DTOs;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 
 namespace DotNetCloud.Modules.Tracks.UI;
 
@@ -43,8 +44,11 @@ public sealed partial class TeamManagement : ComponentBase
     private string? _editDescription;
 
     // Add member
-    private string _addMemberUserId = string.Empty;
+    private string _addMemberSearch = string.Empty;
     private string _addMemberRole = "Member";
+    private Guid _selectedUserId;
+    private IReadOnlyList<UserSearchResultDto> _searchResults = [];
+    private System.Timers.Timer? _searchDebounce;
 
     /// <inheritdoc />
     protected override void OnParametersSet()
@@ -129,11 +133,49 @@ public sealed partial class TeamManagement : ComponentBase
         }
     }
 
+    private async Task SearchUsersAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_addMemberSearch) || _addMemberSearch.Trim().Length < 2)
+        {
+            _searchResults = [];
+            return;
+        }
+
+        _searchDebounce?.Stop();
+        _searchDebounce?.Dispose();
+        _searchDebounce = new System.Timers.Timer(300);
+        _searchDebounce.AutoReset = false;
+        _searchDebounce.Elapsed += async (_, _) =>
+        {
+            try
+            {
+                var results = await Api.SearchUsersAsync(_addMemberSearch.Trim(), CancellationToken.None);
+                await InvokeAsync(() =>
+                {
+                    _searchResults = results;
+                    StateHasChanged();
+                });
+            }
+            catch
+            {
+                // Silently ignore search failures
+            }
+        };
+        _searchDebounce.Start();
+    }
+
+    private void SelectUserForAdd(UserSearchResultDto user)
+    {
+        _selectedUserId = user.Id;
+        _addMemberSearch = user.DisplayName;
+        _searchResults = [];
+    }
+
     private async Task AddMemberAsync(Guid teamId)
     {
-        if (!Guid.TryParse(_addMemberUserId.Trim(), out var userId))
+        if (_selectedUserId == Guid.Empty)
         {
-            _errorMessage = "Please enter a valid User ID (GUID).";
+            _errorMessage = "Please search and select a user first.";
             return;
         }
 
@@ -144,9 +186,11 @@ public sealed partial class TeamManagement : ComponentBase
 
         try
         {
-            await Api.AddTeamMemberAsync(teamId, userId, role, CancellationToken.None);
-            _addMemberUserId = string.Empty;
+            await Api.AddTeamMemberAsync(teamId, _selectedUserId, role, CancellationToken.None);
+            _addMemberSearch = string.Empty;
+            _selectedUserId = Guid.Empty;
             _addMemberRole = "Member";
+            _searchResults = [];
             _errorMessage = null;
             await OnRefreshRequested.InvokeAsync();
         }

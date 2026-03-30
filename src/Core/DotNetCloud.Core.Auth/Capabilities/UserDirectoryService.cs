@@ -51,4 +51,23 @@ public sealed class UserDirectoryService : IUserDirectory
 
         return results.ToDictionary(u => u.Id, u => u.DisplayName);
     }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<UserSearchResult>> SearchUsersAsync(string searchTerm, int maxResults = 20, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(searchTerm))
+            return [];
+
+        var term = searchTerm.Trim().ToLower();
+
+        var results = await _dbContext.Users
+            .AsNoTracking()
+            .Where(u => u.IsActive && (u.DisplayName.ToLower().Contains(term) || u.Email!.ToLower().Contains(term)))
+            .OrderBy(u => u.DisplayName)
+            .Take(maxResults)
+            .Select(u => new UserSearchResult(u.Id, u.DisplayName, u.Email!))
+            .ToListAsync(cancellationToken);
+
+        return results;
+    }
 }

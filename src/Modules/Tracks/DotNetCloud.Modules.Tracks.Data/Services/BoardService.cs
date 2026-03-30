@@ -1,10 +1,12 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Tracks.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using IEventBus = DotNetCloud.Core.Events.IEventBus;
 
 namespace DotNetCloud.Modules.Tracks.Data.Services;
 
@@ -17,17 +19,19 @@ public sealed class BoardService
     private readonly IEventBus _eventBus;
     private readonly ActivityService _activityService;
     private readonly TeamService _teamService;
+    private readonly IUserDirectory? _userDirectory;
     private readonly ILogger<BoardService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BoardService"/> class.
     /// </summary>
-    public BoardService(TracksDbContext db, IEventBus eventBus, ActivityService activityService, TeamService teamService, ILogger<BoardService> logger)
+    public BoardService(TracksDbContext db, IEventBus eventBus, ActivityService activityService, TeamService teamService, ILogger<BoardService> logger, IUserDirectory? userDirectory = null)
     {
         _db = db;
         _eventBus = eventBus;
         _activityService = activityService;
         _teamService = teamService;
+        _userDirectory = userDirectory;
         _logger = logger;
     }
 
@@ -141,7 +145,10 @@ public sealed class BoardService
         var allListIds = boards.SelectMany(b => b.Lists.Where(l => !l.IsArchived).Select(l => l.Id)).ToList();
         var cardCounts = await GetCardCountsByListAsync(allListIds, cancellationToken);
 
-        return boards.Select(b => MapToDto(b, cardCounts)).ToList();
+        var memberIds = boards.SelectMany(b => b.Members.Select(m => m.UserId)).Distinct().ToList();
+        var displayNames = await ResolveDisplayNamesAsync(memberIds, cancellationToken);
+
+        return boards.Select(b => MapToDto(b, cardCounts, displayNames)).ToList();
     }
 
     /// <summary>
@@ -238,9 +245,12 @@ public sealed class BoardService
         await _activityService.LogAsync(boardId, caller.UserId, "member.added", "BoardMember", member.Id,
             $"{{\"userId\":\"{userId}\",\"role\":\"{role}\"}}", cancellationToken);
 
+        var names = await ResolveDisplayNamesAsync([userId], cancellationToken);
+
         return new BoardMemberDto
         {
             UserId = userId,
+            DisplayName = names.TryGetValue(userId, out var name) ? name : null,
             Role = role,
             JoinedAt = member.JoinedAt
         };
@@ -338,7 +348,10 @@ public sealed class BoardService
         var listIds = board.Lists.Where(l => !l.IsArchived).Select(l => l.Id).ToList();
         var cardCounts = await GetCardCountsByListAsync(listIds, cancellationToken);
 
-        return MapToDto(board, cardCounts);
+        var memberIds = board.Members.Select(m => m.UserId).Distinct().ToList();
+        var displayNames = await ResolveDisplayNamesAsync(memberIds, cancellationToken);
+
+        return MapToDto(board, cardCounts, displayNames);
     }
 
     private async Task<Dictionary<Guid, int>> GetCardCountsByListAsync(IReadOnlyList<Guid> listIds, CancellationToken cancellationToken)
@@ -352,7 +365,15 @@ public sealed class BoardService
             .ToDictionaryAsync(x => x.ListId, x => x.Count, cancellationToken);
     }
 
-    private static BoardDto MapToDto(Board b, Dictionary<Guid, int>? cardCounts = null) => new()
+    private async Task<IReadOnlyDictionary<Guid, string>> ResolveDisplayNamesAsync(IReadOnlyList<Guid> userIds, CancellationToken cancellationToken)
+    {
+        if (_userDirectory is null || userIds.Count == 0)
+            return new Dictionary<Guid, string>();
+
+        return await _userDirectory.GetDisplayNamesAsync(userIds, cancellationToken);
+    }
+
+    private static BoardDto MapToDto(Board b, Dictionary<Guid, int>? cardCounts = null, IReadOnlyDictionary<Guid, string>? displayNames = null) => new()
     {
         Id = b.Id,
         OwnerId = b.OwnerId,
@@ -369,6 +390,7 @@ public sealed class BoardService
         Members = b.Members.Select(m => new BoardMemberDto
         {
             UserId = m.UserId,
+            DisplayName = displayNames is not null && displayNames.TryGetValue(m.UserId, out var name) ? name : null,
             Role = m.Role,
             JoinedAt = m.JoinedAt
         }).ToList(),

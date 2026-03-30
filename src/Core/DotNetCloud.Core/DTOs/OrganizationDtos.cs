@@ -77,3 +77,45 @@ public class UpdateOrganizationDto
     /// </summary>
     public string? Description { get; set; }
 }
+
+/// <summary>
+/// Data transfer object for an organization member.
+/// </summary>
+public class OrganizationMemberDto
+{
+    /// <summary>
+    /// Gets or sets the user's unique identifier.
+    /// </summary>
+    public Guid UserId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the user's email address.
+    /// </summary>
+    public string Email { get; set; } = null!;
+
+    /// <summary>
+    /// Gets or sets the user's display name.
+    /// </summary>
+    public string DisplayName { get; set; } = null!;
+
+    /// <summary>
+    /// Gets or sets the date and time the user joined the organization.
+    /// </summary>
+    public DateTime JoinedAt { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the membership is active.
+    /// </summary>
+    public bool IsActive { get; set; }
+}
+
+/// <summary>
+/// Data transfer object for adding a user to an organization.
+/// </summary>
+public class AddOrganizationMemberDto
+{
+    /// <summary>
+    /// Gets or sets the user ID to add.
+    /// </summary>
+    public Guid UserId { get; set; }
+}

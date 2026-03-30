@@ -46,6 +46,7 @@ else
                         <td>@org.CreatedAt.ToString("yyyy-MM-dd")</td>
                         <td>
                             <button class="btn btn-sm btn-outline" @onclick="() => StartEdit(org)">Edit</button>
+                            <button class="btn btn-sm btn-outline" @onclick="() => ShowMembersAsync(org)">Members</button>
                             @if (_orgs.Count > 1)
                             {
                                 <button class="btn btn-sm btn-danger" @onclick="() => DeleteAsync(org)">Delete</button>
@@ -106,18 +107,130 @@ else
     </DncModal>
 }
 
+@if (_showMembers)
+{
+    <DncModal Title="@($"Members — {_membersOrgName}")" StartVisible OnClose="() => _showMembers = false">
+        <div style="display: flex; justify-content: flex-end; margin-bottom: 0.75rem;">
+            <button class="btn btn-sm btn-primary" @onclick="ShowAddMember">Add Member</button>
+        </div>
+        @if (_membersLoading)
+        {
+            <LoadingIndicator Message="Loading members..." />
+        }
+        else if (_members.Count == 0)
+        {
+            <p class="text-center" style="color: var(--text-secondary); padding: 1rem 0;">No members in this organization.</p>
+        }
+        else
+        {
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Joined</th>
+                            <th style="width: 80px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var member in _members)
+                        {
+                            <tr>
+                                <td>@member.DisplayName</td>
+                                <td>@member.Email</td>
+                                <td>@member.JoinedAt.ToString("yyyy-MM-dd")</td>
+                                <td>
+                                    <button class="btn btn-sm btn-danger" @onclick="() => RemoveMemberAsync(member)">Remove</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        @if (!string.IsNullOrEmpty(_membersError))
+        {
+            <div class="alert alert-danger">@_membersError</div>
+        }
+    </DncModal>
+}
+
+@if (_showAddMember)
+{
+    <DncModal Title="@($"Add Member — {_membersOrgName}")" StartVisible OnClose="() => _showAddMember = false">
+        <div class="form-group">
+            <label>Search users</label>
+            <input type="text" class="form-control" placeholder="Search by name or email..."
+                   @bind="_addMemberSearch" @bind:event="oninput" @bind:after="SearchNonMembersAsync" />
+        </div>
+        @if (_nonMembersLoading)
+        {
+            <LoadingIndicator Message="Searching..." />
+        }
+        else if (_nonMembers.Count == 0 && !string.IsNullOrWhiteSpace(_addMemberSearch))
+        {
+            <p class="text-center" style="color: var(--text-secondary); padding: 1rem 0;">No matching users found.</p>
+        }
+        else if (_nonMembers.Count > 0)
+        {
+            <div class="table-container" style="max-height: 300px; overflow-y: auto;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th style="width: 80px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var user in _nonMembers)
+                        {
+                            <tr>
+                                <td>@user.DisplayName</td>
+                                <td>@user.Email</td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary" @onclick="() => AddMemberAsync(user)" disabled="@_saving">Add</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        @if (!string.IsNullOrEmpty(_membersError))
+        {
+            <div class="alert alert-danger">@_membersError</div>
+        }
+        <div class="form-actions">
+            <button class="btn btn-secondary" @onclick="() => _showAddMember = false">Close</button>
+        </div>
+    </DncModal>
+}
+
 @code {
     private bool _loading = true;
     private bool _showCreate;
     private bool _showEdit;
+    private bool _showMembers;
+    private bool _showAddMember;
     private bool _saving;
+    private bool _membersLoading;
+    private bool _nonMembersLoading;
     private string _error = "";
+    private string _membersError = "";
     private string _createName = "";
     private string? _createDescription;
     private string _editName = "";
     private string? _editDescription;
     private Guid _editId;
+    private Guid _membersOrgId;
+    private string _membersOrgName = "";
+    private string _addMemberSearch = "";
     private IReadOnlyList<OrganizationDto> _orgs = [];
+    private IReadOnlyList<OrganizationMemberDto> _members = [];
+    private IReadOnlyList<OrganizationMemberDto> _nonMembers = [];
+    private System.Timers.Timer? _searchDebounce;
 
     protected override async Task OnInitializedAsync()
     {
@@ -230,6 +343,129 @@ else
         catch (Exception ex)
         {
             _error = ex.Message;
+        }
+    }
+
+    private async Task ShowMembersAsync(OrganizationDto org)
+    {
+        _membersOrgId = org.Id;
+        _membersOrgName = org.Name;
+        _membersError = "";
+        _showMembers = true;
+        await LoadMembersAsync();
+    }
+
+    private async Task LoadMembersAsync()
+    {
+        _membersLoading = true;
+        try
+        {
+            _members = await Api.ListOrganizationMembersAsync(_membersOrgId);
+        }
+        catch (Exception ex)
+        {
+            _membersError = ex.Message;
+        }
+        finally
+        {
+            _membersLoading = false;
+        }
+    }
+
+    private async Task RemoveMemberAsync(OrganizationMemberDto member)
+    {
+        _membersError = "";
+        try
+        {
+            var success = await Api.RemoveOrganizationMemberAsync(_membersOrgId, member.UserId);
+            if (success)
+            {
+                await LoadMembersAsync();
+                await LoadAsync();
+            }
+            else
+            {
+                _membersError = "Failed to remove member.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _membersError = ex.Message;
+        }
+    }
+
+    private void ShowAddMember()
+    {
+        _addMemberSearch = "";
+        _nonMembers = [];
+        _membersError = "";
+        _showAddMember = true;
+    }
+
+    private async Task SearchNonMembersAsync()
+    {
+        _searchDebounce?.Stop();
+        _searchDebounce?.Dispose();
+
+        if (string.IsNullOrWhiteSpace(_addMemberSearch))
+        {
+            _nonMembers = [];
+            return;
+        }
+
+        _searchDebounce = new System.Timers.Timer(300);
+        _searchDebounce.AutoReset = false;
+        _searchDebounce.Elapsed += async (_, _) =>
+        {
+            await InvokeAsync(async () =>
+            {
+                _nonMembersLoading = true;
+                StateHasChanged();
+                try
+                {
+                    _nonMembers = await Api.ListNonMembersAsync(_membersOrgId, _addMemberSearch);
+                }
+                catch (Exception ex)
+                {
+                    _membersError = ex.Message;
+                }
+                finally
+                {
+                    _nonMembersLoading = false;
+                    StateHasChanged();
+                }
+            });
+        };
+        _searchDebounce.Start();
+    }
+
+    private async Task AddMemberAsync(OrganizationMemberDto user)
+    {
+        _membersError = "";
+        _saving = true;
+        try
+        {
+            var success = await Api.AddOrganizationMemberAsync(_membersOrgId, user.UserId);
+            if (success)
+            {
+                // Remove the user from non-members list immediately
+                _nonMembers = _nonMembers.Where(u => u.UserId != user.UserId).ToList();
+                // Refresh the members list in the background
+                await LoadMembersAsync();
+                await LoadAsync();
+            }
+            else
+            {
+                _membersError = "Failed to add member.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _membersError = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
         }
     }
 }
