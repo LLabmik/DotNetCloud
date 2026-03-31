@@ -37,6 +37,7 @@ public partial class CardDetailPanel : ComponentBase, IDisposable
     private string _dueDate = "";
     private string _storyPoints = "";
     private string _newCommentContent = "";
+    private bool _showCommentComposer;
     private string _swimlaneName = "";
 
     // Pickers
@@ -235,6 +236,7 @@ public partial class CardDetailPanel : ComponentBase, IDisposable
         var comment = await ApiClient.CreateCommentAsync(Card.Id, _newCommentContent.Trim());
         if (comment is not null) _comments.Insert(0, comment);
         _newCommentContent = "";
+        _showCommentComposer = false;
     }
 
     private async Task DeleteCommentAsync(Guid commentId)

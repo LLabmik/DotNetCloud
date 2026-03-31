@@ -4867,11 +4867,55 @@ textarea.form-control {
 }
 
 .comment-body {
-    font-size: 0.875rem;
-    line-height: 1.5;
+    font-size: 13px;
+    line-height: 1.4;
     color: var(--color-text);
     word-break: break-word;
-    white-space: pre-wrap;
+}
+
+.comment-body p {
+    margin: 0 0 0.35em;
+}
+
+.comment-body p:last-child {
+    margin-bottom: 0;
+}
+
+.comment-body ul,
+.comment-body ol {
+    margin: 0.25em 0;
+    padding-left: 1.5em;
+}
+
+.comment-body li {
+    margin-bottom: 0.15em;
+}
+
+.comment-body blockquote {
+    margin: 0.35em 0;
+    padding: 0.2em 0.75em;
+    border-left: 3px solid var(--color-border);
+    color: var(--color-muted);
+}
+
+.comment-body code {
+    font-size: 12px;
+    padding: 0.15em 0.35em;
+    background: var(--color-bg);
+    border-radius: 3px;
+}
+
+.comment-body pre {
+    margin: 0.35em 0;
+    padding: 0.5em;
+    background: var(--color-bg);
+    border-radius: var(--radius);
+    overflow-x: auto;
+}
+
+.comment-body pre code {
+    padding: 0;
+    background: none;
 }
 
 .comment-actions {

@@ -1007,7 +1007,9 @@
 ::deep .tracks-comment-list {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 16px;
+    max-height: 350px;
+    overflow-y: auto;
 }
 
 ::deep .tracks-comment {
@@ -1042,15 +1044,59 @@
 ::deep .tracks-comment-body {
     font-size: 13px;
     color: var(--color-text);
-    line-height: 1.5;
-    white-space: pre-wrap;
+    line-height: 1.4;
     word-break: break-word;
+}
+
+::deep .tracks-comment-body p {
+    margin: 0 0 0.35em;
+}
+
+::deep .tracks-comment-body p:last-child {
+    margin-bottom: 0;
+}
+
+::deep .tracks-comment-body ul,
+::deep .tracks-comment-body ol {
+    margin: 0.25em 0;
+    padding-left: 1.5em;
+}
+
+::deep .tracks-comment-body li {
+    margin-bottom: 0.15em;
+}
+
+::deep .tracks-comment-body blockquote {
+    margin: 0.35em 0;
+    padding: 0.2em 0.75em;
+    border-left: 3px solid var(--color-border);
+    color: var(--color-muted);
+}
+
+::deep .tracks-comment-body code {
+    font-size: 12px;
+    padding: 0.15em 0.35em;
+    background: var(--color-bg);
+    border-radius: 3px;
+}
+
+::deep .tracks-comment-body pre {
+    margin: 0.35em 0;
+    padding: 0.5em;
+    background: var(--color-bg);
+    border-radius: var(--radius);
+    overflow-x: auto;
+}
+
+::deep .tracks-comment-body pre code {
+    padding: 0;
+    background: none;
 }
 
 ::deep .tracks-comment-add {
     display: flex;
+    flex-direction: column;
     gap: 8px;
-    align-items: flex-start;
     margin-top: 8px;
 }
 
@@ -1383,6 +1429,7 @@
 ::deep .tracks-card-description {
     cursor: pointer;
     padding: 8px 10px;
+    border: 1px solid var(--color-border);
     border-radius: var(--radius);
     font-size: 13px;
     color: var(--color-text);

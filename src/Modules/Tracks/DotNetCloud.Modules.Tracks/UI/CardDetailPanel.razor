@@ -1,4 +1,7 @@
 @namespace DotNetCloud.Modules.Tracks.UI
+@using DotNetCloud.UI.Shared.Components.Editors
+@using DotNetCloud.UI.Shared.Services
+@inject IMarkdownRenderer MarkdownRenderer
 
 <div class="tracks-card-overlay" @onclick="OnClose">
     <div class="tracks-card-panel" @onclick:stopPropagation>
@@ -46,8 +49,11 @@
                     <h4>Description</h4>
                     @if (_isEditingDescription)
                     {
-                        <textarea class="form-control tracks-desc-editor" rows="6"
-                                  @bind="_editDescription"></textarea>
+                        <MarkdownEditor Compact
+                                        Rows="6"
+                                        Content="@_editDescription"
+                                        ContentChanged="@(v => _editDescription = v)"
+                                        Renderer="MarkdownRenderer" />
                         <div class="tracks-card-section-actions">
                             <button class="btn btn-sm btn-primary" @onclick="SaveDescriptionAsync">Save</button>
                             <button class="btn btn-sm btn-secondary" @onclick="CancelEditDescription">Cancel</button>
@@ -57,7 +63,14 @@
                     {
                         <div class="tracks-card-description @(string.IsNullOrEmpty(Card.Description) ? "empty" : "")"
                              @onclick="BeginEditDescription">
-                            @(string.IsNullOrEmpty(Card.Description) ? "Add a description..." : Card.Description)
+                            @if (string.IsNullOrEmpty(Card.Description))
+                            {
+                                <span>Add a description...</span>
+                            }
+                            else
+                            {
+                                <div class="markdown-body">@((MarkupString)MarkdownRenderer.RenderToHtml(Card.Description))</div>
+                            }
                         </div>
                     }
                 </div>
@@ -115,12 +128,27 @@
                 @* Comments *@
                 <div class="tracks-card-section">
                     <h4>Comments</h4>
-                    <div class="tracks-comment-add">
-                        <textarea class="form-control" rows="2" placeholder="Write a comment..."
-                                  @bind="_newCommentContent"></textarea>
-                        <button class="btn btn-sm btn-primary" disabled="@string.IsNullOrWhiteSpace(_newCommentContent)"
-                                @onclick="AddCommentAsync">Comment</button>
-                    </div>
+                    @if (_showCommentComposer)
+                    {
+                        <div class="tracks-comment-add">
+                            <MarkdownEditor Compact
+                                            Placeholder="Write a comment..."
+                                            Rows="2"
+                                            Content="@_newCommentContent"
+                                            ContentChanged="@(v => _newCommentContent = v)"
+                                            Renderer="MarkdownRenderer" />
+                            <div class="tracks-card-section-actions">
+                                <button class="btn btn-sm btn-secondary" @onclick="() => _showCommentComposer = false">Cancel</button>
+                                <button class="btn btn-sm btn-primary" disabled="@string.IsNullOrWhiteSpace(_newCommentContent)"
+                                        @onclick="AddCommentAsync">Comment</button>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <button class="btn btn-sm btn-primary" @onclick="() => _showCommentComposer = true">+ Add Comment</button>
+                    }
+                    <div class="tracks-comment-list">
                     @foreach (var comment in _comments.OrderByDescending(c => c.CreatedAt))
                     {
                         <div class="tracks-comment">
@@ -128,12 +156,13 @@
                                 <strong>@(comment.DisplayName ?? "User")</strong>
                                 <span class="tracks-comment-date">@comment.CreatedAt.ToLocalTime().ToString("MMM d, h:mm tt")</span>
                             </div>
-                            <div class="tracks-comment-body">@comment.Content</div>
+                            <div class="tracks-comment-body markdown-body">@((MarkupString)MarkdownRenderer.RenderToHtml(comment.Content))</div>
                             <div class="tracks-comment-actions">
                                 <button class="tracks-link-btn" @onclick="() => DeleteCommentAsync(comment.Id)">Delete</button>
                             </div>
                         </div>
                     }
+                    </div>
                 </div>
 
                 @* Activity Log *@

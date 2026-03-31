@@ -35,6 +35,7 @@ public partial class CommentsPanel : ComponentBase
     private List<FileCommentViewModel> _comments = [];
     private bool _isLoading;
     private bool _isSubmitting;
+    private bool _showComposer;
     private string _newCommentText = string.Empty;
     private string _replyText = string.Empty;
     private string _editCommentText = string.Empty;
@@ -87,6 +88,19 @@ public partial class CommentsPanel : ComponentBase
     protected bool CanEditOrDelete(FileCommentViewModel comment) =>
         comment.CreatedByUserId == CurrentUserId;
 
+    /// <summary>Shows the new comment composer.</summary>
+    protected void ShowComposer()
+    {
+        _showComposer = true;
+    }
+
+    /// <summary>Hides the new comment composer and clears text.</summary>
+    protected void HideComposer()
+    {
+        _showComposer = false;
+        _newCommentText = string.Empty;
+    }
+
     /// <summary>Submits a new top-level comment.</summary>
     protected async Task SubmitNewComment()
     {
@@ -99,6 +113,7 @@ public partial class CommentsPanel : ComponentBase
         {
             await OnAddComment.InvokeAsync(_newCommentText.Trim());
             _newCommentText = string.Empty;
+            _showComposer = false;
         }
         finally
         {

@@ -13,42 +13,11 @@ public class AnnouncementEditorTests
     /// </summary>
     private sealed class TestableAnnouncementEditor : AnnouncementEditor
     {
-        public bool TestIsPreviewMode => IsPreviewMode;
         public bool TestIsSaveDisabled => IsSaveDisabled;
         public string TestTitle { get => Title; set => Title = value; }
         public string TestContent { get => Content; set => Content = value; }
         public string TestPriority => Priority;
-        public void TestTogglePreview() => TogglePreview();
         public void TestOnParametersSet() => OnParametersSet();
-    }
-
-    [TestMethod]
-    public void WhenInitializedThenIsPreviewModeIsFalse()
-    {
-        var editor = new TestableAnnouncementEditor();
-
-        Assert.IsFalse(editor.TestIsPreviewMode);
-    }
-
-    [TestMethod]
-    public void WhenTogglePreviewCalledThenIsPreviewModeIsTrue()
-    {
-        var editor = new TestableAnnouncementEditor();
-
-        editor.TestTogglePreview();
-
-        Assert.IsTrue(editor.TestIsPreviewMode);
-    }
-
-    [TestMethod]
-    public void WhenTogglePreviewCalledTwiceThenIsPreviewModeIsFalse()
-    {
-        var editor = new TestableAnnouncementEditor();
-
-        editor.TestTogglePreview();
-        editor.TestTogglePreview();
-
-        Assert.IsFalse(editor.TestIsPreviewMode);
     }
 
     [TestMethod]

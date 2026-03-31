@@ -1,6 +1,4 @@
 using Microsoft.AspNetCore.Components;
-using System.Text.Encodings.Web;
-using System.Text.RegularExpressions;
 
 namespace DotNetCloud.Modules.Chat.UI;
 
@@ -10,17 +8,13 @@ namespace DotNetCloud.Modules.Chat.UI;
 /// </summary>
 public partial class AnnouncementEditor : ComponentBase
 {
-    private static readonly Regex InlineCodeRegex = new("`([^`]+)`", RegexOptions.Compiled);
-    private static readonly Regex BoldRegex = new("\\*\\*([^*]+)\\*\\*", RegexOptions.Compiled);
-    private static readonly Regex ItalicRegex = new("\\*([^*]+)\\*", RegexOptions.Compiled);
-    private static readonly Regex LinkRegex = new("\\[([^\\]]+)\\]\\((https?://[^)]+)\\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private string _title = string.Empty;
     private string _content = string.Empty;
     private string _priority = "Normal";
+
     private DateTime? _expiresAt;
     private bool _requiresAcknowledgement;
-    private bool _isPreviewMode;
 
     /// <summary>Whether the dialog is visible.</summary>
     [Parameter]
@@ -59,15 +53,6 @@ public partial class AnnouncementEditor : ComponentBase
 
     /// <summary>Whether the save button should be disabled.</summary>
     protected bool IsSaveDisabled => string.IsNullOrWhiteSpace(_title) || string.IsNullOrWhiteSpace(_content);
-
-    /// <summary>Whether the editor is in preview mode.</summary>
-    protected bool IsPreviewMode => _isPreviewMode;
-
-    /// <summary>Toggles between edit and preview mode.</summary>
-    protected void TogglePreview()
-    {
-        _isPreviewMode = !_isPreviewMode;
-    }
 
     /// <inheritdoc />
     protected override void OnParametersSet()
@@ -108,24 +93,7 @@ public partial class AnnouncementEditor : ComponentBase
     /// <summary>Cancels and closes the editor.</summary>
     protected async Task Cancel()
     {
-        _isPreviewMode = false;
         await OnCancel.InvokeAsync();
-    }
-
-    /// <summary>
-    /// Converts basic Markdown markup to safe inline HTML for preview rendering.
-    /// </summary>
-    protected static MarkupString RenderMarkdown(string? content)
-    {
-        var encoded = HtmlEncoder.Default.Encode(content ?? string.Empty);
-
-        var html = LinkRegex.Replace(encoded, "<a href=\"$2\" target=\"_blank\" rel=\"noopener noreferrer\">$1</a>");
-        html = InlineCodeRegex.Replace(html, "<code>$1</code>");
-        html = BoldRegex.Replace(html, "<strong>$1</strong>");
-        html = ItalicRegex.Replace(html, "<em>$1</em>");
-        html = html.Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\n", "<br />", StringComparison.Ordinal);
-
-        return new MarkupString(html);
     }
 }
 
