@@ -45,10 +45,7 @@
             var isWipExceeded = swimlane.CardLimit.HasValue && swimlaneCards.Count >= swimlane.CardLimit.Value;
 
             <div class="tracks-kanban-column"
-                 data-swimlane-id="@swimlane.Id"
-                 @ondragover="HandleDragOver"
-                 @ondragover:preventDefault
-                 @ondrop="() => HandleDropOnSwimlane(swimlane.Id)">
+                 data-swimlane-id="@swimlane.Id">
                 <div class="tracks-kanban-column-header">
                     <div class="tracks-kanban-column-title">
                         @if (!string.IsNullOrEmpty(swimlane.Color))
@@ -68,13 +65,17 @@
                     </div>
                 </div>
 
-                <div class="tracks-kanban-cards">
+                <div class="tracks-kanban-cards"
+                     @ondragover="HandleDragOver"
+                     @ondragover:preventDefault
+                     @ondrop="() => HandleDropOnSwimlane(swimlane.Id)">
                     @foreach (var card in swimlaneCards)
                     {
-                        <div class="tracks-kanban-card @(card.IsArchived ? "archived" : "") @GetPriorityClass(card.Priority)"
+                        <div class="tracks-kanban-card @(card.IsArchived ? "archived" : "") @GetPriorityClass(card.Priority) @(_dropTargetCardId == card.Id ? "drop-target" : "")"
                              draggable="true"
                              data-card-id="@card.Id"
                              @ondragstart="() => HandleDragStart(card)"
+                             @ondragenter="() => HandleDragEnterCard(card.Id)"
                              @onclick="() => OnCardSelected.InvokeAsync(card.Id)">
 
                             @* ── Card Header (board-colored) ── *@

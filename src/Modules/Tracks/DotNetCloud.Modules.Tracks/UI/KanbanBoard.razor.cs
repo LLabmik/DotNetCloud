@@ -37,6 +37,7 @@ public partial class KanbanBoard : ComponentBase
 
     // Drag state
     private CardDto? _draggedCard;
+    private Guid? _dropTargetCardId;
 
     private IReadOnlyList<CardDto> GetFilteredCards(Guid swimlaneId)
     {
@@ -68,6 +69,12 @@ public partial class KanbanBoard : ComponentBase
 
     private void HandleDragStart(CardDto card) => _draggedCard = card;
 
+    private void HandleDragEnterCard(Guid cardId)
+    {
+        if (_draggedCard is not null && _draggedCard.Id != cardId)
+            _dropTargetCardId = cardId;
+    }
+
     private void HandleDragOver() { /* Allow drop */ }
 
     private async Task HandleDropOnSwimlane(Guid targetSwimlaneId)
@@ -75,15 +82,77 @@ public partial class KanbanBoard : ComponentBase
         if (_draggedCard is null) return;
 
         var card = _draggedCard;
+        var dropTarget = _dropTargetCardId;
         _draggedCard = null;
+        _dropTargetCardId = null;
 
-        if (card.SwimlaneId == targetSwimlaneId) return;
+        // Same swimlane with no specific drop target — nothing to do
+        if (card.SwimlaneId == targetSwimlaneId && dropTarget is null) return;
+
+        // Same card dropped on itself
+        if (dropTarget == card.Id) return;
 
         try
         {
             var targetCards = CardsBySwimlane.TryGetValue(targetSwimlaneId, out var tc) ? tc : [];
-            var position = targetCards.Count > 0 ? targetCards.Max(c => c.Position) + 1000 : 1000;
+            int position;
 
+            if (dropTarget is not null)
+            {
+                var targetCard = targetCards.FirstOrDefault(c => c.Id == dropTarget.Value);
+                if (targetCard is not null)
+                {
+                    var idx = targetCards.IndexOf(targetCard);
+                    var sourceIdx = targetCards.FindIndex(c => c.Id == card.Id);
+                    var draggingDown = sourceIdx >= 0 && sourceIdx < idx;
+
+                    if (draggingDown)
+                    {
+                        // Dragging down → insert AFTER the target card
+                        if (idx >= targetCards.Count - 1)
+                        {
+                            position = targetCard.Position + 1000;
+                        }
+                        else
+                        {
+                            var nextCard = targetCards[idx + 1];
+                            position = (targetCard.Position + nextCard.Position) / 2;
+                        }
+                    }
+                    else
+                    {
+                        // Dragging up or cross-swimlane → insert BEFORE the target card
+                        if (idx == 0)
+                        {
+                            position = targetCard.Position - 500;
+                        }
+                        else
+                        {
+                            var prevCard = targetCards[idx - 1];
+                            // Skip self if it's the card right above
+                            if (prevCard.Id == card.Id && idx >= 2)
+                                prevCard = targetCards[idx - 2];
+                            else if (prevCard.Id == card.Id)
+                            {
+                                position = targetCard.Position - 500;
+                                goto doMove;
+                            }
+                            position = (prevCard.Position + targetCard.Position) / 2;
+                        }
+                    }
+                }
+                else
+                {
+                    position = targetCards.Count > 0 ? targetCards.Max(c => c.Position) + 1000 : 1000;
+                }
+            }
+            else
+            {
+                // No specific target — append to end
+                position = targetCards.Count > 0 ? targetCards.Max(c => c.Position) + 1000 : 1000;
+            }
+
+            doMove:
             var moved = await ApiClient.MoveCardAsync(card.Id, new MoveCardDto
             {
                 TargetSwimlaneId = targetSwimlaneId,

@@ -710,6 +710,11 @@
     opacity: 0.6;
 }
 
+::deep .tracks-kanban-card.drop-target {
+    border-top: 2px solid var(--color-primary);
+    margin-top: -1px;
+}
+
 ::deep .tracks-checklist-progress {
     display: flex;
     align-items: center;
