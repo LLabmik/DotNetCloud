@@ -1,0 +1,177 @@
+/* ============================================================
+   TracksActivityFeed — Live board activity sidebar widget.
+   Appears conditionally in the Chat sidebar when Tracks
+   module is installed. Uses chat design-system variables.
+   ============================================================ */
+
+.tracks-activity-feed {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--color-border, #e2e8f0);
+    background: var(--color-surface, #ffffff);
+    max-height: 280px;
+    overflow: hidden;
+}
+
+/* --- Header --- */
+
+.tracks-activity-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--color-border, #e2e8f0);
+    flex-shrink: 0;
+}
+
+.tracks-activity-icon {
+    font-size: 14px;
+    color: var(--color-text-secondary, #64748b);
+}
+
+.tracks-activity-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-text-secondary, #64748b);
+    flex: 1;
+}
+
+.tracks-activity-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--color-primary, #3b82f6);
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+/* --- Activity List --- */
+
+.tracks-activity-list {
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    padding: 4px 0;
+}
+
+.tracks-activity-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 6px 14px;
+    transition: background 120ms ease;
+}
+
+.tracks-activity-item:hover {
+    background: var(--color-bg, #f5f7fa);
+}
+
+.tracks-activity-item.is-new {
+    animation: activity-slide-in 250ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.tracks-activity-action-icon {
+    flex-shrink: 0;
+    width: 20px;
+    text-align: center;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.tracks-activity-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.tracks-activity-action-text {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text, #1e293b);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tracks-activity-time {
+    font-size: 11px;
+    color: var(--color-muted, #94a3b8);
+    line-height: 1.3;
+}
+
+/* --- Empty State --- */
+
+.tracks-activity-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px 14px;
+}
+
+.tracks-activity-empty-text {
+    font-size: 13px;
+    color: var(--color-text-secondary, #64748b);
+}
+
+/* --- Assignment Alert --- */
+
+.tracks-assignment-alert {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    margin: 4px 8px 8px;
+    background: rgba(59, 130, 246, 0.08);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 6px;
+    animation: activity-slide-in 200ms ease-out;
+}
+
+.tracks-assignment-icon {
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.tracks-assignment-text {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-primary, #3b82f6);
+}
+
+.tracks-assignment-dismiss {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 4px;
+    color: var(--color-text-secondary, #64748b);
+    transition: all 120ms ease;
+}
+
+.tracks-assignment-dismiss:hover {
+    background: rgba(59, 130, 246, 0.12);
+    color: var(--color-primary, #3b82f6);
+}
+
+@keyframes activity-slide-in {
+    0% {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

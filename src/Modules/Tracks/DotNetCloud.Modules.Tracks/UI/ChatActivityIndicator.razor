@@ -1,0 +1,38 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+
+@*
+    Chat activity indicator — displays a compact badge/toast in the Tracks
+    board view when there is live Chat activity. Gracefully hidden when the
+    Chat module is not installed (null-object stub returns IsActive = false).
+    Code-behind: ChatActivityIndicator.razor.cs
+*@
+
+@if (!IsChatAvailable)
+{
+    return;
+}
+
+<div class="chat-activity-indicator">
+    @if (_latestMessage is not null)
+    {
+        <div class="chat-activity-toast @(_isAnimating ? "animating" : "")">
+            <span class="chat-activity-toast-icon">&#128172;</span>
+            <span class="chat-activity-toast-text">New message in chat</span>
+            <span class="chat-activity-toast-time">@FormatTime(_latestMessage.Timestamp)</span>
+        </div>
+    }
+
+    @if (_channelEvent is not null)
+    {
+        <div class="chat-activity-channel-event">
+            <span class="chat-channel-event-icon">@(_channelEvent.Action == "created" ? "&#10133;" : "&#10060;")</span>
+            <span class="chat-channel-event-text">Channel @_channelEvent.Action</span>
+            <button class="chat-channel-event-dismiss" @onclick="DismissChannelEvent">&times;</button>
+        </div>
+    }
+
+    <div class="chat-activity-status">
+        <span class="chat-status-dot"></span>
+        <span class="chat-status-label">Chat active</span>
+    </div>
+</div>

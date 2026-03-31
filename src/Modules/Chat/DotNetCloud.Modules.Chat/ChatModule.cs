@@ -27,6 +27,7 @@ public sealed class ChatModule : IModuleLifecycle
     private IEventBus? _eventBus;
     private MessageSentEventHandler? _messageSentHandler;
     private ChannelCreatedEventHandler? _channelCreatedHandler;
+    private TracksActivityChatHandler? _tracksActivityHandler;
     private ILogger<ChatModule>? _logger;
     private bool _initialized;
     private bool _running;
@@ -56,8 +57,25 @@ public sealed class ChatModule : IModuleLifecycle
             channelCreatedLogger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<ChannelCreatedEventHandler>.Instance);
         await _eventBus.SubscribeAsync(_channelCreatedHandler, cancellationToken);
 
+        // Register cross-module Tracks activity handler
+        var broadcaster = context.Services.GetService<Core.Capabilities.IRealtimeBroadcaster>();
+        _tracksActivityHandler = new TracksActivityChatHandler(
+            context.Services.GetService<ILogger<TracksActivityChatHandler>>()
+                ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<TracksActivityChatHandler>.Instance,
+            broadcaster);
+        await _eventBus.SubscribeAsync<CardCreatedEvent>(_tracksActivityHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<CardMovedEvent>(_tracksActivityHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<CardUpdatedEvent>(_tracksActivityHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<CardDeletedEvent>(_tracksActivityHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<CardAssignedEvent>(_tracksActivityHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<CardCommentAddedEvent>(_tracksActivityHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<SprintStartedEvent>(_tracksActivityHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<SprintCompletedEvent>(_tracksActivityHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<BoardCreatedEvent>(_tracksActivityHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<BoardDeletedEvent>(_tracksActivityHandler, cancellationToken);
+
         _initialized = true;
-        _logger?.LogInformation("Chat module initialized successfully");
+        _logger?.LogInformation("Chat module initialized successfully with Tracks integration");
     }
 
     /// <inheritdoc />
@@ -89,6 +107,20 @@ public sealed class ChatModule : IModuleLifecycle
             if (_channelCreatedHandler is not null)
             {
                 await _eventBus.UnsubscribeAsync(_channelCreatedHandler, cancellationToken);
+            }
+
+            if (_tracksActivityHandler is not null)
+            {
+                await _eventBus.UnsubscribeAsync<CardCreatedEvent>(_tracksActivityHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<CardMovedEvent>(_tracksActivityHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<CardUpdatedEvent>(_tracksActivityHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<CardDeletedEvent>(_tracksActivityHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<CardAssignedEvent>(_tracksActivityHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<CardCommentAddedEvent>(_tracksActivityHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<SprintStartedEvent>(_tracksActivityHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<SprintCompletedEvent>(_tracksActivityHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<BoardCreatedEvent>(_tracksActivityHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<BoardDeletedEvent>(_tracksActivityHandler, cancellationToken);
             }
         }
 

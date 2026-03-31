@@ -60,6 +60,9 @@ public static class ChatServiceRegistration
         services.AddSingleton<IPushNotificationService>(sp => sp.GetRequiredService<NotificationRouter>());
         services.AddHostedService<NotificationDeliveryBackgroundService>();
 
+        // Cross-module Tracks activity display (null-object when Tracks not installed)
+        services.AddSingleton<ITracksActivitySignalRService, NullTracksActivitySignalRService>();
+
         return services;
     }
 }

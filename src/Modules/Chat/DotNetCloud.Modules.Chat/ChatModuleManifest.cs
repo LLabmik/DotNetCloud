@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Modules;
 using DotNetCloud.Modules.Chat.Events;
 
@@ -41,6 +42,16 @@ public sealed class ChatModuleManifest : IModuleManifest
     /// <inheritdoc />
     public IReadOnlyCollection<string> SubscribedEvents => new[]
     {
-        "FileUploadedEvent"
+        "FileUploadedEvent",
+        nameof(CardCreatedEvent),
+        nameof(CardMovedEvent),
+        nameof(CardUpdatedEvent),
+        nameof(CardDeletedEvent),
+        nameof(CardAssignedEvent),
+        nameof(CardCommentAddedEvent),
+        nameof(SprintStartedEvent),
+        nameof(SprintCompletedEvent),
+        nameof(BoardCreatedEvent),
+        nameof(BoardDeletedEvent)
     };
 }

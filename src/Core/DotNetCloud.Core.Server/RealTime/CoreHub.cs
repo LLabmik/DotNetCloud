@@ -71,6 +71,10 @@ internal sealed class CoreHub : Hub
             await Groups.AddToGroupAsync(connectionId, group);
         }
 
+        // Auto-join the cross-module tracks-activity broadcast group so all
+        // connected users receive live Tracks ↔ Chat integration events.
+        await Groups.AddToGroupAsync(connectionId, "tracks-activity");
+
         if (isFirstConnection)
         {
             await _presenceService.UserConnectedAsync(userId, connectionId);
@@ -171,6 +175,52 @@ internal sealed class CoreHub : Hub
         _logger.LogDebug(
             "User {UserId} left group {Group} via connection {ConnectionId}",
             GetUserId(), channelId, Context.ConnectionId);
+    }
+
+    /// <summary>
+    /// Joins the calling user to a board-scoped chat group for receiving
+    /// Tracks ↔ Chat integration events scoped to a specific board.
+    /// </summary>
+    /// <param name="boardId">The board ID to subscribe to chat activity for.</param>
+    public async Task JoinBoardChatGroupAsync(string boardId)
+    {
+        if (string.IsNullOrWhiteSpace(boardId))
+        {
+            throw new HubException("Board ID cannot be empty.");
+        }
+
+        if (!Guid.TryParse(boardId, out _))
+        {
+            throw new HubException("Invalid board ID format.");
+        }
+
+        var groupName = $"tracks-board-chat-{boardId}";
+        await Groups.AddToGroupAsync(Context.ConnectionId, groupName);
+        _connectionTracker.AddGroupMembership(GetUserId(), groupName);
+
+        _logger.LogDebug(
+            "User {UserId} joined board-chat group {Group} via connection {ConnectionId}",
+            GetUserId(), groupName, Context.ConnectionId);
+    }
+
+    /// <summary>
+    /// Removes the calling user from a board-scoped chat group.
+    /// </summary>
+    /// <param name="boardId">The board ID to unsubscribe from.</param>
+    public async Task LeaveBoardChatGroupAsync(string boardId)
+    {
+        if (string.IsNullOrWhiteSpace(boardId))
+        {
+            throw new HubException("Board ID cannot be empty.");
+        }
+
+        var groupName = $"tracks-board-chat-{boardId}";
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
+        _connectionTracker.RemoveGroupMembership(GetUserId(), groupName);
+
+        _logger.LogDebug(
+            "User {UserId} left board-chat group {Group} via connection {ConnectionId}",
+            GetUserId(), groupName, Context.ConnectionId);
     }
 
     /// <summary>

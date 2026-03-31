@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Modules;
+using DotNetCloud.Modules.Chat.Events;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Tracks.Events;
 using DotNetCloud.Modules.Tracks.Services;
@@ -23,6 +24,7 @@ public sealed class TracksModule : IModuleLifecycle
     // Event handlers
     private TracksRealtimeEventHandler? _realtimeHandler;
     private FileDeletedEventHandler? _fileDeletedHandler;
+    private ChatMessageTracksHandler? _chatMessageHandler;
 
     /// <inheritdoc />
     public IModuleManifest Manifest { get; } = new TracksModuleManifest();
@@ -62,8 +64,16 @@ public sealed class TracksModule : IModuleLifecycle
             context.Services.GetService<ILogger<FileDeletedEventHandler>>() ?? NullLogger<FileDeletedEventHandler>.Instance);
         await _eventBus.SubscribeAsync(_fileDeletedHandler, cancellationToken);
 
+        // Register cross-module Chat message handler
+        _chatMessageHandler = new ChatMessageTracksHandler(
+            realtimeService,
+            context.Services.GetService<ILogger<ChatMessageTracksHandler>>() ?? NullLogger<ChatMessageTracksHandler>.Instance);
+        await _eventBus.SubscribeAsync<MessageSentEvent>(_chatMessageHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<ChannelCreatedEvent>(_chatMessageHandler, cancellationToken);
+        await _eventBus.SubscribeAsync<ChannelDeletedEvent>(_chatMessageHandler, cancellationToken);
+
         _initialized = true;
-        _logger?.LogInformation("Tracks module initialized successfully with real-time and cross-module event handlers");
+        _logger?.LogInformation("Tracks module initialized successfully with real-time, cross-module, and Chat integration event handlers");
     }
 
     /// <inheritdoc />
@@ -107,6 +117,13 @@ public sealed class TracksModule : IModuleLifecycle
             if (_fileDeletedHandler is not null)
             {
                 await _eventBus.UnsubscribeAsync(_fileDeletedHandler, cancellationToken);
+            }
+
+            if (_chatMessageHandler is not null)
+            {
+                await _eventBus.UnsubscribeAsync<MessageSentEvent>(_chatMessageHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<ChannelCreatedEvent>(_chatMessageHandler, cancellationToken);
+                await _eventBus.UnsubscribeAsync<ChannelDeletedEvent>(_chatMessageHandler, cancellationToken);
             }
         }
 

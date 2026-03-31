@@ -121,6 +121,7 @@ The `ChatModule` class implements `IModuleLifecycle`:
 - [Architecture & Data Model](ARCHITECTURE.md)
 - [Real-Time Events (SignalR)](REALTIME.md)
 - [Push Notifications](PUSH.md)
+- [Chat ↔ Tracks Integration](../CHAT_TRACKS_INTEGRATION.md)
 
 ## Test Coverage
 

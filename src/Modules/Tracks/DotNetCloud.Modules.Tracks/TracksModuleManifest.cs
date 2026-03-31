@@ -49,6 +49,9 @@ public sealed class TracksModuleManifest : IModuleManifest
     /// <inheritdoc />
     public IReadOnlyCollection<string> SubscribedEvents => new[]
     {
-        "FileDeletedEvent"
+        "FileDeletedEvent",
+        "MessageSentEvent",
+        "ChannelCreatedEvent",
+        "ChannelDeletedEvent"
     };
 }

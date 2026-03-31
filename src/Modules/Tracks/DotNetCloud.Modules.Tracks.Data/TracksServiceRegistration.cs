@@ -46,6 +46,9 @@ public static class TracksServiceRegistration
         // Cross-module cleanup services
         services.AddScoped<ICardAttachmentCleanupService, CardAttachmentCleanupService>();
 
+        // Cross-module Chat activity display (null-object when Chat not installed)
+        services.AddSingleton<IChatActivitySignalRService, NullChatActivitySignalRService>();
+
         return services;
     }
 }
