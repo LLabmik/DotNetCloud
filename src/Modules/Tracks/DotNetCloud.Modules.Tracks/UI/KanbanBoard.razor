@@ -118,7 +118,7 @@
                                         @if (card.DueDate.HasValue)
                                         {
                                             <span class="tracks-card-badge @(IsOverdue(card.DueDate.Value) ? "overdue" : IsDueSoon(card.DueDate.Value) ? "due-soon" : "")">
-                                                📅 @card.DueDate.Value.ToLocalTime().ToString("MMM d")
+                                                📅 @TimeProvider.ToLocal(card.DueDate.Value).ToString("MMM d")
                                             </span>
                                         }
                                         @if (card.StoryPoints.HasValue)

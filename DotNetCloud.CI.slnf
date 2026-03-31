@@ -53,7 +53,8 @@
       "tests\\DotNetCloud.Modules.Files.Tests\\DotNetCloud.Modules.Files.Tests.csproj",
       "tests\\DotNetCloud.Modules.Calendar.Tests\\DotNetCloud.Modules.Calendar.Tests.csproj",
       "tests\\DotNetCloud.Modules.Notes.Tests\\DotNetCloud.Modules.Notes.Tests.csproj",
-      "tests\\DotNetCloud.Modules.Tracks.Tests\\DotNetCloud.Modules.Tracks.Tests.csproj"
+      "tests\\DotNetCloud.Modules.Tracks.Tests\\DotNetCloud.Modules.Tracks.Tests.csproj",
+      "tests\\DotNetCloud.UI.Shared.Tests\\DotNetCloud.UI.Shared.Tests.csproj"
     ]
   }
 }

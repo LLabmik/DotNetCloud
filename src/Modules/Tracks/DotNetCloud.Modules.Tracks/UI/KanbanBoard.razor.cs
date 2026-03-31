@@ -1,5 +1,6 @@
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Tracks.Services;
+using DotNetCloud.UI.Shared.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 
@@ -11,6 +12,7 @@ namespace DotNetCloud.Modules.Tracks.UI;
 public partial class KanbanBoard : ComponentBase
 {
     [Inject] private ITracksApiClient ApiClient { get; set; } = default!;
+    [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
 
     [Parameter, EditorRequired] public BoardDto Board { get; set; } = default!;
     [Parameter, EditorRequired] public List<BoardSwimlaneDto> Swimlanes { get; set; } = [];
@@ -38,6 +40,16 @@ public partial class KanbanBoard : ComponentBase
     // Drag state
     private CardDto? _draggedCard;
     private Guid? _dropTargetCardId;
+
+    /// <inheritdoc />
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await TimeProvider.EnsureInitializedAsync();
+            StateHasChanged();
+        }
+    }
 
     private IReadOnlyList<CardDto> GetFilteredCards(Guid swimlaneId)
     {

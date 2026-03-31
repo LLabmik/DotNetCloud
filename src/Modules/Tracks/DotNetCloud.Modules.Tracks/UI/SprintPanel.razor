@@ -29,7 +29,7 @@
                 <div class="tracks-sprint-meta">
                     @if (sprint.StartDate.HasValue && sprint.EndDate.HasValue)
                     {
-                        <span>📅 @sprint.StartDate.Value.ToString("MMM d") – @sprint.EndDate.Value.ToString("MMM d")</span>
+                        <span>📅 @TimeProvider.ToLocal(sprint.StartDate.Value).ToString("MMM d") – @TimeProvider.ToLocal(sprint.EndDate.Value).ToString("MMM d")</span>
                     }
                     <span>🎴 @sprint.CardCount cards</span>
                     @if (sprint.TotalStoryPoints > 0)
@@ -78,9 +78,11 @@
 {
     <DncModal Title="Create Sprint" StartVisible OnClose="() => _showCreateDialog = false">
         <EditForm Model="_createModel" OnValidSubmit="CreateSprintAsync">
+            <DataAnnotationsValidator />
             <div class="form-group">
                 <label>Title</label>
                 <InputText class="form-control" @bind-Value="_createModel.Title" placeholder="Sprint 1" />
+                <ValidationMessage For="() => _createModel.Title" />
             </div>
             <div class="form-group">
                 <label>Goal (optional)</label>
@@ -95,12 +97,19 @@
                 <div class="form-group">
                     <label>End Date</label>
                     <InputDate class="form-control" @bind-Value="_createModel.EndDate" />
+                    <ValidationMessage For="() => _createModel.EndDate" />
                 </div>
             </div>
+            @if (!string.IsNullOrEmpty(_createError))
+            {
+                <div class="alert alert-danger">@_createError</div>
+            }
             <div class="form-actions">
                 <button type="button" class="btn btn-secondary"
                         @onclick="() => _showCreateDialog = false">Cancel</button>
-                <button type="submit" class="btn btn-primary">Create Sprint</button>
+                <button type="submit" class="btn btn-primary" disabled="@_isCreating">
+                    @(_isCreating ? "Creating..." : "Create Sprint")
+                </button>
             </div>
         </EditForm>
     </DncModal>

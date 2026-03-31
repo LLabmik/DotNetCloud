@@ -87,3 +87,4 @@ Archived context:
 **Last completed:** SyncTray icon enhancement Linux verification (2026-03-29)
 
 All icon symbol overlays verified on Linux. 85/85 tests pass. No outstanding cross-machine work.
+ 

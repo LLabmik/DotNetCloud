@@ -86,7 +86,7 @@
                                             <span class="tracks-avatar-sm">@GetInitials(member.DisplayName)</span>
                                             <div class="tracks-member-info">
                                                 <span class="tracks-member-name">@(member.DisplayName ?? member.UserId.ToString()[..8])</span>
-                                                <span class="tracks-member-date">Joined @member.JoinedAt.ToString("MMM d, yyyy")</span>
+                                                <span class="tracks-member-date">Joined @TimeProvider.ToLocal(member.JoinedAt).ToString("MMM d, yyyy")</span>
                                             </div>
                                             <select class="tracks-filter-select"
                                                     value="@member.Role"

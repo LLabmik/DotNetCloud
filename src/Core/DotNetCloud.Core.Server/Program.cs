@@ -296,6 +296,7 @@ public class Program
 
         // Blazor UI services (server-side prerendering needs these too)
         builder.Services.AddSingleton<ModuleUiRegistry>();
+        builder.Services.AddScoped<DotNetCloud.UI.Shared.Services.BrowserTimeProvider>();
         builder.Services.AddScoped<ToastService>();
         builder.Services.AddTransient<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
         builder.Services.AddScoped(sp =>

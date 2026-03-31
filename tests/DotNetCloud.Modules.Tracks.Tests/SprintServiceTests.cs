@@ -222,4 +222,143 @@ public class SprintServiceTests
 
         Assert.IsFalse(await _db.SprintCards.AnyAsync(sc => sc.SprintId == sprint.Id && sc.CardId == card.Id));
     }
+
+    // ─── UTC Date Handling ────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task CreateSprint_StoresDatesAsUtc()
+    {
+        var dto = new CreateSprintDto
+        {
+            Title = "UTC Sprint",
+            StartDate = new DateTime(2026, 4, 1, 10, 0, 0, DateTimeKind.Unspecified),
+            EndDate = new DateTime(2026, 4, 15, 10, 0, 0, DateTimeKind.Unspecified)
+        };
+
+        var result = await _service.CreateSprintAsync(_board.Id, dto, _caller);
+
+        var dbSprint = await _db.Sprints.FirstAsync(s => s.Id == result.Id);
+        Assert.AreEqual(DateTimeKind.Utc, dbSprint.StartDate!.Value.Kind);
+        Assert.AreEqual(DateTimeKind.Utc, dbSprint.EndDate!.Value.Kind);
+    }
+
+    [TestMethod]
+    public async Task CreateSprint_PreservesDateValues_WhenSpecifyingUtc()
+    {
+        var start = new DateTime(2026, 4, 1, 10, 0, 0, DateTimeKind.Local);
+        var end = new DateTime(2026, 4, 15, 17, 30, 0, DateTimeKind.Local);
+        var dto = new CreateSprintDto
+        {
+            Title = "Value Sprint",
+            StartDate = start,
+            EndDate = end
+        };
+
+        var result = await _service.CreateSprintAsync(_board.Id, dto, _caller);
+
+        var dbSprint = await _db.Sprints.FirstAsync(s => s.Id == result.Id);
+        // SpecifyKind preserves the numeric values, just changes Kind
+        Assert.AreEqual(10, dbSprint.StartDate!.Value.Hour);
+        Assert.AreEqual(17, dbSprint.EndDate!.Value.Hour);
+        Assert.AreEqual(30, dbSprint.EndDate!.Value.Minute);
+    }
+
+    [TestMethod]
+    public async Task CreateSprint_NullDates_StoresNull()
+    {
+        var dto = new CreateSprintDto
+        {
+            Title = "No Dates",
+            StartDate = null,
+            EndDate = null
+        };
+
+        var result = await _service.CreateSprintAsync(_board.Id, dto, _caller);
+
+        var dbSprint = await _db.Sprints.FirstAsync(s => s.Id == result.Id);
+        Assert.IsNull(dbSprint.StartDate);
+        Assert.IsNull(dbSprint.EndDate);
+    }
+
+    // ─── Update Sprint ────────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task UpdateSprint_ChangesTitle()
+    {
+        var sprint = await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S1" }, _caller);
+
+        var result = await _service.UpdateSprintAsync(sprint.Id, new UpdateSprintDto { Title = "S1 Updated" }, _caller);
+
+        Assert.AreEqual("S1 Updated", result.Title);
+    }
+
+    [TestMethod]
+    public async Task UpdateSprint_ChangesGoal()
+    {
+        var sprint = await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S1", Goal = "Old goal" }, _caller);
+
+        var result = await _service.UpdateSprintAsync(sprint.Id, new UpdateSprintDto { Goal = "New goal" }, _caller);
+
+        Assert.AreEqual("New goal", result.Goal);
+    }
+
+    [TestMethod]
+    public async Task UpdateSprint_StoresDatesAsUtc()
+    {
+        var sprint = await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S1" }, _caller);
+
+        var newStart = new DateTime(2026, 5, 1, 9, 0, 0, DateTimeKind.Unspecified);
+        var newEnd = new DateTime(2026, 5, 15, 17, 0, 0, DateTimeKind.Unspecified);
+        var result = await _service.UpdateSprintAsync(sprint.Id,
+            new UpdateSprintDto { StartDate = newStart, EndDate = newEnd }, _caller);
+
+        var dbSprint = await _db.Sprints.FirstAsync(s => s.Id == sprint.Id);
+        Assert.AreEqual(DateTimeKind.Utc, dbSprint.StartDate!.Value.Kind);
+        Assert.AreEqual(DateTimeKind.Utc, dbSprint.EndDate!.Value.Kind);
+        Assert.AreEqual(9, dbSprint.StartDate.Value.Hour);
+        Assert.AreEqual(17, dbSprint.EndDate.Value.Hour);
+    }
+
+    [TestMethod]
+    public async Task UpdateSprint_PartialUpdate_OnlyChangesSpecifiedFields()
+    {
+        var sprint = await _service.CreateSprintAsync(_board.Id,
+            new CreateSprintDto { Title = "S1", Goal = "Original" }, _caller);
+
+        var result = await _service.UpdateSprintAsync(sprint.Id,
+            new UpdateSprintDto { Title = "S1 Updated" }, _caller);
+
+        Assert.AreEqual("S1 Updated", result.Title);
+        Assert.AreEqual("Original", result.Goal); // Goal unchanged
+    }
+
+    [TestMethod]
+    public async Task UpdateSprint_NonExistentSprint_Throws()
+    {
+        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
+            () => _service.UpdateSprintAsync(Guid.NewGuid(), new UpdateSprintDto { Title = "X" }, _caller));
+    }
+
+    [TestMethod]
+    public async Task UpdateSprint_AsMember_Throws()
+    {
+        var sprint = await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S1" }, _caller);
+        var memberCaller = TestHelpers.CreateCaller();
+        await TestHelpers.AddMemberAsync(_db, _board.Id, memberCaller.UserId, BoardMemberRole.Member);
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
+            () => _service.UpdateSprintAsync(sprint.Id, new UpdateSprintDto { Title = "Sneaky" }, memberCaller));
+    }
+
+    [TestMethod]
+    public async Task UpdateSprint_SetsUpdatedAt()
+    {
+        var sprint = await _service.CreateSprintAsync(_board.Id, new CreateSprintDto { Title = "S1" }, _caller);
+        var before = DateTime.UtcNow;
+
+        await _service.UpdateSprintAsync(sprint.Id, new UpdateSprintDto { Title = "Updated" }, _caller);
+
+        var dbSprint = await _db.Sprints.FirstAsync(s => s.Id == sprint.Id);
+        Assert.IsTrue(dbSprint.UpdatedAt >= before);
+    }
 }

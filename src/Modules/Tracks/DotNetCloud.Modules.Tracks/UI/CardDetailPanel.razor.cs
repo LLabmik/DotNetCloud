@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Tracks.Services;
+using DotNetCloud.UI.Shared.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
@@ -13,6 +14,7 @@ namespace DotNetCloud.Modules.Tracks.UI;
 public partial class CardDetailPanel : ComponentBase, IDisposable
 {
     [Inject] private ITracksApiClient ApiClient { get; set; } = default!;
+    [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
 
     [Parameter, EditorRequired] public CardDto Card { get; set; } = default!;
     [Parameter, EditorRequired] public BoardDto Board { get; set; } = default!;
@@ -77,6 +79,16 @@ public partial class CardDetailPanel : ComponentBase, IDisposable
     // Live time tracking
     private int _liveTrackedMinutes;
     private Timer? _liveTimer;
+
+    /// <inheritdoc />
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await TimeProvider.EnsureInitializedAsync();
+            StateHasChanged();
+        }
+    }
 
     protected override async Task OnParametersSetAsync()
     {

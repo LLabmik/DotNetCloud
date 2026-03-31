@@ -49,8 +49,8 @@ public sealed class SprintService
             BoardId = boardId,
             Title = dto.Title,
             Goal = dto.Goal,
-            StartDate = dto.StartDate,
-            EndDate = dto.EndDate,
+            StartDate = dto.StartDate.HasValue ? DateTime.SpecifyKind(dto.StartDate.Value, DateTimeKind.Utc) : null,
+            EndDate = dto.EndDate.HasValue ? DateTime.SpecifyKind(dto.EndDate.Value, DateTimeKind.Utc) : null,
             Status = SprintStatus.Planning
         };
 
@@ -117,8 +117,8 @@ public sealed class SprintService
 
         if (dto.Title is not null) sprint.Title = dto.Title;
         if (dto.Goal is not null) sprint.Goal = dto.Goal;
-        if (dto.StartDate.HasValue) sprint.StartDate = dto.StartDate.Value;
-        if (dto.EndDate.HasValue) sprint.EndDate = dto.EndDate.Value;
+        if (dto.StartDate.HasValue) sprint.StartDate = DateTime.SpecifyKind(dto.StartDate.Value, DateTimeKind.Utc);
+        if (dto.EndDate.HasValue) sprint.EndDate = DateTime.SpecifyKind(dto.EndDate.Value, DateTimeKind.Utc);
 
         sprint.UpdatedAt = DateTime.UtcNow;
 

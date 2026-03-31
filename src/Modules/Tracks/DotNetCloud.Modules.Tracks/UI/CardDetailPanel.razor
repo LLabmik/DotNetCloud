@@ -158,7 +158,7 @@
                         <div class="tracks-comment">
                             <div class="tracks-comment-header">
                                 <strong>@(comment.DisplayName ?? "User")</strong>
-                                <span class="tracks-comment-date">@comment.CreatedAt.ToLocalTime().ToString("MMM d, h:mm tt")</span>
+                                <span class="tracks-comment-date">@TimeProvider.ToLocal(comment.CreatedAt).ToString("MMM d, h:mm tt")</span>
                             </div>
                             <div class="tracks-comment-body markdown-body">@((MarkupString)MarkdownRenderer.RenderToHtml(comment.Content))</div>
                             <div class="tracks-comment-actions">
@@ -181,7 +181,7 @@
                         <div class="tracks-activity-item">
                             <strong>@(activity.DisplayName ?? "User")</strong>
                             <span>@FormatActivityAction(activity)</span>
-                            <span class="tracks-activity-date">@activity.CreatedAt.ToLocalTime().ToString("MMM d, h:mm tt")</span>
+                            <span class="tracks-activity-date">@TimeProvider.ToLocal(activity.CreatedAt).ToString("MMM d, h:mm tt")</span>
                         </div>
                     }
                 </div>
