@@ -55,6 +55,7 @@ public sealed class SwimlaneService
             Title = dto.Title,
             Color = dto.Color,
             CardLimit = dto.CardLimit,
+            IsDone = dto.IsDone,
             Position = maxPos + PositionGap
         };
 
@@ -103,6 +104,7 @@ public sealed class SwimlaneService
         if (dto.Title is not null) swimlane.Title = dto.Title;
         if (dto.Color is not null) swimlane.Color = dto.Color;
         if (dto.CardLimit.HasValue) swimlane.CardLimit = dto.CardLimit.Value;
+        if (dto.IsDone.HasValue) swimlane.IsDone = dto.IsDone.Value;
 
         swimlane.UpdatedAt = DateTime.UtcNow;
 
@@ -187,6 +189,7 @@ public sealed class SwimlaneService
         Color = l.Color,
         Position = (int)l.Position,
         CardLimit = l.CardLimit,
+        IsDone = l.IsDone,
         CardCount = l.Cards.Count(c => !c.IsDeleted && !c.IsArchived),
         CreatedAt = l.CreatedAt,
         UpdatedAt = l.UpdatedAt

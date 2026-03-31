@@ -37,7 +37,7 @@ public partial class SprintCompletionDialog : ComponentBase
             var allCards = await cardsTask;
 
             _incompleteCards.Clear();
-            _incompleteCards.AddRange(allCards.Where(c => !c.IsArchived));
+            _incompleteCards.AddRange(allCards.Where(c => !c.IsArchived && !c.IsInDoneSwimlane));
 
             // Default to first available next sprint if any exist
             var nextSprint = AvailableSprints

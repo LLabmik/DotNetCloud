@@ -24,6 +24,10 @@ public sealed class BoardSwimlaneConfiguration : IEntityTypeConfiguration<BoardS
         builder.Property(l => l.Color)
             .HasMaxLength(20);
 
+        builder.Property(l => l.IsDone)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         builder.Property(l => l.CreatedAt)
             .IsRequired()
             .HasDefaultValueSql("CURRENT_TIMESTAMP");

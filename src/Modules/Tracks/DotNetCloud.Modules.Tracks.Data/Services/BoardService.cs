@@ -446,6 +446,7 @@ public sealed class BoardService
             Color = l.Color,
             Position = (int)l.Position,
             CardLimit = l.CardLimit,
+            IsDone = l.IsDone,
             CardCount = cardCounts is not null && cardCounts.TryGetValue(l.Id, out var count) ? count : 0,
             CreatedAt = l.CreatedAt,
             UpdatedAt = l.UpdatedAt

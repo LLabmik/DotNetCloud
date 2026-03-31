@@ -109,7 +109,8 @@ public sealed class BoardTemplateService
                 {
                     Title = listDef.Title,
                     Color = listDef.Color,
-                    CardLimit = listDef.CardLimit
+                    CardLimit = listDef.CardLimit,
+                    IsDone = listDef.IsDone
                 }, caller, cancellationToken);
             }
         }
@@ -227,7 +228,7 @@ public sealed class BoardTemplateService
                         new() { Title = "To Do" },
                         new() { Title = "In Progress", CardLimit = 5 },
                         new() { Title = "Review" },
-                        new() { Title = "Done" }
+                        new() { Title = "Done", IsDone = true }
                     ],
                     Labels =
                     [
@@ -253,7 +254,7 @@ public sealed class BoardTemplateService
                         new() { Title = "In Development", CardLimit = 3 },
                         new() { Title = "Code Review" },
                         new() { Title = "QA Testing" },
-                        new() { Title = "Done" }
+                        new() { Title = "Done", IsDone = true }
                     ],
                     Labels =
                     [
@@ -280,7 +281,7 @@ public sealed class BoardTemplateService
                         new() { Title = "In Progress", CardLimit = 4 },
                         new() { Title = "Fixed" },
                         new() { Title = "Verified" },
-                        new() { Title = "Closed" }
+                        new() { Title = "Closed", IsDone = true }
                     ],
                     Labels =
                     [
@@ -306,7 +307,7 @@ public sealed class BoardTemplateService
                         new() { Title = "Ideas" },
                         new() { Title = "To Do" },
                         new() { Title = "Doing", CardLimit = 3 },
-                        new() { Title = "Done" }
+                        new() { Title = "Done", IsDone = true }
                     ],
                     Labels =
                     [
@@ -365,6 +366,9 @@ internal sealed class TemplateListDefinition
 
     /// <summary>Optional WIP limit.</summary>
     public int? CardLimit { get; set; }
+
+    /// <summary>Whether this is a done column.</summary>
+    public bool IsDone { get; set; }
 }
 
 /// <summary>

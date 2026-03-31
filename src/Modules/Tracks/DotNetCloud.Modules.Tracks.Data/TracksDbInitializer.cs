@@ -27,6 +27,9 @@ public static class TracksDbInitializer
         // Schema migration: add LockSwimlanes column if missing
         await MigrateLockSwimlanesAsync(db, logger, cancellationToken);
 
+        // Schema migration: add IsDone column to BoardSwimlanes if missing
+        await MigrateSwimlaneIsDoneAsync(db, logger, cancellationToken);
+
         logger?.LogInformation("Tracks database initialized");
     }
 
@@ -156,5 +159,38 @@ public static class TracksDbInitializer
             """, cancellationToken);
 
         logger?.LogInformation("LockSwimlanes migration complete");
+    }
+
+    private static async Task MigrateSwimlaneIsDoneAsync(
+        TracksDbContext db,
+        ILogger? logger,
+        CancellationToken cancellationToken)
+    {
+        var conn = db.Database.GetDbConnection();
+        await conn.OpenAsync(cancellationToken);
+        try
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = """
+                SELECT COUNT(*) FROM information_schema.columns
+                WHERE table_name = 'BoardSwimlanes' AND column_name = 'IsDone';
+                """;
+            var exists = Convert.ToInt64(await cmd.ExecuteScalarAsync(cancellationToken)) > 0;
+            if (exists)
+                return;
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+
+        logger?.LogInformation("Adding IsDone column to BoardSwimlanes table...");
+
+        await db.Database.ExecuteSqlRawAsync("""
+            ALTER TABLE "BoardSwimlanes" ADD COLUMN "IsDone" boolean NOT NULL DEFAULT false;
+            UPDATE "BoardSwimlanes" SET "IsDone" = true WHERE "Title" IN ('Done', 'Closed');
+            """, cancellationToken);
+
+        logger?.LogInformation("IsDone migration complete");
     }
 }

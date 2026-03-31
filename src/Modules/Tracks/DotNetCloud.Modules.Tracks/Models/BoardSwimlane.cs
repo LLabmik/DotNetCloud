@@ -23,6 +23,9 @@ public sealed class BoardSwimlane
     /// <summary>Work-in-progress limit. Null means no limit.</summary>
     public int? CardLimit { get; set; }
 
+    /// <summary>Whether this is a "done" column — cards here count as completed for sprint tracking.</summary>
+    public bool IsDone { get; set; }
+
     /// <summary>Whether the swimlane has been archived.</summary>
     public bool IsArchived { get; set; }
 

@@ -76,7 +76,7 @@ public sealed class SprintService
 
         var sprints = await _db.Sprints
             .AsNoTracking()
-            .Include(s => s.SprintCards).ThenInclude(sc => sc.Card)
+            .Include(s => s.SprintCards).ThenInclude(sc => sc.Card).ThenInclude(c => c!.Swimlane)
             .Where(s => s.BoardId == boardId)
             .OrderByDescending(s => s.CreatedAt)
             .ToListAsync(cancellationToken);
@@ -91,7 +91,7 @@ public sealed class SprintService
     {
         var sprint = await _db.Sprints
             .AsNoTracking()
-            .Include(s => s.SprintCards).ThenInclude(sc => sc.Card)
+            .Include(s => s.SprintCards).ThenInclude(sc => sc.Card).ThenInclude(c => c!.Swimlane)
             .FirstOrDefaultAsync(s => s.Id == sprintId, cancellationToken);
 
         if (sprint is null)
@@ -110,7 +110,7 @@ public sealed class SprintService
         ArgumentNullException.ThrowIfNull(dto);
 
         var sprint = await _db.Sprints
-            .Include(s => s.SprintCards).ThenInclude(sc => sc.Card)
+            .Include(s => s.SprintCards).ThenInclude(sc => sc.Card).ThenInclude(c => c!.Swimlane)
             .FirstOrDefaultAsync(s => s.Id == sprintId, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.SprintNotFound, "Sprint not found.");
 
@@ -137,7 +137,7 @@ public sealed class SprintService
     public async Task<SprintDto> StartSprintAsync(Guid sprintId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         var sprint = await _db.Sprints
-            .Include(s => s.SprintCards).ThenInclude(sc => sc.Card)
+            .Include(s => s.SprintCards).ThenInclude(sc => sc.Card).ThenInclude(c => c!.Swimlane)
             .FirstOrDefaultAsync(s => s.Id == sprintId, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.SprintNotFound, "Sprint not found.");
 
@@ -185,7 +185,7 @@ public sealed class SprintService
     public async Task<SprintDto> CompleteSprintAsync(Guid sprintId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         var sprint = await _db.Sprints
-            .Include(s => s.SprintCards).ThenInclude(sc => sc.Card)
+            .Include(s => s.SprintCards).ThenInclude(sc => sc.Card).ThenInclude(c => c!.Swimlane)
             .FirstOrDefaultAsync(s => s.Id == sprintId, cancellationToken)
             ?? throw new ValidationException(ErrorCodes.SprintNotFound, "Sprint not found.");
 
@@ -196,7 +196,7 @@ public sealed class SprintService
                 $"Cannot complete a sprint in {sprint.Status} status. Only Active sprints can be completed.");
 
         var cards = sprint.SprintCards.Select(sc => sc.Card).Where(c => c is not null).ToList();
-        var completedCount = cards.Count(c => c!.IsArchived);
+        var completedCount = cards.Count(c => c!.IsArchived || (c.Swimlane?.IsDone ?? false));
 
         sprint.Status = SprintStatus.Completed;
         sprint.EndDate ??= DateTime.UtcNow;
@@ -428,7 +428,7 @@ public sealed class SprintService
             Status = s.Status,
             CardCount = cards.Count,
             TotalStoryPoints = cards.Where(c => c.StoryPoints.HasValue).Sum(c => c.StoryPoints!.Value),
-            CompletedStoryPoints = cards.Where(c => c.IsArchived && c.StoryPoints.HasValue).Sum(c => c.StoryPoints!.Value),
+            CompletedStoryPoints = cards.Where(c => (c.IsArchived || (c.Swimlane?.IsDone ?? false)) && c.StoryPoints.HasValue).Sum(c => c.StoryPoints!.Value),
             TargetStoryPoints = s.TargetStoryPoints,
             CreatedAt = s.CreatedAt,
             UpdatedAt = s.UpdatedAt

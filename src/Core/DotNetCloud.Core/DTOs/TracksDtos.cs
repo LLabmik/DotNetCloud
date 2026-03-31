@@ -166,6 +166,11 @@ public sealed record BoardSwimlaneDto
     public int? CardLimit { get; init; }
 
     /// <summary>
+    /// Whether this is a "done" column — cards here count as completed for sprint tracking.
+    /// </summary>
+    public bool IsDone { get; init; }
+
+    /// <summary>
     /// Current number of cards in this list.
     /// </summary>
     public int CardCount { get; init; }
@@ -326,6 +331,11 @@ public sealed record CardDto
     /// Title of the assigned sprint (null if unassigned).
     /// </summary>
     public string? SprintTitle { get; init; }
+
+    /// <summary>
+    /// Whether this card is in a swimlane marked as "done" — used for sprint completion tracking.
+    /// </summary>
+    public bool IsInDoneSwimlane { get; init; }
 }
 
 /// <summary>
@@ -821,6 +831,11 @@ public sealed record CreateBoardSwimlaneDto
     /// Maximum number of cards (WIP limit). Null means unlimited.
     /// </summary>
     public int? CardLimit { get; init; }
+
+    /// <summary>
+    /// Whether this is a "done" column — cards here count as completed for sprint tracking.
+    /// </summary>
+    public bool IsDone { get; init; }
 }
 
 /// <summary>
@@ -843,6 +858,11 @@ public sealed record UpdateBoardSwimlaneDto
     /// Updated WIP limit.
     /// </summary>
     public int? CardLimit { get; init; }
+
+    /// <summary>
+    /// Updated done-column flag.
+    /// </summary>
+    public bool? IsDone { get; init; }
 }
 
 /// <summary>

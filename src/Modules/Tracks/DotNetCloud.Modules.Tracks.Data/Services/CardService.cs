@@ -502,6 +502,7 @@ public sealed class CardService
         SprintId = c.SprintCards.FirstOrDefault(sc => sc.Sprint is not null &&
             sc.Sprint.Status != SprintStatus.Completed)?.SprintId,
         SprintTitle = c.SprintCards.FirstOrDefault(sc => sc.Sprint is not null &&
-            sc.Sprint.Status != SprintStatus.Completed)?.Sprint?.Title
+            sc.Sprint.Status != SprintStatus.Completed)?.Sprint?.Title,
+        IsInDoneSwimlane = c.Swimlane?.IsDone ?? false
     };
 }

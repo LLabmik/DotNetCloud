@@ -94,8 +94,9 @@
                         {
                             @foreach (var card in _sprintCards)
                             {
-                                <div class="tracks-sprint-card-item @(card.IsArchived ? "completed" : "")">
-                                    <span class="tracks-sprint-card-status">@(card.IsArchived ? "✓" : "☐")</span>
+                                var isCardDone = card.IsArchived || card.IsInDoneSwimlane;
+                                <div class="tracks-sprint-card-item @(isCardDone ? "completed" : "")">
+                                    <span class="tracks-sprint-card-status">@(isCardDone ? "✓" : "☐")</span>
                                     <span class="tracks-sprint-card-title" @onclick="() => OnCardSelected.InvokeAsync(card.Id)">
                                         <span class="tracks-card-number">#@card.CardNumber</span> @card.Title
                                     </span>
@@ -113,7 +114,7 @@
                             }
 
                             var totalSp2 = _sprintCards.Where(c => c.StoryPoints.HasValue).Sum(c => c.StoryPoints!.Value);
-                            var doneSp2 = _sprintCards.Where(c => c.IsArchived && c.StoryPoints.HasValue).Sum(c => c.StoryPoints!.Value);
+                            var doneSp2 = _sprintCards.Where(c => (c.IsArchived || c.IsInDoneSwimlane) && c.StoryPoints.HasValue).Sum(c => c.StoryPoints!.Value);
                             <div class="tracks-sprint-backlog-summary">
                                 Total: @totalSp2 SP | Done: @doneSp2 SP (@(totalSp2 > 0 ? doneSp2 * 100 / totalSp2 : 0)%)
                             </div>
