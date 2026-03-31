@@ -1103,6 +1103,7 @@
 }
 
 ::deep .tracks-time-total {
+    display: block;
     font-size: 14px;
     font-weight: 700;
     color: var(--color-text);
@@ -1171,6 +1172,462 @@
     padding: 16px 20px;
     border-top: 1px solid var(--color-border);
     flex-shrink: 0;
+}
+
+/* Card panel sidebar sections */
+::deep .tracks-card-sidebar-section {
+    margin-bottom: 16px;
+}
+
+::deep .tracks-card-sidebar-section > label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--color-muted);
+    margin-bottom: 6px;
+}
+
+::deep .tracks-assignee-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 0;
+    font-size: 13px;
+    color: var(--color-text);
+}
+
+::deep .tracks-avatar-sm {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+::deep .tracks-assign-input {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+::deep .tracks-label-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 100px;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+::deep .tracks-label-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border: none;
+    background: rgba(255,255,255,0.3);
+    color: #fff;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 10px;
+    padding: 0;
+}
+
+::deep .tracks-label-remove:hover {
+    background: rgba(255,255,255,0.5);
+}
+
+::deep .tracks-label-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+::deep .tracks-label-option {
+    display: block;
+    width: 100%;
+    padding: 5px 10px;
+    border: none;
+    border-radius: var(--radius);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+    transition: opacity var(--transition);
+}
+
+::deep .tracks-label-option:hover {
+    opacity: 0.85;
+}
+
+::deep .tracks-link-btn {
+    background: none;
+    border: none;
+    color: var(--color-muted);
+    font-size: 12px;
+    cursor: pointer;
+    padding: 4px 0;
+    text-align: left;
+}
+
+::deep .tracks-link-btn:hover {
+    color: var(--color-text);
+}
+
+::deep .tracks-muted {
+    font-size: 12px;
+    color: var(--color-muted);
+}
+
+::deep .tracks-attachment-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--color-text);
+    padding: 3px 0;
+}
+
+::deep .tracks-attachment-add {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+::deep .tracks-dependency-row {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 12px;
+    color: var(--color-text);
+    padding: 4px 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+::deep .tracks-dependency-row:last-of-type {
+    border-bottom: none;
+}
+
+::deep .tracks-dep-type {
+    font-weight: 600;
+    font-size: 11px;
+    white-space: nowrap;
+    opacity: 0.7;
+}
+
+::deep .tracks-dep-target {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-left: 4px;
+}
+
+::deep .tracks-dep-target > span {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+::deep .tracks-dependency-add {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+::deep .tracks-dep-actions {
+    display: flex;
+    gap: 6px;
+}
+
+::deep .tracks-confirm-action {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    margin-top: 4px;
+    background: var(--color-bg);
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+}
+
+::deep .tracks-confirm-msg {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+::deep .tracks-confirm-buttons {
+    display: flex;
+    gap: 6px;
+}
+
+::deep .tracks-card-description {
+    cursor: pointer;
+    padding: 8px 10px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    color: var(--color-text);
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    min-height: 40px;
+}
+
+::deep .tracks-card-description:hover {
+    background: var(--color-bg);
+}
+
+::deep .tracks-card-description.empty {
+    color: var(--color-muted);
+    font-style: italic;
+}
+
+::deep .tracks-card-section-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+::deep .tracks-desc-editor {
+    background: var(--color-surface);
+    color: var(--color-text);
+    border-color: var(--color-border);
+}
+
+::deep .tracks-card-number {
+    color: var(--color-muted);
+    font-weight: 400;
+    margin-right: 6px;
+}
+
+::deep .tracks-card-swimlane-name {
+    font-size: 13px;
+    color: var(--color-muted);
+}
+
+::deep .tracks-comment-actions {
+    margin-top: 4px;
+}
+
+::deep .tracks-progress-bar {
+    width: 100%;
+    height: 4px;
+    background: var(--color-border);
+    border-radius: 2px;
+    margin-bottom: 8px;
+    overflow: hidden;
+}
+
+::deep .tracks-progress-fill {
+    height: 100%;
+    background: var(--color-success);
+    border-radius: 2px;
+    transition: width 300ms ease;
+}
+
+::deep .tracks-checklist-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+::deep .tracks-activity-date {
+    font-size: 11px;
+    color: var(--color-muted);
+    margin-left: auto;
+}
+
+/* ─────────── Confirmation Modal ─────────── */
+
+::deep .tracks-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    animation: tracks-modal-fade-in 150ms ease;
+}
+
+@keyframes tracks-modal-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+::deep .tracks-modal {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    width: 420px;
+    max-width: 90vw;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+    animation: tracks-modal-slide-in 150ms ease;
+}
+
+@keyframes tracks-modal-slide-in {
+    from {
+        opacity: 0;
+        transform: translateY(-12px) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+::deep .tracks-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+::deep .tracks-modal-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .tracks-modal-body {
+    padding: 16px 20px;
+}
+
+::deep .tracks-modal-body p {
+    margin: 0 0 8px;
+    font-size: 14px;
+    color: var(--color-text);
+    line-height: 1.5;
+}
+
+::deep .tracks-modal-body p:last-child {
+    margin-bottom: 0;
+}
+
+::deep .tracks-modal-warning {
+    color: var(--color-danger) !important;
+    font-size: 13px !important;
+    font-weight: 600;
+}
+
+::deep .tracks-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 20px 16px;
+    border-top: 1px solid var(--color-border);
+}
+
+/* ─────────── Create Label ─────────── */
+
+::deep .tracks-create-label {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 6px;
+    padding: 8px;
+    background: var(--color-bg);
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+}
+
+::deep .tracks-color-presets {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+::deep .tracks-color-swatch {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    padding: 0;
+    transition: border-color 150ms ease, transform 150ms ease;
+}
+
+::deep .tracks-color-swatch:hover {
+    transform: scale(1.15);
+}
+
+::deep .tracks-color-swatch.active {
+    border-color: #fff;
+    box-shadow: 0 0 0 2px var(--color-primary);
+}
+
+::deep .tracks-create-label-actions {
+    display: flex;
+    gap: 6px;
+}
+
+/* ─────────── File Upload ─────────── */
+
+::deep .tracks-file-upload {
+    position: relative;
+}
+
+::deep .tracks-file-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    overflow: hidden;
+}
+
+::deep .tracks-file-label {
+    display: block;
+    text-align: center;
+    cursor: pointer;
+    width: 100%;
+}
+
+::deep .tracks-attachment-divider {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 2px 0;
+}
+
+::deep .tracks-attachment-divider::before,
+::deep .tracks-attachment-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--color-border);
+}
+
+::deep .tracks-attachment-divider span {
+    font-size: 11px;
+    color: var(--color-muted);
+    white-space: nowrap;
+}
+
+::deep .tracks-attachment-actions {
+    display: flex;
+    gap: 6px;
 }
 
 /* ─────────── Sprint Panel ─────────── */

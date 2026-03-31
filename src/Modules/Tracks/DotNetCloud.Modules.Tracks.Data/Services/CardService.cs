@@ -5,6 +5,7 @@ using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Tracks.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using IUserDirectory = DotNetCloud.Core.Capabilities.IUserDirectory;
 
 namespace DotNetCloud.Modules.Tracks.Data.Services;
 
@@ -19,17 +20,19 @@ public sealed class CardService
     private readonly BoardService _boardService;
     private readonly ActivityService _activityService;
     private readonly IEventBus _eventBus;
+    private readonly IUserDirectory? _userDirectory;
     private readonly ILogger<CardService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CardService"/> class.
     /// </summary>
-    public CardService(TracksDbContext db, BoardService boardService, ActivityService activityService, IEventBus eventBus, ILogger<CardService> logger)
+    public CardService(TracksDbContext db, BoardService boardService, ActivityService activityService, IEventBus eventBus, ILogger<CardService> logger, IUserDirectory? userDirectory = null)
     {
         _db = db;
         _boardService = boardService;
         _activityService = activityService;
         _eventBus = eventBus;
+        _userDirectory = userDirectory;
         _logger = logger;
     }
 
@@ -173,7 +176,10 @@ public sealed class CardService
             .OrderBy(c => c.Position)
             .ToListAsync(cancellationToken);
 
-        return cards.Select(MapToDto).ToList();
+        var allUserIds = cards.SelectMany(c => c.Assignments.Select(a => a.UserId)).Distinct().ToList();
+        var displayNames = await ResolveDisplayNamesAsync(allUserIds, cancellationToken);
+
+        return cards.Select(c => MapToDto(c, displayNames)).ToList();
     }
 
     /// <summary>
@@ -190,12 +196,19 @@ public sealed class CardService
 
         await _boardService.EnsureBoardRoleAsync(card.Swimlane!.BoardId, caller.UserId, BoardMemberRole.Member, cancellationToken);
 
-        if (dto.Title is not null) card.Title = dto.Title;
-        if (dto.Description is not null) card.Description = dto.Description;
-        if (dto.Priority.HasValue) card.Priority = dto.Priority.Value;
-        if (dto.DueDate.HasValue) card.DueDate = dto.DueDate.Value;
-        if (dto.StoryPoints.HasValue) card.StoryPoints = dto.StoryPoints.Value;
-        if (dto.IsArchived.HasValue) card.IsArchived = dto.IsArchived.Value;
+        var updatedFields = new List<string>();
+        if (dto.Title is not null) { card.Title = dto.Title; updatedFields.Add("title"); }
+        if (dto.Description is not null) { card.Description = dto.Description; updatedFields.Add("description"); }
+        if (dto.Priority.HasValue) { card.Priority = dto.Priority.Value; updatedFields.Add("priority"); }
+        if (dto.DueDate.HasValue)
+        {
+            card.DueDate = dto.DueDate.Value.Kind == DateTimeKind.Utc
+                ? dto.DueDate.Value
+                : DateTime.SpecifyKind(dto.DueDate.Value, DateTimeKind.Utc);
+            updatedFields.Add("due date");
+        }
+        if (dto.StoryPoints.HasValue) { card.StoryPoints = dto.StoryPoints.Value; updatedFields.Add("story points"); }
+        if (dto.IsArchived.HasValue) { card.IsArchived = dto.IsArchived.Value; updatedFields.Add(dto.IsArchived.Value ? "archived" : "unarchived"); }
 
         card.UpdatedAt = DateTime.UtcNow;
         card.ETag = Guid.NewGuid().ToString("N");
@@ -204,7 +217,10 @@ public sealed class CardService
 
         _logger.LogInformation("Card {CardId} updated by user {UserId}", cardId, caller.UserId);
 
-        await _activityService.LogAsync(card.Swimlane.BoardId, caller.UserId, "card.updated", "Card", cardId, null, cancellationToken);
+        var updateDetails = updatedFields.Count > 0
+            ? $"{{\"fields\":\"{string.Join(", ", updatedFields)}\"}}"
+            : null;
+        await _activityService.LogAsync(card.Swimlane.BoardId, caller.UserId, "card.updated", "Card", cardId, updateDetails, cancellationToken);
 
         await _eventBus.PublishAsync(new CardUpdatedEvent
         {
@@ -249,6 +265,7 @@ public sealed class CardService
         }
 
         var fromSwimlaneId = card.SwimlaneId;
+        var fromSwimlaneTitle = card.Swimlane!.Title;
         card.SwimlaneId = dto.TargetSwimlaneId;
         card.Position = dto.Position;
         card.UpdatedAt = DateTime.UtcNow;
@@ -260,7 +277,7 @@ public sealed class CardService
             cardId, fromSwimlaneId, dto.TargetSwimlaneId, caller.UserId);
 
         await _activityService.LogAsync(card.Swimlane.BoardId, caller.UserId, "card.moved", "Card", cardId,
-            $"{{\"from\":\"{fromSwimlaneId}\",\"to\":\"{dto.TargetSwimlaneId}\"}}", cancellationToken);
+            $"{{\"from\":\"{fromSwimlaneId}\",\"to\":\"{dto.TargetSwimlaneId}\",\"fromTitle\":\"{fromSwimlaneTitle}\",\"toTitle\":\"{targetSwimlane.Title}\"}}", cancellationToken);
 
         await _eventBus.PublishAsync(new CardMovedEvent
         {
@@ -342,8 +359,10 @@ public sealed class CardService
         card.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
+        var assignNames = await ResolveDisplayNamesAsync([userId], cancellationToken);
+        var assignDisplayName = assignNames.TryGetValue(userId, out var an) ? an : userId.ToString()[..8];
         await _activityService.LogAsync(card.Swimlane.BoardId, caller.UserId, "card.assigned", "Card", cardId,
-            $"{{\"userId\":\"{userId}\"}}", cancellationToken);
+            $"{{\"userId\":\"{userId}\",\"displayName\":\"{assignDisplayName}\"}}", cancellationToken);
 
         await _eventBus.PublishAsync(new CardAssignedEvent
         {
@@ -378,8 +397,10 @@ public sealed class CardService
         card.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
+        var unassignNames = await ResolveDisplayNamesAsync([userId], cancellationToken);
+        var unassignDisplayName = unassignNames.TryGetValue(userId, out var un) ? un : userId.ToString()[..8];
         await _activityService.LogAsync(card.Swimlane.BoardId, caller.UserId, "card.unassigned", "Card", cardId,
-            $"{{\"userId\":\"{userId}\"}}", cancellationToken);
+            $"{{\"userId\":\"{userId}\",\"displayName\":\"{unassignDisplayName}\"}}", cancellationToken);
     }
 
     private async Task<CardDto?> GetCardDtoAsync(Guid cardId, CancellationToken cancellationToken)
@@ -395,10 +416,22 @@ public sealed class CardService
             .Include(c => c.TimeEntries)
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken);
 
-        return card is null ? null : MapToDto(card);
+        if (card is null) return null;
+
+        var assigneeIds = card.Assignments.Select(a => a.UserId).ToList();
+        var displayNames = await ResolveDisplayNamesAsync(assigneeIds, cancellationToken);
+        return MapToDto(card, displayNames);
     }
 
-    internal static CardDto MapToDto(Card c) => new()
+    private async Task<IReadOnlyDictionary<Guid, string>> ResolveDisplayNamesAsync(IReadOnlyList<Guid> userIds, CancellationToken cancellationToken)
+    {
+        if (_userDirectory is null || userIds.Count == 0)
+            return new Dictionary<Guid, string>();
+
+        return await _userDirectory.GetDisplayNamesAsync(userIds, cancellationToken);
+    }
+
+    internal static CardDto MapToDto(Card c, IReadOnlyDictionary<Guid, string>? displayNames = null) => new()
     {
         Id = c.Id,
         SwimlaneId = c.SwimlaneId,
@@ -419,6 +452,7 @@ public sealed class CardService
         Assignments = c.Assignments.Select(a => new CardAssignmentDto
         {
             UserId = a.UserId,
+            DisplayName = displayNames is not null && displayNames.TryGetValue(a.UserId, out var name) ? name : null,
             AssignedAt = a.AssignedAt
         }).ToList(),
         Labels = c.CardLabels.Where(cl => cl.Label is not null).Select(cl => new LabelDto

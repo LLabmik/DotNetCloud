@@ -349,10 +349,52 @@ public sealed class BoardService
         var listIds = board.Swimlanes.Where(l => !l.IsArchived).Select(l => l.Id).ToList();
         var cardCounts = await GetCardCountsByListAsync(listIds, cancellationToken);
 
-        var memberIds = board.Members.Select(m => m.UserId).Distinct().ToList();
-        var displayNames = await ResolveDisplayNamesAsync(memberIds, cancellationToken);
+        var directMemberIds = board.Members.Select(m => m.UserId).Distinct().ToHashSet();
+        var allMemberIds = new List<Guid>(directMemberIds);
 
-        return MapToDto(board, cardCounts, displayNames);
+        // For team-owned boards, include team members who don't have direct board membership
+        List<BoardMemberDto>? teamDerivedMembers = null;
+        if (board.TeamId.HasValue)
+        {
+            var teamRoles = await _db.TeamRoles
+                .AsNoTracking()
+                .Where(r => r.CoreTeamId == board.TeamId.Value)
+                .ToListAsync(cancellationToken);
+
+            teamDerivedMembers = teamRoles
+                .Where(r => !directMemberIds.Contains(r.UserId))
+                .Select(r => new BoardMemberDto
+                {
+                    UserId = r.UserId,
+                    Role = r.Role switch
+                    {
+                        TracksTeamMemberRole.Owner => BoardMemberRole.Owner,
+                        TracksTeamMemberRole.Manager => BoardMemberRole.Admin,
+                        TracksTeamMemberRole.Member => BoardMemberRole.Member,
+                        _ => BoardMemberRole.Viewer
+                    },
+                    JoinedAt = r.AssignedAt
+                })
+                .ToList();
+
+            allMemberIds.AddRange(teamDerivedMembers.Select(m => m.UserId));
+        }
+
+        var displayNames = await ResolveDisplayNamesAsync(allMemberIds.Distinct().ToList(), cancellationToken);
+
+        var dto = MapToDto(board, cardCounts, displayNames);
+
+        // Append team-derived members with resolved display names
+        if (teamDerivedMembers is { Count: > 0 })
+        {
+            var resolved = teamDerivedMembers.Select(m => m with
+            {
+                DisplayName = displayNames.TryGetValue(m.UserId, out var name) ? name : null
+            }).ToList();
+            dto = dto with { Members = [.. dto.Members, .. resolved] };
+        }
+
+        return dto;
     }
 
     private async Task<Dictionary<Guid, int>> GetCardCountsByListAsync(IReadOnlyList<Guid> listIds, CancellationToken cancellationToken)

@@ -147,7 +147,7 @@
                     {
                         <div class="tracks-activity-item">
                             <strong>@(activity.DisplayName ?? "User")</strong>
-                            <span>@activity.Action @activity.EntityType</span>
+                            <span>@FormatActivityAction(activity)</span>
                             <span class="tracks-activity-date">@activity.CreatedAt.ToLocalTime().ToString("MMM d, h:mm tt")</span>
                         </div>
                     }
@@ -179,8 +179,13 @@
                 @* Story Points *@
                 <div class="tracks-card-sidebar-section">
                     <label>Story Points</label>
-                    <input type="number" class="form-control form-control-sm" min="0" max="100"
-                           value="@_storyPoints" @onchange="SaveStoryPointsAsync" />
+                    <select class="form-control form-control-sm" value="@_storyPoints" @onchange="SaveStoryPointsAsync">
+                        <option value="">—</option>
+                        @foreach (var sp in _fibonacciValues)
+                        {
+                            <option value="@sp" selected="@(_storyPoints == sp.ToString())">@sp</option>
+                        }
+                    </select>
                 </div>
 
                 @* Assignees *@
@@ -220,14 +225,48 @@
                     @if (_showLabelPicker)
                     {
                         <div class="tracks-label-picker">
-                            @foreach (var label in Board.Labels.Where(l =>
-                                !Card.Labels.Any(cl => cl.Id == l.Id)))
+                            @{ var availableLabels = Board.Labels.Where(l => !Card.Labels.Any(cl => cl.Id == l.Id)).ToList(); }
+                            @if (availableLabels.Count > 0)
                             {
-                                <button class="tracks-label-option" style="background: @label.Color;"
-                                        @onclick="() => AddLabelAsync(label.Id)">
-                                    @label.Title
-                                </button>
+                                @foreach (var label in availableLabels)
+                                {
+                                    <button class="tracks-label-option" style="background: @label.Color;"
+                                            @onclick="() => AddLabelAsync(label.Id)">
+                                        @label.Title
+                                    </button>
+                                }
                             }
+                            else if (!_showCreateLabel)
+                            {
+                                <span class="tracks-muted">All board labels applied</span>
+                            }
+                            @if (_showCreateLabel)
+                            {
+                                <div class="tracks-create-label">
+                                    <input type="text" class="form-control form-control-sm"
+                                           placeholder="Label name..." @bind="_newLabelTitle" />
+                                    <div class="tracks-color-presets">
+                                        @foreach (var color in _labelColors)
+                                        {
+                                            <button class="tracks-color-swatch @(color == _newLabelColor ? "active" : "")"
+                                                    style="background: @color;"
+                                                    @onclick="() => _newLabelColor = color"></button>
+                                        }
+                                    </div>
+                                    <div class="tracks-create-label-actions">
+                                        <button class="btn btn-sm btn-primary"
+                                                disabled="@string.IsNullOrWhiteSpace(_newLabelTitle)"
+                                                @onclick="CreateAndApplyLabelAsync">Create</button>
+                                        <button class="btn btn-sm btn-secondary"
+                                                @onclick="() => _showCreateLabel = false">Cancel</button>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <button class="tracks-link-btn" @onclick="() => _showCreateLabel = true">+ New Label</button>
+                            }
+                            <button class="tracks-link-btn" @onclick="() => { _showLabelPicker = false; _showCreateLabel = false; }">Close</button>
                         </div>
                     }
                     else
@@ -249,11 +288,27 @@
                     @if (_showAttachmentInput)
                     {
                         <div class="tracks-attachment-add">
+                            <div class="tracks-file-upload">
+                                <InputFile OnChange="HandleFileSelectedAsync" multiple
+                                           class="tracks-file-input" id="card-file-upload" />
+                                <label for="card-file-upload" class="btn btn-sm btn-outline tracks-file-label">
+                                    @(_isUploadingFile ? "Uploading…" : "📁 Browse Files")
+                                </label>
+                            </div>
+                            <div class="tracks-attachment-divider">
+                                <span>or add URL</span>
+                            </div>
                             <input type="text" class="form-control form-control-sm" placeholder="File name"
                                    @bind="_attachFileName" />
                             <input type="url" class="form-control form-control-sm" placeholder="URL (optional)"
                                    @bind="_attachUrl" />
-                            <button class="btn btn-sm btn-primary" @onclick="AddAttachmentAsync">Add</button>
+                            <div class="tracks-attachment-actions">
+                                <button class="btn btn-sm btn-primary"
+                                        disabled="@string.IsNullOrWhiteSpace(_attachFileName)"
+                                        @onclick="AddAttachmentAsync">Add Link</button>
+                                <button class="btn btn-sm btn-secondary"
+                                        @onclick="() => _showAttachmentInput = false">Cancel</button>
+                            </div>
                         </div>
                     }
                     else
@@ -269,17 +324,44 @@
                     {
                         <div class="tracks-dependency-row">
                             <span class="tracks-dep-type">@(dep.Type == CardDependencyType.BlockedBy ? "🚫 Blocked by" : "🔗 Relates to")</span>
-                            <span>@(dep.DependsOnCardTitle ?? dep.DependsOnCardId.ToString()[..8])</span>
-                            <button class="tracks-icon-btn"
-                                    @onclick="() => RemoveDependencyAsync(dep.DependsOnCardId)">×</button>
+                            <div class="tracks-dep-target">
+                                <span>@(dep.DependsOnCardTitle ?? dep.DependsOnCardId.ToString()[..8])</span>
+                                <button class="tracks-icon-btn"
+                                        @onclick="() => RemoveDependencyAsync(dep.DependsOnCardId)">×</button>
+                            </div>
                         </div>
+                    }
+                    @if (_showDependencyPicker)
+                    {
+                        <div class="tracks-dependency-add">
+                            <select class="form-control form-control-sm" @bind="_depType">
+                                <option value="BlockedBy">🚫 Blocked by</option>
+                                <option value="RelatesTo">🔗 Relates to</option>
+                            </select>
+                            <select class="form-control form-control-sm" @bind="_depTargetCardId">
+                                <option value="">Select card...</option>
+                                @foreach (var card in _boardCards.Where(c =>
+                                    c.Id != Card.Id && !_dependencies.Any(d => d.DependsOnCardId == c.Id)))
+                                {
+                                    <option value="@card.Id">#@card.CardNumber @card.Title</option>
+                                }
+                            </select>
+                            <div class="tracks-dep-actions">
+                                <button class="btn btn-sm btn-primary" @onclick="AddDependencyAsync">Add</button>
+                                <button class="btn btn-sm btn-secondary" @onclick="() => _showDependencyPicker = false">Cancel</button>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <button class="btn btn-sm btn-outline" @onclick="OpenDependencyPickerAsync">+ Dependency</button>
                     }
                 </div>
 
                 @* Time Tracking *@
                 <div class="tracks-card-sidebar-section">
                     <label>Time Tracked</label>
-                    <span class="tracks-time-total">@FormatMinutes(Card.TotalTrackedMinutes)</span>
+                    <span class="tracks-time-total">@FormatMinutes(_liveTrackedMinutes)</span>
                     @if (_timeEntries.Any(e => e.EndTime is null))
                     {
                         <button class="btn btn-sm btn-danger" @onclick="StopTimerAsync">⏹ Stop Timer</button>
@@ -294,13 +376,48 @@
                 <div class="tracks-card-sidebar-section">
                     <label>Actions</label>
                     <button class="btn btn-sm btn-outline" @onclick="AddChecklistAsync">+ Checklist</button>
+                </div>
+
+                <div class="tracks-card-sidebar-section">
+                    <label>Manage</label>
                     <button class="btn btn-sm btn-outline"
-                            @onclick="ArchiveCardAsync">
+                            @onclick="ShowArchiveConfirm">
                         @(Card.IsArchived ? "Unarchive" : "Archive")
                     </button>
-                    <button class="btn btn-sm btn-danger" @onclick="DeleteCardAsync">Delete</button>
+                    <button class="btn btn-sm btn-danger" @onclick="ShowDeleteConfirm">Delete</button>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+@* ── Confirmation Modal ── *@
+@if (_showConfirmModal && _confirmAction is not null)
+{
+    <div class="tracks-modal-overlay" @onclick="CancelConfirm">
+        <div class="tracks-modal" @onclick:stopPropagation>
+            <div class="tracks-modal-header">
+                <h3>@(_confirmAction == "delete" ? "Delete Card" : (_confirmAction == "archive" ? "Archive Card" : "Unarchive Card"))</h3>
+                <button class="tracks-close-btn" @onclick="CancelConfirm">×</button>
+            </div>
+            <div class="tracks-modal-body">
+                @if (_confirmAction == "delete")
+                {
+                    <p>Are you sure you want to <strong>permanently delete</strong> card <strong>#@Card.CardNumber @Card.Title</strong>?</p>
+                    <p class="tracks-modal-warning">This action cannot be undone.</p>
+                }
+                else
+                {
+                    <p>Are you sure you want to <strong>@_confirmAction</strong> card <strong>#@Card.CardNumber @Card.Title</strong>?</p>
+                }
+            </div>
+            <div class="tracks-modal-footer">
+                <button class="btn btn-sm btn-secondary" @onclick="CancelConfirm">Cancel</button>
+                <button class="btn btn-sm @(_confirmAction == "delete" ? "btn-danger" : "btn-primary")"
+                        @onclick="ConfirmActionAsync">
+                    @(_confirmAction == "delete" ? "Delete" : (_confirmAction == "archive" ? "Archive" : "Unarchive"))
+                </button>
+            </div>
+        </div>
+    </div>
+}
