@@ -213,6 +213,49 @@ public partial class KanbanBoard : ComponentBase
 
     private static bool IsOverdue(DateTime dueDate) => dueDate < DateTime.UtcNow;
 
+    private static bool IsDueSoon(DateTime dueDate) =>
+        dueDate >= DateTime.UtcNow && dueDate <= DateTime.UtcNow.AddDays(2);
+
+    /// <summary>
+    /// Determines whether white or dark text should be used on a given background color
+    /// using the W3C relative luminance formula.
+    /// </summary>
+    private static string GetContrastTextColor(string? hexColor)
+    {
+        if (string.IsNullOrEmpty(hexColor)) return "#fff";
+
+        var hex = hexColor.TrimStart('#');
+        if (hex.Length == 3)
+            hex = $"{hex[0]}{hex[0]}{hex[1]}{hex[1]}{hex[2]}{hex[2]}";
+
+        if (hex.Length != 6 || !int.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out _))
+            return "#fff";
+
+        var r = int.Parse(hex[..2], System.Globalization.NumberStyles.HexNumber) / 255.0;
+        var g = int.Parse(hex[2..4], System.Globalization.NumberStyles.HexNumber) / 255.0;
+        var b = int.Parse(hex[4..6], System.Globalization.NumberStyles.HexNumber) / 255.0;
+
+        // sRGB to linear
+        r = r <= 0.03928 ? r / 12.92 : Math.Pow((r + 0.055) / 1.055, 2.4);
+        g = g <= 0.03928 ? g / 12.92 : Math.Pow((g + 0.055) / 1.055, 2.4);
+        b = b <= 0.03928 ? b / 12.92 : Math.Pow((b + 0.055) / 1.055, 2.4);
+
+        var luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        return luminance > 0.179 ? "#1a1a2e" : "#ffffff";
+    }
+
+    /// <summary>
+    /// Builds the inline style for the card header using the board's color.
+    /// </summary>
+    private string GetCardHeaderStyle()
+    {
+        if (string.IsNullOrEmpty(Board.Color))
+            return "background: var(--color-primary); color: #fff;";
+
+        var textColor = GetContrastTextColor(Board.Color);
+        return $"background: {Board.Color}; color: {textColor};";
+    }
+
     private static string GetInitials(string? name)
     {
         if (string.IsNullOrWhiteSpace(name)) return "?";

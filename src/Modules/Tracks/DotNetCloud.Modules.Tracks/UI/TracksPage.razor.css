@@ -485,14 +485,16 @@
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius);
-    padding: 10px 12px;
+    padding: 0;
     cursor: pointer;
     transition: box-shadow var(--transition), transform var(--transition);
     user-select: none;
+    overflow: hidden;
 }
 
 ::deep .tracks-kanban-card:hover {
-    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+    box-shadow: 0 3px 12px rgba(0,0,0,.12);
+    border-color: color-mix(in srgb, var(--color-primary) 40%, var(--color-border));
 }
 
 ::deep .tracks-kanban-card.dragging {
@@ -500,101 +502,162 @@
     transform: rotate(2deg);
 }
 
-::deep .tracks-kanban-card-labels {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin-bottom: 6px;
-}
-
-::deep .tracks-label-chip {
-    height: 6px;
-    width: 32px;
-    border-radius: 3px;
-}
-
-::deep .tracks-kanban-card-title {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--color-text);
-    margin: 0 0 6px;
-    line-height: 1.35;
-    word-break: break-word;
-}
-
-::deep .tracks-kanban-card-footer {
+/* ── Card Header (board-colored strip) ── */
+::deep .tracks-card-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
-    margin-top: 6px;
-}
-
-::deep .tracks-kanban-card-icons {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+    padding: 5px 10px;
     font-size: 11px;
-    color: var(--color-muted);
+    font-weight: 700;
+    letter-spacing: 0.02em;
 }
 
-::deep .tracks-kanban-card-icons span {
-    display: flex;
-    align-items: center;
-    gap: 2px;
+::deep .tracks-card-header .tracks-card-number {
+    opacity: 0.85;
+    font-weight: 700;
+    color: inherit;
+    margin-right: 0;
 }
 
-::deep .tracks-priority-icon {
+::deep .tracks-card-header .tracks-card-priority-badge {
     font-size: 12px;
+    line-height: 1;
 }
 
-::deep .tracks-due-badge {
+/* ── Card Body ── */
+::deep .tracks-card-body {
+    padding: 8px 10px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* ── Card Title ── */
+::deep .tracks-card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text);
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+/* ── Labels (colored pills with text) ── */
+::deep .tracks-card-labels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+::deep .tracks-card-label-pill {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 100px;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.6;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── Metadata Badges ── */
+::deep .tracks-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+    margin-top: 2px;
+}
+
+::deep .tracks-card-badge {
     display: inline-flex;
     align-items: center;
     gap: 3px;
-    font-size: 11px;
     padding: 1px 6px;
     border-radius: 100px;
+    font-size: 11px;
     font-weight: 500;
+    color: var(--color-muted);
+    background: color-mix(in srgb, var(--color-muted) 8%, transparent);
+    line-height: 1.5;
 }
 
-::deep .tracks-due-badge.overdue {
+::deep .tracks-card-badge.overdue {
     background: color-mix(in srgb, var(--color-danger) 12%, transparent);
     color: var(--color-danger);
+    font-weight: 600;
 }
 
-::deep .tracks-due-badge.due-soon {
-    background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+::deep .tracks-card-badge.due-soon {
+    background: color-mix(in srgb, var(--color-warning) 14%, transparent);
     color: var(--color-warning);
 }
 
-::deep .tracks-due-badge.on-track {
-    color: var(--color-muted);
+::deep .tracks-card-badge.complete {
+    background: color-mix(in srgb, var(--color-success, #22c55e) 12%, transparent);
+    color: var(--color-success, #22c55e);
+}
+
+/* ── Card Footer (assignees) ── */
+::deep .tracks-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    margin-top: 2px;
 }
 
 ::deep .tracks-card-assignees {
     display: flex;
     align-items: center;
-    gap: -4px;
 }
 
-::deep .tracks-avatar-xs {
+::deep .tracks-card-avatar {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 22px;
     height: 22px;
     border-radius: 50%;
-    background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+    background: color-mix(in srgb, var(--color-primary) 18%, transparent);
     color: var(--color-primary);
     font-size: 9px;
     font-weight: 700;
     border: 2px solid var(--color-surface);
-    margin-left: -4px;
+    margin-left: -5px;
 }
 
-::deep .tracks-avatar-xs:first-child {
+::deep .tracks-card-avatar:first-child {
     margin-left: 0;
+}
+
+::deep .tracks-card-avatar-more {
+    background: var(--color-border);
+    color: var(--color-muted);
+    font-size: 9px;
+}
+
+/* ── Priority left-border accent ── */
+::deep .tracks-kanban-card.priority-urgent {
+    border-left: 3px solid #ef4444;
+}
+
+::deep .tracks-kanban-card.priority-high {
+    border-left: 3px solid #f97316;
+}
+
+::deep .tracks-kanban-card.priority-medium {
+    border-left: 3px solid #eab308;
+}
+
+::deep .tracks-kanban-card.priority-low {
+    border-left: 3px solid #22c55e;
+}
+
+::deep .tracks-kanban-card.archived {
+    opacity: 0.6;
 }
 
 ::deep .tracks-checklist-progress {

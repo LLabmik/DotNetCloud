@@ -76,66 +76,90 @@
                              data-card-id="@card.Id"
                              @ondragstart="() => HandleDragStart(card)"
                              @onclick="() => OnCardSelected.InvokeAsync(card.Id)">
-                            @if (card.Labels.Count > 0)
-                            {
-                                <div class="tracks-card-labels">
-                                    @foreach (var label in card.Labels)
-                                    {
-                                        <span class="tracks-card-label" style="background: @label.Color;"
-                                              title="@label.Title"></span>
-                                    }
-                                </div>
-                            }
-                            <div class="tracks-card-title"><span class="tracks-card-number">#@card.CardNumber</span> @card.Title</div>
-                            <div class="tracks-card-meta">
+
+                            @* ── Card Header (board-colored) ── *@
+                            <div class="tracks-card-header" style="@GetCardHeaderStyle()">
+                                <span class="tracks-card-number">#@card.CardNumber</span>
                                 @if (card.Priority != CardPriority.None)
                                 {
-                                    <span class="tracks-card-priority" title="@card.Priority">@GetPriorityIcon(card.Priority)</span>
-                                }
-                                @if (card.DueDate.HasValue)
-                                {
-                                    <span class="tracks-card-due @(IsOverdue(card.DueDate.Value) ? "overdue" : "")">
-                                        📅 @card.DueDate.Value.ToLocalTime().ToString("MMM d")
-                                    </span>
-                                }
-                                @if (card.StoryPoints.HasValue)
-                                {
-                                    <span class="tracks-card-points">@card.StoryPoints SP</span>
-                                }
-                                @if (card.Checklists.Count > 0)
-                                {
-                                    var totalItems = card.Checklists.Sum(c => c.Items.Count);
-                                    var doneItems = card.Checklists.Sum(c => c.Items.Count(i => i.IsCompleted));
-                                    <span class="tracks-card-checklist @(doneItems == totalItems && totalItems > 0 ? "complete" : "")">
-                                        ☑ @doneItems/@totalItems
-                                    </span>
-                                }
-                                @if (card.CommentCount > 0)
-                                {
-                                    <span class="tracks-card-comments">💬 @card.CommentCount</span>
-                                }
-                                @if (card.AttachmentCount > 0)
-                                {
-                                    <span class="tracks-card-attachments">📎 @card.AttachmentCount</span>
+                                    <span class="tracks-card-priority-badge" title="@card.Priority">@GetPriorityIcon(card.Priority)</span>
                                 }
                             </div>
-                            @if (card.Assignments.Count > 0)
-                            {
-                                <div class="tracks-card-assignees">
-                                    @foreach (var assign in card.Assignments.Take(3))
-                                    {
-                                        <span class="tracks-avatar-sm" title="@(assign.DisplayName ?? "User")">
-                                            @GetInitials(assign.DisplayName)
-                                        </span>
-                                    }
-                                    @if (card.Assignments.Count > 3)
-                                    {
-                                        <span class="tracks-avatar-sm tracks-avatar-more">
-                                            +@(card.Assignments.Count - 3)
-                                        </span>
-                                    }
-                                </div>
-                            }
+
+                            @* ── Card Body ── *@
+                            <div class="tracks-card-body">
+                                <div class="tracks-card-title">@card.Title</div>
+
+                                @* ── Labels ── *@
+                                @if (card.Labels.Count > 0)
+                                {
+                                    <div class="tracks-card-labels">
+                                        @foreach (var label in card.Labels)
+                                        {
+                                            <span class="tracks-card-label-pill"
+                                                  style="background: @label.Color; color: @GetContrastTextColor(label.Color);">@label.Title</span>
+                                        }
+                                    </div>
+                                }
+
+                                @* ── Metadata badges ── *@
+                                @{
+                                    var hasMeta = card.DueDate.HasValue || card.StoryPoints.HasValue ||
+                                                  card.Checklists.Count > 0 || card.CommentCount > 0 || card.AttachmentCount > 0;
+                                }
+                                @if (hasMeta)
+                                {
+                                    <div class="tracks-card-meta">
+                                        @if (card.DueDate.HasValue)
+                                        {
+                                            <span class="tracks-card-badge @(IsOverdue(card.DueDate.Value) ? "overdue" : IsDueSoon(card.DueDate.Value) ? "due-soon" : "")">
+                                                📅 @card.DueDate.Value.ToLocalTime().ToString("MMM d")
+                                            </span>
+                                        }
+                                        @if (card.StoryPoints.HasValue)
+                                        {
+                                            <span class="tracks-card-badge">@card.StoryPoints SP</span>
+                                        }
+                                        @if (card.Checklists.Count > 0)
+                                        {
+                                            var totalItems = card.Checklists.Sum(c => c.Items.Count);
+                                            var doneItems = card.Checklists.Sum(c => c.Items.Count(i => i.IsCompleted));
+                                            <span class="tracks-card-badge @(doneItems == totalItems && totalItems > 0 ? "complete" : "")">
+                                                ☑ @doneItems/@totalItems
+                                            </span>
+                                        }
+                                        @if (card.CommentCount > 0)
+                                        {
+                                            <span class="tracks-card-badge">💬 @card.CommentCount</span>
+                                        }
+                                        @if (card.AttachmentCount > 0)
+                                        {
+                                            <span class="tracks-card-badge">📎 @card.AttachmentCount</span>
+                                        }
+                                    </div>
+                                }
+
+                                @* ── Footer: Assignees ── *@
+                                @if (card.Assignments.Count > 0)
+                                {
+                                    <div class="tracks-card-footer">
+                                        <div class="tracks-card-assignees">
+                                            @foreach (var assign in card.Assignments.Take(3))
+                                            {
+                                                <span class="tracks-card-avatar" title="@(assign.DisplayName ?? "User")">
+                                                    @GetInitials(assign.DisplayName)
+                                                </span>
+                                            }
+                                            @if (card.Assignments.Count > 3)
+                                            {
+                                                <span class="tracks-card-avatar tracks-card-avatar-more">
+                                                    +@(card.Assignments.Count - 3)
+                                                </span>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
                         </div>
                     }
 
