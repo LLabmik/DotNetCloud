@@ -66,6 +66,10 @@ public partial class CardDetailPanel : ComponentBase, IDisposable
     private string? _confirmAction;
     private bool _showConfirmModal;
 
+    // Sprint state
+    private readonly List<SprintDto> _boardSprints = [];
+    private string? _selectedSprintId;
+
     // Label color presets
     private static readonly string[] _labelColors =
     [
@@ -95,6 +99,7 @@ public partial class CardDetailPanel : ComponentBase, IDisposable
         _selectedPriority = Card.Priority.ToString();
         _dueDate = Card.DueDate?.ToString("yyyy-MM-dd") ?? "";
         _storyPoints = Card.StoryPoints?.ToString() ?? "";
+        _selectedSprintId = Card.SprintId?.ToString() ?? "";
 
         // Resolve swimlane name
         var swimlane = Board.Swimlanes.FirstOrDefault(l => l.Id == Card.SwimlaneId);
@@ -107,8 +112,9 @@ public partial class CardDetailPanel : ComponentBase, IDisposable
         var depsTask = ApiClient.ListDependenciesAsync(Card.Id);
         var timeTask = ApiClient.ListTimeEntriesAsync(Card.Id);
         var activityTask = ApiClient.GetCardActivityAsync(Card.Id);
+        var sprintsTask = ApiClient.ListSprintsAsync(Board.Id);
 
-        await Task.WhenAll(commentsTask, checklistsTask, attachmentsTask, depsTask, timeTask, activityTask);
+        await Task.WhenAll(commentsTask, checklistsTask, attachmentsTask, depsTask, timeTask, activityTask, sprintsTask);
 
         _comments.Clear(); _comments.AddRange(await commentsTask);
         _checklists.Clear(); _checklists.AddRange(await checklistsTask);
@@ -116,6 +122,7 @@ public partial class CardDetailPanel : ComponentBase, IDisposable
         _dependencies.Clear(); _dependencies.AddRange(await depsTask);
         _timeEntries.Clear(); _timeEntries.AddRange(await timeTask);
         _activities.Clear(); _activities.AddRange(await activityTask);
+        _boardSprints.Clear(); _boardSprints.AddRange(await sprintsTask);
 
         // Initialize live tracked minutes and start timer if active
         RecalculateLiveMinutes();
@@ -190,6 +197,42 @@ public partial class CardDetailPanel : ComponentBase, IDisposable
         int? sp = int.TryParse(val, out var n) ? n : null;
         var updated = await ApiClient.UpdateCardAsync(Card.Id, new UpdateCardDto { StoryPoints = sp });
         if (updated is not null) await OnCardUpdated.InvokeAsync(updated);
+    }
+
+    // ── Sprint Assignment ───────────────────────────────────
+
+    private async Task SaveSprintAsync(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString();
+
+        // Remove from current sprint if assigned
+        if (Card.SprintId.HasValue)
+        {
+            await ApiClient.RemoveCardFromSprintAsync(Board.Id, Card.SprintId.Value, Card.Id);
+        }
+
+        // Add to new sprint if selected
+        if (!string.IsNullOrEmpty(val) && Guid.TryParse(val, out var newSprintId))
+        {
+            await ApiClient.AddCardToSprintAsync(Board.Id, newSprintId, Card.Id);
+            _selectedSprintId = val;
+        }
+        else
+        {
+            _selectedSprintId = "";
+        }
+
+        await RefreshCardAsync();
+    }
+
+    private async Task RemoveFromSprintAsync()
+    {
+        if (Card.SprintId.HasValue)
+        {
+            await ApiClient.RemoveCardFromSprintAsync(Board.Id, Card.SprintId.Value, Card.Id);
+            _selectedSprintId = "";
+            await RefreshCardAsync();
+        }
     }
 
     // ── Assignments ─────────────────────────────────────────

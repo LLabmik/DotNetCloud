@@ -3359,6 +3359,17 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Board kanban view (drag-and-drop)
 - ✓ Card detail slide-out panel
 - ✓ Sprint management (planning, backlog, progress)
+- ✓ Sprint Planning Workflow UX:
+  - ✓ Sprint selector in card detail panel
+  - ✓ Sprint backlog view (expandable card list per sprint)
+  - ✓ Quick-add cards to sprint (card picker dialog)
+  - ✓ Sprint filter on kanban board
+  - ✓ Sprint badge on kanban cards
+  - ✓ Sprint Planning View (side-by-side backlog/sprint, capacity bar, member workload)
+  - ✓ Burndown chart (SVG-based SprintBurndownChart.razor)
+  - ✓ Velocity chart (SVG-based VelocityChart.razor)
+  - ✓ Sprint completion dialog (summary, incomplete card handling)
+  - ✓ Sprint report API client methods (GetSprintReportAsync, GetBoardVelocityAsync)
 - ✓ Board settings (members, labels, archive)
 - ✓ Team management (create/edit teams, roles, members)
 - ✓ Filters and search

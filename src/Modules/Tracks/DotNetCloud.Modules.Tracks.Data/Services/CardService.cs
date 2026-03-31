@@ -185,6 +185,7 @@ public sealed class CardService
             .Include(c => c.Comments.Where(cm => !cm.IsDeleted))
             .Include(c => c.Attachments)
             .Include(c => c.TimeEntries)
+            .Include(c => c.SprintCards).ThenInclude(sc => sc.Sprint)
             .Where(c => c.SwimlaneId == swimlaneId && !c.IsDeleted);
 
         if (!includeArchived)
@@ -432,6 +433,7 @@ public sealed class CardService
             .Include(c => c.Comments.Where(cm => !cm.IsDeleted))
             .Include(c => c.Attachments)
             .Include(c => c.TimeEntries)
+            .Include(c => c.SprintCards).ThenInclude(sc => sc.Sprint)
             .FirstOrDefaultAsync(c => c.Id == cardId && !c.IsDeleted, cancellationToken);
 
         if (card is null) return null;
@@ -496,6 +498,10 @@ public sealed class CardService
         }).ToList(),
         CommentCount = c.Comments.Count(cm => !cm.IsDeleted),
         AttachmentCount = c.Attachments.Count,
-        TotalTrackedMinutes = c.TimeEntries.Sum(t => t.DurationMinutes)
+        TotalTrackedMinutes = c.TimeEntries.Sum(t => t.DurationMinutes),
+        SprintId = c.SprintCards.FirstOrDefault(sc => sc.Sprint is not null &&
+            sc.Sprint.Status != SprintStatus.Completed)?.SprintId,
+        SprintTitle = c.SprintCards.FirstOrDefault(sc => sc.Sprint is not null &&
+            sc.Sprint.Status != SprintStatus.Completed)?.Sprint?.Title
     };
 }

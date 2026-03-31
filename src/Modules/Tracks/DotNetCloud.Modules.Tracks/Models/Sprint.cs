@@ -28,6 +28,9 @@ public sealed class Sprint
     /// <summary>Current sprint status.</summary>
     public SprintStatus Status { get; set; } = SprintStatus.Planning;
 
+    /// <summary>Target story points for capacity planning.</summary>
+    public int? TargetStoryPoints { get; set; }
+
     /// <summary>Timestamp when the sprint was created (UTC).</summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

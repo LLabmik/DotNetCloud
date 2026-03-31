@@ -177,4 +177,69 @@ public class SprintsController : TracksControllerBase
             return NotFound(ErrorEnvelope(ErrorCodes.SprintNotFound, ex.Message));
         }
     }
+
+    /// <summary>Lists all cards in a sprint.</summary>
+    [HttpGet("{sprintId:guid}/cards")]
+    public async Task<IActionResult> GetSprintCardsAsync(Guid boardId, Guid sprintId)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var cards = await _sprintService.GetSprintCardsAsync(sprintId, caller);
+            return Ok(Envelope(cards));
+        }
+        catch (ValidationException ex)
+        {
+            return NotFound(ErrorEnvelope(ErrorCodes.SprintNotFound, ex.Message));
+        }
+    }
+
+    /// <summary>Batch-adds multiple cards to a sprint.</summary>
+    [HttpPost("{sprintId:guid}/cards/batch")]
+    public async Task<IActionResult> BatchAddCardsAsync(Guid boardId, Guid sprintId, [FromBody] BatchAddSprintCardsDto dto)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            await _sprintService.BatchAddCardsAsync(sprintId, dto.CardIds, caller);
+            return Ok(Envelope(new { added = dto.CardIds.Count }));
+        }
+        catch (ValidationException ex)
+        {
+            return NotFound(ErrorEnvelope(ErrorCodes.SprintNotFound, ex.Message));
+        }
+    }
+}
+
+/// <summary>
+/// Controller for board backlog operations.
+/// </summary>
+[Route("api/v1/boards/{boardId:guid}")]
+public class BoardBacklogController : TracksControllerBase
+{
+    private readonly SprintService _sprintService;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="BoardBacklogController"/> class.
+    /// </summary>
+    public BoardBacklogController(SprintService sprintService)
+    {
+        _sprintService = sprintService;
+    }
+
+    /// <summary>Gets unassigned backlog cards for the board.</summary>
+    [HttpGet("backlog")]
+    public async Task<IActionResult> GetBacklogAsync(Guid boardId)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var cards = await _sprintService.GetBacklogCardsAsync(boardId, caller);
+            return Ok(Envelope(cards));
+        }
+        catch (ValidationException ex)
+        {
+            return NotFound(ErrorEnvelope(ErrorCodes.BoardNotFound, ex.Message));
+        }
+    }
 }

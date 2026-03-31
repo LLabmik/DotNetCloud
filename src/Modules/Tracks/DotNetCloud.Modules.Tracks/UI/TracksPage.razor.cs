@@ -12,7 +12,7 @@ public partial class TracksPage : ComponentBase, IDisposable
     [Inject] private ITracksApiClient ApiClient { get; set; } = default!;
     [Inject] private ITracksSignalRService SignalRService { get; set; } = default!;
 
-    private enum TracksView { Boards, Board, Teams }
+    private enum TracksView { Boards, Board, Teams, Planning }
 
     private TracksView _view = TracksView.Boards;
     private bool _sidebarCollapsed;
@@ -35,6 +35,9 @@ public partial class TracksPage : ComponentBase, IDisposable
     // Panels
     private bool _showSprints;
     private bool _showBoardSettings;
+
+    // Sprint planning
+    private SprintDto? _planningSprint;
 
     protected override async Task OnInitializedAsync()
     {
@@ -86,6 +89,21 @@ public partial class TracksPage : ComponentBase, IDisposable
         _view = TracksView.Teams;
         _selectedBoard = null;
         _selectedCard = null;
+    }
+
+    private void OpenSprintPlanning(SprintDto sprint)
+    {
+        _planningSprint = sprint;
+        _selectedCard = null;
+        _showBoardSettings = false;
+        _showSprints = false;
+        _view = TracksView.Planning;
+    }
+
+    private void ClosePlanning()
+    {
+        _planningSprint = null;
+        _view = TracksView.Board;
     }
 
     private async Task SelectBoard(Guid boardId)
@@ -170,8 +188,21 @@ public partial class TracksPage : ComponentBase, IDisposable
     private async Task RefreshSprintsAsync()
     {
         if (_selectedBoard is null) return;
+
+        var planningSprintId = _planningSprint?.Id;
+
         _sprints.Clear();
         _sprints.AddRange(await ApiClient.ListSprintsAsync(_selectedBoard.Id));
+
+        if (planningSprintId.HasValue)
+        {
+            _planningSprint = _sprints.FirstOrDefault(s => s.Id == planningSprintId.Value);
+            if (_planningSprint is null && _view == TracksView.Planning)
+            {
+                _view = TracksView.Board;
+            }
+        }
+
         StateHasChanged();
     }
 

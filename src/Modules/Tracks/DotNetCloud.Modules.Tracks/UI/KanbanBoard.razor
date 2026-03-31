@@ -32,6 +32,17 @@
                         }
                     </select>
                 }
+                @if (Sprints is not null && Sprints.Count > 0)
+                {
+                    <select class="tracks-filter-select" @bind="_sprintFilter">
+                        <option value="">All cards</option>
+                        @foreach (var sprint in Sprints.Where(s => s.Status != SprintStatus.Completed))
+                        {
+                            <option value="@sprint.Id">@sprint.Title @(sprint.Status == SprintStatus.Active ? "✓" : "")</option>
+                        }
+                        <option value="none">No sprint</option>
+                    </select>
+                }
             </div>
             <button class="btn btn-sm btn-outline" @onclick="() => OnRefreshRequested.InvokeAsync()">↻ Refresh</button>
         </div>
@@ -142,6 +153,12 @@
                                             <span class="tracks-card-badge">📎 @card.AttachmentCount</span>
                                         }
                                     </div>
+                                }
+
+                                @* ── Sprint Badge ── *@
+                                @if (!string.IsNullOrEmpty(card.SprintTitle) && string.IsNullOrEmpty(_sprintFilter))
+                                {
+                                    <div class="tracks-card-sprint-badge">🏃 @card.SprintTitle</div>
                                 }
 
                                 @* ── Footer: Assignees ── *@

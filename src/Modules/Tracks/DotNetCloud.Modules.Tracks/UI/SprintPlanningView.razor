@@ -1,0 +1,204 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+
+<div class="tracks-sprint-planning">
+    <div class="tracks-sprint-planning-header">
+        <h2>Sprint Planning: @Sprint.Title</h2>
+        <div class="tracks-sprint-planning-summary">
+            <span class="badge @GetStatusBadgeClass(Sprint.Status)">@Sprint.Status.ToString()</span>
+            @if (Sprint.StartDate.HasValue && Sprint.EndDate.HasValue)
+            {
+                <span>📅 @Sprint.StartDate.Value.ToString("MMM d") – @Sprint.EndDate.Value.ToString("MMM d")</span>
+            }
+        </div>
+        <button class="btn btn-sm btn-outline" @onclick="OnClose">← Back to Board</button>
+    </div>
+
+    @* ── Capacity Bar ── *@
+    <div class="tracks-sprint-capacity">
+        @{
+            var committedSp = _sprintCards.Where(c => c.StoryPoints.HasValue).Sum(c => c.StoryPoints!.Value);
+            var targetSp = _targetStoryPoints ?? 0;
+            var capacityPct = targetSp > 0 ? Math.Min(100, committedSp * 100 / targetSp) : 0;
+            var isOvercommitted = targetSp > 0 && committedSp > targetSp;
+        }
+        <div class="tracks-capacity-header">
+            <span>Capacity: @committedSp SP committed</span>
+            @if (targetSp > 0)
+            {
+                <span class="@(isOvercommitted ? "overcommitted" : "")"> / @targetSp SP target (@capacityPct%)</span>
+            }
+            @if (!_isEditingTarget)
+            {
+                <button class="tracks-link-btn" @onclick="() => { _isEditingTarget = true; _editTargetSp = targetSp.ToString(); }">
+                    @(targetSp > 0 ? "Edit" : "Set target")
+                </button>
+            }
+            else
+            {
+                <input type="number" class="form-control form-control-sm tracks-target-input"
+                       @bind="_editTargetSp" @onkeydown="HandleTargetKeyDown" min="0" />
+                <button class="btn btn-sm btn-primary" @onclick="SaveTargetAsync">Save</button>
+                <button class="btn btn-sm btn-secondary" @onclick="() => _isEditingTarget = false">Cancel</button>
+            }
+        </div>
+        @if (targetSp > 0)
+        {
+            <div class="tracks-capacity-bar">
+                <div class="tracks-capacity-fill @(isOvercommitted ? "over" : "")" style="width: @capacityPct%"></div>
+            </div>
+        }
+    </div>
+
+    @* ── Two-Panel Layout ── *@
+    <div class="tracks-planning-panels">
+        @* ── Left Panel: Product Backlog ── *@
+        <div class="tracks-planning-panel backlog">
+            <div class="tracks-planning-panel-header">
+                <h3>Product Backlog</h3>
+                <span class="tracks-muted">@_backlogCards.Count cards</span>
+            </div>
+            <input type="text" class="form-control form-control-sm" placeholder="Search backlog..."
+                   @bind="_backlogSearch" @bind:event="oninput" />
+
+            <div class="tracks-planning-card-list">
+                @if (_isLoading)
+                {
+                    <p class="tracks-muted">Loading...</p>
+                }
+                else
+                {
+                    var filteredBacklog = GetFilteredBacklog();
+                    var priorityGroups = filteredBacklog.GroupBy(c => c.Priority)
+                        .OrderByDescending(g => g.Key);
+
+                    @foreach (var group in priorityGroups)
+                    {
+                        <div class="tracks-planning-priority-group">
+                            <div class="tracks-planning-group-header">@GetPriorityLabel(group.Key)</div>
+                            @foreach (var card in group)
+                            {
+                                <div class="tracks-planning-card"
+                                     @onclick="() => AddToSprintAsync(card.Id)">
+                                    <span class="tracks-card-number">#@card.CardNumber</span>
+                                    <span class="tracks-planning-card-title">@card.Title</span>
+                                    @if (card.StoryPoints.HasValue)
+                                    {
+                                        <span class="tracks-sprint-card-sp">@card.StoryPoints SP</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="tracks-sprint-card-sp no-estimate">?</span>
+                                    }
+                                    <button class="tracks-add-btn" title="Add to sprint">→</button>
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    @if (filteredBacklog.Count == 0)
+                    {
+                        <p class="tracks-muted">No backlog cards found.</p>
+                    }
+                }
+            </div>
+        </div>
+
+        @* ── Right Panel: Sprint Backlog ── *@
+        <div class="tracks-planning-panel sprint">
+            <div class="tracks-planning-panel-header">
+                <h3>Sprint Backlog</h3>
+                <span class="tracks-muted">@_sprintCards.Count cards · @committedSp SP</span>
+            </div>
+
+            <div class="tracks-planning-card-list">
+                @if (_isLoading)
+                {
+                    <p class="tracks-muted">Loading...</p>
+                }
+                else
+                {
+                    @* ── Committed Cards ── *@
+                    var estimated = _sprintCards.Where(c => c.StoryPoints.HasValue).ToList();
+                    var unestimated = _sprintCards.Where(c => !c.StoryPoints.HasValue).ToList();
+
+                    @if (estimated.Count > 0)
+                    {
+                        <div class="tracks-planning-group-header">Committed (@estimated.Count)</div>
+                        @foreach (var card in estimated)
+                        {
+                            <div class="tracks-planning-card @(card.IsArchived ? "completed" : "")">
+                                <span class="tracks-sprint-card-status">@(card.IsArchived ? "✓" : "☐")</span>
+                                <span class="tracks-card-number">#@card.CardNumber</span>
+                                <span class="tracks-planning-card-title" @onclick="() => OnCardSelected.InvokeAsync(card.Id)">
+                                    @card.Title
+                                </span>
+                                <span class="tracks-sprint-card-sp">@card.StoryPoints SP</span>
+                                <button class="tracks-remove-btn" title="Remove from sprint"
+                                        @onclick="() => RemoveFromSprintAsync(card.Id)">←</button>
+                            </div>
+                        }
+                    }
+
+                    @* ── Needs Estimate ── *@
+                    @if (unestimated.Count > 0)
+                    {
+                        <div class="tracks-planning-group-header needs-estimate">Needs Estimate (@unestimated.Count)</div>
+                        @foreach (var card in unestimated)
+                        {
+                            <div class="tracks-planning-card needs-estimate">
+                                <span class="tracks-sprint-card-status">☐</span>
+                                <span class="tracks-card-number">#@card.CardNumber</span>
+                                <span class="tracks-planning-card-title" @onclick="() => OnCardSelected.InvokeAsync(card.Id)">
+                                    @card.Title
+                                </span>
+                                <span class="tracks-sprint-card-sp no-estimate">? SP</span>
+                                <button class="tracks-remove-btn" title="Remove from sprint"
+                                        @onclick="() => RemoveFromSprintAsync(card.Id)">←</button>
+                            </div>
+                        }
+                    }
+
+                    @if (_sprintCards.Count == 0)
+                    {
+                        <p class="tracks-muted">No cards in this sprint. Add cards from the backlog.</p>
+                    }
+                }
+            </div>
+
+            @* ── Member Workload ── *@
+            @{
+                var memberWorkload = _sprintCards
+                    .Where(c => !c.IsArchived)
+                    .SelectMany(c => c.Assignments.Select(a => new { a.UserId, DisplayName = a.DisplayName ?? "User", c.StoryPoints }))
+                    .GroupBy(x => new { x.UserId, x.DisplayName })
+                    .Select(g => new { g.Key.DisplayName, TotalSp = g.Sum(x => x.StoryPoints ?? 0), Count = g.Count() })
+                    .OrderByDescending(m => m.TotalSp)
+                    .ToList();
+            }
+            @if (memberWorkload.Count > 0)
+            {
+                <div class="tracks-member-workload">
+                    <div class="tracks-planning-group-header">Member Workload</div>
+                    @foreach (var member in memberWorkload)
+                    {
+                        var maxSp = memberWorkload.Max(m => m.TotalSp);
+                        var barWidth = maxSp > 0 ? (member.TotalSp * 100 / maxSp) : 0;
+                        <div class="tracks-workload-row">
+                            <span class="tracks-workload-name">@member.DisplayName</span>
+                            <div class="tracks-workload-bar-container">
+                                <div class="tracks-workload-bar" style="width: @barWidth%"></div>
+                            </div>
+                            <span class="tracks-workload-sp">@member.TotalSp SP (@member.Count cards)</span>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    @* ── Charts Section ── *@
+    <div class="tracks-planning-charts">
+        <SprintBurndownChart SprintId="Sprint.Id" />
+        <VelocityChart BoardId="BoardId" />
+    </div>
+</div>

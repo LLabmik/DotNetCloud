@@ -29,7 +29,7 @@ DotNetCloud gives you full control of your data by running your own cloud server
 | 👤 **Contacts** | Contact management with CardDAV support | ✅ Phase 3 |
 | 📅 **Calendar** | Events, scheduling, CalDAV support | ✅ Phase 3 |
 | 📝 **Notes** | Markdown-based note taking | ✅ Phase 3 |
-| 📋 **Tracks** | Kanban boards and project management | ✅ Phase 4 |
+| 📋 **Tracks** | Kanban boards and project management | 🚧 In Progress (Phase 4) |
 | 🖼️ **Photos** | Photo/video library and management | Phase 5 |
 | 🎵 **Music** | Music player with equalizer and playlists | Phase 5 |
 | 📧 **Email** | Integrated email client (SMTP/IMAP/Gmail) | Phase 6 |

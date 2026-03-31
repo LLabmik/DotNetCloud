@@ -349,6 +349,28 @@ public sealed class TracksApiClient : ITracksApiClient
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task<IReadOnlyList<CardDto>> GetSprintCardsAsync(Guid boardId, Guid sprintId, CancellationToken ct = default)
+        => await ReadDataAsync<IReadOnlyList<CardDto>>($"api/v1/boards/{boardId}/sprints/{sprintId}/cards", ct) ?? [];
+
+    public async Task<IReadOnlyList<CardDto>> GetBacklogCardsAsync(Guid boardId, CancellationToken ct = default)
+        => await ReadDataAsync<IReadOnlyList<CardDto>>($"api/v1/boards/{boardId}/backlog", ct) ?? [];
+
+    public async Task BatchAddCardsToSprintAsync(Guid boardId, Guid sprintId, List<Guid> cardIds, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync(
+            $"api/v1/boards/{boardId}/sprints/{sprintId}/cards/batch",
+            new BatchAddSprintCardsDto { CardIds = cardIds }, ct);
+        response.EnsureSuccessStatusCode();
+    }
+
+    // ── Sprint Reports ──────────────────────────────────────
+
+    public async Task<SprintReportDto?> GetSprintReportAsync(Guid sprintId, CancellationToken ct = default)
+        => await ReadDataAsync<SprintReportDto>($"api/v1/sprints/{sprintId}/report", ct);
+
+    public async Task<IReadOnlyList<SprintVelocityDto>> GetBoardVelocityAsync(Guid boardId, CancellationToken ct = default)
+        => await ReadDataAsync<IReadOnlyList<SprintVelocityDto>>($"api/v1/boards/{boardId}/velocity", ct) ?? [];
+
     // ── Time Entries ────────────────────────────────────────
 
     public async Task<IReadOnlyList<TimeEntryDto>> ListTimeEntriesAsync(Guid cardId, CancellationToken ct = default)

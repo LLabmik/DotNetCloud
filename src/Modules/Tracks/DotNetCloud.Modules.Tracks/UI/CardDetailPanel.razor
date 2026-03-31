@@ -189,6 +189,25 @@
 
             @* ── Sidebar ── *@
             <div class="tracks-card-panel-sidebar">
+                @* Sprint *@
+                <div class="tracks-card-sidebar-section">
+                    <label>Sprint</label>
+                    <select class="form-control form-control-sm" value="@(_selectedSprintId ?? "")" @onchange="SaveSprintAsync">
+                        <option value="">None</option>
+                        @foreach (var sprint in _boardSprints.Where(s => s.Status != SprintStatus.Completed))
+                        {
+                            <option value="@sprint.Id">
+                                @sprint.Title (@sprint.Status)
+                            </option>
+                        }
+                    </select>
+                    @if (Card.SprintId.HasValue)
+                    {
+                        <button class="btn btn-sm btn-outline tracks-sprint-remove-btn"
+                                @onclick="RemoveFromSprintAsync">Remove from sprint</button>
+                    }
+                </div>
+
                 @* Priority *@
                 <div class="tracks-card-sidebar-section">
                     <label>Priority</label>

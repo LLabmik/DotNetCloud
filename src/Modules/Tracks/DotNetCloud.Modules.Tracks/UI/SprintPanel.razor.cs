@@ -17,11 +17,27 @@ public partial class SprintPanel : ComponentBase
     [Parameter, EditorRequired] public Guid BoardId { get; set; }
     [Parameter, EditorRequired] public List<SprintDto> Sprints { get; set; } = [];
     [Parameter] public EventCallback OnSprintChanged { get; set; }
+    [Parameter] public EventCallback<Guid> OnCardSelected { get; set; }
+    [Parameter] public EventCallback<SprintDto> OnPlanSprint { get; set; }
 
     private bool _showCreateDialog;
     private bool _isCreating;
     private string? _createError;
     private readonly SprintCreateModel _createModel = new();
+
+    // Sprint backlog state
+    private Guid? _expandedSprintId;
+    private readonly List<CardDto> _sprintCards = [];
+    private bool _isLoadingCards;
+
+    // Card picker state
+    private bool _showCardPicker;
+    private Guid _pickerSprintId;
+    private string _pickerSprintTitle = "";
+    private string _pickerSearch = "";
+    private readonly List<CardDto> _backlogCards = [];
+    private readonly HashSet<Guid> _pickerSelectedCardIds = [];
+    private bool _isAddingCards;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -88,7 +104,113 @@ public partial class SprintPanel : ComponentBase
     private async Task DeleteSprintAsync(Guid sprintId)
     {
         await ApiClient.DeleteSprintAsync(BoardId, sprintId);
+        if (_expandedSprintId == sprintId)
+        {
+            _expandedSprintId = null;
+            _sprintCards.Clear();
+        }
         await OnSprintChanged.InvokeAsync();
+    }
+
+    // ── Sprint Backlog ──────────────────────────────────────
+
+    private async Task ToggleSprintBacklog(Guid sprintId)
+    {
+        if (_expandedSprintId == sprintId)
+        {
+            _expandedSprintId = null;
+            _sprintCards.Clear();
+            return;
+        }
+
+        _expandedSprintId = sprintId;
+        await LoadSprintCardsAsync(sprintId);
+    }
+
+    private async Task LoadSprintCardsAsync(Guid sprintId)
+    {
+        _isLoadingCards = true;
+        try
+        {
+            var cards = await ApiClient.GetSprintCardsAsync(BoardId, sprintId);
+            _sprintCards.Clear();
+            _sprintCards.AddRange(cards);
+        }
+        finally
+        {
+            _isLoadingCards = false;
+        }
+    }
+
+    private async Task RemoveCardFromSprintAsync(Guid sprintId, Guid cardId)
+    {
+        await ApiClient.RemoveCardFromSprintAsync(BoardId, sprintId, cardId);
+        _sprintCards.RemoveAll(c => c.Id == cardId);
+        await OnSprintChanged.InvokeAsync();
+    }
+
+    // ── Card Picker ─────────────────────────────────────────
+
+    private async Task OpenCardPicker(Guid sprintId)
+    {
+        _pickerSprintId = sprintId;
+        _pickerSprintTitle = Sprints.FirstOrDefault(s => s.Id == sprintId)?.Title ?? "Sprint";
+        _pickerSearch = "";
+        _pickerSelectedCardIds.Clear();
+        _isAddingCards = false;
+
+        var backlog = await ApiClient.GetBacklogCardsAsync(BoardId);
+        _backlogCards.Clear();
+        _backlogCards.AddRange(backlog);
+        _showCardPicker = true;
+    }
+
+    private void CloseCardPicker()
+    {
+        _showCardPicker = false;
+        _pickerSelectedCardIds.Clear();
+    }
+
+    private void TogglePickerCard(Guid cardId)
+    {
+        if (!_pickerSelectedCardIds.Remove(cardId))
+            _pickerSelectedCardIds.Add(cardId);
+    }
+
+    private IReadOnlyList<CardDto> GetFilteredBacklogCards()
+    {
+        if (string.IsNullOrWhiteSpace(_pickerSearch))
+            return _backlogCards;
+
+        var search = _pickerSearch.Trim();
+        return _backlogCards
+            .Where(c => c.Title.Contains(search, StringComparison.OrdinalIgnoreCase)
+                        || $"#{c.CardNumber}".Contains(search, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    private async Task AddSelectedCardsAsync()
+    {
+        if (_pickerSelectedCardIds.Count == 0) return;
+
+        _isAddingCards = true;
+        try
+        {
+            await ApiClient.BatchAddCardsToSprintAsync(BoardId, _pickerSprintId, _pickerSelectedCardIds.ToList());
+            _showCardPicker = false;
+            _pickerSelectedCardIds.Clear();
+
+            // Refresh sprint cards and sprint data
+            if (_expandedSprintId == _pickerSprintId)
+            {
+                await LoadSprintCardsAsync(_pickerSprintId);
+            }
+            await OnSprintChanged.InvokeAsync();
+        }
+        finally
+        {
+            _isAddingCards = false;
+        }
     }
 
     private static string GetStatusBadgeClass(SprintStatus status) => status switch
@@ -97,6 +219,29 @@ public partial class SprintPanel : ComponentBase
         SprintStatus.Completed => "badge-muted",
         _ => "badge-info"
     };
+
+    // Sprint completion dialog state
+    private bool _showCompletionDialog;
+    private SprintDto? _completionSprint;
+
+    private void OpenCompletionDialog(SprintDto sprint)
+    {
+        _completionSprint = sprint;
+        _showCompletionDialog = true;
+    }
+
+    private void CloseCompletionDialog()
+    {
+        _showCompletionDialog = false;
+        _completionSprint = null;
+    }
+
+    private async Task HandleSprintCompleted()
+    {
+        _showCompletionDialog = false;
+        _completionSprint = null;
+        await OnSprintChanged.InvokeAsync();
+    }
 
     private sealed class SprintCreateModel : IValidatableObject
     {

@@ -23,11 +23,13 @@ public partial class KanbanBoard : ComponentBase
     [Parameter] public EventCallback<BoardSwimlaneDto> OnSwimlaneCreated { get; set; }
     [Parameter] public EventCallback<Guid> OnSwimlaneDeleted { get; set; }
     [Parameter] public EventCallback OnRefreshRequested { get; set; }
+    [Parameter] public List<SprintDto>? Sprints { get; set; }
 
     // Filters
     private string _filterText = "";
     private string _priorityFilter = "";
     private string _labelFilter = "";
+    private string _sprintFilter = "";
 
     // Card add
     private Guid? _addingCardToSwimlane;
@@ -72,6 +74,18 @@ public partial class KanbanBoard : ComponentBase
         if (!string.IsNullOrEmpty(_labelFilter) && Guid.TryParse(_labelFilter, out var labelId))
         {
             filtered = filtered.Where(c => c.Labels.Any(l => l.Id == labelId));
+        }
+
+        if (!string.IsNullOrEmpty(_sprintFilter))
+        {
+            if (_sprintFilter == "none")
+            {
+                filtered = filtered.Where(c => !c.SprintId.HasValue);
+            }
+            else if (Guid.TryParse(_sprintFilter, out var sprintId))
+            {
+                filtered = filtered.Where(c => c.SprintId == sprintId);
+            }
         }
 
         return filtered.ToList();

@@ -316,6 +316,16 @@ public sealed record CardDto
     /// ETag for conflict detection.
     /// </summary>
     public string? ETag { get; init; }
+
+    /// <summary>
+    /// Current sprint assignment (null if unassigned).
+    /// </summary>
+    public Guid? SprintId { get; init; }
+
+    /// <summary>
+    /// Title of the assigned sprint (null if unassigned).
+    /// </summary>
+    public string? SprintTitle { get; init; }
 }
 
 /// <summary>
@@ -611,6 +621,11 @@ public sealed record SprintDto
     /// Story points completed in this sprint.
     /// </summary>
     public int CompletedStoryPoints { get; init; }
+
+    /// <summary>
+    /// Target story points for capacity planning.
+    /// </summary>
+    public int? TargetStoryPoints { get; init; }
 
     /// <summary>
     /// Timestamp when the sprint was created.
@@ -981,6 +996,11 @@ public sealed record CreateSprintDto
     /// Planned end date.
     /// </summary>
     public DateTime? EndDate { get; init; }
+
+    /// <summary>
+    /// Target story points for capacity planning.
+    /// </summary>
+    public int? TargetStoryPoints { get; init; }
 }
 
 /// <summary>
@@ -1008,6 +1028,22 @@ public sealed record UpdateSprintDto
     /// Updated end date.
     /// </summary>
     public DateTime? EndDate { get; init; }
+
+    /// <summary>
+    /// Updated target story points.
+    /// </summary>
+    public int? TargetStoryPoints { get; init; }
+}
+
+/// <summary>
+/// Request to batch-add cards to a sprint.
+/// </summary>
+public sealed record BatchAddSprintCardsDto
+{
+    /// <summary>
+    /// The card IDs to add to the sprint.
+    /// </summary>
+    public required List<Guid> CardIds { get; init; }
 }
 
 /// <summary>

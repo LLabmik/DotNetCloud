@@ -90,6 +90,14 @@ public interface ITracksApiClient
     Task<SprintDto?> CompleteSprintAsync(Guid boardId, Guid sprintId, CancellationToken ct = default);
     Task AddCardToSprintAsync(Guid boardId, Guid sprintId, Guid cardId, CancellationToken ct = default);
     Task RemoveCardFromSprintAsync(Guid boardId, Guid sprintId, Guid cardId, CancellationToken ct = default);
+    Task<IReadOnlyList<CardDto>> GetSprintCardsAsync(Guid boardId, Guid sprintId, CancellationToken ct = default);
+    Task<IReadOnlyList<CardDto>> GetBacklogCardsAsync(Guid boardId, CancellationToken ct = default);
+    Task BatchAddCardsToSprintAsync(Guid boardId, Guid sprintId, List<Guid> cardIds, CancellationToken ct = default);
+
+    // ── Sprint Reports ──────────────────────────────────────
+
+    Task<SprintReportDto?> GetSprintReportAsync(Guid sprintId, CancellationToken ct = default);
+    Task<IReadOnlyList<SprintVelocityDto>> GetBoardVelocityAsync(Guid boardId, CancellationToken ct = default);
 
     // ── Time Entries ────────────────────────────────────────
 

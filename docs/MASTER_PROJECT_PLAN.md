@@ -1512,6 +1512,17 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Board view — Full kanban with drag-and-drop cards between lists
 - ✓ Card detail panel — Slide-out with description, assignments, labels, checklists, comments, attachments, time, dependencies, activity
 - ✓ Sprint management — Planning view, backlog → sprint, progress indicators
+- ✓ Sprint Planning Workflow UX — Full sprint planning experience:
+  - ✓ Sprint selector in card detail sidebar (assign/remove cards from sprints)
+  - ✓ Sprint backlog view (expandable card list per sprint in SprintPanel)
+  - ✓ Quick-add cards to sprint (card picker dialog with multi-select, search, batch add)
+  - ✓ Sprint filter on kanban board (filter cards by sprint)
+  - ✓ Sprint badge on kanban cards (🏃 sprint title)
+  - ✓ Sprint Planning View (side-by-side product backlog/sprint backlog, capacity bar, member workload, priority groups)
+  - ✓ Burndown chart (SVG-based SprintBurndownChart.razor, ideal vs actual remaining SP)
+  - ✓ Velocity chart (SVG-based VelocityChart.razor, committed vs completed across sprints)
+  - ✓ Sprint completion dialog (summary stats, incomplete card handling — move to next sprint or backlog)
+  - ✓ Sprint report API client methods (GetSprintReportAsync, GetBoardVelocityAsync)
 - ✓ Board settings — Members, labels, archive management
 - ✓ Team management — Create/edit teams, member roles, board transfer
 - ✓ Filters and search — Filter by label, assignee, due date, priority
@@ -1522,7 +1533,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Module UI registration in ModuleUiRegistrationHostedService
 - ✓ tracks-kanban.js drag-drop JS interop
 
-**Notes:** Full Blazor UI: TracksPage (sidebar layout), BoardListView, KanbanBoard (HTML5 drag-drop), CardDetailPanel (slide-out), SprintPanel, BoardSettingsDialog, TeamManagement. Comprehensive CSS with ::deep scoping and responsive breakpoints. Real-time event subscriptions integrated in Phase 4.6.
+**Notes:** Full Blazor UI: TracksPage (sidebar layout), BoardListView, KanbanBoard (HTML5 drag-drop), CardDetailPanel (slide-out), SprintPanel, BoardSettingsDialog, TeamManagement. Comprehensive CSS with ::deep scoping and responsive breakpoints. Real-time event subscriptions integrated in Phase 4.6. Sprint Planning Workflow UX added: SprintPlanningView (side-by-side planning), SprintBurndownChart + VelocityChart (SVG-based, code-behind rendering to avoid Razor <text> conflicts), SprintCompletionDialog (incomplete card handling), sprint filter/badge on kanban, card picker dialog. ~470 lines of new CSS. TargetStoryPoints added to Sprint model/DTOs. BatchAddSprintCardsDto for multi-card sprint assignment. 5 new API client methods.
 
 ---
 
