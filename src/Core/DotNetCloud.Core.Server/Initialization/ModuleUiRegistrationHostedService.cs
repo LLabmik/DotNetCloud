@@ -61,7 +61,8 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
             Icon: "📊",
             SortOrder: 60,
             RouteKey: "tracks.page",
-            ComponentType: typeof(DotNetCloud.Modules.Tracks.UI.TracksPage))
+            ComponentType: typeof(DotNetCloud.Modules.Tracks.UI.TracksPage),
+            AdditionalPages: [("tracks.card", typeof(DotNetCloud.Modules.Tracks.UI.CardFullscreenPage))])
     ];
 
     private readonly IServiceScopeFactory _scopeFactory;
@@ -135,6 +136,11 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
                 descriptor.SortOrder);
 
             _moduleUiRegistry.RegisterPage(descriptor.RouteKey, descriptor.ComponentType);
+
+            foreach (var (additionalRouteKey, additionalComponentType) in descriptor.AdditionalPages)
+            {
+                _moduleUiRegistry.RegisterPage(additionalRouteKey, additionalComponentType);
+            }
         }
 
         _lastInstalledModuleStatuses = installedModuleStatuses;
@@ -217,5 +223,12 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
         string Icon,
         int SortOrder,
         string RouteKey,
-        Type ComponentType);
+        Type ComponentType,
+        (string RouteKey, Type ComponentType)[] AdditionalPages = default!)
+    {
+        /// <summary>
+        /// Additional page registrations for this module beyond the primary page.
+        /// </summary>
+        public (string RouteKey, Type ComponentType)[] AdditionalPages { get; init; } = AdditionalPages ?? [];
+    }
 }

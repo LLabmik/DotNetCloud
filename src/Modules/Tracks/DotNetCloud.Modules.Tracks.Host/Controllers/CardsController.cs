@@ -62,6 +62,17 @@ public class CardsController : TracksControllerBase
             : Ok(Envelope(card));
     }
 
+    /// <summary>Gets a card by its human-readable card number.</summary>
+    [HttpGet("cards/by-number/{cardNumber:int}")]
+    public async Task<IActionResult> GetCardByNumberAsync(int cardNumber)
+    {
+        var caller = GetAuthenticatedCaller();
+        var card = await _cardService.GetCardByNumberAsync(cardNumber, caller);
+        return card is null
+            ? NotFound(ErrorEnvelope(ErrorCodes.CardNotFound, "Card not found."))
+            : Ok(Envelope(card));
+    }
+
     /// <summary>Creates a new card in a swimlane.</summary>
     [HttpPost("swimlanes/{swimlaneId:guid}/cards")]
     public async Task<IActionResult> CreateCardAsync(Guid swimlaneId, [FromBody] CreateCardDto dto)

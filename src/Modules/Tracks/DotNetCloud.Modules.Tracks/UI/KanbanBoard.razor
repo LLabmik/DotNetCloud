@@ -81,10 +81,14 @@
                             @* ── Card Header (board-colored) ── *@
                             <div class="tracks-card-header" style="@GetCardHeaderStyle()">
                                 <span class="tracks-card-number">#@card.CardNumber</span>
-                                @if (card.Priority != CardPriority.None)
-                                {
-                                    <span class="tracks-card-priority-badge" title="@card.Priority">@GetPriorityIcon(card.Priority)</span>
-                                }
+                                <div class="tracks-card-header-actions">
+                                    @if (card.Priority != CardPriority.None)
+                                    {
+                                        <span class="tracks-card-priority-badge" title="@card.Priority">@GetPriorityIcon(card.Priority)</span>
+                                    }
+                                    <a href="/apps/tracks/card/@card.CardNumber" target="_blank" class="tracks-open-newtab-btn"
+                                       title="Open in new tab" @onclick:stopPropagation>⧉</a>
+                                </div>
                             </div>
 
                             @* ── Card Body ── *@

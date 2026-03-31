@@ -41,6 +41,7 @@ public interface ITracksApiClient
 
     Task<IReadOnlyList<CardDto>> ListCardsAsync(Guid swimlaneId, bool includeArchived = false, CancellationToken ct = default);
     Task<CardDto?> GetCardAsync(Guid cardId, CancellationToken ct = default);
+    Task<CardDto?> GetCardByNumberAsync(int cardNumber, CancellationToken ct = default);
     Task<CardDto?> CreateCardAsync(Guid swimlaneId, CreateCardDto dto, CancellationToken ct = default);
     Task<CardDto?> UpdateCardAsync(Guid cardId, UpdateCardDto dto, CancellationToken ct = default);
     Task DeleteCardAsync(Guid cardId, CancellationToken ct = default);

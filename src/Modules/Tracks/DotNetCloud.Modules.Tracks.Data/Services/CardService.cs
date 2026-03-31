@@ -148,6 +148,24 @@ public sealed class CardService
     }
 
     /// <summary>
+    /// Gets a card by its human-readable card number.
+    /// </summary>
+    public async Task<CardDto?> GetCardByNumberAsync(int cardNumber, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        var card = await _db.Cards
+            .AsNoTracking()
+            .Include(c => c.Swimlane)
+            .FirstOrDefaultAsync(c => c.CardNumber == cardNumber && !c.IsDeleted, cancellationToken);
+
+        if (card is null)
+            return null;
+
+        await _boardService.EnsureBoardMemberAsync(card.Swimlane!.BoardId, caller.UserId, cancellationToken);
+
+        return await GetCardDtoAsync(card.Id, cancellationToken);
+    }
+
+    /// <summary>
     /// Lists cards in a swimlane, ordered by position.
     /// </summary>
     public async Task<IReadOnlyList<CardDto>> ListCardsAsync(Guid swimlaneId, CallerContext caller, bool includeArchived = false, CancellationToken cancellationToken = default)

@@ -140,6 +140,9 @@ public sealed class TracksApiClient : ITracksApiClient
     public Task<CardDto?> GetCardAsync(Guid cardId, CancellationToken ct = default)
         => ReadDataAsync<CardDto>($"api/v1/cards/{cardId}", ct);
 
+    public Task<CardDto?> GetCardByNumberAsync(int cardNumber, CancellationToken ct = default)
+        => ReadDataAsync<CardDto>($"api/v1/cards/by-number/{cardNumber}", ct);
+
     public async Task<CardDto?> CreateCardAsync(Guid swimlaneId, CreateCardDto dto, CancellationToken ct = default)
     {
         var response = await _httpClient.PostAsJsonAsync($"api/v1/swimlanes/{swimlaneId}/cards", dto, ct);

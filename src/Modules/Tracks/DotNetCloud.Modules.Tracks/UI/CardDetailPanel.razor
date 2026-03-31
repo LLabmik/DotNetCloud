@@ -20,7 +20,11 @@
                     in <strong>@_swimlaneName</strong>
                 </span>
             </div>
-            <button class="tracks-close-btn" @onclick="OnClose" title="Close">×</button>
+            <div class="tracks-panel-header-actions">
+                <a href="/apps/tracks/card/@Card.CardNumber" target="_blank" class="tracks-open-newtab-btn panel"
+                   title="Open in new tab">⧉</a>
+                <button class="tracks-close-btn" @onclick="OnClose" title="Close">✕</button>
+            </div>
         </div>
 
         <div class="tracks-card-panel-body">

@@ -575,6 +575,34 @@
     line-height: 1;
 }
 
+::deep .tracks-card-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* ── Open in New Tab Button (card header) ── */
+::deep .tracks-open-newtab-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 3px;
+    font-size: 11px;
+    line-height: 1;
+    color: inherit;
+    opacity: 0.45;
+    text-decoration: none;
+    transition: opacity 150ms, background 150ms;
+    cursor: pointer;
+}
+
+::deep .tracks-open-newtab-btn:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.25);
+}
+
 /* ── Card Body ── */
 ::deep .tracks-card-body {
     padding: 8px 10px 10px;
@@ -843,6 +871,56 @@
     border-bottom: 1px solid var(--color-border);
     flex-shrink: 0;
     gap: 12px;
+}
+
+::deep .tracks-panel-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+::deep .tracks-open-newtab-btn.panel {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius, 6px);
+    font-size: 16px;
+    line-height: 1;
+    color: var(--color-text-secondary, #64748b);
+    opacity: 0.7;
+    text-decoration: none;
+    transition: opacity 150ms, background 150ms, color 150ms;
+    cursor: pointer;
+}
+
+::deep .tracks-open-newtab-btn.panel:hover {
+    opacity: 1;
+    background: var(--color-hover, rgba(0, 0, 0, 0.06));
+    color: var(--color-primary, #3b82f6);
+}
+
+::deep .tracks-close-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-secondary, #64748b);
+    border-radius: var(--radius, 6px);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 150ms, color 150ms;
+}
+
+::deep .tracks-close-btn:hover {
+    background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+    color: var(--color-danger);
 }
 
 ::deep .tracks-card-panel-header h2 {

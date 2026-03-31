@@ -1,0 +1,39 @@
+@page "/apps/tracks/card/{CardNumber:int}"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using DotNetCloud.UI.Web.Services
+@inject ModuleUiRegistry ModuleRegistry
+
+<PageTitle>Card - DotNetCloud</PageTitle>
+
+@if (_componentType is not null)
+{
+    <DynamicComponent Type="_componentType" Parameters="_parameters" />
+}
+else
+{
+    <div class="tracks-module-unavailable">
+        <div class="tracks-unavailable-card">
+            <div class="tracks-unavailable-icon">📊</div>
+            <h2>Tracks Module Not Available</h2>
+            <p>The Tracks module is not currently installed or enabled. Please contact your administrator to enable it.</p>
+            <a href="/" class="btn btn-primary">Go to Dashboard</a>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int CardNumber { get; set; }
+
+    private Type? _componentType;
+    private Dictionary<string, object> _parameters = new();
+
+    protected override void OnParametersSet()
+    {
+        _componentType = ModuleRegistry.GetPage("tracks.card");
+        _parameters = new Dictionary<string, object>
+        {
+            ["CardNumber"] = CardNumber
+        };
+    }
+}
