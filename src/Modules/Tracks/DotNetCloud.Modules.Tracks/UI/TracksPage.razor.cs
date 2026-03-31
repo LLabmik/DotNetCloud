@@ -15,6 +15,7 @@ public partial class TracksPage : ComponentBase, IDisposable
     private enum TracksView { Boards, Board, Teams }
 
     private TracksView _view = TracksView.Boards;
+    private bool _sidebarCollapsed;
     private bool _isLoading = true;
     private string? _errorMessage;
 

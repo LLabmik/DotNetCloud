@@ -2,45 +2,60 @@
 
 <div class="tracks-layout">
     @* ── Sidebar ── *@
-    <div class="tracks-sidebar">
+    <div class="tracks-sidebar @(_sidebarCollapsed ? "collapsed" : "")">
         <div class="tracks-sidebar-header">
-            <h3>Tracks</h3>
+            @if (!_sidebarCollapsed)
+            {
+                <h3>Tracks</h3>
+            }
+            <button class="tracks-sidebar-toggle" @onclick="() => _sidebarCollapsed = !_sidebarCollapsed"
+                    title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
+                <span>@(_sidebarCollapsed ? "▶" : "◀")</span>
+            </button>
         </div>
 
         <nav class="tracks-nav">
             <button class="tracks-nav-item @(_view == TracksView.Boards ? "active" : "")"
-                    @onclick="ShowBoardSwimlane">
-                <span class="tracks-nav-icon">📋</span> My Boards
+                    @onclick="ShowBoardSwimlane" title="My Boards">
+                <span class="tracks-nav-icon">📋</span>
+                @if (!_sidebarCollapsed) { <span class="tracks-nav-text">My Boards</span> }
             </button>
             <button class="tracks-nav-item @(_view == TracksView.Teams ? "active" : "")"
-                    @onclick="ShowTeams">
-                <span class="tracks-nav-icon">👥</span> Teams
+                    @onclick="ShowTeams" title="Teams">
+                <span class="tracks-nav-icon">👥</span>
+                @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Teams</span> }
             </button>
         </nav>
 
         @if (_view == TracksView.Board && _selectedBoard is not null)
         {
             <div class="tracks-sidebar-section">
-                <div class="tracks-sidebar-section-header">
-                    <span>Board</span>
-                </div>
-                <button class="tracks-nav-item active" @onclick="() => {}">
+                @if (!_sidebarCollapsed)
+                {
+                    <div class="tracks-sidebar-section-header">
+                        <span>Board</span>
+                    </div>
+                }
+                <button class="tracks-nav-item active" @onclick="() => {}" title="@_selectedBoard.Title">
                     @if (!string.IsNullOrEmpty(_selectedBoard.Color))
                     {
                         <span class="tracks-board-dot" style="background: @_selectedBoard.Color;"></span>
                     }
-                    @_selectedBoard.Title
+                    @if (!_sidebarCollapsed) { <span class="tracks-nav-text">@_selectedBoard.Title</span> }
                 </button>
                 <button class="tracks-nav-item @(_showSprints ? "active" : "")"
-                        @onclick="ToggleSprints">
-                    <span class="tracks-nav-icon">🏃</span> Sprints
+                        @onclick="ToggleSprints" title="Sprints">
+                    <span class="tracks-nav-icon">🏃</span>
+                    @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Sprints</span> }
                 </button>
                 <button class="tracks-nav-item"
-                        @onclick="ShowBoardSettings">
-                    <span class="tracks-nav-icon">⚙</span> Settings
+                        @onclick="ShowBoardSettings" title="Settings">
+                    <span class="tracks-nav-icon">⚙</span>
+                    @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Settings</span> }
                 </button>
-                <button class="tracks-nav-item" @onclick="ShowBoardSwimlane">
-                    <span class="tracks-nav-icon">←</span> All Boards
+                <button class="tracks-nav-item" @onclick="ShowBoardSwimlane" title="All Boards">
+                    <span class="tracks-nav-icon">←</span>
+                    @if (!_sidebarCollapsed) { <span class="tracks-nav-text">All Boards</span> }
                 </button>
             </div>
         }
@@ -48,15 +63,18 @@
         @if (_teams.Count > 0)
         {
             <div class="tracks-sidebar-section">
-                <div class="tracks-sidebar-section-header">
-                    <span>Teams</span>
-                </div>
+                @if (!_sidebarCollapsed)
+                {
+                    <div class="tracks-sidebar-section-header">
+                        <span>Teams</span>
+                    </div>
+                }
                 @foreach (var team in _teams.Take(5))
                 {
                     <button class="tracks-nav-item"
-                            @onclick="() => SelectTeam(team.Id)">
+                            @onclick="() => SelectTeam(team.Id)" title="@team.Name">
                         <span class="tracks-nav-icon">👥</span>
-                        @team.Name
+                        @if (!_sidebarCollapsed) { <span class="tracks-nav-text">@team.Name</span> }
                     </button>
                 }
             </div>

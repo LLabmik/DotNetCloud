@@ -21,11 +21,61 @@
     background: var(--color-surface);
     border-right: 1px solid var(--color-border);
     overflow-y: auto;
+    transition: width 200ms ease;
+}
+
+.tracks-sidebar.collapsed {
+    width: 52px;
+    overflow: hidden;
 }
 
 .tracks-sidebar-header {
-    padding: 16px 16px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 12px 8px;
     border-bottom: 1px solid var(--color-border);
+    min-height: 48px;
+}
+
+.tracks-sidebar.collapsed .tracks-sidebar-header {
+    justify-content: center;
+    padding: 16px 6px 8px;
+}
+
+.tracks-sidebar-toggle {
+    background: none;
+    border: none;
+    color: var(--color-muted);
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: var(--radius);
+    font-size: 11px;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: background var(--transition), color var(--transition);
+}
+
+.tracks-sidebar-toggle:hover {
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+
+/* Hide nav text in collapsed state */
+.tracks-sidebar.collapsed .tracks-nav-text,
+.tracks-sidebar.collapsed .tracks-sidebar-section-header {
+    display: none;
+}
+
+/* Center icons when collapsed */
+.tracks-sidebar.collapsed .tracks-nav-item {
+    justify-content: center;
+    padding: 8px;
+}
+
+.tracks-sidebar.collapsed .tracks-nav-icon,
+.tracks-sidebar.collapsed .tracks-board-dot {
+    margin: 0;
 }
 
 ::deep .tracks-sidebar-header h3 {
