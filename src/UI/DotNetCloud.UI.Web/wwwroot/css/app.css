@@ -2116,6 +2116,7 @@ textarea.input { resize: vertical; min-height: 60px; }
     margin-bottom: 24px;
 }
 .auth-header .brand-icon { font-size: 48px; display: block; margin-bottom: 8px; }
+.auth-header .auth-logo { width: 72px; height: 72px; margin-bottom: 12px; }
 .auth-header h1 { font-size: 24px; margin-bottom: 4px; }
 .auth-header p { color: var(--color-text-secondary); }
 .auth-footer {
