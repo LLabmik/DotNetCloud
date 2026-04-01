@@ -73,9 +73,9 @@ sudo -v || { error "sudo authentication failed."; exit 1; }
 info "Publishing server to $OUTPUT_DIR..."
 dotnet publish "$PROJECT_PATH" --configuration "$CONFIGURATION" --output "$OUTPUT_DIR"
 
-info "Publishing CLI to $CLI_OUTPUT_DIR (framework-dependent, linux-x64)..."
+info "Publishing CLI to $CLI_OUTPUT_DIR (framework-dependent, portable)..."
 dotnet publish "$CLI_PROJECT_PATH" --configuration "$CONFIGURATION" \
-    --runtime linux-x64 --self-contained false --output "$CLI_OUTPUT_DIR"
+    --self-contained false --output "$CLI_OUTPUT_DIR"
 
 # Copy published output to the installed locations.
 # The systemd service runs /opt/dotnetcloud/dotnetcloud start which:
@@ -102,6 +102,9 @@ fi
 # Deploy CLI (framework-dependent binary that sets Collabora proxy config, etc.)
 if [[ -d "$INSTALL_CLI_ROOT" ]]; then
     info "Deploying CLI to $INSTALL_CLI_ROOT..."
+    # Clean stale files (e.g., leftover runtime DLLs from previous self-contained
+    # publish) but preserve the server/ subdirectory which is deployed separately.
+    find "$INSTALL_CLI_ROOT" -maxdepth 1 -type f -exec sudo rm -f {} +
     sudo cp -r "$CLI_OUTPUT_DIR"/* "$INSTALL_CLI_ROOT/"
 fi
 
