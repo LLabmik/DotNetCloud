@@ -1,6 +1,6 @@
 # Files Module — Collabora CODE Administration
 
-> **Last Updated:** 2026-03-03
+> **Last Updated:** 2026-04-01
 
 ---
 
@@ -14,28 +14,33 @@ DotNetCloud integrates with [Collabora Online](https://www.collaboraonline.com/)
 
 ### Option 1: Built-In Collabora CODE
 
-DotNetCloud can manage a local Collabora CODE instance automatically.
+DotNetCloud can manage a local Collabora CODE instance automatically. The CLI installs coolwsd via APT and configures a **built-in YARP reverse proxy** so all Collabora traffic flows through the DotNetCloud port — only one firewall port is needed.
 
 **Advantages:**
 - Zero external dependencies
-- Automatic process management (start, restart, health check)
-- Simplified setup
+- Single port exposure (no need to open port 9980)
+- Automatic reverse proxy via YARP (`/hosting`, `/browser`, `/cool`, `/lool`)
+- Simplified setup — the CLI handles all environment variable bridging
 
-**Configuration:**
+**How it works:**
+
+The CLI (`dotnetcloud start`) reads `config.json` and sets environment variables:
+- `ServerUrl` = public origin (e.g., `https://mint22:5443`) — discovery URLs rewrite to this
+- `ProxyUpstreamUrl` = `https://localhost:9980` — internal coolwsd target for the YARP proxy
+- `WopiBaseUrl` = same public origin — Collabora uses this for WOPI callbacks
+
+Browsers load Collabora via `https://yourhost:5443/browser/...` which the YARP proxy forwards internally to `localhost:9980`.
+
+**Configuration in `config.json`:**
 
 ```json
 {
-  "Files": {
-    "Collabora": {
-      "Enabled": true,
-      "UseBuiltInCollabora": true,
-      "CollaboraInstallDirectory": "/opt/collaboraoffice",
-      "WopiBaseUrl": "https://cloud.example.com",
-      "TokenSigningKey": "your-secret-key-at-least-32-characters"
-    }
-  }
+  "collaboraMode": "BuiltIn",
+  "collaboraDirectory": "/usr/share/coolwsd"
 }
 ```
+
+The CLI bridges this to server configuration automatically. No manual `Files:Collabora:*` settings needed.
 
 **Installation via CLI:**
 
@@ -92,8 +97,9 @@ Set `ServerUrl` to `https://collabora.example.com:9980`.
 | Setting | Default | Description |
 |---|---|---|
 | `Enabled` | `false` | Enable Collabora integration |
-| `ServerUrl` | `""` | URL of external Collabora server |
+| `ServerUrl` | `""` | Public-facing URL for Collabora (iframe src origin) |
 | `WopiBaseUrl` | `""` | Public URL of this DotNetCloud instance |
+| `ProxyUpstreamUrl` | `""` | Internal Collabora endpoint for YARP proxy (e.g., `https://localhost:9980`) |
 | `TokenSigningKey` | `""` | HMAC-SHA256 signing key for WOPI tokens (≥32 chars) |
 | `TokenLifetimeMinutes` | `480` | Token validity (8 hours) |
 | `AutoSaveIntervalSeconds` | `300` | Collabora auto-save interval (5 minutes) |
@@ -157,9 +163,34 @@ If `TokenSigningKey` is empty, DotNetCloud generates one automatically on startu
 
 ## Reverse Proxy Configuration
 
-Collabora requires WebSocket support for real-time editing. DotNetCloud generates reverse proxy templates automatically.
+### Built-In YARP Proxy (Default — Recommended)
 
-### nginx
+DotNetCloud includes a built-in YARP reverse proxy that routes Collabora traffic through the main DotNetCloud port. **No separate reverse proxy is needed** for Collabora when using Built-In mode.
+
+The proxy maps these URL spaces from the DotNetCloud port to coolwsd on `localhost:9980`:
+
+| Path | Purpose |
+|---|---|
+| `/hosting/**` | WOPI discovery |
+| `/browser/**` | Collabora editor static assets + `cool.html` |
+| `/cool/**` | WebSocket real-time editing sessions |
+| `/lool/**` | Legacy editing sessions |
+
+**Key settings that control this:**
+
+| Setting | Value | Purpose |
+|---|---|---|
+| `ServerUrl` | Public origin (e.g., `https://mint22:5443`) | Discovery URLs rewrite to this |
+| `ProxyUpstreamUrl` | `https://localhost:9980` | Internal proxy target |
+| `AllowInsecureTls` | `true` | Accept coolwsd's self-signed cert |
+
+When `ServerUrl` and `WopiBaseUrl` share the same origin, `ProxyUpstreamUrl` **must** be set to avoid self-proxy loops.
+
+### External Reverse Proxy (nginx / Apache)
+
+If you need a separate reverse proxy (e.g., for External Collabora mode or TLS termination), Collabora requires WebSocket support for real-time editing.
+
+#### nginx
 
 ```nginx
 # Collabora WebSocket support
@@ -180,7 +211,7 @@ location /api/v1/wopi/ {
 }
 ```
 
-### Apache
+#### Apache
 
 ```apache
 # Enable required modules

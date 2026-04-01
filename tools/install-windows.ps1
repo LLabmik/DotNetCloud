@@ -946,9 +946,11 @@ function Print-Summary {
         Write-Host "  Run once to start Collabora:"
         Write-Host '  docker run -d --name collabora --restart unless-stopped -p 9980:9980 `'
         Write-Host "    -e ""aliasgroup1=http://localhost"" collabora/code"
-        Write-Host "  Then in config.json set:"
-        Write-Host '    "Files": { "Collabora": { "Enabled": true, "UseBuiltInCollabora": false,'
-        Write-Host '      "ServerUrl": "http://localhost:9980", "WopiBaseUrl": "http://localhost" } }'
+        Write-Host "  Then in config.json set collaboraMode to External with the server URL:"
+        Write-Host '    "collaboraMode": "External",'
+        Write-Host '    "collaboraUrl": "https://localhost:9980"'
+        Write-Host "  The DotNetCloud CLI bridges this to the server configuration."
+        Write-Host "  Collabora is reverse-proxied through DotNetCloud (single port)."
         Write-Host "  See docs/admin/COLLABORA.md for details."
         Write-Host ""
     }
