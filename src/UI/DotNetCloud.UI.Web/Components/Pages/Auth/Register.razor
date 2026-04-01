@@ -40,6 +40,8 @@
                 <ValidationMessage For="() => _model!.ConfirmPassword" />
             </div>
 
+            <input type="hidden" name="_model.Timezone" id="register-timezone" value="" />
+
             @if (!string.IsNullOrWhiteSpace(_errorMessage))
             {
                 <div class="alert alert-danger">@_errorMessage</div>
@@ -63,6 +65,18 @@
         </div>
     </div>
 </div>
+
+<script>
+    (function () {
+        try {
+            var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            if (tz) {
+                var el = document.getElementById('register-timezone');
+                if (el) el.value = tz;
+            }
+        } catch (e) { }
+    })();
+</script>
 
 @code {
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
@@ -100,7 +114,7 @@
                 Email = _model.Email,
                 DisplayName = _model.DisplayName,
                 Locale = "en-US",
-                Timezone = "UTC",
+                Timezone = !string.IsNullOrWhiteSpace(_model.Timezone) ? _model.Timezone : "UTC",
                 CreatedAt = DateTime.UtcNow,
                 IsActive = true
             };
@@ -132,5 +146,6 @@
         public string DisplayName { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
         public string ConfirmPassword { get; set; } = string.Empty;
+        public string Timezone { get; set; } = "UTC";
     }
 }

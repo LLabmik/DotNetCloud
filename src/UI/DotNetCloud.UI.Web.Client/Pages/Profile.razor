@@ -84,6 +84,9 @@ else
                     <label for="timezone">Timezone</label>
                     <InputText id="timezone" class="input" @bind-Value="_profileModel!.Timezone" />
                     <span class="hint">e.g., UTC, America/New_York, Europe/London</span>
+                    <button type="button" class="btn btn-sm btn-outline" style="margin-top: 6px;" @onclick="DetectTimezoneAsync" disabled="@_detectingTimezone">
+                        @(_detectingTimezone ? "Detecting..." : "Update based on current location")
+                    </button>
                 </div>
 
                 @if (!string.IsNullOrWhiteSpace(_profileError))
@@ -182,6 +185,7 @@ else
 @code {
     [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
 
     private bool _loading = true;
     private UserProfileResponse? _profile;
@@ -199,6 +203,9 @@ else
     private bool _passwordSaving;
     private string? _passwordError;
     private string? _passwordSuccess;
+
+    // Timezone detection
+    private bool _detectingTimezone;
 
     // Avatar
     private bool _avatarUploading;
@@ -251,6 +258,31 @@ else
 
         // Single name or email — just use first character
         return char.ToUpperInvariant(name[0]).ToString();
+    }
+
+    // ── Timezone Detection ──
+
+    private async Task DetectTimezoneAsync()
+    {
+        if (_profileModel is null) return;
+        _detectingTimezone = true;
+        try
+        {
+            var tz = await JS.InvokeAsync<string>("dotnetcloud.getTimezone");
+            if (!string.IsNullOrWhiteSpace(tz))
+            {
+                _profileModel.Timezone = tz;
+                Toast.ShowSuccess($"Timezone detected: {tz}");
+            }
+        }
+        catch
+        {
+            Toast.ShowError("Could not detect timezone.");
+        }
+        finally
+        {
+            _detectingTimezone = false;
+        }
     }
 
     // ── Profile Save ──
