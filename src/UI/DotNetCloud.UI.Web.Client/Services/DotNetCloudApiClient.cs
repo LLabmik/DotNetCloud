@@ -331,6 +331,35 @@ public sealed class DotNetCloudApiClient
         return response.IsSuccessStatusCode;
     }
 
+    /// <summary>
+    /// Gets a specific setting for the current authenticated user.
+    /// </summary>
+    public async Task<UserSettingDto?> GetUserSettingAsync(string module, string key, CancellationToken ct = default)
+    {
+        var response = await _http.GetAsync(
+            $"api/v1/core/user-settings/{Uri.EscapeDataString(module)}/{Uri.EscapeDataString(key)}", ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<UserSettingDto>>(ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Creates or updates a setting for the current authenticated user.
+    /// </summary>
+    public async Task<bool> UpsertUserSettingAsync(string module, string key, UpsertUserSettingDto dto, CancellationToken ct = default)
+    {
+        var response = await _http.PutAsJsonAsync(
+            $"api/v1/core/user-settings/{Uri.EscapeDataString(module)}/{Uri.EscapeDataString(key)}",
+            dto,
+            ct);
+        return response.IsSuccessStatusCode;
+    }
+
     // -----------------------------------------------------------------------
     // Health
     // -----------------------------------------------------------------------
