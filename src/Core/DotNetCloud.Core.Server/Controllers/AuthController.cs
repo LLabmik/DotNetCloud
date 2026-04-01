@@ -92,7 +92,8 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<IActionResult> LogoutAsync()
     {
-        var userIdClaim = User.FindFirst("sub")?.Value;
+        var userIdClaim = User.FindFirst("sub")?.Value
+            ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         if (Guid.TryParse(userIdClaim, out var userId))
         {
             try
@@ -270,13 +271,15 @@ public class AuthController : ControllerBase
 
     private bool TryGetUserId(out Guid userId)
     {
-        var claim = User.FindFirst("sub")?.Value;
+        var claim = User.FindFirst("sub")?.Value
+            ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         return Guid.TryParse(claim, out userId);
     }
 
     private CallerContext BuildCallerContext()
     {
-        var userIdClaim = User.FindFirst("sub")?.Value;
+        var userIdClaim = User.FindFirst("sub")?.Value
+            ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         if (!Guid.TryParse(userIdClaim, out var userId) || userId == Guid.Empty)
         {
             return CallerContext.CreateSystemContext();

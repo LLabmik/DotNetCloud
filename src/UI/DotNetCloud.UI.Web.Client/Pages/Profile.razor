@@ -1,0 +1,447 @@
+@page "/profile"
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveAutoRenderMode(prerender: false))
+@attribute [Authorize]
+
+<PageTitle>My Profile - DotNetCloud</PageTitle>
+
+@if (_loading)
+{
+    <LoadingIndicator Message="Loading profile..." />
+}
+else if (_profile is null)
+{
+    <div class="empty-state">
+        <p>Unable to load profile.</p>
+        <a href="/" class="btn btn-primary">Go Home</a>
+    </div>
+}
+else
+{
+    <div class="page-header">
+        <h1>My Profile</h1>
+    </div>
+
+    <div class="profile-layout">
+        @* ── Avatar Section ── *@
+        <section class="profile-card profile-avatar-section">
+            <h2>Avatar</h2>
+            <div class="avatar-display">
+                @if (!string.IsNullOrWhiteSpace(_profile.AvatarUrl))
+                {
+                    <img src="@(_profile.AvatarUrl + "?v=" + _avatarCacheBuster)" alt="Avatar" class="avatar-image" />
+                }
+                else
+                {
+                    <div class="avatar-initials">@GetInitials()</div>
+                }
+            </div>
+            <div class="avatar-actions">
+                <label class="btn btn-sm btn-primary avatar-upload-label" for="avatar-upload">
+                    Upload Image
+                </label>
+                <InputFile id="avatar-upload" OnChange="HandleAvatarUploadAsync" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none" />
+                @if (!string.IsNullOrWhiteSpace(_profile.AvatarUrl))
+                {
+                    <button class="btn btn-sm btn-outline" @onclick="RemoveAvatarAsync" disabled="@_avatarUploading">
+                        Remove
+                    </button>
+                }
+            </div>
+            @if (_avatarUploading)
+            {
+                <p class="text-muted" style="margin-top: 8px; font-size: 13px;">Uploading...</p>
+            }
+            @if (!string.IsNullOrWhiteSpace(_avatarError))
+            {
+                <p class="text-danger" style="margin-top: 8px; font-size: 13px;">@_avatarError</p>
+            }
+        </section>
+
+        @* ── Profile Info Section ── *@
+        <section class="profile-card">
+            <h2>Profile Information</h2>
+            <EditForm Model="_profileModel" OnValidSubmit="SaveProfileAsync" FormName="edit-profile">
+                <DataAnnotationsValidator />
+
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input id="email" type="text" class="input" value="@_profile.Email" readonly disabled />
+                    <span class="hint">Email cannot be changed from this page.</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="displayName">Display Name</label>
+                    <InputText id="displayName" class="input" @bind-Value="_profileModel!.DisplayName" />
+                </div>
+
+                <div class="form-group">
+                    <label for="locale">Locale</label>
+                    <InputText id="locale" class="input" @bind-Value="_profileModel!.Locale" />
+                    <span class="hint">e.g., en-US, de-DE, fr-FR</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="timezone">Timezone</label>
+                    <InputText id="timezone" class="input" @bind-Value="_profileModel!.Timezone" />
+                    <span class="hint">e.g., UTC, America/New_York, Europe/London</span>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(_profileError))
+                {
+                    <div class="alert alert-danger">@_profileError</div>
+                }
+                @if (!string.IsNullOrWhiteSpace(_profileSuccess))
+                {
+                    <div class="alert alert-success">@_profileSuccess</div>
+                }
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" disabled="@_profileSaving">
+                        @(_profileSaving ? "Saving..." : "Save Changes")
+                    </button>
+                </div>
+            </EditForm>
+        </section>
+
+        @* ── Change Password Section ── *@
+        <section class="profile-card">
+            <h2>Change Password</h2>
+            <EditForm Model="_passwordModel" OnValidSubmit="ChangePasswordAsync" FormName="change-password">
+                <DataAnnotationsValidator />
+
+                <div class="form-group">
+                    <label for="currentPassword">Current Password</label>
+                    <InputText id="currentPassword" type="password" class="input" @bind-Value="_passwordModel!.CurrentPassword" />
+                </div>
+
+                <div class="form-group">
+                    <label for="newPassword">New Password</label>
+                    <InputText id="newPassword" type="password" class="input" @bind-Value="_passwordModel!.NewPassword" />
+                </div>
+
+                <div class="form-group">
+                    <label for="confirmPassword">Confirm New Password</label>
+                    <InputText id="confirmPassword" type="password" class="input" @bind-Value="_confirmPassword" />
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(_passwordError))
+                {
+                    <div class="alert alert-danger">@_passwordError</div>
+                }
+                @if (!string.IsNullOrWhiteSpace(_passwordSuccess))
+                {
+                    <div class="alert alert-success">@_passwordSuccess</div>
+                }
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" disabled="@_passwordSaving">
+                        @(_passwordSaving ? "Changing..." : "Change Password")
+                    </button>
+                </div>
+            </EditForm>
+        </section>
+
+        @* ── Account Info Section ── *@
+        <section class="profile-card">
+            <h2>Account Details</h2>
+            <dl class="profile-details">
+                <dt>User ID</dt>
+                <dd class="monospace">@_profile.UserId</dd>
+                <dt>Roles</dt>
+                <dd>
+                    @if (_profile.Roles.Count > 0)
+                    {
+                        @foreach (var role in _profile.Roles)
+                        {
+                            <span class="badge badge-muted">@role</span>
+                        }
+                    }
+                    else
+                    {
+                        <span class="text-muted">None</span>
+                    }
+                </dd>
+                <dt>MFA</dt>
+                <dd>
+                    <span class="badge @(_profile.IsMfaEnabled ? "badge-success" : "badge-muted")">
+                        @(_profile.IsMfaEnabled ? "Enabled" : "Disabled")
+                    </span>
+                </dd>
+                <dt>Member Since</dt>
+                <dd>@_profile.CreatedAt.ToString("MMMM d, yyyy")</dd>
+                @if (_profile.LastLoginAt.HasValue)
+                {
+                    <dt>Last Login</dt>
+                    <dd>@_profile.LastLoginAt.Value.ToString("MMMM d, yyyy 'at' h:mm tt")</dd>
+                }
+            </dl>
+        </section>
+    </div>
+}
+
+@code {
+    [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+
+    private bool _loading = true;
+    private UserProfileResponse? _profile;
+    private long _avatarCacheBuster = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+    // Profile editing
+    private ProfileEditModel? _profileModel;
+    private bool _profileSaving;
+    private string? _profileError;
+    private string? _profileSuccess;
+
+    // Password change
+    private PasswordChangeModel? _passwordModel;
+    private string? _confirmPassword;
+    private bool _passwordSaving;
+    private string? _passwordError;
+    private string? _passwordSuccess;
+
+    // Avatar
+    private bool _avatarUploading;
+    private string? _avatarError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _profile = await Api.GetCurrentUserProfileAsync();
+            if (_profile is not null)
+            {
+                _profileModel = new ProfileEditModel
+                {
+                    DisplayName = _profile.DisplayName,
+                    Locale = _profile.Locale,
+                    Timezone = _profile.Timezone,
+                };
+            }
+        }
+        catch
+        {
+            Toast.ShowError("Failed to load profile.");
+        }
+        finally
+        {
+            _passwordModel = new PasswordChangeModel();
+            _loading = false;
+        }
+    }
+
+    private string GetInitials()
+    {
+        if (_profile is null) return "?";
+
+        var name = _profile.DisplayName;
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            name = _profile.Email;
+        }
+
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+
+        // Try splitting on space for "First Last"
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2)
+        {
+            return $"{char.ToUpperInvariant(parts[0][0])}{char.ToUpperInvariant(parts[^1][0])}";
+        }
+
+        // Single name or email — just use first character
+        return char.ToUpperInvariant(name[0]).ToString();
+    }
+
+    // ── Profile Save ──
+
+    private async Task SaveProfileAsync()
+    {
+        if (_profile is null || _profileModel is null) return;
+        _profileError = null;
+        _profileSuccess = null;
+        _profileSaving = true;
+
+        try
+        {
+            var dto = new UpdateUserDto
+            {
+                DisplayName = _profileModel.DisplayName,
+                Locale = _profileModel.Locale,
+                Timezone = _profileModel.Timezone,
+            };
+
+            var result = await Api.UpdateUserAsync(_profile.UserId, dto);
+            if (result is null)
+            {
+                _profileError = "Failed to update profile.";
+                return;
+            }
+
+            _profile.DisplayName = result.DisplayName;
+            _profile.Locale = result.Locale;
+            _profile.Timezone = result.Timezone;
+            _profileSuccess = "Profile updated successfully.";
+            Toast.ShowSuccess("Profile updated.");
+        }
+        catch (HttpRequestException)
+        {
+            _profileError = "Failed to communicate with the server.";
+        }
+        finally
+        {
+            _profileSaving = false;
+        }
+    }
+
+    // ── Password Change ──
+
+    private async Task ChangePasswordAsync()
+    {
+        if (_passwordModel is null) return;
+        _passwordError = null;
+        _passwordSuccess = null;
+
+        if (string.IsNullOrWhiteSpace(_passwordModel.CurrentPassword) ||
+            string.IsNullOrWhiteSpace(_passwordModel.NewPassword))
+        {
+            _passwordError = "Both current and new passwords are required.";
+            return;
+        }
+
+        if (_passwordModel.NewPassword != _confirmPassword)
+        {
+            _passwordError = "New password and confirmation do not match.";
+            return;
+        }
+
+        _passwordSaving = true;
+
+        try
+        {
+            var request = new ChangePasswordRequest
+            {
+                CurrentPassword = _passwordModel.CurrentPassword,
+                NewPassword = _passwordModel.NewPassword,
+            };
+
+            var (success, errorMsg) = await Api.ChangePasswordAsync(request);
+            if (!success)
+            {
+                _passwordError = "Current password is incorrect or new password does not meet requirements.";
+                return;
+            }
+
+            _passwordSuccess = "Password changed successfully.";
+            _passwordModel = new PasswordChangeModel();
+            _confirmPassword = null;
+            Toast.ShowSuccess("Password changed.");
+        }
+        catch (HttpRequestException)
+        {
+            _passwordError = "Failed to communicate with the server.";
+        }
+        finally
+        {
+            _passwordSaving = false;
+        }
+    }
+
+    // ── Avatar Upload ──
+
+    private async Task HandleAvatarUploadAsync(InputFileChangeEventArgs e)
+    {
+        if (_profile is null) return;
+        _avatarError = null;
+        _avatarUploading = true;
+
+        try
+        {
+            var file = e.File;
+            if (file.Size > 5 * 1024 * 1024)
+            {
+                _avatarError = "Image must be smaller than 5 MB.";
+                return;
+            }
+
+            var allowedTypes = new[] { "image/jpeg", "image/png", "image/gif", "image/webp" };
+            if (!allowedTypes.Contains(file.ContentType, StringComparer.OrdinalIgnoreCase))
+            {
+                _avatarError = "Only JPEG, PNG, GIF, and WebP images are allowed.";
+                return;
+            }
+
+            using var stream = file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            ms.Position = 0;
+
+            var content = new StreamContent(ms);
+            content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(file.ContentType);
+
+            var avatarUrl = await Api.UploadAvatarAsync(_profile.UserId, content, file.Name);
+            if (avatarUrl is not null)
+            {
+                _profile.AvatarUrl = avatarUrl;
+                _avatarCacheBuster = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                Toast.ShowSuccess("Avatar updated.");
+            }
+            else
+            {
+                _avatarError = "Failed to upload avatar.";
+            }
+        }
+        catch (Exception)
+        {
+            _avatarError = "Failed to upload avatar.";
+        }
+        finally
+        {
+            _avatarUploading = false;
+        }
+    }
+
+    private async Task RemoveAvatarAsync()
+    {
+        if (_profile is null) return;
+        _avatarError = null;
+        _avatarUploading = true;
+
+        try
+        {
+            var deleted = await Api.DeleteAvatarAsync(_profile.UserId);
+            if (deleted)
+            {
+                _profile.AvatarUrl = null;
+                Toast.ShowSuccess("Avatar removed.");
+            }
+            else
+            {
+                _avatarError = "Failed to remove avatar.";
+            }
+        }
+        catch
+        {
+            _avatarError = "Failed to remove avatar.";
+        }
+        finally
+        {
+            _avatarUploading = false;
+        }
+    }
+
+    // ── Models ──
+
+    private sealed class ProfileEditModel
+    {
+        public string DisplayName { get; set; } = string.Empty;
+        public string Locale { get; set; } = "en-US";
+        public string Timezone { get; set; } = "UTC";
+    }
+
+    private sealed class PasswordChangeModel
+    {
+        public string CurrentPassword { get; set; } = string.Empty;
+        public string NewPassword { get; set; } = string.Empty;
+    }
+}

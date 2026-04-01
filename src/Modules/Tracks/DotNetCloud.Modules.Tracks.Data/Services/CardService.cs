@@ -197,8 +197,9 @@ public sealed class CardService
 
         var allUserIds = cards.SelectMany(c => c.Assignments.Select(a => a.UserId)).Distinct().ToList();
         var displayNames = await ResolveDisplayNamesAsync(allUserIds, cancellationToken);
+        var avatarUrls = await ResolveAvatarUrlsAsync(allUserIds, cancellationToken);
 
-        return cards.Select(c => MapToDto(c, displayNames)).ToList();
+        return cards.Select(c => MapToDto(c, displayNames, avatarUrls)).ToList();
     }
 
     /// <summary>
@@ -440,7 +441,8 @@ public sealed class CardService
 
         var assigneeIds = card.Assignments.Select(a => a.UserId).ToList();
         var displayNames = await ResolveDisplayNamesAsync(assigneeIds, cancellationToken);
-        return MapToDto(card, displayNames);
+        var avatarUrls = await ResolveAvatarUrlsAsync(assigneeIds, cancellationToken);
+        return MapToDto(card, displayNames, avatarUrls);
     }
 
     private async Task<IReadOnlyDictionary<Guid, string>> ResolveDisplayNamesAsync(IReadOnlyList<Guid> userIds, CancellationToken cancellationToken)
@@ -451,7 +453,15 @@ public sealed class CardService
         return await _userDirectory.GetDisplayNamesAsync(userIds, cancellationToken);
     }
 
-    internal static CardDto MapToDto(Card c, IReadOnlyDictionary<Guid, string>? displayNames = null) => new()
+    private async Task<IReadOnlyDictionary<Guid, string>> ResolveAvatarUrlsAsync(IReadOnlyList<Guid> userIds, CancellationToken cancellationToken)
+    {
+        if (_userDirectory is null || userIds.Count == 0)
+            return new Dictionary<Guid, string>();
+
+        return await _userDirectory.GetAvatarUrlsAsync(userIds, cancellationToken);
+    }
+
+    internal static CardDto MapToDto(Card c, IReadOnlyDictionary<Guid, string>? displayNames = null, IReadOnlyDictionary<Guid, string>? avatarUrls = null) => new()
     {
         Id = c.Id,
         SwimlaneId = c.SwimlaneId,
@@ -473,6 +483,7 @@ public sealed class CardService
         {
             UserId = a.UserId,
             DisplayName = displayNames is not null && displayNames.TryGetValue(a.UserId, out var name) ? name : null,
+            AvatarUrl = avatarUrls is not null && avatarUrls.TryGetValue(a.UserId, out var url) ? url : null,
             AssignedAt = a.AssignedAt
         }).ToList(),
         Labels = c.CardLabels.Where(cl => cl.Label is not null).Select(cl => new LabelDto

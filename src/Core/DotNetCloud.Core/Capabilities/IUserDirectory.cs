@@ -19,6 +19,12 @@ public interface IUserDirectory : ICapabilityInterface
     Task<IReadOnlyDictionary<Guid, string>> GetDisplayNamesAsync(IEnumerable<Guid> userIds, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets avatar URLs for a batch of user IDs.
+    /// IDs that do not have an avatar set are omitted from the result.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, string>> GetAvatarUrlsAsync(IEnumerable<Guid> userIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Searches active users by display name or email (case-insensitive substring match).
     /// Returns at most <paramref name="maxResults"/> results ordered by display name.
     /// </summary>

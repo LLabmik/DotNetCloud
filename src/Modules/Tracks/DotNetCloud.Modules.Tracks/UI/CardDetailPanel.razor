@@ -246,7 +246,14 @@
                     @foreach (var assign in Card.Assignments)
                     {
                         <div class="tracks-assignee-row">
-                            <span class="tracks-avatar-sm">@GetInitials(assign.DisplayName)</span>
+                            @if (!string.IsNullOrEmpty(assign.AvatarUrl))
+                            {
+                                <img class="tracks-avatar-sm tracks-avatar-sm-img" src="@assign.AvatarUrl" alt="@(assign.DisplayName ?? "User")" />
+                            }
+                            else
+                            {
+                                <span class="tracks-avatar-sm">@GetInitials(assign.DisplayName)</span>
+                            }
                             <span>@(assign.DisplayName ?? "User")</span>
                             <button class="tracks-icon-btn" @onclick="() => UnassignUserAsync(assign.UserId)">×</button>
                         </div>

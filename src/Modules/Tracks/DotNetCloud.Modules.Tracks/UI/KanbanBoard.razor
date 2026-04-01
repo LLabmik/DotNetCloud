@@ -168,9 +168,16 @@
                                         <div class="tracks-card-assignees">
                                             @foreach (var assign in card.Assignments.Take(3))
                                             {
-                                                <span class="tracks-card-avatar" title="@(assign.DisplayName ?? "User")">
-                                                    @GetInitials(assign.DisplayName)
-                                                </span>
+                                                @if (!string.IsNullOrEmpty(assign.AvatarUrl))
+                                                {
+                                                    <img class="tracks-card-avatar-img" src="@assign.AvatarUrl" alt="@(assign.DisplayName ?? "User")" title="@(assign.DisplayName ?? "User")" />
+                                                }
+                                                else
+                                                {
+                                                    <span class="tracks-card-avatar" title="@(assign.DisplayName ?? "User")">
+                                                        @GetInitials(assign.DisplayName)
+                                                    </span>
+                                                }
                                             }
                                             @if (card.Assignments.Count > 3)
                                             {
@@ -178,6 +185,7 @@
                                                     +@(card.Assignments.Count - 3)
                                                 </span>
                                             }
+                                            <span class="tracks-card-assignee-name">@string.Join(", ", card.Assignments.Select(a => a.DisplayName ?? "User"))</span>
                                         </div>
                                     </div>
                                 }

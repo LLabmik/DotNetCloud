@@ -89,6 +89,7 @@ public partial class ChatPageLayout : ComponentBase, IDisposable
     private string _currentUserRole = "Member";
     private bool _currentUserIsAdminOrOwner;
     private readonly Dictionary<Guid, string> _displayNameCache = [];
+    private readonly Dictionary<Guid, string> _avatarUrlCache = [];
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
@@ -597,6 +598,23 @@ public partial class ChatPageLayout : ComponentBase, IDisposable
         {
             var caller = await GetCallerContextAsync();
             var members = await MemberService.ListMembersAsync(channelId, caller);
+
+            // Resolve avatar URLs for members not yet cached
+            var memberIdsNeedingAvatars = members
+                .Select(m => m.UserId)
+                .Where(id => !_displayNameCache.ContainsKey(id))
+                .Distinct()
+                .ToList();
+
+            if (memberIdsNeedingAvatars.Count > 0)
+            {
+                var avatarUrls = await UserDirectory.GetAvatarUrlsAsync(memberIdsNeedingAvatars);
+                foreach (var (id, url) in avatarUrls)
+                {
+                    _avatarUrlCache[id] = url;
+                }
+            }
+
             _members = members.Select(ToMemberViewModel).ToList();
             _memberSuggestions = _members;
 
@@ -1031,6 +1049,12 @@ public partial class ChatPageLayout : ComponentBase, IDisposable
         {
             _displayNameCache[id] = name;
         }
+
+        var avatarUrls = await UserDirectory.GetAvatarUrlsAsync(unknownIds);
+        foreach (var (id, url) in avatarUrls)
+        {
+            _avatarUrlCache[id] = url;
+        }
     }
 
     private MessageViewModel ToMessageViewModel(MessageDto dto)
@@ -1040,6 +1064,7 @@ public partial class ChatPageLayout : ComponentBase, IDisposable
             Id = dto.Id,
             SenderUserId = dto.SenderUserId,
             SenderName = _displayNameCache.GetValueOrDefault(dto.SenderUserId, dto.SenderUserId.ToString()[..8]),
+            SenderAvatarUrl = _avatarUrlCache.GetValueOrDefault(dto.SenderUserId),
             Content = dto.Content,
             Type = dto.Type,
             SentAt = dto.SentAt,
@@ -1068,6 +1093,7 @@ public partial class ChatPageLayout : ComponentBase, IDisposable
         {
             UserId = dto.UserId,
             DisplayName = string.IsNullOrEmpty(dto.DisplayName) ? dto.UserId.ToString()[..8] : dto.DisplayName,
+            AvatarUrl = _avatarUrlCache.GetValueOrDefault(dto.UserId),
             Username = dto.Username,
             Role = dto.Role,
             Status = dto.UserId == _currentUserId ? "Online" : "Offline"

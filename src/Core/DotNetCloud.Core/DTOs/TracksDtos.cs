@@ -354,6 +354,11 @@ public sealed record CardAssignmentDto
     public string? DisplayName { get; init; }
 
     /// <summary>
+    /// The assigned user's avatar URL, if set.
+    /// </summary>
+    public string? AvatarUrl { get; init; }
+
+    /// <summary>
     /// Timestamp when the user was assigned.
     /// </summary>
     public required DateTime AssignedAt { get; init; }

@@ -68,8 +68,7 @@ public sealed class UserSettingsController : ControllerBase
         userId = Guid.Empty;
 
         var claimValue = User.FindFirst("sub")?.Value
-            ?? User.FindFirst("user_id")?.Value
-            ?? User.FindFirst("nameidentifier")?.Value;
+            ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
         return claimValue is not null && Guid.TryParse(claimValue, out userId);
     }

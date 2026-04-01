@@ -208,12 +208,159 @@ public class UserManagementController : ControllerBase
     }
 
     // ---------------------------------------------------------------------------
+    // Avatar
+    // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// Upload an avatar image for a user. Non-admin users can only upload for themselves.
+    /// </summary>
+    /// <param name="userId">The user's unique identifier.</param>
+    /// <param name="file">The avatar image file.</param>
+    /// <returns>The updated avatar URL.</returns>
+    [HttpPost("{userId:guid}/avatar")]
+    [RequestSizeLimit(5 * 1024 * 1024)] // 5 MB
+    public async Task<IActionResult> UploadAvatarAsync(Guid userId, IFormFile file)
+    {
+        if (!IsAdmin() && !IsCurrentUser(userId))
+        {
+            return Forbid();
+        }
+
+        if (file is null || file.Length == 0)
+        {
+            return BadRequest(new { success = false, error = new { code = "NO_FILE", message = "No file provided." } });
+        }
+
+        var allowedTypes = new[] { "image/jpeg", "image/png", "image/gif", "image/webp" };
+        if (!allowedTypes.Contains(file.ContentType, StringComparer.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { success = false, error = new { code = "INVALID_FILE_TYPE", message = "Only JPEG, PNG, GIF, and WebP images are allowed." } });
+        }
+
+        try
+        {
+            var avatarDir = GetAvatarStoragePath();
+            Directory.CreateDirectory(avatarDir);
+
+            // Delete existing avatar files for this user
+            foreach (var existing in Directory.GetFiles(avatarDir, $"{userId}.*"))
+            {
+                System.IO.File.Delete(existing);
+            }
+
+            var ext = Path.GetExtension(file.FileName);
+            if (string.IsNullOrWhiteSpace(ext))
+            {
+                ext = file.ContentType switch
+                {
+                    "image/jpeg" => ".jpg",
+                    "image/png" => ".png",
+                    "image/gif" => ".gif",
+                    "image/webp" => ".webp",
+                    _ => ".jpg",
+                };
+            }
+
+            var fileName = $"{userId}{ext}";
+            var filePath = Path.Combine(avatarDir, fileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            // Update the user's AvatarUrl to point to the serve endpoint
+            var avatarUrl = $"/api/v1/core/users/{userId}/avatar";
+            await _userManagementService.UpdateUserAsync(userId, new UpdateUserDto { AvatarUrl = avatarUrl });
+
+            _logger.LogInformation("Avatar uploaded for user {UserId}", userId);
+            return Ok(new { success = true, data = new { avatarUrl } });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to upload avatar for user {UserId}", userId);
+            return StatusCode(500, new { success = false, error = new { code = "UPLOAD_FAILED", message = "Failed to upload avatar." } });
+        }
+    }
+
+    /// <summary>
+    /// Get a user's avatar image.
+    /// </summary>
+    /// <param name="userId">The user's unique identifier.</param>
+    /// <returns>The avatar image file.</returns>
+    [HttpGet("{userId:guid}/avatar")]
+    [AllowAnonymous]
+    public IActionResult GetAvatar(Guid userId)
+    {
+        var avatarDir = GetAvatarStoragePath();
+        var files = Directory.Exists(avatarDir)
+            ? Directory.GetFiles(avatarDir, $"{userId}.*")
+            : [];
+
+        if (files.Length == 0)
+        {
+            return NotFound(new { success = false, error = new { code = "NO_AVATAR", message = "No avatar found." } });
+        }
+
+        var avatarPath = files[0];
+        var ext = Path.GetExtension(avatarPath).ToLowerInvariant();
+        var contentType = ext switch
+        {
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            ".gif" => "image/gif",
+            ".webp" => "image/webp",
+            _ => "application/octet-stream",
+        };
+
+        var stream = new FileStream(avatarPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        return File(stream, contentType, enableRangeProcessing: true);
+    }
+
+    /// <summary>
+    /// Delete a user's avatar. Non-admin users can only delete their own avatar.
+    /// </summary>
+    /// <param name="userId">The user's unique identifier.</param>
+    /// <returns>Confirmation that the avatar was deleted.</returns>
+    [HttpDelete("{userId:guid}/avatar")]
+    public async Task<IActionResult> DeleteAvatarAsync(Guid userId)
+    {
+        if (!IsAdmin() && !IsCurrentUser(userId))
+        {
+            return Forbid();
+        }
+
+        var avatarDir = GetAvatarStoragePath();
+        if (Directory.Exists(avatarDir))
+        {
+            foreach (var existing in Directory.GetFiles(avatarDir, $"{userId}.*"))
+            {
+                System.IO.File.Delete(existing);
+            }
+        }
+
+        await _userManagementService.UpdateUserAsync(userId, new UpdateUserDto { AvatarUrl = null });
+
+        _logger.LogInformation("Avatar deleted for user {UserId}", userId);
+        return Ok(new { success = true, message = "Avatar deleted." });
+    }
+
+    // ---------------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------------
 
+    private static string GetAvatarStoragePath()
+    {
+        var dataDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
+        return !string.IsNullOrWhiteSpace(dataDir)
+            ? Path.Combine(dataDir, "avatars")
+            : Path.Combine(Directory.GetCurrentDirectory(), "storage", "avatars");
+    }
+
     private bool TryGetUserId(out Guid userId)
     {
-        var claim = User.FindFirst("sub")?.Value;
+        var claim = User.FindFirst("sub")?.Value
+            ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         return Guid.TryParse(claim, out userId);
     }
 

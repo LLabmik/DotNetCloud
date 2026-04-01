@@ -39,7 +39,7 @@
                 <AuthorizeView>
                     <Authorized>
                         <div class="user-menu">
-                            <span class="user-name">@context.User.Identity?.Name</span>
+                            <a href="profile" class="user-name-link">@context.User.Identity?.Name</a>
                             <a href="auth/logout" class="btn btn-sm btn-outline">Logout</a>
                         </div>
                     </Authorized>

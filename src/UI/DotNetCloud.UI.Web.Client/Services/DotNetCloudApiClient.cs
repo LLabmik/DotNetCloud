@@ -599,6 +599,67 @@ public sealed class DotNetCloudApiClient
     }
 
     // -----------------------------------------------------------------------
+    // Current User Profile
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Gets the current authenticated user's profile.
+    /// </summary>
+    public async Task<UserProfileResponse?> GetCurrentUserProfileAsync(CancellationToken ct = default)
+    {
+        var response = await _http.GetAsync("api/v1/core/auth/user", ct);
+        if (!response.IsSuccessStatusCode) return null;
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<UserProfileResponse>>(JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Changes the current user's password.
+    /// </summary>
+    public async Task<(bool Success, string? ErrorMessage)> ChangePasswordAsync(ChangePasswordRequest request, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsJsonAsync("api/v1/core/auth/password/change", request, ct);
+        if (response.IsSuccessStatusCode)
+        {
+            return (true, null);
+        }
+
+        var body = await response.Content.ReadAsStringAsync(ct);
+        return (false, body);
+    }
+
+    /// <summary>
+    /// Uploads an avatar image for the specified user.
+    /// </summary>
+    public async Task<string?> UploadAvatarAsync(Guid userId, StreamContent fileContent, string fileName, CancellationToken ct = default)
+    {
+        using var form = new MultipartFormDataContent();
+        form.Add(fileContent, "file", fileName);
+
+        var response = await _http.PostAsync($"api/v1/core/users/{userId}/avatar", form, ct);
+        if (!response.IsSuccessStatusCode) return null;
+
+        var json = await response.Content.ReadAsStringAsync(ct);
+        using var doc = System.Text.Json.JsonDocument.Parse(json);
+        if (doc.RootElement.TryGetProperty("data", out var data) &&
+            data.TryGetProperty("avatarUrl", out var url))
+        {
+            return url.GetString();
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Deletes the avatar for the specified user.
+    /// </summary>
+    public async Task<bool> DeleteAvatarAsync(Guid userId, CancellationToken ct = default)
+    {
+        var response = await _http.DeleteAsync($"api/v1/core/users/{userId}/avatar", ct);
+        return response.IsSuccessStatusCode;
+    }
+
+    // -----------------------------------------------------------------------
     // Response envelope
     // -----------------------------------------------------------------------
 

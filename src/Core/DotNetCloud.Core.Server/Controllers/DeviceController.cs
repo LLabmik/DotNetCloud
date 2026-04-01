@@ -66,7 +66,8 @@ public class DeviceController : ControllerBase
 
     private bool TryGetUserId(out Guid userId)
     {
-        var claim = User.FindFirst("sub")?.Value;
+        var claim = User.FindFirst("sub")?.Value
+            ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         return Guid.TryParse(claim, out userId);
     }
 }

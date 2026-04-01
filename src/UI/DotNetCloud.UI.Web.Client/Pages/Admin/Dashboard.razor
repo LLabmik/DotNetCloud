@@ -88,7 +88,14 @@ else
                         <tr>
                             <td>
                                 <div class="dash-user-cell">
-                                    <div class="dash-avatar" title="@user.DisplayName">@GetInitials(user.DisplayName)</div>
+                                    @if (!string.IsNullOrWhiteSpace(user.AvatarUrl))
+                                    {
+                                        <img src="@user.AvatarUrl" alt="@user.DisplayName" class="dash-avatar-img" />
+                                    }
+                                    else
+                                    {
+                                        <div class="dash-avatar" title="@user.DisplayName">@GetInitials(user.DisplayName)</div>
+                                    }
                                     <a href="/admin/users/@user.Id" class="dash-user-name">@user.DisplayName</a>
                                 </div>
                             </td>
