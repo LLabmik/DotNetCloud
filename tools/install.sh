@@ -857,7 +857,12 @@ resolve_public_origin_from_config() {
     fi
 
     local host
-    host=$(grep -oP '"(?:letsEncryptDomain|LetsEncryptDomain)"\s*:\s*"\K[^"]+' "$config_file" 2>/dev/null | head -n1 || true)
+    # Prefer selfSignedTlsHost (matches the CLI's hostname resolution order),
+    # then letsEncryptDomain, then system hostname.
+    host=$(grep -oP '"(?:selfSignedTlsHost|SelfSignedTlsHost)"\s*:\s*"\K[^"]+' "$config_file" 2>/dev/null | head -n1 || true)
+    if [[ -z "$host" ]]; then
+        host=$(grep -oP '"(?:letsEncryptDomain|LetsEncryptDomain)"\s*:\s*"\K[^"]+' "$config_file" 2>/dev/null | head -n1 || true)
+    fi
     if [[ -z "$host" ]]; then
         host=$(hostname -f 2>/dev/null || true)
     fi
