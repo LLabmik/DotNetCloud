@@ -123,12 +123,139 @@ DotNetCloud uses a **modular monolith with process-isolated modules** architectu
 - **Reliability** — A crashed module doesn't take down the whole system
 - **Extensibility** — Third-party modules use the exact same architecture as first-party ones
 
-```
-dotnetcloud (core process — supervisor)
-├── dotnetcloud-module files      (gRPC)
-├── dotnetcloud-module chat       (gRPC)
-├── dotnetcloud-module calendar   (gRPC)
-└── livekit                       (optional, video calling)
+```mermaid
+graph TB
+    %% ── Clients ──────────────────────────────────────────────
+    subgraph Clients["Clients"]
+        direction LR
+        BlazorUI["🌐 Blazor Web UI<br/><small>Interactive Server + WASM</small>"]
+        Desktop["🖥️ Desktop Sync Client<br/><small>Avalonia · Windows &amp; Linux</small>"]
+        Android["📱 Android App<br/><small>.NET MAUI</small>"]
+        CLI["⌨️ CLI<br/><small>dotnetcloud setup / serve / …</small>"]
+    end
+
+    %% ── Core Process ─────────────────────────────────────────
+    subgraph Core["DotNetCloud Core Process (Supervisor)"]
+        direction TB
+
+        subgraph CoreServices["Core Services"]
+            direction LR
+            Supervisor["Process<br/>Supervisor"]
+            AuthServer["OpenIddict<br/>OAuth2 / OIDC"]
+            Identity["ASP.NET Core<br/>Identity + MFA"]
+            SignalR["SignalR Hub<br/><small>Real-time · Presence</small>"]
+            CapSystem["Capability<br/>System"]
+            EventBus["Event Bus<br/><small>Pub / Sub</small>"]
+        end
+
+        subgraph Infra["Shared Infrastructure"]
+            direction LR
+            Serilog["Serilog<br/><small>Structured Logging</small>"]
+            OTel["OpenTelemetry<br/><small>Metrics · Traces</small>"]
+            HealthChecks["Health Checks<br/><small>/health · /ready · /live</small>"]
+            SecurityMW["Security<br/>Middleware<br/><small>CSP · HSTS · Headers</small>"]
+        end
+
+        RESTAPI["REST API  ·  gRPC Host"]
+    end
+
+    %% ── Module Processes ─────────────────────────────────────
+    subgraph Modules["Module Processes (Process-Isolated)"]
+        direction LR
+
+        subgraph FilesM["📁 Files Module"]
+            direction TB
+            FilesLogic["Files · Sharing<br/>Trash · Versions<br/>Chunked Upload"]
+            FilesWOPI["WOPI Host"]
+            FilesDB[("Files DB<br/><small>files.*</small>")]
+            FilesLogic --- FilesDB
+        end
+
+        subgraph ChatM["💬 Chat Module"]
+            direction TB
+            ChatLogic["Channels · DMs<br/>Reactions · Typing"]
+            ChatDB[("Chat DB<br/><small>chat.*</small>")]
+            ChatLogic --- ChatDB
+        end
+
+        subgraph CalM["📅 Calendar Module"]
+            direction TB
+            CalLogic["Events · Recurring<br/>CalDAV"]
+            CalDB[("Calendar DB<br/><small>calendar.*</small>")]
+            CalLogic --- CalDB
+        end
+
+        subgraph ConM["👤 Contacts Module"]
+            direction TB
+            ConLogic["vCard · Groups<br/>CardDAV"]
+            ConDB[("Contacts DB<br/><small>contacts.*</small>")]
+            ConLogic --- ConDB
+        end
+
+        subgraph NotesM["📝 Notes Module"]
+            direction TB
+            NotesLogic["Markdown · Tags<br/>Folders · Search"]
+            NotesDB[("Notes DB<br/><small>notes.*</small>")]
+            NotesLogic --- NotesDB
+        end
+
+        subgraph TracksM["📋 Tracks Module"]
+            direction TB
+            TracksLogic["Boards · Cards<br/>Sprints · Time"]
+            TracksDB[("Tracks DB<br/><small>tracks.*</small>")]
+            TracksLogic --- TracksDB
+        end
+    end
+
+    %% ── External / Managed Components ────────────────────────
+    subgraph Managed["Managed Components (Optional)"]
+        direction LR
+        Collabora["📄 Collabora CODE<br/><small>Document Editing · WOPI</small>"]
+        LiveKit["📹 LiveKit<br/><small>WebRTC SFU · Video Calls</small>"]
+    end
+
+    %% ── Core Database ────────────────────────────────────────
+    CoreDB[("Core Database<br/><small>PostgreSQL · SQL Server · MariaDB</small><br/><small>Users · Roles · Teams · Orgs<br/>Permissions · Settings · Modules</small>")]
+
+    %% ── Connections: Clients → Core ──────────────────────────
+    BlazorUI -- "HTTP · SignalR<br/>WebSocket" --> RESTAPI
+    Desktop -- "REST API<br/>OAuth2 PKCE" --> RESTAPI
+    Android -- "REST API · SignalR<br/>OAuth2 PKCE" --> RESTAPI
+    CLI -- "HTTP" --> RESTAPI
+
+    %% ── Connections: Core ↔ Modules (gRPC) ───────────────────
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> FilesLogic
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> ChatLogic
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> CalLogic
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> ConLogic
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> NotesLogic
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> TracksLogic
+
+    %% ── Connections: Core → Database ─────────────────────────
+    CoreServices --> CoreDB
+
+    %% ── Connections: Managed Components ──────────────────────
+    FilesWOPI <-- "WOPI Protocol" --> Collabora
+    SignalR -. "WebRTC Signaling" .-> LiveKit
+
+    %% ── Desktop Sync Detail ──────────────────────────────────
+    Desktop -. "IPC" .-> SyncService["🔄 Sync Service<br/><small>Background Daemon<br/>Windows Service / systemd</small>"]
+    SyncService -- "REST API<br/>Chunked Upload" --> RESTAPI
+
+    %% ── Styling ──────────────────────────────────────────────
+    classDef clientNode fill:#4a90d9,stroke:#2c5f8a,color:#fff
+    classDef coreNode fill:#2ecc71,stroke:#1a9c54,color:#fff
+    classDef moduleNode fill:#e67e22,stroke:#c0651a,color:#fff
+    classDef dbNode fill:#9b59b6,stroke:#7d3c98,color:#fff
+    classDef managedNode fill:#95a5a6,stroke:#7f8c8d,color:#fff
+    classDef infraNode fill:#1abc9c,stroke:#148f77,color:#fff
+
+    class BlazorUI,Desktop,Android,CLI,SyncService clientNode
+    class Supervisor,AuthServer,Identity,SignalR,CapSystem,EventBus,RESTAPI coreNode
+    class Serilog,OTel,HealthChecks,SecurityMW infraNode
+    class FilesLogic,FilesWOPI,ChatLogic,CalLogic,ConLogic,NotesLogic,TracksLogic moduleNode
+    class CoreDB,FilesDB,ChatDB,CalDB,ConDB,NotesDB,TracksDB dbNode
+    class Collabora,LiveKit managedNode
 ```
 
 For full details, see the [Architecture Document](docs/architecture/ARCHITECTURE.md).
