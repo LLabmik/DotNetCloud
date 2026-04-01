@@ -73,9 +73,9 @@ sudo -v || { error "sudo authentication failed."; exit 1; }
 info "Publishing server to $OUTPUT_DIR..."
 dotnet publish "$PROJECT_PATH" --configuration "$CONFIGURATION" --output "$OUTPUT_DIR"
 
-info "Publishing CLI to $CLI_OUTPUT_DIR (self-contained, linux-x64)..."
+info "Publishing CLI to $CLI_OUTPUT_DIR (framework-dependent, linux-x64)..."
 dotnet publish "$CLI_PROJECT_PATH" --configuration "$CONFIGURATION" \
-    --runtime linux-x64 --self-contained --output "$CLI_OUTPUT_DIR"
+    --runtime linux-x64 --self-contained false --output "$CLI_OUTPUT_DIR"
 
 # Copy published output to the installed locations.
 # The systemd service runs /opt/dotnetcloud/dotnetcloud start which:
@@ -99,7 +99,7 @@ if ! stop_service; then
     exit 1
 fi
 
-# Deploy CLI (self-contained binary that sets Collabora proxy config, etc.)
+# Deploy CLI (framework-dependent binary that sets Collabora proxy config, etc.)
 if [[ -d "$INSTALL_CLI_ROOT" ]]; then
     info "Deploying CLI to $INSTALL_CLI_ROOT..."
     sudo cp -r "$CLI_OUTPUT_DIR"/* "$INSTALL_CLI_ROOT/"
