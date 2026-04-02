@@ -12,7 +12,7 @@ public partial class TracksPage : ComponentBase, IDisposable
     [Inject] private ITracksApiClient ApiClient { get; set; } = default!;
     [Inject] private ITracksSignalRService SignalRService { get; set; } = default!;
 
-    private enum TracksView { Boards, Board, Teams, Planning, Wizard, Backlog }
+    private enum TracksView { Boards, Board, Teams, Planning, Wizard, Backlog, Timeline, Review }
 
     private TracksView _view = TracksView.Boards;
     private bool _sidebarCollapsed;
@@ -38,6 +38,12 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     // Sprint planning
     private SprintDto? _planningSprint;
+
+    // Review session
+    private ReviewSessionDto? _activeReviewSession;
+    private bool _isHost;
+    private bool _isStartingReview;
+    private string? _reviewStartError;
 
     /// <summary>First sprint in Planning or Active status, for sidebar nav.</summary>
     private SprintDto? PlannableSprint => _sprints.FirstOrDefault(s => s.Status is SprintStatus.Planning or SprintStatus.Active);
@@ -126,6 +132,107 @@ public partial class TracksPage : ComponentBase, IDisposable
         _showBoardSettings = false;
         _showSprints = false;
         _view = TracksView.Backlog;
+    }
+
+    private void OpenTimeline()
+    {
+        if (_selectedBoard?.Mode != BoardMode.Team) return;
+        _selectedCard = null;
+        _showBoardSettings = false;
+        _showSprints = false;
+        _view = TracksView.Timeline;
+    }
+
+    private async Task OpenReview()
+    {
+        if (_selectedBoard?.Mode != BoardMode.Team) return;
+        _selectedCard = null;
+        _showBoardSettings = false;
+        _showSprints = false;
+
+        // Check for an existing active session on this board
+        try
+        {
+            _activeReviewSession = await ApiClient.GetActiveReviewSessionAsync(_selectedBoard.Id);
+        }
+        catch
+        {
+            _activeReviewSession = null;
+        }
+
+        _isHost = false;
+        _view = TracksView.Review;
+    }
+
+    private async Task HandleReviewStarted(ReviewSessionDto session)
+    {
+        _activeReviewSession = session;
+        _isHost = true;
+        StateHasChanged();
+    }
+
+    private async Task HandleReviewJoined(ReviewSessionDto session)
+    {
+        _activeReviewSession = session;
+        _isHost = false;
+        StateHasChanged();
+    }
+
+    private async Task HandleReviewEnded()
+    {
+        _activeReviewSession = null;
+        _isHost = false;
+        _view = TracksView.Board;
+        await RefreshBoardDataAsync();
+        StateHasChanged();
+    }
+
+    private async Task StartReviewSession()
+    {
+        if (_selectedBoard is null) return;
+        _isStartingReview = true;
+        _reviewStartError = null;
+        try
+        {
+            var session = await ApiClient.StartReviewSessionAsync(_selectedBoard.Id);
+            if (session is not null)
+            {
+                _activeReviewSession = session;
+                _isHost = true;
+            }
+            else
+            {
+                _reviewStartError = "Failed to start review session.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _reviewStartError = ex.Message;
+        }
+        finally
+        {
+            _isStartingReview = false;
+        }
+    }
+
+    private async Task HandleReviewSessionUpdated(ReviewSessionDto session)
+    {
+        _activeReviewSession = session;
+        StateHasChanged();
+        await Task.CompletedTask;
+    }
+
+    private async Task HandleTimelineSprintSelected(SprintDto sprint)
+    {
+        // Navigate to the board view (kanban) — the sprint tab selection
+        // is handled by setting the sprint filter on the board.
+        _view = TracksView.Board;
+        StateHasChanged();
+    }
+
+    private async Task HandlePlanAdjusted()
+    {
+        await RefreshSprintsAsync();
     }
 
     private async Task HandleBacklogChanged()
@@ -401,6 +508,7 @@ public partial class TracksPage : ComponentBase, IDisposable
         SignalRService.CommentActionReceived -= OnCommentActionReceived;
         SignalRService.SprintActionReceived -= OnSprintActionReceived;
         SignalRService.BoardMemberActionReceived -= OnBoardMemberActionReceived;
+        SignalRService.ReviewSessionStateChanged -= OnReviewSessionStateChanged;
     }
 
     // ── Real-time Event Subscriptions ───────────────────────
@@ -412,6 +520,7 @@ public partial class TracksPage : ComponentBase, IDisposable
         SignalRService.CommentActionReceived += OnCommentActionReceived;
         SignalRService.SprintActionReceived += OnSprintActionReceived;
         SignalRService.BoardMemberActionReceived += OnBoardMemberActionReceived;
+        SignalRService.ReviewSessionStateChanged += OnReviewSessionStateChanged;
     }
 
     private async void OnCardActionReceived(Guid boardId, Guid cardId, string action)
@@ -459,6 +568,35 @@ public partial class TracksPage : ComponentBase, IDisposable
         await InvokeAsync(async () =>
         {
             await RefreshBoardAsync();
+        });
+    }
+
+    private async void OnReviewSessionStateChanged(Guid sessionId, Guid boardId, string action)
+    {
+        if (_selectedBoard?.Id != boardId) return;
+        await InvokeAsync(async () =>
+        {
+            if (action is "ended")
+            {
+                _activeReviewSession = null;
+                _isHost = false;
+                if (_view == TracksView.Review)
+                {
+                    _view = TracksView.Board;
+                }
+            }
+            else
+            {
+                try
+                {
+                    _activeReviewSession = await ApiClient.GetReviewSessionAsync(sessionId);
+                }
+                catch
+                {
+                    _activeReviewSession = null;
+                }
+            }
+            StateHasChanged();
         });
     }
 }

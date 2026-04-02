@@ -68,6 +68,16 @@
                         <span class="tracks-nav-icon">📋</span>
                         @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Backlog</span> }
                     </button>
+                    <button class="tracks-nav-item @(_view == TracksView.Timeline ? "active" : "")"
+                            @onclick="OpenTimeline" title="Year Timeline">
+                        <span class="tracks-nav-icon">📊</span>
+                        @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Timeline</span> }
+                    </button>
+                    <button class="tracks-nav-item @(_view == TracksView.Review ? "active" : "")"
+                            @onclick="OpenReview" title="Live Review">
+                        <span class="tracks-nav-icon">🎯</span>
+                        @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Review</span> }
+                    </button>
                 }
                 <button class="tracks-nav-item"
                         @onclick="ShowBoardSettings" title="Settings">
@@ -223,6 +233,55 @@
                                              OnClose="CloseCardDetail"
                                              OnCardUpdated="HandleCardUpdated"
                                              OnCardDeleted="HandleCardDeleted" />
+                        }
+                    }
+                    break;
+
+                case TracksView.Timeline:
+                    @if (_selectedBoard is not null)
+                    {
+                        <TimelineView BoardId="_selectedBoard.Id"
+                                      OnSprintSelected="HandleTimelineSprintSelected"
+                                      OnOpenWizard="OpenWizard"
+                                      OnPlanAdjusted="HandlePlanAdjusted" />
+                    }
+                    break;
+
+                case TracksView.Review:
+                    @if (_selectedBoard is not null)
+                    {
+                        @if (_activeReviewSession is not null && _isHost)
+                        {
+                            <ReviewSessionHost Session="_activeReviewSession"
+                                               Board="_selectedBoard"
+                                               Sprints="_sprints"
+                                               OnSessionEnded="HandleReviewEnded"
+                                               OnSessionUpdated="HandleReviewSessionUpdated" />
+                        }
+                        else if (_activeReviewSession is not null)
+                        {
+                            <ReviewSessionParticipant Session="_activeReviewSession"
+                                                      Board="_selectedBoard"
+                                                      OnLeft="HandleReviewEnded"
+                                                      OnSessionUpdated="HandleReviewSessionUpdated" />
+                        }
+                        else
+                        {
+                            @* No active session — show start/join options *@
+                            <div class="review-landing">
+                                <div class="review-landing-icon">🎯</div>
+                                <h3>Live Review Session</h3>
+                                <p>Start a review session to synchronize card navigation with your team and run planning poker in real-time.</p>
+                                <div class="review-landing-actions">
+                                    <button class="btn btn-primary" @onclick="StartReviewSession" disabled="@_isStartingReview">
+                                        🚀 Start Review Session
+                                    </button>
+                                </div>
+                                @if (_reviewStartError is not null)
+                                {
+                                    <div class="review-error">@_reviewStartError</div>
+                                }
+                            </div>
                         }
                     }
                     break;

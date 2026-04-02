@@ -553,7 +553,38 @@ public sealed class TracksApiClient : ITracksApiClient
         response.EnsureSuccessStatusCode();
     }
 
-    // ── Poker Vote Status ───────────────────────────────────
+    // ── Planning Poker ────────────────────────────────────
+
+    public async Task<PokerSessionDto?> GetPokerSessionAsync(Guid sessionId, CancellationToken ct = default)
+        => await ReadDataAsync<PokerSessionDto>($"api/v1/poker/{sessionId}", ct);
+
+    public async Task<PokerSessionDto?> SubmitPokerVoteAsync(Guid sessionId, SubmitPokerVoteDto dto, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/poker/{sessionId}/vote", dto, ct);
+        response.EnsureSuccessStatusCode();
+        return await ReadDataFromResponseAsync<PokerSessionDto>(response, ct);
+    }
+
+    public async Task<PokerSessionDto?> RevealPokerSessionAsync(Guid sessionId, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PostAsync($"api/v1/poker/{sessionId}/reveal", null, ct);
+        response.EnsureSuccessStatusCode();
+        return await ReadDataFromResponseAsync<PokerSessionDto>(response, ct);
+    }
+
+    public async Task<PokerSessionDto?> AcceptPokerEstimateAsync(Guid sessionId, AcceptPokerEstimateDto dto, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/poker/{sessionId}/accept", dto, ct);
+        response.EnsureSuccessStatusCode();
+        return await ReadDataFromResponseAsync<PokerSessionDto>(response, ct);
+    }
+
+    public async Task<PokerSessionDto?> StartNewPokerRoundAsync(Guid sessionId, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PostAsync($"api/v1/poker/{sessionId}/new-round", null, ct);
+        response.EnsureSuccessStatusCode();
+        return await ReadDataFromResponseAsync<PokerSessionDto>(response, ct);
+    }
 
     public async Task<IReadOnlyList<PokerVoteStatusDto>> GetPokerVoteStatusAsync(Guid sessionId, CancellationToken ct = default)
         => await ReadDataAsync<IReadOnlyList<PokerVoteStatusDto>>($"api/v1/poker/{sessionId}/vote-status", ct) ?? [];

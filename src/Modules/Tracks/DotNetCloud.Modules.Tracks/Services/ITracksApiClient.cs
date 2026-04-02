@@ -147,7 +147,12 @@ public interface ITracksApiClient
     Task<ReviewSessionDto?> StartReviewPokerAsync(Guid sessionId, StartReviewPokerDto dto, CancellationToken ct = default);
     Task EndReviewSessionAsync(Guid sessionId, CancellationToken ct = default);
 
-    // ── Poker Vote Status ───────────────────────────────────
+    // ── Planning Poker ─────────────────────────────────────
 
+    Task<PokerSessionDto?> GetPokerSessionAsync(Guid sessionId, CancellationToken ct = default);
+    Task<PokerSessionDto?> SubmitPokerVoteAsync(Guid sessionId, SubmitPokerVoteDto dto, CancellationToken ct = default);
+    Task<PokerSessionDto?> RevealPokerSessionAsync(Guid sessionId, CancellationToken ct = default);
+    Task<PokerSessionDto?> AcceptPokerEstimateAsync(Guid sessionId, AcceptPokerEstimateDto dto, CancellationToken ct = default);
+    Task<PokerSessionDto?> StartNewPokerRoundAsync(Guid sessionId, CancellationToken ct = default);
     Task<IReadOnlyList<PokerVoteStatusDto>> GetPokerVoteStatusAsync(Guid sessionId, CancellationToken ct = default);
 }

@@ -3892,3 +3892,1064 @@
     border-color: var(--color-primary);
     outline: none;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   Timeline / Gantt View (Phase H)
+   ═══════════════════════════════════════════════════════════ */
+
+::deep .tracks-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 24px;
+    height: 100%;
+}
+
+/* ── Header ── */
+
+::deep .tracks-timeline-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+::deep .tracks-timeline-title-area {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+::deep .tracks-timeline-title-area h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .tracks-timeline-stats {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+::deep .tracks-timeline-stat {
+    font-size: 13px;
+    color: var(--color-text-muted);
+    background: var(--color-surface);
+    padding: 2px 10px;
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+}
+
+::deep .tracks-timeline-toolbar {
+    display: flex;
+    gap: 8px;
+}
+
+/* ── Loading / Empty ── */
+
+::deep .tracks-timeline-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+}
+
+::deep .tracks-timeline-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 300px;
+    text-align: center;
+    color: var(--color-text-muted);
+}
+
+::deep .tracks-timeline-empty-icon {
+    font-size: 48px;
+    margin-bottom: 8px;
+}
+
+::deep .tracks-timeline-empty h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+::deep .tracks-timeline-empty p {
+    margin: 0;
+    font-size: 14px;
+    max-width: 360px;
+}
+
+/* ── Chart Container ── */
+
+::deep .tracks-timeline-chart {
+    flex: 1;
+    overflow-x: auto;
+    overflow-y: auto;
+    min-width: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+}
+
+/* ── Month Headers ── */
+
+::deep .tracks-timeline-months {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--color-bg);
+    border-bottom: 2px solid var(--color-border);
+    min-height: 44px;
+}
+
+::deep .tracks-timeline-month {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    border-right: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+::deep .tracks-timeline-month.quarter-start {
+    border-left: 2px solid var(--color-primary);
+}
+
+::deep .tracks-timeline-month-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+::deep .tracks-timeline-quarter-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+
+/* ── Sprint Rows ── */
+
+::deep .tracks-timeline-rows {
+    position: relative;
+    min-height: 200px;
+    padding: 8px 0;
+}
+
+/* ── Today Marker ── */
+
+::deep .tracks-timeline-today-marker {
+    position: relative;
+    z-index: 1;
+    pointer-events: none;
+}
+
+::deep .tracks-timeline-today-line {
+    position: absolute;
+    top: -8px;
+    bottom: -8px;
+    left: 50%;
+    width: 2px;
+    background: var(--color-danger, #dc3545);
+    transform: translateX(-50%);
+}
+
+::deep .tracks-timeline-today-label {
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 9px;
+    font-weight: 700;
+    color: #fff;
+    background: var(--color-danger, #dc3545);
+    padding: 1px 4px;
+    border-radius: 2px;
+    white-space: nowrap;
+}
+
+/* ── Sprint Bars ── */
+
+::deep .tracks-timeline-sprint-row {
+    position: relative;
+    margin: 3px 0;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: transform 0.1s ease, box-shadow 0.15s ease;
+    min-height: 40px;
+    display: flex;
+    align-items: stretch;
+}
+
+::deep .tracks-timeline-sprint-row:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    z-index: 2;
+}
+
+::deep .tracks-timeline-sprint-bar {
+    position: relative;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: 6px;
+    overflow: hidden;
+    min-width: 0;
+}
+
+::deep .tracks-timeline-sprint-progress {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    opacity: 0.25;
+    border-radius: 6px 0 0 6px;
+    transition: width 0.3s ease;
+}
+
+::deep .tracks-timeline-sprint-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+}
+
+::deep .tracks-timeline-sprint-name {
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+::deep .tracks-timeline-sprint-meta {
+    font-size: 10px;
+    opacity: 0.8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── Sprint Status Colors ── */
+
+::deep .tracks-timeline-sprint-row.sprint-planning .tracks-timeline-sprint-bar {
+    background: color-mix(in srgb, var(--color-text-muted) 20%, var(--color-surface));
+    border: 1px solid color-mix(in srgb, var(--color-text-muted) 35%, var(--color-border));
+    color: var(--color-text);
+}
+
+::deep .tracks-timeline-sprint-row.sprint-planning .tracks-timeline-sprint-progress {
+    background: var(--color-text-muted);
+}
+
+::deep .tracks-timeline-sprint-row.sprint-active .tracks-timeline-sprint-bar {
+    background: color-mix(in srgb, var(--color-primary) 18%, var(--color-surface));
+    border: 1px solid color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
+    color: var(--color-text);
+}
+
+::deep .tracks-timeline-sprint-row.sprint-active .tracks-timeline-sprint-progress {
+    background: var(--color-primary);
+}
+
+::deep .tracks-timeline-sprint-row.sprint-completed .tracks-timeline-sprint-bar {
+    background: color-mix(in srgb, var(--color-success, #28a745) 18%, var(--color-surface));
+    border: 1px solid color-mix(in srgb, var(--color-success, #28a745) 45%, var(--color-border));
+    color: var(--color-text);
+}
+
+::deep .tracks-timeline-sprint-row.sprint-completed .tracks-timeline-sprint-progress {
+    background: var(--color-success, #28a745);
+}
+
+/* ── Drag Handles ── */
+
+::deep .tracks-timeline-drag-start,
+::deep .tracks-timeline-drag-end {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 8px;
+    cursor: col-resize;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    z-index: 3;
+}
+
+::deep .tracks-timeline-sprint-row:hover .tracks-timeline-drag-start,
+::deep .tracks-timeline-sprint-row:hover .tracks-timeline-drag-end {
+    opacity: 1;
+}
+
+::deep .tracks-timeline-drag-start {
+    left: 0;
+    border-radius: 6px 0 0 6px;
+    background: linear-gradient(to right, rgba(0,0,0,0.15), transparent);
+}
+
+::deep .tracks-timeline-drag-end {
+    right: 0;
+    border-radius: 0 6px 6px 0;
+    background: linear-gradient(to left, rgba(0,0,0,0.15), transparent);
+}
+
+/* ── Legend ── */
+
+::deep .tracks-timeline-legend {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 0;
+    flex-wrap: wrap;
+}
+
+::deep .tracks-timeline-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--color-text-muted);
+}
+
+::deep .tracks-timeline-legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+}
+
+::deep .tracks-timeline-legend-dot.status-planning {
+    background: color-mix(in srgb, var(--color-text-muted) 40%, var(--color-surface));
+    border: 1px solid var(--color-text-muted);
+}
+
+::deep .tracks-timeline-legend-dot.status-active {
+    background: color-mix(in srgb, var(--color-primary) 40%, var(--color-surface));
+    border: 1px solid var(--color-primary);
+}
+
+::deep .tracks-timeline-legend-dot.status-completed {
+    background: color-mix(in srgb, var(--color-success, #28a745) 40%, var(--color-surface));
+    border: 1px solid var(--color-success, #28a745);
+}
+
+::deep .tracks-timeline-today-line-sm {
+    width: 12px;
+    height: 2px;
+    background: var(--color-danger, #dc3545);
+    border-radius: 1px;
+}
+
+/* ── Adjustment Dialog ── */
+
+::deep .tracks-timeline-adjust-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+}
+
+::deep .tracks-timeline-adjust-dialog {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    min-width: 320px;
+    max-width: 420px;
+    box-shadow: var(--shadow, 0 8px 32px rgba(0,0,0,0.2));
+}
+
+::deep .tracks-timeline-adjust-dialog h4 {
+    margin: 0 0 16px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+::deep .tracks-timeline-adjust-note {
+    font-size: 12px;
+    color: var(--color-text-muted);
+    margin: 8px 0 16px;
+}
+
+::deep .tracks-timeline-adjust-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Phase I: Live Review Session
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Review Landing (no active session) ── */
+
+::deep .review-landing {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 80px 24px;
+    gap: 12px;
+}
+
+::deep .review-landing-icon {
+    font-size: 48px;
+    margin-bottom: 8px;
+}
+
+::deep .review-landing h3 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .review-landing p {
+    max-width: 480px;
+    font-size: 14px;
+    color: var(--color-text-muted);
+    line-height: 1.5;
+    margin: 4px 0 16px;
+}
+
+::deep .review-landing-actions {
+    display: flex;
+    gap: 12px;
+}
+
+/* ── Review Session Layout ── */
+
+::deep .review-session {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+::deep .review-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-surface);
+    flex-shrink: 0;
+}
+
+::deep .review-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+::deep .review-header-left h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .review-header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+::deep .review-participant-count {
+    font-size: 14px;
+    color: var(--color-text-muted);
+    font-weight: 500;
+}
+
+::deep .review-status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+::deep .review-status-badge.status-active {
+    background: #dcfce7;
+    color: #166534;
+}
+
+::deep .review-status-badge.status-paused {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+::deep .review-status-badge.status-ended {
+    background: #f3f4f6;
+    color: #6b7280;
+}
+
+/* ── Review Body: Card Area + Sidebar ── */
+
+::deep .review-body {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    flex: 1;
+    overflow: hidden;
+}
+
+::deep .review-card-area {
+    display: flex;
+    flex-direction: column;
+    padding: 20px 24px;
+    overflow-y: auto;
+    gap: 16px;
+}
+
+::deep .review-sidebar {
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid var(--color-border);
+    background: var(--color-surface-alt, var(--color-surface));
+    overflow-y: auto;
+}
+
+/* ── Card Navigator ── */
+
+::deep .review-card-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 12px 0;
+}
+
+::deep .review-card-counter {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text);
+    min-width: 120px;
+    text-align: center;
+}
+
+/* ── Following Indicator ── */
+
+::deep .review-following-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 16px;
+    background: #eff6ff;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #1d4ed8;
+}
+
+/* ── Card Detail in Review ── */
+
+::deep .review-card-detail {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+::deep .review-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+::deep .review-card-number {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    background: var(--color-surface-alt, #f3f4f6);
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+::deep .review-card-title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--color-text);
+    flex: 1;
+}
+
+::deep .review-card-points {
+    font-size: 14px;
+    font-weight: 700;
+    color: #7c3aed;
+    background: #ede9fe;
+    padding: 2px 10px;
+    border-radius: 12px;
+    white-space: nowrap;
+}
+
+::deep .review-card-priority {
+    display: inline-flex;
+    align-self: flex-start;
+    padding: 2px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+::deep .review-card-priority.priority-critical { background: #fef2f2; color: #991b1b; }
+::deep .review-card-priority.priority-high { background: #fff7ed; color: #9a3412; }
+::deep .review-card-priority.priority-medium { background: #fefce8; color: #854d0e; }
+::deep .review-card-priority.priority-low { background: #f0fdf4; color: #166534; }
+
+::deep .review-card-description {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--color-text-muted);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+::deep .review-card-labels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+::deep .review-label {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: #fff;
+}
+
+::deep .review-card-assignments {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+::deep .review-assignments-label {
+    font-size: 12px;
+    color: var(--color-text-muted);
+    font-weight: 600;
+}
+
+::deep .review-assignee {
+    font-size: 12px;
+    background: var(--color-surface-alt, #f3f4f6);
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: var(--color-text);
+}
+
+::deep .review-card-due {
+    font-size: 13px;
+    color: var(--color-text-muted);
+}
+
+::deep .review-card-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 24px;
+    text-align: center;
+    color: var(--color-text-muted);
+    font-size: 14px;
+}
+
+/* ── Sprint Selector ── */
+
+::deep .review-sprint-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+}
+
+::deep .review-sprint-selector label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+::deep .review-sprint-selector select {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    font-size: 13px;
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+
+/* ── Participants Panel ── */
+
+::deep .review-participants {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+::deep .review-participants h4 {
+    margin: 0 0 12px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .review-participant-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+::deep .review-participant {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+::deep .review-participant.connected {
+    color: var(--color-text);
+}
+
+::deep .review-participant.disconnected {
+    opacity: 0.5;
+    color: var(--color-text-muted);
+}
+
+::deep .review-participant-status {
+    font-size: 10px;
+    flex-shrink: 0;
+}
+
+::deep .review-participant-name {
+    flex: 1;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+::deep .review-host-badge {
+    font-size: 10px;
+    font-weight: 700;
+    background: #dbeafe;
+    color: #1e40af;
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-left: 4px;
+}
+
+::deep .review-vote-indicator {
+    font-size: 14px;
+    font-weight: 700;
+    flex-shrink: 0;
+    min-width: 20px;
+    text-align: center;
+    color: #059669;
+}
+
+/* ── Poker Panel ── */
+
+::deep .review-poker {
+    padding: 16px 20px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+::deep .review-poker h4 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .review-poker-hint {
+    font-size: 13px;
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+::deep .review-poker-start {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+::deep .review-poker-scale-select {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+::deep .review-poker-scale-select label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+}
+
+::deep .review-poker-scale-select select {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    font-size: 13px;
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+
+::deep .review-poker-active {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+::deep .review-poker-status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+::deep .review-poker-status {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+}
+
+::deep .review-poker-status.poker-voting { background: #dbeafe; color: #1e40af; }
+::deep .review-poker-status.poker-revealed { background: #fef3c7; color: #92400e; }
+::deep .review-poker-status.poker-completed { background: #dcfce7; color: #166534; }
+::deep .review-poker-status.poker-cancelled { background: #f3f4f6; color: #6b7280; }
+
+::deep .review-poker-round {
+    font-size: 12px;
+    color: var(--color-text-muted);
+    font-weight: 500;
+}
+
+::deep .review-poker-vote-overview {
+    font-size: 13px;
+    color: var(--color-text-muted);
+    font-weight: 500;
+}
+
+/* ── Poker Cards (Scale Options) ── */
+
+::deep .review-poker-scale-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+::deep .review-poker-card {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    height: 48px;
+    padding: 4px 8px;
+    border: 2px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+::deep .review-poker-card:hover {
+    border-color: #3b82f6;
+    background: #eff6ff;
+}
+
+::deep .review-poker-card.selected {
+    border-color: #2563eb;
+    background: #2563eb;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+}
+
+/* ── Host Vote (inside poker) ── */
+
+::deep .review-poker-host-vote {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+::deep .review-poker-controls {
+    display: flex;
+    gap: 8px;
+}
+
+/* ── Vote Results (revealed) ── */
+
+::deep .review-poker-results {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+::deep .review-poker-result {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: var(--color-surface-alt, #f3f4f6);
+}
+
+::deep .review-poker-voter {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text);
+}
+
+::deep .review-poker-estimate {
+    font-size: 16px;
+    font-weight: 700;
+    color: #2563eb;
+    min-width: 32px;
+    text-align: center;
+}
+
+/* ── Accept Estimate ── */
+
+::deep .review-poker-accept {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+::deep .review-poker-accept label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+::deep .review-poker-accept-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* ── Poker Waiting State ── */
+
+::deep .review-poker-waiting {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 20px 0;
+    text-align: center;
+}
+
+::deep .review-poker-waiting-icon {
+    font-size: 32px;
+}
+
+::deep .review-poker-waiting p {
+    font-size: 14px;
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+::deep .review-poker-your-vote {
+    font-size: 13px;
+    font-weight: 600;
+    background: #ede9fe;
+    color: #7c3aed;
+    padding: 4px 12px;
+    border-radius: 6px;
+}
+
+/* ── Poker Vote Area ── */
+
+::deep .review-poker-vote-area {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+::deep .review-poker-vote-area p {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0;
+}
+
+/* ── Poker Completed ── */
+
+::deep .review-poker-completed {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 0;
+    text-align: center;
+}
+
+::deep .review-poker-accepted {
+    font-size: 18px;
+    font-weight: 700;
+    color: #059669;
+    background: #dcfce7;
+    padding: 6px 16px;
+    border-radius: 8px;
+}
+
+::deep .review-poker-completed p {
+    font-size: 13px;
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+/* ── Error Message ── */
+
+::deep .review-error {
+    padding: 10px 24px;
+    background: #fef2f2;
+    color: #991b1b;
+    font-size: 13px;
+    border-top: 1px solid #fecaca;
+}
