@@ -52,6 +52,7 @@ public sealed class SprintService
             StartDate = dto.StartDate.HasValue ? DateTime.SpecifyKind(dto.StartDate.Value, DateTimeKind.Utc) : null,
             EndDate = dto.EndDate.HasValue ? DateTime.SpecifyKind(dto.EndDate.Value, DateTimeKind.Utc) : null,
             TargetStoryPoints = dto.TargetStoryPoints,
+            DurationWeeks = dto.DurationWeeks,
             Status = SprintStatus.Planning
         };
 
@@ -430,6 +431,8 @@ public sealed class SprintService
             TotalStoryPoints = cards.Where(c => c.StoryPoints.HasValue).Sum(c => c.StoryPoints!.Value),
             CompletedStoryPoints = cards.Where(c => (c.IsArchived || (c.Swimlane?.IsDone ?? false)) && c.StoryPoints.HasValue).Sum(c => c.StoryPoints!.Value),
             TargetStoryPoints = s.TargetStoryPoints,
+            DurationWeeks = s.DurationWeeks,
+            PlannedOrder = s.PlannedOrder,
             CreatedAt = s.CreatedAt,
             UpdatedAt = s.UpdatedAt
         };

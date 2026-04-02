@@ -54,6 +54,7 @@ public sealed class BoardService
             Description = dto.Description,
             Color = dto.Color,
             TeamId = dto.TeamId,
+            Mode = dto.Mode,
             OwnerId = caller.UserId
         };
 
@@ -104,7 +105,7 @@ public sealed class BoardService
     /// <summary>
     /// Lists all boards the caller is a member of.
     /// </summary>
-    public async Task<IReadOnlyList<BoardDto>> ListBoardsAsync(CallerContext caller, bool includeArchived = false, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<BoardDto>> ListBoardsAsync(CallerContext caller, bool includeArchived = false, BoardMode? modeFilter = null, CancellationToken cancellationToken = default)
     {
         // Direct board memberships
         var directBoardIds = await _db.BoardMembers
@@ -136,6 +137,9 @@ public sealed class BoardService
 
         if (!includeArchived)
             query = query.Where(b => !b.IsArchived);
+
+        if (modeFilter.HasValue)
+            query = query.Where(b => b.Mode == modeFilter.Value);
 
         var boards = await query
             .OrderByDescending(b => b.UpdatedAt)
@@ -335,6 +339,20 @@ public sealed class BoardService
         await EnsureBoardRoleAsync(boardId, userId, BoardMemberRole.Viewer, cancellationToken);
     }
 
+    /// <summary>
+    /// Ensures the board is in Team mode. Throws if Personal.
+    /// </summary>
+    internal async Task EnsureTeamModeAsync(Guid boardId, CancellationToken cancellationToken = default)
+    {
+        var mode = await _db.Boards
+            .Where(b => b.Id == boardId && !b.IsDeleted)
+            .Select(b => b.Mode)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (mode != BoardMode.Team)
+            throw new ValidationException(ErrorCodes.TeamModeRequired, "This operation is only available on Team-mode boards.");
+    }
+
     private async Task<BoardDto?> GetBoardDtoAsync(Guid boardId, CancellationToken cancellationToken)
     {
         var board = await _db.Boards
@@ -421,6 +439,7 @@ public sealed class BoardService
         Id = b.Id,
         OwnerId = b.OwnerId,
         TeamId = b.TeamId,
+        Mode = b.Mode,
         Title = b.Title,
         Description = b.Description,
         Color = b.Color,

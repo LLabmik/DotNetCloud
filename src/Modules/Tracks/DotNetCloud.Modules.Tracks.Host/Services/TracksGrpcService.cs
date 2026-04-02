@@ -84,7 +84,7 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         try
         {
             var caller = ParseCaller(request.UserId);
-            var boards = await _boardService.ListBoardsAsync(caller, request.IncludeArchived, context.CancellationToken);
+            var boards = await _boardService.ListBoardsAsync(caller, request.IncludeArchived, cancellationToken: context.CancellationToken);
             var response = new ListBoardsResponse { Success = true };
             foreach (var board in boards)
                 response.Boards.Add(MapBoard(board));

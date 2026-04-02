@@ -270,6 +270,38 @@ public sealed class PokerService
         return MapToDto(session);
     }
 
+    /// <summary>
+    /// Gets the vote status for each participant (who voted, who hasn't) without revealing actual vote values.
+    /// </summary>
+    public async Task<IReadOnlyList<PokerVoteStatusDto>> GetVoteStatusAsync(Guid sessionId, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        var session = await _db.PokerSessions
+            .AsNoTracking()
+            .Include(s => s.Votes)
+            .FirstOrDefaultAsync(s => s.Id == sessionId, cancellationToken)
+            ?? throw new ValidationException(ErrorCodes.PokerSessionNotFound, "Poker session not found.");
+
+        await _boardService.EnsureBoardMemberAsync(session.BoardId, caller.UserId, cancellationToken);
+
+        // Get all board members who could vote
+        var boardMembers = await _db.BoardMembers
+            .AsNoTracking()
+            .Where(m => m.BoardId == session.BoardId)
+            .Select(m => m.UserId)
+            .ToListAsync(cancellationToken);
+
+        var currentRoundVoters = session.Votes
+            .Where(v => v.Round == session.Round)
+            .Select(v => v.UserId)
+            .ToHashSet();
+
+        return boardMembers.Select(userId => new PokerVoteStatusDto
+        {
+            UserId = userId,
+            HasVoted = currentRoundVoters.Contains(userId)
+        }).ToList();
+    }
+
     // ─── Private Helpers ─────────────────────────────────────────────
 
     private static void ValidateEstimate(PokerSession session, string estimate)

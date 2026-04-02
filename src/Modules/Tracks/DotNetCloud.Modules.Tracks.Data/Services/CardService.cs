@@ -166,9 +166,9 @@ public sealed class CardService
     }
 
     /// <summary>
-    /// Lists cards in a swimlane, ordered by position.
+    /// Lists cards in a swimlane, ordered by position. Optionally filtered by sprint.
     /// </summary>
-    public async Task<IReadOnlyList<CardDto>> ListCardsAsync(Guid swimlaneId, CallerContext caller, bool includeArchived = false, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<CardDto>> ListCardsAsync(Guid swimlaneId, CallerContext caller, bool includeArchived = false, Guid? sprintId = null, CancellationToken cancellationToken = default)
     {
         var swimlane = await _db.BoardSwimlanes
             .AsNoTracking()
@@ -190,6 +190,9 @@ public sealed class CardService
 
         if (!includeArchived)
             query = query.Where(c => !c.IsArchived);
+
+        if (sprintId.HasValue)
+            query = query.Where(c => c.SprintCards.Any(sc => sc.SprintId == sprintId.Value));
 
         var cards = await query
             .OrderBy(c => c.Position)

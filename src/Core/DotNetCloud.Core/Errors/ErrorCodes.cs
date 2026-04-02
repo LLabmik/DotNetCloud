@@ -366,6 +366,27 @@ public static class ErrorCodes
     /// <summary>Error code for bulk operation with no valid card IDs.</summary>
     public const string BulkOperationEmpty = "TRACKS_BULK_OPERATION_EMPTY";
 
+    /// <summary>Error code for team-only operation attempted on a personal board.</summary>
+    public const string TeamModeRequired = "TRACKS_TEAM_MODE_REQUIRED";
+
+    /// <summary>Error code for review session not found.</summary>
+    public const string ReviewSessionNotFound = "TRACKS_REVIEW_SESSION_NOT_FOUND";
+
+    /// <summary>Error code for board already having an active review session.</summary>
+    public const string ReviewSessionAlreadyActive = "TRACKS_REVIEW_SESSION_ALREADY_ACTIVE";
+
+    /// <summary>Error code for action restricted to the review session host.</summary>
+    public const string ReviewSessionNotHost = "TRACKS_REVIEW_SESSION_NOT_HOST";
+
+    /// <summary>Error code for review session already ended.</summary>
+    public const string ReviewSessionEnded = "TRACKS_REVIEW_SESSION_ENDED";
+
+    /// <summary>Error code for active poker in review session (must finish first).</summary>
+    public const string ReviewPokerStillActive = "TRACKS_REVIEW_POKER_STILL_ACTIVE";
+
+    /// <summary>Error code for invalid sprint duration (must be 1–16 weeks).</summary>
+    public const string InvalidSprintDuration = "TRACKS_INVALID_SPRINT_DURATION";
+
     // Import / Migration
     /// <summary>Error code for unsupported import data type.</summary>
     public const string ImportUnsupportedDataType = "IMPORT_UNSUPPORTED_DATA_TYPE";
