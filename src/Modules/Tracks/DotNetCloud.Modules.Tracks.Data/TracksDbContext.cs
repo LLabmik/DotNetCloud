@@ -89,6 +89,12 @@ public class TracksDbContext : DbContext
     /// <summary>Card templates for pre-configured card creation.</summary>
     public DbSet<CardTemplate> CardTemplates => Set<CardTemplate>();
 
+    /// <summary>Live review sessions.</summary>
+    public DbSet<ReviewSession> ReviewSessions => Set<ReviewSession>();
+
+    /// <summary>Review session participants.</summary>
+    public DbSet<ReviewSessionParticipant> ReviewSessionParticipants => Set<ReviewSessionParticipant>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -115,5 +121,7 @@ public class TracksDbContext : DbContext
         modelBuilder.ApplyConfiguration(new TeamRoleConfiguration());
         modelBuilder.ApplyConfiguration(new BoardTemplateConfiguration());
         modelBuilder.ApplyConfiguration(new CardTemplateConfiguration());
+        modelBuilder.ApplyConfiguration(new ReviewSessionConfiguration());
+        modelBuilder.ApplyConfiguration(new ReviewSessionParticipantConfiguration());
     }
 }

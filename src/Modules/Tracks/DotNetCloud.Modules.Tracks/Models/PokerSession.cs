@@ -35,6 +35,9 @@ public sealed class PokerSession
     /// <summary>Current round number. Starts at 1, increments on re-vote.</summary>
     public int Round { get; set; } = 1;
 
+    /// <summary>Optional review session this poker is part of. Null for standalone poker.</summary>
+    public Guid? ReviewSessionId { get; set; }
+
     /// <summary>Timestamp when the session was created (UTC).</summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
@@ -46,6 +49,9 @@ public sealed class PokerSession
 
     /// <summary>Navigation property to the board.</summary>
     public Board? Board { get; set; }
+
+    /// <summary>Navigation property to the review session (if part of a live review).</summary>
+    public ReviewSession? ReviewSession { get; set; }
 
     /// <summary>Votes cast in this session.</summary>
     public ICollection<PokerVote> Votes { get; set; } = new List<PokerVote>();

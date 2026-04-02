@@ -31,6 +31,12 @@ public sealed class Sprint
     /// <summary>Target story points for capacity planning.</summary>
     public int? TargetStoryPoints { get; set; }
 
+    /// <summary>Duration of this sprint in weeks (1–16). Used by the planning wizard.</summary>
+    public int? DurationWeeks { get; set; }
+
+    /// <summary>Planned order within the year plan (1-based sequential).</summary>
+    public int? PlannedOrder { get; set; }
+
     /// <summary>Timestamp when the sprint was created (UTC).</summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

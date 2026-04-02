@@ -1,3 +1,4 @@
+using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Tracks.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -23,6 +24,12 @@ public sealed class BoardConfiguration : IEntityTypeConfiguration<Board>
 
         builder.Property(b => b.Color)
             .HasMaxLength(20);
+
+        builder.Property(b => b.Mode)
+            .IsRequired()
+            .HasConversion<string>()
+            .HasMaxLength(20)
+            .HasDefaultValue(BoardMode.Personal);
 
         builder.Property(b => b.ETag)
             .IsRequired()
@@ -55,5 +62,8 @@ public sealed class BoardConfiguration : IEntityTypeConfiguration<Board>
 
         builder.HasIndex(b => b.CreatedAt)
             .HasDatabaseName("ix_boards_created_at");
+
+        builder.HasIndex(b => b.Mode)
+            .HasDatabaseName("ix_boards_mode");
     }
 }
