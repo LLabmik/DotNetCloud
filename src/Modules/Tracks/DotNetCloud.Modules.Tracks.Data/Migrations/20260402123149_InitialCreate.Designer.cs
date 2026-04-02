@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DotNetCloud.Modules.Tracks.Data.Migrations
 {
     [DbContext(typeof(TracksDbContext))]
-    [Migration("20260331175224_AddBoardSwimlaneIsDone")]
-    partial class AddBoardSwimlaneIsDone
+    [Migration("20260402123149_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -60,6 +60,13 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.Property<bool>("LockSwimlanes")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("Personal");
+
                     b.Property<Guid>("OwnerId")
                         .HasColumnType("uuid");
 
@@ -86,6 +93,9 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
 
                     b.HasIndex("IsDeleted")
                         .HasDatabaseName("ix_boards_is_deleted");
+
+                    b.HasIndex("Mode")
+                        .HasDatabaseName("ix_boards_mode");
 
                     b.HasIndex("OwnerId")
                         .HasDatabaseName("ix_boards_owner_id");
@@ -737,6 +747,9 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.Property<string>("CustomScaleValues")
                         .HasColumnType("text");
 
+                    b.Property<Guid?>("ReviewSessionId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("Round")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
@@ -761,6 +774,10 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
 
                     b.HasIndex("CreatedByUserId")
                         .HasDatabaseName("ix_poker_sessions_created_by");
+
+                    b.HasIndex("ReviewSessionId")
+                        .HasDatabaseName("ix_poker_sessions_review_session")
+                        .HasFilter("\"ReviewSessionId\" IS NOT NULL");
 
                     b.HasIndex("BoardId", "Status")
                         .HasDatabaseName("ix_poker_sessions_board_status");
@@ -808,6 +825,81 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.ToTable("PokerVotes");
                 });
 
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.ReviewSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BoardId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid?>("CurrentCardId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("HostUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("Active");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CurrentCardId");
+
+                    b.HasIndex("HostUserId")
+                        .HasDatabaseName("ix_review_sessions_host_user_id");
+
+                    b.HasIndex("BoardId", "Status")
+                        .HasDatabaseName("ix_review_sessions_board_status");
+
+                    b.ToTable("ReviewSessions");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.ReviewSessionParticipant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsConnected")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("JoinedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid>("ReviewSessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_review_session_participants_user_id");
+
+                    b.HasIndex("ReviewSessionId", "UserId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_review_session_participants_session_user");
+
+                    b.ToTable("ReviewSessionParticipants");
+                });
+
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Sprint", b =>
                 {
                     b.Property<Guid>("Id")
@@ -822,11 +914,17 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+                    b.Property<int?>("DurationWeeks")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime?>("EndDate")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Goal")
                         .HasColumnType("text");
+
+                    b.Property<int?>("PlannedOrder")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime?>("StartDate")
                         .HasColumnType("timestamp with time zone");
@@ -1144,9 +1242,16 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.ReviewSession", "ReviewSession")
+                        .WithMany("PokerSessions")
+                        .HasForeignKey("ReviewSessionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Board");
 
                     b.Navigation("Card");
+
+                    b.Navigation("ReviewSession");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.PokerVote", b =>
@@ -1158,6 +1263,35 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Session");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.ReviewSession", b =>
+                {
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Board", "Board")
+                        .WithMany("ReviewSessions")
+                        .HasForeignKey("BoardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.Card", "CurrentCard")
+                        .WithMany()
+                        .HasForeignKey("CurrentCardId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Board");
+
+                    b.Navigation("CurrentCard");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.ReviewSessionParticipant", b =>
+                {
+                    b.HasOne("DotNetCloud.Modules.Tracks.Models.ReviewSession", "ReviewSession")
+                        .WithMany("Participants")
+                        .HasForeignKey("ReviewSessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ReviewSession");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Sprint", b =>
@@ -1211,6 +1345,8 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
 
                     b.Navigation("PokerSessions");
 
+                    b.Navigation("ReviewSessions");
+
                     b.Navigation("Sprints");
 
                     b.Navigation("Swimlanes");
@@ -1257,6 +1393,13 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.PokerSession", b =>
                 {
                     b.Navigation("Votes");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.ReviewSession", b =>
+                {
+                    b.Navigation("Participants");
+
+                    b.Navigation("PokerSessions");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Sprint", b =>

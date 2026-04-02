@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace DotNetCloud.Modules.Tracks.Data.Migrations
 {
     /// <inheritdoc />
-    public partial class AddBoardSwimlaneIsDone : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -20,6 +20,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     Description = table.Column<string>(type: "text", nullable: true),
                     OwnerId = table.Column<Guid>(type: "uuid", nullable: false),
                     TeamId = table.Column<Guid>(type: "uuid", nullable: true),
+                    Mode = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false, defaultValue: "Personal"),
                     Color = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
                     LockSwimlanes = table.Column<bool>(type: "boolean", nullable: false),
                     IsArchived = table.Column<bool>(type: "boolean", nullable: false),
@@ -199,6 +200,8 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     EndDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     Status = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
                     TargetStoryPoints = table.Column<int>(type: "integer", nullable: true),
+                    DurationWeeks = table.Column<int>(type: "integer", nullable: true),
+                    PlannedOrder = table.Column<int>(type: "integer", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP"),
                     UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP")
                 },
@@ -389,35 +392,32 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "PokerSessions",
+                name: "ReviewSessions",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    CardId = table.Column<Guid>(type: "uuid", nullable: false),
                     BoardId = table.Column<Guid>(type: "uuid", nullable: false),
-                    CreatedByUserId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Scale = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
-                    CustomScaleValues = table.Column<string>(type: "text", nullable: true),
-                    Status = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
-                    AcceptedEstimate = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
-                    Round = table.Column<int>(type: "integer", nullable: false, defaultValue: 1),
+                    HostUserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    CurrentCardId = table.Column<Guid>(type: "uuid", nullable: true),
+                    Status = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false, defaultValue: "Active"),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP"),
-                    UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP")
+                    EndedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_PokerSessions", x => x.Id);
+                    table.PrimaryKey("PK_ReviewSessions", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_PokerSessions_Boards_BoardId",
+                        name: "FK_ReviewSessions_Boards_BoardId",
                         column: x => x.BoardId,
                         principalTable: "Boards",
-                        principalColumn: "Id");
-                    table.ForeignKey(
-                        name: "FK_PokerSessions_Cards_CardId",
-                        column: x => x.CardId,
-                        principalTable: "Cards",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_ReviewSessions_Cards_CurrentCardId",
+                        column: x => x.CurrentCardId,
+                        principalTable: "Cards",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
                 });
 
             migrationBuilder.CreateTable(
@@ -495,6 +495,66 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "PokerSessions",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    CardId = table.Column<Guid>(type: "uuid", nullable: false),
+                    BoardId = table.Column<Guid>(type: "uuid", nullable: false),
+                    CreatedByUserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Scale = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
+                    CustomScaleValues = table.Column<string>(type: "text", nullable: true),
+                    Status = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
+                    AcceptedEstimate = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
+                    Round = table.Column<int>(type: "integer", nullable: false, defaultValue: 1),
+                    ReviewSessionId = table.Column<Guid>(type: "uuid", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP"),
+                    UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PokerSessions", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_PokerSessions_Boards_BoardId",
+                        column: x => x.BoardId,
+                        principalTable: "Boards",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_PokerSessions_Cards_CardId",
+                        column: x => x.CardId,
+                        principalTable: "Cards",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_PokerSessions_ReviewSessions_ReviewSessionId",
+                        column: x => x.ReviewSessionId,
+                        principalTable: "ReviewSessions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ReviewSessionParticipants",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    ReviewSessionId = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    JoinedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP"),
+                    IsConnected = table.Column<bool>(type: "boolean", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ReviewSessionParticipants", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ReviewSessionParticipants_ReviewSessions_ReviewSessionId",
+                        column: x => x.ReviewSessionId,
+                        principalTable: "ReviewSessions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "PokerVotes",
                 columns: table => new
                 {
@@ -556,6 +616,11 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                 name: "ix_boards_is_deleted",
                 table: "Boards",
                 column: "IsDeleted");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_boards_mode",
+                table: "Boards",
+                column: "Mode");
 
             migrationBuilder.CreateIndex(
                 name: "ix_boards_owner_id",
@@ -725,6 +790,12 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                 column: "CreatedByUserId");
 
             migrationBuilder.CreateIndex(
+                name: "ix_poker_sessions_review_session",
+                table: "PokerSessions",
+                column: "ReviewSessionId",
+                filter: "\"ReviewSessionId\" IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
                 name: "ix_poker_votes_session_user_round",
                 table: "PokerVotes",
                 columns: new[] { "SessionId", "UserId", "Round" },
@@ -734,6 +805,32 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                 name: "ix_poker_votes_user",
                 table: "PokerVotes",
                 column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_review_session_participants_session_user",
+                table: "ReviewSessionParticipants",
+                columns: new[] { "ReviewSessionId", "UserId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "ix_review_session_participants_user_id",
+                table: "ReviewSessionParticipants",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_review_sessions_board_status",
+                table: "ReviewSessions",
+                columns: new[] { "BoardId", "Status" });
+
+            migrationBuilder.CreateIndex(
+                name: "ix_review_sessions_host_user_id",
+                table: "ReviewSessions",
+                column: "HostUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ReviewSessions_CurrentCardId",
+                table: "ReviewSessions",
+                column: "CurrentCardId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_SprintCards_CardId",
@@ -826,6 +923,9 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                 name: "PokerVotes");
 
             migrationBuilder.DropTable(
+                name: "ReviewSessionParticipants");
+
+            migrationBuilder.DropTable(
                 name: "SprintCards");
 
             migrationBuilder.DropTable(
@@ -845,6 +945,9 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
 
             migrationBuilder.DropTable(
                 name: "Sprints");
+
+            migrationBuilder.DropTable(
+                name: "ReviewSessions");
 
             migrationBuilder.DropTable(
                 name: "Cards");
