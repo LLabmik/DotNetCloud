@@ -1,7 +1,7 @@
 # Tracks Module Dual-Mode Rework Plan
 
 **Created:** 2026-04-02
-**Status:** In Progress — Phases A, B, C, D, E Complete
+**Status:** In Progress — Phases A, B, C, D, E, F, G Complete
 **Scope:** Full rework of Tracks module into Personal and Team paradigms
 
 ---
@@ -221,28 +221,28 @@ Rework the Tracks module from a generic Kanban system into two distinct paradigm
 
 ---
 
-## Phase G: UI — Backlog & Sprint Views
+## Phase G: UI — Backlog & Sprint Views ✅ COMPLETED
 
-### Step 27 — Backlog View component
-- New file: `src/Modules/Tracks/DotNetCloud.Modules.Tracks/UI/BacklogView.razor`
-- Shows cards not assigned to any sprint
-- Drag-and-drop to assign cards to sprints (or bulk assign)
-- Priority/label filtering
-- Card count + total story points
-- **Depends on:** Step 16
+### Step 27 — Backlog View component ✅
+- ✓ New file: `BacklogView.razor` + `BacklogView.razor.cs`
+- ✓ Shows cards not assigned to any sprint with header stats (card count + story points)
+- ✓ Bulk assign: multi-select checkboxes + sprint dropdown for batch assignment
+- ✓ Per-card sprint assignment dropdown
+- ✓ Priority/label/search filtering
+- ✓ Comprehensive CSS styles (backlog header, toolbar, card list, empty states)
 
-### Step 28 — Sprint-filtered Kanban view
-- Modify `src/Modules/Tracks/DotNetCloud.Modules.Tracks/UI/KanbanBoard.razor`
-- Accept optional `sprintId` parameter and filter cards
-- Sprint selector dropdown/tabs at top of board view:
-  - "Backlog" tab — unsprinted cards on the board
-  - "Sprint N" tabs — cards in that sprint
-  - "All" tab — everything (current behavior)
-- **Depends on:** Step 16
+### Step 28 — Sprint-filtered Kanban view ✅
+- ✓ Modified `KanbanBoard.razor` with sprint selector tabs
+- ✓ "All" tab (default), individual sprint tabs, "Backlog" tab
+- ✓ Dropdown fallback when >8 sprints
+- ✓ Tab styling with active/hover states
 
-### Step 29 — New TracksView: Backlog
-- Add to view switcher in TracksPage, visible only for Team boards
-- **Depends on:** Steps 27, 23
+### Step 29 — New TracksView: Backlog ✅
+- ✓ Added `Backlog` to `TracksView` enum
+- ✓ Backlog sidebar nav button (Team mode only)
+- ✓ `OpenBacklog()` navigation method with mode guard
+- ✓ `HandleBacklogChanged()` callback refreshes board data
+- ✓ 47 comprehensive tests (PhaseG_BacklogSprintViewTests.cs)
 
 ---
 

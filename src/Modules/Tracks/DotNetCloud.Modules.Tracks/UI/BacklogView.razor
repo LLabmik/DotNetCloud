@@ -1,0 +1,148 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+
+<div class="tracks-backlog">
+    @* ── Header ── *@
+    <div class="tracks-backlog-header">
+        <div class="tracks-backlog-title-area">
+            <h2>📋 Backlog</h2>
+            <div class="tracks-backlog-stats">
+                <span class="tracks-backlog-stat">@_backlogCards.Count cards</span>
+                @{
+                    var totalSp = _backlogCards.Where(c => c.StoryPoints.HasValue).Sum(c => c.StoryPoints!.Value);
+                }
+                @if (totalSp > 0)
+                {
+                    <span class="tracks-backlog-stat">@totalSp SP</span>
+                }
+            </div>
+        </div>
+        <div class="tracks-backlog-toolbar">
+            <div class="tracks-filter-group">
+                <input type="text" class="tracks-search-input" placeholder="Filter cards..."
+                       @bind="_filterText" @bind:event="oninput" />
+                <select class="tracks-filter-select" @bind="_priorityFilter">
+                    <option value="">All priorities</option>
+                    <option value="Urgent">🔴 Urgent</option>
+                    <option value="High">🟠 High</option>
+                    <option value="Medium">🟡 Medium</option>
+                    <option value="Low">🟢 Low</option>
+                </select>
+            </div>
+            <div class="tracks-backlog-actions">
+                @if (_selectedCardIds.Count > 0 && Sprints.Count > 0)
+                {
+                    <div class="tracks-backlog-bulk">
+                        <select class="tracks-filter-select" @bind="_bulkTargetSprintId">
+                            <option value="">Assign to sprint...</option>
+                            @foreach (var sprint in Sprints.Where(s => s.Status != SprintStatus.Completed))
+                            {
+                                <option value="@sprint.Id">@sprint.Title</option>
+                            }
+                        </select>
+                        <button class="btn btn-sm btn-primary" @onclick="BulkAssignToSprintAsync"
+                                disabled="@(string.IsNullOrEmpty(_bulkTargetSprintId) || _isBulkAssigning)">
+                            @(_isBulkAssigning ? "Assigning..." : $"Assign {_selectedCardIds.Count} cards")
+                        </button>
+                    </div>
+                }
+                <button class="btn btn-sm btn-outline" @onclick="RefreshBacklogAsync">↻ Refresh</button>
+            </div>
+        </div>
+    </div>
+
+    @* ── Content ── *@
+    @if (_isLoading)
+    {
+        <div class="tracks-backlog-loading">
+            <DncLoadingIndicator />
+        </div>
+    }
+    else if (_backlogCards.Count == 0 && string.IsNullOrEmpty(_filterText) && string.IsNullOrEmpty(_priorityFilter))
+    {
+        <div class="tracks-backlog-empty">
+            <div class="tracks-backlog-empty-icon">📭</div>
+            <h3>Backlog is empty</h3>
+            <p>Cards not assigned to any sprint will appear here.</p>
+        </div>
+    }
+    else
+    {
+        @* ── Select All ── *@
+        <div class="tracks-backlog-select-all">
+            <label class="tracks-backlog-checkbox-label">
+                <input type="checkbox" checked="@_selectAll" @onchange="ToggleSelectAll" />
+                <span>Select all (@GetFilteredCards().Count)</span>
+            </label>
+        </div>
+
+        @* ── Card List ── *@
+        <div class="tracks-backlog-list">
+            @foreach (var card in GetFilteredCards())
+            {
+                <div class="tracks-backlog-card @GetPriorityClass(card.Priority) @(_selectedCardIds.Contains(card.Id) ? "selected" : "")"
+                     @onclick="() => OnCardSelected.InvokeAsync(card.Id)">
+                    <div class="tracks-backlog-card-check" @onclick:stopPropagation>
+                        <input type="checkbox" checked="@_selectedCardIds.Contains(card.Id)"
+                               @onchange="() => ToggleCardSelection(card.Id)" />
+                    </div>
+                    <div class="tracks-backlog-card-content">
+                        <div class="tracks-backlog-card-top">
+                            <span class="tracks-backlog-card-number">#@card.CardNumber</span>
+                            <span class="tracks-backlog-card-title">@card.Title</span>
+                            @if (card.Priority != CardPriority.None)
+                            {
+                                <span class="tracks-card-priority-badge" title="@card.Priority">@GetPriorityIcon(card.Priority)</span>
+                            }
+                        </div>
+                        <div class="tracks-backlog-card-meta">
+                            @if (card.StoryPoints.HasValue)
+                            {
+                                <span class="tracks-card-badge">@card.StoryPoints SP</span>
+                            }
+                            @if (card.Labels.Count > 0)
+                            {
+                                @foreach (var label in card.Labels.Take(3))
+                                {
+                                    <span class="tracks-card-label-pill"
+                                          style="background: @label.Color; color: @GetContrastTextColor(label.Color);">@label.Title</span>
+                                }
+                            }
+                            @if (card.Assignments.Count > 0)
+                            {
+                                <span class="tracks-card-badge">👤 @card.Assignments.Count</span>
+                            }
+                            @if (card.DueDate.HasValue)
+                            {
+                                <span class="tracks-card-badge">📅 @card.DueDate.Value.ToString("MMM d")</span>
+                            }
+                            @if (card.CommentCount > 0)
+                            {
+                                <span class="tracks-card-badge">💬 @card.CommentCount</span>
+                            }
+                        </div>
+                    </div>
+                    @if (Sprints.Count > 0)
+                    {
+                        <div class="tracks-backlog-card-assign" @onclick:stopPropagation>
+                            <select class="tracks-backlog-sprint-select"
+                                    @onchange="(e) => AssignCardToSprintAsync(card.Id, e)">
+                                <option value="">Sprint...</option>
+                                @foreach (var sprint in Sprints.Where(s => s.Status != SprintStatus.Completed))
+                                {
+                                    <option value="@sprint.Id">@sprint.Title</option>
+                                }
+                            </select>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        @if (GetFilteredCards().Count == 0)
+        {
+            <div class="tracks-backlog-empty">
+                <p>No cards match the current filters.</p>
+            </div>
+        }
+    }
+</div>

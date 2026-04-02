@@ -1592,11 +1592,11 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Phase D: Real-Time / SignalR — Review session broadcasts, client-side SignalR events
 - ✓ Phase E: UI — Personal Mode Simplification — Mode selector in create dialog, mode badge in board list, conditional sidebar for Personal/Team, sprint controls hidden for Personal boards, 35 Phase E tests
 - ✓ Phase F: UI — Sprint Planning Wizard — 4-step wizard (Plan Basics → Swimlanes → Schedule → Review), TracksPage integration with Year Plan nav, 61 Phase F tests
-- ☐ Phase G: UI — Backlog & Sprint Views
+- ✓ Phase G: UI — Backlog & Sprint Views — BacklogView component (filter/multi-select/bulk assign), sprint tabs in KanbanBoard, Backlog TracksView in sidebar, 47 Phase G tests
 - ☐ Phase H: UI — Year Timeline / Gantt View
 - ☐ Phase I: UI — Live Review Mode
 
-**Notes:** Phases A–F complete. Phase F added SprintPlanningWizard component: 4-step wizard for creating year sprint plans on Team boards (plan basics, swimlane definition, sprint schedule with cascading duration adjustments, review & create). Integrated into TracksPage with Year Plan sidebar nav item. 61 new Phase F tests, 594 total Tracks tests passing. Next: Phase G (Backlog & Sprint Views).
+**Notes:** Phases A–G complete. Phase G added BacklogView.razor component (shows unsprinted cards with bulk-assign, per-card sprint dropdown, filtering), sprint selector tabs in KanbanBoard.razor (All/individual sprints/Backlog), and Backlog view in TracksPage sidebar (Team mode only). 47 new Phase G tests, 641 total Tracks tests. Next: Phase H (Year Timeline / Gantt View).
 
 ---
 

@@ -63,6 +63,11 @@
                         <span class="tracks-nav-icon">📅</span>
                         @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Year Plan</span> }
                     </button>
+                    <button class="tracks-nav-item @(_view == TracksView.Backlog ? "active" : "")"
+                            @onclick="OpenBacklog" title="Backlog">
+                        <span class="tracks-nav-icon">📋</span>
+                        @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Backlog</span> }
+                    </button>
                 }
                 <button class="tracks-nav-item"
                         @onclick="ShowBoardSettings" title="Settings">
@@ -200,6 +205,25 @@
                                               ExistingSwimlanes="_boardSwimlanes"
                                               OnPlanCreated="HandlePlanCreated"
                                               OnCancel="CloseWizard" />
+                    }
+                    break;
+
+                case TracksView.Backlog:
+                    @if (_selectedBoard is not null)
+                    {
+                        <BacklogView BoardId="_selectedBoard.Id"
+                                     Sprints="_sprints"
+                                     OnCardSelected="SelectCard"
+                                     OnBacklogChanged="HandleBacklogChanged" />
+
+                        @if (_selectedCard is not null)
+                        {
+                            <CardDetailPanel Card="_selectedCard"
+                                             Board="_selectedBoard"
+                                             OnClose="CloseCardDetail"
+                                             OnCardUpdated="HandleCardUpdated"
+                                             OnCardDeleted="HandleCardDeleted" />
+                        }
                     }
                     break;
             }

@@ -32,7 +32,7 @@
                         }
                     </select>
                 }
-                @if (Board.Mode == BoardMode.Team && Sprints is not null && Sprints.Count > 0)
+                @if (Board.Mode == BoardMode.Team && Sprints is not null && Sprints.Count > 0 && Sprints.Count > 8)
                 {
                     <select class="tracks-filter-select" @bind="_sprintFilter">
                         <option value="">All cards</option>
@@ -40,13 +40,40 @@
                         {
                             <option value="@sprint.Id">@sprint.Title @(sprint.Status == SprintStatus.Active ? "✓" : "")</option>
                         }
-                        <option value="none">No sprint</option>
+                        <option value="none">Backlog</option>
                     </select>
                 }
             </div>
             <button class="btn btn-sm btn-outline" @onclick="() => OnRefreshRequested.InvokeAsync()">↻ Refresh</button>
         </div>
     </div>
+
+    @* ── Sprint Tabs (Team mode, ≤8 sprints) ── *@
+    @if (Board.Mode == BoardMode.Team && Sprints is not null && Sprints.Count > 0 && Sprints.Count <= 8)
+    {
+        <div class="tracks-sprint-tabs">
+            <button class="tracks-sprint-tab @(string.IsNullOrEmpty(_sprintFilter) ? "active" : "")"
+                    @onclick='() => _sprintFilter = ""'>
+                All
+            </button>
+            @foreach (var sprint in Sprints.Where(s => s.Status != SprintStatus.Completed))
+            {
+                var sid = sprint.Id.ToString();
+                <button class="tracks-sprint-tab @(_sprintFilter == sid ? "active" : "") @(sprint.Status == SprintStatus.Active ? "sprint-active" : "")"
+                        @onclick="() => _sprintFilter = sid">
+                    @sprint.Title
+                    @if (sprint.Status == SprintStatus.Active)
+                    {
+                        <span class="tracks-sprint-tab-indicator">●</span>
+                    }
+                </button>
+            }
+            <button class="tracks-sprint-tab @(_sprintFilter == "none" ? "active" : "")"
+                    @onclick='() => _sprintFilter = "none"'>
+                📋 Backlog
+            </button>
+        </div>
+    }
 
     @* ── Board Columns ── *@
     <div class="tracks-kanban-columns" id="tracks-kanban-columns">

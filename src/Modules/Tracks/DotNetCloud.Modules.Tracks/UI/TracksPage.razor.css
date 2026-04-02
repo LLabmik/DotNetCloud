@@ -3618,3 +3618,277 @@
     display: flex;
     gap: 8px;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   Sprint Tabs (Phase G — Step 28)
+   ═══════════════════════════════════════════════════════════════ */
+
+::deep .tracks-sprint-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 0 16px 12px;
+    border-bottom: 1px solid var(--color-border);
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+::deep .tracks-sprint-tab {
+    padding: 6px 14px;
+    border: 1px solid var(--color-border);
+    border-bottom: 2px solid transparent;
+    border-radius: var(--radius) var(--radius) 0 0;
+    background: transparent;
+    color: var(--color-text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+
+::deep .tracks-sprint-tab:hover {
+    background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
+    color: var(--color-text);
+}
+
+::deep .tracks-sprint-tab.active {
+    background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
+    border-bottom-color: var(--color-primary);
+    color: var(--color-primary);
+    font-weight: 600;
+}
+
+::deep .tracks-sprint-tab.sprint-active {
+    border-color: color-mix(in srgb, var(--color-primary) 30%, var(--color-border));
+}
+
+::deep .tracks-sprint-tab-indicator {
+    color: var(--color-success, #28a745);
+    font-size: 8px;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Backlog View (Phase G — Step 27)
+   ═══════════════════════════════════════════════════════════════ */
+
+::deep .tracks-backlog {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+::deep .tracks-backlog-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--color-border);
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+::deep .tracks-backlog-title-area {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+::deep .tracks-backlog-title-area h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+::deep .tracks-backlog-stats {
+    display: flex;
+    gap: 10px;
+}
+
+::deep .tracks-backlog-stat {
+    padding: 3px 10px;
+    background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-primary);
+}
+
+::deep .tracks-backlog-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+::deep .tracks-backlog-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+::deep .tracks-backlog-bulk {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+::deep .tracks-backlog-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+}
+
+::deep .tracks-backlog-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: var(--color-text-muted);
+    text-align: center;
+}
+
+::deep .tracks-backlog-empty-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+}
+
+::deep .tracks-backlog-empty h3 {
+    margin: 0 0 6px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+::deep .tracks-backlog-empty p {
+    margin: 0;
+    font-size: 13px;
+}
+
+::deep .tracks-backlog-select-all {
+    padding: 8px 20px;
+    border-bottom: 1px solid var(--color-border);
+    background: color-mix(in srgb, var(--color-surface-alt, var(--color-surface)) 60%, var(--color-surface));
+}
+
+::deep .tracks-backlog-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+::deep .tracks-backlog-checkbox-label input[type="checkbox"] {
+    accent-color: var(--color-primary);
+}
+
+::deep .tracks-backlog-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 0;
+}
+
+::deep .tracks-backlog-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 20px;
+    border-bottom: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent);
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+
+::deep .tracks-backlog-card:hover {
+    background: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface));
+}
+
+::deep .tracks-backlog-card.selected {
+    background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
+}
+
+::deep .tracks-backlog-card.priority-urgent {
+    border-left: 3px solid var(--color-danger, #dc3545);
+}
+
+::deep .tracks-backlog-card.priority-high {
+    border-left: 3px solid #fd7e14;
+}
+
+::deep .tracks-backlog-card.priority-medium {
+    border-left: 3px solid #ffc107;
+}
+
+::deep .tracks-backlog-card.priority-low {
+    border-left: 3px solid var(--color-success, #28a745);
+}
+
+::deep .tracks-backlog-card-check {
+    flex-shrink: 0;
+}
+
+::deep .tracks-backlog-card-check input[type="checkbox"] {
+    accent-color: var(--color-primary);
+    width: 16px;
+    height: 16px;
+}
+
+::deep .tracks-backlog-card-content {
+    flex: 1;
+    min-width: 0;
+}
+
+::deep .tracks-backlog-card-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+::deep .tracks-backlog-card-number {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+}
+
+::deep .tracks-backlog-card-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+::deep .tracks-backlog-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+::deep .tracks-backlog-card-assign {
+    flex-shrink: 0;
+}
+
+::deep .tracks-backlog-sprint-select {
+    padding: 4px 8px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 12px;
+    cursor: pointer;
+}
+
+::deep .tracks-backlog-sprint-select:focus {
+    border-color: var(--color-primary);
+    outline: none;
+}

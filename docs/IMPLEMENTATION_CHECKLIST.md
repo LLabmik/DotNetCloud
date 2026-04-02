@@ -3479,9 +3479,10 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ 61 comprehensive Phase F tests
 
 #### Phase G: UI — Backlog & Sprint Views
-- ☐ Backlog View component
-- ☐ Sprint-filtered Kanban view
-- ☐ Backlog view in TracksPage
+- ✓ Backlog View component (BacklogView.razor + code-behind)
+- ✓ Sprint-filtered Kanban view (sprint tabs in KanbanBoard.razor)
+- ✓ Backlog view in TracksPage (enum, sidebar nav, mode guard)
+- ✓ 47 comprehensive Phase G tests
 
 #### Phase H: UI — Year Timeline / Gantt View
 - ☐ Timeline View component
