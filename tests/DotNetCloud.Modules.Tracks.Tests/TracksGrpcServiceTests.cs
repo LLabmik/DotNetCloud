@@ -3,6 +3,7 @@ using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using DotNetCloud.Modules.Tracks.Host.Protos;
 using DotNetCloud.Modules.Tracks.Host.Services;
+using DotNetCloud.Modules.Tracks.Services;
 using Grpc.Core;
 using Grpc.Core.Testing;
 using Microsoft.Extensions.Logging;
@@ -32,13 +33,17 @@ public class TracksGrpcServiceTests
         var boardService = new BoardService(_db, eventBus.Object, activityService, teamService, new Mock<ILogger<BoardService>>().Object);
         var swimlaneService = new SwimlaneService(_db, boardService, activityService, new Mock<ILogger<SwimlaneService>>().Object);
         var cardService = new CardService(_db, boardService, activityService, eventBus.Object, new Mock<ILogger<CardService>>().Object);
-        var pokerService = new PokerService(_db, boardService, activityService, new Mock<ILogger<PokerService>>().Object);
+        var pokerService = new PokerService(_db, boardService, activityService, new NullTracksRealtimeService(), new Mock<ILogger<PokerService>>().Object);
+        var sprintPlanningService = new SprintPlanningService(_db, boardService, activityService, new Mock<ILogger<SprintPlanningService>>().Object);
+        var reviewSessionService = new ReviewSessionService(_db, boardService, pokerService, new NullTracksRealtimeService(), new Mock<ILogger<ReviewSessionService>>().Object);
 
         _grpcService = new GrpcTracksService(
             boardService,
             swimlaneService,
             cardService,
             pokerService,
+            sprintPlanningService,
+            reviewSessionService,
             new Mock<ILogger<GrpcTracksService>>().Object);
     }
 

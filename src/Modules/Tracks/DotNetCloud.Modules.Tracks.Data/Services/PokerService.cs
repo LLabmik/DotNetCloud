@@ -3,6 +3,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Tracks.Models;
+using DotNetCloud.Modules.Tracks.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -16,6 +17,7 @@ public sealed class PokerService
     private readonly TracksDbContext _db;
     private readonly BoardService _boardService;
     private readonly ActivityService _activityService;
+    private readonly ITracksRealtimeService _realtimeService;
     private readonly ILogger<PokerService> _logger;
 
     // Valid values for built-in scales
@@ -31,11 +33,12 @@ public sealed class PokerService
     /// <summary>
     /// Initializes a new instance of the <see cref="PokerService"/> class.
     /// </summary>
-    public PokerService(TracksDbContext db, BoardService boardService, ActivityService activityService, ILogger<PokerService> logger)
+    public PokerService(TracksDbContext db, BoardService boardService, ActivityService activityService, ITracksRealtimeService realtimeService, ILogger<PokerService> logger)
     {
         _db = db;
         _boardService = boardService;
         _activityService = activityService;
+        _realtimeService = realtimeService;
         _logger = logger;
     }
 
@@ -167,6 +170,13 @@ public sealed class PokerService
         _logger.LogInformation("User {UserId} voted '{Estimate}' in session {SessionId} round {Round}",
             caller.UserId, dto.Estimate, sessionId, session.Round);
 
+        // Broadcast vote status if this poker session is linked to a review session
+        if (session.ReviewSessionId.HasValue)
+        {
+            await _realtimeService.BroadcastPokerVoteStatusAsync(
+                session.ReviewSessionId.Value, sessionId, caller.UserId, true, cancellationToken);
+        }
+
         return MapToDto(session);
     }
 
@@ -191,6 +201,13 @@ public sealed class PokerService
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Poker session {SessionId} votes revealed by user {UserId}", sessionId, caller.UserId);
+
+        // Broadcast poker state change if linked to a review session
+        if (session.ReviewSessionId.HasValue)
+        {
+            await _realtimeService.BroadcastReviewPokerStateAsync(
+                session.ReviewSessionId.Value, sessionId, session.BoardId, "revealed", cancellationToken);
+        }
 
         return MapToDto(session);
     }
@@ -236,6 +253,13 @@ public sealed class PokerService
             $"{{\"acceptedEstimate\":\"{dto.AcceptedEstimate}\",\"storyPoints\":{dto.StoryPoints ?? 0}}}",
             cancellationToken);
 
+        // Broadcast poker state change if linked to a review session
+        if (session.ReviewSessionId.HasValue)
+        {
+            await _realtimeService.BroadcastReviewPokerStateAsync(
+                session.ReviewSessionId.Value, sessionId, session.BoardId, "completed", cancellationToken);
+        }
+
         return MapToDto(session);
     }
 
@@ -266,6 +290,13 @@ public sealed class PokerService
 
         _logger.LogInformation("Poker session {SessionId} restarted as round {Round} by user {UserId}",
             sessionId, session.Round, caller.UserId);
+
+        // Broadcast poker state change if linked to a review session
+        if (session.ReviewSessionId.HasValue)
+        {
+            await _realtimeService.BroadcastReviewPokerStateAsync(
+                session.ReviewSessionId.Value, sessionId, session.BoardId, "new_round", cancellationToken);
+        }
 
         return MapToDto(session);
     }

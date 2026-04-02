@@ -268,4 +268,80 @@ public class BoardServiceTests
 
         Assert.IsNull(role);
     }
+
+    // ─── Board Mode (Phase A) ────────────────────────────────────────
+
+    [TestMethod]
+    public async Task CreateBoard_DefaultMode_IsPersonal()
+    {
+        var dto = new CreateBoardDto { Title = "Personal Board" };
+
+        var result = await _service.CreateBoardAsync(dto, _caller);
+
+        Assert.AreEqual(BoardMode.Personal, result.Mode);
+    }
+
+    [TestMethod]
+    public async Task CreateBoard_TeamMode_SetsMode()
+    {
+        var dto = new CreateBoardDto { Title = "Team Board", Mode = BoardMode.Team };
+
+        var result = await _service.CreateBoardAsync(dto, _caller);
+
+        Assert.AreEqual(BoardMode.Team, result.Mode);
+    }
+
+    [TestMethod]
+    public async Task ListBoards_ModeFilter_ReturnsOnlyMatchingMode()
+    {
+        var personal = await TestHelpers.SeedBoardAsync(_db, _caller.UserId, "Personal");
+        var teamBoard = await TestHelpers.SeedBoardAsync(_db, _caller.UserId, "Team");
+        teamBoard.Mode = BoardMode.Team;
+        _db.Update(teamBoard);
+        await _db.SaveChangesAsync();
+
+        var personalResults = await _service.ListBoardsAsync(_caller, modeFilter: BoardMode.Personal);
+        var teamResults = await _service.ListBoardsAsync(_caller, modeFilter: BoardMode.Team);
+
+        Assert.AreEqual(1, personalResults.Count);
+        Assert.AreEqual("Personal", personalResults[0].Title);
+        Assert.AreEqual(1, teamResults.Count);
+        Assert.AreEqual("Team", teamResults[0].Title);
+    }
+
+    [TestMethod]
+    public async Task ListBoards_NoFilter_ReturnsBothModes()
+    {
+        await TestHelpers.SeedBoardAsync(_db, _caller.UserId, "Personal");
+        var teamBoard = await TestHelpers.SeedBoardAsync(_db, _caller.UserId, "Team");
+        teamBoard.Mode = BoardMode.Team;
+        _db.Update(teamBoard);
+        await _db.SaveChangesAsync();
+
+        var results = await _service.ListBoardsAsync(_caller);
+
+        Assert.AreEqual(2, results.Count);
+    }
+
+    [TestMethod]
+    public async Task EnsureTeamMode_PersonalBoard_Throws()
+    {
+        var board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId, "Personal");
+        // Default mode is Personal
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
+            () => _service.EnsureTeamModeAsync(board.Id));
+    }
+
+    [TestMethod]
+    public async Task EnsureTeamMode_TeamBoard_Succeeds()
+    {
+        var board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId, "Team");
+        board.Mode = BoardMode.Team;
+        _db.Update(board);
+        await _db.SaveChangesAsync();
+
+        // Should not throw
+        await _service.EnsureTeamModeAsync(board.Id);
+    }
 }

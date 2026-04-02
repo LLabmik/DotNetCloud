@@ -165,7 +165,7 @@ public class TracksIntegrationTests
     [TestMethod]
     public async Task SprintsController_FullSprintLifecycle()
     {
-        var controller = new SprintsController(_sprintService, NullLogger<SprintsController>.Instance);
+        var controller = new SprintsController(_sprintService, new SprintPlanningService(_db, _boardService, _activityService, NullLogger<SprintPlanningService>.Instance), NullLogger<SprintsController>.Instance);
         SetupContext(controller, _userId);
 
         var caller = TestHelpers.CreateCaller(_userId);

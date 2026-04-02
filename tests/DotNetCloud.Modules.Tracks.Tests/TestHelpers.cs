@@ -2,9 +2,33 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Models;
+using DotNetCloud.Modules.Tracks.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace DotNetCloud.Modules.Tracks.Tests;
+
+/// <summary>
+/// No-op implementation of <see cref="ITracksRealtimeService"/> for unit tests.
+/// </summary>
+internal sealed class NullTracksRealtimeService : ITracksRealtimeService
+{
+    public Task BroadcastCardActionAsync(Guid boardId, Guid cardId, string action, Guid? fromSwimlaneId = null, Guid? toSwimlaneId = null, Guid? targetUserId = null, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task BroadcastSwimlaneActionAsync(Guid boardId, Guid swimlaneId, string action, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task BroadcastCommentActionAsync(Guid boardId, Guid cardId, Guid commentId, string action, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task BroadcastSprintActionAsync(Guid boardId, Guid sprintId, string action, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task BroadcastActivityAsync(Guid boardId, Guid userId, string activityAction, string entityType, Guid entityId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task BroadcastBoardMemberActionAsync(Guid boardId, Guid userId, string action, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task BroadcastTeamActionAsync(Guid teamId, string action, Guid? targetUserId = null, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task BroadcastReviewCardChangedAsync(Guid sessionId, Guid boardId, Guid cardId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task BroadcastReviewSessionStateAsync(Guid sessionId, Guid boardId, string action, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task BroadcastPokerVoteStatusAsync(Guid sessionId, Guid pokerId, Guid userId, bool hasVoted, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task BroadcastReviewPokerStateAsync(Guid sessionId, Guid pokerId, Guid boardId, string action, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task BroadcastReviewParticipantChangedAsync(Guid sessionId, Guid userId, string action, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task AddUserToBoardGroupAsync(Guid userId, Guid boardId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task RemoveUserFromBoardGroupAsync(Guid userId, Guid boardId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task AddUserToReviewGroupAsync(Guid userId, Guid sessionId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task RemoveUserFromReviewGroupAsync(Guid userId, Guid sessionId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+}
 
 /// <summary>
 /// Shared helpers for Tracks service tests.

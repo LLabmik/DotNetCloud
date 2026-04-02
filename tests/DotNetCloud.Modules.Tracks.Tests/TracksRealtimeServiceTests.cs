@@ -170,5 +170,127 @@ public class TracksRealtimeServiceTests
         await service.BroadcastTeamActionAsync(Guid.NewGuid(), "created");
         await service.AddUserToBoardGroupAsync(Guid.NewGuid(), boardId);
         await service.RemoveUserFromBoardGroupAsync(Guid.NewGuid(), boardId);
+        // Phase D review methods
+        await service.BroadcastReviewCardChangedAsync(Guid.NewGuid(), boardId, Guid.NewGuid());
+        await service.BroadcastReviewSessionStateAsync(Guid.NewGuid(), boardId, "started");
+        await service.BroadcastPokerVoteStatusAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), true);
+        await service.BroadcastReviewPokerStateAsync(Guid.NewGuid(), Guid.NewGuid(), boardId, "revealed");
+        await service.BroadcastReviewParticipantChangedAsync(Guid.NewGuid(), Guid.NewGuid(), "joined");
+        await service.AddUserToReviewGroupAsync(Guid.NewGuid(), Guid.NewGuid());
+        await service.RemoveUserFromReviewGroupAsync(Guid.NewGuid(), Guid.NewGuid());
+    }
+
+    // ─── Review Broadcast Methods (Phase D) ──────────────────────────
+
+    [TestMethod]
+    public async Task BroadcastReviewCardChanged_SendsToReviewGroup()
+    {
+        var sessionId = Guid.NewGuid();
+        var boardId = Guid.NewGuid();
+        var cardId = Guid.NewGuid();
+
+        await _service.BroadcastReviewCardChangedAsync(sessionId, boardId, cardId);
+
+        _broadcaster.Verify(b => b.BroadcastAsync(
+            $"tracks-review-{sessionId}",
+            "TracksReviewCardChanged",
+            It.IsAny<object>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task BroadcastReviewSessionState_SendsToBothGroups()
+    {
+        var sessionId = Guid.NewGuid();
+        var boardId = Guid.NewGuid();
+
+        await _service.BroadcastReviewSessionStateAsync(sessionId, boardId, "started");
+
+        // Should broadcast to both review group and board group
+        _broadcaster.Verify(b => b.BroadcastAsync(
+            $"tracks-review-{sessionId}",
+            "TracksReviewSessionState",
+            It.IsAny<object>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _broadcaster.Verify(b => b.BroadcastAsync(
+            $"tracks-board-{boardId}",
+            "TracksReviewSessionState",
+            It.IsAny<object>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task BroadcastPokerVoteStatus_SendsToReviewGroup()
+    {
+        var sessionId = Guid.NewGuid();
+        var pokerId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+
+        await _service.BroadcastPokerVoteStatusAsync(sessionId, pokerId, userId, true);
+
+        _broadcaster.Verify(b => b.BroadcastAsync(
+            $"tracks-review-{sessionId}",
+            "TracksPokerVoteStatus",
+            It.IsAny<object>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task BroadcastReviewPokerState_SendsToReviewGroup()
+    {
+        var sessionId = Guid.NewGuid();
+        var pokerId = Guid.NewGuid();
+        var boardId = Guid.NewGuid();
+
+        await _service.BroadcastReviewPokerStateAsync(sessionId, pokerId, boardId, "revealed");
+
+        _broadcaster.Verify(b => b.BroadcastAsync(
+            $"tracks-review-{sessionId}",
+            "TracksReviewPokerState",
+            It.IsAny<object>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task BroadcastReviewParticipantChanged_SendsToReviewGroup()
+    {
+        var sessionId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+
+        await _service.BroadcastReviewParticipantChangedAsync(sessionId, userId, "joined");
+
+        _broadcaster.Verify(b => b.BroadcastAsync(
+            $"tracks-review-{sessionId}",
+            "TracksReviewParticipantChanged",
+            It.IsAny<object>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task AddUserToReviewGroup_CallsBroadcaster()
+    {
+        var userId = Guid.NewGuid();
+        var sessionId = Guid.NewGuid();
+
+        await _service.AddUserToReviewGroupAsync(userId, sessionId);
+
+        _broadcaster.Verify(b => b.AddToGroupAsync(
+            userId,
+            $"tracks-review-{sessionId}",
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task RemoveUserFromReviewGroup_CallsBroadcaster()
+    {
+        var userId = Guid.NewGuid();
+        var sessionId = Guid.NewGuid();
+
+        await _service.RemoveUserFromReviewGroupAsync(userId, sessionId);
+
+        _broadcaster.Verify(b => b.RemoveFromGroupAsync(
+            userId,
+            $"tracks-review-{sessionId}",
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 }

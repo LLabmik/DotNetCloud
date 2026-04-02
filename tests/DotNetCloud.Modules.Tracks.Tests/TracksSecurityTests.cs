@@ -1,11 +1,13 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
 using IEventBus = DotNetCloud.Core.Events.IEventBus;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using DotNetCloud.Modules.Tracks.Models;
+using DotNetCloud.Modules.Tracks.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -507,5 +509,123 @@ public class TracksSecurityTests
 
         await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
             () => _labelService.AddLabelToCardAsync(boardBCard.Id, boardALabel.Id, _owner));
+    }
+
+    // ─── Board Mode Enforcement (Phase A) ────────────────────────────
+
+    [TestMethod]
+    public async Task SprintPlanning_PersonalBoard_Throws()
+    {
+        // Sprint planning requires Team mode
+        var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
+        var planningService = new SprintPlanningService(_db, _boardService, activityService, NullLogger<SprintPlanningService>.Instance);
+
+        var dto = new CreateSprintPlanDto
+        {
+            StartDate = DateTime.UtcNow,
+            SprintCount = 4,
+            DefaultDurationWeeks = 2
+        };
+
+        // Default board is Personal mode
+        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
+            () => planningService.CreateYearPlanAsync(_board.Id, dto, _owner));
+    }
+
+    [TestMethod]
+    public async Task SprintPlanning_TeamBoard_Succeeds()
+    {
+        _board.Mode = BoardMode.Team;
+        _db.Update(_board);
+        await _db.SaveChangesAsync();
+
+        var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
+        var planningService = new SprintPlanningService(_db, _boardService, activityService, NullLogger<SprintPlanningService>.Instance);
+
+        var dto = new CreateSprintPlanDto
+        {
+            StartDate = DateTime.UtcNow,
+            SprintCount = 2,
+            DefaultDurationWeeks = 2
+        };
+
+        var result = await planningService.CreateYearPlanAsync(_board.Id, dto, _owner);
+        Assert.IsNotNull(result);
+        Assert.AreEqual(2, result.Sprints.Count);
+    }
+
+    // ─── Review Session Authorization (Phase B) ──────────────────────
+
+    [TestMethod]
+    public async Task ReviewSession_PersonalBoard_Throws()
+    {
+        // Default board is Personal mode; review sessions require Team mode
+        var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
+        var realtimeMock = new DotNetCloud.Modules.Tracks.Tests.NullTracksRealtimeService();
+        var pokerService = new PokerService(_db, _boardService, activityService, realtimeMock, NullLogger<PokerService>.Instance);
+        var reviewService = new ReviewSessionService(_db, _boardService, pokerService, realtimeMock, NullLogger<ReviewSessionService>.Instance);
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
+            () => reviewService.StartSessionAsync(_board.Id, _owner));
+    }
+
+    [TestMethod]
+    public async Task ReviewSession_NonHost_CannotSetCard()
+    {
+        _board.Mode = BoardMode.Team;
+        _db.Update(_board);
+        await _db.SaveChangesAsync();
+
+        var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
+        var realtimeMock = new DotNetCloud.Modules.Tracks.Tests.NullTracksRealtimeService();
+        var pokerService = new PokerService(_db, _boardService, activityService, realtimeMock, NullLogger<PokerService>.Instance);
+        var reviewService = new ReviewSessionService(_db, _boardService, pokerService, realtimeMock, NullLogger<ReviewSessionService>.Instance);
+
+        var session = await reviewService.StartSessionAsync(_board.Id, _owner);
+        await reviewService.JoinSessionAsync(session.Id, _member);
+
+        var card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _owner.UserId);
+
+        // Member (non-host) cannot set current card
+        var ex = await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
+            () => reviewService.SetCurrentCardAsync(session.Id, card.Id, _member));
+        Assert.IsTrue(ex.Errors.ContainsKey(ErrorCodes.ReviewSessionNotHost));
+    }
+
+    [TestMethod]
+    public async Task ReviewSession_NonHost_CannotEndSession()
+    {
+        _board.Mode = BoardMode.Team;
+        _db.Update(_board);
+        await _db.SaveChangesAsync();
+
+        var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
+        var realtimeMock = new DotNetCloud.Modules.Tracks.Tests.NullTracksRealtimeService();
+        var pokerService = new PokerService(_db, _boardService, activityService, realtimeMock, NullLogger<PokerService>.Instance);
+        var reviewService = new ReviewSessionService(_db, _boardService, pokerService, realtimeMock, NullLogger<ReviewSessionService>.Instance);
+
+        var session = await reviewService.StartSessionAsync(_board.Id, _owner);
+        await reviewService.JoinSessionAsync(session.Id, _member);
+
+        var ex = await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
+            () => reviewService.EndSessionAsync(session.Id, _member));
+        Assert.IsTrue(ex.Errors.ContainsKey(ErrorCodes.ReviewSessionNotHost));
+    }
+
+    [TestMethod]
+    public async Task ReviewSession_NonAdmin_CannotStart()
+    {
+        _board.Mode = BoardMode.Team;
+        _db.Update(_board);
+        await _db.SaveChangesAsync();
+
+        var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
+        var realtimeMock = new DotNetCloud.Modules.Tracks.Tests.NullTracksRealtimeService();
+        var pokerService = new PokerService(_db, _boardService, activityService, realtimeMock, NullLogger<PokerService>.Instance);
+        var reviewService = new ReviewSessionService(_db, _boardService, pokerService, realtimeMock, NullLogger<ReviewSessionService>.Instance);
+
+        // Member (non-Admin) cannot start a review session
+        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
+            () => reviewService.StartSessionAsync(_board.Id, _member));
     }
 }

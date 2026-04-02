@@ -56,6 +56,36 @@ public interface ITracksSignalRService
     /// Args: teamId, action.
     /// </summary>
     event Action<Guid, string>? TeamActionReceived;
+
+    /// <summary>
+    /// Raised when the host changes the current card in a review session.
+    /// Args: sessionId, boardId, cardId.
+    /// </summary>
+    event Action<Guid, Guid, Guid>? ReviewCardChanged;
+
+    /// <summary>
+    /// Raised when a review session state changes (started, ended, paused).
+    /// Args: sessionId, boardId, action.
+    /// </summary>
+    event Action<Guid, Guid, string>? ReviewSessionStateChanged;
+
+    /// <summary>
+    /// Raised when a poker vote status changes during a review session (per-vote without revealing value).
+    /// Args: sessionId, pokerId, userId, hasVoted.
+    /// </summary>
+    event Action<Guid, Guid, Guid, bool>? PokerVoteStatusChanged;
+
+    /// <summary>
+    /// Raised when a poker session state changes during a review (started, revealed, completed, cancelled).
+    /// Args: sessionId, pokerId, boardId, action.
+    /// </summary>
+    event Action<Guid, Guid, Guid, string>? ReviewPokerStateChanged;
+
+    /// <summary>
+    /// Raised when a participant joins or leaves a review session.
+    /// Args: sessionId, userId, action.
+    /// </summary>
+    event Action<Guid, Guid, string>? ReviewParticipantChanged;
 }
 
 /// <summary>
@@ -82,5 +112,15 @@ internal sealed class NullTracksSignalRService : ITracksSignalRService
     public event Action<Guid, Guid, string>? BoardMemberActionReceived;
     /// <inheritdoc />
     public event Action<Guid, string>? TeamActionReceived;
+    /// <inheritdoc />
+    public event Action<Guid, Guid, Guid>? ReviewCardChanged;
+    /// <inheritdoc />
+    public event Action<Guid, Guid, string>? ReviewSessionStateChanged;
+    /// <inheritdoc />
+    public event Action<Guid, Guid, Guid, bool>? PokerVoteStatusChanged;
+    /// <inheritdoc />
+    public event Action<Guid, Guid, Guid, string>? ReviewPokerStateChanged;
+    /// <inheritdoc />
+    public event Action<Guid, Guid, string>? ReviewParticipantChanged;
 #pragma warning restore CS0067
 }

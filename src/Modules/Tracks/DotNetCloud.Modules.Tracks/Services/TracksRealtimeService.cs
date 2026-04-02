@@ -24,6 +24,7 @@ internal sealed class TracksRealtimeService : ITracksRealtimeService
 
     private static string BoardGroup(Guid boardId) => $"tracks-board-{boardId}";
     private static string TeamGroup(Guid teamId) => $"tracks-team-{teamId}";
+    private static string ReviewGroup(Guid sessionId) => $"tracks-review-{sessionId}";
 
     /// <inheritdoc />
     public async Task BroadcastCardActionAsync(Guid boardId, Guid cardId, string action, Guid? fromSwimlaneId, Guid? toSwimlaneId, Guid? targetUserId, CancellationToken cancellationToken)
@@ -82,6 +83,49 @@ internal sealed class TracksRealtimeService : ITracksRealtimeService
     }
 
     /// <inheritdoc />
+    public async Task BroadcastReviewCardChangedAsync(Guid sessionId, Guid boardId, Guid cardId, CancellationToken cancellationToken)
+    {
+        if (_broadcaster is null) return;
+        await _broadcaster.BroadcastAsync(ReviewGroup(sessionId), "TracksReviewCardChanged",
+            new { sessionId, boardId, cardId }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task BroadcastReviewSessionStateAsync(Guid sessionId, Guid boardId, string action, CancellationToken cancellationToken)
+    {
+        if (_broadcaster is null) return;
+        // Broadcast to both the review group and the board group so non-participants know a session started/ended
+        await _broadcaster.BroadcastAsync(ReviewGroup(sessionId), "TracksReviewSessionState",
+            new { sessionId, boardId, action }, cancellationToken);
+        await _broadcaster.BroadcastAsync(BoardGroup(boardId), "TracksReviewSessionState",
+            new { sessionId, boardId, action }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task BroadcastPokerVoteStatusAsync(Guid sessionId, Guid pokerId, Guid userId, bool hasVoted, CancellationToken cancellationToken)
+    {
+        if (_broadcaster is null) return;
+        await _broadcaster.BroadcastAsync(ReviewGroup(sessionId), "TracksPokerVoteStatus",
+            new { sessionId, pokerId, userId, hasVoted }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task BroadcastReviewPokerStateAsync(Guid sessionId, Guid pokerId, Guid boardId, string action, CancellationToken cancellationToken)
+    {
+        if (_broadcaster is null) return;
+        await _broadcaster.BroadcastAsync(ReviewGroup(sessionId), "TracksReviewPokerState",
+            new { sessionId, pokerId, boardId, action }, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task BroadcastReviewParticipantChangedAsync(Guid sessionId, Guid userId, string action, CancellationToken cancellationToken)
+    {
+        if (_broadcaster is null) return;
+        await _broadcaster.BroadcastAsync(ReviewGroup(sessionId), "TracksReviewParticipantChanged",
+            new { sessionId, userId, action }, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task AddUserToBoardGroupAsync(Guid userId, Guid boardId, CancellationToken cancellationToken)
     {
         if (_broadcaster is null) return;
@@ -95,5 +139,21 @@ internal sealed class TracksRealtimeService : ITracksRealtimeService
         if (_broadcaster is null) return;
         await _broadcaster.RemoveFromGroupAsync(userId, BoardGroup(boardId), cancellationToken);
         _logger.LogDebug("Removed user {UserId} from board group {BoardId}", userId, boardId);
+    }
+
+    /// <inheritdoc />
+    public async Task AddUserToReviewGroupAsync(Guid userId, Guid sessionId, CancellationToken cancellationToken)
+    {
+        if (_broadcaster is null) return;
+        await _broadcaster.AddToGroupAsync(userId, ReviewGroup(sessionId), cancellationToken);
+        _logger.LogDebug("Added user {UserId} to review group {SessionId}", userId, sessionId);
+    }
+
+    /// <inheritdoc />
+    public async Task RemoveUserFromReviewGroupAsync(Guid userId, Guid sessionId, CancellationToken cancellationToken)
+    {
+        if (_broadcaster is null) return;
+        await _broadcaster.RemoveFromGroupAsync(userId, ReviewGroup(sessionId), cancellationToken);
+        _logger.LogDebug("Removed user {UserId} from review group {SessionId}", userId, sessionId);
     }
 }

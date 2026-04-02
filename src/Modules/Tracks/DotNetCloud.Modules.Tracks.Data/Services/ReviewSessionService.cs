@@ -2,6 +2,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Tracks.Models;
+using DotNetCloud.Modules.Tracks.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -17,16 +18,18 @@ public sealed class ReviewSessionService
     private readonly TracksDbContext _db;
     private readonly BoardService _boardService;
     private readonly PokerService _pokerService;
+    private readonly ITracksRealtimeService _realtimeService;
     private readonly ILogger<ReviewSessionService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ReviewSessionService"/> class.
     /// </summary>
-    public ReviewSessionService(TracksDbContext db, BoardService boardService, PokerService pokerService, ILogger<ReviewSessionService> logger)
+    public ReviewSessionService(TracksDbContext db, BoardService boardService, PokerService pokerService, ITracksRealtimeService realtimeService, ILogger<ReviewSessionService> logger)
     {
         _db = db;
         _boardService = boardService;
         _pokerService = pokerService;
+        _realtimeService = realtimeService;
         _logger = logger;
     }
 
@@ -64,6 +67,10 @@ public sealed class ReviewSessionService
         _logger.LogInformation("Review session {SessionId} started on board {BoardId} by user {UserId}",
             session.Id, boardId, caller.UserId);
 
+        // Add host to review SignalR group and broadcast session started
+        await _realtimeService.AddUserToReviewGroupAsync(caller.UserId, session.Id, cancellationToken);
+        await _realtimeService.BroadcastReviewSessionStateAsync(session.Id, boardId, "started", cancellationToken);
+
         return await GetSessionStateAsync(session.Id, caller, cancellationToken)
             ?? throw new System.InvalidOperationException("Review session was created but could not be retrieved.");
     }
@@ -98,6 +105,10 @@ public sealed class ReviewSessionService
 
         _logger.LogInformation("User {UserId} joined review session {SessionId}", caller.UserId, sessionId);
 
+        // Add user to review SignalR group and broadcast participant joined
+        await _realtimeService.AddUserToReviewGroupAsync(caller.UserId, sessionId, cancellationToken);
+        await _realtimeService.BroadcastReviewParticipantChangedAsync(sessionId, caller.UserId, "joined", cancellationToken);
+
         return await GetSessionStateAsync(sessionId, caller, cancellationToken)
             ?? throw new System.InvalidOperationException("Review session could not be retrieved.");
     }
@@ -117,6 +128,10 @@ public sealed class ReviewSessionService
         }
 
         _logger.LogInformation("User {UserId} left review session {SessionId}", caller.UserId, sessionId);
+
+        // Remove user from review SignalR group and broadcast participant left
+        await _realtimeService.RemoveUserFromReviewGroupAsync(caller.UserId, sessionId, cancellationToken);
+        await _realtimeService.BroadcastReviewParticipantChangedAsync(sessionId, caller.UserId, "left", cancellationToken);
     }
 
     /// <summary>
@@ -141,6 +156,9 @@ public sealed class ReviewSessionService
 
         _logger.LogInformation("Review session {SessionId}: current card set to {CardId} by host {UserId}",
             sessionId, cardId, caller.UserId);
+
+        // Broadcast card change to all review participants
+        await _realtimeService.BroadcastReviewCardChangedAsync(sessionId, session.BoardId, cardId, cancellationToken);
 
         return await GetSessionStateAsync(sessionId, caller, cancellationToken)
             ?? throw new System.InvalidOperationException("Review session could not be retrieved.");
@@ -184,6 +202,9 @@ public sealed class ReviewSessionService
 
         _logger.LogInformation("Poker session {PokerId} started in review {SessionId} for card {CardId}",
             pokerSession.Id, sessionId, session.CurrentCardId.Value);
+
+        // Broadcast poker started in review
+        await _realtimeService.BroadcastReviewPokerStateAsync(sessionId, pokerSession.Id, session.BoardId, "started", cancellationToken);
 
         return await GetSessionStateAsync(sessionId, caller, cancellationToken)
             ?? throw new System.InvalidOperationException("Review session could not be retrieved.");
@@ -273,6 +294,9 @@ public sealed class ReviewSessionService
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Review session {SessionId} ended by host {UserId}", sessionId, caller.UserId);
+
+        // Broadcast session ended
+        await _realtimeService.BroadcastReviewSessionStateAsync(sessionId, session.BoardId, "ended", cancellationToken);
     }
 
     /// <summary>

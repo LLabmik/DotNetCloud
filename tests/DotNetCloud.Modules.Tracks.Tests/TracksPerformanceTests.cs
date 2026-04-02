@@ -6,6 +6,7 @@ using IEventBus = DotNetCloud.Core.Events.IEventBus;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using DotNetCloud.Modules.Tracks.Models;
+using DotNetCloud.Modules.Tracks.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -278,5 +279,87 @@ public class TracksPerformanceTests
         // Getting dependencies for first card should complete
         var deps = await _dependencyService.GetDependenciesAsync(cards[0].Id, _caller);
         Assert.AreEqual(1, deps.Count);
+    }
+
+    // ─── Sprint Plan Performance (Phase C) ───────────────────────────
+
+    [TestMethod]
+    public async Task SprintPlan_52Sprints_CreatesAndReturnsOverview()
+    {
+        var board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId, "Year Plan Board");
+        board.Mode = BoardMode.Team;
+        _db.Update(board);
+        await _db.SaveChangesAsync();
+
+        var planningService = new SprintPlanningService(_db, _boardService, _activityService, NullLogger<SprintPlanningService>.Instance);
+        var dto = new CreateSprintPlanDto
+        {
+            StartDate = new DateTime(2026, 1, 5, 0, 0, 0, DateTimeKind.Utc),
+            SprintCount = 52,
+            DefaultDurationWeeks = 1
+        };
+
+        var result = await planningService.CreateYearPlanAsync(board.Id, dto, _caller);
+
+        Assert.AreEqual(52, result.Sprints.Count);
+        Assert.AreEqual(52, result.TotalWeeks);
+    }
+
+    [TestMethod]
+    public async Task SprintPlan_AdjustWithCascade_52Sprints()
+    {
+        var board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId, "Cascade Board");
+        board.Mode = BoardMode.Team;
+        _db.Update(board);
+        await _db.SaveChangesAsync();
+
+        var planningService = new SprintPlanningService(_db, _boardService, _activityService, NullLogger<SprintPlanningService>.Instance);
+        var dto = new CreateSprintPlanDto
+        {
+            StartDate = new DateTime(2026, 1, 5, 0, 0, 0, DateTimeKind.Utc),
+            SprintCount = 52,
+            DefaultDurationWeeks = 1
+        };
+        var plan = await planningService.CreateYearPlanAsync(board.Id, dto, _caller);
+
+        // Adjust first sprint to 2 weeks — should cascade all 51 subsequent sprints
+        var adjustDto = new AdjustSprintDto { DurationWeeks = 2 };
+        var result = await planningService.AdjustSprintAsync(plan.Sprints[0].Id, adjustDto, _caller);
+
+        Assert.AreEqual(52, result.Sprints.Count);
+        Assert.AreEqual(2, result.Sprints[0].DurationWeeks);
+    }
+
+    // ─── Review Session Performance (Phase B/D) ──────────────────────
+
+    [TestMethod]
+    public async Task ReviewSession_20Participants_JoinAndLeave()
+    {
+        var board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId, "Review Board");
+        board.Mode = BoardMode.Team;
+        _db.Update(board);
+        await _db.SaveChangesAsync();
+
+        var realtimeService = new NullTracksRealtimeService();
+        var pokerService = new PokerService(_db, _boardService, _activityService, realtimeService, NullLogger<PokerService>.Instance);
+        var reviewService = new ReviewSessionService(_db, _boardService, pokerService, realtimeService, NullLogger<ReviewSessionService>.Instance);
+
+        // Start session as owner (Admin)
+        var session = await reviewService.StartSessionAsync(board.Id, _caller);
+
+        // Have 20 members join
+        for (var i = 0; i < 20; i++)
+        {
+            var memberId = Guid.NewGuid();
+            await TestHelpers.AddMemberAsync(_db, board.Id, memberId, BoardMemberRole.Member);
+            var memberCaller = TestHelpers.CreateCaller(memberId);
+            await reviewService.JoinSessionAsync(session.Id, memberCaller);
+        }
+
+        // Get state should include all participants
+        var state = await reviewService.GetSessionStateAsync(session.Id, _caller);
+        Assert.IsNotNull(state);
+        // Host + 20 members = 21 participants
+        Assert.AreEqual(21, state.Participants.Count);
     }
 }

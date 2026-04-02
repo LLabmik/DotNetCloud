@@ -5,6 +5,7 @@ using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using DotNetCloud.Modules.Tracks.Models;
+using DotNetCloud.Modules.Tracks.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
@@ -30,7 +31,7 @@ public class PokerServiceTests
         var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
         var teamService = new TeamService(_db, mock.Object, NullLogger<TeamService>.Instance);
         _boardService = new BoardService(_db, mock.Object, activityService, teamService, NullLogger<BoardService>.Instance);
-        _service = new PokerService(_db, _boardService, activityService, NullLogger<PokerService>.Instance);
+        _service = new PokerService(_db, _boardService, activityService, new NullTracksRealtimeService(), NullLogger<PokerService>.Instance);
         _board = await TestHelpers.SeedBoardAsync(_db, _caller.UserId);
         _swimlane = await TestHelpers.SeedSwimlaneAsync(_db, _board.Id);
         _card = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId);
@@ -205,5 +206,103 @@ public class PokerServiceTests
     {
         await Assert.ThrowsExactlyAsync<ValidationException>(
             () => _service.GetCardSessionsAsync(Guid.NewGuid(), _caller));
+    }
+
+    // ─── GetVoteStatus (Phase B) ─────────────────────────────────────
+
+    [TestMethod]
+    public async Task GetVoteStatus_ReturnsAllBoardMembers()
+    {
+        var memberId = Guid.NewGuid();
+        await TestHelpers.AddMemberAsync(_db, _board.Id, memberId, BoardMemberRole.Member);
+        var session = await _service.StartSessionAsync(_card.Id, new CreatePokerSessionDto { Scale = PokerScale.Fibonacci }, _caller);
+
+        var status = await _service.GetVoteStatusAsync(session.Id, _caller);
+
+        // Owner + member = 2 board members
+        Assert.AreEqual(2, status.Count);
+    }
+
+    [TestMethod]
+    public async Task GetVoteStatus_ShowsWhoHasVoted()
+    {
+        var session = await _service.StartSessionAsync(_card.Id, new CreatePokerSessionDto { Scale = PokerScale.Fibonacci }, _caller);
+        await _service.SubmitVoteAsync(session.Id, new SubmitPokerVoteDto { Estimate = "5" }, _caller);
+
+        var status = await _service.GetVoteStatusAsync(session.Id, _caller);
+
+        var voterStatus = status.First(s => s.UserId == _caller.UserId);
+        Assert.IsTrue(voterStatus.HasVoted);
+    }
+
+    [TestMethod]
+    public async Task GetVoteStatus_ShowsWhoHasNotVoted()
+    {
+        var memberId = Guid.NewGuid();
+        await TestHelpers.AddMemberAsync(_db, _board.Id, memberId, BoardMemberRole.Member);
+        var session = await _service.StartSessionAsync(_card.Id, new CreatePokerSessionDto { Scale = PokerScale.Fibonacci }, _caller);
+        await _service.SubmitVoteAsync(session.Id, new SubmitPokerVoteDto { Estimate = "5" }, _caller);
+
+        var status = await _service.GetVoteStatusAsync(session.Id, _caller);
+
+        var nonVoterStatus = status.First(s => s.UserId == memberId);
+        Assert.IsFalse(nonVoterStatus.HasVoted);
+    }
+
+    [TestMethod]
+    public async Task GetVoteStatus_SessionNotFound_Throws()
+    {
+        await Assert.ThrowsExactlyAsync<ValidationException>(
+            () => _service.GetVoteStatusAsync(Guid.NewGuid(), _caller));
+    }
+
+    // ─── Review-Linked Poker Broadcasts (Phase D) ─────────────────────
+
+    [TestMethod]
+    public async Task SubmitVote_ReviewLinked_BroadcastsVoteStatus()
+    {
+        var realtimeMock = new Mock<ITracksRealtimeService>();
+        var eventBus = new Mock<IEventBus>();
+        var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
+        var pokerWithMock = new PokerService(_db, _boardService, activityService, realtimeMock.Object, NullLogger<PokerService>.Instance);
+
+        // Create a review-linked poker session
+        var session = await pokerWithMock.StartSessionAsync(_card.Id, new CreatePokerSessionDto { Scale = PokerScale.Fibonacci }, _caller);
+        // Set ReviewSessionId directly on the DB entity
+        var dbSession = await _db.PokerSessions.FindAsync(session.Id);
+        dbSession!.ReviewSessionId = Guid.NewGuid();
+        await _db.SaveChangesAsync();
+
+        await pokerWithMock.SubmitVoteAsync(session.Id, new SubmitPokerVoteDto { Estimate = "8" }, _caller);
+
+        realtimeMock.Verify(r => r.BroadcastPokerVoteStatusAsync(
+            dbSession.ReviewSessionId.Value,
+            session.Id,
+            _caller.UserId,
+            true,
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task RevealSession_ReviewLinked_BroadcastsPokerState()
+    {
+        var realtimeMock = new Mock<ITracksRealtimeService>();
+        var activityService = new ActivityService(_db, NullLogger<ActivityService>.Instance);
+        var pokerWithMock = new PokerService(_db, _boardService, activityService, realtimeMock.Object, NullLogger<PokerService>.Instance);
+
+        var session = await pokerWithMock.StartSessionAsync(_card.Id, new CreatePokerSessionDto { Scale = PokerScale.Fibonacci }, _caller);
+        var dbSession = await _db.PokerSessions.FindAsync(session.Id);
+        dbSession!.ReviewSessionId = Guid.NewGuid();
+        await _db.SaveChangesAsync();
+
+        await pokerWithMock.SubmitVoteAsync(session.Id, new SubmitPokerVoteDto { Estimate = "8" }, _caller);
+        await pokerWithMock.RevealSessionAsync(session.Id, _caller);
+
+        realtimeMock.Verify(r => r.BroadcastReviewPokerStateAsync(
+            dbSession.ReviewSessionId.Value,
+            session.Id,
+            _board.Id,
+            "revealed",
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 }

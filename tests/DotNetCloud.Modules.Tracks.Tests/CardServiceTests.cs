@@ -258,4 +258,39 @@ public class CardServiceTests
         // Should not throw
         await _service.UnassignUserAsync(card.Id, Guid.NewGuid(), _caller);
     }
+
+    // ─── Sprint Filter (Phase C) ────────────────────────────────────
+
+    [TestMethod]
+    public async Task ListCards_SprintIdFilter_ReturnsOnlySprintCards()
+    {
+        var card1 = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId, "Sprint Card");
+        var card2 = await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId, "No Sprint Card");
+
+        var sprint = new Sprint
+        {
+            BoardId = _board.Id,
+            Title = "Sprint 1",
+            Status = SprintStatus.Planning
+        };
+        _db.Sprints.Add(sprint);
+        _db.SprintCards.Add(new SprintCard { SprintId = sprint.Id, CardId = card1.Id });
+        await _db.SaveChangesAsync();
+
+        var results = await _service.ListCardsAsync(_swimlane.Id, _caller, sprintId: sprint.Id);
+
+        Assert.AreEqual(1, results.Count);
+        Assert.AreEqual("Sprint Card", results[0].Title);
+    }
+
+    [TestMethod]
+    public async Task ListCards_NoSprintFilter_ReturnsAllCards()
+    {
+        await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId, "Card 1");
+        await TestHelpers.SeedCardAsync(_db, _swimlane.Id, _caller.UserId, "Card 2");
+
+        var results = await _service.ListCardsAsync(_swimlane.Id, _caller);
+
+        Assert.AreEqual(2, results.Count);
+    }
 }
