@@ -32,7 +32,7 @@
                         }
                     </select>
                 }
-                @if (Sprints is not null && Sprints.Count > 0)
+                @if (Board.Mode == BoardMode.Team && Sprints is not null && Sprints.Count > 0)
                 {
                     <select class="tracks-filter-select" @bind="_sprintFilter">
                         <option value="">All cards</option>
@@ -155,8 +155,8 @@
                                     </div>
                                 }
 
-                                @* ── Sprint Badge ── *@
-                                @if (!string.IsNullOrEmpty(card.SprintTitle) && string.IsNullOrEmpty(_sprintFilter))
+                                @* ── Sprint Badge (Team mode only) ── *@
+                                @if (Board.Mode == BoardMode.Team && !string.IsNullOrEmpty(card.SprintTitle) && string.IsNullOrEmpty(_sprintFilter))
                                 {
                                     <div class="tracks-card-sprint-badge">🏃 @card.SprintTitle</div>
                                 }

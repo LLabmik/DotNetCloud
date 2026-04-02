@@ -39,6 +39,9 @@ public partial class TracksPage : ComponentBase, IDisposable
     // Sprint planning
     private SprintDto? _planningSprint;
 
+    /// <summary>First sprint in Planning or Active status, for sidebar nav.</summary>
+    private SprintDto? PlannableSprint => _sprints.FirstOrDefault(s => s.Status is SprintStatus.Planning or SprintStatus.Active);
+
     protected override async Task OnInitializedAsync()
     {
         SubscribeToRealtimeEvents();
@@ -93,6 +96,7 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     private void OpenSprintPlanning(SprintDto sprint)
     {
+        if (_selectedBoard?.Mode != BoardMode.Team) return;
         _planningSprint = sprint;
         _selectedCard = null;
         _showBoardSettings = false;
@@ -344,7 +348,11 @@ public partial class TracksPage : ComponentBase, IDisposable
 
     // ── Panel Toggles ───────────────────────────────────────
 
-    private void ToggleSprints() => _showSprints = !_showSprints;
+    private void ToggleSprints()
+    {
+        if (_selectedBoard?.Mode != BoardMode.Team) return;
+        _showSprints = !_showSprints;
+    }
 
     private void ShowBoardSettings() => _showBoardSettings = true;
 

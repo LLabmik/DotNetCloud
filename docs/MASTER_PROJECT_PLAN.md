@@ -95,6 +95,7 @@
 | Phase 4.6 | 4 | 4 | 0 | 0 |
 | Phase 4.7 | 6 | 6 | 0 | 0 |
 | Phase 4.8 | 8 | 8 | 0 | 0 |
+| Phase 4.9 | 42 | 24 | 0 | 18 |
 | Phase 5-9 | Summary | 0 | 0 | 1 |
 | Infrastructure | Summary | 0 | 0 | 1 |
 | Documentation | Summary | 0 | 0 | 1 |
@@ -1579,6 +1580,23 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ README roadmap status update — Tracks marked ✅ Phase 4 in feature table and ✅ Complete in roadmap table
 
 **Notes:** 344 total Tracks tests pass (291 existing + 53 new: 30 security, 12 integration, 11 performance). Phase 4 complete.
+
+---
+
+### Section: Phase 4.9 - Dual-Mode Rework (Personal + Team)
+**STATUS:** in-progress 🔄
+**DELIVERABLES:**
+- ✓ Phase A: Data Model & Mode System — `BoardMode` enum, `ReviewSession`/`ReviewSessionParticipant` entities, sprint planning fields, EF configs
+- ✓ Phase B: Service Layer — Mode-aware `BoardService`, `SprintPlanningService`, `ReviewSessionService`, backlog/sprint filter, poker vote status
+- ✓ Phase C: API Layer — Board mode parameter, sprint wizard endpoints, backlog endpoints, `ReviewSessionController`, poker vote status endpoint, gRPC updates
+- ✓ Phase D: Real-Time / SignalR — Review session broadcasts, client-side SignalR events
+- ✓ Phase E: UI — Personal Mode Simplification — Mode selector in create dialog, mode badge in board list, conditional sidebar for Personal/Team, sprint controls hidden for Personal boards, 35 Phase E tests
+- ☐ Phase F: UI — Sprint Planning Wizard
+- ☐ Phase G: UI — Backlog & Sprint Views
+- ☐ Phase H: UI — Year Timeline / Gantt View
+- ☐ Phase I: UI — Live Review Mode
+
+**Notes:** Phases A–E complete. Phase E added mode-aware UI: Personal boards show clean kanban without sprint/planning clutter; Team boards show full feature set. 35 new Phase E tests, 533 total Tracks tests passing. Next: Phase F (Sprint Planning Wizard UI).
 
 ---
 

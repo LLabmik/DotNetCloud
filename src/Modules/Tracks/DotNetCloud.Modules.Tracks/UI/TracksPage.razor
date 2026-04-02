@@ -43,21 +43,21 @@
                     }
                     @if (!_sidebarCollapsed) { <span class="tracks-nav-text">@_selectedBoard.Title</span> }
                 </button>
-                <button class="tracks-nav-item @(_showSprints ? "active" : "")"
-                        @onclick="ToggleSprints" title="Sprints">
-                    <span class="tracks-nav-icon">🏃</span>
-                    @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Sprints</span> }
-                </button>
-                @{
-                    var plannable = _sprints.FirstOrDefault(s => s.Status is SprintStatus.Planning or SprintStatus.Active);
-                }
-                @if (plannable is not null)
+                @if (_selectedBoard.Mode == BoardMode.Team)
                 {
-                    <button class="tracks-nav-item @(_view == TracksView.Planning ? "active" : "")"
-                            @onclick="() => OpenSprintPlanning(plannable)" title="Sprint Planning">
-                        <span class="tracks-nav-icon">📊</span>
-                        @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Planning</span> }
+                    <button class="tracks-nav-item @(_showSprints ? "active" : "")"
+                            @onclick="ToggleSprints" title="Sprints">
+                        <span class="tracks-nav-icon">🏃</span>
+                        @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Sprints</span> }
                     </button>
+                    @if (PlannableSprint is not null)
+                    {
+                        <button class="tracks-nav-item @(_view == TracksView.Planning ? "active" : "")"
+                                @onclick="() => OpenSprintPlanning(PlannableSprint)" title="Sprint Planning">
+                            <span class="tracks-nav-icon">📊</span>
+                            @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Planning</span> }
+                        </button>
+                    }
                 }
                 <button class="tracks-nav-item"
                         @onclick="ShowBoardSettings" title="Settings">
@@ -132,7 +132,7 @@
                                          OnSwimlaneDeleted="HandleSwimlaneDeleted"
                                          OnRefreshRequested="RefreshBoardAsync" />
 
-                            @if (_showSprints)
+                            @if (_showSprints && _selectedBoard.Mode == BoardMode.Team)
                             {
                                 <SprintPanel BoardId="_selectedBoard.Id"
                                              Sprints="_sprints"

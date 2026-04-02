@@ -3430,3 +3430,63 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ User guide (boards, cards, sprints, time tracking)
 - ✓ API documentation (all endpoints)
 - ✓ README roadmap status update
+
+### Phase 4.9: Dual-Mode Rework (Personal + Team)
+
+> Detailed plan: `docs/TRACKS_DUAL_MODE_REWORK_PLAN.md`
+
+#### Phase A: Data Model & Mode System
+- ✓ `BoardMode` enum (Personal, Team)
+- ✓ `Mode` property on Board entity (default Personal)
+- ✓ Sprint planning fields (`DurationWeeks`, `PlannedOrder`)
+- ✓ `ReviewSession` entity
+- ✓ `ReviewSessionParticipant` entity
+- ✓ `PokerSession.ReviewSessionId` FK
+- ✓ `ReviewSessionStatus` enum
+- ✓ EF configuration & DbSets
+
+#### Phase B: Service Layer — Mode & Sprint Planning
+- ✓ Mode-aware `BoardService` guards (`EnsureTeamModeAsync`)
+- ✓ `SprintPlanningService` (year plan, adjust, cascade)
+- ✓ Backlog service additions (sprint filter on `ListCards`)
+- ✓ `ReviewSessionService` (start/join/leave/setCard/poker/end)
+- ✓ `PokerService` vote status method
+
+#### Phase C: API Layer Changes
+- ✓ Board mode parameter on `POST /api/v1/boards`
+- ✓ Sprint wizard endpoints (plan CRUD, adjust)
+- ✓ Backlog endpoints (sprint filter)
+- ✓ `ReviewSessionController` (8 endpoints)
+- ✓ Poker vote status endpoint
+- ✓ gRPC proto updates
+
+#### Phase D: Real-Time / SignalR
+- ✓ Review session SignalR broadcasts
+- ✓ Client-side SignalR events for review
+
+#### Phase E: UI — Personal Mode Simplification
+- ✓ Board creation dialog with mode selection (Personal/Team toggle)
+- ✓ Mode badge on board cards in list view
+- ✓ Conditional sidebar in TracksPage (hide sprints/planning for Personal)
+- ✓ Sprint panel hidden for Personal boards
+- ✓ Sprint filter hidden on KanbanBoard for Personal boards
+- ✓ Sprint badge hidden on cards for Personal boards
+- ✓ 35 comprehensive Phase E tests
+
+#### Phase F: UI — Sprint Planning Wizard
+- ☐ Multi-step wizard component
+- ☐ Wizard view in TracksPage
+
+#### Phase G: UI — Backlog & Sprint Views
+- ☐ Backlog View component
+- ☐ Sprint-filtered Kanban view
+- ☐ Backlog view in TracksPage
+
+#### Phase H: UI — Year Timeline / Gantt View
+- ☐ Timeline View component
+- ☐ Timeline view in TracksPage
+
+#### Phase I: UI — Live Review Mode
+- ☐ Review Session Host Controls
+- ☐ Review Session Participant View
+- ☐ Review Session entry in TracksPage
