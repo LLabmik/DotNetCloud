@@ -1,0 +1,275 @@
+@namespace DotNetCloud.Modules.Tracks.UI
+
+<div class="tracks-wizard">
+    @* ── Progress Steps ── *@
+    <div class="tracks-wizard-progress">
+        @for (var i = 0; i < _steps.Length; i++)
+        {
+            var step = i;
+            <button class="tracks-wizard-step @(step == _currentStep ? "active" : "") @(step < _currentStep ? "completed" : "")"
+                    @onclick="() => GoToStep(step)"
+                    disabled="@(step > _currentStep)">
+                <span class="tracks-wizard-step-number">
+                    @if (step < _currentStep)
+                    {
+                        <span>✓</span>
+                    }
+                    else
+                    {
+                        <span>@(step + 1)</span>
+                    }
+                </span>
+                <span class="tracks-wizard-step-label">@_steps[step]</span>
+            </button>
+            @if (i < _steps.Length - 1)
+            {
+                <div class="tracks-wizard-step-connector @(i < _currentStep ? "completed" : "")"></div>
+            }
+        }
+    </div>
+
+    @* ── Step Content ── *@
+    <div class="tracks-wizard-content">
+        @switch (_currentStep)
+        {
+            case 0:
+                @* ── Step 1: Plan Basics ── *@
+                <div class="tracks-wizard-step-content">
+                    <h3>Plan Basics</h3>
+                    <p class="tracks-wizard-step-desc">Set the start date, number of sprints, and default duration for your sprint plan.</p>
+
+                    <div class="tracks-wizard-form">
+                        <div class="tracks-form-group">
+                            <label>Plan Start Date</label>
+                            <input type="date" class="form-control"
+                                   value="@_startDate.ToString("yyyy-MM-dd")"
+                                   @onchange="OnStartDateChanged" />
+                        </div>
+
+                        <div class="tracks-wizard-row">
+                            <div class="tracks-form-group">
+                                <label>Number of Sprints</label>
+                                <input type="number" class="form-control" min="1" max="104"
+                                       @bind="_sprintCount" @bind:event="oninput" />
+                                <span class="tracks-form-hint">1–104 sprints</span>
+                            </div>
+                            <div class="tracks-form-group">
+                                <label>Default Duration (weeks)</label>
+                                <select class="form-control" @bind="_defaultDurationWeeks">
+                                    @for (var w = 1; w <= 16; w++)
+                                    {
+                                        <option value="@w">@w week@(w != 1 ? "s" : "")</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+
+                        @if (_sprintCount > 0 && _defaultDurationWeeks > 0)
+                        {
+                            <div class="tracks-wizard-summary-box">
+                                <div class="tracks-wizard-summary-item">
+                                    <span class="tracks-wizard-summary-label">Total Duration</span>
+                                    <span class="tracks-wizard-summary-value">@(_sprintCount * _defaultDurationWeeks) weeks (~@(Math.Round(_sprintCount * _defaultDurationWeeks / 4.33, 1)) months)</span>
+                                </div>
+                                <div class="tracks-wizard-summary-item">
+                                    <span class="tracks-wizard-summary-label">Plan End Date</span>
+                                    <span class="tracks-wizard-summary-value">@_startDate.AddDays(_sprintCount * _defaultDurationWeeks * 7).ToString("MMM d, yyyy")</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+                break;
+
+            case 1:
+                @* ── Step 2: Swimlane Definition ── *@
+                <div class="tracks-wizard-step-content">
+                    <h3>Swimlane Definition</h3>
+                    <p class="tracks-wizard-step-desc">Define the workflow columns for your board. These swimlanes will be used across all sprint views.</p>
+
+                    <div class="tracks-wizard-swimlanes">
+                        @for (var i = 0; i < _swimlanes.Count; i++)
+                        {
+                            var idx = i;
+                            <div class="tracks-wizard-swimlane-row">
+                                <span class="tracks-wizard-swimlane-grip">⠿</span>
+                                <input type="text" class="form-control"
+                                       value="@_swimlanes[idx].Title"
+                                       placeholder="Swimlane name"
+                                       @onchange="e => UpdateSwimlaneName(idx, e.Value?.ToString() ?? string.Empty)" />
+                                <label class="tracks-wizard-swimlane-done" title="Mark as 'Done' column — cards here count as completed">
+                                    <input type="checkbox" checked="@_swimlanes[idx].IsDone"
+                                           @onchange="e => ToggleSwimlaneIsDone(idx)" />
+                                    <span>Done</span>
+                                </label>
+                                @if (_swimlanes.Count > 1)
+                                {
+                                    <button class="tracks-icon-btn tracks-icon-btn--danger"
+                                            @onclick="() => RemoveSwimlane(idx)" title="Remove">
+                                        ✕
+                                    </button>
+                                }
+                            </div>
+                        }
+
+                        <button class="btn btn-secondary tracks-wizard-add-btn" @onclick="AddSwimlane">
+                            + Add Swimlane
+                        </button>
+                    </div>
+                </div>
+                break;
+
+            case 2:
+                @* ── Step 3: Sprint Schedule ── *@
+                <div class="tracks-wizard-step-content">
+                    <h3>Sprint Schedule</h3>
+                    <p class="tracks-wizard-step-desc">Review and adjust individual sprint durations. Changes cascade to subsequent sprints.</p>
+
+                    <div class="tracks-wizard-schedule">
+                        <div class="tracks-wizard-schedule-header">
+                            <span class="tracks-wizard-col-order">#</span>
+                            <span class="tracks-wizard-col-name">Sprint</span>
+                            <span class="tracks-wizard-col-start">Start</span>
+                            <span class="tracks-wizard-col-end">End</span>
+                            <span class="tracks-wizard-col-duration">Duration</span>
+                        </div>
+                        @for (var i = 0; i < _sprintSchedule.Count; i++)
+                        {
+                            var idx = i;
+                            var sprint = _sprintSchedule[idx];
+                            <div class="tracks-wizard-schedule-row">
+                                <span class="tracks-wizard-col-order">@(idx + 1)</span>
+                                <span class="tracks-wizard-col-name">Sprint @(idx + 1)</span>
+                                <span class="tracks-wizard-col-start">@sprint.Start.ToString("MMM d, yyyy")</span>
+                                <span class="tracks-wizard-col-end">@sprint.End.ToString("MMM d, yyyy")</span>
+                                <span class="tracks-wizard-col-duration">
+                                    <select class="form-control tracks-wizard-duration-select"
+                                            value="@sprint.DurationWeeks"
+                                            @onchange="e => AdjustSprintDuration(idx, int.Parse(e.Value?.ToString() ?? sprint.DurationWeeks.ToString()))">
+                                        @for (var w = 1; w <= 16; w++)
+                                        {
+                                            <option value="@w">@w wk@(w != 1 ? "s" : "")</option>
+                                        }
+                                    </select>
+                                </span>
+                            </div>
+                        }
+                    </div>
+
+                    @if (_sprintSchedule.Count > 0)
+                    {
+                        <div class="tracks-wizard-summary-box">
+                            <div class="tracks-wizard-summary-item">
+                                <span class="tracks-wizard-summary-label">Total Sprints</span>
+                                <span class="tracks-wizard-summary-value">@_sprintSchedule.Count</span>
+                            </div>
+                            <div class="tracks-wizard-summary-item">
+                                <span class="tracks-wizard-summary-label">Total Duration</span>
+                                <span class="tracks-wizard-summary-value">@_sprintSchedule.Sum(s => s.DurationWeeks) weeks</span>
+                            </div>
+                            <div class="tracks-wizard-summary-item">
+                                <span class="tracks-wizard-summary-label">Plan End</span>
+                                <span class="tracks-wizard-summary-value">@_sprintSchedule.Last().End.ToString("MMM d, yyyy")</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+                break;
+
+            case 3:
+                @* ── Step 4: Review & Create ── *@
+                <div class="tracks-wizard-step-content">
+                    <h3>Review &amp; Create</h3>
+                    <p class="tracks-wizard-step-desc">Confirm your sprint plan and swimlane setup before creating.</p>
+
+                    <div class="tracks-wizard-review">
+                        <div class="tracks-wizard-review-section">
+                            <h4>📅 Sprint Plan</h4>
+                            <div class="tracks-wizard-review-grid">
+                                <div class="tracks-wizard-review-item">
+                                    <span class="tracks-wizard-review-label">Start Date</span>
+                                    <span>@_startDate.ToString("MMM d, yyyy")</span>
+                                </div>
+                                <div class="tracks-wizard-review-item">
+                                    <span class="tracks-wizard-review-label">End Date</span>
+                                    <span>@(_sprintSchedule.Count > 0 ? _sprintSchedule.Last().End.ToString("MMM d, yyyy") : "—")</span>
+                                </div>
+                                <div class="tracks-wizard-review-item">
+                                    <span class="tracks-wizard-review-label">Sprints</span>
+                                    <span>@_sprintSchedule.Count</span>
+                                </div>
+                                <div class="tracks-wizard-review-item">
+                                    <span class="tracks-wizard-review-label">Total Duration</span>
+                                    <span>@_sprintSchedule.Sum(s => s.DurationWeeks) weeks</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tracks-wizard-review-section">
+                            <h4>📋 Swimlanes</h4>
+                            <div class="tracks-wizard-review-swimlanes">
+                                @foreach (var sl in _swimlanes)
+                                {
+                                    <div class="tracks-wizard-review-swimlane">
+                                        <span>@sl.Title</span>
+                                        @if (sl.IsDone)
+                                        {
+                                            <span class="tracks-badge tracks-badge--success">Done</span>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="tracks-wizard-review-section">
+                            <h4>🏃 Sprint Schedule</h4>
+                            <div class="tracks-wizard-mini-timeline">
+                                @foreach (var sprint in _sprintSchedule)
+                                {
+                                    <div class="tracks-wizard-mini-block"
+                                         style="flex: @sprint.DurationWeeks;"
+                                         title="Sprint @(sprint.Order): @sprint.Start.ToString("MMM d") – @sprint.End.ToString("MMM d") (@sprint.DurationWeeks wk)">
+                                        <span>S@(sprint.Order)</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                break;
+        }
+    </div>
+
+    @* ── Error Message ── *@
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="tracks-wizard-error">
+            <span>⚠ @_errorMessage</span>
+        </div>
+    }
+
+    @* ── Footer Navigation ── *@
+    <div class="tracks-wizard-footer">
+        <button class="btn btn-secondary" @onclick="HandleCancel">Cancel</button>
+        <div class="tracks-wizard-footer-right">
+            @if (_currentStep > 0)
+            {
+                <button class="btn btn-secondary" @onclick="PreviousStep">← Back</button>
+            }
+            @if (_currentStep < _steps.Length - 1)
+            {
+                <button class="btn btn-primary" @onclick="NextStep"
+                        disabled="@(!CanAdvance)">
+                    Next →
+                </button>
+            }
+            else
+            {
+                <button class="btn btn-primary" @onclick="CreatePlanAsync"
+                        disabled="@_isCreating">
+                    @(_isCreating ? "Creating…" : "Create Plan")
+                </button>
+            }
+        </div>
+    </div>
+</div>

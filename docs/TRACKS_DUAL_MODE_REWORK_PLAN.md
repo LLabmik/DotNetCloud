@@ -203,9 +203,9 @@ Rework the Tracks module from a generic Kanban system into two distinct paradigm
 
 ---
 
-## Phase F: UI — Sprint Planning Wizard
+## Phase F: UI — Sprint Planning Wizard ✅
 
-### Step 25 — Sprint Planning Wizard component
+### Step 25 — Sprint Planning Wizard component ✅
 - New file: `src/Modules/Tracks/DotNetCloud.Modules.Tracks/UI/SprintPlanningWizard.razor`
 - Multi-step wizard:
   - **Step 1: Plan basics** — start date, number of sprints, default duration (1–16 weeks dropdown)
@@ -214,7 +214,7 @@ Rework the Tracks module from a generic Kanban system into two distinct paradigm
   - **Step 4: Review & Create** — summary view, confirm button creates board + swimlanes + all sprints in one operation
 - **Depends on:** Steps 15, 22
 
-### Step 26 — New TracksView: Wizard
+### Step 26 — New TracksView: Wizard ✅
 - Add to the view switcher in TracksPage
 - Accessible from team board creation flow or from board settings (to add a year plan to an existing team board)
 - **Depends on:** Step 25

@@ -58,6 +58,11 @@
                             @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Planning</span> }
                         </button>
                     }
+                    <button class="tracks-nav-item @(_view == TracksView.Wizard ? "active" : "")"
+                            @onclick="OpenWizard" title="Year Plan Wizard">
+                        <span class="tracks-nav-icon">📅</span>
+                        @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Year Plan</span> }
+                    </button>
                 }
                 <button class="tracks-nav-item"
                         @onclick="ShowBoardSettings" title="Settings">
@@ -185,6 +190,16 @@
                                              OnCardUpdated="HandleCardUpdated"
                                              OnCardDeleted="HandleCardDeleted" />
                         }
+                    }
+                    break;
+
+                case TracksView.Wizard:
+                    @if (_selectedBoard is not null)
+                    {
+                        <SprintPlanningWizard Board="_selectedBoard"
+                                              ExistingSwimlanes="_boardSwimlanes"
+                                              OnPlanCreated="HandlePlanCreated"
+                                              OnCancel="CloseWizard" />
                     }
                     break;
             }

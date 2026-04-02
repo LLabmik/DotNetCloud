@@ -12,7 +12,7 @@ public partial class TracksPage : ComponentBase, IDisposable
     [Inject] private ITracksApiClient ApiClient { get; set; } = default!;
     [Inject] private ITracksSignalRService SignalRService { get; set; } = default!;
 
-    private enum TracksView { Boards, Board, Teams, Planning }
+    private enum TracksView { Boards, Board, Teams, Planning, Wizard }
 
     private TracksView _view = TracksView.Boards;
     private bool _sidebarCollapsed;
@@ -107,6 +107,27 @@ public partial class TracksPage : ComponentBase, IDisposable
     private void ClosePlanning()
     {
         _planningSprint = null;
+        _view = TracksView.Board;
+    }
+
+    private void OpenWizard()
+    {
+        if (_selectedBoard?.Mode != BoardMode.Team) return;
+        _selectedCard = null;
+        _showBoardSettings = false;
+        _showSprints = false;
+        _view = TracksView.Wizard;
+    }
+
+    private async Task HandlePlanCreated(SprintPlanOverviewDto overview)
+    {
+        await RefreshBoardDataAsync();
+        _view = TracksView.Board;
+        StateHasChanged();
+    }
+
+    private void CloseWizard()
+    {
         _view = TracksView.Board;
     }
 

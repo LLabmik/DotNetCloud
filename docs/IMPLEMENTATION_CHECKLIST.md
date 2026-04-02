@@ -3474,8 +3474,9 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ 35 comprehensive Phase E tests
 
 #### Phase F: UI — Sprint Planning Wizard
-- ☐ Multi-step wizard component
-- ☐ Wizard view in TracksPage
+- ✓ Multi-step wizard component
+- ✓ Wizard view in TracksPage
+- ✓ 61 comprehensive Phase F tests
 
 #### Phase G: UI — Backlog & Sprint Views
 - ☐ Backlog View component
