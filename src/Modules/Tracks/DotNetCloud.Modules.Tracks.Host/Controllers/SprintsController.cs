@@ -12,14 +12,16 @@ namespace DotNetCloud.Modules.Tracks.Host.Controllers;
 public class SprintsController : TracksControllerBase
 {
     private readonly SprintService _sprintService;
+    private readonly SprintPlanningService _sprintPlanningService;
     private readonly ILogger<SprintsController> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SprintsController"/> class.
     /// </summary>
-    public SprintsController(SprintService sprintService, ILogger<SprintsController> logger)
+    public SprintsController(SprintService sprintService, SprintPlanningService sprintPlanningService, ILogger<SprintsController> logger)
     {
         _sprintService = sprintService;
+        _sprintPlanningService = sprintPlanningService;
         _logger = logger;
     }
 
@@ -207,6 +209,62 @@ public class SprintsController : TracksControllerBase
         catch (ValidationException ex)
         {
             return NotFound(ErrorEnvelope(ErrorCodes.SprintNotFound, ex.Message));
+        }
+    }
+
+    // ─── Sprint Plan ──────────────────────────────────────────────────────
+
+    /// <summary>Creates a year plan of sequential sprints for a team board.</summary>
+    [HttpPost("~/api/v1/boards/{boardId:guid}/sprint-plan")]
+    public async Task<IActionResult> CreateSprintPlanAsync(Guid boardId, [FromBody] CreateSprintPlanDto dto)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var overview = await _sprintPlanningService.CreateYearPlanAsync(boardId, dto, caller);
+            return Created($"/api/v1/boards/{boardId}/sprint-plan", Envelope(overview));
+        }
+        catch (ValidationException ex)
+        {
+            if (IsBoardNotFound(ex))
+                return NotFound(ErrorEnvelope(ErrorCodes.BoardNotFound, ex.Message));
+            return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+        }
+    }
+
+    /// <summary>Gets the sprint plan overview for timeline display.</summary>
+    [HttpGet("~/api/v1/boards/{boardId:guid}/sprint-plan")]
+    public async Task<IActionResult> GetSprintPlanAsync(Guid boardId)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var overview = await _sprintPlanningService.GetPlanOverviewAsync(boardId, caller);
+            return Ok(Envelope(overview));
+        }
+        catch (ValidationException ex)
+        {
+            return IsBoardNotFound(ex)
+                ? NotFound(ErrorEnvelope(ErrorCodes.BoardNotFound, ex.Message))
+                : BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+        }
+    }
+
+    /// <summary>Adjusts a sprint's duration and cascades date changes to subsequent sprints.</summary>
+    [HttpPut("~/api/v1/sprints/{sprintId:guid}/adjust")]
+    public async Task<IActionResult> AdjustSprintAsync(Guid sprintId, [FromBody] AdjustSprintDto dto)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var overview = await _sprintPlanningService.AdjustSprintAsync(sprintId, dto, caller);
+            return Ok(Envelope(overview));
+        }
+        catch (ValidationException ex)
+        {
+            if (ex.Errors.ContainsKey(ErrorCodes.SprintNotFound))
+                return NotFound(ErrorEnvelope(ErrorCodes.SprintNotFound, ex.Message));
+            return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
         }
     }
 }

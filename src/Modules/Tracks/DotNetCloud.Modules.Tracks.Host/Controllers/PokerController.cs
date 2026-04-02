@@ -141,4 +141,22 @@ public class PokerController : TracksControllerBase
                 : BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
         }
     }
+
+    /// <summary>Gets the vote status for each participant (who voted, who hasn't) without revealing actual vote values.</summary>
+    [HttpGet("poker/{sessionId:guid}/vote-status")]
+    public async Task<IActionResult> GetVoteStatusAsync(Guid sessionId)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            var status = await _pokerService.GetVoteStatusAsync(sessionId, caller);
+            return Ok(Envelope(status));
+        }
+        catch (ValidationException ex)
+        {
+            return ex.Errors.ContainsKey(ErrorCodes.PokerSessionNotFound)
+                ? NotFound(ErrorEnvelope(ErrorCodes.PokerSessionNotFound, ex.Message))
+                : BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
+        }
+    }
 }

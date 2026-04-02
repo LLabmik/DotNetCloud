@@ -39,6 +39,33 @@ service TracksGrpcService {
 
   // Accepts an estimate and completes a poker session.
   rpc AcceptPokerEstimate (AcceptPokerEstimateRequest) returns (PokerSessionResponse);
+
+  // Creates a sprint year plan for a team board.
+  rpc CreateSprintPlan (CreateSprintPlanRequest) returns (SprintPlanResponse);
+
+  // Gets the sprint plan overview for a board.
+  rpc GetSprintPlan (GetSprintPlanRequest) returns (SprintPlanResponse);
+
+  // Adjusts a sprint's duration and cascades date changes.
+  rpc AdjustSprint (AdjustSprintRequest) returns (SprintPlanResponse);
+
+  // Starts a review session on a board.
+  rpc StartReviewSession (StartReviewSessionRequest) returns (ReviewSessionResponse);
+
+  // Gets a review session by ID.
+  rpc GetReviewSession (GetReviewSessionRequest) returns (ReviewSessionResponse);
+
+  // Joins an existing review session.
+  rpc JoinReviewSession (JoinReviewSessionRequest) returns (ReviewSessionResponse);
+
+  // Sets the current card in a review session.
+  rpc SetReviewCurrentCard (SetReviewCurrentCardRequest) returns (ReviewSessionResponse);
+
+  // Ends a review session.
+  rpc EndReviewSession (EndReviewSessionRequest) returns (ReviewSessionResponse);
+
+  // Gets poker vote status (voted/not-voted per participant).
+  rpc GetPokerVoteStatus (GetPokerVoteStatusRequest) returns (PokerVoteStatusResponse);
 }
 
 // --- CreateBoard ---
@@ -48,6 +75,7 @@ message CreateBoardRequest {
   string title = 2;
   string description = 3;
   string color = 4;
+  string mode = 5;             // Personal or Team
 }
 
 message BoardResponse {
@@ -142,6 +170,7 @@ message BoardMessage {
   int32 swimlane_count = 10;
   int32 card_count = 11;
   int32 member_count = 12;
+  string mode = 13;            // Personal or Team
 }
 
 message BoardSwimlaneMessage {
@@ -232,4 +261,123 @@ message PokerVoteMessage {
   string estimate = 2;        // Empty until revealed
   int32 round = 3;
   string voted_at = 4;
+}
+
+// --- Sprint Plan ---
+
+message CreateSprintPlanRequest {
+  string board_id = 1;
+  string user_id = 2;
+  string start_date = 3;       // ISO 8601 date
+  int32 sprint_count = 4;
+  int32 default_duration_weeks = 5;
+}
+
+message GetSprintPlanRequest {
+  string board_id = 1;
+  string user_id = 2;
+}
+
+message AdjustSprintRequest {
+  string sprint_id = 1;
+  string user_id = 2;
+  int32 duration_weeks = 3;
+  string start_date = 4;       // Optional, ISO 8601
+}
+
+message SprintPlanResponse {
+  bool success = 1;
+  string error_message = 2;
+  SprintPlanOverviewMessage overview = 3;
+}
+
+message SprintPlanOverviewMessage {
+  string board_id = 1;
+  repeated SprintPlanItemMessage sprints = 2;
+  int32 total_weeks = 3;
+  string plan_start_date = 4;
+  string plan_end_date = 5;
+}
+
+message SprintPlanItemMessage {
+  string id = 1;
+  string title = 2;
+  string start_date = 3;
+  string end_date = 4;
+  string status = 5;
+  int32 duration_weeks = 6;
+  int32 planned_order = 7;
+  int32 card_count = 8;
+  int32 total_story_points = 9;
+}
+
+// --- Review Session ---
+
+message StartReviewSessionRequest {
+  string board_id = 1;
+  string user_id = 2;
+}
+
+message GetReviewSessionRequest {
+  string session_id = 1;
+  string user_id = 2;
+}
+
+message JoinReviewSessionRequest {
+  string session_id = 1;
+  string user_id = 2;
+}
+
+message SetReviewCurrentCardRequest {
+  string session_id = 1;
+  string user_id = 2;
+  string card_id = 3;
+}
+
+message EndReviewSessionRequest {
+  string session_id = 1;
+  string user_id = 2;
+}
+
+message ReviewSessionResponse {
+  bool success = 1;
+  string error_message = 2;
+  ReviewSessionMessage session = 3;
+}
+
+message ReviewSessionMessage {
+  string id = 1;
+  string board_id = 2;
+  string host_user_id = 3;
+  string current_card_id = 4;
+  string status = 5;
+  string created_at = 6;
+  string ended_at = 7;
+  repeated ReviewParticipantMessage participants = 8;
+  PokerSessionMessage active_poker_session = 9;
+}
+
+message ReviewParticipantMessage {
+  string id = 1;
+  string user_id = 2;
+  string joined_at = 3;
+  bool is_connected = 4;
+}
+
+// --- Poker Vote Status ---
+
+message GetPokerVoteStatusRequest {
+  string session_id = 1;
+  string user_id = 2;
+}
+
+message PokerVoteStatusResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated PokerVoteStatusItem statuses = 3;
+}
+
+message PokerVoteStatusItem {
+  string user_id = 1;
+  bool has_voted = 2;
 }

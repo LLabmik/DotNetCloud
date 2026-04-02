@@ -17,6 +17,8 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
     private readonly SwimlaneService _swimlaneService;
     private readonly CardService _cardService;
     private readonly PokerService _pokerService;
+    private readonly SprintPlanningService _sprintPlanningService;
+    private readonly ReviewSessionService _reviewSessionService;
     private readonly ILogger<TracksGrpcService> _logger;
 
     /// <summary>
@@ -27,12 +29,16 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         SwimlaneService swimlaneService,
         CardService cardService,
         PokerService pokerService,
+        SprintPlanningService sprintPlanningService,
+        ReviewSessionService reviewSessionService,
         ILogger<TracksGrpcService> logger)
     {
         _boardService = boardService;
         _swimlaneService = swimlaneService;
         _cardService = cardService;
         _pokerService = pokerService;
+        _sprintPlanningService = sprintPlanningService;
+        _reviewSessionService = reviewSessionService;
         _logger = logger;
     }
 
@@ -47,7 +53,8 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
             {
                 Title = request.Title,
                 Description = string.IsNullOrEmpty(request.Description) ? null : request.Description,
-                Color = string.IsNullOrEmpty(request.Color) ? null : request.Color
+                Color = string.IsNullOrEmpty(request.Color) ? null : request.Color,
+                Mode = Enum.TryParse<BoardMode>(request.Mode, true, out var mode) ? mode : BoardMode.Personal
             };
             var board = await _boardService.CreateBoardAsync(dto, caller, context.CancellationToken);
             return new BoardResponse { Success = true, Board = MapBoard(board) };
@@ -265,6 +272,170 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
         }
     }
 
+    // ─── Sprint Plan RPCs ─────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public override async Task<SprintPlanResponse> CreateSprintPlan(CreateSprintPlanRequest request, ServerCallContext context)
+    {
+        try
+        {
+            var caller = ParseCaller(request.UserId);
+            var dto = new CreateSprintPlanDto
+            {
+                StartDate = DateTime.Parse(request.StartDate),
+                SprintCount = request.SprintCount,
+                DefaultDurationWeeks = request.DefaultDurationWeeks
+            };
+            var overview = await _sprintPlanningService.CreateYearPlanAsync(Guid.Parse(request.BoardId), dto, caller, context.CancellationToken);
+            return new SprintPlanResponse { Success = true, Overview = MapSprintPlanOverview(overview) };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "CreateSprintPlan failed");
+            return new SprintPlanResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<SprintPlanResponse> GetSprintPlan(GetSprintPlanRequest request, ServerCallContext context)
+    {
+        try
+        {
+            var caller = ParseCaller(request.UserId);
+            var overview = await _sprintPlanningService.GetPlanOverviewAsync(Guid.Parse(request.BoardId), caller, context.CancellationToken);
+            return new SprintPlanResponse { Success = true, Overview = MapSprintPlanOverview(overview) };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetSprintPlan failed");
+            return new SprintPlanResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<SprintPlanResponse> AdjustSprint(AdjustSprintRequest request, ServerCallContext context)
+    {
+        try
+        {
+            var caller = ParseCaller(request.UserId);
+            var dto = new AdjustSprintDto
+            {
+                DurationWeeks = request.DurationWeeks,
+                StartDate = string.IsNullOrEmpty(request.StartDate) ? null : DateTime.Parse(request.StartDate)
+            };
+            var overview = await _sprintPlanningService.AdjustSprintAsync(Guid.Parse(request.SprintId), dto, caller, context.CancellationToken);
+            return new SprintPlanResponse { Success = true, Overview = MapSprintPlanOverview(overview) };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "AdjustSprint failed");
+            return new SprintPlanResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    // ─── Review Session RPCs ──────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public override async Task<ReviewSessionResponse> StartReviewSession(StartReviewSessionRequest request, ServerCallContext context)
+    {
+        try
+        {
+            var caller = ParseCaller(request.UserId);
+            var session = await _reviewSessionService.StartSessionAsync(Guid.Parse(request.BoardId), caller, context.CancellationToken);
+            return new ReviewSessionResponse { Success = true, Session = MapReviewSession(session) };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "StartReviewSession failed");
+            return new ReviewSessionResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<ReviewSessionResponse> GetReviewSession(GetReviewSessionRequest request, ServerCallContext context)
+    {
+        try
+        {
+            var caller = ParseCaller(request.UserId);
+            var session = await _reviewSessionService.GetSessionStateAsync(Guid.Parse(request.SessionId), caller, context.CancellationToken);
+            if (session is null)
+                return new ReviewSessionResponse { Success = false, ErrorMessage = "Review session not found." };
+            return new ReviewSessionResponse { Success = true, Session = MapReviewSession(session) };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetReviewSession failed");
+            return new ReviewSessionResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<ReviewSessionResponse> JoinReviewSession(JoinReviewSessionRequest request, ServerCallContext context)
+    {
+        try
+        {
+            var caller = ParseCaller(request.UserId);
+            var session = await _reviewSessionService.JoinSessionAsync(Guid.Parse(request.SessionId), caller, context.CancellationToken);
+            return new ReviewSessionResponse { Success = true, Session = MapReviewSession(session) };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "JoinReviewSession failed");
+            return new ReviewSessionResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<ReviewSessionResponse> SetReviewCurrentCard(SetReviewCurrentCardRequest request, ServerCallContext context)
+    {
+        try
+        {
+            var caller = ParseCaller(request.UserId);
+            var session = await _reviewSessionService.SetCurrentCardAsync(Guid.Parse(request.SessionId), Guid.Parse(request.CardId), caller, context.CancellationToken);
+            return new ReviewSessionResponse { Success = true, Session = MapReviewSession(session) };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "SetReviewCurrentCard failed");
+            return new ReviewSessionResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<ReviewSessionResponse> EndReviewSession(EndReviewSessionRequest request, ServerCallContext context)
+    {
+        try
+        {
+            var caller = ParseCaller(request.UserId);
+            await _reviewSessionService.EndSessionAsync(Guid.Parse(request.SessionId), caller, context.CancellationToken);
+            return new ReviewSessionResponse { Success = true };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "EndReviewSession failed");
+            return new ReviewSessionResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<PokerVoteStatusResponse> GetPokerVoteStatus(GetPokerVoteStatusRequest request, ServerCallContext context)
+    {
+        try
+        {
+            var caller = ParseCaller(request.UserId);
+            var statuses = await _pokerService.GetVoteStatusAsync(Guid.Parse(request.SessionId), caller, context.CancellationToken);
+            var response = new PokerVoteStatusResponse { Success = true };
+            foreach (var s in statuses)
+                response.Statuses.Add(new PokerVoteStatusItem { UserId = s.UserId.ToString(), HasVoted = s.HasVoted });
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetPokerVoteStatus failed");
+            return new PokerVoteStatusResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
     // ─── Mapping Helpers ──────────────────────────────────────────────────
 
     private static PokerSessionMessage MapPokerSession(PokerSessionDto dto)
@@ -314,7 +485,8 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
             UpdatedAt = dto.UpdatedAt.ToString("O"),
             SwimlaneCount = dto.Swimlanes.Count,
             CardCount = dto.Swimlanes.Sum(l => l.CardCount),
-            MemberCount = dto.Members.Count
+            MemberCount = dto.Members.Count,
+            Mode = dto.Mode.ToString()
         };
     }
 
@@ -358,6 +530,56 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
             msg.AssignedUserIds.Add(a.UserId.ToString());
         foreach (var l in dto.Labels)
             msg.LabelIds.Add(l.Id.ToString());
+        return msg;
+    }
+
+    private static SprintPlanOverviewMessage MapSprintPlanOverview(SprintPlanOverviewDto dto)
+    {
+        var msg = new SprintPlanOverviewMessage
+        {
+            BoardId = dto.BoardId.ToString(),
+            TotalWeeks = dto.TotalWeeks,
+            PlanStartDate = dto.PlanStartDate?.ToString("O") ?? "",
+            PlanEndDate = dto.PlanEndDate?.ToString("O") ?? ""
+        };
+        foreach (var s in dto.Sprints)
+            msg.Sprints.Add(new SprintPlanItemMessage
+            {
+                Id = s.Id.ToString(),
+                Title = s.Title,
+                StartDate = s.StartDate?.ToString("O") ?? "",
+                EndDate = s.EndDate?.ToString("O") ?? "",
+                Status = s.Status.ToString(),
+                DurationWeeks = s.DurationWeeks ?? 0,
+                PlannedOrder = s.PlannedOrder ?? 0,
+                CardCount = s.CardCount,
+                TotalStoryPoints = s.TotalStoryPoints
+            });
+        return msg;
+    }
+
+    private static ReviewSessionMessage MapReviewSession(ReviewSessionDto dto)
+    {
+        var msg = new ReviewSessionMessage
+        {
+            Id = dto.Id.ToString(),
+            BoardId = dto.BoardId.ToString(),
+            HostUserId = dto.HostUserId.ToString(),
+            CurrentCardId = dto.CurrentCardId?.ToString() ?? "",
+            Status = dto.Status.ToString(),
+            CreatedAt = dto.CreatedAt.ToString("O"),
+            EndedAt = dto.EndedAt?.ToString("O") ?? ""
+        };
+        foreach (var p in dto.Participants)
+            msg.Participants.Add(new ReviewParticipantMessage
+            {
+                Id = p.Id.ToString(),
+                UserId = p.UserId.ToString(),
+                JoinedAt = p.JoinedAt.ToString("O"),
+                IsConnected = p.IsConnected
+            });
+        if (dto.ActivePokerSession is not null)
+            msg.ActivePokerSession = MapPokerSession(dto.ActivePokerSession);
         return msg;
     }
 }

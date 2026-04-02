@@ -36,12 +36,14 @@ public class BoardsController : TracksControllerBase
 
     // ─── Board CRUD ───────────────────────────────────────────────────────
 
-    /// <summary>Lists all boards for the authenticated user.</summary>
+    /// <summary>Lists all boards for the authenticated user, optionally filtered by mode.</summary>
     [HttpGet]
-    public async Task<IActionResult> ListBoardsAsync([FromQuery] bool includeArchived = false)
+    public async Task<IActionResult> ListBoardsAsync(
+        [FromQuery] bool includeArchived = false,
+        [FromQuery] BoardMode? mode = null)
     {
         var caller = GetAuthenticatedCaller();
-        var boards = await _boardService.ListBoardsAsync(caller, includeArchived);
+        var boards = await _boardService.ListBoardsAsync(caller, includeArchived, mode);
         return Ok(Envelope(boards));
     }
 

@@ -33,16 +33,17 @@ public class CardsController : TracksControllerBase
 
     // ─── Card CRUD ────────────────────────────────────────────────────────
 
-    /// <summary>Lists cards in a swimlane.</summary>
+    /// <summary>Lists cards in a swimlane, optionally filtered by sprint.</summary>
     [HttpGet("swimlanes/{swimlaneId:guid}/cards")]
     public async Task<IActionResult> ListCardsAsync(
         Guid swimlaneId,
-        [FromQuery] bool includeArchived = false)
+        [FromQuery] bool includeArchived = false,
+        [FromQuery] Guid? sprintId = null)
     {
         var caller = GetAuthenticatedCaller();
         try
         {
-            var cards = await _cardService.ListCardsAsync(swimlaneId, caller, includeArchived);
+            var cards = await _cardService.ListCardsAsync(swimlaneId, caller, includeArchived, sprintId);
             return Ok(Envelope(cards));
         }
         catch (ValidationException ex)

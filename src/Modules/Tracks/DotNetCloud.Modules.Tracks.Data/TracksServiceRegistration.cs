@@ -36,6 +36,8 @@ public static class TracksServiceRegistration
         services.AddScoped<SprintReportService>();
         services.AddScoped<BulkOperationService>();
         services.AddScoped<PokerService>();
+        services.AddScoped<SprintPlanningService>();
+        services.AddScoped<ReviewSessionService>();
         services.AddHostedService<DueDateReminderService>();
 
         // Real-time & notification services (Phase 4.6)
