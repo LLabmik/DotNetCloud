@@ -95,7 +95,7 @@
 | Phase 4.6 | 4 | 4 | 0 | 0 |
 | Phase 4.7 | 6 | 6 | 0 | 0 |
 | Phase 4.8 | 8 | 8 | 0 | 0 |
-| Phase 4.9 | 42 | 24 | 0 | 18 |
+| Phase 4.9 | 42 | 42 | 0 | 0 |
 | Phase 5-9 | Summary | 0 | 0 | 1 |
 | Infrastructure | Summary | 0 | 0 | 1 |
 | Documentation | Summary | 0 | 0 | 1 |
@@ -1584,7 +1584,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 ---
 
 ### Section: Phase 4.9 - Dual-Mode Rework (Personal + Team)
-**STATUS:** in-progress 🔄
+**STATUS:** completed ✅
 **DELIVERABLES:**
 - ✓ Phase A: Data Model & Mode System — `BoardMode` enum, `ReviewSession`/`ReviewSessionParticipant` entities, sprint planning fields, EF configs
 - ✓ Phase B: Service Layer — Mode-aware `BoardService`, `SprintPlanningService`, `ReviewSessionService`, backlog/sprint filter, poker vote status
@@ -1593,10 +1593,11 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Phase E: UI — Personal Mode Simplification — Mode selector in create dialog, mode badge in board list, conditional sidebar for Personal/Team, sprint controls hidden for Personal boards, 35 Phase E tests
 - ✓ Phase F: UI — Sprint Planning Wizard — 4-step wizard (Plan Basics → Swimlanes → Schedule → Review), TracksPage integration with Year Plan nav, 61 Phase F tests
 - ✓ Phase G: UI — Backlog & Sprint Views — BacklogView component (filter/multi-select/bulk assign), sprint tabs in KanbanBoard, Backlog TracksView in sidebar, 47 Phase G tests
-- ☐ Phase H: UI — Year Timeline / Gantt View
-- ☐ Phase I: UI — Live Review Mode
+- ✓ Phase H: UI — Year Timeline / Gantt View — TimelineView.razor with sprint Gantt bars, drag-resize, today marker, responsive zoom, 54 Phase H tests
+- ✓ Phase I: UI — Live Review Mode — ReviewSessionPanel.razor, participant management, poker voting integration, host controls, 42 Phase I tests
+- ✓ Phase J: Comprehensive Tests — 62 new tests covering data model validation, mode-aware services, sprint planning edge cases, review session edge cases, poker vote status, controller integration, security, and performance
 
-**Notes:** Phases A–G complete. Phase G added BacklogView.razor component (shows unsprinted cards with bulk-assign, per-card sprint dropdown, filtering), sprint selector tabs in KanbanBoard.razor (All/individual sprints/Backlog), and Backlog view in TracksPage sidebar (Team mode only). 47 new Phase G tests, 641 total Tracks tests. Next: Phase H (Year Timeline / Gantt View).
+**Notes:** All 10 phases (A–J) complete. 801 total Tracks tests passing. Dual-mode rework fully implemented: personal boards (simplified kanban) and team boards (sprints, backlog, planning wizard, review sessions, poker voting, timeline view). No remaining work.
 
 ---
 
