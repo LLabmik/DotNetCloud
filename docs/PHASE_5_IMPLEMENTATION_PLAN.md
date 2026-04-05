@@ -150,7 +150,8 @@ All three module tracks can proceed in parallel after 5.1 + 5.2.
 - ✓ Entities: `Photo` (links to FileNode ID), `Album`, `AlbumPhoto` (junction), `PhotoMetadata` (EXIF, GPS, camera), `PhotoTag`, `PhotoShare`, `PhotoEditRecord` (non-destructive edit history)
 - ✓ EF Core configurations in `Photos.Data/Configuration/`
 - ✓ `PhotosDbContext` with schema `photos` (PostgreSQL) / prefix `photos_` (MariaDB)
-- ☐ Initial migration
+- ✓ Initial migration (`InitialCreate` — 7 tables, all configurations applied)
+- ✓ `PhotosDbContextDesignTimeFactory` for EF Core tooling
 - ✓ Indexes: by user+date, by GPS coordinates (for geo queries), by album, by file node ID
 
 ---
@@ -166,9 +167,9 @@ All three module tracks can proceed in parallel after 5.1 + 5.2.
 - ✓ `IPhotoMetadataService` + `PhotoMetadataService` — EXIF extraction on upload (via ExifMetadataExtractor), auto-rotation based on EXIF orientation
 - ✓ `IPhotoGeoService` + `PhotoGeoService` — geo-coordinate clustering (group nearby photos), reverse geocoding lookup (optional, external API)
 - ✓ `IPhotoShareService` + `PhotoShareService` — per-photo and per-album sharing with permission levels
-- ☐ `IPhotoThumbnailService` — extends Files thumbnail pattern with photo-specific sizes (grid thumb 300px, detail 1200px, full)
-- ☐ Background service: `PhotoIndexingService` — watches for new image FileNodes via FileUploadedEvent, extracts metadata, creates Photo records automatically
-- ✓ Unit tests: ≥60 tests covering all services (95 tests passing)
+- ✓ `IPhotoThumbnailService` + `PhotoThumbnailService` — photo-specific sizes (grid 300px, detail 1200px, full), ImageSharp-based, two-level cache directory
+- ✓ Background service: `PhotoIndexingBackgroundService` — periodic scan for unindexed image files, handles missed events and pre-existing files
+- ✓ Unit tests: ≥60 tests covering all services (119 tests passing)
 
 ---
 
@@ -237,7 +238,8 @@ All three module tracks can proceed in parallel after 5.1 + 5.2.
 - ✓ Entities: `Playlist`, `PlaylistTrack` (ordered), `PlaybackHistory`, `EqPreset`, `UserMusicPreference`
 - ✓ Entities: `ScrobbleRecord` (for last.fm-style history), `StarredItem` (favorites — artist/album/track polymorphic)
 - ✓ `MusicDbContext` with schema `music` (13 DbSets)
-- ☐ Initial migration
+- ✓ Initial migration (`InitialCreate` — 13 tables, all configurations applied)
+- ✓ `MusicDbContextDesignTimeFactory` for EF Core tooling
 - ✓ Indexes: by artist name, album title, track title, genre, user+last_played
 
 ---
@@ -346,6 +348,8 @@ All three module tracks can proceed in parallel after 5.1 + 5.2.
 - ✓ `VideoModuleManifest`
 - ✓ Entities: `Video`, `VideoMetadata`, `VideoCollection`, `VideoCollectionItem`, `Subtitle`, `WatchHistory`, `WatchProgress`, `VideoShare`
 - ✓ `VideoDbContext` with 8 entity configurations
+- ✓ Initial migration (`InitialCreate` — 8 tables, all configurations applied)
+- ✓ `VideoDbContextDesignTimeFactory` for EF Core tooling
 - ✓ Module project scaffolding (DotNetCloud.Modules.Video, .Data, .Host)
 - ✓ Solution file and CI filter updates
 - ✓ Video error codes (8 codes added to ErrorCodes.cs)

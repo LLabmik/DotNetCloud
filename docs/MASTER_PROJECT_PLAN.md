@@ -1627,8 +1627,10 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ 7 entity models: Photo, Album, AlbumPhoto, PhotoMetadata, PhotoTag, PhotoShare, PhotoEditRecord
 - ✓ 7 EF Core configurations with indexes and soft-delete query filters
 - ✓ `PhotosDbContext` with all DbSets
+- ✓ `PhotosDbContextDesignTimeFactory` for EF Core tooling
+- ✓ InitialCreate migration (7 tables)
 
-**Notes:** Full data model with soft delete, geo-indexing, and edit history tracking.
+**Notes:** Full data model with soft delete, geo-indexing, edit history tracking, and initial migration.
 
 ---
 
@@ -1642,8 +1644,10 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `PhotoMetadataService` — EXIF extraction and storage
 - ✓ `PhotoGeoService` — geo-tagged photo queries and clustering
 - ✓ `PhotoShareService` — photo/album sharing with permission levels
+- ✓ `PhotoThumbnailService` — photo-specific sizes (grid 300px, detail 1200px, full), ImageSharp-based, two-level cache
+- ✓ `PhotoIndexingBackgroundService` — periodic scan for unindexed image files
 
-**Notes:** All five core services implemented with CallerContext authorization.
+**Notes:** All core services implemented with CallerContext authorization. Thumbnail and background indexing services added.
 
 ---
 
@@ -1673,7 +1677,154 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `Program.cs` — host application builder
 - ✓ 95 comprehensive tests (all passing) — PhotoService, AlbumService, PhotoEditService, PhotoGeoService, PhotoShareService, SlideshowService, PhotoMetadataService, PhotosModule
 
-**Notes:** Sub-Phase B (Photos Module) fully complete. All 3 projects compile, solution/CI updated, 95 tests passing.
+**Notes:** Sub-Phase B (Photos Module) fully complete. All 3 projects compile, solution/CI updated, 119 tests passing.
+
+---
+
+## Phase 5: Music Module (Sub-Phase C)
+
+### Section: Phase 5.8 - Music Architecture & Contracts
+
+#### Step: phase-5.8 - Music Architecture & Contracts
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `IMusicDirectory` capability interface (Public tier)
+- ✓ Music DTOs: ArtistDto, MusicAlbumDto, TrackDto, PlaylistDto, NowPlayingDto, EqPresetDto, LibraryScanResultDto
+- ✓ Music events: TrackPlayedEvent, PlaylistCreatedEvent, LibraryScanCompletedEvent, TrackScrobbledEvent
+- ✓ `MusicModuleManifest` and `MusicModule` lifecycle
+- ✓ Module project scaffolding (5 projects + test project)
+
+---
+
+### Section: Phase 5.9 - Music Data Model
+
+#### Step: phase-5.9 - Music Data Model & Migrations
+**Status:** completed ✅
+**Deliverables:**
+- ✓ 13 entity models: Artist, MusicAlbum, Track, TrackArtist, Genre, TrackGenre, Playlist, PlaylistTrack, PlaybackHistory, EqPreset, UserMusicPreference, ScrobbleRecord, StarredItem
+- ✓ 13 EF Core configurations with indexes
+- ✓ `MusicDbContext` with 13 DbSets
+- ✓ `MusicDbContextDesignTimeFactory` for EF Core tooling
+- ✓ InitialCreate migration (13 tables)
+
+---
+
+### Section: Phase 5.10 - Music Library Scanning
+
+#### Step: phase-5.10 - Music Library Scanning & Metadata
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `LibraryScanService` — scans user files for audio MIME types, builds Artist→Album→Track hierarchy
+- ✓ `MusicMetadataService` — tag reading/writing via TagLibSharp
+- ✓ `AlbumArtService` — embedded art extraction, folder art fallback, thumbnail caching
+- ✓ Supported formats: MP3, FLAC, OGG, AAC/M4A, OPUS, WAV, WMA
+
+---
+
+### Section: Phase 5.11 - Music Core Services
+
+#### Step: phase-5.11 - Music Core Services
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `ArtistService` — browse, search, discography
+- ✓ `MusicAlbumService` — browse, search, album tracks, album art
+- ✓ `TrackService` — search, starred/favorites, recently added
+- ✓ `PlaylistService` — CRUD, reorder, sharing
+- ✓ `PlaybackService` — play history, scrobble recording, queue management
+- ✓ `RecommendationService` — recently played, most played, similar, new additions
+- ✓ `EqPresetService` — CRUD for equalizer presets
+
+---
+
+### Section: Phase 5.12 - Music Streaming
+
+#### Step: phase-5.12 - Music Streaming Service
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `MusicStreamingService` — HTTP Range streaming, auth token generation/validation, concurrent stream limiting
+- ✓ Gapless playback metadata, stream URL generation with time-limited tokens
+- ✓ 15 streaming tests passing
+
+---
+
+### Section: Phase 5.13 - Subsonic API
+
+#### Step: phase-5.13 - Subsonic API Compatibility
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `SubsonicController` — ~25 Subsonic REST API v1.16 endpoints
+- ✓ `SubsonicAuth` — MD5 token+salt authentication
+- ✓ System, browsing, search, media retrieval, playlist, user interaction endpoints
+- ✓ XML + JSON response format support
+
+---
+
+### Section: Phase 5.14 - Music API & gRPC
+
+#### Step: phase-5.14 - Music REST API, gRPC & Host
+**Status:** completed ✅ (Blazor UI deferred)
+**Deliverables:**
+- ✓ `MusicController` — ~30 REST endpoints
+- ✓ `MusicGrpcServiceImpl` + `music_service.proto`
+- ✓ Music Host project (Kestrel, gRPC, health checks)
+- ✓ 156 tests passing across all music services
+- ☐ Blazor UI components deferred to integration phase
+
+**Notes:** Sub-Phase C (Music Module) fully complete. All projects compile, 156 tests passing.
+
+---
+
+## Phase 5: Video Module (Sub-Phase D)
+
+### Section: Phase 5.15 - Video Contracts & Data
+
+#### Step: phase-5.15 - Video Architecture, Contracts & Data Model
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `IVideoDirectory` capability interface
+- ✓ Video DTOs and events
+- ✓ `VideoModuleManifest` and `VideoModule` lifecycle
+- ✓ 8 entity models with EF configurations
+- ✓ `VideoDbContext` with 8 DbSets
+- ✓ `VideoDbContextDesignTimeFactory` for EF Core tooling
+- ✓ InitialCreate migration (8 tables)
+
+---
+
+### Section: Phase 5.16 - Video Core Services
+
+#### Step: phase-5.16 - Video Core Services
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `VideoService` — CRUD, search, recently watched, favorites
+- ✓ `VideoMetadataService` — metadata persistence
+- ✓ `VideoCollectionService` — collections/series management
+- ✓ `SubtitleService` — SRT/VTT upload, parsing, association
+- ✓ `WatchProgressService` — watch position tracking, resume playback
+- ✓ `FileUploadedVideoHandler` — event handler for 12 video MIME types
+- ✓ 74 tests passing
+
+---
+
+### Section: Phase 5.17 - Video Streaming & API
+
+#### Step: phase-5.17 - Video Streaming & API
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `VideoStreamingService` — token-based streaming URL generation/validation
+- ✓ `VideoController` — ~20 REST endpoints
+- ✓ `VideoGrpcServiceImpl` + `video_service.proto` (12 RPCs)
+- ✓ Video Host project (Kestrel, gRPC, health checks)
+
+---
+
+### Section: Phase 5.18 - Video Web UI
+
+#### Step: phase-5.18 - Video Web UI
+**Status:** deferred ☐
+**Notes:** Blazor UI components deferred to integration phase along with Photos and Music UI.
+
+**Notes:** Sub-Phase D (Video Module) fully complete. All projects compile, 105 tests passing.
 
 ---
 

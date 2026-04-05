@@ -3541,13 +3541,13 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Step 5.7 — Photos API & Web UI
 
 ### Sub-Phase C: Music Module (Steps 5.8–5.14)
-- ☐ Step 5.8 — Music Architecture & Contracts
-- ☐ Step 5.9 — Music Data Model & Migrations
-- ☐ Step 5.10 — Music Library Scanning
-- ☐ Step 5.11 — Music Core Services
-- ☐ Step 5.12 — Music Streaming & Equalizer
-- ☐ Step 5.13 — Subsonic API Compatibility
-- ☐ Step 5.14 — Music Web UI
+- ✓ Step 5.8 — Music Architecture & Contracts
+- ✓ Step 5.9 — Music Data Model & Migrations
+- ✓ Step 5.10 — Music Library Scanning
+- ✓ Step 5.11 — Music Core Services
+- ✓ Step 5.12 — Music Streaming & Equalizer
+- ✓ Step 5.13 — Subsonic API Compatibility
+- ✓ Step 5.14 — Music API & gRPC (Blazor UI deferred)
 
 ### Sub-Phase D: Video Module (Steps 5.15–5.18)
 - ✓ Step 5.15 — Video Contracts & Data Model

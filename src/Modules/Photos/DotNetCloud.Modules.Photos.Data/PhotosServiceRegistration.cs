@@ -2,8 +2,10 @@ using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Photos.Data.Services;
 using DotNetCloud.Modules.Photos.Events;
+using DotNetCloud.Modules.Photos.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace DotNetCloud.Modules.Photos.Data;
 
@@ -25,6 +27,7 @@ public static class PhotosServiceRegistration
         services.AddScoped<PhotoShareService>();
         services.AddScoped<PhotoEditService>();
         services.AddScoped<SlideshowService>();
+        services.AddScoped<IPhotoThumbnailService, PhotoThumbnailService>();
 
         // Indexing callback (bridges Module → Data for FileUploadedEvent handling)
         services.AddScoped<IPhotoIndexingCallback, PhotoIndexingCallback>();
@@ -32,6 +35,9 @@ public static class PhotosServiceRegistration
         // Event handlers
         services.AddScoped<IEventHandler<FileUploadedEvent>, FileUploadedPhotoHandler>();
         services.AddScoped<IEventHandler<AlbumSharedEvent>, AlbumSharedNotificationHandler>();
+
+        // Background services
+        services.AddSingleton<IHostedService, PhotoIndexingBackgroundService>();
 
         return services;
     }
