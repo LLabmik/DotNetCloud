@@ -2,6 +2,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Video.Models;
+using DotNetCloud.Modules.Video.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -10,7 +11,7 @@ namespace DotNetCloud.Modules.Video.Data.Services;
 /// <summary>
 /// Service for managing video collections — CRUD, add/remove videos, ordering.
 /// </summary>
-public sealed class VideoCollectionService
+public sealed class VideoCollectionService : IVideoCollectionService
 {
     private readonly VideoDbContext _db;
     private readonly ILogger<VideoCollectionService> _logger;

@@ -2,6 +2,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Music.Models;
+using DotNetCloud.Modules.Music.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -10,7 +11,7 @@ namespace DotNetCloud.Modules.Music.Data.Services;
 /// <summary>
 /// Service for managing tracks — search, starred/favorites, recently added.
 /// </summary>
-public sealed class TrackService
+public sealed class TrackService : ITrackService
 {
     private readonly MusicDbContext _db;
     private readonly ILogger<TrackService> _logger;

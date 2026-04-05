@@ -1,5 +1,6 @@
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Photos.Data;
+using DotNetCloud.Modules.Photos.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -8,7 +9,7 @@ namespace DotNetCloud.Modules.Photos.Data.Services;
 /// <summary>
 /// Service for creating slideshows from albums or photo selections.
 /// </summary>
-public sealed class SlideshowService
+public sealed class SlideshowService : ISlideshowService
 {
     private readonly PhotosDbContext _db;
     private readonly ILogger<SlideshowService> _logger;

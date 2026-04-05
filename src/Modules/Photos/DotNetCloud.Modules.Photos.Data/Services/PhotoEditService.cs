@@ -5,6 +5,7 @@ using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Photos.Data;
 using DotNetCloud.Modules.Photos.Models;
+using DotNetCloud.Modules.Photos.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -14,7 +15,7 @@ namespace DotNetCloud.Modules.Photos.Data.Services;
 /// Service for non-destructive photo editing.
 /// Edit operations are stored as a JSON stack; originals are never modified.
 /// </summary>
-public sealed class PhotoEditService
+public sealed class PhotoEditService : IPhotoEditService
 {
     private readonly PhotosDbContext _db;
     private readonly IEventBus _eventBus;
@@ -71,6 +72,12 @@ public sealed class PhotoEditService
         }, caller, cancellationToken);
 
         return record;
+    }
+
+    /// <inheritdoc />
+    async Task IPhotoEditService.ApplyEditAsync(Guid photoId, PhotoEditOperationDto operation, CallerContext caller, CancellationToken cancellationToken)
+    {
+        await ApplyEditAsync(photoId, operation, caller, cancellationToken);
     }
 
     /// <summary>

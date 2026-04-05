@@ -1,6 +1,7 @@
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.DTOs.Media;
 using DotNetCloud.Modules.Photos.Data;
+using DotNetCloud.Modules.Photos.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -10,7 +11,7 @@ namespace DotNetCloud.Modules.Photos.Data.Services;
 /// Service for geographic clustering of photos.
 /// Groups nearby photos into clusters for map display.
 /// </summary>
-public sealed class PhotoGeoService
+public sealed class PhotoGeoService : IPhotoGeoService
 {
     private readonly PhotosDbContext _db;
     private readonly ILogger<PhotoGeoService> _logger;

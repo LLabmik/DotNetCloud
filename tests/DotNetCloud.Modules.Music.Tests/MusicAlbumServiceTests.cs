@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Music.Data.Services;
+using DotNetCloud.Modules.Music.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DotNetCloud.Modules.Music.Tests;
@@ -74,7 +75,7 @@ public class MusicAlbumServiceTests
     {
         var artist = await TestHelpers.SeedArtistAsync(_db, ownerId: _caller.UserId);
         var album = await TestHelpers.SeedAlbumAsync(_db, artist.Id, ownerId: _caller.UserId);
-        await TestHelpers.SeedStarredItemAsync(_db, _caller.UserId, album.Id, Models.StarredItemType.Album);
+        await TestHelpers.SeedStarredItemAsync(_db, _caller.UserId, album.Id, StarredItemType.Album);
 
         var result = await _service.GetAlbumAsync(album.Id, _caller);
 

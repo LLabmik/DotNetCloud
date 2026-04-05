@@ -19,15 +19,22 @@ public static class PhotosServiceRegistration
     /// </summary>
     public static IServiceCollection AddPhotosServices(this IServiceCollection services, IConfiguration configuration)
     {
-        // Business services
+        // Business services (forward-registered for concrete + interface injection)
         services.AddScoped<PhotoService>();
+        services.AddScoped<IPhotoService>(sp => sp.GetRequiredService<PhotoService>());
         services.AddScoped<AlbumService>();
+        services.AddScoped<Photos.Services.IAlbumService>(sp => sp.GetRequiredService<AlbumService>());
         services.AddScoped<PhotoMetadataService>();
         services.AddScoped<PhotoGeoService>();
+        services.AddScoped<IPhotoGeoService>(sp => sp.GetRequiredService<PhotoGeoService>());
         services.AddScoped<PhotoShareService>();
+        services.AddScoped<IPhotoShareService>(sp => sp.GetRequiredService<PhotoShareService>());
         services.AddScoped<PhotoEditService>();
+        services.AddScoped<IPhotoEditService>(sp => sp.GetRequiredService<PhotoEditService>());
         services.AddScoped<SlideshowService>();
-        services.AddScoped<IPhotoThumbnailService, PhotoThumbnailService>();
+        services.AddScoped<ISlideshowService>(sp => sp.GetRequiredService<SlideshowService>());
+        services.AddScoped<PhotoThumbnailService>();
+        services.AddScoped<IPhotoThumbnailService>(sp => sp.GetRequiredService<PhotoThumbnailService>());
 
         // Indexing callback (bridges Module → Data for FileUploadedEvent handling)
         services.AddScoped<IPhotoIndexingCallback, PhotoIndexingCallback>();

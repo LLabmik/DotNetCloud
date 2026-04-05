@@ -2,6 +2,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Video.Models;
+using DotNetCloud.Modules.Video.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -10,7 +11,7 @@ namespace DotNetCloud.Modules.Video.Data.Services;
 /// <summary>
 /// Service for managing subtitles — upload, parse SRT/VTT, associate with videos.
 /// </summary>
-public sealed class SubtitleService
+public sealed class SubtitleService : ISubtitleService
 {
     private static readonly HashSet<string> ValidFormats = new(StringComparer.OrdinalIgnoreCase) { "srt", "vtt" };
 

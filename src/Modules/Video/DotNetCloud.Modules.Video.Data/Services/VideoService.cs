@@ -3,6 +3,7 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Video.Models;
+using DotNetCloud.Modules.Video.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -11,7 +12,7 @@ namespace DotNetCloud.Modules.Video.Data.Services;
 /// <summary>
 /// Service for managing videos — CRUD, search, recently watched, favorites.
 /// </summary>
-public sealed class VideoService
+public sealed class VideoService : IVideoService
 {
     private readonly VideoDbContext _db;
     private readonly IEventBus _eventBus;

@@ -2,6 +2,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Music.Models;
+using DotNetCloud.Modules.Music.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
@@ -11,7 +12,7 @@ namespace DotNetCloud.Modules.Music.Data.Services;
 /// <summary>
 /// Service for managing equalizer presets — CRUD for EQ presets with JSON band data.
 /// </summary>
-public sealed class EqPresetService
+public sealed class EqPresetService : IEqPresetService
 {
     private readonly MusicDbContext _db;
     private readonly ILogger<EqPresetService> _logger;

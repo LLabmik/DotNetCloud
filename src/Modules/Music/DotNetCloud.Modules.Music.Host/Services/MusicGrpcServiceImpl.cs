@@ -3,6 +3,7 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Music.Data.Services;
 using DotNetCloud.Modules.Music.Host.Protos;
 using DotNetCloud.Modules.Music.Models;
+using DotNetCloud.Modules.Music.Services;
 using Grpc.Core;
 
 namespace DotNetCloud.Modules.Music.Host.Services;

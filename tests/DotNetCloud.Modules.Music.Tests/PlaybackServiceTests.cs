@@ -3,6 +3,7 @@ using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Music.Data.Services;
 using DotNetCloud.Modules.Music.Models;
+using DotNetCloud.Modules.Music.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 

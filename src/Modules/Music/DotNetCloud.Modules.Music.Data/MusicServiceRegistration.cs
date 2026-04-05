@@ -2,6 +2,7 @@ using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Music.Data.Services;
 using DotNetCloud.Modules.Music.Events;
+using DotNetCloud.Modules.Music.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -17,18 +18,26 @@ public static class MusicServiceRegistration
     /// </summary>
     public static IServiceCollection AddMusicServices(this IServiceCollection services, IConfiguration configuration)
     {
-        // Business services
+        // Business services (forward-registered for concrete + interface injection)
         services.AddScoped<ArtistService>();
+        services.AddScoped<IArtistService>(sp => sp.GetRequiredService<ArtistService>());
         services.AddScoped<MusicAlbumService>();
+        services.AddScoped<IMusicAlbumService>(sp => sp.GetRequiredService<MusicAlbumService>());
         services.AddScoped<TrackService>();
+        services.AddScoped<ITrackService>(sp => sp.GetRequiredService<TrackService>());
         services.AddScoped<PlaylistService>();
+        services.AddScoped<Music.Services.IPlaylistService>(sp => sp.GetRequiredService<PlaylistService>());
         services.AddScoped<PlaybackService>();
+        services.AddScoped<IPlaybackService>(sp => sp.GetRequiredService<PlaybackService>());
         services.AddScoped<RecommendationService>();
+        services.AddScoped<IRecommendationService>(sp => sp.GetRequiredService<RecommendationService>());
         services.AddScoped<EqPresetService>();
+        services.AddScoped<IEqPresetService>(sp => sp.GetRequiredService<EqPresetService>());
         services.AddScoped<LibraryScanService>();
         services.AddScoped<MusicMetadataService>();
         services.AddScoped<AlbumArtService>();
         services.AddScoped<MusicStreamingService>();
+        services.AddScoped<IMusicStreamingService>(sp => sp.GetRequiredService<MusicStreamingService>());
 
         // Indexing callback (bridges Module → Data for FileUploadedEvent handling)
         services.AddScoped<IMusicIndexingCallback, MusicIndexingCallback>();

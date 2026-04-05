@@ -1,5 +1,6 @@
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Video.Models;
+using DotNetCloud.Modules.Video.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -8,7 +9,7 @@ namespace DotNetCloud.Modules.Video.Data.Services;
 /// <summary>
 /// Service for managing video metadata — extraction and retrieval.
 /// </summary>
-public sealed class VideoMetadataService
+public sealed class VideoMetadataService : IVideoMetadataService
 {
     private readonly VideoDbContext _db;
     private readonly ILogger<VideoMetadataService> _logger;

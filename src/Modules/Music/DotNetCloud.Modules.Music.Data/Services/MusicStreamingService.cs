@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Music.Models;
+using DotNetCloud.Modules.Music.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
@@ -11,7 +12,7 @@ namespace DotNetCloud.Modules.Music.Data.Services;
 /// Service for serving audio files with HTTP Range support, stream token generation,
 /// and concurrent stream limiting.
 /// </summary>
-public sealed class MusicStreamingService
+public sealed class MusicStreamingService : IMusicStreamingService
 {
     private readonly MusicDbContext _db;
     private readonly ILogger<MusicStreamingService> _logger;
@@ -166,19 +167,4 @@ public sealed class MusicStreamingService
             _streamTokens.TryRemove(key, out _);
         }
     }
-}
-
-/// <summary>
-/// Represents a stream access token.
-/// </summary>
-public sealed class StreamToken
-{
-    /// <summary>The track ID this token grants access to.</summary>
-    public required Guid TrackId { get; init; }
-
-    /// <summary>The user ID this token is scoped to.</summary>
-    public required Guid UserId { get; init; }
-
-    /// <summary>When this token expires (UTC).</summary>
-    public required DateTime ExpiresAt { get; init; }
 }

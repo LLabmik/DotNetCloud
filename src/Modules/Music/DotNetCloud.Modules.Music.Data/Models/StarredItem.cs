@@ -1,3 +1,5 @@
+using DotNetCloud.Modules.Music.Services;
+
 namespace DotNetCloud.Modules.Music.Models;
 
 /// <summary>
@@ -19,19 +21,4 @@ public sealed class StarredItem
 
     /// <summary>When the item was starred (UTC).</summary>
     public DateTime StarredAt { get; set; } = DateTime.UtcNow;
-}
-
-/// <summary>
-/// Types of items that can be starred.
-/// </summary>
-public enum StarredItemType
-{
-    /// <summary>An artist.</summary>
-    Artist,
-
-    /// <summary>A music album.</summary>
-    Album,
-
-    /// <summary>A track.</summary>
-    Track
 }

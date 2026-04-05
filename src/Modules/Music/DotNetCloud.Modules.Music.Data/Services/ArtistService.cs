@@ -2,6 +2,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Music.Models;
+using DotNetCloud.Modules.Music.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -10,7 +11,7 @@ namespace DotNetCloud.Modules.Music.Data.Services;
 /// <summary>
 /// Service for managing artists — browse, search, artist detail with discography.
 /// </summary>
-public sealed class ArtistService
+public sealed class ArtistService : IArtistService
 {
     private readonly MusicDbContext _db;
     private readonly ILogger<ArtistService> _logger;

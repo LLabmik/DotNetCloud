@@ -17,8 +17,11 @@ using DotNetCloud.Modules.Calendar.Data;
 using DotNetCloud.Modules.Chat.Data;
 using DotNetCloud.Modules.Contacts.Data;
 using DotNetCloud.Modules.Files.Data;
+using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Notes.Data;
+using DotNetCloud.Modules.Photos.Data;
 using DotNetCloud.Modules.Tracks.Data;
+using DotNetCloud.Modules.Video.Data;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.UI.Web.Client.Services;
 using DotNetCloud.UI.Web.Services;
@@ -237,12 +240,21 @@ public class Program
             ConfigureModuleDbContext(options, provider, connectionString));
         builder.Services.AddDbContext<TracksDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString));
+        builder.Services.AddDbContext<PhotosDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString));
+        builder.Services.AddDbContext<MusicDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString));
+        builder.Services.AddDbContext<VideoDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString));
         builder.Services.AddFilesServices(builder.Configuration);
         builder.Services.AddChatServices(builder.Configuration);
         builder.Services.AddContactsServices(builder.Configuration);
         builder.Services.AddCalendarServices(builder.Configuration);
         builder.Services.AddNotesServices(builder.Configuration);
         builder.Services.AddTracksServices(builder.Configuration);
+        builder.Services.AddPhotosServices(builder.Configuration);
+        builder.Services.AddMusicServices(builder.Configuration);
+        builder.Services.AddVideoServices(builder.Configuration);
         builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
         builder.Services.AddSingleton<DotNetCloud.Core.Capabilities.ICrossModuleLinkResolver, CrossModuleLinkResolver>();
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.INotificationService, NotificationService>();

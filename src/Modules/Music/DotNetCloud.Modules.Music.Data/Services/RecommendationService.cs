@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Music.Models;
+using DotNetCloud.Modules.Music.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -9,7 +10,7 @@ namespace DotNetCloud.Modules.Music.Data.Services;
 /// <summary>
 /// Service for music recommendations — recently played, most played, random by genre, similar tracks, new additions.
 /// </summary>
-public sealed class RecommendationService
+public sealed class RecommendationService : IRecommendationService
 {
     private readonly MusicDbContext _db;
     private readonly TrackService _trackService;

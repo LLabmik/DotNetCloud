@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Music.Data.Services;
+using DotNetCloud.Modules.Music.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DotNetCloud.Modules.Music.Tests;
@@ -59,7 +60,7 @@ public class ArtistServiceTests
     public async Task GetArtist_WithStar_ReturnsIsStarredTrue()
     {
         var artist = await TestHelpers.SeedArtistAsync(_db, "Starred Artist", ownerId: _caller.UserId);
-        await TestHelpers.SeedStarredItemAsync(_db, _caller.UserId, artist.Id, Models.StarredItemType.Artist);
+        await TestHelpers.SeedStarredItemAsync(_db, _caller.UserId, artist.Id, StarredItemType.Artist);
 
         var result = await _service.GetArtistAsync(artist.Id, _caller);
 

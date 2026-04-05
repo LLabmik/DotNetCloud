@@ -1,0 +1,451 @@
+@namespace DotNetCloud.Modules.Video.UI
+
+@using DotNetCloud.Core.DTOs
+@using DotNetCloud.Core.Authorization
+@using DotNetCloud.Modules.Video.Services
+@using Microsoft.JSInterop
+@inject IVideoService VideoService
+@inject IVideoCollectionService CollectionService
+@inject ISubtitleService SubtitleService
+@inject IWatchProgressService WatchProgressService
+@inject IVideoStreamingService StreamingService
+@inject IVideoMetadataService MetadataService
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
+@inject Microsoft.AspNetCore.Components.NavigationManager Navigation
+@inject IJSRuntime Js
+@inject Microsoft.Extensions.Logging.ILogger<VideoPage> Logger
+
+<div class="video-layout">
+    @* ─── Sidebar ─── *@
+    <aside class="video-sidebar">
+        <div class="video-sidebar-header">
+            <h2>Video</h2>
+        </div>
+
+        <nav class="video-nav">
+            <button class="video-nav-item @(_section == Section.Home ? "active" : "")"
+                    @onclick="() => SwitchSection(Section.Home)">
+                <span class="nav-icon">🏠</span><span>Home</span>
+            </button>
+            <button class="video-nav-item @(_section == Section.Library ? "active" : "")"
+                    @onclick="() => SwitchSection(Section.Library)">
+                <span class="nav-icon">🎬</span><span>Library</span>
+            </button>
+            <button class="video-nav-item @(_section == Section.Collections ? "active" : "")"
+                    @onclick="() => SwitchSection(Section.Collections)">
+                <span class="nav-icon">📁</span><span>Collections</span>
+            </button>
+            <button class="video-nav-item @(_section == Section.Favorites ? "active" : "")"
+                    @onclick="() => SwitchSection(Section.Favorites)">
+                <span class="nav-icon">⭐</span><span>Favorites</span>
+            </button>
+        </nav>
+
+        @* ── Collections in sidebar ── *@
+        @if (_collections.Count > 0)
+        {
+            <div class="sidebar-divider"></div>
+            <div class="sidebar-collections">
+                <div class="sidebar-collections-header">
+                    <span class="label-muted">Collections</span>
+                    <button class="btn-icon" @onclick="BeginCreateCollection" title="New Collection">+</button>
+                </div>
+                @foreach (var coll in _collections)
+                {
+                    <button class="sidebar-collection-item @(_selectedCollectionId == coll.Id ? "active" : "")"
+                            @onclick="() => SelectCollectionAsync(coll.Id)">
+                        <span class="coll-icon">📂</span>
+                        <span class="coll-name">@coll.Name</span>
+                        <span class="coll-count">@coll.VideoCount</span>
+                    </button>
+                }
+            </div>
+        }
+    </aside>
+
+    @* ─── Main Content ─── *@
+    <main class="video-main">
+        @* Toolbar *@
+        <div class="video-toolbar">
+            <div class="toolbar-left">
+                @if (_breadcrumb.Count > 0)
+                {
+                    @foreach (var crumb in _breadcrumb)
+                    {
+                        <button class="breadcrumb-item" @onclick="crumb.Action">@crumb.Label</button>
+                        <span class="breadcrumb-sep">›</span>
+                    }
+                }
+                <h3 class="section-title">@GetSectionTitle()</h3>
+            </div>
+            <div class="toolbar-right">
+                <div class="search-box">
+                    <input type="text" placeholder="Search videos…"
+                           @bind="_searchQuery" @bind:event="oninput"
+                           @onkeyup="HandleSearchKeyUp" />
+                </div>
+            </div>
+        </div>
+
+        @if (_loading)
+        {
+            <div class="video-loading">
+                <div class="loading-spinner"></div>
+                <p>Loading…</p>
+            </div>
+        }
+        else if (_errorMessage is not null)
+        {
+            <div class="video-error">
+                <p>@_errorMessage</p>
+                <button class="btn-retry" @onclick="LoadCurrentSectionAsync">Retry</button>
+            </div>
+        }
+        else
+        {
+            @* ─── Home ─── *@
+            @if (_section == Section.Home && !_playerOpen)
+            {
+                <div class="home-content">
+                    @if (_continueWatching.Count > 0)
+                    {
+                        <section class="video-section">
+                            <h4>Continue Watching</h4>
+                            <div class="video-carousel">
+                                @foreach (var wp in _continueWatching)
+                                {
+                                    <div class="video-card continue-card" @onclick="() => OpenPlayerForContinue(wp)">
+                                        <div class="video-thumb">
+                                            <img src="@GetThumbnailUrl(wp.VideoId)" alt="@wp.VideoTitle" loading="lazy" />
+                                            <div class="video-progress-bar">
+                                                <div class="video-progress-fill" style="width: @wp.ProgressPercent%"></div>
+                                            </div>
+                                            <span class="thumb-overlay-play">▶</span>
+                                        </div>
+                                        <div class="video-card-info">
+                                            <span class="video-card-title">@wp.VideoTitle</span>
+                                            <span class="video-card-meta">@((int)wp.ProgressPercent)% watched</span>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </section>
+                    }
+
+                    @if (_recentVideos.Count > 0)
+                    {
+                        <section class="video-section">
+                            <h4>Recently Added</h4>
+                            <div class="video-grid">
+                                @foreach (var video in _recentVideos)
+                                {
+                                    <div class="video-card" @onclick="() => OpenVideoDetail(video)">
+                                        <div class="video-thumb">
+                                            <img src="@GetThumbnailUrl(video.Id)" alt="@video.Title" loading="lazy" />
+                                            <span class="thumb-duration">@FormatDuration(video.Duration)</span>
+                                            <span class="thumb-overlay-play">▶</span>
+                                        </div>
+                                        <div class="video-card-info">
+                                            <span class="video-card-title">@video.Title</span>
+                                            <span class="video-card-meta">@FormatFileSize(video.SizeBytes) · @FormatResolution(video.Width, video.Height)</span>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </section>
+                    }
+
+                    @if (_continueWatching.Count == 0 && _recentVideos.Count == 0)
+                    {
+                        <div class="video-empty">
+                            <div class="empty-icon">🎬</div>
+                            <h4>No videos in your library</h4>
+                            <p>Upload video files through the Files module. Supported formats: MP4, MKV, AVI, MOV, WEBM, FLV.</p>
+                        </div>
+                    }
+                </div>
+            }
+
+            @* ─── Library (full grid) ─── *@
+            @if (_section == Section.Library && !_playerOpen)
+            {
+                <div class="video-grid padded">
+                    @foreach (var video in _videos)
+                    {
+                        <div class="video-card" @onclick="() => OpenVideoDetail(video)">
+                            <div class="video-thumb">
+                                <img src="@GetThumbnailUrl(video.Id)" alt="@video.Title" loading="lazy" />
+                                <span class="thumb-duration">@FormatDuration(video.Duration)</span>
+                                @if (video.WatchPositionTicks.HasValue && video.Duration.Ticks > 0)
+                                {
+                                    <div class="video-progress-bar">
+                                        <div class="video-progress-fill" style="width: @GetWatchPercent(video)%"></div>
+                                    </div>
+                                }
+                                <span class="thumb-overlay-play">▶</span>
+                            </div>
+                            <div class="video-card-info">
+                                <span class="video-card-title">@video.Title</span>
+                                <span class="video-card-meta">
+                                    @FormatFileSize(video.SizeBytes)
+                                    @if (video.ViewCount > 0)
+                                    {
+                                        <text> · @video.ViewCount views</text>
+                                    }
+                                </span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+
+            @* ─── Collections list ─── *@
+            @if (_section == Section.Collections && _selectedCollection is null && !_playerOpen)
+            {
+                <div class="collections-grid">
+                    @foreach (var coll in _collections)
+                    {
+                        <div class="collection-card" @onclick="() => SelectCollectionAsync(coll.Id)">
+                            <div class="collection-card-icon">📁</div>
+                            <div class="collection-card-info">
+                                <span class="collection-card-title">@coll.Name</span>
+                                <span class="collection-card-meta">@coll.VideoCount videos · @FormatDuration(coll.TotalDuration)</span>
+                                @if (!string.IsNullOrWhiteSpace(coll.Description))
+                                {
+                                    <span class="collection-card-desc">@coll.Description</span>
+                                }
+                            </div>
+                            <div class="collection-card-actions" @onclick:stopPropagation="true">
+                                <button class="btn-icon-action" @onclick="() => BeginEditCollection(coll)" title="Edit">✎</button>
+                                <button class="btn-icon-action danger" @onclick="() => DeleteCollectionAsync(coll.Id)" title="Delete">🗑</button>
+                            </div>
+                        </div>
+                    }
+                    @if (_collections.Count == 0)
+                    {
+                        <div class="video-empty">
+                            <div class="empty-icon">📁</div>
+                            <h4>No collections yet</h4>
+                            <p>Create a collection to organize your videos.</p>
+                            <button class="btn-primary" @onclick="BeginCreateCollection" style="margin-top:12px">Create Collection</button>
+                        </div>
+                    }
+                </div>
+            }
+
+            @* ─── Collection detail ─── *@
+            @if (_section == Section.Collections && _selectedCollection is not null && !_playerOpen)
+            {
+                <div class="collection-detail">
+                    <div class="collection-detail-header">
+                        <div>
+                            <h3>@_selectedCollection.Name</h3>
+                            @if (!string.IsNullOrWhiteSpace(_selectedCollection.Description))
+                            {
+                                <p class="collection-desc">@_selectedCollection.Description</p>
+                            }
+                            <span class="collection-meta-detail">@_selectedCollection.VideoCount videos · @FormatDuration(_selectedCollection.TotalDuration)</span>
+                        </div>
+                    </div>
+
+                    <div class="video-grid">
+                        @foreach (var video in _collectionVideos)
+                        {
+                            <div class="video-card" @onclick="() => OpenVideoDetail(video)">
+                                <div class="video-thumb">
+                                    <img src="@GetThumbnailUrl(video.Id)" alt="@video.Title" loading="lazy" />
+                                    <span class="thumb-duration">@FormatDuration(video.Duration)</span>
+                                    <span class="thumb-overlay-play">▶</span>
+                                </div>
+                                <div class="video-card-info">
+                                    <span class="video-card-title">@video.Title</span>
+                                    <span class="video-card-meta">@FormatFileSize(video.SizeBytes)</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @* ─── Favorites ─── *@
+            @if (_section == Section.Favorites && !_playerOpen)
+            {
+                <div class="video-grid padded">
+                    @if (_favoriteVideos.Count == 0)
+                    {
+                        <div class="video-empty">
+                            <div class="empty-icon">⭐</div>
+                            <h4>No favorites yet</h4>
+                            <p>Favorite videos to see them here.</p>
+                        </div>
+                    }
+                    @foreach (var video in _favoriteVideos)
+                    {
+                        <div class="video-card" @onclick="() => OpenVideoDetail(video)">
+                            <div class="video-thumb">
+                                <img src="@GetThumbnailUrl(video.Id)" alt="@video.Title" loading="lazy" />
+                                <span class="thumb-duration">@FormatDuration(video.Duration)</span>
+                                <span class="thumb-overlay-play">▶</span>
+                            </div>
+                            <div class="video-card-info">
+                                <span class="video-card-title">@video.Title</span>
+                                <span class="video-card-meta">@FormatFileSize(video.SizeBytes) · @video.ViewCount views</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+
+            @* ─── Search Results ─── *@
+            @if (_searchResults is not null && !_playerOpen)
+            {
+                <div class="search-results">
+                    <h4>Results for "@_searchQuery"</h4>
+                    <div class="video-grid padded">
+                        @foreach (var video in _searchResults)
+                        {
+                            <div class="video-card" @onclick="() => OpenVideoDetail(video)">
+                                <div class="video-thumb">
+                                    <img src="@GetThumbnailUrl(video.Id)" alt="@video.Title" loading="lazy" />
+                                    <span class="thumb-duration">@FormatDuration(video.Duration)</span>
+                                    <span class="thumb-overlay-play">▶</span>
+                                </div>
+                                <div class="video-card-info">
+                                    <span class="video-card-title">@video.Title</span>
+                                    <span class="video-card-meta">@FormatFileSize(video.SizeBytes)</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @* ─── Video Player ─── *@
+            @if (_playerOpen && _playerVideo is not null)
+            {
+                <div class="player-view">
+                    <div class="player-container">
+                        <video id="video-player"
+                               class="video-player"
+                               src="@GetStreamUrl(_playerVideo.Id)"
+                               controls
+                               autoplay
+                               preload="auto">
+                            @if (_playerSubtitles.Count > 0)
+                            {
+                                @foreach (var sub in _playerSubtitles)
+                                {
+                                    <track kind="subtitles" label="@(sub.Label ?? sub.Language)"
+                                           srclang="@sub.Language"
+                                           src="@GetSubtitleUrl(sub.Id)"
+                                           default="@sub.IsDefault" />
+                                }
+                            }
+                        </video>
+                    </div>
+
+                    <div class="player-info-panel">
+                        <div class="player-info-header">
+                            <div class="player-title-section">
+                                <h3>@_playerVideo.Title</h3>
+                                <span class="player-meta">
+                                    @FormatResolution(_playerVideo.Width, _playerVideo.Height) ·
+                                    @FormatFileSize(_playerVideo.SizeBytes) ·
+                                    @_playerVideo.ViewCount views
+                                </span>
+                            </div>
+                            <div class="player-actions">
+                                <button class="btn-icon-action" @onclick="ToggleFavoriteAsync"
+                                        title="@(_playerVideo.IsFavorite ? "Remove from favorites" : "Add to favorites")">
+                                    @(_playerVideo.IsFavorite ? "★" : "☆")
+                                </button>
+                                <button class="btn-icon-action" @onclick="() => _showAddToCollection = true" title="Add to collection">📁</button>
+                                <button class="btn-close-player" @onclick="ClosePlayer">✕ Close</button>
+                            </div>
+                        </div>
+
+                        @* Metadata *@
+                        @if (_playerMetadata is not null)
+                        {
+                            <div class="metadata-grid">
+                                <div class="metadata-item">
+                                    <span class="metadata-label">Codec</span>
+                                    <span class="metadata-value">@_playerMetadata.VideoCodec / @_playerMetadata.AudioCodec</span>
+                                </div>
+                                <div class="metadata-item">
+                                    <span class="metadata-label">Framerate</span>
+                                    <span class="metadata-value">@_playerMetadata.FrameRate fps</span>
+                                </div>
+                                <div class="metadata-item">
+                                    <span class="metadata-label">Bitrate</span>
+                                    <span class="metadata-value">@FormatBitrate(_playerMetadata.Bitrate)</span>
+                                </div>
+                                <div class="metadata-item">
+                                    <span class="metadata-label">Container</span>
+                                    <span class="metadata-value">@_playerMetadata.ContainerFormat</span>
+                                </div>
+                                <div class="metadata-item">
+                                    <span class="metadata-label">Audio Tracks</span>
+                                    <span class="metadata-value">@_playerMetadata.AudioTrackCount</span>
+                                </div>
+                                <div class="metadata-item">
+                                    <span class="metadata-label">Subtitles</span>
+                                    <span class="metadata-value">@_playerSubtitles.Count available</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        }
+    </main>
+
+    @* ─── Add to Collection Dialog ─── *@
+    @if (_showAddToCollection)
+    {
+        <div class="dialog-overlay" @onclick="() => _showAddToCollection = false">
+            <div class="dialog-panel" @onclick:stopPropagation="true">
+                <h4>Add to Collection</h4>
+                <div class="collection-select-list">
+                    @foreach (var coll in _collections)
+                    {
+                        <button class="collection-select-item" @onclick="() => AddToCollectionAsync(coll.Id)">
+                            <span>📂</span> @coll.Name
+                        </button>
+                    }
+                    @if (_collections.Count == 0)
+                    {
+                        <p class="empty-hint">No collections yet. Create one first.</p>
+                    }
+                </div>
+                <div class="dialog-actions">
+                    <button class="btn-cancel" @onclick="() => _showAddToCollection = false">Cancel</button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* ─── Create/Edit Collection Dialog ─── *@
+    @if (_showCreateCollectionDialog || _showEditCollectionDialog)
+    {
+        <div class="dialog-overlay" @onclick="CloseCollectionDialog">
+            <div class="dialog-panel" @onclick:stopPropagation="true">
+                <h4>@(_showEditCollectionDialog ? "Edit Collection" : "Create Collection")</h4>
+                <div class="dialog-form">
+                    <label>Name
+                        <input type="text" @bind="_collectionName" placeholder="Collection name" />
+                    </label>
+                    <label>Description
+                        <textarea @bind="_collectionDescription" placeholder="Optional description" rows="2"></textarea>
+                    </label>
+                </div>
+                <div class="dialog-actions">
+                    <button class="btn-cancel" @onclick="CloseCollectionDialog">Cancel</button>
+                    <button class="btn-primary" @onclick="SaveCollectionAsync">
+                        @(_showEditCollectionDialog ? "Save" : "Create")
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+</div>

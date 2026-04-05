@@ -2,6 +2,7 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Music.Data.Services;
 using DotNetCloud.Modules.Music.Models;
+using DotNetCloud.Modules.Music.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DotNetCloud.Modules.Music.Host.Controllers;

@@ -3,6 +3,7 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Music.Models;
+using DotNetCloud.Modules.Music.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -11,7 +12,7 @@ namespace DotNetCloud.Modules.Music.Data.Services;
 /// <summary>
 /// Service for managing playlists — CRUD, reorder tracks, playlist sharing.
 /// </summary>
-public sealed class PlaylistService
+public sealed class PlaylistService : Music.Services.IPlaylistService
 {
     private readonly MusicDbContext _db;
     private readonly IEventBus _eventBus;

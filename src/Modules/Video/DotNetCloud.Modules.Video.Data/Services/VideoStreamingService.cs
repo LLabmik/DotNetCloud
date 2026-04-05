@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Errors;
+using DotNetCloud.Modules.Video.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
@@ -9,7 +10,7 @@ namespace DotNetCloud.Modules.Video.Data.Services;
 /// <summary>
 /// Service for HTTP range-request video streaming, token generation, and concurrent stream limiting.
 /// </summary>
-public sealed class VideoStreamingService
+public sealed class VideoStreamingService : IVideoStreamingService
 {
     private readonly VideoDbContext _db;
     private readonly ILogger<VideoStreamingService> _logger;
@@ -178,19 +179,4 @@ public sealed class VideoStreamingService
             _streamTokens.TryRemove(key, out _);
         }
     }
-}
-
-/// <summary>
-/// Represents a video stream access token.
-/// </summary>
-public sealed class VideoStreamToken
-{
-    /// <summary>The video ID this token grants access to.</summary>
-    public required Guid VideoId { get; init; }
-
-    /// <summary>The user ID this token is scoped to.</summary>
-    public required Guid UserId { get; init; }
-
-    /// <summary>When this token expires (UTC).</summary>
-    public required DateTime ExpiresAt { get; init; }
 }

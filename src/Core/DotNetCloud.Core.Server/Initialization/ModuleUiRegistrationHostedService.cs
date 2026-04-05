@@ -62,7 +62,31 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
             SortOrder: 60,
             RouteKey: "tracks.page",
             ComponentType: typeof(DotNetCloud.Modules.Tracks.UI.TracksPage),
-            AdditionalPages: [("tracks.card", typeof(DotNetCloud.Modules.Tracks.UI.CardFullscreenPage))])
+            AdditionalPages: [("tracks.card", typeof(DotNetCloud.Modules.Tracks.UI.CardFullscreenPage))]),
+        new(
+            ModuleId: "dotnetcloud.photos",
+            Label: "Photos",
+            Href: "/apps/photos",
+            Icon: "🖼️",
+            SortOrder: 70,
+            RouteKey: "photos.page",
+            ComponentType: typeof(DotNetCloud.Modules.Photos.UI.PhotosPage)),
+        new(
+            ModuleId: "dotnetcloud.music",
+            Label: "Music",
+            Href: "/apps/music",
+            Icon: "🎵",
+            SortOrder: 80,
+            RouteKey: "music.page",
+            ComponentType: typeof(DotNetCloud.Modules.Music.UI.MusicPage)),
+        new(
+            ModuleId: "dotnetcloud.video",
+            Label: "Video",
+            Href: "/apps/video",
+            Icon: "🎬",
+            SortOrder: 90,
+            RouteKey: "video.page",
+            ComponentType: typeof(DotNetCloud.Modules.Video.UI.VideoPage))
     ];
 
     private readonly IServiceScopeFactory _scopeFactory;

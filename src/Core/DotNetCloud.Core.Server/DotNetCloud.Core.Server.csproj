@@ -50,6 +50,15 @@
     <ProjectReference Include="..\..\Modules\Tracks\DotNetCloud.Modules.Tracks\DotNetCloud.Modules.Tracks.csproj" />
     <ProjectReference Include="..\..\Modules\Tracks\DotNetCloud.Modules.Tracks.Data\DotNetCloud.Modules.Tracks.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Tracks\DotNetCloud.Modules.Tracks.Host\DotNetCloud.Modules.Tracks.Host.csproj" />
+    <ProjectReference Include="..\..\Modules\Photos\DotNetCloud.Modules.Photos\DotNetCloud.Modules.Photos.csproj" />
+    <ProjectReference Include="..\..\Modules\Photos\DotNetCloud.Modules.Photos.Data\DotNetCloud.Modules.Photos.Data.csproj" />
+    <ProjectReference Include="..\..\Modules\Photos\DotNetCloud.Modules.Photos.Host\DotNetCloud.Modules.Photos.Host.csproj" />
+    <ProjectReference Include="..\..\Modules\Music\DotNetCloud.Modules.Music\DotNetCloud.Modules.Music.csproj" />
+    <ProjectReference Include="..\..\Modules\Music\DotNetCloud.Modules.Music.Data\DotNetCloud.Modules.Music.Data.csproj" />
+    <ProjectReference Include="..\..\Modules\Music\DotNetCloud.Modules.Music.Host\DotNetCloud.Modules.Music.Host.csproj" />
+    <ProjectReference Include="..\..\Modules\Video\DotNetCloud.Modules.Video\DotNetCloud.Modules.Video.csproj" />
+    <ProjectReference Include="..\..\Modules\Video\DotNetCloud.Modules.Video.Data\DotNetCloud.Modules.Video.Data.csproj" />
+    <ProjectReference Include="..\..\Modules\Video\DotNetCloud.Modules.Video.Host\DotNetCloud.Modules.Video.Host.csproj" />
     <ProjectReference Include="..\..\UI\DotNetCloud.UI.Web\DotNetCloud.UI.Web.csproj" />
     <ProjectReference Include="..\..\UI\DotNetCloud.UI.Web.Client\DotNetCloud.UI.Web.Client.csproj" />
   </ItemGroup>

@@ -4,6 +4,7 @@ using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Photos.Data;
 using DotNetCloud.Modules.Photos.Models;
+using DotNetCloud.Modules.Photos.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -12,7 +13,7 @@ namespace DotNetCloud.Modules.Photos.Data.Services;
 /// <summary>
 /// Service for managing photos — CRUD, search, timeline queries, favorites.
 /// </summary>
-public sealed class PhotoService
+public sealed class PhotoService : IPhotoService
 {
     private readonly PhotosDbContext _db;
     private readonly IEventBus _eventBus;
