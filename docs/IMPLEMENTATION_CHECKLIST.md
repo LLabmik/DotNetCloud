@@ -3506,3 +3506,55 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Performance tests (5 tests)
 - ✓ Additional integration tests (3 tests)
 - ✓ 62 new tests in `PhaseJ_ComprehensiveTests.cs`; 801 total Tracks tests passing
+
+---
+
+## Phase 5: Media (Photos, Music, Video)
+
+### Sub-Phase A: Shared Media Infrastructure (Steps 5.1–5.2)
+
+#### Step 5.1 — Media Streaming Middleware & Shared Types
+- ✓ `MediaType` enum (Photo, Audio, Video) in `DotNetCloud.Core/DTOs/Media/MediaType.cs`
+- ✓ `GeoCoordinate` record in `DotNetCloud.Core/DTOs/Media/GeoCoordinate.cs`
+- ✓ `MediaMetadataDto` record in `DotNetCloud.Core/DTOs/Media/MediaMetadataDto.cs`
+- ✓ `MediaItemDto` record in `DotNetCloud.Core/DTOs/Media/MediaItemDto.cs`
+- ✓ `MediaThumbnailDto` record and `MediaThumbnailSize` enum in `DotNetCloud.Core/DTOs/Media/MediaThumbnailDto.cs`
+- ✓ `IMediaStreamingService` interface in `DotNetCloud.Core/Capabilities/IMediaStreamingService.cs`
+- ✓ `IMediaMetadataExtractor` interface in `DotNetCloud.Core/Capabilities/IMediaMetadataExtractor.cs`
+- ✓ `MediaStreamingMiddleware` with HTTP Range-request support (206 Partial Content) in `Core.ServiceDefaults/Middleware/`
+- ✓ Unit tests: 19 middleware tests + 26 DTO/capability tests
+
+#### Step 5.2 — Metadata Extraction Framework
+- ✓ `ExifMetadataExtractor` (ImageSharp 3.x TryGetValue API) in `Core.ServiceDefaults/Media/`
+- ✓ `AudioMetadataExtractor` (TagLibSharp 2.3.0) in `Core.ServiceDefaults/Media/`
+- ✓ `VideoMetadataExtractor` (FFprobe JSON parsing) in `Core.ServiceDefaults/Media/`
+- ✓ `MediaServiceCollectionExtensions` DI registration (keyed services by MediaType) in `Core.ServiceDefaults/Media/`
+- ✓ NuGet: `TagLibSharp 2.3.0` and `SixLabors.ImageSharp 3.1.12` in ServiceDefaults.csproj
+- ✓ Unit tests: 12 EXIF + 10 audio + 9 video + 7 DI registration tests
+- ✓ All 136 new tests passing (396 total)
+
+### Sub-Phase B: Photos Module (Steps 5.3–5.7)
+- ☐ Step 5.3 — Photos Architecture & Contracts
+- ☐ Step 5.4 — Photos Data Model & Migrations
+- ☐ Step 5.5 — Photos Core Services
+- ☐ Step 5.6 — Photo Editing & Slideshow
+- ☐ Step 5.7 — Photos API & Web UI
+
+### Sub-Phase C: Music Module (Steps 5.8–5.14)
+- ☐ Step 5.8 — Music Architecture & Contracts
+- ☐ Step 5.9 — Music Data Model & Migrations
+- ☐ Step 5.10 — Music Library Scanning
+- ☐ Step 5.11 — Music Core Services
+- ☐ Step 5.12 — Music Streaming & Equalizer
+- ☐ Step 5.13 — Subsonic API Compatibility
+- ☐ Step 5.14 — Music Web UI
+
+### Sub-Phase D: Video Module (Steps 5.15–5.18)
+- ☐ Step 5.15 — Video Contracts & Data Model
+- ☐ Step 5.16 — Video Core Services
+- ☐ Step 5.17 — Video API
+- ☐ Step 5.18 — Video Web UI
+
+### Sub-Phase E: Integration & Quality (Steps 5.19–5.20)
+- ☐ Step 5.19 — Cross-Module Integration
+- ☐ Step 5.20 — Testing & Documentation
