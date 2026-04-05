@@ -1,6 +1,7 @@
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Tracks.Services;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 
 namespace DotNetCloud.Modules.Tracks.UI;
 
@@ -14,6 +15,7 @@ public partial class BacklogView : ComponentBase
 
     [Parameter, EditorRequired] public Guid BoardId { get; set; }
     [Parameter, EditorRequired] public List<SprintDto> Sprints { get; set; } = [];
+    [Parameter] public List<BoardSwimlaneDto> Swimlanes { get; set; } = [];
     [Parameter] public EventCallback<Guid> OnCardSelected { get; set; }
     [Parameter] public EventCallback OnBacklogChanged { get; set; }
 
@@ -25,6 +27,13 @@ public partial class BacklogView : ComponentBase
     private string _filterText = "";
     private string _priorityFilter = "";
     private string _bulkTargetSprintId = "";
+
+    // ── Add Card State ──────────────────────────────────────
+    private bool _isAddingCard;
+    private bool _isSubmittingCard;
+    private string _newCardTitle = "";
+    private string _newCardSwimlaneId = "";
+    private string _newCardPriority = "";
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
@@ -134,6 +143,77 @@ public partial class BacklogView : ComponentBase
     }
 
     // ── Helpers ─────────────────────────────────────────────
+
+    /// <inheritdoc />
+    protected override void OnParametersSet()
+    {
+        // Default swimlane selection to first available when not set
+        if (string.IsNullOrEmpty(_newCardSwimlaneId) && Swimlanes.Count > 0)
+            _newCardSwimlaneId = Swimlanes[0].Id.ToString();
+    }
+
+    // ── Add Card ────────────────────────────────────────────
+
+    private void ToggleAddCard()
+    {
+        _isAddingCard = !_isAddingCard;
+        if (_isAddingCard)
+        {
+            _newCardTitle = "";
+            _newCardPriority = "";
+            if (Swimlanes.Count > 0)
+                _newCardSwimlaneId = Swimlanes[0].Id.ToString();
+        }
+    }
+
+    private void CancelAddCard()
+    {
+        _isAddingCard = false;
+        _newCardTitle = "";
+        _newCardPriority = "";
+    }
+
+    private async Task HandleNewCardKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SubmitNewCardAsync();
+        else if (e.Key == "Escape") CancelAddCard();
+    }
+
+    private async Task SubmitNewCardAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newCardTitle) || Swimlanes.Count == 0) return;
+
+        if (!Guid.TryParse(_newCardSwimlaneId, out var swimlaneId))
+            swimlaneId = Swimlanes[0].Id;
+
+        var priority = CardPriority.None;
+        if (!string.IsNullOrEmpty(_newCardPriority))
+            Enum.TryParse(_newCardPriority, out priority);
+
+        _isSubmittingCard = true;
+        try
+        {
+            var card = await ApiClient.CreateCardAsync(swimlaneId, new CreateCardDto
+            {
+                Title = _newCardTitle.Trim(),
+                Priority = priority
+            });
+
+            if (card is not null)
+            {
+                _backlogCards.Insert(0, card);
+                _newCardTitle = "";
+                _newCardPriority = "";
+                await OnBacklogChanged.InvokeAsync();
+            }
+        }
+        finally
+        {
+            _isSubmittingCard = false;
+        }
+    }
+
+    // ── Display Helpers ─────────────────────────────────────
 
     private static string GetPriorityClass(CardPriority priority) => priority switch
     {

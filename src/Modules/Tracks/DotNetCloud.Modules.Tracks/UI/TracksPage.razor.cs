@@ -1,6 +1,8 @@
+using System.Security.Claims;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Tracks.Services;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 
 namespace DotNetCloud.Modules.Tracks.UI;
 
@@ -11,6 +13,7 @@ public partial class TracksPage : ComponentBase, IDisposable
 {
     [Inject] private ITracksApiClient ApiClient { get; set; } = default!;
     [Inject] private ITracksSignalRService SignalRService { get; set; } = default!;
+    [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
 
     private enum TracksView { Boards, Board, Teams, Planning, Wizard, Backlog, Timeline, Review }
 
@@ -160,8 +163,24 @@ public partial class TracksPage : ComponentBase, IDisposable
             _activeReviewSession = null;
         }
 
-        _isHost = false;
+        if (_activeReviewSession is not null)
+        {
+            var currentUserId = await GetCurrentUserIdAsync();
+            _isHost = currentUserId.HasValue && _activeReviewSession.HostUserId == currentUserId.Value;
+        }
+        else
+        {
+            _isHost = false;
+        }
         _view = TracksView.Review;
+    }
+
+    private async Task<Guid?> GetCurrentUserIdAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var claim = state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                 ?? state.User.FindFirst("sub")?.Value;
+        return Guid.TryParse(claim, out var id) ? id : null;
     }
 
     private async Task HandleReviewStarted(ReviewSessionDto session)

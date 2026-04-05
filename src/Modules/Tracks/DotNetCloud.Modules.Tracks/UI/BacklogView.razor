@@ -46,9 +46,45 @@
                     </div>
                 }
                 <button class="btn btn-sm btn-outline" @onclick="RefreshBacklogAsync">↻ Refresh</button>
+                <button class="btn btn-sm btn-primary" @onclick="ToggleAddCard">＋ New Card</button>
             </div>
         </div>
     </div>
+
+    @* ── Add Card Form ── *@
+    @if (_isAddingCard)
+    {
+        <div class="tracks-backlog-add-card">
+            <div class="tracks-backlog-add-card-row">
+                <input type="text" class="tracks-search-input tracks-backlog-add-title"
+                       placeholder="Card title..." @bind="_newCardTitle" @bind:event="oninput"
+                       @onkeydown="HandleNewCardKeyDown" />
+                @if (Swimlanes.Count > 0)
+                {
+                    <select class="tracks-filter-select" @bind="_newCardSwimlaneId">
+                        @foreach (var lane in Swimlanes)
+                        {
+                            <option value="@lane.Id">@lane.Title</option>
+                        }
+                    </select>
+                }
+                <select class="tracks-filter-select" @bind="_newCardPriority">
+                    <option value="">No priority</option>
+                    <option value="Low">🟢 Low</option>
+                    <option value="Medium">🟡 Medium</option>
+                    <option value="High">🟠 High</option>
+                    <option value="Urgent">🔴 Urgent</option>
+                </select>
+            </div>
+            <div class="tracks-backlog-add-card-actions">
+                <button class="btn btn-sm btn-primary" @onclick="SubmitNewCardAsync"
+                        disabled="@(string.IsNullOrWhiteSpace(_newCardTitle) || _isSubmittingCard)">
+                    @(_isSubmittingCard ? "Creating..." : "Add Card")
+                </button>
+                <button class="btn btn-sm btn-secondary" @onclick="CancelAddCard">Cancel</button>
+            </div>
+        </div>
+    }
 
     @* ── Content ── *@
     @if (_isLoading)
@@ -63,6 +99,10 @@
             <div class="tracks-backlog-empty-icon">📭</div>
             <h3>Backlog is empty</h3>
             <p>Cards not assigned to any sprint will appear here.</p>
+            @if (Swimlanes.Count > 0)
+            {
+                <button class="btn btn-sm btn-primary" style="margin-top: 12px;" @onclick="ToggleAddCard">＋ Create your first card</button>
+            }
         </div>
     }
     else

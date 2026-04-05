@@ -25,6 +25,13 @@ public partial class SprintPanel : ComponentBase
     private string? _createError;
     private readonly SprintCreateModel _createModel = new();
 
+    // Edit dialog state
+    private bool _showEditDialog;
+    private bool _isSavingEdit;
+    private string? _editError;
+    private Guid _editSprintId;
+    private readonly SprintEditModel _editModel = new();
+
     // Sprint backlog state
     private Guid? _expandedSprintId;
     private readonly List<CardDto> _sprintCards = [];
@@ -86,6 +93,52 @@ public partial class SprintPanel : ComponentBase
         finally
         {
             _isCreating = false;
+        }
+    }
+
+    // ── Edit Sprint ─────────────────────────────────────────
+
+    private void OpenEditDialog(SprintDto sprint)
+    {
+        _editSprintId = sprint.Id;
+        _editModel.Title = sprint.Title;
+        _editModel.Goal = sprint.Goal ?? "";
+        _editModel.StartDate = sprint.StartDate?.ToLocalTime();
+        _editModel.EndDate = sprint.EndDate?.ToLocalTime();
+        _editModel.TargetStoryPoints = sprint.TargetStoryPoints;
+        _editError = null;
+        _isSavingEdit = false;
+        _showEditDialog = true;
+    }
+
+    private async Task SaveSprintEditAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_editModel.Title)) return;
+
+        _isSavingEdit = true;
+        _editError = null;
+
+        try
+        {
+            await ApiClient.UpdateSprintAsync(BoardId, _editSprintId, new UpdateSprintDto
+            {
+                Title = _editModel.Title.Trim(),
+                Goal = string.IsNullOrWhiteSpace(_editModel.Goal) ? null : _editModel.Goal.Trim(),
+                StartDate = _editModel.StartDate?.ToUniversalTime(),
+                EndDate = _editModel.EndDate?.ToUniversalTime(),
+                TargetStoryPoints = _editModel.TargetStoryPoints
+            });
+
+            _showEditDialog = false;
+            await OnSprintChanged.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            _editError = $"Failed to update sprint: {ex.Message}";
+        }
+        finally
+        {
+            _isSavingEdit = false;
         }
     }
 
@@ -254,6 +307,31 @@ public partial class SprintPanel : ComponentBase
         public DateTime? StartDate { get; set; }
 
         public DateTime? EndDate { get; set; }
+
+        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        {
+            if (StartDate.HasValue && EndDate.HasValue && EndDate.Value < StartDate.Value)
+            {
+                yield return new ValidationResult(
+                    "End date must be on or after the start date.",
+                    [nameof(EndDate)]);
+            }
+        }
+    }
+
+    private sealed class SprintEditModel : IValidatableObject
+    {
+        [Required(ErrorMessage = "Title is required.")]
+        [StringLength(200, ErrorMessage = "Title must be 200 characters or fewer.")]
+        public string Title { get; set; } = "";
+
+        public string Goal { get; set; } = "";
+
+        public DateTime? StartDate { get; set; }
+
+        public DateTime? EndDate { get; set; }
+
+        public int? TargetStoryPoints { get; set; }
 
         public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
         {

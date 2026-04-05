@@ -542,7 +542,15 @@ public sealed class TracksApiClient : ITracksApiClient
 
     public async Task<ReviewSessionDto?> StartReviewPokerAsync(Guid sessionId, StartReviewPokerDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/review-sessions/{sessionId}/poker", dto, ct);
+        var url = $"api/v1/review-sessions/{sessionId}/poker";
+        System.Diagnostics.Debug.WriteLine($"[TracksApiClient] POST {_httpClient.BaseAddress}{url}");
+        Console.WriteLine($"[TracksApiClient] POST {_httpClient.BaseAddress}{url}");
+        var response = await _httpClient.PostAsJsonAsync(url, dto, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(ct);
+            Console.WriteLine($"[TracksApiClient] StartReviewPoker FAILED: {response.StatusCode} — {body}");
+        }
         response.EnsureSuccessStatusCode();
         return await ReadDataFromResponseAsync<ReviewSessionDto>(response, ct);
     }

@@ -3893,6 +3893,35 @@
     outline: none;
 }
 
+/* ── Backlog Add Card ── */
+
+::deep .tracks-backlog-add-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--color-border);
+    background: color-mix(in srgb, var(--color-primary) 3%, var(--color-surface));
+}
+
+::deep .tracks-backlog-add-card-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+::deep .tracks-backlog-add-title {
+    flex: 1;
+    min-width: 200px;
+}
+
+::deep .tracks-backlog-add-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 /* ═══════════════════════════════════════════════════════════
    Timeline / Gantt View (Phase H)
    ═══════════════════════════════════════════════════════════ */

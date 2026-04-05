@@ -1,6 +1,7 @@
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Tracks.Services;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Modules.Tracks.UI;
 
@@ -13,6 +14,7 @@ public partial class ReviewSessionHost : ComponentBase, IDisposable
 {
     [Inject] private ITracksApiClient ApiClient { get; set; } = default!;
     [Inject] private ITracksSignalRService SignalRService { get; set; } = default!;
+    [Inject] private ILogger<ReviewSessionHost> Logger { get; set; } = default!;
 
     /// <summary>The active review session being hosted.</summary>
     [Parameter, EditorRequired] public ReviewSessionDto Session { get; set; } = default!;
@@ -75,6 +77,11 @@ public partial class ReviewSessionHost : ComponentBase, IDisposable
                 _currentCardIndex = idx;
                 _currentCard = _cards[idx];
             }
+        }
+        else if (_currentCard is not null)
+        {
+            // First load — sync the initial card to server so poker can reference it
+            await SetCurrentCardOnServer();
         }
 
         if (_activePoker is not null)
@@ -183,6 +190,8 @@ public partial class ReviewSessionHost : ComponentBase, IDisposable
         try
         {
             var dto = new StartReviewPokerDto { Scale = _selectedScale };
+            Logger.LogInformation("StartPoker: SessionId={SessionId}, CardId={CardId}, Scale={Scale}",
+                Session.Id, _currentCard.Id, _selectedScale);
             var updated = await ApiClient.StartReviewPokerAsync(Session.Id, dto);
             if (updated is not null)
             {

@@ -13,7 +13,8 @@
     else
     {
         @foreach (var sprint in Sprints.OrderByDescending(s => s.Status == SprintStatus.Active)
-                                       .ThenByDescending(s => s.CreatedAt))
+                                       .ThenBy(s => s.StartDate ?? DateTime.MaxValue)
+                                       .ThenBy(s => s.CreatedAt))
         {
             <div class="tracks-sprint-card @(sprint.Status == SprintStatus.Active ? "active" : "")">
                 <div class="tracks-sprint-card-header">
@@ -49,6 +50,8 @@
                     </div>
                 }
                 <div class="tracks-sprint-actions">
+                    <button class="btn btn-sm btn-outline" @onclick="() => OpenEditDialog(sprint)"
+                            title="Edit sprint details">✏️ Edit</button>
                     @if (sprint.Status == SprintStatus.Planning)
                     {
                         <button class="btn btn-sm btn-primary" @onclick="() => StartSprintAsync(sprint.Id)">
@@ -224,6 +227,53 @@
                         @onclick="() => _showCreateDialog = false">Cancel</button>
                 <button type="submit" class="btn btn-primary" disabled="@_isCreating">
                     @(_isCreating ? "Creating..." : "Create Sprint")
+                </button>
+            </div>
+        </EditForm>
+    </DncModal>
+}
+
+@* ── Edit Sprint Dialog ── *@
+@if (_showEditDialog)
+{
+    <DncModal Title="Edit Sprint" StartVisible OnClose="() => _showEditDialog = false">
+        <EditForm Model="_editModel" OnValidSubmit="SaveSprintEditAsync">
+            <DataAnnotationsValidator />
+            <div class="form-group">
+                <label>Title</label>
+                <InputText class="form-control" @bind-Value="_editModel.Title" />
+                <ValidationMessage For="() => _editModel.Title" />
+            </div>
+            <div class="form-group">
+                <label>Goal / Description</label>
+                <InputTextArea class="form-control" @bind-Value="_editModel.Goal" rows="3"
+                               placeholder="What should this sprint achieve?" />
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Start Date</label>
+                    <InputDate class="form-control" @bind-Value="_editModel.StartDate" />
+                </div>
+                <div class="form-group">
+                    <label>End Date</label>
+                    <InputDate class="form-control" @bind-Value="_editModel.EndDate" />
+                    <ValidationMessage For="() => _editModel.EndDate" />
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Target Story Points</label>
+                <InputNumber class="form-control" @bind-Value="_editModel.TargetStoryPoints"
+                             placeholder="Optional capacity target" />
+            </div>
+            @if (!string.IsNullOrEmpty(_editError))
+            {
+                <div class="alert alert-danger">@_editError</div>
+            }
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary"
+                        @onclick="() => _showEditDialog = false">Cancel</button>
+                <button type="submit" class="btn btn-primary" disabled="@_isSavingEdit">
+                    @(_isSavingEdit ? "Saving..." : "Save Changes")
                 </button>
             </div>
         </EditForm>

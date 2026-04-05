@@ -184,6 +184,20 @@ public sealed class ReviewSessionService
         if (activePoker)
             throw new ValidationException(ErrorCodes.ReviewPokerStillActive, "There is already an active poker session in this review. Accept or cancel it first.");
 
+        // Cancel any orphaned poker sessions for this card (e.g. from a previous review or standalone poker)
+        var orphanedSessions = await _db.PokerSessions
+            .Where(ps => ps.CardId == session.CurrentCardId.Value
+                      && ps.Status == PokerSessionStatus.Voting
+                      && ps.ReviewSessionId != sessionId)
+            .ToListAsync(cancellationToken);
+        foreach (var orphan in orphanedSessions)
+        {
+            orphan.Status = PokerSessionStatus.Cancelled;
+            _logger.LogWarning("Cancelled orphaned poker session {PokerId} for card {CardId}", orphan.Id, orphan.CardId);
+        }
+        if (orphanedSessions.Count > 0)
+            await _db.SaveChangesAsync(cancellationToken);
+
         // Create poker session linked to review
         var pokerSession = await _pokerService.StartSessionAsync(session.CurrentCardId.Value,
             new CreatePokerSessionDto

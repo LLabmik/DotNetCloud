@@ -129,6 +129,7 @@ public class ReviewSessionController : TracksControllerBase
     [HttpPost("review-sessions/{sessionId:guid}/poker")]
     public async Task<IActionResult> StartPokerAsync(Guid sessionId, [FromBody] StartReviewPokerDto dto)
     {
+        _logger.LogInformation("StartPokerAsync ENTERED: sessionId={SessionId}, scale={Scale}", sessionId, dto.Scale);
         var caller = GetAuthenticatedCaller();
         try
         {
