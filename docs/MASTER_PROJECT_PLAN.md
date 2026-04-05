@@ -96,7 +96,7 @@
 | Phase 4.7 | 6 | 6 | 0 | 0 |
 | Phase 4.8 | 8 | 8 | 0 | 0 |
 | Phase 4.9 | 42 | 42 | 0 | 0 |
-| Phase 5-9 | Summary | 0 | 0 | 1 |
+| Phase 5-9 | Summary | 5 | 0 | 1 |
 | Infrastructure | Summary | 0 | 0 | 1 |
 | Documentation | Summary | 0 | 0 | 1 |
 
@@ -1598,6 +1598,82 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Phase J: Comprehensive Tests — 62 new tests covering data model validation, mode-aware services, sprint planning edge cases, review session edge cases, poker vote status, controller integration, security, and performance
 
 **Notes:** All 10 phases (A–J) complete. 801 total Tracks tests passing. Dual-mode rework fully implemented: personal boards (simplified kanban) and team boards (sprints, backlog, planning wizard, review sessions, poker voting, timeline view). No remaining work.
+
+---
+
+## Phase 5: Photos Module (Sub-Phase B)
+
+### Section: Phase 5.3 - Photos Architecture & Contracts
+
+#### Step: phase-5.3 - Photos Architecture & Contracts
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `IPhotoDirectory` capability interface
+- ✓ `PhotosDtos.cs` — PhotoDto, AlbumDto, PhotoMetadataDto, PhotoEditOperationDto, GeoClusterDto, PhotoShareDto, SlideshowDto + enums
+- ✓ `PhotoEvents.cs` — PhotoUploadedEvent, PhotoDeletedEvent, AlbumCreatedEvent, AlbumSharedEvent, PhotoEditedEvent
+- ✓ `PhotosModuleManifest.cs` — module manifest with capabilities, published/subscribed events
+- ✓ `PhotosModule.cs` — IModuleLifecycle implementation with initialize/start/stop/dispose
+- ✓ `FileUploadedPhotoHandler.cs` — event handler for image uploads
+
+**Notes:** Foundation contracts and module scaffolding complete. Ready for data model.
+
+---
+
+### Section: Phase 5.4 - Photos Data Model
+
+#### Step: phase-5.4 - Photos Data Model & Migrations
+**Status:** completed ✅
+**Deliverables:**
+- ✓ 7 entity models: Photo, Album, AlbumPhoto, PhotoMetadata, PhotoTag, PhotoShare, PhotoEditRecord
+- ✓ 7 EF Core configurations with indexes and soft-delete query filters
+- ✓ `PhotosDbContext` with all DbSets
+
+**Notes:** Full data model with soft delete, geo-indexing, and edit history tracking.
+
+---
+
+### Section: Phase 5.5 - Photos Core Services
+
+#### Step: phase-5.5 - Photos Core Services
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `PhotoService` — CRUD, timeline, favorites, search, soft delete
+- ✓ `AlbumService` — album CRUD, photo management, sorting
+- ✓ `PhotoMetadataService` — EXIF extraction and storage
+- ✓ `PhotoGeoService` — geo-tagged photo queries and clustering
+- ✓ `PhotoShareService` — photo/album sharing with permission levels
+
+**Notes:** All five core services implemented with CallerContext authorization.
+
+---
+
+### Section: Phase 5.6 - Photo Editing & Slideshow
+
+#### Step: phase-5.6 - Photo Editing & Slideshow
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `PhotoEditService` — non-destructive editing with validation (rotate, crop, flip, brightness, contrast, saturation, sharpen, blur)
+- ✓ `SlideshowService` — slideshow creation from albums or photo selections
+- ✓ `PhotosServiceRegistration` — DI registration for all Photos services
+
+**Notes:** Edit stack with undo/revert-all. Validation rules per edit type.
+
+---
+
+### Section: Phase 5.7 - Photos API & Web UI
+
+#### Step: phase-5.7 - Photos API, gRPC & Host
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `photos_service.proto` — full gRPC contract
+- ✓ `PhotosController` — REST API for photos, timeline, metadata, geo, editing, sharing, slideshow
+- ✓ `AlbumsController` — REST API for album CRUD, photo management, sharing
+- ✓ `PhotosGrpcServiceImpl` — gRPC service implementation
+- ✓ `PhotosHealthCheck` — module health check
+- ✓ `Program.cs` — host application builder
+- ✓ 95 comprehensive tests (all passing) — PhotoService, AlbumService, PhotoEditService, PhotoGeoService, PhotoShareService, SlideshowService, PhotoMetadataService, PhotosModule
+
+**Notes:** Sub-Phase B (Photos Module) fully complete. All 3 projects compile, solution/CI updated, 95 tests passing.
 
 ---
 

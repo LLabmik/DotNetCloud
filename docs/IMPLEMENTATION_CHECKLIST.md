@@ -3534,11 +3534,11 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ All 136 new tests passing (396 total)
 
 ### Sub-Phase B: Photos Module (Steps 5.3–5.7)
-- ☐ Step 5.3 — Photos Architecture & Contracts
-- ☐ Step 5.4 — Photos Data Model & Migrations
-- ☐ Step 5.5 — Photos Core Services
-- ☐ Step 5.6 — Photo Editing & Slideshow
-- ☐ Step 5.7 — Photos API & Web UI
+- ✓ Step 5.3 — Photos Architecture & Contracts
+- ✓ Step 5.4 — Photos Data Model & Migrations
+- ✓ Step 5.5 — Photos Core Services
+- ✓ Step 5.6 — Photo Editing & Slideshow
+- ✓ Step 5.7 — Photos API & Web UI
 
 ### Sub-Phase C: Music Module (Steps 5.8–5.14)
 - ☐ Step 5.8 — Music Architecture & Contracts

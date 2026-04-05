@@ -403,6 +403,25 @@ public static class ErrorCodes
     /// <summary>Error code for import target container not found.</summary>
     public const string ImportTargetNotFound = "IMPORT_TARGET_NOT_FOUND";
 
+    // Photos
+    /// <summary>Error code for photo not found.</summary>
+    public const string PhotoNotFound = "PHOTO_NOT_FOUND";
+
+    /// <summary>Error code for album not found.</summary>
+    public const string AlbumNotFound = "PHOTO_ALBUM_NOT_FOUND";
+
+    /// <summary>Error code for photo share not found.</summary>
+    public const string PhotoShareNotFound = "PHOTO_SHARE_NOT_FOUND";
+
+    /// <summary>Error code for invalid photo edit operation.</summary>
+    public const string InvalidPhotoEdit = "PHOTO_INVALID_EDIT";
+
+    /// <summary>Error code for duplicate photo in album.</summary>
+    public const string PhotoAlreadyInAlbum = "PHOTO_ALREADY_IN_ALBUM";
+
+    /// <summary>Error code for photo access denied.</summary>
+    public const string PhotoAccessDenied = "PHOTO_ACCESS_DENIED";
+
     // General
     /// <summary>Error code for unknown error.</summary>
     public const string UnknownError = "UNKNOWN_ERROR";

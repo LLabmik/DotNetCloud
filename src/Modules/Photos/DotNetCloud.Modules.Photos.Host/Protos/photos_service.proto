@@ -1,0 +1,194 @@
+syntax = "proto3";
+
+option csharp_namespace = "DotNetCloud.Modules.Photos.Host.Protos";
+
+package dotnetcloud.photos;
+
+// PhotosGrpcService: gRPC service for the Photos module.
+// The core server calls these RPCs to interact with the Photos module.
+service PhotosGrpcService {
+  // Creates a photo record linked to a file node.
+  rpc CreatePhoto (CreatePhotoRequest) returns (PhotoResponse);
+
+  // Gets a photo by ID.
+  rpc GetPhoto (GetPhotoRequest) returns (PhotoResponse);
+
+  // Lists photos for a user.
+  rpc ListPhotos (ListPhotosRequest) returns (ListPhotosResponse);
+
+  // Deletes a photo.
+  rpc DeletePhoto (DeletePhotoRequest) returns (DeleteResponse);
+
+  // Creates an album.
+  rpc CreateAlbum (CreateAlbumRequest) returns (AlbumResponse);
+
+  // Gets an album by ID.
+  rpc GetAlbum (GetAlbumRequest) returns (AlbumResponse);
+
+  // Lists albums for a user.
+  rpc ListAlbums (ListAlbumsRequest) returns (ListAlbumsResponse);
+
+  // Adds a photo to an album.
+  rpc AddPhotoToAlbum (AddPhotoToAlbumRequest) returns (GenericResponse);
+
+  // Removes a photo from an album.
+  rpc RemovePhotoFromAlbum (RemovePhotoFromAlbumRequest) returns (GenericResponse);
+
+  // Toggles favorite on a photo.
+  rpc ToggleFavorite (ToggleFavoriteRequest) returns (PhotoResponse);
+
+  // Gets timeline photos.
+  rpc GetTimeline (GetTimelineRequest) returns (ListPhotosResponse);
+
+  // Gets geo-clusters.
+  rpc GetGeoClusters (GetGeoClustersRequest) returns (GetGeoClustersResponse);
+}
+
+// ── Photo Messages ──────────────────────────────────────────────
+
+message CreatePhotoRequest {
+  string user_id = 1;
+  string file_node_id = 2;
+  string file_name = 3;
+  string mime_type = 4;
+  int64 size_bytes = 5;
+}
+
+message GetPhotoRequest {
+  string photo_id = 1;
+  string user_id = 2;
+}
+
+message ListPhotosRequest {
+  string user_id = 1;
+  int32 skip = 2;
+  int32 take = 3;
+}
+
+message DeletePhotoRequest {
+  string photo_id = 1;
+  string user_id = 2;
+}
+
+message ToggleFavoriteRequest {
+  string photo_id = 1;
+  string user_id = 2;
+}
+
+message GetTimelineRequest {
+  string user_id = 1;
+  string from_utc = 2;
+  string to_utc = 3;
+}
+
+message PhotoResponse {
+  bool success = 1;
+  string error_message = 2;
+  PhotoMessage photo = 3;
+}
+
+message ListPhotosResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated PhotoMessage photos = 3;
+}
+
+message PhotoMessage {
+  string id = 1;
+  string file_node_id = 2;
+  string owner_id = 3;
+  string file_name = 4;
+  string mime_type = 5;
+  int64 size_bytes = 6;
+  int32 width = 7;
+  int32 height = 8;
+  bool is_favorite = 9;
+  string taken_at = 10;
+  string created_at = 11;
+  bool has_edits = 12;
+}
+
+// ── Album Messages ──────────────────────────────────────────────
+
+message CreateAlbumRequest {
+  string user_id = 1;
+  string title = 2;
+  string description = 3;
+}
+
+message GetAlbumRequest {
+  string album_id = 1;
+  string user_id = 2;
+}
+
+message ListAlbumsRequest {
+  string user_id = 1;
+}
+
+message AddPhotoToAlbumRequest {
+  string album_id = 1;
+  string photo_id = 2;
+  string user_id = 3;
+}
+
+message RemovePhotoFromAlbumRequest {
+  string album_id = 1;
+  string photo_id = 2;
+  string user_id = 3;
+}
+
+message AlbumResponse {
+  bool success = 1;
+  string error_message = 2;
+  AlbumMessage album = 3;
+}
+
+message ListAlbumsResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated AlbumMessage albums = 3;
+}
+
+message AlbumMessage {
+  string id = 1;
+  string owner_id = 2;
+  string title = 3;
+  string description = 4;
+  string cover_photo_id = 5;
+  int32 photo_count = 6;
+  string created_at = 7;
+  bool is_shared = 8;
+}
+
+// ── Geo Messages ────────────────────────────────────────────────
+
+message GetGeoClustersRequest {
+  string user_id = 1;
+  double grid_size_degrees = 2;
+}
+
+message GetGeoClustersResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated GeoClusterMessage clusters = 3;
+}
+
+message GeoClusterMessage {
+  double latitude = 1;
+  double longitude = 2;
+  int32 photo_count = 3;
+  string representative_photo_id = 4;
+  double radius_metres = 5;
+}
+
+// ── Generic Messages ────────────────────────────────────────────
+
+message DeleteResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message GenericResponse {
+  bool success = 1;
+  string error_message = 2;
+}

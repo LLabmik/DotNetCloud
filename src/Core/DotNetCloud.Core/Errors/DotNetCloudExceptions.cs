@@ -303,3 +303,20 @@ public class NameConflictException : DotNetCloudException
         ExistingName = existingName;
     }
 }
+
+/// <summary>
+/// General-purpose exception for domain/business-rule violations with a custom error code.
+/// Use when no more specific exception subclass applies.
+/// </summary>
+public class BusinessRuleException : DotNetCloudException
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="BusinessRuleException"/> class.
+    /// </summary>
+    /// <param name="errorCode">The error code.</param>
+    /// <param name="message">The error message.</param>
+    public BusinessRuleException(string errorCode, string message)
+        : base(errorCode, message)
+    {
+    }
+}

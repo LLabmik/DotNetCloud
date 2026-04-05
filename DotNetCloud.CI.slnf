@@ -36,6 +36,9 @@
       "src\\Modules\\Tracks\\DotNetCloud.Modules.Tracks\\DotNetCloud.Modules.Tracks.csproj",
       "src\\Modules\\Tracks\\DotNetCloud.Modules.Tracks.Data\\DotNetCloud.Modules.Tracks.Data.csproj",
       "src\\Modules\\Tracks\\DotNetCloud.Modules.Tracks.Host\\DotNetCloud.Modules.Tracks.Host.csproj",
+      "src\\Modules\\Photos\\DotNetCloud.Modules.Photos\\DotNetCloud.Modules.Photos.csproj",
+      "src\\Modules\\Photos\\DotNetCloud.Modules.Photos.Data\\DotNetCloud.Modules.Photos.Data.csproj",
+      "src\\Modules\\Photos\\DotNetCloud.Modules.Photos.Host\\DotNetCloud.Modules.Photos.Host.csproj",
       "src\\UI\\DotNetCloud.UI.Shared\\DotNetCloud.UI.Shared.csproj",
       "src\\UI\\DotNetCloud.UI.Web\\DotNetCloud.UI.Web.csproj",
       "src\\UI\\DotNetCloud.UI.Web.Client\\DotNetCloud.UI.Web.Client.csproj",
@@ -53,6 +56,7 @@
       "tests\\DotNetCloud.Modules.Files.Tests\\DotNetCloud.Modules.Files.Tests.csproj",
       "tests\\DotNetCloud.Modules.Calendar.Tests\\DotNetCloud.Modules.Calendar.Tests.csproj",
       "tests\\DotNetCloud.Modules.Notes.Tests\\DotNetCloud.Modules.Notes.Tests.csproj",
+      "tests\\DotNetCloud.Modules.Photos.Tests\\DotNetCloud.Modules.Photos.Tests.csproj",
       "tests\\DotNetCloud.Modules.Tracks.Tests\\DotNetCloud.Modules.Tracks.Tests.csproj",
       "tests\\DotNetCloud.UI.Shared.Tests\\DotNetCloud.UI.Shared.Tests.csproj"
     ]
