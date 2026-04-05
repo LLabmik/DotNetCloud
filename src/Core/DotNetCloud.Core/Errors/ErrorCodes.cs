@@ -453,6 +453,31 @@ public static class ErrorCodes
     /// <summary>Error code for concurrent stream limit exceeded.</summary>
     public const string StreamLimitExceeded = "MUSIC_STREAM_LIMIT_EXCEEDED";
 
+    // Video
+    /// <summary>Error code for video not found.</summary>
+    public const string VideoNotFound = "VIDEO_NOT_FOUND";
+
+    /// <summary>Error code for video collection not found.</summary>
+    public const string VideoCollectionNotFound = "VIDEO_COLLECTION_NOT_FOUND";
+
+    /// <summary>Error code for subtitle not found.</summary>
+    public const string SubtitleNotFound = "VIDEO_SUBTITLE_NOT_FOUND";
+
+    /// <summary>Error code for video access denied.</summary>
+    public const string VideoAccessDenied = "VIDEO_ACCESS_DENIED";
+
+    /// <summary>Error code for video already in collection.</summary>
+    public const string VideoAlreadyInCollection = "VIDEO_ALREADY_IN_COLLECTION";
+
+    /// <summary>Error code for invalid subtitle format.</summary>
+    public const string InvalidSubtitleFormat = "VIDEO_INVALID_SUBTITLE_FORMAT";
+
+    /// <summary>Error code for invalid video stream token.</summary>
+    public const string InvalidVideoStreamToken = "VIDEO_INVALID_STREAM_TOKEN";
+
+    /// <summary>Error code for video concurrent stream limit exceeded.</summary>
+    public const string VideoStreamLimitExceeded = "VIDEO_STREAM_LIMIT_EXCEEDED";
+
     // General
     /// <summary>Error code for unknown error.</summary>
     public const string UnknownError = "UNKNOWN_ERROR";

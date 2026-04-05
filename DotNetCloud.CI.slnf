@@ -42,6 +42,9 @@
       "src\\Modules\\Music\\DotNetCloud.Modules.Music\\DotNetCloud.Modules.Music.csproj",
       "src\\Modules\\Music\\DotNetCloud.Modules.Music.Data\\DotNetCloud.Modules.Music.Data.csproj",
       "src\\Modules\\Music\\DotNetCloud.Modules.Music.Host\\DotNetCloud.Modules.Music.Host.csproj",
+      "src\\Modules\\Video\\DotNetCloud.Modules.Video\\DotNetCloud.Modules.Video.csproj",
+      "src\\Modules\\Video\\DotNetCloud.Modules.Video.Data\\DotNetCloud.Modules.Video.Data.csproj",
+      "src\\Modules\\Video\\DotNetCloud.Modules.Video.Host\\DotNetCloud.Modules.Video.Host.csproj",
       "src\\UI\\DotNetCloud.UI.Shared\\DotNetCloud.UI.Shared.csproj",
       "src\\UI\\DotNetCloud.UI.Web\\DotNetCloud.UI.Web.csproj",
       "src\\UI\\DotNetCloud.UI.Web.Client\\DotNetCloud.UI.Web.Client.csproj",
@@ -62,6 +65,7 @@
       "tests\\DotNetCloud.Modules.Photos.Tests\\DotNetCloud.Modules.Photos.Tests.csproj",
       "tests\\DotNetCloud.Modules.Tracks.Tests\\DotNetCloud.Modules.Tracks.Tests.csproj",
       "tests\\DotNetCloud.Modules.Music.Tests\\DotNetCloud.Modules.Music.Tests.csproj",
+      "tests\\DotNetCloud.Modules.Video.Tests\\DotNetCloud.Modules.Video.Tests.csproj",
       "tests\\DotNetCloud.UI.Shared.Tests\\DotNetCloud.UI.Shared.Tests.csproj"
     ]
   }

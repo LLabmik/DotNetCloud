@@ -1,0 +1,183 @@
+syntax = "proto3";
+
+option csharp_namespace = "DotNetCloud.Modules.Video.Host.Protos";
+
+package dotnetcloud.video;
+
+// VideoGrpcService: gRPC service for the Video module.
+// The core server calls these RPCs to interact with the Video module.
+service VideoGrpcService {
+  // Gets a video by ID.
+  rpc GetVideo (GetVideoRequest) returns (VideoResponse);
+
+  // Lists videos.
+  rpc ListVideos (ListVideosRequest) returns (ListVideosResponse);
+
+  // Searches videos.
+  rpc SearchVideos (SearchVideosRequest) returns (ListVideosResponse);
+
+  // Gets a video collection by ID.
+  rpc GetCollection (GetCollectionRequest) returns (CollectionResponse);
+
+  // Lists collections for a user.
+  rpc ListCollections (ListCollectionsRequest) returns (ListCollectionsResponse);
+
+  // Creates a collection.
+  rpc CreateCollection (CreateCollectionRequest) returns (CollectionResponse);
+
+  // Deletes a collection.
+  rpc DeleteCollection (DeleteCollectionRequest) returns (GenericResponse);
+
+  // Gets watch progress for a video.
+  rpc GetWatchProgress (GetWatchProgressRequest) returns (WatchProgressResponse);
+
+  // Updates watch progress.
+  rpc UpdateWatchProgress (UpdateWatchProgressRequest) returns (WatchProgressResponse);
+
+  // Records a video view.
+  rpc RecordView (RecordViewRequest) returns (GenericResponse);
+
+  // Generates a stream token.
+  rpc GenerateStreamToken (GenerateStreamTokenRequest) returns (StreamTokenResponse);
+}
+
+// ── Video Messages ──────────────────────────────────────────────
+
+message GetVideoRequest {
+  string video_id = 1;
+  string user_id = 2;
+}
+
+message ListVideosRequest {
+  string user_id = 1;
+  int32 skip = 2;
+  int32 take = 3;
+}
+
+message SearchVideosRequest {
+  string user_id = 1;
+  string query = 2;
+  int32 take = 3;
+}
+
+message VideoResponse {
+  bool success = 1;
+  string error_message = 2;
+  VideoMessage video = 3;
+}
+
+message ListVideosResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated VideoMessage videos = 3;
+}
+
+message VideoMessage {
+  string id = 1;
+  string file_node_id = 2;
+  string title = 3;
+  string file_name = 4;
+  string mime_type = 5;
+  int64 size_bytes = 6;
+  int64 duration_ticks = 7;
+  bool is_favorite = 8;
+  int32 view_count = 9;
+  string created_at = 10;
+}
+
+// ── Collection Messages ─────────────────────────────────────────
+
+message GetCollectionRequest {
+  string collection_id = 1;
+  string user_id = 2;
+}
+
+message ListCollectionsRequest {
+  string user_id = 1;
+}
+
+message CreateCollectionRequest {
+  string user_id = 1;
+  string name = 2;
+  string description = 3;
+}
+
+message DeleteCollectionRequest {
+  string collection_id = 1;
+  string user_id = 2;
+}
+
+message CollectionResponse {
+  bool success = 1;
+  string error_message = 2;
+  CollectionMessage collection = 3;
+}
+
+message ListCollectionsResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated CollectionMessage collections = 3;
+}
+
+message CollectionMessage {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  int32 video_count = 4;
+  string created_at = 5;
+}
+
+// ── Watch Progress Messages ─────────────────────────────────────
+
+message GetWatchProgressRequest {
+  string video_id = 1;
+  string user_id = 2;
+}
+
+message UpdateWatchProgressRequest {
+  string video_id = 1;
+  string user_id = 2;
+  int64 position_ticks = 3;
+}
+
+message WatchProgressResponse {
+  bool success = 1;
+  string error_message = 2;
+  WatchProgressMessage progress = 3;
+}
+
+message WatchProgressMessage {
+  string video_id = 1;
+  int64 position_ticks = 2;
+  bool is_completed = 3;
+  string updated_at = 4;
+}
+
+// ── Streaming Messages ──────────────────────────────────────────
+
+message GenerateStreamTokenRequest {
+  string video_id = 1;
+  string user_id = 2;
+}
+
+message StreamTokenResponse {
+  bool success = 1;
+  string error_message = 2;
+  string token = 3;
+  int32 expires_in_minutes = 4;
+}
+
+// ── View Messages ───────────────────────────────────────────────
+
+message RecordViewRequest {
+  string video_id = 1;
+  string user_id = 2;
+  int32 duration_seconds = 3;
+}
+
+// ── Common Messages ─────────────────────────────────────────────
+
+message GenericResponse {
+  bool success = 1;
+  string error_message = 2;
+}
