@@ -1,0 +1,268 @@
+syntax = "proto3";
+
+option csharp_namespace = "DotNetCloud.Modules.Music.Host.Protos";
+
+package dotnetcloud.music;
+
+// MusicGrpcService: gRPC service for the Music module.
+// The core server calls these RPCs to interact with the Music module.
+service MusicGrpcService {
+  // Gets an artist by ID.
+  rpc GetArtist (GetArtistRequest) returns (ArtistResponse);
+
+  // Lists artists.
+  rpc ListArtists (ListArtistsRequest) returns (ListArtistsResponse);
+
+  // Gets an album by ID.
+  rpc GetAlbum (GetAlbumRequest) returns (AlbumResponse);
+
+  // Lists albums.
+  rpc ListAlbums (ListAlbumsRequest) returns (ListAlbumsResponse);
+
+  // Gets a track by ID.
+  rpc GetTrack (GetTrackRequest) returns (TrackResponse);
+
+  // Lists tracks.
+  rpc ListTracks (ListTracksRequest) returns (ListTracksResponse);
+
+  // Lists tracks by album.
+  rpc ListTracksByAlbum (ListTracksByAlbumRequest) returns (ListTracksResponse);
+
+  // Gets a playlist by ID.
+  rpc GetPlaylist (GetPlaylistRequest) returns (PlaylistResponse);
+
+  // Lists playlists for a user.
+  rpc ListPlaylists (ListPlaylistsRequest) returns (ListPlaylistsResponse);
+
+  // Creates a playlist.
+  rpc CreatePlaylist (CreatePlaylistRequest) returns (PlaylistResponse);
+
+  // Deletes a playlist.
+  rpc DeletePlaylist (DeletePlaylistRequest) returns (GenericResponse);
+
+  // Records a play event.
+  rpc RecordPlay (RecordPlayRequest) returns (GenericResponse);
+
+  // Scrobbles a track.
+  rpc Scrobble (ScrobbleRequest) returns (GenericResponse);
+
+  // Toggles star on an item.
+  rpc ToggleStar (ToggleStarRequest) returns (GenericResponse);
+
+  // Searches across artists, albums, and tracks.
+  rpc Search (SearchRequest) returns (SearchResponse);
+}
+
+// ── Artist Messages ─────────────────────────────────────────────
+
+message GetArtistRequest {
+  string artist_id = 1;
+  string user_id = 2;
+}
+
+message ListArtistsRequest {
+  string user_id = 1;
+  int32 skip = 2;
+  int32 take = 3;
+}
+
+message ArtistResponse {
+  bool success = 1;
+  string error_message = 2;
+  ArtistMessage artist = 3;
+}
+
+message ListArtistsResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated ArtistMessage artists = 3;
+}
+
+message ArtistMessage {
+  string id = 1;
+  string name = 2;
+  string sort_name = 3;
+  int32 album_count = 4;
+  int32 track_count = 5;
+  bool is_starred = 6;
+  string created_at = 7;
+}
+
+// ── Album Messages ──────────────────────────────────────────────
+
+message GetAlbumRequest {
+  string album_id = 1;
+  string user_id = 2;
+}
+
+message ListAlbumsRequest {
+  string user_id = 1;
+  int32 skip = 2;
+  int32 take = 3;
+}
+
+message AlbumResponse {
+  bool success = 1;
+  string error_message = 2;
+  AlbumMessage album = 3;
+}
+
+message ListAlbumsResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated AlbumMessage albums = 3;
+}
+
+message AlbumMessage {
+  string id = 1;
+  string title = 2;
+  string artist_id = 3;
+  string artist_name = 4;
+  int32 year = 5;
+  string genre = 6;
+  int32 track_count = 7;
+  int64 total_duration_ticks = 8;
+  bool has_cover_art = 9;
+  bool is_starred = 10;
+  string created_at = 11;
+}
+
+// ── Track Messages ──────────────────────────────────────────────
+
+message GetTrackRequest {
+  string track_id = 1;
+  string user_id = 2;
+}
+
+message ListTracksRequest {
+  string user_id = 1;
+  int32 skip = 2;
+  int32 take = 3;
+}
+
+message ListTracksByAlbumRequest {
+  string album_id = 1;
+  string user_id = 2;
+}
+
+message TrackResponse {
+  bool success = 1;
+  string error_message = 2;
+  TrackMessage track = 3;
+}
+
+message ListTracksResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated TrackMessage tracks = 3;
+}
+
+message TrackMessage {
+  string id = 1;
+  string file_node_id = 2;
+  string title = 3;
+  int32 track_number = 4;
+  int32 disc_number = 5;
+  int64 duration_ticks = 6;
+  int64 size_bytes = 7;
+  int64 bitrate = 8;
+  string mime_type = 9;
+  string album_id = 10;
+  string album_title = 11;
+  string artist_id = 12;
+  string artist_name = 13;
+  string genre = 14;
+  int32 year = 15;
+  bool is_starred = 16;
+  string created_at = 17;
+}
+
+// ── Playlist Messages ───────────────────────────────────────────
+
+message GetPlaylistRequest {
+  string playlist_id = 1;
+  string user_id = 2;
+}
+
+message ListPlaylistsRequest {
+  string user_id = 1;
+}
+
+message CreatePlaylistRequest {
+  string user_id = 1;
+  string name = 2;
+  string description = 3;
+  bool is_public = 4;
+}
+
+message DeletePlaylistRequest {
+  string playlist_id = 1;
+  string user_id = 2;
+}
+
+message PlaylistResponse {
+  bool success = 1;
+  string error_message = 2;
+  PlaylistMessage playlist = 3;
+}
+
+message ListPlaylistsResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated PlaylistMessage playlists = 3;
+}
+
+message PlaylistMessage {
+  string id = 1;
+  string owner_id = 2;
+  string name = 3;
+  string description = 4;
+  bool is_public = 5;
+  int32 track_count = 6;
+  int64 total_duration_ticks = 7;
+  string created_at = 8;
+  string updated_at = 9;
+}
+
+// ── Playback Messages ───────────────────────────────────────────
+
+message RecordPlayRequest {
+  string track_id = 1;
+  string user_id = 2;
+}
+
+message ScrobbleRequest {
+  string track_id = 1;
+  string user_id = 2;
+}
+
+message ToggleStarRequest {
+  string item_id = 1;
+  string item_type = 2;
+  string user_id = 3;
+}
+
+// ── Search Messages ─────────────────────────────────────────────
+
+message SearchRequest {
+  string query = 1;
+  string user_id = 2;
+  int32 artist_count = 3;
+  int32 album_count = 4;
+  int32 track_count = 5;
+}
+
+message SearchResponse {
+  bool success = 1;
+  string error_message = 2;
+  repeated ArtistMessage artists = 3;
+  repeated AlbumMessage albums = 4;
+  repeated TrackMessage tracks = 5;
+}
+
+// ── Generic Messages ────────────────────────────────────────────
+
+message GenericResponse {
+  bool success = 1;
+  string error_message = 2;
+}

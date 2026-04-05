@@ -422,6 +422,37 @@ public static class ErrorCodes
     /// <summary>Error code for photo access denied.</summary>
     public const string PhotoAccessDenied = "PHOTO_ACCESS_DENIED";
 
+    // Music
+    /// <summary>Error code for artist not found.</summary>
+    public const string ArtistNotFound = "MUSIC_ARTIST_NOT_FOUND";
+
+    /// <summary>Error code for music album not found.</summary>
+    public const string MusicAlbumNotFound = "MUSIC_ALBUM_NOT_FOUND";
+
+    /// <summary>Error code for track not found.</summary>
+    public const string TrackNotFound = "MUSIC_TRACK_NOT_FOUND";
+
+    /// <summary>Error code for playlist not found.</summary>
+    public const string PlaylistNotFound = "MUSIC_PLAYLIST_NOT_FOUND";
+
+    /// <summary>Error code for music access denied.</summary>
+    public const string MusicAccessDenied = "MUSIC_ACCESS_DENIED";
+
+    /// <summary>Error code for track already in playlist.</summary>
+    public const string TrackAlreadyInPlaylist = "MUSIC_TRACK_ALREADY_IN_PLAYLIST";
+
+    /// <summary>Error code for EQ preset not found.</summary>
+    public const string EqPresetNotFound = "MUSIC_EQ_PRESET_NOT_FOUND";
+
+    /// <summary>Error code for library scan already running.</summary>
+    public const string LibraryScanInProgress = "MUSIC_LIBRARY_SCAN_IN_PROGRESS";
+
+    /// <summary>Error code for invalid stream token.</summary>
+    public const string InvalidStreamToken = "MUSIC_INVALID_STREAM_TOKEN";
+
+    /// <summary>Error code for concurrent stream limit exceeded.</summary>
+    public const string StreamLimitExceeded = "MUSIC_STREAM_LIMIT_EXCEEDED";
+
     // General
     /// <summary>Error code for unknown error.</summary>
     public const string UnknownError = "UNKNOWN_ERROR";
