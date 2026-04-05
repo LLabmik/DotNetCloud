@@ -10,14 +10,17 @@ namespace DotNetCloud.Modules.Tracks.Tests;
 public class TracksRealtimeServiceTests
 {
     private Mock<IRealtimeBroadcaster> _broadcaster = null!;
+    private TracksInProcessSignalRService _eventBridge = null!;
     private ITracksRealtimeService _service = null!;
 
     [TestInitialize]
     public void Setup()
     {
         _broadcaster = new Mock<IRealtimeBroadcaster>();
+        _eventBridge = new TracksInProcessSignalRService();
         _service = new TracksRealtimeService(
             NullLogger<TracksRealtimeService>.Instance,
+            _eventBridge,
             _broadcaster.Object);
     }
 
@@ -157,7 +160,7 @@ public class TracksRealtimeServiceTests
     [TestMethod]
     public async Task NoBroadcaster_AllMethodsAreNoOps()
     {
-        ITracksRealtimeService service = new TracksRealtimeService(NullLogger<TracksRealtimeService>.Instance);
+        ITracksRealtimeService service = new TracksRealtimeService(NullLogger<TracksRealtimeService>.Instance, new TracksInProcessSignalRService());
         var boardId = Guid.NewGuid();
 
         // These should all complete without throwing
