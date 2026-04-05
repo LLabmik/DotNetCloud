@@ -3556,5 +3556,19 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ☐ Step 5.18 — Video Web UI (deferred to integration phase)
 
 ### Sub-Phase E: Integration & Quality (Steps 5.19–5.20)
-- ☐ Step 5.19 — Cross-Module Integration
-- ☐ Step 5.20 — Testing & Documentation
+- ✓ Step 5.19 — Cross-Module Integration
+  - ✓ `FileUploadedPhotoHandler` with `IPhotoIndexingCallback` (9 image MIME types)
+  - ✓ `FileUploadedMusicHandler` with `IMusicIndexingCallback` (15 audio MIME types)
+  - ✓ `FileUploadedVideoHandler` with `IVideoIndexingCallback` (12 video MIME types)
+  - ✓ `IMediaSearchService` + `MediaSearchResultDto` (cross-module search)
+  - ✓ Notification handlers: `AlbumSharedNotificationHandler`, `PlaylistSharedNotificationHandler`, `VideoSharedNotificationHandler`
+  - ✓ Dashboard DTOs: `MediaDashboardDto`, `VideoContinueWatchingDto`, `RecentMediaItemDto`
+  - ✓ 8 new `CrossModuleLinkType` values (Photo, PhotoAlbum, MusicTrack, MusicAlbum, MusicArtist, Playlist, Video, VideoCollection)
+  - ✓ Callback implementations: `PhotoIndexingCallback`, `MusicIndexingCallback`, `VideoIndexingCallback`
+  - ✓ `VideoService.CreateVideoAsync` with duplicate detection and event publishing
+- ✓ Step 5.20 — Testing & Documentation (test suites complete)
+  - ✓ Photos: 119 tests (12 handler + 6 notification + 6 callback = 24 new)
+  - ✓ Music: 156 tests (12 handler + 9 notification + 4 callback = 25 new)
+  - ✓ Video: 105 tests (12 handler + 9 notification + 10 service + 5 callback = 31 new, replaced 3 basic)
+  - ✓ Core: 410 tests (16 new cross-module DTO tests)
+  - ☐ Security tests, performance tests, admin/user docs — deferred

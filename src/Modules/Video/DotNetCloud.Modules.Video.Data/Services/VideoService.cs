@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
+using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Video.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -13,15 +14,60 @@ namespace DotNetCloud.Modules.Video.Data.Services;
 public sealed class VideoService
 {
     private readonly VideoDbContext _db;
+    private readonly IEventBus _eventBus;
     private readonly ILogger<VideoService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="VideoService"/> class.
     /// </summary>
-    public VideoService(VideoDbContext db, ILogger<VideoService> logger)
+    public VideoService(VideoDbContext db, IEventBus eventBus, ILogger<VideoService> logger)
     {
         _db = db;
+        _eventBus = eventBus;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Creates a new video record linked to a FileNode.
+    /// </summary>
+    public async Task<VideoDto> CreateVideoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        var existing = await _db.Videos
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(v => v.FileNodeId == fileNodeId && !v.IsDeleted, cancellationToken);
+
+        if (existing is not null)
+        {
+            _logger.LogDebug("Video already exists for FileNode {FileNodeId}", fileNodeId);
+            return MapToDto(existing, ownerId);
+        }
+
+        var video = new Models.Video
+        {
+            FileNodeId = fileNodeId,
+            OwnerId = ownerId,
+            Title = Path.GetFileNameWithoutExtension(fileName),
+            FileName = fileName,
+            MimeType = mimeType,
+            SizeBytes = sizeBytes
+        };
+
+        _db.Videos.Add(video);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Video {VideoId} created for file {FileNodeId} by user {UserId}", video.Id, fileNodeId, ownerId);
+
+        await _eventBus.PublishAsync(new VideoAddedEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            VideoId = video.Id,
+            FileNodeId = fileNodeId,
+            OwnerId = ownerId,
+            FileName = fileName
+        }, caller, cancellationToken);
+
+        return MapToDto(video, ownerId);
     }
 
     /// <summary>

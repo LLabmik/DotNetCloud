@@ -6,6 +6,7 @@ namespace DotNetCloud.Modules.Video.Events;
 
 /// <summary>
 /// Handles FileUploadedEvent to auto-create Video records for video files.
+/// Delegates to VideoService in the Data layer via callback interface.
 /// </summary>
 public sealed class FileUploadedVideoHandler : IEventHandler<FileUploadedEvent>
 {
@@ -16,33 +17,65 @@ public sealed class FileUploadedVideoHandler : IEventHandler<FileUploadedEvent>
         "video/x-ms-wmv", "video/x-flv", "video/x-m4v", "video/ogg"
     };
 
+    private readonly IVideoIndexingCallback? _indexingCallback;
     private readonly ILogger<FileUploadedVideoHandler> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FileUploadedVideoHandler"/> class.
     /// </summary>
-    public FileUploadedVideoHandler(ILogger<FileUploadedVideoHandler> logger)
+    public FileUploadedVideoHandler(ILogger<FileUploadedVideoHandler> logger, IVideoIndexingCallback? indexingCallback = null)
     {
         _logger = logger;
+        _indexingCallback = indexingCallback;
     }
 
     /// <inheritdoc />
-    public Task HandleAsync(FileUploadedEvent @event, CancellationToken cancellationToken = default)
+    public async Task HandleAsync(FileUploadedEvent @event, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(@event.MimeType) || !VideoMimeTypes.Contains(@event.MimeType))
         {
-            return Task.CompletedTask;
+            return;
         }
 
-        _logger.LogInformation(
-            "Video file uploaded: {FileName} ({MimeType}) by user {UserId} — queued for video indexing",
-            @event.FileName, @event.MimeType, @event.UploadedByUserId);
+        if (_indexingCallback is not null)
+        {
+            try
+            {
+                await _indexingCallback.IndexVideoAsync(
+                    @event.FileNodeId, @event.FileName, @event.MimeType, @event.Size,
+                    @event.UploadedByUserId, cancellationToken);
 
-        return Task.CompletedTask;
+                _logger.LogInformation(
+                    "Video auto-created for uploaded file: {FileName} ({MimeType}) by user {UserId}",
+                    @event.FileName, @event.MimeType, @event.UploadedByUserId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Failed to auto-create video for uploaded file: {FileName} ({MimeType}) by user {UserId}",
+                    @event.FileName, @event.MimeType, @event.UploadedByUserId);
+            }
+        }
+        else
+        {
+            _logger.LogInformation(
+                "Video file uploaded: {FileName} ({MimeType}) by user {UserId} — indexing callback not registered",
+                @event.FileName, @event.MimeType, @event.UploadedByUserId);
+        }
     }
 
     /// <summary>
     /// Gets the set of video MIME types this handler recognizes.
     /// </summary>
     public static IReadOnlySet<string> SupportedMimeTypes => VideoMimeTypes;
+}
+
+/// <summary>
+/// Callback interface for video indexing — implemented in the Data layer, injected via DI.
+/// Avoids direct dependency from Module → Data layer.
+/// </summary>
+public interface IVideoIndexingCallback
+{
+    /// <summary>Indexes an uploaded video file as a Video record.</summary>
+    Task IndexVideoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, CancellationToken cancellationToken = default);
 }

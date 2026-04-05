@@ -6,6 +6,7 @@ namespace DotNetCloud.Modules.Photos.Events;
 
 /// <summary>
 /// Handles FileUploadedEvent to auto-create Photo records for image files.
+/// Delegates to PhotoService in the Data layer for actual record creation.
 /// </summary>
 public sealed class FileUploadedPhotoHandler : IEventHandler<FileUploadedEvent>
 {
@@ -15,29 +16,65 @@ public sealed class FileUploadedPhotoHandler : IEventHandler<FileUploadedEvent>
         "image/bmp", "image/tiff", "image/svg+xml", "image/heic", "image/heif"
     };
 
+    private readonly IPhotoIndexingCallback? _indexingCallback;
     private readonly ILogger<FileUploadedPhotoHandler> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FileUploadedPhotoHandler"/> class.
     /// </summary>
-    public FileUploadedPhotoHandler(ILogger<FileUploadedPhotoHandler> logger)
+    public FileUploadedPhotoHandler(ILogger<FileUploadedPhotoHandler> logger, IPhotoIndexingCallback? indexingCallback = null)
     {
         _logger = logger;
+        _indexingCallback = indexingCallback;
     }
 
     /// <inheritdoc />
-    public Task HandleAsync(FileUploadedEvent @event, CancellationToken cancellationToken = default)
+    public async Task HandleAsync(FileUploadedEvent @event, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(@event.MimeType) || !ImageMimeTypes.Contains(@event.MimeType))
         {
-            return Task.CompletedTask;
+            return;
         }
 
-        _logger.LogInformation(
-            "Image file uploaded: {FileName} ({MimeType}) by user {UserId} — queued for photo indexing",
-            @event.FileName, @event.MimeType, @event.UploadedByUserId);
+        if (_indexingCallback is not null)
+        {
+            try
+            {
+                await _indexingCallback.IndexPhotoAsync(
+                    @event.FileNodeId, @event.FileName, @event.MimeType, @event.Size,
+                    @event.UploadedByUserId, cancellationToken);
 
-        // Actual indexing is handled by PhotoIndexingService in the Data layer
-        return Task.CompletedTask;
+                _logger.LogInformation(
+                    "Photo auto-created for uploaded image: {FileName} ({MimeType}) by user {UserId}",
+                    @event.FileName, @event.MimeType, @event.UploadedByUserId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Failed to auto-create photo for uploaded image: {FileName} ({MimeType}) by user {UserId}",
+                    @event.FileName, @event.MimeType, @event.UploadedByUserId);
+            }
+        }
+        else
+        {
+            _logger.LogInformation(
+                "Image file uploaded: {FileName} ({MimeType}) by user {UserId} — indexing callback not registered",
+                @event.FileName, @event.MimeType, @event.UploadedByUserId);
+        }
     }
+
+    /// <summary>
+    /// Gets the set of image MIME types this handler recognizes.
+    /// </summary>
+    public static IReadOnlySet<string> SupportedMimeTypes => ImageMimeTypes;
+}
+
+/// <summary>
+/// Callback interface for photo indexing — implemented in the Data layer, injected via DI.
+/// Avoids direct dependency from Module → Data layer.
+/// </summary>
+public interface IPhotoIndexingCallback
+{
+    /// <summary>Indexes an uploaded image as a Photo record.</summary>
+    Task IndexPhotoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, CancellationToken cancellationToken = default);
 }

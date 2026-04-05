@@ -1,4 +1,7 @@
+using DotNetCloud.Core.Events;
+using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Music.Data.Services;
+using DotNetCloud.Modules.Music.Events;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -14,6 +17,7 @@ public static class MusicServiceRegistration
     /// </summary>
     public static IServiceCollection AddMusicServices(this IServiceCollection services, IConfiguration configuration)
     {
+        // Business services
         services.AddScoped<ArtistService>();
         services.AddScoped<MusicAlbumService>();
         services.AddScoped<TrackService>();
@@ -25,6 +29,13 @@ public static class MusicServiceRegistration
         services.AddScoped<MusicMetadataService>();
         services.AddScoped<AlbumArtService>();
         services.AddScoped<MusicStreamingService>();
+
+        // Indexing callback (bridges Module → Data for FileUploadedEvent handling)
+        services.AddScoped<IMusicIndexingCallback, MusicIndexingCallback>();
+
+        // Event handlers
+        services.AddScoped<IEventHandler<FileUploadedEvent>, FileUploadedMusicHandler>();
+        services.AddScoped<IEventHandler<ResourceSharedEvent>, PlaylistSharedNotificationHandler>();
 
         return services;
     }
