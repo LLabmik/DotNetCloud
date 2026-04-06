@@ -46,6 +46,7 @@ public class VideoDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.HasDefaultSchema("video");
 
         modelBuilder.ApplyConfiguration(new VideoConfiguration());
         modelBuilder.ApplyConfiguration(new VideoMetadataConfiguration());

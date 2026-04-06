@@ -11,8 +11,12 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.EnsureSchema(
+                name: "photos");
+
             migrationBuilder.CreateTable(
                 name: "Albums",
+                schema: "photos",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -32,6 +36,7 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
 
             migrationBuilder.CreateTable(
                 name: "Photos",
+                schema: "photos",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -56,6 +61,7 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
 
             migrationBuilder.CreateTable(
                 name: "AlbumPhotos",
+                schema: "photos",
                 columns: table => new
                 {
                     AlbumId = table.Column<Guid>(type: "uuid", nullable: false),
@@ -69,12 +75,14 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
                     table.ForeignKey(
                         name: "FK_AlbumPhotos_Albums_AlbumId",
                         column: x => x.AlbumId,
+                        principalSchema: "photos",
                         principalTable: "Albums",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
                         name: "FK_AlbumPhotos_Photos_PhotoId",
                         column: x => x.PhotoId,
+                        principalSchema: "photos",
                         principalTable: "Photos",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
@@ -82,6 +90,7 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
 
             migrationBuilder.CreateTable(
                 name: "PhotoEditRecords",
+                schema: "photos",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -98,6 +107,7 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
                     table.ForeignKey(
                         name: "FK_PhotoEditRecords_Photos_PhotoId",
                         column: x => x.PhotoId,
+                        principalSchema: "photos",
                         principalTable: "Photos",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
@@ -105,6 +115,7 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
 
             migrationBuilder.CreateTable(
                 name: "PhotoMetadata",
+                schema: "photos",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -129,6 +140,7 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
                     table.ForeignKey(
                         name: "FK_PhotoMetadata_Photos_PhotoId",
                         column: x => x.PhotoId,
+                        principalSchema: "photos",
                         principalTable: "Photos",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
@@ -136,6 +148,7 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
 
             migrationBuilder.CreateTable(
                 name: "PhotoShares",
+                schema: "photos",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -153,12 +166,14 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
                     table.ForeignKey(
                         name: "FK_PhotoShares_Albums_AlbumId",
                         column: x => x.AlbumId,
+                        principalSchema: "photos",
                         principalTable: "Albums",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
                         name: "FK_PhotoShares_Photos_PhotoId",
                         column: x => x.PhotoId,
+                        principalSchema: "photos",
                         principalTable: "Photos",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
@@ -166,6 +181,7 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
 
             migrationBuilder.CreateTable(
                 name: "PhotoTags",
+                schema: "photos",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -179,6 +195,7 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
                     table.ForeignKey(
                         name: "FK_PhotoTags_Photos_PhotoId",
                         column: x => x.PhotoId,
+                        principalSchema: "photos",
                         principalTable: "Photos",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
@@ -186,99 +203,118 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
 
             migrationBuilder.CreateIndex(
                 name: "ix_album_photos_album_sort",
+                schema: "photos",
                 table: "AlbumPhotos",
                 columns: new[] { "AlbumId", "SortOrder" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_AlbumPhotos_PhotoId",
+                schema: "photos",
                 table: "AlbumPhotos",
                 column: "PhotoId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_albums_created_at",
+                schema: "photos",
                 table: "Albums",
                 column: "CreatedAt");
 
             migrationBuilder.CreateIndex(
                 name: "ix_albums_is_deleted",
+                schema: "photos",
                 table: "Albums",
                 column: "IsDeleted");
 
             migrationBuilder.CreateIndex(
                 name: "ix_albums_owner_id",
+                schema: "photos",
                 table: "Albums",
                 column: "OwnerId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_photo_edit_records_photo_order",
+                schema: "photos",
                 table: "PhotoEditRecords",
                 columns: new[] { "PhotoId", "StackOrder" });
 
             migrationBuilder.CreateIndex(
                 name: "ix_photo_metadata_geo",
+                schema: "photos",
                 table: "PhotoMetadata",
                 columns: new[] { "Latitude", "Longitude" },
                 filter: "\"Latitude\" IS NOT NULL AND \"Longitude\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_PhotoMetadata_PhotoId",
+                schema: "photos",
                 table: "PhotoMetadata",
                 column: "PhotoId",
                 unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "ix_photos_created_at",
+                schema: "photos",
                 table: "Photos",
                 column: "CreatedAt");
 
             migrationBuilder.CreateIndex(
                 name: "ix_photos_is_deleted",
+                schema: "photos",
                 table: "Photos",
                 column: "IsDeleted");
 
             migrationBuilder.CreateIndex(
                 name: "ix_photos_owner_favorite",
+                schema: "photos",
                 table: "Photos",
                 columns: new[] { "OwnerId", "IsFavorite" });
 
             migrationBuilder.CreateIndex(
                 name: "ix_photos_owner_id",
+                schema: "photos",
                 table: "Photos",
                 column: "OwnerId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_photos_owner_taken_at",
+                schema: "photos",
                 table: "Photos",
                 columns: new[] { "OwnerId", "TakenAt" });
 
             migrationBuilder.CreateIndex(
                 name: "uq_photos_file_node_id",
+                schema: "photos",
                 table: "Photos",
                 column: "FileNodeId",
                 unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "ix_photo_shares_album_id",
+                schema: "photos",
                 table: "PhotoShares",
                 column: "AlbumId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_photo_shares_photo_id",
+                schema: "photos",
                 table: "PhotoShares",
                 column: "PhotoId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_photo_shares_shared_with",
+                schema: "photos",
                 table: "PhotoShares",
                 column: "SharedWithUserId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_photo_tags_tag",
+                schema: "photos",
                 table: "PhotoTags",
                 column: "Tag");
 
             migrationBuilder.CreateIndex(
                 name: "uq_photo_tags_photo_tag",
+                schema: "photos",
                 table: "PhotoTags",
                 columns: new[] { "PhotoId", "Tag" },
                 unique: true);
@@ -288,25 +324,32 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "AlbumPhotos");
+                name: "AlbumPhotos",
+                schema: "photos");
 
             migrationBuilder.DropTable(
-                name: "PhotoEditRecords");
+                name: "PhotoEditRecords",
+                schema: "photos");
 
             migrationBuilder.DropTable(
-                name: "PhotoMetadata");
+                name: "PhotoMetadata",
+                schema: "photos");
 
             migrationBuilder.DropTable(
-                name: "PhotoShares");
+                name: "PhotoShares",
+                schema: "photos");
 
             migrationBuilder.DropTable(
-                name: "PhotoTags");
+                name: "PhotoTags",
+                schema: "photos");
 
             migrationBuilder.DropTable(
-                name: "Albums");
+                name: "Albums",
+                schema: "photos");
 
             migrationBuilder.DropTable(
-                name: "Photos");
+                name: "Photos",
+                schema: "photos");
         }
     }
 }

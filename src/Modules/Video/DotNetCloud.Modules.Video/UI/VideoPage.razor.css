@@ -83,6 +83,12 @@
     margin: 8px 16px;
 }
 
+.video-nav-separator {
+    height: 1px;
+    background: var(--color-border, #e2e8f0);
+    margin: 8px 16px;
+}
+
 /* ── Collections sidebar ── */
 .sidebar-collections {
     padding: 8px;

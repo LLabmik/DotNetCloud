@@ -61,6 +61,7 @@ public class MusicDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.HasDefaultSchema("music");
 
         modelBuilder.ApplyConfiguration(new ArtistConfiguration());
         modelBuilder.ApplyConfiguration(new MusicAlbumConfiguration());

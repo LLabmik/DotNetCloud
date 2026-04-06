@@ -54,6 +54,7 @@ public class PhotosDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.HasDefaultSchema("photos");
 
         modelBuilder.ApplyConfiguration(new PhotoConfiguration());
         modelBuilder.ApplyConfiguration(new AlbumConfiguration());

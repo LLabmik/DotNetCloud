@@ -11,8 +11,12 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.EnsureSchema(
+                name: "video");
+
             migrationBuilder.CreateTable(
                 name: "VideoCollections",
+                schema: "video",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -31,6 +35,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
 
             migrationBuilder.CreateTable(
                 name: "Videos",
+                schema: "video",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -55,6 +60,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
 
             migrationBuilder.CreateTable(
                 name: "Subtitles",
+                schema: "video",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -72,6 +78,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                     table.ForeignKey(
                         name: "FK_Subtitles_Videos_VideoId",
                         column: x => x.VideoId,
+                        principalSchema: "video",
                         principalTable: "Videos",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
@@ -79,6 +86,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
 
             migrationBuilder.CreateTable(
                 name: "VideoCollectionItems",
+                schema: "video",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -93,12 +101,14 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                     table.ForeignKey(
                         name: "FK_VideoCollectionItems_VideoCollections_CollectionId",
                         column: x => x.CollectionId,
+                        principalSchema: "video",
                         principalTable: "VideoCollections",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
                         name: "FK_VideoCollectionItems_Videos_VideoId",
                         column: x => x.VideoId,
+                        principalSchema: "video",
                         principalTable: "Videos",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
@@ -106,6 +116,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
 
             migrationBuilder.CreateTable(
                 name: "VideoMetadata",
+                schema: "video",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -127,6 +138,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                     table.ForeignKey(
                         name: "FK_VideoMetadata_Videos_VideoId",
                         column: x => x.VideoId,
+                        principalSchema: "video",
                         principalTable: "Videos",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
@@ -134,6 +146,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
 
             migrationBuilder.CreateTable(
                 name: "VideoShares",
+                schema: "video",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -151,6 +164,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                     table.ForeignKey(
                         name: "FK_VideoShares_Videos_VideoId",
                         column: x => x.VideoId,
+                        principalSchema: "video",
                         principalTable: "Videos",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
@@ -158,6 +172,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
 
             migrationBuilder.CreateTable(
                 name: "WatchHistories",
+                schema: "video",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -172,6 +187,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                     table.ForeignKey(
                         name: "FK_WatchHistories_Videos_VideoId",
                         column: x => x.VideoId,
+                        principalSchema: "video",
                         principalTable: "Videos",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
@@ -179,6 +195,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
 
             migrationBuilder.CreateTable(
                 name: "WatchProgresses",
+                schema: "video",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -194,6 +211,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                     table.ForeignKey(
                         name: "FK_WatchProgresses_Videos_VideoId",
                         column: x => x.VideoId,
+                        principalSchema: "video",
                         principalTable: "Videos",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
@@ -201,119 +219,142 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
 
             migrationBuilder.CreateIndex(
                 name: "ix_subtitles_video_id",
+                schema: "video",
                 table: "Subtitles",
                 column: "VideoId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_subtitles_video_language",
+                schema: "video",
                 table: "Subtitles",
                 columns: new[] { "VideoId", "Language" });
 
             migrationBuilder.CreateIndex(
                 name: "ix_collection_items_collection_id",
+                schema: "video",
                 table: "VideoCollectionItems",
                 column: "CollectionId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_collection_items_video_id",
+                schema: "video",
                 table: "VideoCollectionItems",
                 column: "VideoId");
 
             migrationBuilder.CreateIndex(
                 name: "uq_collection_items_collection_video",
+                schema: "video",
                 table: "VideoCollectionItems",
                 columns: new[] { "CollectionId", "VideoId" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "ix_video_collections_name",
+                schema: "video",
                 table: "VideoCollections",
                 column: "Name");
 
             migrationBuilder.CreateIndex(
                 name: "ix_video_collections_owner_id",
+                schema: "video",
                 table: "VideoCollections",
                 column: "OwnerId");
 
             migrationBuilder.CreateIndex(
                 name: "uq_video_metadata_video_id",
+                schema: "video",
                 table: "VideoMetadata",
                 column: "VideoId",
                 unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "ix_videos_is_deleted",
+                schema: "video",
                 table: "Videos",
                 column: "IsDeleted");
 
             migrationBuilder.CreateIndex(
                 name: "ix_videos_owner_created_at",
+                schema: "video",
                 table: "Videos",
                 columns: new[] { "OwnerId", "CreatedAt" });
 
             migrationBuilder.CreateIndex(
                 name: "ix_videos_owner_id",
+                schema: "video",
                 table: "Videos",
                 column: "OwnerId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_videos_title",
+                schema: "video",
                 table: "Videos",
                 column: "Title");
 
             migrationBuilder.CreateIndex(
                 name: "uq_videos_file_node_id",
+                schema: "video",
                 table: "Videos",
                 column: "FileNodeId",
                 unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "ix_video_shares_shared_by",
+                schema: "video",
                 table: "VideoShares",
                 column: "SharedByUserId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_video_shares_shared_with",
+                schema: "video",
                 table: "VideoShares",
                 column: "SharedWithUserId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_video_shares_token",
+                schema: "video",
                 table: "VideoShares",
                 column: "ShareToken");
 
             migrationBuilder.CreateIndex(
                 name: "ix_video_shares_video_id",
+                schema: "video",
                 table: "VideoShares",
                 column: "VideoId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_watch_history_user_id",
+                schema: "video",
                 table: "WatchHistories",
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_watch_history_user_watched_at",
+                schema: "video",
                 table: "WatchHistories",
                 columns: new[] { "UserId", "WatchedAt" });
 
             migrationBuilder.CreateIndex(
                 name: "ix_watch_history_video_id",
+                schema: "video",
                 table: "WatchHistories",
                 column: "VideoId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_watch_progress_user_id",
+                schema: "video",
                 table: "WatchProgresses",
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_WatchProgresses_VideoId",
+                schema: "video",
                 table: "WatchProgresses",
                 column: "VideoId");
 
             migrationBuilder.CreateIndex(
                 name: "uq_watch_progress_user_video",
+                schema: "video",
                 table: "WatchProgresses",
                 columns: new[] { "UserId", "VideoId" },
                 unique: true);
@@ -323,28 +364,36 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "Subtitles");
+                name: "Subtitles",
+                schema: "video");
 
             migrationBuilder.DropTable(
-                name: "VideoCollectionItems");
+                name: "VideoCollectionItems",
+                schema: "video");
 
             migrationBuilder.DropTable(
-                name: "VideoMetadata");
+                name: "VideoMetadata",
+                schema: "video");
 
             migrationBuilder.DropTable(
-                name: "VideoShares");
+                name: "VideoShares",
+                schema: "video");
 
             migrationBuilder.DropTable(
-                name: "WatchHistories");
+                name: "WatchHistories",
+                schema: "video");
 
             migrationBuilder.DropTable(
-                name: "WatchProgresses");
+                name: "WatchProgresses",
+                schema: "video");
 
             migrationBuilder.DropTable(
-                name: "VideoCollections");
+                name: "VideoCollections",
+                schema: "video");
 
             migrationBuilder.DropTable(
-                name: "Videos");
+                name: "Videos",
+                schema: "video");
         }
     }
 }

@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DotNetCloud.Modules.Video.Data.Migrations
 {
     [DbContext(typeof(VideoDbContext))]
-    [Migration("20260405211214_InitialCreate")]
+    [Migration("20260406163449_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -20,7 +20,8 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.3")
+                .HasDefaultSchema("video")
+                .HasAnnotation("ProductVersion", "10.0.5")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -68,7 +69,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                     b.HasIndex("VideoId", "Language")
                         .HasDatabaseName("ix_subtitles_video_language");
 
-                    b.ToTable("Subtitles");
+                    b.ToTable("Subtitles", "video");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Video.Models.Video", b =>
@@ -144,7 +145,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                     b.HasIndex("OwnerId", "CreatedAt")
                         .HasDatabaseName("ix_videos_owner_created_at");
 
-                    b.ToTable("Videos");
+                    b.ToTable("Videos", "video");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoCollection", b =>
@@ -189,7 +190,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                     b.HasIndex("OwnerId")
                         .HasDatabaseName("ix_video_collections_owner_id");
 
-                    b.ToTable("VideoCollections");
+                    b.ToTable("VideoCollections", "video");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoCollectionItem", b =>
@@ -224,7 +225,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("uq_collection_items_collection_video");
 
-                    b.ToTable("VideoCollectionItems");
+                    b.ToTable("VideoCollectionItems", "video");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoMetadata", b =>
@@ -277,7 +278,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("uq_video_metadata_video_id");
 
-                    b.ToTable("VideoMetadata");
+                    b.ToTable("VideoMetadata", "video");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Video.Models.VideoShare", b =>
@@ -326,7 +327,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                     b.HasIndex("VideoId")
                         .HasDatabaseName("ix_video_shares_video_id");
 
-                    b.ToTable("VideoShares");
+                    b.ToTable("VideoShares", "video");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Video.Models.WatchHistory", b =>
@@ -360,7 +361,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                     b.HasIndex("UserId", "WatchedAt")
                         .HasDatabaseName("ix_watch_history_user_watched_at");
 
-                    b.ToTable("WatchHistories");
+                    b.ToTable("WatchHistories", "video");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Video.Models.WatchProgress", b =>
@@ -397,7 +398,7 @@ namespace DotNetCloud.Modules.Video.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("uq_watch_progress_user_video");
 
-                    b.ToTable("WatchProgresses");
+                    b.ToTable("WatchProgresses", "video");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Video.Models.Subtitle", b =>

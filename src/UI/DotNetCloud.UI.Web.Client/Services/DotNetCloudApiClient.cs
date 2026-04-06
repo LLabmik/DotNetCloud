@@ -361,6 +361,45 @@ public sealed class DotNetCloudApiClient
     }
 
     // -----------------------------------------------------------------------
+    // Media Library
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Gets the current user's media library paths.
+    /// </summary>
+    public async Task<MediaLibraryPathsResponse?> GetMediaLibraryPathsAsync(CancellationToken ct = default)
+    {
+        var response = await _http.GetAsync("api/v1/media-library/paths", ct);
+        if (!response.IsSuccessStatusCode) return null;
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<MediaLibraryPathsResponse>>(ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Updates the current user's media library paths.
+    /// </summary>
+    public async Task<bool> UpdateMediaLibraryPathsAsync(MediaLibraryPathsResponse paths, CancellationToken ct = default)
+    {
+        var response = await _http.PutAsJsonAsync("api/v1/media-library/paths", paths, ct);
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>
+    /// Triggers a media library scan for the specified media type.
+    /// </summary>
+    public async Task<MediaScanResultResponse?> ScanMediaLibraryAsync(string mediaType, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsJsonAsync("api/v1/media-library/scan", new { mediaType }, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorText = await response.Content.ReadAsStringAsync(ct);
+            throw new HttpRequestException(errorText);
+        }
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<MediaScanResultResponse>>(ct);
+        return envelope?.Data;
+    }
+
+    // -----------------------------------------------------------------------
     // Health
     // -----------------------------------------------------------------------
 
@@ -723,4 +762,40 @@ public sealed class QuotaResponse
     public long UsedBytes { get; set; }
     public long RemainingBytes { get; set; }
     public double UsagePercent { get; set; }
+}
+
+/// <summary>
+/// Media library paths for the current user.
+/// </summary>
+public sealed class MediaLibraryPathsResponse
+{
+    /// <summary>Path to photos directory.</summary>
+    public string PhotosPath { get; set; } = string.Empty;
+
+    /// <summary>Path to music directory.</summary>
+    public string MusicPath { get; set; } = string.Empty;
+
+    /// <summary>Path to video directory.</summary>
+    public string VideoPath { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Result of a media library scan operation.
+/// </summary>
+public sealed class MediaScanResultResponse
+{
+    /// <summary>Total media files found in the directory.</summary>
+    public int TotalFound { get; set; }
+
+    /// <summary>Files successfully imported.</summary>
+    public int Imported { get; set; }
+
+    /// <summary>Files skipped (already imported).</summary>
+    public int Skipped { get; set; }
+
+    /// <summary>Files that failed to import.</summary>
+    public int Failed { get; set; }
+
+    /// <summary>Error messages for failed imports.</summary>
+    public List<string> Errors { get; set; } = [];
 }

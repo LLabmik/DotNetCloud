@@ -17,7 +17,8 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.3")
+                .HasDefaultSchema("music")
+                .HasAnnotation("ProductVersion", "10.0.5")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -71,7 +72,7 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("uq_artists_owner_name");
 
-                    b.ToTable("Artists");
+                    b.ToTable("Artists", "music");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Music.Models.EqPreset", b =>
@@ -114,7 +115,7 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                     b.HasIndex("OwnerId", "Name")
                         .HasDatabaseName("ix_eq_presets_owner_name");
 
-                    b.ToTable("EqPresets");
+                    b.ToTable("EqPresets", "music");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Music.Models.Genre", b =>
@@ -134,7 +135,7 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("uq_genres_name");
 
-                    b.ToTable("Genres");
+                    b.ToTable("Genres", "music");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Music.Models.MusicAlbum", b =>
@@ -200,7 +201,7 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                     b.HasIndex("Year")
                         .HasDatabaseName("ix_music_albums_year");
 
-                    b.ToTable("Albums");
+                    b.ToTable("Albums", "music");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Music.Models.PlaybackHistory", b =>
@@ -231,7 +232,7 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                     b.HasIndex("UserId", "PlayedAt")
                         .HasDatabaseName("ix_playback_history_user_played_at");
 
-                    b.ToTable("PlaybackHistories");
+                    b.ToTable("PlaybackHistories", "music");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Music.Models.Playlist", b =>
@@ -282,7 +283,7 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                     b.HasIndex("OwnerId")
                         .HasDatabaseName("ix_playlists_owner_id");
 
-                    b.ToTable("Playlists");
+                    b.ToTable("Playlists", "music");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Music.Models.PlaylistTrack", b =>
@@ -308,7 +309,7 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                     b.HasIndex("PlaylistId", "SortOrder")
                         .HasDatabaseName("ix_playlist_tracks_playlist_sort");
 
-                    b.ToTable("PlaylistTracks");
+                    b.ToTable("PlaylistTracks", "music");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Music.Models.ScrobbleRecord", b =>
@@ -350,7 +351,7 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                     b.HasIndex("UserId", "ScrobbledAt")
                         .HasDatabaseName("ix_scrobble_records_user_scrobbled_at");
 
-                    b.ToTable("ScrobbleRecords");
+                    b.ToTable("ScrobbleRecords", "music");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Music.Models.StarredItem", b =>
@@ -382,7 +383,7 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("uq_starred_items_user_type_item");
 
-                    b.ToTable("StarredItems");
+                    b.ToTable("StarredItems", "music");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Music.Models.Track", b =>
@@ -479,7 +480,7 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                     b.HasIndex("OwnerId", "CreatedAt")
                         .HasDatabaseName("ix_tracks_owner_created_at");
 
-                    b.ToTable("Tracks");
+                    b.ToTable("Tracks", "music");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Music.Models.TrackArtist", b =>
@@ -501,7 +502,7 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                     b.HasIndex("TrackId", "IsPrimary")
                         .HasDatabaseName("ix_track_artists_track_primary");
 
-                    b.ToTable("TrackArtists");
+                    b.ToTable("TrackArtists", "music");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Music.Models.TrackGenre", b =>
@@ -517,7 +518,7 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                     b.HasIndex("GenreId")
                         .HasDatabaseName("ix_track_genres_genre_id");
 
-                    b.ToTable("TrackGenres");
+                    b.ToTable("TrackGenres", "music");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Music.Models.UserMusicPreference", b =>
@@ -554,7 +555,7 @@ namespace DotNetCloud.Modules.Music.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("uq_user_music_preferences_user_id");
 
-                    b.ToTable("UserMusicPreferences");
+                    b.ToTable("UserMusicPreferences", "music");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Music.Models.MusicAlbum", b =>

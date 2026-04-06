@@ -11,6 +11,8 @@
 @inject IPhotoShareService ShareService
 @inject IPhotoThumbnailService ThumbnailService
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
+@inject DotNetCloud.Core.Services.IUserSettingsService UserSettingsService
+@inject DotNetCloud.Core.Services.IMediaLibraryScanner MediaLibraryScanner
 @inject Microsoft.AspNetCore.Components.NavigationManager Navigation
 @inject IJSRuntime Js
 @inject Microsoft.Extensions.Logging.ILogger<PhotosPage> Logger
@@ -51,6 +53,14 @@
                 <button class="photos-nav-item @(_section == Section.Shared ? "active" : "")"
                         @onclick="() => SwitchSection(Section.Shared)">
                     <span class="nav-icon">🤝</span><span class="nav-label">Shared</span>
+                </button>
+            </nav>
+
+            <div class="photos-nav-separator"></div>
+            <nav class="photos-nav">
+                <button class="photos-nav-item @(_section == Section.Settings ? "active" : "")"
+                        @onclick="() => SwitchSection(Section.Settings)">
+                    <span class="nav-icon">⚙</span><span class="nav-label">Library Settings</span>
                 </button>
             </nav>
 
@@ -278,6 +288,51 @@
                                     }
                                 </div>
                             </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @* ─── Library Settings ─── *@
+            @if (_section == Section.Settings)
+            {
+                <div class="module-settings-section">
+                    <div class="settings-card">
+                        <h4>Photos Library</h4>
+                        <p class="hint">Configure the local directory path for your photos library. DotNetCloud will scan
+                            this directory and import photos (JPEG, PNG, GIF, WebP, HEIC, TIFF, RAW, and more).</p>
+                        <div class="form-group">
+                            <label>Directory Path</label>
+                            <input type="text" class="input" @bind="_libraryPath"
+                                   placeholder="/home/user/Pictures" />
+                        </div>
+                        <div class="settings-actions">
+                            <button class="btn btn-primary btn-sm" @onclick="SaveLibraryPathAsync"
+                                    disabled="@_settingsSaving">
+                                @(_settingsSaving ? "Saving..." : "Save Path")
+                            </button>
+                            <button class="btn btn-outline btn-sm" @onclick="ScanLibraryAsync"
+                                    disabled="@(_settingsScanning || string.IsNullOrWhiteSpace(_libraryPath))">
+                                @(_settingsScanning ? "Scanning..." : "Scan Now")
+                            </button>
+                        </div>
+                        @if (_scanResult is not null)
+                        {
+                            <div class="scan-result-banner">
+                                Found @_scanResult.TotalFound · Imported @_scanResult.Imported · Skipped @_scanResult.Skipped
+                                @if (_scanResult.Failed > 0)
+                                {
+                                    <span class="text-danger"> · Failed @_scanResult.Failed</span>
+                                }
+                            </div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(_settingsError))
+                        {
+                            <div class="alert alert-danger" style="margin-top: 12px; font-size: 13px;">@_settingsError</div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(_settingsSuccess))
+                        {
+                            <div class="alert alert-success" style="margin-top: 12px; font-size: 13px;">@_settingsSuccess</div>
                         }
                     </div>
                 </div>

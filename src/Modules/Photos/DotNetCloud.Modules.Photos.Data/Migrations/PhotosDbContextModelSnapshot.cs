@@ -17,7 +17,8 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.3")
+                .HasDefaultSchema("photos")
+                .HasAnnotation("ProductVersion", "10.0.5")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -69,7 +70,7 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
                     b.HasIndex("OwnerId")
                         .HasDatabaseName("ix_albums_owner_id");
 
-                    b.ToTable("Albums");
+                    b.ToTable("Albums", "photos");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Photos.Models.AlbumPhoto", b =>
@@ -95,7 +96,7 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
                     b.HasIndex("AlbumId", "SortOrder")
                         .HasDatabaseName("ix_album_photos_album_sort");
 
-                    b.ToTable("AlbumPhotos");
+                    b.ToTable("AlbumPhotos", "photos");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Photos.Models.Photo", b =>
@@ -172,7 +173,7 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
                     b.HasIndex("OwnerId", "TakenAt")
                         .HasDatabaseName("ix_photos_owner_taken_at");
 
-                    b.ToTable("Photos");
+                    b.ToTable("Photos", "photos");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Photos.Models.PhotoEditRecord", b =>
@@ -209,7 +210,7 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
                     b.HasIndex("PhotoId", "StackOrder")
                         .HasDatabaseName("ix_photo_edit_records_photo_order");
 
-                    b.ToTable("PhotoEditRecords");
+                    b.ToTable("PhotoEditRecords", "photos");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Photos.Models.PhotoMetadata", b =>
@@ -273,7 +274,7 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
                         .HasDatabaseName("ix_photo_metadata_geo")
                         .HasFilter("\"Latitude\" IS NOT NULL AND \"Longitude\" IS NOT NULL");
 
-                    b.ToTable("PhotoMetadata");
+                    b.ToTable("PhotoMetadata", "photos");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Photos.Models.PhotoShare", b =>
@@ -318,7 +319,7 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
                     b.HasIndex("SharedWithUserId")
                         .HasDatabaseName("ix_photo_shares_shared_with");
 
-                    b.ToTable("PhotoShares");
+                    b.ToTable("PhotoShares", "photos");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Photos.Models.PhotoTag", b =>
@@ -349,7 +350,7 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("uq_photo_tags_photo_tag");
 
-                    b.ToTable("PhotoTags");
+                    b.ToTable("PhotoTags", "photos");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Photos.Models.AlbumPhoto", b =>

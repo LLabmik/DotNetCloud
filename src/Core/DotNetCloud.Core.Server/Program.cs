@@ -122,6 +122,18 @@ public class Program
 
                         var tracksDbContext = scope.ServiceProvider.GetRequiredService<TracksDbContext>();
                         await TracksDbInitializer.InitializeAsync(tracksDbContext, logger);
+
+                        var photosDbContext = scope.ServiceProvider.GetRequiredService<PhotosDbContext>();
+                        await photosDbContext.Database.MigrateAsync();
+                        logger.LogInformation("Photos module database migrated");
+
+                        var musicDbContext = scope.ServiceProvider.GetRequiredService<MusicDbContext>();
+                        await musicDbContext.Database.MigrateAsync();
+                        logger.LogInformation("Music module database migrated");
+
+                        var videoDbContext = scope.ServiceProvider.GetRequiredService<VideoDbContext>();
+                        await videoDbContext.Database.MigrateAsync();
+                        logger.LogInformation("Video module database migrated");
                     }
                     catch (InvalidOperationException ex)
                     {
@@ -149,6 +161,18 @@ public class Program
 
                     var tracksDbContext = scope.ServiceProvider.GetRequiredService<TracksDbContext>();
                     await TracksDbInitializer.InitializeAsync(tracksDbContext, logger);
+
+                    var photosDbContext = scope.ServiceProvider.GetRequiredService<PhotosDbContext>();
+                    await photosDbContext.Database.MigrateAsync();
+                    logger.LogInformation("Photos module database migrated");
+
+                    var musicDbContext = scope.ServiceProvider.GetRequiredService<MusicDbContext>();
+                    await musicDbContext.Database.MigrateAsync();
+                    logger.LogInformation("Music module database migrated");
+
+                    var videoDbContext = scope.ServiceProvider.GetRequiredService<VideoDbContext>();
+                    await videoDbContext.Database.MigrateAsync();
+                    logger.LogInformation("Video module database migrated");
                 }
 
                 // Mark the application as ready for traffic now that DB is initialized
@@ -260,6 +284,9 @@ public class Program
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.INotificationService, NotificationService>();
         builder.Services.AddScoped<DotNetCloud.Modules.Files.Services.IUserOrganizationResolver, UserOrganizationResolver>();
         builder.Services.AddScoped<DotNetCloud.Core.Import.IImportPipeline, ImportPipelineService>();
+        builder.Services.AddScoped<DotNetCloud.Core.Server.Services.MediaFolderImportService>();
+        builder.Services.AddScoped<DotNetCloud.Core.Services.IMediaLibraryScanner>(sp =>
+            sp.GetRequiredService<DotNetCloud.Core.Server.Services.MediaFolderImportService>());
 
         var filesStoragePath = builder.Configuration.GetValue<string>("Files:StoragePath");
         var dataDirForStorage = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");

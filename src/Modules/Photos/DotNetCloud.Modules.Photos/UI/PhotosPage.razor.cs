@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Photos.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -18,7 +19,7 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 {
     // ── State ────────────────────────────────────────────────
 
-    private enum Section { Gallery, Albums, Timeline, Favorites, Map, Shared }
+    private enum Section { Gallery, Albums, Timeline, Favorites, Map, Shared, Settings }
     private enum ViewMode { Grid, List }
 
     private Section _section = Section.Gallery;
@@ -74,6 +75,14 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
     // Auth
     private CallerContext? _caller;
 
+    // Library Settings
+    private string _libraryPath = string.Empty;
+    private bool _settingsSaving;
+    private bool _settingsScanning;
+    private string? _settingsError;
+    private string? _settingsSuccess;
+    private MediaScanResult? _scanResult;
+
     // ── Lifecycle ────────────────────────────────────────────
 
     protected override async Task OnInitializedAsync()
@@ -81,6 +90,7 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
         try
         {
             _caller = await GetCallerContextAsync();
+            await LoadLibraryPathAsync();
             await LoadCurrentSectionAsync();
         }
         catch (Exception ex)
@@ -541,6 +551,67 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
         var roles = user.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
         return new CallerContext(userId, roles, CallerType.User);
+    }
+
+    // ── Library Settings Methods ─────────────────────────────
+
+    private async Task LoadLibraryPathAsync()
+    {
+        if (_caller is null) return;
+        try
+        {
+            var setting = await UserSettingsService.GetSettingAsync(_caller.UserId, "media-library", "photos-path");
+            _libraryPath = setting?.Value ?? string.Empty;
+        }
+        catch { /* ignore load failures */ }
+    }
+
+    private async Task SaveLibraryPathAsync()
+    {
+        if (_caller is null) return;
+        _settingsSaving = true;
+        _settingsError = null;
+        _settingsSuccess = null;
+        try
+        {
+            await UserSettingsService.UpsertSettingAsync(_caller.UserId, "media-library", "photos-path",
+                new UpsertUserSettingDto { Value = _libraryPath.Trim(), Description = "Photos library directory path" });
+            _settingsSuccess = "Path saved.";
+        }
+        catch (Exception ex)
+        {
+            _settingsError = $"Save failed: {ex.Message}";
+        }
+        finally
+        {
+            _settingsSaving = false;
+        }
+    }
+
+    private async Task ScanLibraryAsync()
+    {
+        if (_caller is null || string.IsNullOrWhiteSpace(_libraryPath)) return;
+        await SaveLibraryPathAsync();
+        if (_settingsError is not null) return;
+
+        _settingsScanning = true;
+        _settingsError = null;
+        _settingsSuccess = null;
+        _scanResult = null;
+        StateHasChanged();
+        try
+        {
+            _scanResult = await MediaLibraryScanner.ScanAsync(_libraryPath.Trim(), _caller.UserId, "Photos");
+            _settingsSuccess = $"Scan complete: {_scanResult.Imported} imported, {_scanResult.Skipped} already up to date.";
+        }
+        catch (Exception ex)
+        {
+            _settingsError = $"Scan failed: {ex.Message}";
+        }
+        finally
+        {
+            _settingsScanning = false;
+        }
     }
 
     public async ValueTask DisposeAsync()
