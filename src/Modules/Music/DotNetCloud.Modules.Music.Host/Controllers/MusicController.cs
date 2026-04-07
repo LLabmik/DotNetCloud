@@ -160,6 +160,20 @@ public class MusicController : MusicControllerBase
         }
     }
 
+    /// <summary>Gets the cover art image for an album.</summary>
+    [HttpGet("albums/{albumId:guid}/cover")]
+    public async Task<IActionResult> GetAlbumCover(Guid albumId)
+    {
+        var artPath = await _albumService.GetCoverArtPathAsync(albumId);
+        if (artPath is null || !System.IO.File.Exists(artPath))
+            return NotFound();
+
+        var mimeType = artPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
+            ? "image/png"
+            : "image/jpeg";
+        return PhysicalFile(artPath, mimeType);
+    }
+
     // ─── Tracks ───────────────────────────────────────────────────────
 
     /// <summary>Lists tracks in the library.</summary>

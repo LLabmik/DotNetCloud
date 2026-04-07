@@ -46,7 +46,7 @@ public sealed class MusicIndexingCallback : IMusicIndexingCallback
         {
             await _libraryScanService.IndexFileAsync(
                 fileNodeId, fileName, mimeType, sizeBytes, ownerId,
-                audioStream: audioStream, artCacheDir: null, cancellationToken: cancellationToken);
+                audioStream: audioStream, cancellationToken: cancellationToken);
         }
         finally
         {

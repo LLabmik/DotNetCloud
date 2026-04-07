@@ -3,6 +3,7 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Music.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Modules.Music.Data.Services;
@@ -17,6 +18,7 @@ public sealed class LibraryScanService
     private readonly AlbumArtService _albumArtService;
     private readonly IEventBus _eventBus;
     private readonly ILogger<LibraryScanService> _logger;
+    private readonly string _artCacheDir;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="LibraryScanService"/> class.
@@ -26,6 +28,7 @@ public sealed class LibraryScanService
         MusicMetadataService metadataService,
         AlbumArtService albumArtService,
         IEventBus eventBus,
+        IConfiguration configuration,
         ILogger<LibraryScanService> logger)
     {
         _db = db;
@@ -33,6 +36,9 @@ public sealed class LibraryScanService
         _albumArtService = albumArtService;
         _eventBus = eventBus;
         _logger = logger;
+        var storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
+        _artCacheDir = Path.Combine(storageRoot, ".album-art");
+        Directory.CreateDirectory(_artCacheDir);
     }
 
     /// <summary>
@@ -47,7 +53,6 @@ public sealed class LibraryScanService
         Guid ownerId,
         string? metadataFilePath = null,
         Stream? audioStream = null,
-        string? artCacheDir = null,
         CancellationToken cancellationToken = default)
     {
         // Check if already indexed
@@ -93,17 +98,17 @@ public sealed class LibraryScanService
         var album = await GetOrCreateAlbumAsync(metadata.Album, artist.Id, ownerId, metadata.Year, cancellationToken);
 
         // Handle album art
-        if (!album.HasCoverArt && artCacheDir is not null)
+        if (!album.HasCoverArt)
         {
             string? artPath = null;
             if (audioStream is not null && audioStream.CanSeek)
             {
                 audioStream.Position = 0;
-                artPath = _albumArtService.ExtractAndCacheArt(audioStream, mimeType, fileName, artCacheDir, album.Id);
+                artPath = _albumArtService.ExtractAndCacheArt(audioStream, mimeType, fileName, _artCacheDir, album.Id);
             }
             else if (metadataFilePath is not null)
             {
-                artPath = _albumArtService.ExtractAndCacheArt(metadataFilePath, artCacheDir, album.Id);
+                artPath = _albumArtService.ExtractAndCacheArt(metadataFilePath, _artCacheDir, album.Id);
             }
 
             if (artPath is not null)
@@ -205,7 +210,6 @@ public sealed class LibraryScanService
         IEnumerable<(Guid FileNodeId, string FilePath, string MimeType, long SizeBytes)> audioFiles,
         Guid ownerId,
         CallerContext caller,
-        string? artCacheDir = null,
         CancellationToken cancellationToken = default)
     {
         var startTime = DateTime.UtcNow;
@@ -220,7 +224,7 @@ public sealed class LibraryScanService
 
             var track = await IndexFileAsync(
                 file.FileNodeId, file.FilePath, file.MimeType, file.SizeBytes, ownerId,
-                metadataFilePath: file.FilePath, artCacheDir: artCacheDir, cancellationToken: cancellationToken);
+                metadataFilePath: file.FilePath, cancellationToken: cancellationToken);
 
             if (track is not null)
             {

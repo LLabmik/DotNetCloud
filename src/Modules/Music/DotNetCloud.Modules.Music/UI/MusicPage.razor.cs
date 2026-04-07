@@ -740,7 +740,7 @@ public partial class MusicPage : IAsyncDisposable
             : $"{duration.Minutes}:{duration.Seconds:D2}";
     }
 
-    private static string GetAlbumArtUrl(Guid albumId) => $"/api/music/albums/{albumId}/cover";
+    private static string GetAlbumArtUrl(Guid albumId) => $"/api/v1/music/albums/{albumId}/cover";
 
     private static string GetInitials(string name)
     {
