@@ -178,7 +178,7 @@
                                         <span class="track-num">@(index + 1)</span>
                                         <div class="track-info">
                                             <span class="track-title">@track.Title</span>
-                                            <span class="track-artist">@track.ArtistName — @track.AlbumTitle</span>
+                                            <span class="track-artist">@track.ArtistName — <a class="album-link" @onclick="() => NavigateToAlbumAsync(track.AlbumId)" @onclick:stopPropagation="true">@track.AlbumTitle</a></span>
                                         </div>
                                         <span class="track-duration">@FormatDuration(track.Duration)</span>
                                         <button class="track-action" @onclick="() => ToggleStarTrackAsync(track)" title="Star">
@@ -202,7 +202,7 @@
                                         <span class="track-num">@(index + 1)</span>
                                         <div class="track-info">
                                             <span class="track-title">@track.Title</span>
-                                            <span class="track-artist">@track.ArtistName — @track.AlbumTitle</span>
+                                            <span class="track-artist">@track.ArtistName — <a class="album-link" @onclick="() => NavigateToAlbumAsync(track.AlbumId)" @onclick:stopPropagation="true">@track.AlbumTitle</a></span>
                                         </div>
                                         <span class="track-duration">@FormatDuration(track.Duration)</span>
                                     </div>
@@ -652,14 +652,32 @@
     {
         <div class="now-playing-bar">
             <div class="np-track-info">
-                <div class="np-art">
+                <div class="np-art" id="np-art-container">
                     @if (_nowPlaying.AlbumId.HasValue)
                     {
-                        <img src="@GetAlbumArtUrl(_nowPlaying.AlbumId.Value)" alt="" />
+                        <img src="@GetAlbumArtUrl(_nowPlaying.AlbumId.Value)" alt=""
+                             onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" style="display:none;width:100%;height:100%">
+                            <defs><linearGradient id="npbg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#cbd5e1"/><stop offset="100%" stop-color="#94a3b8"/></linearGradient></defs>
+                            <rect width="200" height="200" rx="12" fill="url(#npbg)"/>
+                            <circle cx="100" cy="96" r="56" fill="#475569" opacity="0.55"/>
+                            <circle cx="100" cy="96" r="40" fill="none" stroke="#64748b" stroke-width="1.5" opacity="0.5"/>
+                            <circle cx="100" cy="96" r="12" fill="#cbd5e1"/>
+                            <circle cx="100" cy="96" r="4" fill="#475569"/>
+                            <g transform="translate(100,96)" fill="#e2e8f0"><rect x="6" y="-30" width="3.5" height="36" rx="1.75"/><circle cx="2" cy="6" r="7"/><path d="M9.5-30 Q18-34 18-24 Q18-18 9.5-22Z"/></g>
+                        </svg>
                     }
                     else
                     {
-                        <div class="np-art-placeholder">♫</div>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" style="width:100%;height:100%">
+                            <defs><linearGradient id="npbg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#cbd5e1"/><stop offset="100%" stop-color="#94a3b8"/></linearGradient></defs>
+                            <rect width="200" height="200" rx="12" fill="url(#npbg2)"/>
+                            <circle cx="100" cy="96" r="56" fill="#475569" opacity="0.55"/>
+                            <circle cx="100" cy="96" r="40" fill="none" stroke="#64748b" stroke-width="1.5" opacity="0.5"/>
+                            <circle cx="100" cy="96" r="12" fill="#cbd5e1"/>
+                            <circle cx="100" cy="96" r="4" fill="#475569"/>
+                            <g transform="translate(100,96)" fill="#e2e8f0"><rect x="6" y="-30" width="3.5" height="36" rx="1.75"/><circle cx="2" cy="6" r="7"/><path d="M9.5-30 Q18-34 18-24 Q18-18 9.5-22Z"/></g>
+                        </svg>
                     }
                 </div>
                 <div class="np-text">

@@ -256,7 +256,9 @@ public partial class MusicPage : IAsyncDisposable
 
     private async void OpenAlbumDetail(MusicAlbumDto album)
     {
+        var sourceSection = _section;
         _selectedAlbum = album;
+        _section = Section.Albums;
 
         // Build breadcrumbs that depend on how we got here
         if (_selectedArtist is not null)
@@ -264,8 +266,15 @@ public partial class MusicPage : IAsyncDisposable
             var capturedArtist = _selectedArtist;
             _breadcrumb =
             [
-                new BreadcrumbItem("Artists", () => { _selectedArtist = null; _selectedAlbum = null; _breadcrumb.Clear(); StateHasChanged(); }),
-                new BreadcrumbItem(capturedArtist.Name, () => { _selectedAlbum = null; _breadcrumb.RemoveAt(_breadcrumb.Count - 1); StateHasChanged(); })
+                new BreadcrumbItem("Artists", () => { _section = Section.Artists; _selectedArtist = null; _selectedAlbum = null; _breadcrumb.Clear(); StateHasChanged(); }),
+                new BreadcrumbItem(capturedArtist.Name, () => { _section = Section.Artists; _selectedAlbum = null; _breadcrumb.RemoveAt(_breadcrumb.Count - 1); StateHasChanged(); })
+            ];
+        }
+        else if (sourceSection == Section.Library)
+        {
+            _breadcrumb =
+            [
+                new BreadcrumbItem("Library", () => { _section = Section.Library; _selectedAlbum = null; _breadcrumb.Clear(); StateHasChanged(); })
             ];
         }
         else
@@ -286,6 +295,24 @@ public partial class MusicPage : IAsyncDisposable
             Logger.LogError(ex, "Error loading album tracks");
         }
         StateHasChanged();
+    }
+
+    private async void NavigateToAlbumAsync(Guid? albumId)
+    {
+        if (albumId is null) return;
+        try
+        {
+            var caller = await GetCallerAsync();
+            var album = await AlbumService.GetAlbumAsync(albumId.Value, caller);
+            if (album is not null)
+            {
+                OpenAlbumDetail(album);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error navigating to album {AlbumId}", albumId);
+        }
     }
 
     // ────────────────────────────────────────────────────────

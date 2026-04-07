@@ -597,6 +597,17 @@
     white-space: nowrap;
 }
 
+.album-link {
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.album-link:hover {
+    color: var(--color-primary, #6366f1);
+    text-decoration: underline;
+}
+
 .track-duration {
     font-size: 0.8125rem;
     color: var(--color-muted, #94a3b8);
@@ -861,16 +872,6 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
-}
-
-.np-art-placeholder {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 100%;
-    font-size: 1.25rem;
-    color: var(--color-muted, #94a3b8);
 }
 
 .np-text {
