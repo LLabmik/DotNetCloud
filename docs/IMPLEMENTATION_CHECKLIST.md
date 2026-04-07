@@ -84,9 +84,11 @@
 ## Phase 0: Foundation
 
 ### Objective
+
 Core platform boots, authenticates a user, loads a module, serves the Blazor UI. Establishes the foundation for all subsequent phases.
 
 ### Milestone Criteria
+
 - [ ] `dotnetcloud setup` wizard runs successfully
 - [ ] Admin user can be created with MFA enabled
 - [ ] User can log in to Blazor UI
@@ -102,6 +104,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 **Create shared abstractions and interfaces layer**
 
 #### Capability System
+
 - ✓ Create `ICapabilityInterface` marker interface
 - ✓ Create `CapabilityTier` enum (Public, Restricted, Privileged, Forbidden)
 - ✓ Implement public tier interfaces:
@@ -119,6 +122,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Document forbidden interfaces list
 
 #### Context & Authorization
+
 - ✓ Create `CallerContext` record:
   - ✓ `Guid UserId` property
   - ✓ `IReadOnlyList<string> Roles` property
@@ -131,6 +135,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
   - ✓ Optional description
 
 #### Module System
+
 - ✓ Create `IModuleManifest` interface:
   - ✓ `string Id` property
   - ✓ `string Name` property
@@ -153,6 +158,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
   - ✓ `CallerContext SystemCaller` property
 
 #### Event System
+
 - ✓ Create `IEvent` base interface
 - ✓ Create `IEventHandler<TEvent>` interface
 - ✓ Create `IEventBus` interface:
@@ -162,6 +168,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Create event subscription model
 
 #### Data Transfer Objects (DTOs)
+
 - ✓ Create user DTOs (UserDto, CreateUserDto, UpdateUserDto)
 - ✓ Create organization DTOs
 - ✓ Create team DTOs
@@ -171,6 +178,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Create settings DTOs
 
 #### Error Handling
+
 - ✓ Create error code constants class
 - ✓ Define standard exception types:
   - ✓ `CapabilityNotGrantedException`
@@ -180,6 +188,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Create API error response model
 
 #### Documentation
+
 - ✓ Create `docs/architecture/core-abstractions.md` with comprehensive guide
 - ✓ Add comprehensive XML documentation (///) to all public types
 - ✓ Create `src/Core/DotNetCloud.Core/README.md` for developers
@@ -193,6 +202,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 **Create EF Core database abstraction and models**
 
 #### Multi-Provider Support
+
 - ✓ Create `IDbContextFactory<CoreDbContext>` abstraction
 - ✓ Create `ITableNamingStrategy` interface for schema/prefix handling
 - ✓ Implement `PostgreSqlNamingStrategy` (use schemas: `core.*`, `files.*`, etc.)
@@ -203,6 +213,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 #### CoreDbContext & Models
 
 **ASP.NET Core Identity Models**
+
 - ✓ Create `ApplicationUser` entity (extends `IdentityUser<Guid>`):
   - ✓ `string DisplayName` property
   - ✓ `string? AvatarUrl` property
@@ -217,6 +228,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Configure Identity relationships (IdentityUserClaim, IdentityUserRole, etc.)
 
 **Organization Hierarchy Models**
+
 - ✓ Create `Organization` entity:
   - ✓ `string Name` property
   - ✓ `string? Description` property
@@ -242,6 +254,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
   - ✓ `ICollection<Guid> RoleIds` for org-scoped roles
 
 **Permissions System Models**
+
 - ✓ Create `Permission` entity:
   - ✓ `string Code` property (e.g., "files.upload")
   - ✓ `string DisplayName` property
@@ -254,6 +267,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Create `RolePermission` junction table
 
 **Settings Models (Three Scopes)**
+
 - ✓ Create `SystemSetting` entity:
   - ✓ `string Module` property (which module owns this setting)
   - ✓ `string Key` property
@@ -282,6 +296,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
   - ✓ Unique constraint: (UserId, Module, Key)
 
 **Device & Module Registry Models**
+
 - ✓ Create `UserDevice` entity:
   - ✓ `Guid UserId` FK
   - ✓ `string Name` property (e.g., "Windows Laptop")
@@ -300,6 +315,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
   - ✓ `Guid? GrantedByUserId` (admin who approved)
 
 #### EF Core Configuration
+
 - ✓ Create `CoreDbContext` class extending `IdentityDbContext<ApplicationUser, ApplicationRole, Guid>`
 - ✓ Configure all entity relationships
 - ✓ Set up automatic timestamps (CreatedAt, UpdatedAt)
@@ -308,6 +324,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Create design-time factory for migrations
 
 #### Database Initialization
+
 - ✓ Create `DbInitializer` class:
   - ✓ Database creation
   - ✓ Seed default system roles
@@ -327,6 +344,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 **Create shared infrastructure for all projects**
 
 #### Logging Setup
+
 - ✓ Configure Serilog:
   - ✓ Console sink for development
   - ✓ File sink for production
@@ -336,12 +354,14 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Set up log filtering
 
 #### Health Checks
+
 - ✓ Create health check infrastructure
 - ✓ Implement database health check
 - ✓ Create custom health check interface for modules
 - ✓ Set up health check endpoints
 
 #### OpenTelemetry Setup
+
 - ✓ Configure metrics collection:
   - ✓ HTTP request metrics
   - ✓ gRPC call metrics
@@ -353,6 +373,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Implement trace exporter configuration
 
 #### Security Middleware
+
 - ✓ Create CORS configuration
 - ✓ Add security headers middleware:
   - ✓ Content-Security-Policy
@@ -362,11 +383,13 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Create authentication/authorization middleware
 
 #### Error Handling
+
 - ✓ Create global exception handler middleware
 - ✓ Implement consistent error response formatting
 - ✓ Add request validation error handling
 
 #### Request/Response Logging
+
 - ✓ Create request/response logging middleware
 - ✓ Configure sensitive data masking
 
@@ -379,6 +402,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 **OAuth2/OIDC Server Implementation**
 
 #### Core Configuration
+
 - ✓ Add OpenIddict NuGet packages (`OpenIddict.AspNetCore`, `OpenIddict.EntityFrameworkCore`)
 - ✓ Configure OpenIddict in dependency injection:
   - ✓ Server features (token/authorize/logout/userinfo/introspect/revoke endpoints)
@@ -391,6 +415,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Implement OpenIddict data access layer (EF Core via `UseOpenIddict<>()` built-in config)
 
 #### HTTP Endpoints
+
 - ✓ Create `AuthController` with registration, login, logout, password reset endpoints
 - ✓ Create `MfaController` with TOTP setup, verify, disable, and backup code endpoints
 - ✓ Create `OpenIddictEndpointsExtensions` with all 6 protocol endpoints
@@ -399,6 +424,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Create integration tests for all endpoints (18 tests, 100% passing)
 
 #### Deployment & Configuration
+
 - ✓ Create `DotNetCloud.Core.Server` ASP.NET Core web project
 - ✓ Configure middleware pipeline (Serilog, CORS, security headers, exception handler)
 - ✓ Create appsettings.json and appsettings.Development.json
@@ -415,6 +441,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 **Module abstraction and lifecycle management**
 
 #### Module Interfaces
+
 - ✓ Create `IModule` interface with lifecycle methods
 - ✓ Create `IModuleManifest` validation
 - ✓ Create `IModuleLifecycle` interface:
@@ -425,12 +452,14 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Create module initialization context
 
 #### Module Registry
+
 - ✓ Create module registry data model
 - ✓ Implement module discovery mechanism
 - ✓ Create module loading strategy
 - ✓ Implement module versioning support
 
 #### Capability System Implementation
+
 - ✓ Create capability request validation
 - ✓ Implement capability tier enforcement
 - ✓ Create capability granting mechanism
@@ -438,6 +467,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Handle missing capabilities gracefully (null injection)
 
 #### Event System Implementation
+
 - ✓ Implement in-process event bus
 - ✓ Create event publishing
 - ✓ Create event subscription management
@@ -453,6 +483,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 **Process management and module communication**
 
 #### Process Supervisor
+
 - ✓ Create module process spawning logic
 - ✓ Implement process health monitoring:
   - ✓ Periodic gRPC health checks
@@ -473,6 +504,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
   - ✓ Job Objects on Windows
 
 #### gRPC Infrastructure
+
 - ✓ Configure gRPC server:
   - ✓ Unix domain socket support (Linux)
   - ✓ Named pipe support (Windows)
@@ -486,6 +518,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
   - ✓ Logging interceptor
 
 #### Module Loading
+
 - ✓ Create module discovery from filesystem
 - ✓ Implement module manifest loading and validation
 - ✓ Create capability request validation
@@ -493,12 +526,14 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Create module configuration loading
 
 #### Inter-Process Communication
+
 - ✓ Define gRPC service contracts for core capabilities
 - ✓ Create gRPC channel management
 - ✓ Implement connection pooling
 - ✓ Create timeout configuration
 
 #### Unit Tests (DotNetCloud.Core.Server.Tests)
+
 - ✓ Create test project with MSTest, project references, InternalsVisibleTo
 - ✓ ModuleProcessHandleTests (state transitions, health checks, restart counting, ToProcessInfo)
 - ✓ ModuleManifestLoaderTests (validation rules, LoadAndValidate, CreateDefaultManifest)
@@ -515,12 +550,14 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 **REST API and web hosting infrastructure**
 
 #### Kestrel Configuration
+
 - ✓ Configure Kestrel server
 - ✓ Set up HTTPS/TLS
 - ✓ Configure listener addresses
 - ✓ Set up HTTP/2 support
 
 #### Reverse Proxy Support
+
 - ✓ Generate IIS ANCM configuration template (`web.config`)
 - ✓ Generate Apache `mod_proxy` configuration template
 - ✓ Generate nginx configuration template
@@ -528,12 +565,14 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Implement configuration validation
 
 #### API Versioning
+
 - ✓ Set up URL-based versioning (`/api/v1/`, `/api/v2/`)
 - ✓ Implement API version negotiation
 - ✓ Configure version deprecation warnings
 - ✓ Create API versioning documentation
 
 #### Response Envelope
+
 - ✓ Create standard response envelope model:
   - ✓ `bool success` property
   - ✓ `object data` property
@@ -546,6 +585,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Create response envelope documentation
 
 #### Error Handling
+
 - ✓ Create error handling middleware
 - ✓ Implement standard error codes
 - ✓ Configure error response formatting
@@ -553,19 +593,22 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Create error logging
 
 #### Rate Limiting
+
 - ✓ Implement rate limiting middleware
 - ✓ Configure rate limits per module
-- ✓ Create rate limit headers (X-RateLimit-*)
+- ✓ Create rate limit headers (X-RateLimit-\*)
 - ✓ Implement configurable rate limits
 - ✓ Create admin configuration endpoint
 
 #### OpenAPI/Swagger
+
 - ✓ Integrate Swashbuckle (OpenAPI generation)
 - ✓ Configure Swagger UI
 - ✓ Enable OpenAPI schema generation
 - ✓ Create API documentation from code comments
 
 #### CORS
+
 - ✓ Configure CORS policies
 - ✓ Create origin whitelist configuration
 - ✓ Implement allowed methods/headers
@@ -580,18 +623,21 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 **Real-time messaging infrastructure**
 
 #### SignalR Configuration
+
 - ✓ Configure SignalR services
 - ✓ Set up connection tracking
 - ✓ Configure reconnection policies
 - ✓ Set up keep-alive intervals
 
 #### Core Hub Implementation
+
 - ✓ Create base SignalR hub with authentication/authorization
 - ✓ Implement connection lifecycle handlers
 - ✓ Create user connection tracking
 - ✓ Implement connection grouping per channel/room
 
 #### Real-Time Broadcast Infrastructure
+
 - ✓ Create `IRealtimeBroadcaster` capability interface:
   - ✓ `Task BroadcastAsync(string group, string eventName, object message)`
   - ✓ `Task SendToUserAsync(Guid userId, string eventName, object message)`
@@ -600,12 +646,14 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Create module notification interface
 
 #### Presence Tracking
+
 - ✓ Implement presence update mechanism
 - ✓ Track online/offline status
 - ✓ Create last seen timestamps
 - ✓ Implement presence queries
 
 #### WebSocket Configuration
+
 - ✓ Configure WebSocket support
 - ✓ Set up WebSocket keep-alive
 - ✓ Configure connection limits
@@ -619,6 +667,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 **REST endpoints for authentication flows**
 
 #### User Authentication
+
 - ✓ `POST /api/v1/core/auth/register` - User registration
 - ✓ `POST /api/v1/core/auth/login` - User login (returns tokens)
 - ✓ `POST /api/v1/core/auth/logout` - Revoke tokens
@@ -626,11 +675,13 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ `GET /api/v1/core/auth/user` - Get current user info
 
 #### OAuth2/OIDC Integration
+
 - ✓ `GET /api/v1/core/auth/external-login/{provider}` - External provider sign-in
 - ✓ `GET /api/v1/core/auth/external-callback` - External provider callback
 - ✓ `GET /.well-known/openid-configuration` - OIDC discovery
 
 #### MFA Management
+
 - ✓ `POST /api/v1/core/auth/mfa/totp/setup` - Setup TOTP
 - ✓ `POST /api/v1/core/auth/mfa/totp/verify` - Verify TOTP code
 - ✓ `POST /api/v1/core/auth/mfa/passkey/setup` - Setup passkey
@@ -638,11 +689,13 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ `GET /api/v1/core/auth/mfa/backup-codes` - Generate backup codes
 
 #### Password Management
+
 - ✓ `POST /api/v1/core/auth/password/change` - Change password
 - ✓ `POST /api/v1/core/auth/password/forgot` - Request password reset
 - ✓ `POST /api/v1/core/auth/password/reset` - Reset password with token
 
 #### Device Management
+
 - ✓ `GET /api/v1/core/auth/devices` - List user's devices
 - ✓ `DELETE /api/v1/core/auth/devices/{deviceId}` - Remove device
 
@@ -684,11 +737,13 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 **Blazor application shell and layout**
 
 #### Project Setup
+
 - ✓ Create Blazor project using InteractiveAuto render mode
 - ✓ Set up project file with necessary dependencies
 - ✓ Configure authentication/authorization services
 
 #### Authentication Pages
+
 - ✓ Create login page component
 - ✓ Create registration page component
 - ✓ Create password reset page component
@@ -696,11 +751,13 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Create external provider login page
 
 #### User Home Dashboard
+
 - ✓ Create role-aware non-admin home dashboard at `/`
 - ✓ Show non-admin quick actions and module app cards on home page
 - ✓ Keep admin shortcuts visible only to users with `RequireAdmin`
 
 #### Admin Dashboard
+
 - ✓ Create admin layout/shell
 - ✓ Create dashboard home page
 - ✓ Create module management section:
@@ -718,6 +775,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Create health monitoring dashboard
 
 #### Module Plugin System
+
 - ✓ Create dynamic component loader for modules
 - ✓ Implement module navigation registration
 - ✓ Create module UI extension mechanism
@@ -748,6 +806,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Persist Files/Chat module data across server restarts/redeploys using on-disk module databases
 
 #### Theme & Branding
+
 - ✓ Create base theme/styling system
 - ✓ Implement light/dark mode toggle
 - ✓ Create responsive layout components
@@ -755,6 +814,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Set up brand assets/logos
 
 #### Error & Notification UI
+
 - ✓ Create error boundary component
 - ✓ Implement exception display
 - ✓ Create notification/toast system
@@ -770,6 +830,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 **Reusable Blazor components**
 
 #### Form Components
+
 - ✓ Create input text component
 - ✓ Create password input component
 - ✓ Create email input component
@@ -781,6 +842,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Create form validation display
 
 #### Data Display Components
+
 - ✓ Create data table/grid component
   - ✓ Sorting
   - ✓ Filtering
@@ -791,28 +853,33 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Create accordion component
 
 #### Dialog Components
+
 - ✓ Create modal dialog component
 - ✓ Create confirmation dialog component
 - ✓ Create alert dialog component
 
 #### Navigation Components
+
 - ✓ Create sidebar navigation component
 - ✓ Create top navigation bar component
 - ✓ Create menu component
 - ✓ Create button component with variants
 
 #### Notification Components
+
 - ✓ Create toast notification component
 - ✓ Create alert component
 - ✓ Create badge component
 
 #### Layout Components
+
 - ✓ Create card component
 - ✓ Create panel component
 - ✓ Create section component
 - ✓ Create responsive grid component
 
 #### Styling
+
 - ✓ Create CSS/SCSS base styles
 - ✓ Set up theme color variables
 - ✓ Create utility classes
@@ -827,6 +894,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 **Command-line interface for administration**
 
 #### Project Setup
+
 - ✓ Create console application project
 - ✓ Integrate System.CommandLine library
 - ✓ Set up command structure
@@ -834,6 +902,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 #### Core Commands
 
 ##### Setup Command
+
 - ✓ `dotnetcloud setup` - Interactive first-run wizard
   - ✓ Database selection (PostgreSQL/SQL Server/MariaDB)
   - ✓ Connection string configuration
@@ -846,6 +915,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
   - ✓ Save configuration
 
 ##### Service Commands
+
 - ✓ `dotnetcloud serve` - Start all services
 - ✓ `dotnetcloud stop` - Graceful shutdown
 - ✓ `dotnetcloud status` - Show service & module status
@@ -853,6 +923,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ `dotnetcloud restart` - Restart all services
 
 ##### Module Commands
+
 - ✓ `dotnetcloud module list` - List all modules
 - ✓ `dotnetcloud module start {module}` - Start specific module
 - ✓ `dotnetcloud module stop {module}` - Stop specific module
@@ -861,27 +932,32 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ `dotnetcloud module uninstall {module}` - Uninstall module
 
 ##### Component Commands
+
 - ✓ `dotnetcloud component status {component}` - Check component status
 - ✓ `dotnetcloud component restart {component}` - Restart component
 
 ##### Logging Commands
+
 - ✓ `dotnetcloud logs` - View system logs
 - ✓ `dotnetcloud logs {module}` - View module-specific logs
 - ✓ `dotnetcloud logs --level {level}` - Filter by log level
 - ✓ Read-only commands handle unreadable system config (`/etc/dotnetcloud/config.json`) without crashing
 
 ##### Backup Commands
+
 - ✓ `dotnetcloud backup` - Create backup
 - ✓ `dotnetcloud backup --output {path}` - Backup to specific location
 - ✓ `dotnetcloud restore {file}` - Restore from backup
 - ✓ `dotnetcloud backup --schedule daily` - Schedule automatic backups
 
 ##### Miscellaneous Commands
+
 - ✓ `dotnetcloud update` - Check and apply updates
 - ✓ `dotnetcloud help` - Show command reference
 - ✓ `dotnetcloud help {command}` - Show command-specific help
 
 #### Unit Tests
+
 - ✓ Create `DotNetCloud.CLI.Tests` project with MSTest
 - ✓ `CliConfigTests` — 16 tests (defaults, JSON roundtrip, save/load)
 - ✓ `ConsoleOutputTests` — 16 tests (FormatStatus color indicators, case insensitivity)
@@ -898,11 +974,13 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 **Reference implementation of a module**
 
 #### Module Structure
+
 - ✓ Create `DotNetCloud.Modules.Example` (core logic)
 - ✓ Create `DotNetCloud.Modules.Example.Data` (EF Core context)
 - ✓ Create `DotNetCloud.Modules.Example.Host` (gRPC host)
 
 #### Module Implementation
+
 - ✓ Create `ExampleModuleManifest` implementing `IModuleManifest`
 - ✓ Create example data model
 - ✓ Create `ExampleDbContext` extending `DbContext`
@@ -912,22 +990,26 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Create example event publishing/subscription
 
 #### Blazor UI Components
+
 - ✓ Create example module page
 - ✓ Create example data display
 - ✓ Create example form
 
 #### gRPC Service
+
 - ✓ Define `.proto` service
 - ✓ Implement gRPC service
 - ✓ Create health check implementation
 
 #### Documentation
+
 - ✓ Create inline code documentation
 - ✓ Write module-specific README
 - ✓ Document manifest and capabilities
 - ✓ Provide example usage patterns
 
 #### Unit Tests
+
 - ✓ Create `DotNetCloud.Modules.Example.Tests` project with MSTest
 - ✓ `ExampleModuleManifestTests` — 10 tests (Id, Name, Version, capabilities, events, IModuleManifest)
 - ✓ `ExampleModuleTests` — 22 tests (lifecycle, notes CRUD, event pub/sub, error states)
@@ -1159,6 +1241,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 ### Module System
 
 #### Core Module Functionality (Verified — 51 module tests + 259 server tests pass)
+
 - ✓ Example module loads successfully (ExampleModule + ExampleModuleManifest implemented)
 - ✓ Health checks pass (ExampleHealthCheck in gRPC host)
 - ✓ Module manifest validation works (ModuleManifestLoader with validation rules)
@@ -1179,6 +1262,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Module observability features work (OpenTelemetry metrics + distributed tracing)
 
 #### Module Management (CLI + Admin Dashboard)
+
 - ✓ Module can be started/stopped/restarted via CLI (module start/stop/restart commands)
 - ✓ Module can be granted/revoked capabilities via CLI (admin endpoints)
 - ✓ Module can be monitored via CLI (module list, component status, logs commands)
@@ -1203,6 +1287,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Module can be tested with unit tests and integration tests
 
 #### Module Deployment
+
 - ✓ Module can be deployed and run in Docker container (Dockerfile + docker-compose)
 - ✓ Module can be deployed and run on Windows (cross-platform .NET 10)
 - ✓ Module can be deployed and run on Linux (cross-platform .NET 10, CI on Linux)
@@ -1211,6 +1296,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ Module can be deployed and run in cloud environments (Docker support enables this)
 
 #### Module as Reference Implementation
+
 - ✓ Module serves as a reference implementation for new module development
 - ✓ Module serves as a testbed for new core framework features
 - ✓ Module demonstrates best practices in module development
@@ -1294,6 +1380,7 @@ This phase implements the core Files module, which is the primary public-facing 
 **Create file module project and core domain models**
 
 #### Project Setup
+
 - ✓ Create `DotNetCloud.Modules.Files` class library project
 - ✓ Create `DotNetCloud.Modules.Files.Data` class library project (EF Core)
 - ✓ Create `DotNetCloud.Modules.Files.Host` ASP.NET Core project (gRPC host)
@@ -1302,6 +1389,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Configure project references and `InternalsVisibleTo`
 
 #### Files Module Manifest
+
 - ✓ Create `FilesModuleManifest` implementing `IModuleManifest`:
   - ✓ `Id` → `"dotnetcloud.files"`
   - ✓ `Name` → `"Files"`
@@ -1311,6 +1399,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ `SubscribedEvents` → (none)
 
 #### FileNode Model
+
 - ✓ Create `FileNode` entity:
   - ✓ `Guid Id` primary key
   - ✓ `string Name` property (display name)
@@ -1336,6 +1425,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Create `FileNodeType` enum (File, Folder)
 
 #### FileVersion Model
+
 - ✓ Create `FileVersion` entity:
   - ✓ `Guid Id` primary key
   - ✓ `Guid FileNodeId` FK
@@ -1349,6 +1439,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ `string? Label` property (optional version label)
 
 #### FileChunk Model
+
 - ✓ Create `FileChunk` entity:
   - ✓ `Guid Id` primary key
   - ✓ `string ChunkHash` property (SHA-256, deduplication key)
@@ -1359,12 +1450,14 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ `DateTime LastReferencedAt` property
 
 #### FileVersionChunk Model
+
 - ✓ Create `FileVersionChunk` entity:
   - ✓ Composite primary key (`FileVersionId`, `FileChunkId`, `SequenceIndex`)
   - ✓ FK to `FileVersion`, FK to `FileChunk`
 - ✓ Create `FileVersionChunkId` composite key struct for EF Core
 
 #### FileShare Model
+
 - ✓ Create `FileShare` entity:
   - ✓ `Guid Id` primary key
   - ✓ `Guid FileNodeId` FK
@@ -1385,6 +1478,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Create `SharePermission` enum (Read, ReadWrite, Full)
 
 **Device & Module Registry Models**
+
 - ✓ Create `UserDevice` entity:
   - ✓ `Guid UserId` FK
   - ✓ `string Name` property (e.g., "Windows Laptop")
@@ -1403,6 +1497,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ `Guid? GrantedByUserId` (admin who approved)
 
 #### EF Core Configuration
+
 - ✓ Create `CoreDbContext` class extending `IdentityDbContext<ApplicationUser, ApplicationRole, Guid>`
 - ✓ Configure all entity relationships
 - ✓ Set up automatic timestamps (CreatedAt, UpdatedAt)
@@ -1411,6 +1506,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Create design-time factory for migrations
 
 #### Database Initialization
+
 - ✓ Create `DbInitializer` class:
   - ✓ Database creation
   - ✓ Seed default system roles
@@ -1430,6 +1526,7 @@ This phase implements the core Files module, which is the primary public-facing 
 **Create EF Core database context and configurations**
 
 #### Entity Configurations
+
 - ✓ Create `FileNodeConfiguration` (IEntityTypeConfiguration):
   - ✓ Table name via naming strategy (`files.file_nodes` / `files_file_nodes`)
   - ✓ Index on `ParentId`
@@ -1466,6 +1563,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Index on `ExpiresAt`
 
 #### FilesDbContext
+
 - ✓ Create `FilesDbContext` class extending `DbContext`:
   - ✓ `DbSet<FileNode> FileNodes`
   - ✓ `DbSet<FileVersion> FileVersions`
@@ -1479,11 +1577,13 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Apply all entity configurations in `OnModelCreating`
 
 #### Migrations
+
 - ✓ Create PostgreSQL initial migration
 - ✓ Create SQL Server initial migration
 - ☐ Create MariaDB initial migration (when Pomelo supports .NET 10)
 
 #### Database Initialization
+
 - ✓ Create `FilesDbInitializer`:
   - ✓ Create default root folder per user
   - ✓ Seed default quota settings from system configuration
@@ -1498,6 +1598,7 @@ This phase implements the core Files module, which is the primary public-facing 
 **Core file management business logic**
 
 #### File Service
+
 - ✓ Create `IFileService` interface:
   - ✓ `Task<FileNodeDto> GetNodeAsync(Guid nodeId, CallerContext caller)`
   - ✓ `Task<IReadOnlyList<FileNodeDto>> ListChildrenAsync(Guid folderId, CallerContext caller)`
@@ -1517,6 +1618,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Enforce depth limits for folder nesting
 
 #### Chunked Upload Service
+
 - ✓ Create `IChunkedUploadService` interface:
   - ✓ `Task<UploadSessionDto> InitiateUploadAsync(InitiateUploadDto dto, CallerContext caller)`
   - ✓ `Task UploadChunkAsync(Guid sessionId, string chunkHash, ReadOnlyMemory<byte> data, CallerContext caller)`
@@ -1532,6 +1634,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Reject exact duplicate sibling/root filenames on upload completion
 
 #### Download Service
+
 - ✓ Create `IDownloadService` interface:
   - ✓ `Task<Stream> DownloadCurrentAsync(Guid fileNodeId, CallerContext caller)`
   - ✓ `Task<Stream> DownloadVersionAsync(Guid fileVersionId, CallerContext caller)`
@@ -1541,6 +1644,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Validate access permissions (owner/shared) in service layer, including chunk-hash access gating
 
 #### Version Service
+
 - ✓ Create `IVersionService` interface:
   - ✓ `Task<IReadOnlyList<FileVersionDto>> ListVersionsAsync(Guid fileNodeId, CallerContext caller)`
   - ✓ `Task<FileVersionDto?> GetVersionAsync(Guid versionId, CallerContext caller)`
@@ -1553,6 +1657,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ☐ Enforce configurable version retention limits (deferred)
 
 #### Share Service
+
 - ✓ Create `IShareService` interface:
   - ✓ `Task<FileShareDto> CreateShareAsync(Guid fileNodeId, CreateShareDto dto, CallerContext caller)`
   - ✓ `Task<IReadOnlyList<FileShareDto>> GetSharesAsync(Guid fileNodeId, CallerContext caller)`
@@ -1569,6 +1674,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Send notifications to share recipients (FileSharedNotificationHandler + NotificationEventSubscriber)
 
 #### Trash Service
+
 - ✓ Create `ITrashService` interface:
   - ✓ `Task<IReadOnlyList<TrashItemDto>> ListTrashAsync(CallerContext caller)`
   - ✓ `Task<FileNodeDto> RestoreAsync(Guid nodeId, CallerContext caller)`
@@ -1583,6 +1689,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Auto-cleanup expired trash items (30-day retention via TrashCleanupService)
 
 #### Quota Service
+
 - ✓ Create `IQuotaService` interface:
   - ✓ `Task<QuotaDto> GetQuotaAsync(Guid userId, CallerContext caller)`
   - ✓ `Task<QuotaDto> SetQuotaAsync(Guid userId, long maxBytes, CallerContext caller)`
@@ -1594,6 +1701,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Send warning notifications at 80% and 95% usage (QuotaNotificationHandler — QuotaWarningEvent + QuotaCriticalEvent)
 
 #### Tag Service
+
 - ✓ Create `ITagService` interface:
   - ✓ `Task<FileTagDto> AddTagAsync(Guid fileNodeId, string name, string? color, CallerContext caller)`
   - ✓ `Task RemoveTagAsync(Guid fileNodeId, Guid tagId, CallerContext caller)`
@@ -1602,6 +1710,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Implement `TagService`
 
 #### Comment Service
+
 - ✓ Create `ICommentService` interface:
   - ✓ `Task<FileCommentDto> AddCommentAsync(Guid fileNodeId, string content, Guid? parentCommentId, CallerContext caller)`
   - ✓ `Task<FileCommentDto> EditCommentAsync(Guid commentId, string content, CallerContext caller)`
@@ -1611,6 +1720,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Implement `CommentService`
 
 #### Background Services
+
 - ✓ Create `UploadSessionCleanupService` (IHostedService):
   - ✓ Periodically expire stale upload sessions
   - ✓ Delete orphaned chunks from expired sessions
@@ -1629,6 +1739,7 @@ This phase implements the core Files module, which is the primary public-facing 
 **REST API for file operations**
 
 #### File & Folder Endpoints (FilesController)
+
 - ✓ Expose `/api/v1/files/*` endpoints from core server for bare-metal single-process installs (no separate Files host routing required)
 - ✓ `GET /api/v1/files` — List files/folders in directory (paginated, sorted)
 - ✓ `GET /api/v1/files/{nodeId}` — Get file/folder by ID
@@ -1643,6 +1754,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ `GET /api/v1/files/search` — Search files by name/content
 
 #### Upload Endpoints (FilesController)
+
 - ✓ `POST /api/v1/files/upload/initiate` — Initiate chunked upload session
 - ✓ `PUT /api/v1/files/upload/{sessionId}/chunks/{chunkHash}` — Upload a chunk
 - ✓ `POST /api/v1/files/upload/{sessionId}/complete` — Complete upload session
@@ -1650,12 +1762,14 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ `GET /api/v1/files/upload/{sessionId}` — Get upload session status
 
 #### Download Endpoints (FilesController)
+
 - ✓ `GET /api/v1/files/{nodeId}/download` — Download file content
 - ✓ `GET /api/v1/files/{nodeId}/download?version={n}` — Download specific version
 - ✓ `GET /api/v1/files/{nodeId}/chunks` — Get chunk manifest (for sync clients)
 - ✓ Harden download MIME fallback (`FilesController.DownloadAsync`) to treat null/empty/whitespace MIME values as `application/octet-stream` and prevent HTTP 500 `FormatException`
 
 #### Version Endpoints (VersionController)
+
 - ✓ `GET /api/v1/files/{nodeId}/versions` — List file versions
 - ✓ `GET /api/v1/files/{nodeId}/versions/{versionNumber}` — Get specific version
 - ✓ `POST /api/v1/files/{nodeId}/versions/{versionNumber}/restore` — Restore version
@@ -1663,6 +1777,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ `PUT /api/v1/files/{nodeId}/versions/{versionNumber}/label` — Label a version
 
 #### Share Endpoints (ShareController)
+
 - ✓ `POST /api/v1/files/{nodeId}/shares` — Create share
 - ✓ `GET /api/v1/files/{nodeId}/shares` — List shares for node
 - ✓ `DELETE /api/v1/files/{nodeId}/shares/{shareId}` — Remove share
@@ -1671,6 +1786,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ `GET /api/v1/files/public/{linkToken}` — Access public shared file/folder
 
 #### Trash Endpoints (TrashController)
+
 - ✓ `GET /api/v1/files/trash` — List trash items (paginated)
 - ✓ `POST /api/v1/files/trash/{nodeId}/restore` — Restore from trash
 - ✓ `DELETE /api/v1/files/trash/{nodeId}` — Permanently delete
@@ -1678,30 +1794,35 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ `GET /api/v1/files/trash/size` — Get total trash size
 
 #### Quota Endpoints (QuotaController)
+
 - ✓ `GET /api/v1/files/quota` — Get current user's quota
 - ✓ `GET /api/v1/files/quota/{userId}` — Get specific user's quota (admin)
 - ✓ `PUT /api/v1/files/quota/{userId}` — Set user quota (admin)
 - ✓ `POST /api/v1/files/quota/{userId}/recalculate` — Force recalculation (admin)
 
 #### Tag Endpoints (TagController)
+
 - ✓ `POST /api/v1/files/{nodeId}/tags` — Add tag to node
 - ✓ `DELETE /api/v1/files/{nodeId}/tags/{tagName}` — Remove tag from node
 - ✓ `GET /api/v1/files/tags` — List all user's tags
 - ✓ `GET /api/v1/files/tags/{tagName}` — List files with specific tag
 
 #### Comment Endpoints (CommentController)
+
 - ✓ `POST /api/v1/files/{nodeId}/comments` — Add comment
 - ✓ `GET /api/v1/files/{nodeId}/comments` — List comments
 - ✓ `PUT /api/v1/files/comments/{commentId}` — Edit comment
 - ✓ `DELETE /api/v1/files/comments/{commentId}` — Delete comment
 
 #### Bulk Operation Endpoints (BulkController)
+
 - ✓ `POST /api/v1/files/bulk/move` — Move multiple items
 - ✓ `POST /api/v1/files/bulk/copy` — Copy multiple items
 - ✓ `POST /api/v1/files/bulk/delete` — Delete multiple items (to trash)
 - ✓ `POST /api/v1/files/bulk/permanent-delete` — Permanently delete multiple items
 
 #### Sync Endpoints (SyncController)
+
 - ✓ `POST /api/v1/files/sync/reconcile` — Reconcile local state with server
 - ✓ `GET /api/v1/files/sync/changes?since={timestamp}` — Get changes since timestamp
 - ✓ `GET /api/v1/files/sync/tree?folderId={id}` — Get full folder tree with hashes
@@ -1715,6 +1836,7 @@ This phase implements the core Files module, which is the primary public-facing 
 **Content-hash deduplication and resumable transfers**
 
 #### Chunked Upload Pipeline
+
 - ✓ Implement file splitting into 4MB chunks (client-side and server-side) — `ContentHasher.ChunkAndHashAsync`, `DefaultChunkSize = 4MB`
 - ✓ Implement SHA-256 hashing per chunk — `ContentHasher.ComputeHash`
 - ✓ Implement chunk manifest generation (ordered list of hashes) — `ContentHasher.ComputeManifestHash`
@@ -1725,18 +1847,21 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Assemble file from chunks on completion (link `FileVersionChunk` records) — `CompleteUploadAsync`
 
 #### Chunked Download Pipeline
+
 - ✓ Serve files as chunked streams for large files — `DownloadService` + seekable `ConcatenatedStream`
 - ✓ Support HTTP range requests for partial downloads — `ConcatenatedStream` is seekable; `FilesController.DownloadAsync` uses `enableRangeProcessing: true`
 - ✓ Serve individual chunks by hash (for sync clients) — `DownloadChunkByHashAsync` + `GET /api/v1/files/chunks/{chunkHash}`
 - ✓ Serve chunk manifests for sync reconciliation — `GetChunkManifestAsync` + `GET /api/v1/files/{nodeId}/chunks`
 
 #### Content-Hash Deduplication
+
 - ✓ Implement cross-user deduplication (identical chunks stored once) — shared `FileChunks` table keyed by hash
 - ✓ Track chunk reference counts across file versions — `FileChunk.ReferenceCount` incremented/decremented
 - ✓ Garbage-collect unreferenced chunks (reference count = 0) — `TrashCleanupService` + `UploadSessionCleanupService` GC pass
 - ✓ Monitor deduplication savings in storage metrics — `IStorageMetricsService` + `GET /api/v1/files/storage/metrics`
 
 #### Upload Session Management
+
 - ✓ Implement session creation with quota pre-check — `InitiateUploadAsync` calls `IQuotaService.HasSufficientQuotaAsync`
 - ✓ Track session progress (received vs. total chunks) — `ReceivedChunks`/`TotalChunks` updated on each `UploadChunkAsync`
 - ✓ Expire stale sessions (configurable TTL, default 24h) — `UploadSessionCleanupService` 1h interval
@@ -1752,12 +1877,14 @@ This phase implements the core Files module, which is the primary public-facing 
 **User, team, group, and public link sharing**
 
 #### Share Types
+
 - ✓ Implement User shares (share with specific user by ID)
 - ✓ Implement Team shares (share with all members of a team)
 - ✓ Implement Group shares (share with a cross-team group)
 - ✓ Implement PublicLink shares (generate shareable URL)
 
 #### Public Link Features
+
 - ✓ Generate cryptographically random link tokens
 - ✓ Optional password protection (hashed storage)
 - ✓ Download count tracking
@@ -1766,6 +1893,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Public link access without authentication (`PublicShareController`)
 
 #### Permission Enforcement
+
 - ✓ Enforce Read permission (view and download only)
 - ✓ Enforce ReadWrite permission (upload, rename, move within shared folder)
 - ✓ Enforce Full permission (all operations including re-share and delete)
@@ -1773,6 +1901,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Validate permissions on every file operation (`IPermissionService`)
 
 #### Share Notifications
+
 - ✓ Notify users when files/folders are shared with them (via `FileSharedEvent`)
 - ✓ Notify share creator on first access of public link
 - ✓ Send notification when share is about to expire
@@ -1786,22 +1915,26 @@ This phase implements the core Files module, which is the primary public-facing 
 **File version history, restore, and retention**
 
 #### Version Creation
+
 - ✓ Create new version on every file content update
 - ✓ Link version to its constituent chunks via `FileVersionChunk`
 - ✓ Track version creator and timestamp
 - ✓ Support optional version labels (e.g., "Final draft")
 
 #### Version Retrieval
+
 - ✓ List all versions of a file (newest first)
 - ✓ Download specific version content
 - ✓ Compare version metadata (size, date, author)
 
 #### Version Restore
+
 - ✓ Restore creates a new version with old version's content
 - ✓ Reuse existing chunks (no duplicate storage)
 - ✓ Publish `FileVersionRestoredEvent` on restore
 
 #### Version Retention
+
 - ✓ Configurable maximum version count per file
 - ✓ Configurable retention period (e.g., keep versions for 30 days)
 - ✓ Auto-cleanup oldest versions when limits exceeded
@@ -1817,6 +1950,7 @@ This phase implements the core Files module, which is the primary public-facing 
 **Soft-delete, restore, and permanent cleanup**
 
 #### Soft-Delete
+
 - ✓ Move items to trash (set `IsDeleted`, `DeletedAt`, `DeletedByUserId`)
 - ✓ Preserve original parent ID for restore (`OriginalParentId`)
 - ✓ Cascade soft-delete to children (folders)
@@ -1824,12 +1958,14 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Publish `FileDeletedEvent` on trash
 
 #### Restore
+
 - ✓ Restore to original parent folder
 - ✓ Handle case where original parent was also deleted (restore to root)
 - ✓ Restore child items when parent folder is restored
 - ✓ Re-validate name uniqueness in target folder on restore (auto-rename)
 
 #### Permanent Delete
+
 - ✓ Delete file versions and their chunk mappings
 - ✓ Decrement chunk reference counts
 - ✓ Garbage-collect chunks with zero references
@@ -1837,6 +1973,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Update user quota (reduce used bytes)
 
 #### Auto-Cleanup
+
 - ✓ Configurable trash retention period (default: 30 days) via `TrashRetentionOptions`
 - ✓ Background service permanently deletes expired trash items
 - ✓ Admin can configure retention per organization (TrashRetentionOptions.OrganizationOverrides + per-org TrashCleanupService logic)
@@ -1850,23 +1987,27 @@ This phase implements the core Files module, which is the primary public-facing 
 **Per-user and per-organization storage limits**
 
 #### Quota Enforcement
+
 - ✓ Check quota before accepting file uploads
 - ✓ Check quota before file copy operations
 - ✓ Return clear error response when quota exceeded (`FILES_QUOTA_EXCEEDED`)
 - ✓ Exclude trashed items from quota calculation (configurable)
 
 #### Quota Administration
+
 - ✓ Admin can set per-user quota limits
 - ✓ Admin can set default quota for new users
 - ✓ Admin can view quota usage across all users
 - ✓ Admin can force quota recalculation
 
 #### Quota Notifications
+
 - ✓ Warning notification at 80% usage
 - ✓ Critical notification at 95% usage
 - ✓ Notification when quota is exceeded (prevent further uploads)
 
 #### Quota Display
+
 - ✓ Show quota usage in file browser UI (progress bar)
 - ✓ Show quota in admin user management
 
@@ -1879,6 +2020,7 @@ This phase implements the core Files module, which is the primary public-facing 
 **Browser-based document editing via Collabora CODE/Online**
 
 #### WOPI Endpoints
+
 - ✓ `GET /api/v1/wopi/files/{fileId}` — CheckFileInfo (file metadata)
 - ✓ `GET /api/v1/wopi/files/{fileId}/contents` — GetFile (download content)
 - ✓ `POST /api/v1/wopi/files/{fileId}/contents` — PutFile (save edited content)
@@ -1888,6 +2030,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Implement WOPI proof key validation (Collabora signature verification)
 
 #### WOPI Integration
+
 - ✓ Read file content from `IFileStorageEngine` in GetFile
 - ✓ Write saved content via chunked upload pipeline in PutFile
 - ✓ Create new file version on each PutFile save
@@ -1895,6 +2038,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Support concurrent editing (Collabora handles OT internally)
 
 #### Collabora CODE Management
+
 - ✓ Implement Collabora CODE download and auto-installation in `dotnetcloud setup` + `dotnetcloud install collabora`
 - ✓ Ensure `tools/install.sh` auto-installs Collabora CODE when setup selection persists `collaboraMode: BuiltIn`
 - ✓ Harden `tools/install.sh` built-in Collabora post-install to auto-manage `coolwsd.xml` WOPI alias groups for the configured DotNetCloud origin (preferring `Files__Collabora__ServerUrl` from `dotnetcloud.env`), enforce safe file ownership/mode (`root:cool`, `640`), and restart/validate `coolwsd`
@@ -1906,12 +2050,14 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Create Collabora health check
 
 #### Collabora Configuration
+
 - ✓ Admin UI for Collabora server URL (built-in CODE vs. external) — `/admin/collabora` Blazor page
 - ✓ Auto-save interval configuration (`CollaboraOptions.AutoSaveIntervalSeconds`)
 - ✓ Maximum concurrent document sessions configuration (`IWopiSessionTracker`)
 - ✓ Supported file format configuration (`CollaboraOptions.SupportedMimeTypes` filtering)
 
 #### Blazor Integration
+
 - ✓ Create document editor component (iframe embedding Collabora UI)
 - ✓ Open supported documents in editor from file browser
 - ✓ Ensure file/folder opening actions are single-click only (no double-click dependency)
@@ -1943,6 +2089,7 @@ This phase implements the core Files module, which is the primary public-facing 
 **Blazor file management interface**
 
 #### File Browser Component
+
 - ✓ Create `FileBrowser.razor` main component:
   - ✓ Grid view (icon + name + size + date)
   - ✓ List view (tabular with columns)
@@ -1959,6 +2106,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Root and folder listings deduplicate tagged nodes from data-service queries
 
 #### File Upload Component
+
 - ✓ Create `FileUploadComponent.razor`:
   - ✓ File selection button
   - ✓ Drag-and-drop upload area
@@ -1969,6 +2117,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Size validation before upload — client-side check via /api/v1/files/config endpoint
 
 #### File Preview Component
+
 - ✓ Create `FilePreview.razor`:
   - ✓ Image preview (inline `<img>` for JPEG, PNG, GIF, WebP, SVG)
   - ✓ Video preview (HTML5 `<video>` player with controls)
@@ -1980,6 +2129,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Navigation between files in same folder (prev/next arrows, ← → keyboard shortcuts)
 
 #### Share Dialog Component
+
 - ✓ Create `ShareDialog.razor`:
   - ✓ User search for sharing
   - ✓ Permission selection (Read, ReadWrite, Full)
@@ -1991,6 +2141,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ☐ Existing shares list with remove action — deferred: requires GET /api/v1/files/{id}/shares API client wiring
 
 #### Trash Bin Component
+
 - ✓ Create `TrashBin.razor`:
   - ✓ List trashed items with deleted date
   - ✓ Restore button per item
@@ -2001,6 +2152,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Bulk restore / bulk delete
 
 #### Sidebar & Navigation
+
 - ✓ Create file browser sidebar (`FileSidebar.razor`):
   - ✓ "All Files" navigation item
   - ✓ "Favorites" navigation item
@@ -2012,6 +2164,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Storage quota display (progress bar + text)
 
 #### Version History Panel
+
 - ✓ Create version history side panel (`VersionHistoryPanel.razor`):
   - ✓ List versions with date, author, and size
   - ✓ Download specific version
@@ -2020,6 +2173,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Delete old versions
 
 #### Comments Panel
+
 - ✓ Create comments side panel (`CommentsPanel.razor`):
   - ✓ List threaded comments with author and timestamp
   - ✓ Add new top-level comment
@@ -2033,6 +2187,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Ctrl+Enter keyboard shortcut to submit
 
 #### Settings & Admin UI
+
 - ✓ Create Files module settings page (`FilesAdminSettings.razor`):
   - ✓ Default quota for new users
   - ✓ Trash retention period
@@ -2050,12 +2205,14 @@ This phase implements the core Files module, which is the primary public-facing 
 **Advanced upload and preview capabilities**
 
 #### Drag-and-Drop Upload
+
 - ✓ Implement drag-and-drop zone on file browser (counter-based to avoid flicker)
 - ✓ Visual indicator when dragging files over drop zone (`browser-drop-overlay`)
 - ✓ Support folder drag-and-drop (recursive upload) via JS DataTransfer directory traversal bridge
 - ✓ Show upload progress overlay on file browser (UploadProgressPanel inside upload dialog)
 
 #### Upload Progress Tracking
+
 - ✓ Create upload progress panel (`UploadProgressPanel.razor`):
   - ✓ Per-file progress bar (chunk-level accuracy via simulated chunks)
   - ✓ Overall upload progress (aggregate average across all files)
@@ -2066,6 +2223,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Minimize/expand progress panel (collapsible header toggle)
 
 #### Thumbnail Generation
+
 - ✓ Generate thumbnails for image files on upload (`ThumbnailService` using ImageSharp 3.1.12)
 - ✓ Generate thumbnails for video files (first frame) via FFmpeg extraction pipeline (`IVideoFrameExtractor` + `FfmpegVideoFrameExtractor`)
 - ✓ Generate thumbnails for PDF files (first page) via PDF renderer bridge (`IPdfPageRenderer` + `PdftoppmPdfPageRenderer`)
@@ -2074,6 +2232,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Display thumbnails in grid view (FileBrowser renders `<img>` when `ThumbnailUrl` is set)
 
 #### Advanced Preview
+
 - ✓ Create full-screen preview mode (`FilePreview.razor` modal overlay)
 - ✓ Support keyboard navigation (← → for prev/next file, Escape to close)
 - ✓ Support touch gestures (swipe navigation, pinch-zoom for image previews) via JS interop bridge
@@ -2090,6 +2249,7 @@ This phase implements the core Files module, which is the primary public-facing 
 **Share management and Files module administration**
 
 #### Share Management UI
+
 - ✓ Create comprehensive share dialog:
   - ✓ Search users by name/email for sharing
   - ✓ Search teams for sharing
@@ -2109,6 +2269,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Manage/revoke shares inline
 
 #### Files Module Admin Settings
+
 - ✓ Create admin settings page for Files module:
   - ✓ Storage backend configuration
   - ✓ Default quota management
@@ -2126,11 +2287,13 @@ This phase implements the core Files module, which is the primary public-facing 
 **Shared library for all clients (sync engine, API, auth, local state)**
 
 #### Project Setup
+
 - ✓ Create `DotNetCloud.Client.Core` class library project
 - ✓ Add to `DotNetCloud.sln`
 - ✓ Configure dependencies (HttpClient, SQLite, System.IO, etc.)
 
 #### API Client
+
 - ✓ Create `IDotNetCloudApiClient` interface:
   - ✓ Authentication (login, token refresh, logout)
   - ✓ File operations (list, create, rename, move, copy, delete)
@@ -2144,6 +2307,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Honor `Retry-After` delta/date with capped wait + jitter to reduce retry stampedes
 
 #### OAuth2 PKCE Authentication
+
 - ✓ Implement OAuth2 Authorization Code with PKCE flow
 - ✓ Launch system browser for authentication
 - ✓ Handle redirect URI callback (localhost listener)
@@ -2152,6 +2316,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Handle token revocation
 
 #### Sync Engine
+
 - ✓ Create `ISyncEngine` interface:
   - ✓ `Task SyncAsync(SyncContext context, CancellationToken cancellationToken)`
   - ✓ `Task<SyncStatus> GetStatusAsync(SyncContext context)`
@@ -2167,6 +2332,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Conflict detection and resolution (conflict copy with guided notification)
 
 #### Chunked Transfer Client
+
 - ✓ Implement client-side file chunking (4MB chunks)
 - ✓ Implement client-side SHA-256 hashing per chunk
 - ✓ Implement client-side chunk manifest generation
@@ -2176,6 +2342,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Configurable concurrent chunk upload/download count
 
 #### Conflict Resolution
+
 - ✓ Detect conflicts (local and remote both modified since last sync)
 - ✓ Create conflict copies: `report (conflict - Ben - 2025-07-14).docx`
 - ✓ Notify user of conflicts (via SyncTray notification)
@@ -2186,6 +2353,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ 24-hour recurring conflict re-notification
 
 #### Local State Database
+
 - ✓ Create SQLite database per sync context:
   - ✓ File metadata table (path, hash, modified time, sync state)
   - ✓ Pending operations queue (uploads, downloads, moves, deletes)
@@ -2194,6 +2362,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Implement state database access layer
 
 #### Selective Sync
+
 - ✓ Implement folder selection for sync (include/exclude)
 - ✓ Persist selective sync configuration per account
 - ✓ Skip excluded folders during sync operations
@@ -2212,12 +2381,14 @@ This phase implements the core Files module, which is the primary public-facing 
 **Background sync service (Windows Service / systemd unit)**
 
 #### Project Setup
+
 - ✓ Create `DotNetCloud.Client.SyncService` .NET Worker Service project
 - ✓ Add to `DotNetCloud.sln`
 - ✓ Configure Windows Service support (`AddWindowsService()`)
 - ✓ Configure systemd support (`AddSystemd()`)
 
 #### Multi-User Support
+
 - ✓ Implement sync context management (one per OS-user + account pair)
 - ✓ Run as system-level service (single process, multiple contexts)
 - ✓ Data isolation: each context has own sync folder, state DB, auth token
@@ -2225,6 +2396,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Windows: impersonate OS user for file system operations — IPC now captures and duplicates the named-pipe caller token, then executes context-scoped operations via `WindowsIdentity.RunImpersonated`
 
 #### IPC Server
+
 - ✓ Implement IPC server for SyncTray communication:
   - ✓ Named Pipe on Windows
   - ✓ Unix domain socket on Linux
@@ -2235,6 +2407,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Events: sync-progress, sync-complete, conflict-detected, error
 
 #### Sync Orchestration
+
 - ✓ Start sync engine per context on service start
 - ✓ Schedule periodic full syncs
 - ✓ Handle file system watcher events
@@ -2243,11 +2416,13 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Graceful shutdown (complete in-progress transfers, save state)
 
 #### Account Management
+
 - ✓ Add account (receive OAuth2 tokens from SyncTray, create sync context)
 - ✓ Remove account (stop sync, delete state DB, optionally delete local files)
 - ✓ Support multiple accounts per OS user (e.g., personal + work server)
 
 #### Error Handling & Recovery
+
 - ✓ Retry failed operations with exponential backoff
 - ✓ Handle network disconnection gracefully (queue changes, retry on reconnect)
 - ✓ Handle server errors (5xx — retry; 4xx — log and skip)
@@ -2263,12 +2438,14 @@ This phase implements the core Files module, which is the primary public-facing 
 **Tray icon, sync status, and settings for desktop users**
 
 #### Project Setup
+
 - ✓ Create `DotNetCloud.Client.SyncTray` Avalonia project
 - ✓ Add to `DotNetCloud.sln`
 - ✓ Configure tray icon support (Windows + Linux)
 - ✓ Configure single-instance enforcement
 
 #### Tray Icon
+
 - ✓ Display tray icon with sync status indicators:
   - ✓ Idle (synced, green check)
   - ✓ Syncing (animated spinner)
@@ -2278,6 +2455,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Show tooltip with sync summary (e.g., "3 files syncing, 2.5 GB free")
 
 #### Tray Context Menu
+
 - ✓ "Open sync folder" (opens file explorer at sync root)
 - ✓ "Open sync service logs" (opens sync service log folder)
 - ✓ "Open tray logs" (opens SyncTray log folder)
@@ -2288,9 +2466,12 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ "Quit"
 
 #### Linux Desktop Integration
+
 - ✓ Start-menu launcher entry (`~/.local/share/applications/dotnetcloud-sync-tray.desktop`) created/maintained at startup with cloud icon asset
+- ✓ Desktop client bundle installers upgraded to SyncTray-only deployment after the SyncService merge; installer reruns now remove stale SyncService service/binary artifacts and avoid Linux self-copy failures during binary permission fixup
 
 #### Settings Window
+
 - ✓ Account management:
   - ✓ List connected accounts (server URL, user, status)
   - ✓ Add account button (launches OAuth2 flow in browser)
@@ -2306,6 +2487,7 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Notification preferences
 
 #### Notifications
+
 - ✓ Show Windows toast / Linux libnotify notifications:
   - ✓ Sync completed
   - ✓ Conflict detected (with "Resolve" action)
@@ -2313,10 +2495,12 @@ This phase implements the core Files module, which is the primary public-facing 
   - ✓ Quota warning (80%, 95%)
 
 #### Regression Validation
+
 - ✓ Run Phase 2.9 regression checklist pass (`dotnet test`: 2013 total, 0 failed)
 - ✓ Run Phase 2.9 quick-reply regression pass (`dotnet test`: 71/71 SyncTray tests pass)
 
 #### Release Hardening
+
 - ✓ Accessibility pass for interactive chat UI controls (`title`/`aria-label` updates across `ChannelList`, `AnnouncementList`, `MessageList`, `DirectMessageView`)
 - ✓ Empty-state copy improvements for channel, DM, announcement, and message views
 - ✓ Error-state handling with `ErrorMessage` support in `ChannelList`, `MessageList`, and `AnnouncementList`
@@ -2324,6 +2508,7 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Settings UI confirms `IsMuteChatNotifications` is wired in `SettingsWindow` (`CheckBox` binding + tooltip)
 
 #### Security Audit Remediation (2026-03-22)
+
 - ✓ Remove hardcoded development server URL default from SyncTray settings (`SettingsViewModel._addAccountServerUrl` now defaults to empty)
 - ✓ Restrict Linux/macOS Unix socket file mode to owner read/write only (`0600`) after bind in SyncService IPC server
 - ✓ Block symlink materialization when resolved symlink target escapes the configured sync root
@@ -2373,6 +2558,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 **Create chat module project and core domain models**
 
 #### Project Setup
+
 - ✓ Create `DotNetCloud.Modules.Chat` class library project
 - ✓ Create `DotNetCloud.Modules.Chat.Data` class library project (EF Core)
 - ✓ Create `DotNetCloud.Modules.Chat.Host` ASP.NET Core project (gRPC host)
@@ -2381,6 +2567,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Configure project references and `InternalsVisibleTo`
 
 #### Chat Module Manifest
+
 - ✓ Create `ChatModuleManifest` implementing `IModuleManifest`:
   - ✓ `Id` → `"dotnetcloud.chat"`
   - ✓ `Name` → `"Chat"`
@@ -2390,6 +2577,7 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ `SubscribedEvents` → `FileUploadedEvent` (for file sharing in chat)
 
 #### Channel Model
+
 - ✓ Create `Channel` entity:
   - ✓ `Guid Id` primary key
   - ✓ `string Name` property
@@ -2406,6 +2594,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Create `ChannelType` enum (Public, Private, DirectMessage, Group)
 
 #### Channel Member Model
+
 - ✓ Create `ChannelMember` entity:
   - ✓ `Guid Id` primary key
   - ✓ `Guid ChannelId` FK
@@ -2421,6 +2610,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Create `NotificationPreference` enum (All, Mentions, None)
 
 #### Message Model
+
 - ✓ Create `Message` entity:
   - ✓ `Guid Id` primary key
   - ✓ `Guid ChannelId` FK
@@ -2436,6 +2626,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Create `MessageType` enum (Text, System, FileShare, Reply)
 
 #### Message Attachment Model
+
 - ✓ Create `MessageAttachment` entity:
   - ✓ `Guid Id` primary key
   - ✓ `Guid MessageId` FK
@@ -2447,6 +2638,7 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ `int SortOrder` property
 
 #### Reaction Model
+
 - ✓ Create `MessageReaction` entity:
   - ✓ `Guid Id` primary key
   - ✓ `Guid MessageId` FK
@@ -2456,6 +2648,7 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ Unique constraint: (`MessageId`, `UserId`, `Emoji`)
 
 #### Mention Model
+
 - ✓ Create `MessageMention` entity:
   - ✓ `Guid Id` primary key
   - ✓ `Guid MessageId` FK
@@ -2466,6 +2659,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Create `MentionType` enum (User, Channel, All)
 
 #### Pinned Message Model
+
 - ✓ Create `PinnedMessage` entity:
   - ✓ `Guid Id` primary key
   - ✓ `Guid ChannelId` FK
@@ -2474,6 +2668,7 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ `DateTime PinnedAt` property
 
 #### Data Transfer Objects (DTOs)
+
 - ✓ Create `ChannelDto`, `CreateChannelDto`, `UpdateChannelDto`
 - ✓ Create `ChannelMemberDto`, `AddChannelMemberDto`
 - ✓ Create `MessageDto`, `SendMessageDto`, `EditMessageDto`
@@ -2484,6 +2679,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Create `UnreadCountDto`
 
 #### Event Definitions
+
 - ✓ Create `MessageSentEvent` implementing `IEvent`
 - ✓ Create `MessageEditedEvent` implementing `IEvent`
 - ✓ Create `MessageDeletedEvent` implementing `IEvent`
@@ -2496,6 +2692,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Create `ReactionRemovedEvent` implementing `IEvent`
 
 #### Event Handlers
+
 - ✓ Create `MessageSentEventHandler` implementing `IEventHandler<MessageSentEvent>`
 - ✓ Create `ChannelCreatedEventHandler` implementing `IEventHandler<ChannelCreatedEvent>`
 
@@ -2508,6 +2705,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 **Create EF Core database context and configurations**
 
 #### Entity Configurations
+
 - ✓ Create `ChannelConfiguration` (IEntityTypeConfiguration)
   - ✓ Table name via naming strategy (`chat.channels` / `chat_channels`)
   - ✓ Index on `OrganizationId`
@@ -2535,6 +2733,7 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ Unique index on (`ChannelId`, `MessageId`)
 
 #### ChatDbContext
+
 - ✓ Create `ChatDbContext` class extending `DbContext`:
   - ✓ `DbSet<Channel> Channels`
   - ✓ `DbSet<ChannelMember> ChannelMembers`
@@ -2548,11 +2747,13 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Create design-time factory for migrations
 
 #### Migrations
+
 - ✓ Create PostgreSQL initial migration
 - ✓ Create SQL Server initial migration
 - ☐ Create MariaDB initial migration (when Pomelo supports .NET 10)
 
 #### Database Initialization
+
 - ✓ Create `ChatDbInitializer`:
   - ✓ Seed default system channels (e.g., `#general`, `#announcements`)
   - ✓ Configure default channel settings
@@ -2566,6 +2767,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 **Core chat business logic**
 
 #### Channel Service
+
 - ✓ Create `IChannelService` interface:
   - ✓ `Task<ChannelDto> CreateChannelAsync(CreateChannelDto dto, CallerContext caller)`
   - ✓ `Task<ChannelDto> GetChannelAsync(Guid channelId, CallerContext caller)`
@@ -2579,6 +2781,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Validate channel name uniqueness within organization
 
 #### Channel Member Service
+
 - ✓ Create `IChannelMemberService` interface:
   - ✓ `Task AddMemberAsync(Guid channelId, Guid userId, CallerContext caller)`
   - ✓ `Task RemoveMemberAsync(Guid channelId, Guid userId, CallerContext caller)`
@@ -2594,6 +2797,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Include `@channel` and `@all` in mention unread-count calculations
 
 #### Message Service
+
 - ✓ Create `IMessageService` interface:
   - ✓ `Task<MessageDto> SendMessageAsync(Guid channelId, SendMessageDto dto, CallerContext caller)`
   - ✓ `Task<MessageDto> EditMessageAsync(Guid messageId, EditMessageDto dto, CallerContext caller)`
@@ -2607,6 +2811,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Enforce message length limits
 
 #### Reaction Service
+
 - ✓ Create `IReactionService` interface:
   - ✓ `Task AddReactionAsync(Guid messageId, string emoji, CallerContext caller)`
   - ✓ `Task RemoveReactionAsync(Guid messageId, string emoji, CallerContext caller)`
@@ -2617,6 +2822,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Verify reaction event payload consistency (`ReactionAddedEvent`, `ReactionRemovedEvent`)
 
 #### Pin Service
+
 - ✓ Create `IPinService` interface:
   - ✓ `Task PinMessageAsync(Guid channelId, Guid messageId, CallerContext caller)`
   - ✓ `Task UnpinMessageAsync(Guid channelId, Guid messageId, CallerContext caller)`
@@ -2627,6 +2833,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Preserve deterministic pinned-message ordering by `PinnedAt` descending
 
 #### Typing Indicator Service
+
 - ✓ Create `ITypingIndicatorService` interface:
   - ✓ `Task NotifyTypingAsync(Guid channelId, CallerContext caller)`
   - ✓ `Task<IReadOnlyList<TypingIndicatorDto>> GetTypingUsersAsync(Guid channelId)`
@@ -2635,6 +2842,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Prune expired and empty channel typing state during reads/cleanup
 
 #### Chat Module Lifecycle
+
 - ✓ Create `ChatModule` implementing `IModule`:
   - ✓ `InitializeAsync` — register services, subscribe to events
   - ✓ `StartAsync` — start background tasks (typing indicator cleanup)
@@ -2650,6 +2858,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 **REST API for chat operations**
 
 #### Channel Endpoints
+
 - ✓ `POST /api/v1/chat/channels` — Create channel
 - ✓ `GET /api/v1/chat/channels` — List channels for current user
 - ✓ `GET /api/v1/chat/channels/{channelId}` — Get channel details
@@ -2659,6 +2868,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ `POST /api/v1/chat/channels/dm/{userId}` — Get or create DM channel
 
 #### Channel Member Endpoints
+
 - ✓ `POST /api/v1/chat/channels/{channelId}/members` — Add member
 - ✓ `DELETE /api/v1/chat/channels/{channelId}/members/{userId}` — Remove member
 - ✓ `GET /api/v1/chat/channels/{channelId}/members` — List members
@@ -2668,6 +2878,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ `GET /api/v1/chat/unread` — Get unread counts for all channels
 
 #### Message Endpoints
+
 - ✓ `POST /api/v1/chat/channels/{channelId}/messages` — Send message
 - ✓ `GET /api/v1/chat/channels/{channelId}/messages` — Get messages (paginated)
 - ✓ `GET /api/v1/chat/channels/{channelId}/messages/{messageId}` — Get single message
@@ -2676,25 +2887,30 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ `GET /api/v1/chat/channels/{channelId}/messages/search` — Search messages
 
 #### Reaction Endpoints
+
 - ✓ `POST /api/v1/chat/messages/{messageId}/reactions` — Add reaction
 - ✓ `DELETE /api/v1/chat/messages/{messageId}/reactions/{emoji}` — Remove reaction
 - ✓ `GET /api/v1/chat/messages/{messageId}/reactions` — Get reactions
 - ✓ Map reaction endpoint service denials/not-found/validation to deterministic REST responses (403/404/400)
 
 #### Pin Endpoints
+
 - ✓ `POST /api/v1/chat/channels/{channelId}/pins/{messageId}` — Pin message
 - ✓ `DELETE /api/v1/chat/channels/{channelId}/pins/{messageId}` — Unpin message
 - ✓ `GET /api/v1/chat/channels/{channelId}/pins` — Get pinned messages
 - ✓ Map pin endpoint service denials/not-found to deterministic REST responses (403/404)
 
 #### Typing Endpoints
+
 - ✓ Map typing endpoint validation failures to deterministic REST responses (400)
 
 #### File Sharing Endpoints
+
 - ✓ `POST /api/v1/chat/channels/{channelId}/messages/{messageId}/attachments` — Attach file to message
 - ✓ `GET /api/v1/chat/channels/{channelId}/files` — List files shared in channel
 
 #### API Verification
+
 - ✓ Add controller/API verification tests for response envelope and deterministic denial-path status mapping
 
 ---
@@ -2706,6 +2922,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 **Integrate chat module with core SignalR hub**
 
 #### Chat SignalR Methods
+
 - ✓ Register chat event handlers in `CoreHub`:
   - ✓ `SendMessage(channelId, content, replyToId?)` — client sends message
   - ✓ `EditMessage(messageId, newContent)` — client edits message
@@ -2717,6 +2934,7 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ `RemoveReaction(messageId, emoji)` — client removes reaction
 
 #### Server-to-Client Broadcasts
+
 - ✓ `NewMessage(channelId, messageDto)` — broadcast to channel members
 - ✓ `MessageEdited(channelId, messageDto)` — broadcast edit
 - ✓ `MessageDeleted(channelId, messageId)` — broadcast deletion
@@ -2728,12 +2946,14 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ `UnreadCountUpdated(channelId, count)` — broadcast unread count
 
 #### Connection Group Management
+
 - ✓ Add users to SignalR groups per channel membership
 - ✓ Remove users from groups when leaving channels
 - ✓ Update groups on channel creation/deletion
 - ✓ Handle reconnection (re-join all channel groups)
 
 #### Presence Integration
+
 - ✓ Extend existing presence tracking for chat-specific status:
   - ✓ Online, Away, Do Not Disturb, Offline
   - ✓ Custom status message support
@@ -2749,6 +2969,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 **Organization-wide broadcast announcements**
 
 #### Announcement Model
+
 - ✓ Create `Announcement` entity:
   - ✓ `Guid Id` primary key
   - ✓ `Guid OrganizationId` FK
@@ -2764,6 +2985,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Create `AnnouncementPriority` enum (Normal, Important, Urgent)
 
 #### Announcement Acknowledgement
+
 - ✓ Create `AnnouncementAcknowledgement` entity:
   - ✓ `Guid Id` primary key
   - ✓ `Guid AnnouncementId` FK
@@ -2772,6 +2994,7 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ Unique constraint: (`AnnouncementId`, `UserId`)
 
 #### Announcement Service
+
 - ✓ Create `IAnnouncementService` interface:
   - ✓ `Task<AnnouncementDto> CreateAsync(CreateAnnouncementDto dto, CallerContext caller)`
   - ✓ `Task<IReadOnlyList<AnnouncementDto>> ListAsync(CallerContext caller)`
@@ -2783,6 +3006,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Implement `AnnouncementService`
 
 #### Announcement Endpoints
+
 - ✓ `POST /api/v1/announcements` — Create announcement (admin)
 - ✓ `GET /api/v1/announcements` — List announcements
 - ✓ `GET /api/v1/announcements/{id}` — Get announcement
@@ -2792,6 +3016,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ `GET /api/v1/announcements/{id}/acknowledgements` — List who acknowledged
 
 #### Real-Time Announcements
+
 - ✓ Broadcast new announcements via SignalR to all connected users
 - ✓ Broadcast urgent announcements with visual/audio notification
 - ✓ Update announcement badge counts in real time
@@ -2805,6 +3030,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 **FCM and UnifiedPush support for mobile clients**
 
 #### Notification Abstractions
+
 - ✓ Create `IPushNotificationService` interface:
   - ✓ `Task SendAsync(Guid userId, PushNotification notification)`
   - ✓ `Task SendToMultipleAsync(IEnumerable<Guid> userIds, PushNotification notification)`
@@ -2824,6 +3050,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Create `NotificationCategory` enum (ChatMessage, ChatMention, Announcement, FileShared, System)
 
 #### FCM Provider
+
 - ✓ Create `FcmPushProvider` implementing `IPushNotificationService`:
   - ✓ Configure Firebase Admin SDK credentials (FcmPushOptions: ProjectId, CredentialsPath, bound from config)
   - ✓ Implement message sending via FCM HTTP v1 API
@@ -2833,6 +3060,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Add admin UI for FCM credential management (PushNotificationSettings.razor admin page)
 
 #### UnifiedPush Provider
+
 - ✓ Create `UnifiedPushProvider` implementing `IPushNotificationService`:
   - ✓ Implement HTTP POST to UnifiedPush distributor endpoint
   - ✓ Handle endpoint URL registration
@@ -2840,6 +3068,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Create UnifiedPush configuration model
 
 #### Notification Routing
+
 - ✓ Create `NotificationRouter`:
   - ✓ Route notifications based on user's registered device provider
   - ✓ Support multiple devices per user
@@ -2848,6 +3077,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Create notification queue for reliability (background processing)
 
 #### Push Notification Endpoints
+
 - ✓ `POST /api/v1/notifications/devices/register` — Register device for push
 - ✓ `DELETE /api/v1/notifications/devices/{deviceToken}` — Unregister device
 - ✓ `GET /api/v1/notifications/preferences` — Get notification preferences
@@ -2863,6 +3093,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 **Blazor chat interface for the web application**
 
 #### Channel List Component
+
 - ✓ Create `ChannelList.razor` sidebar component:
   - ✓ Display public, private, and DM channels
   - ✓ Show unread message counts and badges
@@ -2873,6 +3104,7 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ Support drag-to-reorder pinned channels
 
 #### Channel Header Component
+
 - ✓ Create `ChannelHeader.razor`:
   - ✓ Display channel name, topic, and member count
   - ✓ Show channel actions (edit, archive, leave, pin/unpin)
@@ -2880,6 +3112,7 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ Show search button for in-channel search
 
 #### Message List Component
+
 - ✓ Create `MessageList.razor`:
   - ✓ Display messages with sender avatar, name, and timestamp
   - ✓ Support Markdown rendering in messages
@@ -2892,6 +3125,7 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ Show edited indicator on edited messages
 
 #### Message Composer Component
+
 - ✓ Create `MessageComposer.razor`:
   - ✓ Rich text input with Markdown toolbar
   - ✓ `@mention` autocomplete (users and channels)
@@ -2903,12 +3137,14 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ Paste image support (auto-upload)
 
 #### Typing Indicator Component
+
 - ✓ Create `TypingIndicator.razor`:
   - ✓ Show "User is typing..." or "User1, User2 are typing..."
   - ✓ Animate typing dots
   - ✓ Auto-expire after timeout
 
 #### Member List Panel
+
 - ✓ Create `MemberListPanel.razor`:
   - ✓ Display channel members grouped by role (Owner, Admin, Member)
   - ✓ Show online/offline/away status per member
@@ -2916,6 +3152,7 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ Display member profile popup on click
 
 #### Channel Settings Dialog
+
 - ✓ Create `ChannelSettingsDialog.razor`:
   - ✓ Edit channel name, description, topic
   - ✓ Manage members (add/remove/change role)
@@ -2924,6 +3161,7 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ Show channel creation date and creator
 
 #### Direct Message View
+
 - ✓ Create `DirectMessageView.razor`:
   - ✓ User search for starting new DM
   - ✓ Display DM conversations list
@@ -2931,6 +3169,7 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ Group DM support (2+ users)
 
 #### Chat Notification Badge
+
 - ✓ Create `ChatNotificationBadge.razor`:
   - ✓ Display total unread count in navigation
   - ✓ Update in real time via SignalR
@@ -2938,15 +3177,18 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ Clear badge when messages are read (via SignalR sync)
 
 #### Quick Reply
+
 - ✓ Add quick reply popup from notification
 - ✓ Send reply via REST API
 - ✓ Show typing indicator while composing
 
 #### Regression Validation
+
 - ✓ Run Phase 2.9 regression checklist pass (`dotnet test`: 2013 total, 0 failed)
 - ✓ Run Phase 2.9 quick-reply regression pass (`dotnet test`: 71/71 SyncTray tests pass)
 
 #### Release Hardening
+
 - ✓ Accessibility pass for interactive chat UI controls (`title`/`aria-label` updates across `ChannelList`, `AnnouncementList`, `MessageList`, `DirectMessageView`)
 - ✓ Empty-state copy improvements for channel, DM, announcement, and message views
 - ✓ Error-state handling with `ErrorMessage` support in `ChannelList`, `MessageList`, and `AnnouncementList`
@@ -2962,6 +3204,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 **Android app using .NET MAUI**
 
 #### Project Setup
+
 - ✓ Create `DotNetCloud.Clients.Android` .NET MAUI project
 - ✓ Configure Android-specific settings (minimum SDK, target SDK)
 - ✓ Set up build flavors: `googleplay` (FCM) and `fdroid` (UnifiedPush)
@@ -2969,6 +3212,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Configure app icon and splash screen
 
 #### Authentication
+
 - ✓ Create login screen
 - ✓ Implement OAuth2/OIDC authentication flow (system browser redirect)
 - ✓ Fix Android OAuth callback chooser registration so only one `DotNetCloud` app target handles `net.dotnetcloud.client://oauth2redirect`
@@ -2979,6 +3223,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Support multiple server connections
 
 #### Chat UI
+
 - ✓ Create channel list view (tabs: Channels, DMs)
 - ✓ Create message list view with RecyclerView-style virtualization
 - ✓ Create message composer with:
@@ -2991,12 +3236,14 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Support dark/light theme
 
 #### Real-Time Connection
+
 - ✓ Implement SignalR client connection
 - ✓ Handle connection lifecycle (connect, reconnect, disconnect)
 - ✓ Background connection management (Android foreground service)
 - ✓ Handle Doze mode and battery optimization
 
 #### Push Notifications
+
 - ✓ Integrate Firebase Cloud Messaging (FCM) for `googleplay` flavor
 - ✓ Integrate UnifiedPush for `fdroid` flavor
 - ✓ Create notification channels (Chat, Mentions, Announcements)
@@ -3004,18 +3251,21 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Display notification badges on app icon
 
 #### Offline Support
+
 - ✓ Cache recent messages locally (SQLite or LiteDB)
 - ✓ Queue outgoing messages when offline
 - ✓ Sync on reconnection
 - ✓ Display cached data while loading
 
 #### Photo Auto-Upload (File Integration)
+
 - ✓ Detect new photos via MediaStore content observer
 - ✓ Upload via Files module API (chunked upload)
 - ✓ Configurable: WiFi only, battery threshold
 - ✓ Progress notification during upload
 
 #### File Browser
+
 - ✓ Create `IFileRestClient` interface (browse, upload, download, quota, folder CRUD)
 - ✓ Implement `HttpFileRestClient` with chunked upload protocol and envelope unwrapping
 - ✓ Create `FileBrowserViewModel` with folder navigation, file picker upload, camera capture (photo + video), download-and-open, delete, quota display
@@ -3024,6 +3274,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Add Files tab to `AppShell.xaml` (between Chat and Settings)
 
 #### Media Auto-Upload (Photos + Videos)
+
 - ✓ Create `IMediaAutoUploadService` interface (start, stop, scan-now)
 - ✓ Implement `MediaAutoUploadService` scanning both photos and videos from MediaStore
 - ✓ Organize uploads into `InstantUpload/YYYY/MM` folder hierarchy (default on)
@@ -3033,6 +3284,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Register `IMediaAutoUploadService` → `MediaAutoUploadService` in DI
 
 #### Android Distribution
+
 - ✓ Configure Google Play Store build (signed APK/AAB)
 - ✓ Configure F-Droid build (reproducible, no proprietary deps)
 - ✓ Create direct APK download option
@@ -3047,6 +3299,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 **gRPC service implementation for chat module**
 
 #### Proto Definitions
+
 - ✓ Create `chat_service.proto`:
   - ✓ `rpc CreateChannel(CreateChannelRequest) returns (ChannelResponse)`
   - ✓ `rpc GetChannel(GetChannelRequest) returns (ChannelResponse)`
@@ -3061,11 +3314,13 @@ This phase implements real-time chat, announcements, push notifications, and the
 - ✓ Create `chat_lifecycle.proto` (start, stop, health) — lifecycle RPCs included in ChatLifecycleService
 
 #### gRPC Service Implementation
+
 - ✓ Create `ChatGrpcService` implementing the proto service
 - ✓ Create `ChatLifecycleService` for module lifecycle gRPC
 - ✓ Create `ChatHealthCheck` health check implementation
 
 #### Host Program
+
 - ✓ Configure `Program.cs`:
   - ✓ Register EF Core `ChatDbContext`
   - ✓ Register all chat services
@@ -3122,6 +3377,7 @@ This phase implements real-time chat, announcements, push notifications, and the
 ## Phase 3: Contacts, Calendar & Notes
 
 ### Objective
+
 Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-isolated modules with standards-compliant sync, cross-module integration, and migration tooling.
 
 > **Detailed plan:** `docs/PHASE_3_IMPLEMENTATION_PLAN.md`
@@ -3129,72 +3385,86 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase 3.1: Architecture And Contracts
 
 #### Core DTOs & Contracts
+
 - ✓ Contact DTOs (person/org/group, phone/email/address, metadata)
 - ✓ Calendar DTOs (calendar, event, attendee, recurrence, reminders)
 - ✓ Note DTOs (note document, folder, tag, note metadata)
 
 #### Event Contracts
+
 - ✓ ContactCreated/Updated/DeletedEvent
 - ✓ CalendarEventCreated/Updated/DeletedEvent
 - ✓ NoteCreated/Updated/DeletedEvent
 
 #### Capability & Validation
+
 - ✓ Capability interfaces and tier mapping for Contacts, Calendar, Notes
 - ✓ Validation rules and error code extensions for new domains
 
 ### Phase 3.2: Contacts Module
 
 #### Module Projects
+
 - ✓ Create `DotNetCloud.Modules.Contacts` (core logic)
 - ✓ Create `DotNetCloud.Modules.Contacts.Data` (EF Core context)
 - ✓ Create `DotNetCloud.Modules.Contacts.Host` (gRPC host)
 
 #### Data Model
+
 - ✓ Contact, ContactGroup, Address, PhoneNumber, EmailAddress, CustomField entities
 - ✓ EF configurations with multi-provider naming strategies
 - ✓ Initial migrations (PostgreSQL + SQL Server)
 
 #### REST API
+
 - ✓ CRUD endpoints for contacts and groups
 - ✓ Bulk import/export (vCard format)
 - ✓ Search endpoint with full-text support
 
 #### CardDAV
+
 - ✓ Principal and addressbook discovery
 - ✓ vCard GET/PUT/DELETE
 - ✓ Sync token and change tracking
 
 #### Features
+
 - ✓ Contact avatar upload and attachment metadata
 - ✓ Contact sharing model (user/team scoped permissions)
 
 ### Phase 3.3: Calendar Module
 
 #### Module Projects
+
 - ✓ Create `DotNetCloud.Modules.Calendar` (core logic)
 - ✓ Create `DotNetCloud.Modules.Calendar.Data` (EF Core context)
 - ✓ Create `DotNetCloud.Modules.Calendar.Host` (gRPC host)
 
 #### Data Model
+
 - ✓ Calendar, CalendarEvent, Attendee, RecurrenceRule, Reminder, ExceptionInstance entities
 - ✓ EF configurations with multi-provider naming strategies
 - ✓ Initial migrations (PostgreSQL + SQL Server)
 
 #### REST API
+
 - ✓ CRUD endpoints for calendars and events
 - ✓ RSVP / invitation management
 - ✓ Calendar sharing and event search/filter
 
 #### CalDAV
+
 - ✓ Calendar discovery and collections
 - ✓ iCalendar GET/PUT/DELETE
 - ✓ Sync token and change tracking
 
 #### Features
+
 - ✓ Recurrence engine and occurrence expansion service
 - ✓ Reminder/notification pipeline (in-app + push)
 
 #### Additional Deliverables
+
 - ✓ gRPC service (11 RPCs) for core ↔ module communication
 - ✓ iCalendar RFC 5545 import/export service
 - ✓ Module manifest (manifest.json)
@@ -3203,25 +3473,30 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase 3.4: Notes Module
 
 #### Module Projects
+
 - ✓ Create `DotNetCloud.Modules.Notes` (core logic)
 - ✓ Create `DotNetCloud.Modules.Notes.Data` (EF Core context)
 - ✓ Create `DotNetCloud.Modules.Notes.Host` (gRPC host)
 
 #### Data Model
+
 - ✓ Note, NoteVersion, NoteFolder, NoteTag, NoteLink, NoteShare entities
 - ✓ EF configurations with multi-provider naming strategies
 - ✓ Initial migrations (PostgreSQL + SQL Server)
 
 #### REST API
+
 - ✓ CRUD endpoints for notes (~25 REST endpoints)
 - ✓ Move/copy, tagging, search, version history endpoints
 
 #### gRPC Service
+
 - ✓ 10 RPCs: CreateNote, GetNote, ListNotes, UpdateNote, DeleteNote, SearchNotes, CreateFolder, ListFolders, GetVersionHistory, RestoreVersion
 - ✓ Module lifecycle service (Initialize, Start, Stop, HealthCheck, GetManifest)
 - ✓ Module manifest (manifest.json)
 
 #### Features
+
 - ✓ Markdown rendering pipeline with XSS sanitization
 - ✓ Rich-editor integration (MarkdownEditor Blazor component)
 - ✓ Cross-entity link references (Files, Calendar, Contact, Note)
@@ -3247,21 +3522,25 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase 3.7: Testing And Quality Gates
 
 #### Unit Tests
+
 - ✓ Contacts module test suite (domain, handlers, validators)
 - ✓ Calendar module test suite (domain, handlers, recurrence)
 - ✓ Notes module test suite (domain, handlers, sanitization)
 
 #### Integration Tests
+
 - ✓ REST endpoint tests for all three modules
 - ✓ CardDAV interoperability tests
 - ✓ CalDAV interoperability tests
 
 #### Security Tests
+
 - ✓ Authorization bypass attempts
 - ✓ Tenant isolation verification
 - ✓ Markdown XSS / unsafe content tests
 
 #### Performance
+
 - ✓ Large contact list benchmarks
 - ✓ Recurring event expansion benchmarks
 
@@ -3332,6 +3611,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase 4.4: REST API And gRPC Service
 
 #### REST API (40+ endpoints — 10 controllers)
+
 - ✓ BoardsController — CRUD + activity + members + labels + export/import (15 endpoints)
 - ✓ ListsController — CRUD + reorder (5 endpoints)
 - ✓ CardsController — CRUD + move + assign + labels + activity (10 endpoints)
@@ -3344,13 +3624,16 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ TeamsController — CRUD teams + members + transfer boards + team boards (10 endpoints)
 
 #### gRPC
+
 - ✓ TracksGrpcService — 7 RPCs implemented + 4 poker RPCs implemented in Phase 4.7
 - ✓ TracksControllerBase — auth helpers, envelope methods, IsBoardNotFound()
 
 #### Tests
+
 - ✓ 58 controller/gRPC unit tests (199 total Tracks tests, incl. 29 TeamServiceTests)
 
 #### Deferred
+
 - ✓ Cross-module integration (file attachment events via FileDeletedEventHandler + ICardAttachmentCleanupService) → completed in Phase 4.6
 
 ### Phase 4.5: Web UI (Blazor)
@@ -3408,24 +3691,29 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase 4.8: Testing, Documentation And Release
 
 #### Unit Tests
+
 - ✓ Service coverage (all 11 services)
 - ✓ Authorization tests
 - ✓ Dependency cycle detection tests
 
 #### Integration Tests
+
 - ✓ REST API endpoint tests
 - ✓ gRPC service tests
 
 #### Security Tests
+
 - ✓ Board role authorization
 - ✓ Tenant isolation
 - ✓ Markdown XSS prevention
 
 #### Performance
+
 - ✓ Large board (1000+ cards)
 - ✓ Reorder operations
 
 #### Documentation
+
 - ✓ Admin docs (module config, permissions)
 - ✓ User guide (boards, cards, sprints, time tracking)
 - ✓ API documentation (all endpoints)
@@ -3436,6 +3724,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 > Detailed plan: `docs/TRACKS_DUAL_MODE_REWORK_PLAN.md`
 
 #### Phase A: Data Model & Mode System
+
 - ✓ `BoardMode` enum (Personal, Team)
 - ✓ `Mode` property on Board entity (default Personal)
 - ✓ Sprint planning fields (`DurationWeeks`, `PlannedOrder`)
@@ -3446,6 +3735,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ EF configuration & DbSets
 
 #### Phase B: Service Layer — Mode & Sprint Planning
+
 - ✓ Mode-aware `BoardService` guards (`EnsureTeamModeAsync`)
 - ✓ `SprintPlanningService` (year plan, adjust, cascade)
 - ✓ Backlog service additions (sprint filter on `ListCards`)
@@ -3453,6 +3743,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `PokerService` vote status method
 
 #### Phase C: API Layer Changes
+
 - ✓ Board mode parameter on `POST /api/v1/boards`
 - ✓ Sprint wizard endpoints (plan CRUD, adjust)
 - ✓ Backlog endpoints (sprint filter)
@@ -3461,10 +3752,12 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ gRPC proto updates
 
 #### Phase D: Real-Time / SignalR
+
 - ✓ Review session SignalR broadcasts
 - ✓ Client-side SignalR events for review
 
 #### Phase E: UI — Personal Mode Simplification
+
 - ✓ Board creation dialog with mode selection (Personal/Team toggle)
 - ✓ Mode badge on board cards in list view
 - ✓ Conditional sidebar in TracksPage (hide sprints/planning for Personal)
@@ -3474,28 +3767,33 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ 35 comprehensive Phase E tests
 
 #### Phase F: UI — Sprint Planning Wizard
+
 - ✓ Multi-step wizard component
 - ✓ Wizard view in TracksPage
 - ✓ 61 comprehensive Phase F tests
 
 #### Phase G: UI — Backlog & Sprint Views
+
 - ✓ Backlog View component (BacklogView.razor + code-behind)
 - ✓ Sprint-filtered Kanban view (sprint tabs in KanbanBoard.razor)
 - ✓ Backlog view in TracksPage (enum, sidebar nav, mode guard)
 - ✓ 47 comprehensive Phase G tests
 
 #### Phase H: UI — Year Timeline / Gantt View
+
 - ✓ Timeline View component
 - ✓ Timeline view in TracksPage
 - ✓ 44 comprehensive Phase H tests
 
 #### Phase I: UI — Live Review Mode
+
 - ✓ Review Session Host Controls
 - ✓ Review Session Participant View
 - ✓ Review Session entry in TracksPage
 - ✓ 54 comprehensive Phase I tests
 
 #### Phase J: Tests
+
 - ✓ Data model & entity validation tests (7 tests)
 - ✓ Mode-aware service tests (7 tests)
 - ✓ Sprint planning wizard edge case tests (7 tests)
@@ -3514,6 +3812,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Sub-Phase A: Shared Media Infrastructure (Steps 5.1–5.2)
 
 #### Step 5.1 — Media Streaming Middleware & Shared Types
+
 - ✓ `MediaType` enum (Photo, Audio, Video) in `DotNetCloud.Core/DTOs/Media/MediaType.cs`
 - ✓ `GeoCoordinate` record in `DotNetCloud.Core/DTOs/Media/GeoCoordinate.cs`
 - ✓ `MediaMetadataDto` record in `DotNetCloud.Core/DTOs/Media/MediaMetadataDto.cs`
@@ -3525,6 +3824,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Unit tests: 19 middleware tests + 26 DTO/capability tests
 
 #### Step 5.2 — Metadata Extraction Framework
+
 - ✓ `ExifMetadataExtractor` (ImageSharp 3.x TryGetValue API) in `Core.ServiceDefaults/Media/`
 - ✓ `AudioMetadataExtractor` (TagLibSharp 2.3.0) in `Core.ServiceDefaults/Media/`
 - ✓ `VideoMetadataExtractor` (FFprobe JSON parsing) in `Core.ServiceDefaults/Media/`
@@ -3534,6 +3834,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ All 136 new tests passing (396 total)
 
 ### Sub-Phase B: Photos Module (Steps 5.3–5.7)
+
 - ✓ Step 5.3 — Photos Architecture & Contracts
 - ✓ Step 5.4 — Photos Data Model & Migrations
 - ✓ Step 5.5 — Photos Core Services
@@ -3541,6 +3842,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Step 5.7 — Photos API & Web UI
 
 ### Sub-Phase C: Music Module (Steps 5.8–5.14)
+
 - ✓ Step 5.8 — Music Architecture & Contracts
 - ✓ Step 5.9 — Music Data Model & Migrations
 - ✓ Step 5.10 — Music Library Scanning
@@ -3550,12 +3852,14 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Step 5.14 — Music API & gRPC (Blazor UI deferred)
 
 ### Sub-Phase D: Video Module (Steps 5.15–5.18)
+
 - ✓ Step 5.15 — Video Contracts & Data Model
 - ✓ Step 5.16 — Video Core Services (74 tests passing)
 - ✓ Step 5.17 — Video Streaming & API
 - ☐ Step 5.18 — Video Web UI (deferred to integration phase)
 
 ### Sub-Phase E: Integration & Quality (Steps 5.19–5.20)
+
 - ✓ Step 5.19 — Cross-Module Integration
   - ✓ `FileUploadedPhotoHandler` with `IPhotoIndexingCallback` (9 image MIME types)
   - ✓ `FileUploadedMusicHandler` with `IMusicIndexingCallback` (15 audio MIME types)

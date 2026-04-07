@@ -86,6 +86,17 @@ internal sealed class DesktopStartupManager : IDesktopStartupManager
             return true;
         }
 
+        // If a system-wide .desktop file already exists (e.g. from .deb install),
+        // skip creating a user-session copy to avoid orphaned entries on uninstall.
+        var systemDesktopPath = Path.Combine("/usr/local/share/applications", LinuxDesktopFileName);
+        if (File.Exists(systemDesktopPath))
+        {
+            _logger.LogDebug(
+                "System-wide application launcher already exists at {Path}; skipping user-session copy.",
+                systemDesktopPath);
+            return true;
+        }
+
         var trayExecutablePath = _trayExecutablePathProvider();
         if (string.IsNullOrWhiteSpace(trayExecutablePath) || !File.Exists(trayExecutablePath))
         {
