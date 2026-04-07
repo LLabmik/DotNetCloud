@@ -96,7 +96,7 @@
 | Phase 4.7                   | 6       | 6         | 0           | 0       |
 | Phase 4.8                   | 8       | 8         | 0           | 0       |
 | Phase 4.9                   | 42      | 42        | 0           | 0       |
-| Phase 5-9                   | Summary | 7         | 0           | 1       |
+| Phase 5-9                   | Summary | 8         | 0           | 0       |
 | Infrastructure              | Summary | 0         | 0           | 1       |
 | Documentation               | Summary | 0         | 0           | 1       |
 
@@ -1908,16 +1908,16 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 #### Step: phase-5.14 - Music REST API, gRPC & Host
 
-**Status:** completed ✅ (Blazor UI deferred)
+**Status:** completed ✅
 **Deliverables:**
 
 - ✓ `MusicController` — ~30 REST endpoints
 - ✓ `MusicGrpcServiceImpl` + `music_service.proto`
 - ✓ Music Host project (Kestrel, gRPC, health checks)
 - ✓ 156 tests passing across all music services
-- ☐ Blazor UI components deferred to integration phase
+- ✓ Blazor UI — full music player (library, albums, artists, genres, playlists, favorites, recently played, now-playing bar, equalizer, search)
 
-**Notes:** Sub-Phase C (Music Module) fully complete. All projects compile, 156 tests passing.
+**Notes:** Sub-Phase C (Music Module) fully complete including Blazor UI. Starring/favorites with optimistic UI updates, album art, playback controls, play bar with album navigation.
 
 ---
 

@@ -3849,7 +3849,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Step 5.11 — Music Core Services
 - ✓ Step 5.12 — Music Streaming & Equalizer
 - ✓ Step 5.13 — Subsonic API Compatibility
-- ✓ Step 5.14 — Music API & gRPC (Blazor UI deferred)
+- ✓ Step 5.14 — Music API, gRPC & Blazor UI
 
 ### Sub-Phase D: Video Module (Steps 5.15–5.18)
 
