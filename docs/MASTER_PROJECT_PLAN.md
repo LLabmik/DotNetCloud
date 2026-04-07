@@ -96,7 +96,7 @@
 | Phase 4.7                   | 6       | 6         | 0           | 0       |
 | Phase 4.8                   | 8       | 8         | 0           | 0       |
 | Phase 4.9                   | 42      | 42        | 0           | 0       |
-| Phase 5-9                   | Summary | 8         | 0           | 0       |
+| Phase 5-9                   | Summary | 7         | 1           | 0       |
 | Infrastructure              | Summary | 0         | 0           | 1       |
 | Documentation               | Summary | 0         | 0           | 1       |
 
