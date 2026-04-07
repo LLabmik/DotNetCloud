@@ -48,7 +48,8 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
         CancellationToken cancellationToken = default,
         string? stateDatabasePath = null,
         int? posixMode = null,
-        string? posixOwnerHint = null)
+        string? posixOwnerHint = null,
+        Guid? parentFolderId = null)
     {
         var fileName = Path.GetFileName(localPath);
         var fileSize = fileStream.Length;
@@ -126,7 +127,7 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
             {
                 // Fresh start: initiate upload session — server returns which chunks it already has.
                 var session = await _api.InitiateUploadAsync(
-                    fileName, null, fileSize, mimeType,
+                    fileName, parentFolderId, fileSize, mimeType,
                     metadata.Select(m => m.Hash).ToList(),
                     metadata.Select(m => m.Size).ToList(),
                     posixMode, posixOwnerHint,

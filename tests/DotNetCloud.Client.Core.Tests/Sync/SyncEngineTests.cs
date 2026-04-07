@@ -663,9 +663,9 @@ public class SyncEngineTests
             .Setup(t => t.UploadAsync(
                 It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(),
                 It.IsNotNull<IProgress<TransferProgress>>(),
-                It.IsAny<CancellationToken>(), It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<string?>()))
-            .Callback<Guid?, string, Stream, IProgress<TransferProgress>?, CancellationToken, string?, int?, string?>(
-                (_, _, _, progress, _, _, _, _) =>
+                It.IsAny<CancellationToken>(), It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<Guid?>()))
+            .Callback<Guid?, string, Stream, IProgress<TransferProgress>?, CancellationToken, string?, int?, string?, Guid?>(
+                (_, _, _, progress, _, _, _, _, _) =>
                 {
                     // Simulate one progress callback before completing.
                     progress?.Report(new TransferProgress

@@ -116,15 +116,10 @@ public sealed class TrayIconManager : IDisposable
         openFolderItem.Click += OnOpenSyncFolderClicked;
         menu.Items.Add(openFolderItem);
 
-        // Open sync service logs
-        var openServiceLogsItem = new NativeMenuItem("Open sync service logs");
-        openServiceLogsItem.Click += OnOpenServiceLogsClicked;
-        menu.Items.Add(openServiceLogsItem);
-
-        // Open tray app logs
-        var openTrayLogsItem = new NativeMenuItem("Open tray logs");
-        openTrayLogsItem.Click += OnOpenTrayLogsClicked;
-        menu.Items.Add(openTrayLogsItem);
+        // Open sync logs
+        var openLogsItem = new NativeMenuItem("Open Sync Logs");
+        openLogsItem.Click += OnOpenLogsClicked;
+        menu.Items.Add(openLogsItem);
 
         // Open in browser
         var openBrowserItem = new NativeMenuItem("Open DotNetCloud in browser");
@@ -223,29 +218,16 @@ public sealed class TrayIconManager : IDisposable
         OpenFolderInExplorer(firstAccount.LocalFolderPath);
     }
 
-    private void OnOpenServiceLogsClicked(object? sender, EventArgs e)
+    private void OnOpenLogsClicked(object? sender, EventArgs e)
     {
         try
         {
-            var logDirectory = GetSyncServiceLogDirectory();
+            var logDirectory = GetLogDirectory();
             OpenFolderInExplorer(logDirectory);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to open sync service logs folder from tray menu.");
-        }
-    }
-
-    private void OnOpenTrayLogsClicked(object? sender, EventArgs e)
-    {
-        try
-        {
-            var logDirectory = GetTrayLogDirectory();
-            OpenFolderInExplorer(logDirectory);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to open tray logs folder from tray menu.");
+            _logger.LogWarning(ex, "Failed to open sync logs folder from tray menu.");
         }
     }
 
@@ -694,25 +676,15 @@ public sealed class TrayIconManager : IDisposable
 
     // ── Helpers ───────────────────────────────────────────────────────────
 
-    private static string GetSyncServiceLogDirectory()
+    private static string GetLogDirectory()
     {
-        var serviceLogs = OperatingSystem.IsWindows()
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "DotNetCloud", "Sync", "logs")
-            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share", "DotNetCloud", "logs");
-
-        Directory.CreateDirectory(serviceLogs);
-        return serviceLogs;
-    }
-
-    private static string GetTrayLogDirectory()
-    {
-        var trayLogs = Path.Combine(
+        var logDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "DotNetCloud",
             "logs");
 
-        Directory.CreateDirectory(trayLogs);
-        return trayLogs;
+        Directory.CreateDirectory(logDir);
+        return logDir;
     }
 
     private static void OpenFolderInExplorer(string path)

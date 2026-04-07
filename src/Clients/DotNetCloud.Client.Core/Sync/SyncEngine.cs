@@ -221,7 +221,7 @@ public sealed class SyncEngine : ISyncEngine
             await RefreshAccessTokenAsync(context, cancellationToken);
             var (remoteChangesApplied, serverTree) = await ApplyRemoteChangesAsync(context, cancellationToken);
             var localFilesQueued = await ScanLocalDirectoryAsync(context, serverTree, cancellationToken);
-            var localOperationsApplied = await ApplyLocalChangesAsync(context, cancellationToken);
+            var localOperationsApplied = await ApplyLocalChangesAsync(context, serverTree, cancellationToken);
             await _stateDb.UpdateCheckpointAsync(context.StateDatabasePath, DateTime.UtcNow, cancellationToken);
             await _stateDb.CheckpointWalAsync(context.StateDatabasePath, cancellationToken);
 
@@ -919,17 +919,21 @@ public sealed class SyncEngine : ISyncEngine
 
     private const int MaxOperationRetries = 10;
 
-    private async Task<int> ApplyLocalChangesAsync(SyncContext context, CancellationToken cancellationToken)
+    private async Task<int> ApplyLocalChangesAsync(SyncContext context, SyncTreeNodeResponse serverTree, CancellationToken cancellationToken)
     {
         var pendingOps = await _stateDb.GetPendingOperationsAsync(context.StateDatabasePath, cancellationToken);
         var completedOperations = 0;
+
+        // Build folder relativePath → NodeId map for parent folder resolution during uploads.
+        var folderPathMap = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+        BuildFolderPathMap(serverTree, "", folderPathMap);
 
         foreach (var op in pendingOps)
         {
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                await ExecutePendingOperationAsync(context, op, cancellationToken);
+                await ExecutePendingOperationAsync(context, op, folderPathMap, cancellationToken);
                 await _stateDb.RemoveOperationAsync(context.StateDatabasePath, op.Id, cancellationToken);
                 completedOperations++;
             }
@@ -1076,7 +1080,7 @@ public sealed class SyncEngine : ISyncEngine
             || ex.Message.Contains("Not Found", StringComparison.OrdinalIgnoreCase);
     }
 
-    private async Task ExecutePendingOperationAsync(SyncContext context, PendingOperationRecord op, CancellationToken cancellationToken)
+    private async Task ExecutePendingOperationAsync(SyncContext context, PendingOperationRecord op, Dictionary<string, Guid> folderPathMap, CancellationToken cancellationToken)
     {
         if (op is PendingUpload upload)
         {
@@ -1194,9 +1198,15 @@ public sealed class SyncEngine : ISyncEngine
             }
 
             await using var fileStream = await OpenFileForSyncAsync(upload.LocalPath, cancellationToken);
+
+            // Resolve the parent folder's server-side NodeId so the file is placed in the
+            // correct directory rather than being flattened to root.
+            var parentFolderId = await EnsureParentFolderAsync(
+                context, upload.LocalPath, folderPathMap, cancellationToken);
+
             var nodeId = await _transfer.UploadAsync(
                 upload.NodeId, upload.LocalPath, fileStream, uploadProgress, cancellationToken,
-                context.StateDatabasePath, posixMode);
+                context.StateDatabasePath, posixMode, parentFolderId: parentFolderId);
 
             FileTransferComplete?.Invoke(this, new FileTransferCompleteEventArgs
             {
@@ -1501,6 +1511,97 @@ public sealed class SyncEngine : ISyncEngine
 
         foreach (var child in node.Children)
             BuildServerFileMap(child, currentPath, map);
+    }
+
+    /// <summary>
+    /// Recursively builds a relative-path → NodeId map for folders only.
+    /// Used by <see cref="ApplyLocalChangesAsync"/> to resolve parent folder IDs during uploads.
+    /// </summary>
+    private static void BuildFolderPathMap(SyncTreeNodeResponse node, string parentPath, Dictionary<string, Guid> map)
+    {
+        var currentPath = node.NodeId == Guid.Empty
+            ? parentPath
+            : string.IsNullOrEmpty(parentPath) ? node.Name : Path.Combine(parentPath, node.Name);
+
+        if (node.NodeId != Guid.Empty && IsFolderNodeType(node.NodeType))
+            map[currentPath] = node.NodeId;
+
+        foreach (var child in node.Children)
+            BuildFolderPathMap(child, currentPath, map);
+    }
+
+    /// <summary>
+    /// Ensures the remote directory chain for a file exists, creating any missing folders.
+    /// Returns the server-side NodeId of the immediate parent folder, or null for root-level files.
+    /// </summary>
+    private async Task<Guid?> EnsureParentFolderAsync(
+        SyncContext context,
+        string localPath,
+        Dictionary<string, Guid> folderPathMap,
+        CancellationToken cancellationToken)
+    {
+        var parentDir = Path.GetDirectoryName(localPath);
+        if (parentDir is null)
+            return null;
+
+        var pathComparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        if (string.Equals(parentDir, context.LocalFolderPath, pathComparison))
+            return null; // File is at sync root
+
+        var relativeDir = Path.GetRelativePath(context.LocalFolderPath, parentDir);
+
+        // Fast path: folder already known from the server tree
+        if (folderPathMap.TryGetValue(relativeDir, out var existingId))
+            return existingId;
+
+        // Walk the directory segments and create any missing folders on the server.
+        var segments = relativeDir.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        Guid? currentParentId = null;
+        var currentPath = "";
+
+        foreach (var segment in segments)
+        {
+            currentPath = string.IsNullOrEmpty(currentPath) ? segment : Path.Combine(currentPath, segment);
+
+            if (folderPathMap.TryGetValue(currentPath, out var segmentId))
+            {
+                currentParentId = segmentId;
+                continue;
+            }
+
+            try
+            {
+                var folder = await _api.CreateFolderAsync(segment, currentParentId, cancellationToken);
+                folderPathMap[currentPath] = folder.Id;
+                currentParentId = folder.Id;
+                _logger.LogInformation("Created remote folder '{FolderPath}' (NodeId={NodeId}).", currentPath, folder.Id);
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode is System.Net.HttpStatusCode.BadRequest or System.Net.HttpStatusCode.Conflict)
+            {
+                // Folder likely already exists (race condition with another client).
+                // Re-fetch the subtree to find the existing folder.
+                _logger.LogDebug(ex, "Folder '{FolderPath}' creation returned {Status}; looking up existing folder.", currentPath, ex.StatusCode);
+                var subtree = await _api.GetFolderTreeAsync(currentParentId, cancellationToken);
+                var existing = subtree.Children.FirstOrDefault(c =>
+                    string.Equals(c.Name, segment, StringComparison.OrdinalIgnoreCase)
+                    && IsFolderNodeType(c.NodeType));
+
+                if (existing is not null)
+                {
+                    folderPathMap[currentPath] = existing.NodeId;
+                    currentParentId = existing.NodeId;
+                }
+                else
+                {
+                    throw; // Not a name-conflict — something else went wrong
+                }
+            }
+        }
+
+        return currentParentId;
     }
 
     /// <summary>
