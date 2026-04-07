@@ -769,6 +769,12 @@ public partial class MusicPage : IAsyncDisposable
         {
             _scanResult = await MediaLibraryScanner.ScanFolderAsync(_libraryFolderId, _caller.UserId, "Music");
             _settingsSuccess = $"Scan complete: {_scanResult.Imported} imported, {_scanResult.Skipped} already up to date.";
+
+            // Reload library data so navigating to Library shows freshly imported tracks
+            var caller = await GetCallerAsync();
+            _recentAlbums = (await AlbumService.ListAlbumsAsync(caller, 0, 8)).ToList();
+            _newTracks = (await TrackService.ListTracksAsync(caller, 0, 10)).ToList();
+            _playlists = (await PlaylistService.ListPlaylistsAsync(caller)).ToList();
         }
         catch (Exception ex)
         {

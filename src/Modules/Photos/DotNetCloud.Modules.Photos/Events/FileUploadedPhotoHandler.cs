@@ -42,7 +42,7 @@ public sealed class FileUploadedPhotoHandler : IEventHandler<FileUploadedEvent>
             {
                 await _indexingCallback.IndexPhotoAsync(
                     @event.FileNodeId, @event.FileName, @event.MimeType, @event.Size,
-                    @event.UploadedByUserId, storagePath: null, cancellationToken);
+                    @event.UploadedByUserId, storagePath: @event.StoragePath, cancellationToken);
 
                 _logger.LogInformation(
                     "Photo auto-created for uploaded image: {FileName} ({MimeType}) by user {UserId}",

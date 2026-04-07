@@ -22,7 +22,7 @@ public class FileUploadedVideoHandlerTests
 
         callbackMock.Verify(c => c.IndexVideoAsync(
             evt.FileNodeId, evt.FileName, evt.MimeType!, evt.Size,
-            evt.UploadedByUserId, It.IsAny<CancellationToken>()), Times.Once);
+            evt.UploadedByUserId, evt.StoragePath, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [TestMethod]
@@ -38,7 +38,7 @@ public class FileUploadedVideoHandlerTests
 
         callbackMock.Verify(c => c.IndexVideoAsync(
             It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(),
-            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [TestMethod]
@@ -54,7 +54,7 @@ public class FileUploadedVideoHandlerTests
 
         callbackMock.Verify(c => c.IndexVideoAsync(
             It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(),
-            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [TestMethod]
@@ -70,7 +70,7 @@ public class FileUploadedVideoHandlerTests
 
         callbackMock.Verify(c => c.IndexVideoAsync(
             It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(),
-            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [TestMethod]
@@ -90,7 +90,7 @@ public class FileUploadedVideoHandlerTests
         var callbackMock = new Mock<IVideoIndexingCallback>();
         callbackMock.Setup(c => c.IndexVideoAsync(
             It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(),
-            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("DB error"));
 
         var handler = new FileUploadedVideoHandler(
@@ -124,7 +124,7 @@ public class FileUploadedVideoHandlerTests
 
         callbackMock.Verify(c => c.IndexVideoAsync(
             It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(),
-            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Exactly(supportedTypes.Length));
     }
 
@@ -141,7 +141,7 @@ public class FileUploadedVideoHandlerTests
 
         callbackMock.Verify(c => c.IndexVideoAsync(
             It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(),
-            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [TestMethod]
@@ -157,7 +157,7 @@ public class FileUploadedVideoHandlerTests
 
         callbackMock.Verify(c => c.IndexVideoAsync(
             It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(),
-            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [TestMethod]
@@ -195,7 +195,7 @@ public class FileUploadedVideoHandlerTests
 
         callbackMock.Verify(c => c.IndexVideoAsync(
             fileNodeId, "documentary.mkv", "video/x-matroska", 1_500_000_000, userId,
-            It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     private static FileUploadedEvent CreateEvent(string fileName, string? mimeType) => new()

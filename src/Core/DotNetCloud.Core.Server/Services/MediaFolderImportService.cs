@@ -192,10 +192,9 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
 
                 // Resolve actual chunk storage path (files uploaded via chunked API have their
                 // data in FileChunks, not at FileNode.StoragePath which may be stale/empty).
-                string? chunkStoragePath = file.StoragePath;
-                if (parsed == MediaType.Photos)
+                string? resolvedStoragePath = file.StoragePath;
                 {
-                    var resolvedPath = await (
+                    var chunkPath = await (
                         from fv in filesDb.FileVersions
                         where fv.FileNodeId == file.Id
                         orderby fv.VersionNumber descending
@@ -204,8 +203,8 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
                         join fc in filesDb.FileChunks on fvc.FileChunkId equals fc.Id
                         select fc.StoragePath
                     ).FirstOrDefaultAsync(cancellationToken);
-                    if (!string.IsNullOrEmpty(resolvedPath))
-                        chunkStoragePath = resolvedPath;
+                    if (!string.IsNullOrEmpty(chunkPath))
+                        resolvedStoragePath = chunkPath;
                 }
 
                 switch (parsed)
@@ -214,7 +213,7 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
                         var photoCallback = scope.ServiceProvider.GetService<IPhotoIndexingCallback>();
                         if (photoCallback is not null)
                         {
-                            await photoCallback.IndexPhotoAsync(file.Id, file.Name, mime, file.Size, ownerId, chunkStoragePath, cancellationToken);
+                            await photoCallback.IndexPhotoAsync(file.Id, file.Name, mime, file.Size, ownerId, resolvedStoragePath, cancellationToken);
                         }
                         else
                             _logger.LogWarning("IPhotoIndexingCallback not registered — cannot index {File}", file.Name);
@@ -223,7 +222,7 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
                     case MediaType.Music:
                         var musicCallback = scope.ServiceProvider.GetService<IMusicIndexingCallback>();
                         if (musicCallback is not null)
-                            await musicCallback.IndexAudioAsync(file.Id, file.Name, mime, file.Size, ownerId, cancellationToken);
+                            await musicCallback.IndexAudioAsync(file.Id, file.Name, mime, file.Size, ownerId, resolvedStoragePath, cancellationToken);
                         else
                             _logger.LogWarning("IMusicIndexingCallback not registered — cannot index {File}", file.Name);
                         break;
@@ -231,7 +230,7 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
                     case MediaType.Video:
                         var videoCallback = scope.ServiceProvider.GetService<IVideoIndexingCallback>();
                         if (videoCallback is not null)
-                            await videoCallback.IndexVideoAsync(file.Id, file.Name, mime, file.Size, ownerId, cancellationToken);
+                            await videoCallback.IndexVideoAsync(file.Id, file.Name, mime, file.Size, ownerId, resolvedStoragePath, cancellationToken);
                         else
                             _logger.LogWarning("IVideoIndexingCallback not registered — cannot index {File}", file.Name);
                         break;
@@ -323,6 +322,7 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
             MimeType = mimeType,
             ParentId = null,
             UploadedByUserId = ownerId,
+            StoragePath = storagePath,
         }, caller, ct);
 
         return true;

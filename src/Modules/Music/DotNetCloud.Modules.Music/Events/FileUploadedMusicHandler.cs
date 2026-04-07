@@ -44,7 +44,7 @@ public sealed class FileUploadedMusicHandler : IEventHandler<FileUploadedEvent>
             {
                 await _indexingCallback.IndexAudioAsync(
                     @event.FileNodeId, @event.FileName, @event.MimeType, @event.Size,
-                    @event.UploadedByUserId, cancellationToken);
+                    @event.UploadedByUserId, @event.StoragePath, cancellationToken);
 
                 _logger.LogInformation(
                     "Track auto-indexed for uploaded audio: {FileName} ({MimeType}) by user {UserId}",
@@ -78,5 +78,12 @@ public sealed class FileUploadedMusicHandler : IEventHandler<FileUploadedEvent>
 public interface IMusicIndexingCallback
 {
     /// <summary>Indexes an uploaded audio file into the music library.</summary>
-    Task IndexAudioAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, CancellationToken cancellationToken = default);
+    /// <param name="fileNodeId">The Files-module node ID.</param>
+    /// <param name="fileName">Display file name.</param>
+    /// <param name="mimeType">MIME type of the audio file.</param>
+    /// <param name="sizeBytes">File size in bytes.</param>
+    /// <param name="ownerId">Owner user ID.</param>
+    /// <param name="storagePath">Relative content-addressable storage path (for metadata extraction). Null when unavailable.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task IndexAudioAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, string? storagePath = null, CancellationToken cancellationToken = default);
 }

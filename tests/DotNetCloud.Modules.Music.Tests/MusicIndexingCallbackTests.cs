@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Music.Data.Services;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
 
@@ -22,7 +23,10 @@ public class MusicIndexingCallbackTests
         _libraryScanService = new LibraryScanService(
             _db, metadataService, albumArtService,
             Mock.Of<IEventBus>(), Mock.Of<ILogger<LibraryScanService>>());
-        _callback = new MusicIndexingCallback(_libraryScanService, Mock.Of<ILogger<MusicIndexingCallback>>());
+
+        var configMock = new Mock<IConfiguration>();
+        configMock.Setup(c => c["Files:Storage:RootPath"]).Returns(Path.GetTempPath());
+        _callback = new MusicIndexingCallback(_libraryScanService, configMock.Object, Mock.Of<ILogger<MusicIndexingCallback>>());
     }
 
     [TestCleanup]

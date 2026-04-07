@@ -196,7 +196,8 @@ internal sealed class WopiService : IWopiService
             UploadedByUserId = caller.UserId,
             Size = totalSize,
             MimeType = node.MimeType,
-            ParentId = node.ParentId
+            ParentId = node.ParentId,
+            StoragePath = node.StoragePath
         }, caller);
 
         return node.UpdatedAt.ToString("O");

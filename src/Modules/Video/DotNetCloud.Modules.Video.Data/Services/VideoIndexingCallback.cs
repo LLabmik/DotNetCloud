@@ -23,7 +23,7 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
     }
 
     /// <inheritdoc />
-    public async Task IndexVideoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, CancellationToken cancellationToken = default)
+    public async Task IndexVideoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, string? storagePath = null, CancellationToken cancellationToken = default)
     {
         var caller = new CallerContext(ownerId, ["user"], CallerType.System);
         await _videoService.CreateVideoAsync(fileNodeId, fileName, mimeType, sizeBytes, ownerId, caller, cancellationToken);

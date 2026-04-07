@@ -41,10 +41,11 @@ public sealed class LibraryScanService
     /// </summary>
     public async Task<Track?> IndexFileAsync(
         Guid fileNodeId,
-        string filePath,
+        string fileName,
         string mimeType,
         long sizeBytes,
         Guid ownerId,
+        string? metadataFilePath = null,
         string? artCacheDir = null,
         CancellationToken cancellationToken = default)
     {
@@ -59,13 +60,16 @@ public sealed class LibraryScanService
             return existing;
         }
 
-        var metadata = _metadataService.ExtractMetadata(filePath);
+        // Use metadataFilePath (absolute on-disk path) for TagLib extraction;
+        // fall back to fileName (display name) which will produce fallback metadata.
+        var pathForMetadata = metadataFilePath ?? fileName;
+        var metadata = _metadataService.ExtractMetadata(pathForMetadata);
         if (metadata is null)
         {
-            _logger.LogWarning("Could not extract metadata from {FilePath}, creating track from filename", filePath);
+            _logger.LogWarning("Could not extract metadata from {FilePath}, creating track from filename", pathForMetadata);
             metadata = new AudioMetadata
             {
-                Title = Path.GetFileNameWithoutExtension(filePath),
+                Title = Path.GetFileNameWithoutExtension(fileName),
                 Artist = "Unknown Artist",
                 Album = "Unknown Album",
                 DurationTicks = 0
@@ -81,7 +85,7 @@ public sealed class LibraryScanService
         // Handle album art
         if (!album.HasCoverArt && artCacheDir is not null)
         {
-            var artPath = _albumArtService.ExtractAndCacheArt(filePath, artCacheDir, album.Id);
+            var artPath = _albumArtService.ExtractAndCacheArt(pathForMetadata, artCacheDir, album.Id);
             if (artPath is not null)
             {
                 album.HasCoverArt = true;
@@ -113,7 +117,7 @@ public sealed class LibraryScanService
                 OwnerId = ownerId,
                 Title = metadata.Title,
                 MimeType = mimeType,
-                FileName = Path.GetFileName(filePath)
+                FileName = Path.GetFileName(fileName)
             };
             _db.Tracks.Add(track);
         }
@@ -195,7 +199,8 @@ public sealed class LibraryScanService
                 .FirstOrDefaultAsync(t => t.FileNodeId == file.FileNodeId, cancellationToken);
 
             var track = await IndexFileAsync(
-                file.FileNodeId, file.FilePath, file.MimeType, file.SizeBytes, ownerId, artCacheDir, cancellationToken);
+                file.FileNodeId, file.FilePath, file.MimeType, file.SizeBytes, ownerId,
+                metadataFilePath: file.FilePath, artCacheDir: artCacheDir, cancellationToken: cancellationToken);
 
             if (track is not null)
             {

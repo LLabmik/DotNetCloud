@@ -43,7 +43,7 @@ public sealed class FileUploadedVideoHandler : IEventHandler<FileUploadedEvent>
             {
                 await _indexingCallback.IndexVideoAsync(
                     @event.FileNodeId, @event.FileName, @event.MimeType, @event.Size,
-                    @event.UploadedByUserId, cancellationToken);
+                    @event.UploadedByUserId, @event.StoragePath, cancellationToken);
 
                 _logger.LogInformation(
                     "Video auto-created for uploaded file: {FileName} ({MimeType}) by user {UserId}",
@@ -77,5 +77,12 @@ public sealed class FileUploadedVideoHandler : IEventHandler<FileUploadedEvent>
 public interface IVideoIndexingCallback
 {
     /// <summary>Indexes an uploaded video file as a Video record.</summary>
-    Task IndexVideoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, CancellationToken cancellationToken = default);
+    /// <param name="fileNodeId">The Files-module node ID.</param>
+    /// <param name="fileName">Display file name.</param>
+    /// <param name="mimeType">MIME type of the video file.</param>
+    /// <param name="sizeBytes">File size in bytes.</param>
+    /// <param name="ownerId">Owner user ID.</param>
+    /// <param name="storagePath">Relative content-addressable storage path. Null when unavailable.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task IndexVideoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, string? storagePath = null, CancellationToken cancellationToken = default);
 }

@@ -384,7 +384,8 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
             Size = fileNode.Size,
             MimeType = fileNode.MimeType,
             ParentId = fileNode.ParentId,
-            UploadedByUserId = caller.UserId
+            UploadedByUserId = caller.UserId,
+            StoragePath = storagePath
         }, caller, cancellationToken);
 
         _logger.LogInformation("Upload session {SessionId} completed. File {FileNodeId} '{FileName}' created/updated.",
