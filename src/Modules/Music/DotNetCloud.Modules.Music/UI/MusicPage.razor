@@ -11,6 +11,7 @@
 @inject IRecommendationService RecommendationService
 @inject IEqPresetService EqPresetService
 @inject IMusicStreamingService StreamingService
+@inject DotNetCloud.Modules.Music.Events.IMusicIndexingCallback MusicIndexingCallback
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
 @inject DotNetCloud.Core.Services.IUserSettingsService UserSettingsService
 @inject DotNetCloud.Core.Services.IMediaLibraryScanner MediaLibraryScanner
@@ -538,6 +539,30 @@
                                 @(_settingsScanning ? "Scanning..." : "Scan Now")
                             </button>
                         </div>
+
+                        <div class="settings-danger-zone" style="margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.08);">
+                            <h5 style="color: var(--color-danger, #e55); margin-bottom: 8px;">Reset Collection</h5>
+                            <p class="hint" style="margin-bottom: 8px;">Deletes all indexed music metadata (tracks, albums, artists, play history, playlists).
+                                Your actual audio files are NOT affected. After resetting, click Scan Now to rebuild from scratch.</p>
+                            @if (_showResetConfirm)
+                            {
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="color: var(--color-danger, #e55); font-size: 13px;">Are you sure?</span>
+                                    <button class="btn btn-sm" style="background: var(--color-danger, #e55); color: #fff;"
+                                            @onclick="ResetCollectionAsync" disabled="@_settingsResetting">
+                                        @(_settingsResetting ? "Resetting..." : "Yes, Reset")
+                                    </button>
+                                    <button class="btn btn-outline btn-sm" @onclick="() => _showResetConfirm = false">Cancel</button>
+                                </div>
+                            }
+                            else
+                            {
+                                <button class="btn btn-outline btn-sm" style="border-color: var(--color-danger, #e55); color: var(--color-danger, #e55);"
+                                        @onclick="() => _showResetConfirm = true">
+                                    Reset Collection
+                                </button>
+                            }
+                        </div>
                         @if (_scanResult is not null)
                         {
                             <div class="scan-result-banner">
@@ -682,8 +707,8 @@
                     <button class="np-btn" @onclick="ToggleMute" title="Volume">
                         @(_muted ? "🔇" : _volume > 50 ? "🔊" : "🔉")
                     </button>
-                    <input type="range" min="0" max="100" @bind="_volume" @bind:event="oninput"
-                           class="volume-slider" />
+                    <input type="range" min="0" max="100" value="@_volume"
+                           @oninput="OnVolumeChanged" class="volume-slider" />
                 </div>
             </div>
         </div>

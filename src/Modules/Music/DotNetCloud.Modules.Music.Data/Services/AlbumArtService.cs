@@ -57,6 +57,27 @@ public sealed class AlbumArtService
     }
 
     /// <summary>
+    /// Extracts and caches album art from an audio stream (reassembled from chunks).
+    /// </summary>
+    /// <param name="audioStream">Seekable stream containing the complete audio file.</param>
+    /// <param name="mimeType">Audio MIME type (e.g. "audio/mpeg").</param>
+    /// <param name="fileName">Display file name for TagLib abstraction.</param>
+    /// <param name="cacheDir">Directory where cached art is stored.</param>
+    /// <param name="albumId">Album ID for the cache filename.</param>
+    /// <returns>The relative cache path to the art file, or null if none found.</returns>
+    public string? ExtractAndCacheArt(Stream audioStream, string mimeType, string fileName, string cacheDir, Guid albumId)
+    {
+        var embedded = _metadataService.ExtractEmbeddedArt(audioStream, mimeType, fileName);
+        if (embedded.HasValue)
+        {
+            return CacheArtData(embedded.Value.Data, embedded.Value.MimeType, cacheDir, albumId);
+        }
+
+        _logger.LogDebug("No album art found in stream for album {AlbumId}", albumId);
+        return null;
+    }
+
+    /// <summary>
     /// Gets the cached art path for an album if it exists.
     /// </summary>
     public string? GetCachedArtPath(string cacheDir, Guid albumId)

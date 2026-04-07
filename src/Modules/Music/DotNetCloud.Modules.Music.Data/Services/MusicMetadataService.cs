@@ -29,29 +29,34 @@ public sealed class MusicMetadataService
         try
         {
             using var tagFile = TagLib.File.Create(filePath);
-            var tag = tagFile.Tag;
-            var properties = tagFile.Properties;
-
-            return new AudioMetadata
-            {
-                Title = string.IsNullOrWhiteSpace(tag.Title) ? Path.GetFileNameWithoutExtension(filePath) : tag.Title,
-                Artist = tag.FirstPerformer ?? tag.FirstAlbumArtist ?? "Unknown Artist",
-                AlbumArtist = tag.FirstAlbumArtist,
-                Album = tag.Album ?? "Unknown Album",
-                TrackNumber = tag.Track > 0 ? (int)tag.Track : null,
-                DiscNumber = tag.Disc > 0 ? (int)tag.Disc : null,
-                Year = tag.Year > 0 ? (int)tag.Year : null,
-                Genre = tag.FirstGenre,
-                DurationTicks = properties.Duration.Ticks,
-                Bitrate = properties.AudioBitrate > 0 ? properties.AudioBitrate * 1000L : null,
-                SampleRate = properties.AudioSampleRate > 0 ? properties.AudioSampleRate : null,
-                Channels = properties.AudioChannels > 0 ? properties.AudioChannels : null,
-                HasEmbeddedArt = tag.Pictures.Length > 0
-            };
+            return BuildMetadata(tagFile, filePath);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to extract metadata from {FilePath}", filePath);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Extracts metadata from a seekable audio stream using the specified MIME type.
+    /// Used for chunk-based storage where the complete file must be reassembled into a stream.
+    /// </summary>
+    /// <param name="audioStream">Seekable stream containing the complete audio file.</param>
+    /// <param name="mimeType">MIME type (e.g. "audio/mpeg") so TagLib knows the format.</param>
+    /// <param name="fileName">Display file name (used as fallback title).</param>
+    /// <returns>Extracted metadata, or null if the stream cannot be read.</returns>
+    public AudioMetadata? ExtractMetadata(Stream audioStream, string mimeType, string fileName)
+    {
+        try
+        {
+            var abstraction = new StreamFileAbstraction(fileName, audioStream);
+            using var tagFile = TagLib.File.Create(abstraction, mimeType, TagLib.ReadStyle.Average);
+            return BuildMetadata(tagFile, fileName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to extract metadata from stream for {FileName}", fileName);
             return null;
         }
     }
@@ -65,17 +70,84 @@ public sealed class MusicMetadataService
         try
         {
             using var tagFile = TagLib.File.Create(filePath);
-            var picture = tagFile.Tag.Pictures.FirstOrDefault();
-            if (picture is null)
-                return null;
-
-            return (picture.Data.Data, picture.MimeType ?? "image/jpeg");
+            return ExtractArtFromTag(tagFile);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to extract album art from {FilePath}", filePath);
             return null;
         }
+    }
+
+    /// <summary>
+    /// Extracts embedded album art from a seekable audio stream.
+    /// </summary>
+    /// <returns>The image data and MIME type, or null if no art is embedded.</returns>
+    public (byte[] Data, string MimeType)? ExtractEmbeddedArt(Stream audioStream, string mimeType, string fileName)
+    {
+        try
+        {
+            var abstraction = new StreamFileAbstraction(fileName, audioStream);
+            using var tagFile = TagLib.File.Create(abstraction, mimeType, TagLib.ReadStyle.Average);
+            return ExtractArtFromTag(tagFile);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to extract album art from stream for {FileName}", fileName);
+            return null;
+        }
+    }
+
+    private static AudioMetadata BuildMetadata(TagLib.File tagFile, string fileNameOrPath)
+    {
+        var tag = tagFile.Tag;
+        var properties = tagFile.Properties;
+
+        return new AudioMetadata
+        {
+            Title = string.IsNullOrWhiteSpace(tag.Title) ? Path.GetFileNameWithoutExtension(fileNameOrPath) : tag.Title,
+            Artist = tag.FirstPerformer ?? tag.FirstAlbumArtist ?? "Unknown Artist",
+            AlbumArtist = tag.FirstAlbumArtist,
+            Album = tag.Album ?? "Unknown Album",
+            TrackNumber = tag.Track > 0 ? (int)tag.Track : null,
+            DiscNumber = tag.Disc > 0 ? (int)tag.Disc : null,
+            Year = tag.Year > 0 ? (int)tag.Year : null,
+            Genre = tag.FirstGenre,
+            DurationTicks = properties.Duration.Ticks,
+            Bitrate = properties.AudioBitrate > 0 ? properties.AudioBitrate * 1000L : null,
+            SampleRate = properties.AudioSampleRate > 0 ? properties.AudioSampleRate : null,
+            Channels = properties.AudioChannels > 0 ? properties.AudioChannels : null,
+            HasEmbeddedArt = tag.Pictures.Length > 0
+        };
+    }
+
+    private static (byte[] Data, string MimeType)? ExtractArtFromTag(TagLib.File tagFile)
+    {
+        var picture = tagFile.Tag.Pictures.FirstOrDefault();
+        if (picture is null)
+            return null;
+
+        return (picture.Data.Data, picture.MimeType ?? "image/jpeg");
+    }
+
+    /// <summary>
+    /// TagLib file abstraction that reads from an existing stream.
+    /// The caller owns the stream lifetime — CloseStream is a no-op.
+    /// </summary>
+    private sealed class StreamFileAbstraction : TagLib.File.IFileAbstraction
+    {
+        private readonly Stream _stream;
+
+        public StreamFileAbstraction(string name, Stream stream)
+        {
+            Name = name;
+            _stream = stream;
+        }
+
+        public string Name { get; }
+        public Stream ReadStream => _stream;
+        public Stream WriteStream => _stream;
+        public void CloseStream(Stream stream) { /* caller owns the stream */ }
     }
 }
 

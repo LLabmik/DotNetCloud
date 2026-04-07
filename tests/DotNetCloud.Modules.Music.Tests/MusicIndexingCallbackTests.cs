@@ -1,7 +1,7 @@
 using DotNetCloud.Core.Events;
+using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Music.Data.Services;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
 
@@ -24,9 +24,12 @@ public class MusicIndexingCallbackTests
             _db, metadataService, albumArtService,
             Mock.Of<IEventBus>(), Mock.Of<ILogger<LibraryScanService>>());
 
-        var configMock = new Mock<IConfiguration>();
-        configMock.Setup(c => c["Files:Storage:RootPath"]).Returns(Path.GetTempPath());
-        _callback = new MusicIndexingCallback(_libraryScanService, configMock.Object, Mock.Of<ILogger<MusicIndexingCallback>>());
+        // Mock IDownloadService — returns empty stream (metadata extraction will fall back to filename)
+        var downloadMock = new Mock<IDownloadService>();
+        downloadMock
+            .Setup(d => d.DownloadCurrentAsync(It.IsAny<Guid>(), It.IsAny<DotNetCloud.Core.Authorization.CallerContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Stream.Null);
+        _callback = new MusicIndexingCallback(_libraryScanService, downloadMock.Object, Mock.Of<ILogger<MusicIndexingCallback>>());
     }
 
     [TestCleanup]

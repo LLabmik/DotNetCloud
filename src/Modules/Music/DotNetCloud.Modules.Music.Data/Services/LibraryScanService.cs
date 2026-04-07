@@ -46,6 +46,7 @@ public sealed class LibraryScanService
         long sizeBytes,
         Guid ownerId,
         string? metadataFilePath = null,
+        Stream? audioStream = null,
         string? artCacheDir = null,
         CancellationToken cancellationToken = default)
     {
@@ -60,13 +61,22 @@ public sealed class LibraryScanService
             return existing;
         }
 
-        // Use metadataFilePath (absolute on-disk path) for TagLib extraction;
-        // fall back to fileName (display name) which will produce fallback metadata.
-        var pathForMetadata = metadataFilePath ?? fileName;
-        var metadata = _metadataService.ExtractMetadata(pathForMetadata);
+        // Extract metadata: prefer stream (reassembled from chunks) → file path → filename fallback.
+        AudioMetadata? metadata = null;
+        if (audioStream is not null)
+        {
+            metadata = _metadataService.ExtractMetadata(audioStream, mimeType, fileName);
+        }
+
+        if (metadata is null && metadataFilePath is not null)
+        {
+            metadata = _metadataService.ExtractMetadata(metadataFilePath);
+        }
+
         if (metadata is null)
         {
-            _logger.LogWarning("Could not extract metadata from {FilePath}, creating track from filename", pathForMetadata);
+            _logger.LogWarning("Could not extract metadata for {FileName} (stream={HasStream}, path={Path}), creating track from filename",
+                fileName, audioStream is not null, metadataFilePath);
             metadata = new AudioMetadata
             {
                 Title = Path.GetFileNameWithoutExtension(fileName),
@@ -85,7 +95,17 @@ public sealed class LibraryScanService
         // Handle album art
         if (!album.HasCoverArt && artCacheDir is not null)
         {
-            var artPath = _albumArtService.ExtractAndCacheArt(pathForMetadata, artCacheDir, album.Id);
+            string? artPath = null;
+            if (audioStream is not null && audioStream.CanSeek)
+            {
+                audioStream.Position = 0;
+                artPath = _albumArtService.ExtractAndCacheArt(audioStream, mimeType, fileName, artCacheDir, album.Id);
+            }
+            else if (metadataFilePath is not null)
+            {
+                artPath = _albumArtService.ExtractAndCacheArt(metadataFilePath, artCacheDir, album.Id);
+            }
+
             if (artPath is not null)
             {
                 album.HasCoverArt = true;
@@ -314,5 +334,33 @@ public sealed class LibraryScanService
         if (name.StartsWith("An ", StringComparison.OrdinalIgnoreCase))
             return name[3..] + ", An";
         return name;
+    }
+
+    /// <summary>
+    /// Deletes all music library metadata (tracks, albums, artists, genres, play history, etc.)
+    /// from the database. Does NOT delete the actual audio files — only the indexed metadata.
+    /// After calling this, a re-scan will rebuild the entire library from scratch.
+    /// </summary>
+    public async Task ResetCollectionAsync(CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Resetting music collection — deleting all metadata");
+
+        // Delete in FK-safe order: junction/child tables first, then parents.
+        // Use IgnoreQueryFilters to include soft-deleted records.
+        _db.PlaybackHistories.RemoveRange(await _db.PlaybackHistories.IgnoreQueryFilters().ToListAsync(cancellationToken));
+        _db.ScrobbleRecords.RemoveRange(await _db.ScrobbleRecords.IgnoreQueryFilters().ToListAsync(cancellationToken));
+        _db.StarredItems.RemoveRange(await _db.StarredItems.IgnoreQueryFilters().ToListAsync(cancellationToken));
+        _db.PlaylistTracks.RemoveRange(await _db.PlaylistTracks.IgnoreQueryFilters().ToListAsync(cancellationToken));
+        _db.TrackGenres.RemoveRange(await _db.TrackGenres.IgnoreQueryFilters().ToListAsync(cancellationToken));
+        _db.TrackArtists.RemoveRange(await _db.TrackArtists.IgnoreQueryFilters().ToListAsync(cancellationToken));
+        _db.Tracks.RemoveRange(await _db.Tracks.IgnoreQueryFilters().ToListAsync(cancellationToken));
+        _db.Playlists.RemoveRange(await _db.Playlists.IgnoreQueryFilters().ToListAsync(cancellationToken));
+        _db.Albums.RemoveRange(await _db.Albums.IgnoreQueryFilters().ToListAsync(cancellationToken));
+        _db.Artists.RemoveRange(await _db.Artists.IgnoreQueryFilters().ToListAsync(cancellationToken));
+        _db.Genres.RemoveRange(await _db.Genres.IgnoreQueryFilters().ToListAsync(cancellationToken));
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Music collection reset complete");
     }
 }

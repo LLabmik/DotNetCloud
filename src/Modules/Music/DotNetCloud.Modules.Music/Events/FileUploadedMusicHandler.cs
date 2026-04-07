@@ -86,4 +86,10 @@ public interface IMusicIndexingCallback
     /// <param name="storagePath">Relative content-addressable storage path (for metadata extraction). Null when unavailable.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task IndexAudioAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, string? storagePath = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes all music library metadata from the database (tracks, albums, artists, etc.).
+    /// The actual audio files are NOT affected.
+    /// </summary>
+    Task ResetCollectionAsync(CancellationToken cancellationToken = default);
 }

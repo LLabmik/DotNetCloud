@@ -86,6 +86,10 @@ public partial class MusicPage : IAsyncDisposable
     private PeriodicTimer? _playbackTimer;
     private CancellationTokenSource? _timerCts;
 
+    // ── JS Audio Interop ──
+    private DotNetObjectReference<MusicPage>? _dotNetRef;
+    private bool _jsInitialized;
+
     // ── Auth ──
     private CallerContext? _caller;
 
@@ -97,6 +101,8 @@ public partial class MusicPage : IAsyncDisposable
     private string? _settingsError;
     private string? _settingsSuccess;
     private MediaScanResult? _scanResult;
+    private bool _showResetConfirm;
+    private bool _settingsResetting;
 
     // Directory Browser
     private bool _showDirBrowser;
@@ -128,6 +134,23 @@ public partial class MusicPage : IAsyncDisposable
         finally
         {
             _loading = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_jsInitialized)
+        {
+            try
+            {
+                _dotNetRef = DotNetObjectReference.Create(this);
+                await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.init", _dotNetRef);
+                _jsInitialized = true;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Failed to initialize music player JS interop");
+            }
         }
     }
 
@@ -405,6 +428,14 @@ public partial class MusicPage : IAsyncDisposable
             _queueIndex = _queue.FindIndex(t => t.Id == track.Id);
         }
 
+        // Start real audio playback via JS interop using the Files content endpoint
+        if (_jsInitialized && track.FileNodeId != Guid.Empty)
+        {
+            var audioUrl = $"/api/v1/files/{track.FileNodeId}/content";
+            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.play", audioUrl);
+            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setVolume", _muted ? 0 : _volume);
+        }
+
         await StartPlaybackTimerAsync();
 
         try
@@ -456,9 +487,16 @@ public partial class MusicPage : IAsyncDisposable
         }
     }
 
-    private void TogglePlayPause()
+    private async Task TogglePlayPause()
     {
         _isPlaying = !_isPlaying;
+        if (_jsInitialized)
+        {
+            if (_isPlaying)
+                await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.resume");
+            else
+                await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.pause");
+        }
     }
 
     private async Task PlayNextAsync()
@@ -531,14 +569,38 @@ public partial class MusicPage : IAsyncDisposable
         };
     }
 
-    private void ToggleMute() => _muted = !_muted;
-
-    private void SeekAsync(MouseEventArgs e)
+    private async Task ToggleMute()
     {
-        // Approximate seek from click position - real implementation would use JS interop
-        if (_nowPlaying is not null)
+        _muted = !_muted;
+        if (_jsInitialized)
         {
-            _playbackPosition = TimeSpan.FromTicks(_nowPlaying.Duration.Ticks / 2);
+            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setMuted", _muted);
+        }
+    }
+
+    private async Task OnVolumeChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var vol))
+        {
+            _volume = vol;
+            if (_jsInitialized)
+            {
+                await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setVolume", _muted ? 0 : _volume);
+            }
+        }
+    }
+
+    private async Task SeekAsync(MouseEventArgs e)
+    {
+        if (_nowPlaying is null) return;
+        // Approximate seek from click position within the progress bar (assumed ~400px wide)
+        // The progress bar fraction is estimated from OffsetX vs element width.
+        // A more precise approach would use JS interop to get the exact element width.
+        var fraction = Math.Clamp(e.OffsetX / 400.0, 0, 1);
+        _playbackPosition = TimeSpan.FromTicks((long)(_nowPlaying.Duration.Ticks * fraction));
+        if (_jsInitialized)
+        {
+            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.seek", _playbackPosition.TotalSeconds);
         }
     }
 
@@ -786,6 +848,43 @@ public partial class MusicPage : IAsyncDisposable
         }
     }
 
+    private async Task ResetCollectionAsync()
+    {
+        _settingsResetting = true;
+        _settingsError = null;
+        _settingsSuccess = null;
+        _scanResult = null;
+        StateHasChanged();
+        try
+        {
+            await MusicIndexingCallback.ResetCollectionAsync();
+            _settingsSuccess = "Music collection reset. Click Scan Now to rebuild your library.";
+            _showResetConfirm = false;
+
+            // Clear displayed data
+            _recentAlbums.Clear();
+            _newTracks.Clear();
+            _tracks.Clear();
+            _albums.Clear();
+            _artists.Clear();
+            _playlists.Clear();
+            _starredTracks.Clear();
+            _recentlyPlayed.Clear();
+            _queue.Clear();
+            _nowPlaying = null;
+            _isPlaying = false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to reset music collection");
+            _settingsError = $"Reset failed: {ex.Message}";
+        }
+        finally
+        {
+            _settingsResetting = false;
+        }
+    }
+
     // ── Directory Browser Methods ────────────────────────────
 
     private async Task OpenDirectoryBrowser()
@@ -871,8 +970,57 @@ public partial class MusicPage : IAsyncDisposable
         _showDirBrowser = false;
     }
 
+    // ────────────────────────────────────────────────────────
+    //  JS Interop callbacks (invoked from music-player.js)
+    // ────────────────────────────────────────────────────────
+
+    /// <summary>Called by JS when audio currentTime changes.</summary>
+    [JSInvokable]
+    public void OnJsTimeUpdate(double currentTime, double duration)
+    {
+        _playbackPosition = TimeSpan.FromSeconds(currentTime);
+        InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Called by JS when the current track finishes playing.</summary>
+    [JSInvokable]
+    public async Task OnJsTrackEnded()
+    {
+        await InvokeAsync(async () => await PlayNextAsync());
+    }
+
+    /// <summary>Called by JS when an audio error occurs.</summary>
+    [JSInvokable]
+    public void OnJsPlaybackError(string message)
+    {
+        Logger.LogWarning("Audio playback error: {Message}", message);
+        _isPlaying = false;
+        InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Called by JS when audio metadata (duration) is loaded from the file.</summary>
+    [JSInvokable]
+    public void OnJsMetadataLoaded(double duration)
+    {
+        // If the track has no duration stored, use the one from the audio element
+        if (_nowPlaying is not null && _nowPlaying.Duration.TotalSeconds < 1 && duration > 0)
+        {
+            _nowPlaying = _nowPlaying with { Duration = TimeSpan.FromSeconds(duration) };
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         await StopPlaybackTimerAsync();
+        if (_jsInitialized)
+        {
+            try
+            {
+                await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.dispose");
+            }
+            catch (JSDisconnectedException) { }
+        }
+        _dotNetRef?.Dispose();
     }
 }
