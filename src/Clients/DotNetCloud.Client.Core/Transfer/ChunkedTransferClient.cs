@@ -579,12 +579,42 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
 
     private static string? MimeTypeFromExtension(string ext) => ext.ToLowerInvariant() switch
     {
+        // Documents
         ".pdf" => "application/pdf",
-        ".jpg" or ".jpeg" => "image/jpeg",
-        ".png" => "image/png",
         ".txt" => "text/plain",
         ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        // Images
+        ".jpg" or ".jpeg" => "image/jpeg",
+        ".png" => "image/png",
+        ".gif" => "image/gif",
+        ".webp" => "image/webp",
+        ".bmp" => "image/bmp",
+        ".svg" => "image/svg+xml",
+        ".heic" => "image/heic",
+        ".heif" => "image/heif",
+        ".tiff" or ".tif" => "image/tiff",
+        // Audio
+        ".mp3" => "audio/mpeg",
+        ".flac" => "audio/flac",
+        ".ogg" or ".oga" => "audio/ogg",
+        ".opus" => "audio/opus",
+        ".aac" => "audio/aac",
+        ".m4a" => "audio/mp4",
+        ".wav" => "audio/wav",
+        ".wma" => "audio/x-ms-wma",
+        ".aiff" or ".aif" => "audio/aiff",
+        ".wv" => "audio/wavpack",
+        ".ape" => "audio/ape",
+        // Video
+        ".mp4" or ".m4v" => "video/mp4",
+        ".mkv" => "video/x-matroska",
+        ".avi" => "video/x-msvideo",
+        ".mov" => "video/quicktime",
+        ".wmv" => "video/x-ms-wmv",
+        ".webm" => "video/webm",
+        ".flv" => "video/x-flv",
+        ".3gp" => "video/3gpp",
         _ => null,
     };
 

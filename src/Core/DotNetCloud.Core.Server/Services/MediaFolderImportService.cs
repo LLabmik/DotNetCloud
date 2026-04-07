@@ -188,7 +188,19 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
             if (cancellationToken.IsCancellationRequested) break;
             try
             {
-                var mime = file.MimeType ?? "application/octet-stream";
+                var mime = file.MimeType ?? GetMimeType(file.Name);
+
+                // If the FileNode has a null/stale MimeType, fix it in the database
+                // so the content endpoint serves the correct Content-Type for playback.
+                if (file.MimeType is null && mime != "application/octet-stream")
+                {
+                    var node = await filesDb.FileNodes.FindAsync([file.Id], cancellationToken);
+                    if (node is not null)
+                    {
+                        node.MimeType = mime;
+                        await filesDb.SaveChangesAsync(cancellationToken);
+                    }
+                }
 
                 // Resolve actual chunk storage path (files uploaded via chunked API have their
                 // data in FileChunks, not at FileNode.StoragePath which may be stale/empty).

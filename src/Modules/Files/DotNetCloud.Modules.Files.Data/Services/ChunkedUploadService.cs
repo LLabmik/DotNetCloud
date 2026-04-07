@@ -68,12 +68,28 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         if (!await _quotaService.TryReserveQuotaAsync(caller.UserId, dto.TotalSize, cancellationToken))
             throw new Core.Errors.ValidationException("Quota", "Insufficient storage quota for this upload.");
 
-        // Identify which chunks already exist (dedup)
-        var existingHashes = await _db.FileChunks
+        // Identify which chunks already exist (dedup) — verify BOTH the DB record
+        // AND that the blob actually exists on disk to prevent "ghost chunk" scenarios
+        // where the record exists but the data was lost/never written.
+        var candidateChunks = await _db.FileChunks
             .AsNoTracking()
             .Where(c => dto.ChunkHashes.Contains(c.ChunkHash))
-            .Select(c => c.ChunkHash)
+            .Select(c => new { c.ChunkHash, c.StoragePath })
             .ToListAsync(cancellationToken);
+
+        var existingHashes = new List<string>();
+        foreach (var candidate in candidateChunks)
+        {
+            if (await _storageEngine.ExistsAsync(candidate.StoragePath, cancellationToken))
+            {
+                existingHashes.Add(candidate.ChunkHash);
+            }
+            else
+            {
+                _logger.LogWarning("Ghost chunk detected: hash {ChunkHash} exists in DB but blob missing on disk. Will re-request upload.",
+                    candidate.ChunkHash[..12]);
+            }
+        }
 
         var existingSet = new HashSet<string>(existingHashes);
         var missingHashes = dto.ChunkHashes.Where(h => !existingSet.Contains(h)).ToList();
@@ -84,7 +100,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
             TargetParentId = dto.ParentId,
             FileName = dto.FileName,
             TotalSize = dto.TotalSize,
-            MimeType = dto.MimeType,
+            MimeType = dto.MimeType ?? GuessMimeTypeFromFileName(dto.FileName),
             TotalChunks = dto.ChunkHashes.Count,
             ReceivedChunks = existingHashes.Count,
             ChunkManifest = JsonSerializer.Serialize(dto.ChunkHashes),
@@ -152,6 +168,12 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
                 StoragePath = storagePath,
                 ReferenceCount = 0 // Will be incremented on CompleteUpload
             });
+        }
+        else if (!await _storageEngine.ExistsAsync(existingChunk.StoragePath, cancellationToken))
+        {
+            // Ghost chunk: DB record exists but blob is missing on disk. Re-write it.
+            _logger.LogWarning("Re-writing ghost chunk blob for hash {ChunkHash}", chunkHash[..12]);
+            await _storageEngine.WriteChunkAsync(existingChunk.StoragePath, data, cancellationToken);
         }
 
         session.ReceivedChunks++;
@@ -407,6 +429,46 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
             UpdatedAt = fileNode.UpdatedAt,
             PosixMode = fileNode.PosixMode,
             PosixOwnerHint = fileNode.PosixOwnerHint
+        };
+    }
+
+    /// <summary>
+    /// Guesses a MIME type from a file name's extension when the client sends null.
+    /// </summary>
+    private static string? GuessMimeTypeFromFileName(string fileName)
+    {
+        var ext = Path.GetExtension(fileName);
+        if (string.IsNullOrEmpty(ext)) return null;
+        return ext.ToLowerInvariant() switch
+        {
+            // Audio
+            ".mp3" => "audio/mpeg",
+            ".flac" => "audio/flac",
+            ".ogg" or ".oga" => "audio/ogg",
+            ".opus" => "audio/opus",
+            ".aac" => "audio/aac",
+            ".m4a" => "audio/mp4",
+            ".wav" => "audio/wav",
+            ".wma" => "audio/x-ms-wma",
+            ".aiff" or ".aif" => "audio/aiff",
+            // Video
+            ".mp4" or ".m4v" => "video/mp4",
+            ".mkv" => "video/x-matroska",
+            ".avi" => "video/x-msvideo",
+            ".mov" => "video/quicktime",
+            ".webm" => "video/webm",
+            // Images
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            ".gif" => "image/gif",
+            ".webp" => "image/webp",
+            ".svg" => "image/svg+xml",
+            // Documents
+            ".pdf" => "application/pdf",
+            ".txt" => "text/plain",
+            ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            _ => null,
         };
     }
 

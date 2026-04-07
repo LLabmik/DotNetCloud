@@ -51,8 +51,23 @@ public sealed class MusicMetadataService
         try
         {
             var abstraction = new StreamFileAbstraction(fileName, audioStream);
-            using var tagFile = TagLib.File.Create(abstraction, mimeType, TagLib.ReadStyle.Average);
-            return BuildMetadata(tagFile, fileName);
+
+            // When MIME type is null, empty, or generic (application/octet-stream),
+            // let TagLib auto-detect the format from the file extension instead.
+            TagLib.File tagFile;
+            if (string.IsNullOrWhiteSpace(mimeType) || mimeType == "application/octet-stream")
+            {
+                tagFile = TagLib.File.Create(abstraction, TagLib.ReadStyle.Average);
+            }
+            else
+            {
+                tagFile = TagLib.File.Create(abstraction, mimeType, TagLib.ReadStyle.Average);
+            }
+
+            using (tagFile)
+            {
+                return BuildMetadata(tagFile, fileName);
+            }
         }
         catch (Exception ex)
         {
@@ -88,8 +103,20 @@ public sealed class MusicMetadataService
         try
         {
             var abstraction = new StreamFileAbstraction(fileName, audioStream);
-            using var tagFile = TagLib.File.Create(abstraction, mimeType, TagLib.ReadStyle.Average);
-            return ExtractArtFromTag(tagFile);
+            TagLib.File tagFile;
+            if (string.IsNullOrWhiteSpace(mimeType) || mimeType == "application/octet-stream")
+            {
+                tagFile = TagLib.File.Create(abstraction, TagLib.ReadStyle.Average);
+            }
+            else
+            {
+                tagFile = TagLib.File.Create(abstraction, mimeType, TagLib.ReadStyle.Average);
+            }
+
+            using (tagFile)
+            {
+                return ExtractArtFromTag(tagFile);
+            }
         }
         catch (Exception ex)
         {

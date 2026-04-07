@@ -65,7 +65,12 @@ public class ChunkedUploadServiceTests
         db.FileQuotas.Add(new FileQuota { UserId = userId, MaxBytes = 10000, UsedBytes = 0 });
         await db.SaveChangesAsync();
 
-        var service = CreateService(db);
+        // Mock storage engine confirms blob exists on disk for "hash1"
+        var storageMock = new Mock<IFileStorageEngine>();
+        storageMock.Setup(s => s.ExistsAsync("chunks/ha/sh/hash1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var service = CreateService(db, storageMock.Object);
         var result = await service.InitiateUploadAsync(new InitiateUploadDto
         {
             FileName = "test.txt",

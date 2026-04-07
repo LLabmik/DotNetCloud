@@ -18,6 +18,12 @@ public sealed class FileUploadedMusicHandler : IEventHandler<FileUploadedEvent>
         "audio/wave", "audio/x-ms-wma", "audio/webm"
     };
 
+    private static readonly HashSet<string> AudioExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".mp3", ".flac", ".ogg", ".oga", ".opus", ".aac",
+        ".m4a", ".wav", ".wma", ".aiff", ".aif", ".wv", ".ape", ".webm"
+    };
+
     private readonly IMusicIndexingCallback? _indexingCallback;
     private readonly ILogger<FileUploadedMusicHandler> _logger;
 
@@ -33,7 +39,9 @@ public sealed class FileUploadedMusicHandler : IEventHandler<FileUploadedEvent>
     /// <inheritdoc />
     public async Task HandleAsync(FileUploadedEvent @event, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrEmpty(@event.MimeType) || !AudioMimeTypes.Contains(@event.MimeType))
+        var isAudioMime = !string.IsNullOrEmpty(@event.MimeType) && AudioMimeTypes.Contains(@event.MimeType);
+        var isAudioExt = AudioExtensions.Contains(Path.GetExtension(@event.FileName));
+        if (!isAudioMime && !isAudioExt)
         {
             return;
         }
@@ -42,8 +50,10 @@ public sealed class FileUploadedMusicHandler : IEventHandler<FileUploadedEvent>
         {
             try
             {
+                // Use the event MIME type, or guess from extension if null
+                var effectiveMime = @event.MimeType ?? GuessMimeFromExtension(@event.FileName) ?? "application/octet-stream";
                 await _indexingCallback.IndexAudioAsync(
-                    @event.FileNodeId, @event.FileName, @event.MimeType, @event.Size,
+                    @event.FileNodeId, @event.FileName, effectiveMime, @event.Size,
                     @event.UploadedByUserId, @event.StoragePath, cancellationToken);
 
                 _logger.LogInformation(
@@ -69,6 +79,28 @@ public sealed class FileUploadedMusicHandler : IEventHandler<FileUploadedEvent>
     /// Gets the set of audio MIME types this handler recognizes.
     /// </summary>
     public static IReadOnlySet<string> SupportedMimeTypes => AudioMimeTypes;
+
+    private static string? GuessMimeFromExtension(string fileName)
+    {
+        var ext = Path.GetExtension(fileName);
+        if (string.IsNullOrEmpty(ext)) return null;
+        return ext.ToLowerInvariant() switch
+        {
+            ".mp3" => "audio/mpeg",
+            ".flac" => "audio/flac",
+            ".ogg" or ".oga" => "audio/ogg",
+            ".opus" => "audio/opus",
+            ".aac" => "audio/aac",
+            ".m4a" => "audio/mp4",
+            ".wav" => "audio/wav",
+            ".wma" => "audio/x-ms-wma",
+            ".aiff" or ".aif" => "audio/aiff",
+            ".wv" => "audio/wavpack",
+            ".ape" => "audio/ape",
+            ".webm" => "audio/webm",
+            _ => null,
+        };
+    }
 }
 
 /// <summary>
