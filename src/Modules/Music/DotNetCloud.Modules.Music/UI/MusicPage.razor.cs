@@ -34,6 +34,7 @@ public partial class MusicPage : IAsyncDisposable
     private List<TrackDto> _tracks = [];
     private List<TrackDto> _albumTracks = [];
     private List<TrackDto> _starredTracks = [];
+    private List<MusicAlbumDto> _starredAlbums = [];
     private List<TrackDto> _recentlyPlayed = [];
     private List<TrackDto> _genreTracks = [];
     private List<TrackDto>? _searchResults;
@@ -77,6 +78,8 @@ public partial class MusicPage : IAsyncDisposable
     private double[] _eqBands = new double[10];
     private Guid? _activePresetId;
     private static readonly string[] _bandLabels = ["31", "63", "125", "250", "500", "1K", "2K", "4K", "8K", "16K"];
+    private bool _showSavePresetDialog;
+    private string _newPresetName = string.Empty;
 
     // ── Breadcrumbs ──
     private record BreadcrumbItem(string Label, Action Action);
@@ -123,6 +126,7 @@ public partial class MusicPage : IAsyncDisposable
             var caller = await GetCallerAsync();
             _caller = caller;
             _playlists = (await PlaylistService.ListPlaylistsAsync(caller)).ToList();
+            await LoadEqPresetsAsync(caller);
             await LoadLibraryPathAsync();
             await LoadCurrentSectionAsync();
         }
@@ -206,7 +210,8 @@ public partial class MusicPage : IAsyncDisposable
                     break;
 
                 case Section.Favorites:
-                    _starredTracks = (await RecommendationService.GetMostPlayedAsync(caller)).ToList();
+                    _starredTracks = (await TrackService.GetStarredTracksAsync(caller)).ToList();
+                    _starredAlbums = (await AlbumService.GetStarredAlbumsAsync(caller)).ToList();
                     break;
 
                 case Section.RecentlyPlayed:
@@ -461,6 +466,8 @@ public partial class MusicPage : IAsyncDisposable
             var audioUrl = $"/api/v1/files/{track.FileNodeId}/content";
             await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.play", audioUrl);
             await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setVolume", _muted ? 0 : _volume);
+            // Re-apply current EQ band settings to the new track
+            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setEqBands", _eqBands);
         }
 
         await StartPlaybackTimerAsync();
@@ -641,9 +648,14 @@ public partial class MusicPage : IAsyncDisposable
         {
             var caller = await GetCallerAsync();
             await PlaybackService.ToggleStarAsync(track.Id, StarredItemType.Track, caller);
-            // Optimistic UI update via a simple property swap
-            var index = _tracks.FindIndex(t => t.Id == track.Id);
-            // Starred state toggled server-side; reload would be cleanest
+            var updated = track with { IsStarred = !track.IsStarred };
+            ReplaceInList(_tracks, updated);
+            ReplaceInList(_albumTracks, updated);
+            ReplaceInList(_starredTracks, updated);
+            ReplaceInList(_genreTracks, updated);
+            ReplaceInList(_playlistTracks, updated);
+            if (_nowPlaying?.Id == track.Id)
+                _nowPlaying = updated;
         }
         catch (Exception ex)
         {
@@ -657,6 +669,12 @@ public partial class MusicPage : IAsyncDisposable
         {
             var caller = await GetCallerAsync();
             await PlaybackService.ToggleStarAsync(album.Id, StarredItemType.Album, caller);
+            var updated = album with { IsStarred = !album.IsStarred };
+            if (_selectedAlbum?.Id == album.Id)
+                _selectedAlbum = updated;
+            ReplaceInList(_albums, updated);
+            ReplaceInList(_recentAlbums, updated);
+            ReplaceInList(_artistAlbums, updated);
         }
         catch (Exception ex)
         {
@@ -692,6 +710,18 @@ public partial class MusicPage : IAsyncDisposable
     //  Equalizer
     // ────────────────────────────────────────────────────────
 
+    private async Task LoadEqPresetsAsync(CallerContext caller)
+    {
+        try
+        {
+            _eqPresets = (await EqPresetService.ListPresetsAsync(caller)).ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load EQ presets");
+        }
+    }
+
     private async Task ApplyPresetAsync(EqPresetDto preset)
     {
         _activePresetId = preset.Id;
@@ -701,7 +731,64 @@ public partial class MusicPage : IAsyncDisposable
             for (int i = 0; i < bandValues.Length; i++)
                 _eqBands[i] = bandValues[i];
         }
-        await Task.CompletedTask;
+
+        if (_jsInitialized)
+        {
+            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setEqBands", _eqBands);
+        }
+    }
+
+    private async Task OnEqBandChanged(int bandIndex, ChangeEventArgs e)
+    {
+        if (double.TryParse(e.Value?.ToString(), out var gain))
+        {
+            _eqBands[bandIndex] = gain;
+            if (_jsInitialized)
+            {
+                await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setEqBand", bandIndex, gain);
+            }
+        }
+    }
+
+    private async Task ResetEqBands()
+    {
+        _activePresetId = null;
+        Array.Clear(_eqBands);
+        if (_jsInitialized)
+        {
+            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setEqBands", _eqBands);
+        }
+    }
+
+    private async Task SaveCurrentAsPresetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newPresetName)) return;
+
+        try
+        {
+            var caller = await GetCallerAsync();
+            var bands = new Dictionary<string, double>();
+            for (int i = 0; i < _eqBands.Length && i < _bandLabels.Length; i++)
+            {
+                bands[_bandLabels[i]] = _eqBands[i];
+            }
+
+            var dto = new SaveEqPresetDto
+            {
+                Name = _newPresetName.Trim(),
+                Bands = bands
+            };
+
+            var created = await EqPresetService.CreatePresetAsync(dto, caller);
+            _eqPresets.Add(created);
+            _activePresetId = created.Id;
+            _showSavePresetDialog = false;
+            _newPresetName = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to save EQ preset");
+        }
     }
 
     // ────────────────────────────────────────────────────────
@@ -1049,5 +1136,31 @@ public partial class MusicPage : IAsyncDisposable
             catch (JSDisconnectedException) { }
         }
         _dotNetRef?.Dispose();
+    }
+
+    // ────────────────────────────────────────────────────────
+    //  Helpers
+    // ────────────────────────────────────────────────────────
+
+    private static void ReplaceInList<T>(List<T> list, T updated) where T : class
+    {
+        var id = updated switch
+        {
+            MusicAlbumDto a => a.Id,
+            TrackDto t => t.Id,
+            ArtistDto ar => ar.Id,
+            _ => Guid.Empty
+        };
+        if (id == Guid.Empty) return;
+
+        var index = list.FindIndex(item => item switch
+        {
+            MusicAlbumDto a => a.Id == id,
+            TrackDto t => t.Id == id,
+            ArtistDto ar => ar.Id == id,
+            _ => false
+        });
+        if (index >= 0)
+            list[index] = updated;
     }
 }

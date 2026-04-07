@@ -150,6 +150,35 @@ public sealed class TrackService : ITrackService
         _logger.LogInformation("Track {TrackId} soft-deleted by user {UserId}", trackId, caller.UserId);
     }
 
+    /// <summary>
+    /// Gets starred (favorited) tracks for the current user.
+    /// </summary>
+    public async Task<IReadOnlyList<TrackDto>> GetStarredTracksAsync(CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        var starredTrackIds = await _db.StarredItems
+            .Where(s => s.UserId == caller.UserId && s.ItemType == StarredItemType.Track)
+            .OrderByDescending(s => s.StarredAt)
+            .Select(s => s.ItemId)
+            .ToListAsync(cancellationToken);
+
+        if (starredTrackIds.Count == 0)
+            return [];
+
+        var tracks = await _db.Tracks
+            .Include(t => t.Album)
+            .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
+            .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
+            .Where(t => starredTrackIds.Contains(t.Id) && t.OwnerId == caller.UserId)
+            .ToListAsync(cancellationToken);
+
+        // Preserve starred-at ordering
+        var trackMap = tracks.ToDictionary(t => t.Id);
+        return starredTrackIds
+            .Where(id => trackMap.ContainsKey(id))
+            .Select(id => MapToDto(trackMap[id], caller.UserId))
+            .ToList();
+    }
+
     internal TrackDto MapToDto(Track track, Guid userId)
     {
         var primaryArtist = track.TrackArtists?

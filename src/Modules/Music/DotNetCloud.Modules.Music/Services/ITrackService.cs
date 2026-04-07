@@ -26,6 +26,9 @@ public interface ITrackService
     /// <summary>Gets random tracks, optionally filtered by genre.</summary>
     Task<IReadOnlyList<TrackDto>> GetRandomTracksAsync(CallerContext caller, int count = 20, string? genre = null, CancellationToken cancellationToken = default);
 
+    /// <summary>Gets starred (favorited) tracks for the current user.</summary>
+    Task<IReadOnlyList<TrackDto>> GetStarredTracksAsync(CallerContext caller, CancellationToken cancellationToken = default);
+
     /// <summary>Deletes a track.</summary>
     Task DeleteTrackAsync(Guid trackId, CallerContext caller, CancellationToken cancellationToken = default);
 }

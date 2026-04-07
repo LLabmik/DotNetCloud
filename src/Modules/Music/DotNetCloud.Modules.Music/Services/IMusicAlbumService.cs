@@ -23,6 +23,9 @@ public interface IMusicAlbumService
     /// <summary>Gets recently added albums.</summary>
     Task<IReadOnlyList<MusicAlbumDto>> GetRecentAlbumsAsync(CallerContext caller, int count = 20, CancellationToken cancellationToken = default);
 
+    /// <summary>Gets starred (favorited) albums for the current user.</summary>
+    Task<IReadOnlyList<MusicAlbumDto>> GetStarredAlbumsAsync(CallerContext caller, CancellationToken cancellationToken = default);
+
     /// <summary>Deletes an album.</summary>
     Task DeleteAlbumAsync(Guid albumId, CallerContext caller, CancellationToken cancellationToken = default);
 

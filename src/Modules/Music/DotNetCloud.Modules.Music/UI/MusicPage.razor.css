@@ -289,6 +289,13 @@
     max-width: 360px;
 }
 
+.favorites-section-header {
+    margin: 24px 24px 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary, #e0e0e0);
+}
+
 /* ═══════════════════════════════════════════════════════════
    Library Overview
    ═══════════════════════════════════════════════════════════ */

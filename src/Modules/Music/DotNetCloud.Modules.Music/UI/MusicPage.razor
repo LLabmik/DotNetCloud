@@ -439,29 +439,62 @@
             @* ─── Favorites ─── *@
             @if (_section == Section.Favorites)
             {
-                <div class="track-list">
-                    @if (_starredTracks.Count == 0)
-                    {
-                        <div class="music-empty">
-                            <div class="empty-icon">⭐</div>
-                            <h4>No favorites yet</h4>
-                            <p>Star tracks, albums, or artists to see them here.</p>
-                        </div>
-                    }
-                    @foreach (var (track, index) in _starredTracks.Select((t, i) => (t, i)))
-                    {
-                        <div class="track-row @(_nowPlaying?.Id == track.Id ? "playing" : "")"
-                             @ondblclick="() => PlayTrackAsync(track)">
-                            <span class="track-num">@(index + 1)</span>
-                            <div class="track-info">
-                                <span class="track-title">@track.Title</span>
-                                <span class="track-artist">@track.ArtistName — @track.AlbumTitle</span>
+                @if (_starredAlbums.Count == 0 && _starredTracks.Count == 0)
+                {
+                    <div class="music-empty">
+                        <div class="empty-icon">⭐</div>
+                        <h4>No favorites yet</h4>
+                        <p>Star tracks, albums, or artists to see them here.</p>
+                    </div>
+                }
+
+                @if (_starredAlbums.Count > 0)
+                {
+                    <h4 class="favorites-section-header">Albums</h4>
+                    <div class="albums-grid">
+                        @foreach (var album in _starredAlbums)
+                        {
+                            <div class="album-card" @onclick="() => OpenAlbumDetail(album)">
+                                <div class="album-art">
+                                    @if (album.HasCoverArt)
+                                    {
+                                        <img src="@GetAlbumArtUrl(album.Id)" alt="@album.Title" loading="lazy" />
+                                    }
+                                    else
+                                    {
+                                        <div class="album-art-placeholder">♫</div>
+                                    }
+                                    <button class="play-overlay" @onclick:stopPropagation="true"
+                                            @onclick="() => PlayAlbumAsync(album.Id)">▶</button>
+                                </div>
+                                <div class="album-card-info">
+                                    <span class="album-card-title">@album.Title</span>
+                                    <span class="album-card-artist">@album.ArtistName</span>
+                                </div>
                             </div>
-                            <span class="track-duration">@FormatDuration(track.Duration)</span>
-                            <button class="track-action" @onclick="() => ToggleStarTrackAsync(track)" title="Unstar">★</button>
-                        </div>
-                    }
-                </div>
+                        }
+                    </div>
+                }
+
+                @if (_starredTracks.Count > 0)
+                {
+                    <h4 class="favorites-section-header">Tracks</h4>
+                    <div class="track-list">
+                        @foreach (var (track, index) in _starredTracks.Select((t, i) => (t, i)))
+                        {
+                            <div class="track-row @(_nowPlaying?.Id == track.Id ? "playing" : "")"
+                                 @ondblclick="() => PlayTrackAsync(track)">
+                                <span class="track-num">@(index + 1)</span>
+                                <div class="track-info">
+                                    <span class="track-title">@track.Title</span>
+                                    <span class="track-artist">@track.ArtistName — @track.AlbumTitle</span>
+                                </div>
+                                <span class="track-duration">@FormatDuration(track.Duration)</span>
+                                <button class="track-action" @onclick="() => ToggleStarTrackAsync(track)" title="Unstar">★</button>
+                            </div>
+                        }
+                    </div>
+                }
             }
 
             @* ─── Recently Played ─── *@
@@ -766,7 +799,11 @@
         <aside class="eq-panel">
             <div class="eq-header">
                 <h4>Equalizer</h4>
-                <button class="btn-icon" @onclick="() => _showEqualizer = false">✕</button>
+                <div class="eq-header-actions">
+                    <button class="btn-icon btn-small" title="Reset to flat" @onclick="ResetEqBands">⟲</button>
+                    <button class="btn-icon btn-small" title="Save as preset" @onclick="() => _showSavePresetDialog = true">💾</button>
+                    <button class="btn-icon" @onclick="() => _showEqualizer = false">✕</button>
+                </div>
             </div>
             <div class="eq-presets">
                 @foreach (var preset in _eqPresets)
@@ -781,13 +818,33 @@
                     var bandIndex = i;
                     <div class="eq-band">
                         <input type="range" min="-12" max="12" step="0.5"
-                               @bind="_eqBands[bandIndex]" @bind:event="oninput"
+                               value="@_eqBands[bandIndex]"
+                               @oninput="(e) => OnEqBandChanged(bandIndex, e)"
                                orient="vertical" class="eq-slider" />
                         <span class="eq-label">@_bandLabels[bandIndex]</span>
                     </div>
                 }
             </div>
         </aside>
+    }
+
+    @* ─── Save EQ Preset Dialog ─── *@
+    @if (_showSavePresetDialog)
+    {
+        <div class="dialog-overlay" @onclick="() => _showSavePresetDialog = false">
+            <div class="dialog-panel" @onclick:stopPropagation="true">
+                <h4>Save EQ Preset</h4>
+                <div class="dialog-form">
+                    <label>Preset Name
+                        <input type="text" @bind="_newPresetName" placeholder="My Custom Preset" />
+                    </label>
+                </div>
+                <div class="dialog-actions">
+                    <button class="btn-secondary" @onclick="() => _showSavePresetDialog = false">Cancel</button>
+                    <button class="btn-primary" @onclick="SaveCurrentAsPresetAsync" disabled="@string.IsNullOrWhiteSpace(_newPresetName)">Save</button>
+                </div>
+            </div>
+        </div>
     }
 
     @* ─── Create/Edit Playlist Dialog ─── *@
