@@ -22,7 +22,7 @@ public class FileUploadedPhotoHandlerTests
 
         callbackMock.Verify(c => c.IndexPhotoAsync(
             evt.FileNodeId, evt.FileName, evt.MimeType!, evt.Size,
-            evt.UploadedByUserId, It.IsAny<CancellationToken>()), Times.Once);
+            evt.UploadedByUserId, It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [TestMethod]
@@ -38,7 +38,7 @@ public class FileUploadedPhotoHandlerTests
 
         callbackMock.Verify(c => c.IndexPhotoAsync(
             It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(),
-            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [TestMethod]
@@ -54,7 +54,7 @@ public class FileUploadedPhotoHandlerTests
 
         callbackMock.Verify(c => c.IndexPhotoAsync(
             It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(),
-            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [TestMethod]
@@ -70,7 +70,7 @@ public class FileUploadedPhotoHandlerTests
 
         callbackMock.Verify(c => c.IndexPhotoAsync(
             It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(),
-            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [TestMethod]
@@ -91,7 +91,7 @@ public class FileUploadedPhotoHandlerTests
         var callbackMock = new Mock<IPhotoIndexingCallback>();
         callbackMock.Setup(c => c.IndexPhotoAsync(
             It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(),
-            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("DB error"));
 
         var handler = new FileUploadedPhotoHandler(
@@ -125,7 +125,7 @@ public class FileUploadedPhotoHandlerTests
 
         callbackMock.Verify(c => c.IndexPhotoAsync(
             It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(),
-            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Exactly(supportedTypes.Length));
     }
 
@@ -142,7 +142,7 @@ public class FileUploadedPhotoHandlerTests
 
         callbackMock.Verify(c => c.IndexPhotoAsync(
             It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(),
-            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [TestMethod]
@@ -158,7 +158,7 @@ public class FileUploadedPhotoHandlerTests
 
         callbackMock.Verify(c => c.IndexPhotoAsync(
             It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(),
-            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [TestMethod]
@@ -174,7 +174,7 @@ public class FileUploadedPhotoHandlerTests
 
         callbackMock.Verify(c => c.IndexPhotoAsync(
             It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(),
-            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [TestMethod]
@@ -215,7 +215,7 @@ public class FileUploadedPhotoHandlerTests
 
         callbackMock.Verify(c => c.IndexPhotoAsync(
             fileNodeId, "vacation.png", "image/png", 2_500_000, userId,
-            It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     private static FileUploadedEvent CreateEvent(string fileName, string? mimeType) => new()

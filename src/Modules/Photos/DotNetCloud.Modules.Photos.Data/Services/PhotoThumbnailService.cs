@@ -1,5 +1,6 @@
 using DotNetCloud.Modules.Photos.Services;
-using Microsoft.Extensions.Configuration;
+using DotNetCloud.Modules.Files.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Processing;
@@ -7,10 +8,8 @@ using SixLabors.ImageSharp.Processing;
 namespace DotNetCloud.Modules.Photos.Data.Services;
 
 /// <summary>
-/// Generates and caches photo-specific thumbnails (grid 300px, detail 1200px)
-/// using ImageSharp. Full-size requests return the original image.
-/// Thumbnails are cached in a two-level directory structure under the storage root
-/// (e.g. <c>.photo-thumbnails/ab/abcdef01..._{size}.jpg</c>).
+/// Generates and stores photo thumbnails (grid 300px, detail 1200px) in the database
+/// using ImageSharp. Full-size requests return null (caller uses the original file).
 /// </summary>
 public sealed class PhotoThumbnailService : IPhotoThumbnailService
 {
@@ -21,44 +20,51 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
     };
 
     private readonly PhotosDbContext _db;
-    private readonly string _cacheRoot;
+    private readonly IFileStorageEngine _storageEngine;
     private readonly ILogger<PhotoThumbnailService> _logger;
 
     /// <summary>
-    /// Initializes the photo thumbnail service, resolving the cache root from configuration.
+    /// Initializes the photo thumbnail service.
     /// </summary>
     public PhotoThumbnailService(
         PhotosDbContext db,
-        IConfiguration configuration,
+        IFileStorageEngine storageEngine,
         ILogger<PhotoThumbnailService> logger)
     {
         _db = db;
+        _storageEngine = storageEngine;
         _logger = logger;
-        var storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
-        _cacheRoot = Path.Combine(storageRoot, ".photo-thumbnails");
-        Directory.CreateDirectory(_cacheRoot);
     }
 
     /// <inheritdoc />
-    public Task<(Stream? Data, string? ContentType)> GetThumbnailAsync(
+    public async Task<(Stream? Data, string? ContentType)> GetThumbnailAsync(
         Guid photoId,
         PhotoThumbnailSize size,
         CancellationToken cancellationToken = default)
     {
         if (size == PhotoThumbnailSize.Full)
         {
-            // Full size is not cached — caller should use the original file via Files module
-            return Task.FromResult<(Stream?, string?)>((null, null));
+            return (null, null);
         }
 
-        var path = BuildCachePath(photoId, size);
-        if (!File.Exists(path))
+        // Read only the specific thumbnail column to avoid loading the other blob
+        byte[]? data = size == PhotoThumbnailSize.Grid
+            ? await _db.Photos.IgnoreQueryFilters()
+                .Where(p => p.Id == photoId)
+                .Select(p => p.ThumbnailGrid)
+                .FirstOrDefaultAsync(cancellationToken)
+            : await _db.Photos.IgnoreQueryFilters()
+                .Where(p => p.Id == photoId)
+                .Select(p => p.ThumbnailDetail)
+                .FirstOrDefaultAsync(cancellationToken);
+
+        if (data is null || data.Length == 0)
         {
-            return Task.FromResult<(Stream?, string?)>((null, null));
+            return (null, null);
         }
 
-        Stream stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
-        return Task.FromResult<(Stream?, string?)>((stream, "image/jpeg"));
+        Stream stream = new MemoryStream(data, writable: false);
+        return (stream, "image/jpeg");
     }
 
     /// <inheritdoc />
@@ -68,9 +74,9 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
         string mimeType,
         CancellationToken cancellationToken = default)
     {
-        if (!File.Exists(storagePath))
+        if (string.IsNullOrEmpty(storagePath))
         {
-            _logger.LogWarning("Source file not found for photo thumbnail generation: {Path}", storagePath);
+            _logger.LogWarning("No storage path provided for photo thumbnail generation: {PhotoId}", photoId);
             return;
         }
 
@@ -82,65 +88,70 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
 
         try
         {
-            using var image = await Image.LoadAsync(storagePath, cancellationToken);
+            using var sourceStream = await _storageEngine.OpenReadStreamAsync(storagePath, cancellationToken);
+            if (sourceStream is null)
+            {
+                _logger.LogWarning("Source file not found in storage engine for photo thumbnail generation: {Path}", storagePath);
+                return;
+            }
 
-            // Generate grid thumbnail (300px)
-            await GenerateSingleThumbnailAsync(image, photoId, PhotoThumbnailSize.Grid, cancellationToken);
+            using var image = await Image.LoadAsync(sourceStream, cancellationToken);
 
-            // Generate detail thumbnail (1200px)
-            await GenerateSingleThumbnailAsync(image, photoId, PhotoThumbnailSize.Detail, cancellationToken);
+            var gridData = await GenerateThumbnailBytesAsync(image, PhotoThumbnailSize.Grid, cancellationToken);
+            var detailData = await GenerateThumbnailBytesAsync(image, PhotoThumbnailSize.Detail, cancellationToken);
 
-            _logger.LogDebug("Photo thumbnails generated for {PhotoId}", photoId);
+            // Update the photo record with thumbnail data
+            var photo = await _db.Photos.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(p => p.Id == photoId, cancellationToken);
+
+            if (photo is null)
+            {
+                _logger.LogWarning("Photo {PhotoId} not found for thumbnail storage", photoId);
+                return;
+            }
+
+            photo.ThumbnailGrid = gridData;
+            photo.ThumbnailDetail = detailData;
+            await _db.SaveChangesAsync(cancellationToken);
+
+            _logger.LogDebug("Photo thumbnails generated and stored in DB for {PhotoId} (grid={GridSize}b, detail={DetailSize}b)",
+                photoId, gridData?.Length ?? 0, detailData?.Length ?? 0);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to generate thumbnails for photo {PhotoId} from {Path}", photoId, storagePath);
+            _logger.LogError(ex, "Failed to generate thumbnails for photo {PhotoId} from storage {Path}", photoId, storagePath);
         }
     }
 
     /// <inheritdoc />
-    public Task DeleteThumbnailsAsync(Guid photoId, CancellationToken cancellationToken = default)
+    public async Task DeleteThumbnailsAsync(Guid photoId, CancellationToken cancellationToken = default)
     {
-        var sizes = new[] { PhotoThumbnailSize.Grid, PhotoThumbnailSize.Detail };
-        foreach (var size in sizes)
+        var photo = await _db.Photos.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(p => p.Id == photoId, cancellationToken);
+
+        if (photo is not null)
         {
-            var path = BuildCachePath(photoId, size);
-            if (File.Exists(path))
-            {
-                try
-                {
-                    File.Delete(path);
-                }
-                catch (IOException ex)
-                {
-                    _logger.LogWarning(ex, "Failed to delete thumbnail {Path}", path);
-                }
-            }
+            photo.ThumbnailGrid = null;
+            photo.ThumbnailDetail = null;
+            await _db.SaveChangesAsync(cancellationToken);
         }
 
         _logger.LogDebug("Photo thumbnails deleted for {PhotoId}", photoId);
-        return Task.CompletedTask;
     }
 
-    private async Task GenerateSingleThumbnailAsync(
+    private static async Task<byte[]?> GenerateThumbnailBytesAsync(
         Image source,
-        Guid photoId,
         PhotoThumbnailSize size,
         CancellationToken cancellationToken)
     {
         var maxDimension = (int)size;
         if (maxDimension <= 0)
         {
-            return;
+            return null;
         }
-
-        var outputPath = BuildCachePath(photoId, size);
-        var directory = Path.GetDirectoryName(outputPath)!;
-        Directory.CreateDirectory(directory);
 
         using var clone = source.Clone(ctx =>
         {
-            // Resize maintaining aspect ratio, fitting within maxDimension × maxDimension
             ctx.Resize(new ResizeOptions
             {
                 Size = new Size(maxDimension, maxDimension),
@@ -148,13 +159,8 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
             });
         });
 
-        await clone.SaveAsJpegAsync(outputPath, cancellationToken);
-    }
-
-    private string BuildCachePath(Guid photoId, PhotoThumbnailSize size)
-    {
-        var hex = photoId.ToString("N");
-        var prefix = hex[..2];
-        return Path.Combine(_cacheRoot, prefix, $"{hex}_{(int)size}.jpg");
+        using var ms = new MemoryStream();
+        await clone.SaveAsJpegAsync(ms, cancellationToken);
+        return ms.ToArray();
     }
 }

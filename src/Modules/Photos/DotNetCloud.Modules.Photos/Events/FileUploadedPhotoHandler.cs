@@ -42,7 +42,7 @@ public sealed class FileUploadedPhotoHandler : IEventHandler<FileUploadedEvent>
             {
                 await _indexingCallback.IndexPhotoAsync(
                     @event.FileNodeId, @event.FileName, @event.MimeType, @event.Size,
-                    @event.UploadedByUserId, cancellationToken);
+                    @event.UploadedByUserId, storagePath: null, cancellationToken);
 
                 _logger.LogInformation(
                     "Photo auto-created for uploaded image: {FileName} ({MimeType}) by user {UserId}",
@@ -75,6 +75,13 @@ public sealed class FileUploadedPhotoHandler : IEventHandler<FileUploadedEvent>
 /// </summary>
 public interface IPhotoIndexingCallback
 {
-    /// <summary>Indexes an uploaded image as a Photo record.</summary>
-    Task IndexPhotoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, CancellationToken cancellationToken = default);
+    /// <summary>Indexes an uploaded image as a Photo record and generates thumbnails.</summary>
+    /// <param name="fileNodeId">The Files-module node ID.</param>
+    /// <param name="fileName">Display file name.</param>
+    /// <param name="mimeType">MIME type of the image.</param>
+    /// <param name="sizeBytes">File size in bytes.</param>
+    /// <param name="ownerId">Owner user ID.</param>
+    /// <param name="storagePath">Relative content-addressable storage path (for thumbnail generation via IFileStorageEngine).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task IndexPhotoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, string? storagePath = null, CancellationToken cancellationToken = default);
 }

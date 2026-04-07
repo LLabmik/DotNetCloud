@@ -30,6 +30,13 @@ public sealed class PhotoConfiguration : IEntityTypeConfiguration<Photo>
             .IsRequired()
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+        // Thumbnail blobs — not loaded by default to keep queries fast
+        builder.Property(p => p.ThumbnailGrid)
+            .HasColumnType("bytea");
+
+        builder.Property(p => p.ThumbnailDetail)
+            .HasColumnType("bytea");
+
         // Soft-delete query filter
         builder.HasQueryFilter(p => !p.IsDeleted);
 

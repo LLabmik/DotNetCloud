@@ -32,8 +32,10 @@ public sealed class MusicModule : IModuleLifecycle
         _eventBus = context.Services.GetRequiredService<IEventBus>();
 
         var handlerLogger = context.Services.GetService<ILogger<FileUploadedMusicHandler>>();
+        var indexingCallback = context.Services.GetService<IMusicIndexingCallback>();
         _fileUploadedHandler = new FileUploadedMusicHandler(
-            handlerLogger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<FileUploadedMusicHandler>.Instance);
+            handlerLogger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<FileUploadedMusicHandler>.Instance,
+            indexingCallback);
 
         await _eventBus.SubscribeAsync(_fileUploadedHandler, cancellationToken);
 

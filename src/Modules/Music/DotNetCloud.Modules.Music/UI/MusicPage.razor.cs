@@ -91,11 +91,19 @@ public partial class MusicPage : IAsyncDisposable
 
     // ── Library Settings ──
     private string _libraryPath = string.Empty;
+    private Guid? _libraryFolderId;
     private bool _settingsSaving;
     private bool _settingsScanning;
     private string? _settingsError;
     private string? _settingsSuccess;
     private MediaScanResult? _scanResult;
+
+    // Directory Browser
+    private bool _showDirBrowser;
+    private Guid? _dirBrowserFolderId;
+    private List<(Guid Id, string Name)> _dirBrowserFolders = [];
+    private List<(Guid Id, string Name)> _dirBrowserBreadcrumbs = [];
+    private string? _dirBrowserError;
 
     // ────────────────────────────────────────────────────────
     //  Lifecycle
@@ -716,6 +724,8 @@ public partial class MusicPage : IAsyncDisposable
         {
             var setting = await UserSettingsService.GetSettingAsync(_caller.UserId, "media-library", "music-path");
             _libraryPath = setting?.Value ?? string.Empty;
+            var folderIdSetting = await UserSettingsService.GetSettingAsync(_caller.UserId, "media-library", "music-folder-id");
+            _libraryFolderId = Guid.TryParse(folderIdSetting?.Value, out var fid) ? fid : null;
         }
         catch { /* ignore load failures */ }
     }
@@ -729,7 +739,9 @@ public partial class MusicPage : IAsyncDisposable
         try
         {
             await UserSettingsService.UpsertSettingAsync(_caller.UserId, "media-library", "music-path",
-                new UpsertUserSettingDto { Value = _libraryPath.Trim(), Description = "Music library directory path" });
+                new UpsertUserSettingDto { Value = _libraryPath.Trim(), Description = "Music library folder path" });
+            await UserSettingsService.UpsertSettingAsync(_caller.UserId, "media-library", "music-folder-id",
+                new UpsertUserSettingDto { Value = _libraryFolderId?.ToString() ?? string.Empty, Description = "Music library folder ID" });
             _settingsSuccess = "Path saved.";
         }
         catch (Exception ex)
@@ -755,7 +767,7 @@ public partial class MusicPage : IAsyncDisposable
         StateHasChanged();
         try
         {
-            _scanResult = await MediaLibraryScanner.ScanAsync(_libraryPath.Trim(), _caller.UserId, "Music");
+            _scanResult = await MediaLibraryScanner.ScanFolderAsync(_libraryFolderId, _caller.UserId, "Music");
             _settingsSuccess = $"Scan complete: {_scanResult.Imported} imported, {_scanResult.Skipped} already up to date.";
         }
         catch (Exception ex)
@@ -766,6 +778,91 @@ public partial class MusicPage : IAsyncDisposable
         {
             _settingsScanning = false;
         }
+    }
+
+    // ── Directory Browser Methods ────────────────────────────
+
+    private async Task OpenDirectoryBrowser()
+    {
+        _dirBrowserError = null;
+        _dirBrowserFolderId = null;
+        _dirBrowserBreadcrumbs.Clear();
+        await LoadDirBrowserFoldersAsync();
+        _showDirBrowser = true;
+    }
+
+    private void HideDirectoryBrowser() => _showDirBrowser = false;
+
+    private async Task DirBrowserNavigateToRoot()
+    {
+        _dirBrowserFolderId = null;
+        _dirBrowserBreadcrumbs.Clear();
+        await LoadDirBrowserFoldersAsync();
+    }
+
+    private async Task LoadDirBrowserFoldersAsync()
+    {
+        _dirBrowserError = null;
+        _dirBrowserFolders.Clear();
+        try
+        {
+            if (_caller is null) return;
+            var nodes = _dirBrowserFolderId.HasValue
+                ? await FileService.ListChildrenAsync(_dirBrowserFolderId.Value, _caller)
+                : await FileService.ListRootAsync(_caller);
+
+            _dirBrowserFolders = nodes
+                .Where(n => n.NodeType == "Folder")
+                .OrderBy(n => n.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(n => (n.Id, n.Name))
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _dirBrowserError = ex.Message;
+        }
+    }
+
+    private async Task DirBrowserNavigate(Guid folderId, string folderName)
+    {
+        _dirBrowserBreadcrumbs.Add((folderId, folderName));
+        _dirBrowserFolderId = folderId;
+        await LoadDirBrowserFoldersAsync();
+    }
+
+    private async Task DirBrowserGoUp()
+    {
+        if (_dirBrowserBreadcrumbs.Count > 0)
+        {
+            _dirBrowserBreadcrumbs.RemoveAt(_dirBrowserBreadcrumbs.Count - 1);
+            _dirBrowserFolderId = _dirBrowserBreadcrumbs.Count > 0
+                ? _dirBrowserBreadcrumbs[^1].Id
+                : null;
+            await LoadDirBrowserFoldersAsync();
+        }
+    }
+
+    private async Task DirBrowserNavigateToCrumb(int index)
+    {
+        if (index < _dirBrowserBreadcrumbs.Count - 1)
+        {
+            _dirBrowserBreadcrumbs.RemoveRange(index + 1, _dirBrowserBreadcrumbs.Count - index - 1);
+        }
+        _dirBrowserFolderId = _dirBrowserBreadcrumbs[index].Id;
+        await LoadDirBrowserFoldersAsync();
+    }
+
+    private string GetDirBrowserPath()
+    {
+        if (_dirBrowserBreadcrumbs.Count == 0) return "/";
+        return "/" + string.Join('/', _dirBrowserBreadcrumbs.Select(b => b.Name));
+    }
+
+    private void ConfirmDirectoryBrowser()
+    {
+        _libraryPath = GetDirBrowserPath();
+        _libraryFolderId = _dirBrowserFolderId;
+        _showDirBrowser = false;
     }
 
     public async ValueTask DisposeAsync()

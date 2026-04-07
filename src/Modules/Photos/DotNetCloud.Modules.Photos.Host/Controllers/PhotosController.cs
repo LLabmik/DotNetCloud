@@ -1,6 +1,7 @@
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Photos.Data.Services;
+using DotNetCloud.Modules.Photos.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DotNetCloud.Modules.Photos.Host.Controllers;
@@ -18,6 +19,7 @@ public class PhotosController : PhotosControllerBase
     private readonly PhotoShareService _shareService;
     private readonly PhotoEditService _editService;
     private readonly SlideshowService _slideshowService;
+    private readonly IPhotoThumbnailService _thumbnailService;
     private readonly ILogger<PhotosController> _logger;
 
     /// <summary>
@@ -31,6 +33,7 @@ public class PhotosController : PhotosControllerBase
         PhotoShareService shareService,
         PhotoEditService editService,
         SlideshowService slideshowService,
+        IPhotoThumbnailService thumbnailService,
         ILogger<PhotosController> logger)
     {
         _photoService = photoService;
@@ -40,6 +43,7 @@ public class PhotosController : PhotosControllerBase
         _shareService = shareService;
         _editService = editService;
         _slideshowService = slideshowService;
+        _thumbnailService = thumbnailService;
         _logger = logger;
     }
 
@@ -63,6 +67,21 @@ public class PhotosController : PhotosControllerBase
         return photo is null
             ? NotFound(ErrorEnvelope(ErrorCodes.PhotoNotFound, "Photo not found."))
             : Ok(Envelope(photo));
+    }
+
+    /// <summary>Gets a thumbnail for a photo at the requested size.</summary>
+    [HttpGet("{photoId:guid}/thumbnail")]
+    public async Task<IActionResult> GetThumbnailAsync(Guid photoId, [FromQuery] string size = "grid")
+    {
+        if (!Enum.TryParse<PhotoThumbnailSize>(size, ignoreCase: true, out var thumbnailSize))
+            thumbnailSize = PhotoThumbnailSize.Grid;
+
+        var (stream, contentType) = await _thumbnailService.GetThumbnailAsync(photoId, thumbnailSize);
+        if (stream is null)
+            return NotFound();
+
+        Response.Headers.CacheControl = "private, max-age=3600";
+        return File(stream, contentType ?? "image/jpeg");
     }
 
     /// <summary>Creates a photo record linked to a file node.</summary>

@@ -6,7 +6,11 @@ using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Services;
+using DotNetCloud.Modules.Photos.Events;
+using DotNetCloud.Modules.Music.Events;
+using DotNetCloud.Modules.Video.Events;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Core.Server.Services;
@@ -20,6 +24,7 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IFileStorageEngine _storageEngine;
     private readonly IEventBus _eventBus;
+    private readonly string _storageRootPath;
     private readonly ILogger<MediaFolderImportService> _logger;
 
     /// <summary>
@@ -29,11 +34,13 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
         IServiceScopeFactory scopeFactory,
         IFileStorageEngine storageEngine,
         IEventBus eventBus,
+        IConfiguration configuration,
         ILogger<MediaFolderImportService> logger)
     {
         _scopeFactory = scopeFactory;
         _storageEngine = storageEngine;
         _eventBus = eventBus;
+        _storageRootPath = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
         _logger = logger;
     }
 
@@ -121,6 +128,130 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
             Failed = importResult.Failed,
             Errors = importResult.Errors,
         };
+    }
+
+    /// <inheritdoc />
+    public async Task<MediaScanResult> ScanFolderAsync(Guid? folderId, Guid ownerId, string mediaType, CancellationToken cancellationToken = default)
+    {
+        if (!Enum.TryParse<MediaType>(mediaType, ignoreCase: true, out var parsed))
+        {
+            throw new ArgumentException($"Invalid media type: {mediaType}", nameof(mediaType));
+        }
+
+        var extensions = GetExtensionsForMediaType(parsed);
+
+        using var scope = _scopeFactory.CreateScope();
+        var filesDb = scope.ServiceProvider.GetRequiredService<FilesDbContext>();
+
+        // Build query for files under the selected virtual folder
+        IQueryable<FileNode> query = filesDb.FileNodes
+            .Where(n => n.OwnerId == ownerId && !n.IsDeleted && n.NodeType == FileNodeType.File);
+
+        if (folderId.HasValue)
+        {
+            // Get the target folder's materialized path for descendant lookup
+            var folder = await filesDb.FileNodes
+                .Where(n => n.Id == folderId.Value && n.OwnerId == ownerId && !n.IsDeleted)
+                .Select(n => new { n.MaterializedPath })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (folder is null)
+            {
+                return new MediaScanResult { Errors = ["Folder not found."] };
+            }
+
+            var prefix = folder.MaterializedPath + "/";
+            query = query.Where(n => n.MaterializedPath.StartsWith(prefix));
+        }
+
+        // Pull candidates, then filter by extension in memory (EF can't do HashSet.Contains on ext)
+        var candidates = await query
+            .Select(n => new { n.Id, n.Name, n.Size, n.MimeType, n.ParentId, n.StoragePath })
+            .ToListAsync(cancellationToken);
+
+        var matchingFiles = candidates
+            .Where(f =>
+            {
+                var ext = Path.GetExtension(f.Name).ToLowerInvariant();
+                return extensions.Contains(ext);
+            })
+            .ToList();
+
+        var result = new MediaScanResult { TotalFound = matchingFiles.Count };
+
+        _logger.LogInformation(
+            "Virtual folder scan: found {Count} {MediaType} files under folder {FolderId} for user {OwnerId}",
+            matchingFiles.Count, parsed, folderId?.ToString() ?? "root", ownerId);
+
+        foreach (var file in matchingFiles)
+        {
+            if (cancellationToken.IsCancellationRequested) break;
+            try
+            {
+                var mime = file.MimeType ?? "application/octet-stream";
+
+                // Resolve actual chunk storage path (files uploaded via chunked API have their
+                // data in FileChunks, not at FileNode.StoragePath which may be stale/empty).
+                string? chunkStoragePath = file.StoragePath;
+                if (parsed == MediaType.Photos)
+                {
+                    var resolvedPath = await (
+                        from fv in filesDb.FileVersions
+                        where fv.FileNodeId == file.Id
+                        orderby fv.VersionNumber descending
+                        join fvc in filesDb.FileVersionChunks on fv.Id equals fvc.FileVersionId
+                        orderby fvc.SequenceIndex
+                        join fc in filesDb.FileChunks on fvc.FileChunkId equals fc.Id
+                        select fc.StoragePath
+                    ).FirstOrDefaultAsync(cancellationToken);
+                    if (!string.IsNullOrEmpty(resolvedPath))
+                        chunkStoragePath = resolvedPath;
+                }
+
+                switch (parsed)
+                {
+                    case MediaType.Photos:
+                        var photoCallback = scope.ServiceProvider.GetService<IPhotoIndexingCallback>();
+                        if (photoCallback is not null)
+                        {
+                            await photoCallback.IndexPhotoAsync(file.Id, file.Name, mime, file.Size, ownerId, chunkStoragePath, cancellationToken);
+                        }
+                        else
+                            _logger.LogWarning("IPhotoIndexingCallback not registered — cannot index {File}", file.Name);
+                        break;
+
+                    case MediaType.Music:
+                        var musicCallback = scope.ServiceProvider.GetService<IMusicIndexingCallback>();
+                        if (musicCallback is not null)
+                            await musicCallback.IndexAudioAsync(file.Id, file.Name, mime, file.Size, ownerId, cancellationToken);
+                        else
+                            _logger.LogWarning("IMusicIndexingCallback not registered — cannot index {File}", file.Name);
+                        break;
+
+                    case MediaType.Video:
+                        var videoCallback = scope.ServiceProvider.GetService<IVideoIndexingCallback>();
+                        if (videoCallback is not null)
+                            await videoCallback.IndexVideoAsync(file.Id, file.Name, mime, file.Size, ownerId, cancellationToken);
+                        else
+                            _logger.LogWarning("IVideoIndexingCallback not registered — cannot index {File}", file.Name);
+                        break;
+                }
+
+                result.Imported++;
+            }
+            catch (Exception ex)
+            {
+                result.Failed++;
+                result.Errors.Add($"{file.Name}: {ex.Message}");
+                _logger.LogWarning(ex, "Failed to index media file {FileId}", file.Id);
+            }
+        }
+
+        _logger.LogInformation(
+            "Virtual folder scan complete: {Imported} indexed, {Failed} failed out of {Total}",
+            result.Imported, result.Failed, result.TotalFound);
+
+        return result;
     }
 
     private async Task<bool> ImportSingleFileAsync(string filePath, Guid ownerId, CancellationToken ct)

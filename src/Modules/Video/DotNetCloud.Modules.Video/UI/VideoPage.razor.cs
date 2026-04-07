@@ -65,11 +65,19 @@ public partial class VideoPage : IAsyncDisposable
 
     // ── Library Settings ──
     private string _libraryPath = string.Empty;
+    private Guid? _libraryFolderId;
     private bool _settingsSaving;
     private bool _settingsScanning;
     private string? _settingsError;
     private string? _settingsSuccess;
     private MediaScanResult? _scanResult;
+
+    // Directory Browser
+    private bool _showDirBrowser;
+    private Guid? _dirBrowserFolderId;
+    private List<(Guid Id, string Name)> _dirBrowserFolders = [];
+    private List<(Guid Id, string Name)> _dirBrowserBreadcrumbs = [];
+    private string? _dirBrowserError;
 
     // ────────────────────────────────────────────────────────
     //  Lifecycle
@@ -114,31 +122,40 @@ public partial class VideoPage : IAsyncDisposable
 
     private async Task LoadCurrentSectionAsync()
     {
+        if (_section == Section.Settings)
+        {
+            // Settings UI is self-contained — no data load needed, skip loading spinner
+            _loading = false;
+            _errorMessage = null;
+            StateHasChanged();
+            return;
+        }
+
+        if (_caller is null) return;
+
         try
         {
             _loading = true;
             _errorMessage = null;
             StateHasChanged();
 
-            var caller = await GetCallerAsync();
-
             switch (_section)
             {
                 case Section.Home:
-                    _continueWatching = (await WatchProgressService.GetContinueWatchingAsync(caller, 10)).ToList();
-                    _recentVideos = (await VideoService.GetRecentVideosAsync(caller, 12)).ToList();
+                    _continueWatching = (await WatchProgressService.GetContinueWatchingAsync(_caller, 10)).ToList();
+                    _recentVideos = (await VideoService.GetRecentVideosAsync(_caller, 12)).ToList();
                     break;
 
                 case Section.Library:
-                    _videos = (await VideoService.ListVideosAsync(caller, 0, 200)).ToList();
+                    _videos = (await VideoService.ListVideosAsync(_caller, 0, 200)).ToList();
                     break;
 
                 case Section.Collections:
-                    _collections = (await CollectionService.ListCollectionsAsync(caller)).ToList();
+                    _collections = (await CollectionService.ListCollectionsAsync(_caller)).ToList();
                     break;
 
                 case Section.Favorites:
-                    _favoriteVideos = (await VideoService.GetFavoritesAsync(caller)).ToList();
+                    _favoriteVideos = (await VideoService.GetFavoritesAsync(_caller)).ToList();
                     break;
             }
         }
@@ -496,6 +513,8 @@ public partial class VideoPage : IAsyncDisposable
         {
             var setting = await UserSettingsService.GetSettingAsync(_caller.UserId, "media-library", "video-path");
             _libraryPath = setting?.Value ?? string.Empty;
+            var folderIdSetting = await UserSettingsService.GetSettingAsync(_caller.UserId, "media-library", "video-folder-id");
+            _libraryFolderId = Guid.TryParse(folderIdSetting?.Value, out var fid) ? fid : null;
         }
         catch { /* ignore load failures */ }
     }
@@ -509,7 +528,9 @@ public partial class VideoPage : IAsyncDisposable
         try
         {
             await UserSettingsService.UpsertSettingAsync(_caller.UserId, "media-library", "video-path",
-                new UpsertUserSettingDto { Value = _libraryPath.Trim(), Description = "Video library directory path" });
+                new UpsertUserSettingDto { Value = _libraryPath.Trim(), Description = "Video library folder path" });
+            await UserSettingsService.UpsertSettingAsync(_caller.UserId, "media-library", "video-folder-id",
+                new UpsertUserSettingDto { Value = _libraryFolderId?.ToString() ?? string.Empty, Description = "Video library folder ID" });
             _settingsSuccess = "Path saved.";
         }
         catch (Exception ex)
@@ -535,7 +556,7 @@ public partial class VideoPage : IAsyncDisposable
         StateHasChanged();
         try
         {
-            _scanResult = await MediaLibraryScanner.ScanAsync(_libraryPath.Trim(), _caller.UserId, "Video");
+            _scanResult = await MediaLibraryScanner.ScanFolderAsync(_libraryFolderId, _caller.UserId, "Video");
             _settingsSuccess = $"Scan complete: {_scanResult.Imported} imported, {_scanResult.Skipped} already up to date.";
         }
         catch (Exception ex)
@@ -546,6 +567,91 @@ public partial class VideoPage : IAsyncDisposable
         {
             _settingsScanning = false;
         }
+    }
+
+    // ── Directory Browser Methods ────────────────────────────
+
+    private async Task OpenDirectoryBrowser()
+    {
+        _dirBrowserError = null;
+        _dirBrowserFolderId = null;
+        _dirBrowserBreadcrumbs.Clear();
+        await LoadDirBrowserFoldersAsync();
+        _showDirBrowser = true;
+    }
+
+    private void HideDirectoryBrowser() => _showDirBrowser = false;
+
+    private async Task DirBrowserNavigateToRoot()
+    {
+        _dirBrowserFolderId = null;
+        _dirBrowserBreadcrumbs.Clear();
+        await LoadDirBrowserFoldersAsync();
+    }
+
+    private async Task LoadDirBrowserFoldersAsync()
+    {
+        _dirBrowserError = null;
+        _dirBrowserFolders.Clear();
+        try
+        {
+            if (_caller is null) return;
+            var nodes = _dirBrowserFolderId.HasValue
+                ? await FileService.ListChildrenAsync(_dirBrowserFolderId.Value, _caller)
+                : await FileService.ListRootAsync(_caller);
+
+            _dirBrowserFolders = nodes
+                .Where(n => n.NodeType == "Folder")
+                .OrderBy(n => n.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(n => (n.Id, n.Name))
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _dirBrowserError = ex.Message;
+        }
+    }
+
+    private async Task DirBrowserNavigate(Guid folderId, string folderName)
+    {
+        _dirBrowserBreadcrumbs.Add((folderId, folderName));
+        _dirBrowserFolderId = folderId;
+        await LoadDirBrowserFoldersAsync();
+    }
+
+    private async Task DirBrowserGoUp()
+    {
+        if (_dirBrowserBreadcrumbs.Count > 0)
+        {
+            _dirBrowserBreadcrumbs.RemoveAt(_dirBrowserBreadcrumbs.Count - 1);
+            _dirBrowserFolderId = _dirBrowserBreadcrumbs.Count > 0
+                ? _dirBrowserBreadcrumbs[^1].Id
+                : null;
+            await LoadDirBrowserFoldersAsync();
+        }
+    }
+
+    private async Task DirBrowserNavigateToCrumb(int index)
+    {
+        if (index < _dirBrowserBreadcrumbs.Count - 1)
+        {
+            _dirBrowserBreadcrumbs.RemoveRange(index + 1, _dirBrowserBreadcrumbs.Count - index - 1);
+        }
+        _dirBrowserFolderId = _dirBrowserBreadcrumbs[index].Id;
+        await LoadDirBrowserFoldersAsync();
+    }
+
+    private string GetDirBrowserPath()
+    {
+        if (_dirBrowserBreadcrumbs.Count == 0) return "/";
+        return "/" + string.Join('/', _dirBrowserBreadcrumbs.Select(b => b.Name));
+    }
+
+    private void ConfirmDirectoryBrowser()
+    {
+        _libraryPath = GetDirBrowserPath();
+        _libraryFolderId = _dirBrowserFolderId;
+        _showDirBrowser = false;
     }
 
     public ValueTask DisposeAsync()

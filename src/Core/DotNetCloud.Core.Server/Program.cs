@@ -327,7 +327,10 @@ public class Program
 
         // Add Blazor (InteractiveAuto = Server + WebAssembly)
         builder.Services.AddRazorComponents()
-            .AddInteractiveServerComponents()
+            .AddInteractiveServerComponents(options =>
+            {
+                options.DetailedErrors = true;
+            })
             .AddInteractiveWebAssemblyComponents()
             .AddAuthenticationStateSerialization();
 
@@ -659,7 +662,17 @@ public class Program
         app.MapRazorComponents<DotNetCloud.UI.Web.Components.App>()
             .AddInteractiveServerRenderMode()
             .AddInteractiveWebAssemblyRenderMode()
-            .AddAdditionalAssemblies(typeof(DotNetCloud.UI.Web.Client._Imports).Assembly);
+            .AddAdditionalAssemblies(
+                typeof(DotNetCloud.UI.Web.Client._Imports).Assembly,
+                typeof(DotNetCloud.Modules.Video.UI.VideoPage).Assembly,
+                typeof(DotNetCloud.Modules.Photos.UI.PhotosPage).Assembly,
+                typeof(DotNetCloud.Modules.Music.UI.MusicPage).Assembly,
+                typeof(DotNetCloud.Modules.Chat.UI.ChatPageLayout).Assembly,
+                typeof(DotNetCloud.Modules.Notes.UI.NotesPage).Assembly,
+                typeof(DotNetCloud.Modules.Calendar.UI.CalendarPage).Assembly,
+                typeof(DotNetCloud.Modules.Contacts.UI.ContactsPage).Assembly,
+                typeof(DotNetCloud.Modules.Tracks.UI.TracksPage).Assembly,
+                typeof(DotNetCloud.Modules.Files.UI.FileBrowser).Assembly);
     }
 
     private static void MapCollaboraReverseProxy(WebApplication app)

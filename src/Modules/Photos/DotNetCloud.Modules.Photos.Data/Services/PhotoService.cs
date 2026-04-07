@@ -30,6 +30,19 @@ public sealed class PhotoService : IPhotoService
     }
 
     /// <summary>
+    /// Gets an existing photo by its FileNode ID, or null if not found.
+    /// </summary>
+    internal async Task<PhotoDto?> GetByFileNodeIdAsync(Guid fileNodeId, CancellationToken cancellationToken = default)
+    {
+        var photo = await _db.Photos
+            .Include(p => p.Metadata)
+            .Include(p => p.Tags)
+            .FirstOrDefaultAsync(p => p.FileNodeId == fileNodeId, cancellationToken);
+
+        return photo is not null ? MapToDto(photo) : null;
+    }
+
+    /// <summary>
     /// Creates a new photo record linked to a FileNode.
     /// </summary>
     public async Task<PhotoDto> CreatePhotoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, CallerContext caller, CancellationToken cancellationToken = default)

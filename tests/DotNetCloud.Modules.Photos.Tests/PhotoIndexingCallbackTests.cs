@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Photos.Data;
 using DotNetCloud.Modules.Photos.Data.Services;
+using DotNetCloud.Modules.Photos.Services;
 using Microsoft.Extensions.Logging;
 using Moq;
 
@@ -18,7 +19,7 @@ public class PhotoIndexingCallbackTests
     {
         _db = TestHelpers.CreateDb();
         _photoService = new PhotoService(_db, Mock.Of<IEventBus>(), Mock.Of<ILogger<PhotoService>>());
-        _callback = new PhotoIndexingCallback(_photoService, Mock.Of<ILogger<PhotoIndexingCallback>>());
+        _callback = new PhotoIndexingCallback(_photoService, Mock.Of<IPhotoThumbnailService>(), Mock.Of<ILogger<PhotoIndexingCallback>>());
     }
 
     [TestCleanup]
@@ -91,5 +92,17 @@ public class PhotoIndexingCallbackTests
         await _callback.IndexPhotoAsync(Guid.NewGuid(), "c.gif", "image/gif", 512, ownerId);
 
         Assert.AreEqual(3, _db.Photos.Count());
+    }
+
+    [TestMethod]
+    public async Task IndexPhotoAsync_DuplicateFileNodeId_SkipsInsert()
+    {
+        var fileNodeId = Guid.NewGuid();
+        var ownerId = Guid.NewGuid();
+
+        await _callback.IndexPhotoAsync(fileNodeId, "sunset.jpg", "image/jpeg", 2_000_000, ownerId);
+        await _callback.IndexPhotoAsync(fileNodeId, "sunset.jpg", "image/jpeg", 2_000_000, ownerId);
+
+        Assert.AreEqual(1, _db.Photos.Count(p => p.FileNodeId == fileNodeId));
     }
 }

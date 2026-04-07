@@ -47,6 +47,12 @@ public sealed class Photo
     /// <summary>When the photo record was last modified (UTC).</summary>
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>JPEG thumbnail for gallery grid view (300px). Null if not yet generated.</summary>
+    public byte[]? ThumbnailGrid { get; set; }
+
+    /// <summary>JPEG thumbnail for detail/lightbox view (1200px). Null if not yet generated.</summary>
+    public byte[]? ThumbnailDetail { get; set; }
+
     /// <summary>Metadata for this photo (EXIF, GPS, camera info).</summary>
     public PhotoMetadata? Metadata { get; set; }
 

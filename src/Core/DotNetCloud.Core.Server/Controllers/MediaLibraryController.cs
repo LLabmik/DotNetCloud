@@ -73,23 +73,15 @@ public sealed class MediaLibraryController : ControllerBase
             return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
         }
 
-        // Validate paths — must be absolute and exist on disk (or be empty to clear)
-        var errors = new List<string>();
-        ValidatePath("Photos", dto.PhotosPath, errors);
-        ValidatePath("Music", dto.MusicPath, errors);
-        ValidatePath("Video", dto.VideoPath, errors);
-
-        if (errors.Count > 0)
-        {
-            return BadRequest(new { success = false, error = new { code = "INVALID_PATHS", message = string.Join("; ", errors) } });
-        }
+        // Validate paths — virtual Files module paths (or empty to clear)
+        // No filesystem validation needed; paths are virtual folder names
 
         await _userSettingsService.UpsertSettingAsync(userId, Module, "photos-path",
-            new UpsertUserSettingDto { Value = dto.PhotosPath?.Trim() ?? string.Empty, Description = "Photos library directory path" });
+            new UpsertUserSettingDto { Value = dto.PhotosPath?.Trim() ?? string.Empty, Description = "Photos library folder path" });
         await _userSettingsService.UpsertSettingAsync(userId, Module, "music-path",
-            new UpsertUserSettingDto { Value = dto.MusicPath?.Trim() ?? string.Empty, Description = "Music library directory path" });
+            new UpsertUserSettingDto { Value = dto.MusicPath?.Trim() ?? string.Empty, Description = "Music library folder path" });
         await _userSettingsService.UpsertSettingAsync(userId, Module, "video-path",
-            new UpsertUserSettingDto { Value = dto.VideoPath?.Trim() ?? string.Empty, Description = "Video library directory path" });
+            new UpsertUserSettingDto { Value = dto.VideoPath?.Trim() ?? string.Empty, Description = "Video library folder path" });
 
         _logger.LogInformation("User {UserId} updated media library paths", userId);
         return Ok(new { success = true });
@@ -120,6 +112,14 @@ public sealed class MediaLibraryController : ControllerBase
             _ => throw new InvalidOperationException("Unreachable")
         };
 
+        var folderIdKey = mediaType switch
+        {
+            MediaType.Photos => "photos-folder-id",
+            MediaType.Music => "music-folder-id",
+            MediaType.Video => "video-folder-id",
+            _ => throw new InvalidOperationException("Unreachable")
+        };
+
         var pathSetting = await _userSettingsService.GetSettingAsync(userId, Module, settingKey);
         var directoryPath = pathSetting?.Value;
 
@@ -128,32 +128,21 @@ public sealed class MediaLibraryController : ControllerBase
             return BadRequest(new { success = false, error = new { code = "NO_PATH", message = $"No {request.MediaType} library path configured. Set one first." } });
         }
 
-        if (!Directory.Exists(directoryPath))
-        {
-            return BadRequest(new { success = false, error = new { code = "PATH_NOT_FOUND", message = $"Directory does not exist: {directoryPath}" } });
-        }
+        var folderIdSetting = await _userSettingsService.GetSettingAsync(userId, Module, folderIdKey);
+        Guid? folderId = Guid.TryParse(folderIdSetting?.Value, out var fid) ? fid : null;
 
-        _logger.LogInformation("User {UserId} triggered {MediaType} library scan of {Path}",
-            userId, mediaType, directoryPath);
+        _logger.LogInformation("User {UserId} triggered {MediaType} library scan of {Path} (folderId: {FolderId})",
+            userId, mediaType, directoryPath, folderId?.ToString() ?? "root");
 
-        var result = await _importService.ScanAndImportAsync(directoryPath, userId, mediaType);
+        var result = await _importService.ScanFolderAsync(folderId, userId, request.MediaType);
 
         return Ok(new { success = true, data = result });
     }
 
     private static void ValidatePath(string label, string? path, List<string> errors)
     {
-        if (string.IsNullOrWhiteSpace(path)) return; // Empty means "not configured" — that's fine
-
-        var trimmed = path.Trim();
-        if (!Path.IsPathRooted(trimmed))
-        {
-            errors.Add($"{label} path must be an absolute path");
-        }
-        else if (!Directory.Exists(trimmed))
-        {
-            errors.Add($"{label} path does not exist: {trimmed}");
-        }
+        // Virtual folder paths — no filesystem validation needed
+        // Paths like "/Photos" or "/Music/Library" are valid
     }
 
     private bool TryGetUserId(out Guid userId)

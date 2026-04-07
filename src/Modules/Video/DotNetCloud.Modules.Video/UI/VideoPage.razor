@@ -13,6 +13,7 @@
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
 @inject DotNetCloud.Core.Services.IUserSettingsService UserSettingsService
 @inject DotNetCloud.Core.Services.IMediaLibraryScanner MediaLibraryScanner
+@inject DotNetCloud.Modules.Files.Services.IFileService FileService
 @inject Microsoft.AspNetCore.Components.NavigationManager Navigation
 @inject IJSRuntime Js
 @inject Microsoft.Extensions.Logging.ILogger<VideoPage> Logger
@@ -330,8 +331,6 @@
                 </div>
             }
 
-            }
-
             @* ─── Library Settings ─── *@
             @if (_section == Section.Settings)
             {
@@ -342,8 +341,11 @@
                             this directory and import videos (MP4, MKV, AVI, MOV, WebM, WMV, MPEG, and more).</p>
                         <div class="form-group">
                             <label>Directory Path</label>
-                            <input type="text" class="input" @bind="_libraryPath"
-                                   placeholder="/home/user/Videos" />
+                            <div class="input-with-browse">
+                                <input type="text" class="input" @bind="_libraryPath"
+                                       placeholder="/home/user/Videos" />
+                                <button class="btn btn-outline btn-sm" @onclick="OpenDirectoryBrowser">Browse…</button>
+                            </div>
                         </div>
                         <div class="settings-actions">
                             <button class="btn btn-primary btn-sm" @onclick="SaveLibraryPathAsync"
@@ -373,6 +375,68 @@
                         {
                             <div class="alert alert-success" style="margin-top: 12px; font-size: 13px;">@_settingsSuccess</div>
                         }
+                    </div>
+                </div>
+            }
+
+            @* ─── Directory Browser Dialog ─── *@
+            @if (_showDirBrowser)
+            {
+                <div class="folder-picker-overlay" @onclick="HideDirectoryBrowser">
+                    <div class="folder-picker-dialog" @onclick:stopPropagation>
+                        <div class="folder-picker-header">
+                            <h3>Select Folder</h3>
+                            <button class="btn-icon" @onclick="HideDirectoryBrowser" title="Close">✕</button>
+                        </div>
+
+                        <nav class="folder-picker-breadcrumbs">
+                            <button class="btn btn-sm" @onclick="DirBrowserNavigateToRoot">
+                                Home
+                            </button>
+                            @for (int i = 0; i < _dirBrowserBreadcrumbs.Count; i++)
+                            {
+                                var idx = i;
+                                <span class="separator">/</span>
+                                <button class="btn btn-sm" @onclick="() => DirBrowserNavigateToCrumb(idx)">@_dirBrowserBreadcrumbs[idx].Name</button>
+                            }
+                        </nav>
+
+                        <div class="folder-picker-current-path">
+                            <span class="path-label">Path:</span> @GetDirBrowserPath()
+                        </div>
+
+                        <div class="folder-picker-list">
+                            @if (_dirBrowserBreadcrumbs.Count > 0)
+                            {
+                                <button class="folder-picker-item" @onclick="DirBrowserGoUp">
+                                    📁 ..
+                                </button>
+                            }
+                            @if (!string.IsNullOrEmpty(_dirBrowserError))
+                            {
+                                <p class="text-muted folder-picker-empty">@_dirBrowserError</p>
+                            }
+                            else if (_dirBrowserFolders.Count == 0)
+                            {
+                                <p class="text-muted folder-picker-empty">No subfolders</p>
+                            }
+                            else
+                            {
+                                @foreach (var folder in _dirBrowserFolders)
+                                {
+                                    <button class="folder-picker-item" @onclick="() => DirBrowserNavigate(folder.Id, folder.Name)">
+                                        📁 @folder.Name
+                                    </button>
+                                }
+                            }
+                        </div>
+
+                        <div class="folder-picker-actions">
+                            <button class="btn btn-primary btn-sm" @onclick="ConfirmDirectoryBrowser">
+                                Select this folder
+                            </button>
+                            <button class="btn btn-sm" @onclick="HideDirectoryBrowser">Cancel</button>
+                        </div>
                     </div>
                 </div>
             }

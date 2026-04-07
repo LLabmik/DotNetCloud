@@ -32,8 +32,10 @@ public sealed class VideoModule : IModuleLifecycle
         _eventBus = context.Services.GetRequiredService<IEventBus>();
 
         var handlerLogger = context.Services.GetService<ILogger<FileUploadedVideoHandler>>();
+        var indexingCallback = context.Services.GetService<IVideoIndexingCallback>();
         _fileUploadedHandler = new FileUploadedVideoHandler(
-            handlerLogger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<FileUploadedVideoHandler>.Instance);
+            handlerLogger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<FileUploadedVideoHandler>.Instance,
+            indexingCallback);
 
         await _eventBus.SubscribeAsync(_fileUploadedHandler, cancellationToken);
 

@@ -33,8 +33,10 @@ public sealed class PhotosModule : IModuleLifecycle
         _eventBus = context.Services.GetRequiredService<IEventBus>();
 
         var handlerLogger = context.Services.GetService<ILogger<FileUploadedPhotoHandler>>();
+        var indexingCallback = context.Services.GetService<IPhotoIndexingCallback>();
         _fileUploadedHandler = new FileUploadedPhotoHandler(
-            handlerLogger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<FileUploadedPhotoHandler>.Instance);
+            handlerLogger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<FileUploadedPhotoHandler>.Instance,
+            indexingCallback);
 
         await _eventBus.SubscribeAsync(_fileUploadedHandler, cancellationToken);
 
