@@ -897,12 +897,29 @@
     white-space: nowrap;
 }
 
-.np-artist {
+.np-artist,
+.np-artist-album {
     font-size: 0.8125rem;
     color: var(--color-text-secondary, #64748b);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.np-separator {
+    color: var(--color-muted, #94a3b8);
+}
+
+.np-album-link {
+    color: var(--color-text-secondary, #64748b);
+    text-decoration: none;
+    cursor: pointer;
+    transition: color var(--transition, 200ms ease);
+}
+
+.np-album-link:hover {
+    color: var(--color-primary, #6366f1);
+    text-decoration: underline;
 }
 
 .np-star {

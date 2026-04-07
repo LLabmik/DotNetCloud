@@ -715,7 +715,14 @@
                 </div>
                 <div class="np-text">
                     <span class="np-title">@_nowPlaying.Title</span>
-                    <span class="np-artist">@_nowPlaying.ArtistName</span>
+                    <span class="np-artist-album">
+                        <span>@_nowPlaying.ArtistName</span>
+                        @if (!string.IsNullOrEmpty(_nowPlaying.AlbumTitle))
+                        {
+                            <span class="np-separator"> · </span>
+                            <a class="np-album-link" @onclick="() => NavigateToAlbumAsync(_nowPlaying.AlbumId)" @onclick:preventDefault>@_nowPlaying.AlbumTitle</a>
+                        }
+                    </span>
                 </div>
                 <button class="np-star" @onclick="() => ToggleStarTrackAsync(_nowPlaying)">
                     @(_nowPlaying.IsStarred ? "★" : "☆")
