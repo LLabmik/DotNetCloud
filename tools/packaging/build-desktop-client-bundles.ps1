@@ -15,7 +15,7 @@
 # =============================================================================
 
 param(
-    [string]$Version = "0.1.0-alpha",
+    [string]$Version = "0.1.3-alpha",
     [string]$Configuration = "Release",
     [string]$OutputDir = "./artifacts/installers",
     [switch]$BuildMsix

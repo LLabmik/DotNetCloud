@@ -126,7 +126,8 @@ public sealed class SyncEngine : ISyncEngine
 
         // Ensure the local sync folder exists before creating the watcher.
         // The tray app pre-creates this, but verify just in case.
-        try { Directory.CreateDirectory(context.LocalFolderPath); }
+        try
+        { Directory.CreateDirectory(context.LocalFolderPath); }
         catch (UnauthorizedAccessException ex)
         {
             _logger.LogWarning(ex,
@@ -424,6 +425,11 @@ public sealed class SyncEngine : ISyncEngine
         var serverFilesByRelPath = new Dictionary<string, SyncTreeNodeResponse>(StringComparer.OrdinalIgnoreCase);
         BuildServerFileMap(serverTree, "", serverFilesByRelPath);
 
+        // Build a set of all server NodeIds (files + folders) to detect stale tracked records
+        // whose NodeId no longer exists on the server (i.e., remotely deleted).
+        var serverNodeIds = new HashSet<Guid>();
+        CollectAllServerNodeIds(serverTree, serverNodeIds);
+
         IEnumerable<string> localFiles;
         try
         {
@@ -457,6 +463,55 @@ public sealed class SyncEngine : ISyncEngine
                 // Known file — only re-queue if modified since last sync.
                 if (!IsLocallyModified(record, localPath))
                     continue;
+
+                // If the tracked NodeId no longer exists on the server, the file was
+                // remotely deleted. Check content hash to decide whether to keep or delete.
+                if (record.NodeId != Guid.Empty && !serverNodeIds.Contains(record.NodeId))
+                {
+                    var contentChanged = true; // Assume modified unless proven otherwise
+                    if (!string.IsNullOrEmpty(record.ContentHash))
+                    {
+                        try
+                        {
+                            var currentHash = await ComputeFileHashAsync(localPath, cancellationToken);
+                            contentChanged = !string.Equals(currentHash, record.ContentHash, StringComparison.OrdinalIgnoreCase);
+                        }
+                        catch (Exception ex) when (ex is not OperationCanceledException)
+                        {
+                            _logger.LogDebug(ex, "Could not compute hash for {Path}; treating as genuinely modified.", localPath);
+                        }
+                    }
+
+                    if (contentChanged)
+                    {
+                        // Content genuinely changed — user edited this file. Clear stale tracking
+                        // record so the upload path treats it as a brand-new file.
+                        _logger.LogInformation(
+                            "Tracked file {RelPath} (NodeId={NodeId}) no longer on server but content was modified. Will re-upload as new file.",
+                            relativePath, record.NodeId);
+                        await _stateDb.RemoveFileRecordAsync(context.StateDatabasePath, localPath, cancellationToken);
+                        await _stateDb.QueueOperationAsync(context.StateDatabasePath,
+                            new PendingUpload { LocalPath = localPath }, cancellationToken);
+                        queued++;
+                    }
+                    else
+                    {
+                        // Content unchanged — false-positive mtime change. Delete locally.
+                        _logger.LogInformation(
+                            "Tracked file {RelPath} (NodeId={NodeId}) no longer on server, content unchanged. Deleting locally.",
+                            relativePath, record.NodeId);
+                        try
+                        {
+                            File.Delete(localPath);
+                            await _stateDb.RemoveFileRecordAsync(context.StateDatabasePath, localPath, cancellationToken);
+                        }
+                        catch (IOException ex)
+                        {
+                            _logger.LogWarning(ex, "Could not delete stale local file {Path}.", localPath);
+                        }
+                    }
+                    continue;
+                }
 
                 _logger.LogDebug(
                     "Local file modified since last sync, queuing upload: {RelPath}", relativePath);
@@ -495,7 +550,13 @@ public sealed class SyncEngine : ISyncEngine
             }
             else
             {
-                // New untracked file — queue a fresh upload.
+                // File exists locally, not tracked, not on server → genuinely new file.
+                // Always queue for upload. We never delete untracked local files based on
+                // timestamp heuristics — filesystem timestamps (mtime, ctime, birth time)
+                // are unreliable indicators of when a file appeared in the sync folder
+                // (e.g., `cp` preserves timestamps from the source on many filesystems).
+                // Server-side deletions are handled exclusively through the change feed
+                // (HandleRemoteDeletionAsync) and reverse reconciliation of tracked records.
                 _logger.LogDebug("New local file detected, queuing upload: {RelPath}", relativePath);
                 await _stateDb.QueueOperationAsync(context.StateDatabasePath,
                     new PendingUpload { LocalPath = localPath }, cancellationToken);
@@ -507,6 +568,41 @@ public sealed class SyncEngine : ISyncEngine
             _logger.LogInformation(
                 "Local scan queued {Count} new/modified file(s) for upload in context {ContextId}.",
                 queued, context.Id);
+
+        // ── Stale directory cleanup ─────────────────────────────────────────
+        // Walk local directories bottom-up. Remove empty directories that don't exist
+        // on the server. Non-empty directories are left alone — their files will be
+        // uploaded as new files (if untracked) or handled by reverse reconciliation
+        // (if tracked with stale NodeIds). We never delete non-empty directories based
+        // on timestamp heuristics since filesystem timestamps are unreliable.
+        var serverFolderPaths = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+        BuildFolderPathMap(serverTree, "", serverFolderPaths);
+
+        try
+        {
+            foreach (var dirPath in Directory.EnumerateDirectories(context.LocalFolderPath, "*", SearchOption.AllDirectories)
+                         .OrderByDescending(d => d.Length))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var relDir = Path.GetRelativePath(context.LocalFolderPath, dirPath);
+                if (serverFolderPaths.ContainsKey(relDir))
+                    continue; // Folder exists on server — keep
+
+                try
+                {
+                    if (Directory.Exists(dirPath) && !Directory.EnumerateFileSystemEntries(dirPath).Any())
+                    {
+                        Directory.Delete(dirPath);
+                        _logger.LogInformation("Removed empty local directory not on server: {RelPath}.", relDir);
+                    }
+                }
+                catch (IOException ex)
+                {
+                    _logger.LogDebug("Could not remove directory {Path}: {Error}", dirPath, ex.Message);
+                }
+            }
+        }
+        catch (DirectoryNotFoundException) { /* sync root removed meanwhile */ }
 
         // ── Local deletion detection ────────────────────────────────────────
         // Check tracked files that no longer exist on disk — these are local deletions
@@ -697,7 +793,9 @@ public sealed class SyncEngine : ISyncEngine
 
     /// <summary>
     /// Walks the server tree and queues downloads for files that exist on the server
-    /// but are missing locally. This ensures subdirectory files are synced even when
+    /// but are missing locally. Also detects tracked local files whose NodeIds are
+    /// absent from the server tree (remote deletions missed by the change feed) and
+    /// removes them locally. This ensures subdirectory files are synced even when
     /// the change feed cursor has advanced past their entries.
     /// </summary>
     private async Task<int> ReconcileServerTreeAsync(
@@ -708,6 +806,10 @@ public sealed class SyncEngine : ISyncEngine
     {
         var serverFiles = new Dictionary<string, SyncTreeNodeResponse>(StringComparer.OrdinalIgnoreCase);
         BuildServerFileMap(tree, "", serverFiles);
+
+        // Build a set of all server node IDs (files + folders) for reverse-reconciliation.
+        var serverNodeIds = new HashSet<Guid>();
+        CollectAllServerNodeIds(tree, serverNodeIds);
 
         // Load pending delete node IDs so we don't re-download files the user just deleted locally.
         var pendingDeleteNodeIds = await _stateDb.GetPendingDeleteNodeIdsAsync(context.StateDatabasePath, cancellationToken);
@@ -782,6 +884,111 @@ public sealed class SyncEngine : ISyncEngine
                 "Tree reconciliation queued {Count} missing file(s) for download in context {ContextId}.",
                 reconciled, context.Id);
 
+        // ── Reverse reconciliation: detect remote deletions missed by change feed ──
+        // Walk all tracked records and find ones whose NodeId is no longer in the server tree.
+        // These represent files/folders deleted on the server after the cursor advanced past
+        // the deletion event (e.g. long offline period, state.db kept but cursor stale).
+        var allRecords = await _stateDb.GetAllFileRecordsAsync(context.StateDatabasePath, cancellationToken);
+        var remoteDeleteCount = 0;
+
+        // Collect directories that need deletion (defer deletion until after record cleanup).
+        var directoriesToDelete = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var record in allRecords)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (record.NodeId == Guid.Empty)
+                continue;
+
+            // If the server still has this NodeId, the file is not remotely deleted.
+            if (serverNodeIds.Contains(record.NodeId))
+                continue;
+
+            // Skip if a delete is already pending (user already deleted locally).
+            if (pendingDeleteNodeIds.Contains(record.NodeId))
+                continue;
+
+            if (!File.Exists(record.LocalPath))
+            {
+                // File is gone locally AND on server — just clean up the stale record.
+                await _stateDb.RemoveFileRecordAsync(context.StateDatabasePath, record.LocalPath, cancellationToken);
+                _logger.LogDebug(
+                    "Cleaned up stale record for remotely-deleted file: {Path} (NodeId={NodeId}).",
+                    record.LocalPath, record.NodeId);
+                continue;
+            }
+
+            // File exists locally but is gone from server.
+            // IsLocallyModified uses mtime which can give false positives (e.g., backup tools,
+            // file managers touching mtime). Use content hash comparison for definitive check.
+            var isContentModified = false;
+            if (IsLocallyModified(record, record.LocalPath) && !string.IsNullOrEmpty(record.ContentHash))
+            {
+                try
+                {
+                    var currentHash = await ComputeFileHashAsync(record.LocalPath, cancellationToken);
+                    isContentModified = !string.Equals(currentHash, record.ContentHash, StringComparison.OrdinalIgnoreCase);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogDebug(ex, "Could not compute hash for {Path}; treating as unmodified.", record.LocalPath);
+                }
+            }
+
+            if (isContentModified)
+            {
+                // Genuine conflict: file content changed locally after remote deletion.
+                // Keep local file but clear the stale NodeId so ScanLocalDirectoryAsync
+                // will treat it as a brand-new file and re-upload to the server.
+                _logger.LogWarning(
+                    "Remote deleted {NodeId} but local file was genuinely modified (content hash differs). Keeping local: {Path}.",
+                    record.NodeId, record.LocalPath);
+                await _stateDb.RemoveFileRecordAsync(context.StateDatabasePath, record.LocalPath, cancellationToken);
+            }
+            else
+            {
+                // No conflict — delete local file and clean up record.
+                File.Delete(record.LocalPath);
+                await _stateDb.RemoveFileRecordAsync(context.StateDatabasePath, record.LocalPath, cancellationToken);
+                _logger.LogDebug(
+                    "Deleted local file {Path} (remote deletion detected via tree reconciliation).", record.LocalPath);
+
+                // Track parent directory for potential cleanup.
+                var parentDir = Path.GetDirectoryName(record.LocalPath);
+                if (parentDir is not null && parentDir.StartsWith(context.LocalFolderPath, StringComparison.OrdinalIgnoreCase)
+                    && parentDir.Length > context.LocalFolderPath.Length)
+                {
+                    directoriesToDelete.Add(parentDir);
+                }
+
+                remoteDeleteCount++;
+            }
+        }
+
+        // Clean up empty directories left behind by remote deletions (bottom-up).
+        var sortedDirs = directoriesToDelete.OrderByDescending(d => d.Length);
+        foreach (var dir in sortedDirs)
+        {
+            try
+            {
+                if (Directory.Exists(dir) && !Directory.EnumerateFileSystemEntries(dir).Any())
+                {
+                    Directory.Delete(dir);
+                    _logger.LogDebug("Removed empty directory after remote deletion: {Path}.", dir);
+                }
+            }
+            catch (IOException ex)
+            {
+                _logger.LogDebug("Could not remove directory {Path}: {Error}", dir, ex.Message);
+            }
+        }
+
+        if (remoteDeleteCount > 0)
+            _logger.LogInformation(
+                "Reverse tree reconciliation deleted {Count} local file(s) removed from server in context {ContextId}.",
+                remoteDeleteCount, context.Id);
+
         return reconciled;
     }
 
@@ -802,6 +1009,55 @@ public sealed class SyncEngine : ISyncEngine
                 File.Delete(localPath);
                 await _stateDb.RemoveFileRecordAsync(context.StateDatabasePath, localPath, cancellationToken);
                 _logger.LogDebug("Deleted local file {Path} (remote deletion).", localPath);
+            }
+        }
+        else if (Directory.Exists(localPath))
+        {
+            // Folder deleted on server — check for locally-modified files before removing.
+            var hasLocallyModified = false;
+            var allRecords = await _stateDb.GetAllFileRecordsAsync(context.StateDatabasePath, cancellationToken);
+            var childRecords = allRecords
+                .Where(r => r.LocalPath.StartsWith(localPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            foreach (var childRecord in childRecords)
+            {
+                if (File.Exists(childRecord.LocalPath) && IsLocallyModified(childRecord, childRecord.LocalPath))
+                {
+                    hasLocallyModified = true;
+                    _logger.LogWarning(
+                        "Remote deleted folder {NodeId} contains locally-modified file {Path}. Keeping folder.",
+                        nodeId, childRecord.LocalPath);
+                    break;
+                }
+            }
+
+            if (hasLocallyModified)
+            {
+                // Re-upload the entire folder — user's local changes win.
+                foreach (var childRecord in childRecords)
+                {
+                    if (File.Exists(childRecord.LocalPath))
+                    {
+                        await _stateDb.QueueOperationAsync(context.StateDatabasePath,
+                            new PendingUpload { LocalPath = childRecord.LocalPath, NodeId = childRecord.NodeId },
+                            cancellationToken);
+                    }
+                }
+            }
+            else
+            {
+                // No conflicts — delete local directory and clean up all child records.
+                try
+                {
+                    Directory.Delete(localPath, recursive: true);
+                    await _stateDb.RemoveFileRecordsUnderPathAsync(context.StateDatabasePath, localPath, cancellationToken);
+                    _logger.LogDebug("Deleted local directory {Path} (remote deletion).", localPath);
+                }
+                catch (IOException ex)
+                {
+                    _logger.LogWarning(ex, "Could not delete local directory {Path} during remote deletion handling.", localPath);
+                }
             }
         }
     }
@@ -1531,6 +1787,19 @@ public sealed class SyncEngine : ISyncEngine
     }
 
     /// <summary>
+    /// Recursively collects all node IDs (both files and folders) from the server tree
+    /// into a set. Used by reverse reconciliation to detect remotely deleted files.
+    /// </summary>
+    private static void CollectAllServerNodeIds(SyncTreeNodeResponse node, HashSet<Guid> ids)
+    {
+        if (node.NodeId != Guid.Empty)
+            ids.Add(node.NodeId);
+
+        foreach (var child in node.Children)
+            CollectAllServerNodeIds(child, ids);
+    }
+
+    /// <summary>
     /// Ensures the remote directory chain for a file exists, creating any missing folders.
     /// Returns the server-side NodeId of the immediate parent folder, or null for root-level files.
     /// </summary>
@@ -2034,7 +2303,8 @@ public sealed class SyncEngine : ISyncEngine
         {
             var raw = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(cursor));
             var colon = raw.LastIndexOf(':');
-            if (colon < 1) return null;
+            if (colon < 1)
+                return null;
             return long.TryParse(raw[(colon + 1)..], out var seq) ? seq : null;
         }
         catch
