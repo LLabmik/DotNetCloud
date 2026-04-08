@@ -708,4 +708,13 @@ internal sealed class FileService : IFileService
         }
     }
 
+    /// <inheritdoc />
+    public async Task<string?> GetStoragePathAsync(Guid fileNodeId, CancellationToken cancellationToken = default)
+    {
+        return await _db.FileNodes.IgnoreQueryFilters()
+            .Where(n => n.Id == fileNodeId && n.NodeType == FileNodeType.File)
+            .Select(n => n.StoragePath)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
 }

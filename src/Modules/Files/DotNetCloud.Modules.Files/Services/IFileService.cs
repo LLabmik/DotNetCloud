@@ -43,4 +43,10 @@ public interface IFileService
 
     /// <summary>Lists the most recently updated files for the caller.</summary>
     Task<IReadOnlyList<FileNodeDto>> ListRecentAsync(int count, CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the content-addressable storage path for a file node, or <c>null</c>
+    /// if the node does not exist or is not a file. Internal/server-side use only.
+    /// </summary>
+    Task<string?> GetStoragePathAsync(Guid fileNodeId, CancellationToken cancellationToken = default);
 }

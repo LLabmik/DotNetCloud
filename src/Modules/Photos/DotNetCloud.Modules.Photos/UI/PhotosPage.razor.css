@@ -800,6 +800,7 @@
     object-fit: contain;
     border-radius: 4px;
     box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4);
+    transition: transform 0.3s ease, filter 0.3s ease;
 }
 
 .lb-nav {
@@ -937,6 +938,39 @@
 
 .edit-btn.danger:hover {
     background: rgba(239, 68, 68, 0.15);
+}
+
+.edit-btn.save {
+    border-color: rgba(34, 197, 94, 0.4);
+    color: rgba(134, 239, 172, 0.95);
+    font-weight: 600;
+}
+
+.edit-btn.save:hover {
+    background: rgba(34, 197, 94, 0.15);
+}
+
+.edit-btn.save:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.edit-save-msg {
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    text-align: center;
+    margin-top: 4px;
+}
+
+.edit-save-msg.success {
+    background: rgba(34, 197, 94, 0.12);
+    color: rgba(134, 239, 172, 0.95);
+}
+
+.edit-save-msg.error {
+    background: rgba(239, 68, 68, 0.12);
+    color: rgba(252, 165, 165, 0.95);
 }
 
 .edit-separator {

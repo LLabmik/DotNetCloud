@@ -259,6 +259,27 @@ public class PhotosController : PhotosControllerBase
         }
     }
 
+    /// <summary>
+    /// Applies the current edit stack to the original image and regenerates thumbnails.
+    /// The original file on disk is preserved (non-destructive).
+    /// </summary>
+    [HttpPost("{photoId:guid}/edits/save")]
+    public async Task<IActionResult> SaveEditsAsync(Guid photoId)
+    {
+        var caller = GetAuthenticatedCaller();
+
+        // Verify photo exists and belongs to caller
+        var photo = await _photoService.GetPhotoAsync(photoId, caller);
+        if (photo is null)
+            return NotFound(ErrorEnvelope(ErrorCodes.PhotoNotFound, "Photo not found."));
+
+        var success = await _thumbnailService.SaveEditsAsync(photoId);
+        if (!success)
+            return StatusCode(500, ErrorEnvelope("SAVE_EDITS_FAILED", "Failed to apply edits to thumbnails."));
+
+        return Ok(Envelope(new { saved = true }));
+    }
+
     // ─── Sharing ──────────────────────────────────────────────────────────
 
     /// <summary>Creates a share for a photo.</summary>

@@ -58,6 +58,12 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
     private bool _showInfoPanel;
     private bool _showEditPanel;
 
+    // Edit visual state (applied via CSS transform/filter)
+    private readonly PhotoEditState _editState = new();
+    private bool _editSaving;
+    private string? _editSaveMessage;
+    private bool _editSaveSuccess;
+
     // Slideshow
     private bool _slideshowActive;
     private bool _slideshowPaused;
@@ -307,12 +313,13 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     // ── Lightbox ─────────────────────────────────────────────
 
-    private void OpenLightbox(PhotoDto photo)
+    private async Task OpenLightboxAsync(PhotoDto photo)
     {
         _lightboxPhoto = photo;
         _lightboxIndex = _currentPhotos.IndexOf(photo);
         _showInfoPanel = false;
         _showEditPanel = false;
+        await RebuildEditStateFromStackAsync();
     }
 
     private void CloseLightbox()
@@ -320,35 +327,38 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
         _lightboxPhoto = null;
         _showInfoPanel = false;
         _showEditPanel = false;
+        _editState.Reset();
     }
 
-    private void LightboxPrev()
+    private async Task LightboxPrevAsync()
     {
         if (_lightboxIndex > 0)
         {
             _lightboxIndex--;
             _lightboxPhoto = _currentPhotos[_lightboxIndex];
+            await RebuildEditStateFromStackAsync();
         }
     }
 
-    private void LightboxNext()
+    private async Task LightboxNextAsync()
     {
         if (_lightboxIndex < _currentPhotos.Count - 1)
         {
             _lightboxIndex++;
             _lightboxPhoto = _currentPhotos[_lightboxIndex];
+            await RebuildEditStateFromStackAsync();
         }
     }
 
     private bool CanLightboxPrev => _lightboxIndex > 0;
     private bool CanLightboxNext => _lightboxIndex < _currentPhotos.Count - 1;
 
-    private void HandleLightboxKeyDown(KeyboardEventArgs e)
+    private async Task HandleLightboxKeyDown(KeyboardEventArgs e)
     {
         switch (e.Key)
         {
-            case "ArrowLeft": LightboxPrev(); break;
-            case "ArrowRight": LightboxNext(); break;
+            case "ArrowLeft": await LightboxPrevAsync(); break;
+            case "ArrowRight": await LightboxNextAsync(); break;
             case "Escape": CloseLightbox(); break;
         }
     }
@@ -366,6 +376,7 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
                 Parameters = new Dictionary<string, string> { ["value"] = value.ToString() }
             };
             await EditService.ApplyEditAsync(_lightboxPhoto.Id, operation, _caller);
+            _editState.Apply(editType, value);
             StateHasChanged();
         }
         catch (Exception ex)
@@ -380,6 +391,8 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
         try
         {
             await EditService.UndoLastEditAsync(_lightboxPhoto.Id, _caller);
+            await RebuildEditStateFromStackAsync();
+            StateHasChanged();
         }
         catch (Exception ex)
         {
@@ -393,10 +406,54 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
         try
         {
             await EditService.RevertAllAsync(_lightboxPhoto.Id, _caller);
+            _editState.Reset();
+            StateHasChanged();
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to revert edits");
+        }
+    }
+
+    private async Task RebuildEditStateFromStackAsync()
+    {
+        _editState.Reset();
+        if (_lightboxPhoto is null) return;
+        try
+        {
+            var stack = await EditService.GetEditStackAsync(_lightboxPhoto.Id);
+            _editState.Rebuild(stack);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load edit stack for photo {PhotoId}", _lightboxPhoto.Id);
+        }
+    }
+
+    private string GetEditImageStyle() => _editState.GetImageStyle();
+
+    private async Task SaveEditsToThumbnailsAsync()
+    {
+        if (_caller is null || _lightboxPhoto is null) return;
+        _editSaving = true;
+        _editSaveMessage = null;
+        StateHasChanged();
+        try
+        {
+            var success = await ThumbnailService.SaveEditsAsync(_lightboxPhoto.Id);
+            _editSaveSuccess = success;
+            _editSaveMessage = success ? "Edits saved to thumbnails." : "Failed to save edits.";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to save edits for photo {PhotoId}", _lightboxPhoto.Id);
+            _editSaveSuccess = false;
+            _editSaveMessage = "Error saving edits.";
+        }
+        finally
+        {
+            _editSaving = false;
+            StateHasChanged();
         }
     }
 

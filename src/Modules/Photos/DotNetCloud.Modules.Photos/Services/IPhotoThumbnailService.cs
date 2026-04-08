@@ -60,4 +60,14 @@ public interface IPhotoThumbnailService
     /// <param name="photoId">The photo whose thumbnails should be purged.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task DeleteThumbnailsAsync(Guid photoId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Applies the current edit stack to the original image and regenerates
+    /// both grid and detail thumbnails with the edits baked in.
+    /// The original file on disk is NOT modified (non-destructive).
+    /// </summary>
+    /// <param name="photoId">The photo record ID.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><c>true</c> if thumbnails were successfully regenerated; <c>false</c> otherwise.</returns>
+    Task<bool> SaveEditsAsync(Guid photoId, CancellationToken cancellationToken = default);
 }

@@ -1,3 +1,5 @@
+using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Photos.Services;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +23,7 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
 
     private readonly PhotosDbContext _db;
     private readonly IFileStorageEngine _storageEngine;
+    private readonly IDownloadService _downloadService;
     private readonly ILogger<PhotoThumbnailService> _logger;
 
     /// <summary>
@@ -29,10 +32,12 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
     public PhotoThumbnailService(
         PhotosDbContext db,
         IFileStorageEngine storageEngine,
+        IDownloadService downloadService,
         ILogger<PhotoThumbnailService> logger)
     {
         _db = db;
         _storageEngine = storageEngine;
+        _downloadService = downloadService;
         _logger = logger;
     }
 
@@ -162,5 +167,125 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
         using var ms = new MemoryStream();
         await clone.SaveAsJpegAsync(ms, cancellationToken);
         return ms.ToArray();
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> SaveEditsAsync(Guid photoId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            // 1. Look up the photo to get FileNodeId + MimeType
+            var photo = await _db.Photos.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(p => p.Id == photoId, cancellationToken);
+
+            if (photo is null)
+            {
+                _logger.LogWarning("SaveEdits: Photo {PhotoId} not found", photoId);
+                return false;
+            }
+
+            if (!SupportedMimeTypes.Contains(photo.MimeType))
+            {
+                _logger.LogWarning("SaveEdits: Unsupported MIME type {MimeType} for photo {PhotoId}", photo.MimeType, photoId);
+                return false;
+            }
+
+            // 2. Load the edit stack
+            var editRecords = await _db.PhotoEditRecords
+                .Where(e => e.PhotoId == photoId)
+                .OrderBy(e => e.StackOrder)
+                .ToListAsync(cancellationToken);
+
+            if (editRecords.Count == 0)
+            {
+                _logger.LogDebug("SaveEdits: No edits to apply for photo {PhotoId}", photoId);
+                return true; // nothing to do
+            }
+
+            // 3. Reassemble original file from chunks via IDownloadService
+            //    (same pattern as Music module — files are stored as content-addressable
+            //    chunks, NOT single blobs, so we must reassemble before processing).
+            var caller = new CallerContext(photo.OwnerId, [], CallerType.System);
+            using var sourceStream = await _downloadService.DownloadCurrentAsync(
+                photo.FileNodeId, caller, cancellationToken);
+
+            using var image = await Image.LoadAsync(sourceStream, cancellationToken);
+
+            // 4. Apply each edit operation to the image
+            foreach (var record in editRecords)
+            {
+                if (!Enum.TryParse<PhotoEditType>(record.OperationType, out var editType))
+                    continue;
+
+                var parameters = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(record.ParametersJson)
+                    ?? new Dictionary<string, string>();
+
+                ApplyEditToImage(image, editType, parameters);
+            }
+
+            // 5. Regenerate thumbnails from the edited image
+            var gridData = await GenerateThumbnailBytesAsync(image, PhotoThumbnailSize.Grid, cancellationToken);
+            var detailData = await GenerateThumbnailBytesAsync(image, PhotoThumbnailSize.Detail, cancellationToken);
+
+            photo.ThumbnailGrid = gridData;
+            photo.ThumbnailDetail = detailData;
+            photo.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInformation("SaveEdits: Thumbnails regenerated with {EditCount} edits for photo {PhotoId}",
+                editRecords.Count, photoId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "SaveEdits: Failed to save edits for photo {PhotoId}", photoId);
+            return false;
+        }
+    }
+
+    private static void ApplyEditToImage(Image image, PhotoEditType editType, Dictionary<string, string> parameters)
+    {
+        if (!parameters.TryGetValue("value", out var valueStr) || !int.TryParse(valueStr, out var value))
+            return;
+
+        image.Mutate(ctx =>
+        {
+            switch (editType)
+            {
+                case PhotoEditType.Rotate:
+                    ctx.Rotate(value);
+                    break;
+
+                case PhotoEditType.Flip:
+                    if (value == 0)
+                        ctx.Flip(FlipMode.Horizontal);
+                    else
+                        ctx.Flip(FlipMode.Vertical);
+                    break;
+
+                case PhotoEditType.Brightness:
+                    // value is -100 to 100; ImageSharp expects a multiplier where 1.0 = no change
+                    ctx.Brightness(1.0f + (value / 100f));
+                    break;
+
+                case PhotoEditType.Contrast:
+                    ctx.Contrast(1.0f + (value / 100f));
+                    break;
+
+                case PhotoEditType.Saturation:
+                    ctx.Saturate(1.0f + (value / 100f));
+                    break;
+
+                case PhotoEditType.Blur:
+                    if (value > 0)
+                        ctx.GaussianBlur(value);
+                    break;
+
+                case PhotoEditType.Sharpen:
+                    if (value > 0)
+                        ctx.GaussianSharpen(value);
+                    break;
+            }
+        });
     }
 }

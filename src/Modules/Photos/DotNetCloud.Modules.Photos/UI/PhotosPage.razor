@@ -153,7 +153,7 @@
                         {
                             <div class="photo-card @(_selectedPhotoIds.Contains(photo.Id) ? "selected" : "")"
                                  @onclick="e => HandlePhotoClick(photo, e)"
-                                 @ondblclick="() => OpenLightbox(photo)">
+                                 @ondblclick="() => OpenLightboxAsync(photo)">
                                 <div class="photo-card-img">
                                     <img src="@GetThumbnailUrl(photo.Id, "grid")" alt="@photo.FileName"
                                          loading="lazy" @onerror="HandleImageError" />
@@ -249,7 +249,7 @@
                                 <div class="photos-grid compact">
                                     @foreach (var photo in group.Value)
                                     {
-                                        <div class="photo-card" @ondblclick="() => OpenLightbox(photo)">
+                                        <div class="photo-card" @ondblclick="() => OpenLightboxAsync(photo)">
                                             <div class="photo-card-img">
                                                 <img src="@GetThumbnailUrl(photo.Id, "grid")" alt="@photo.FileName" loading="lazy" />
                                             </div>
@@ -426,11 +426,12 @@
                     </div>
 
                     <div class="lightbox-body">
-                        <button class="lb-nav lb-prev" @onclick="LightboxPrev" disabled="@(!CanLightboxPrev)">‹</button>
+                        <button class="lb-nav lb-prev" @onclick="LightboxPrevAsync" disabled="@(!CanLightboxPrev)">‹</button>
                         <div class="lightbox-image-wrap">
-                            <img src="@GetThumbnailUrl(_lightboxPhoto.Id, "detail")" alt="@_lightboxPhoto.FileName" />
+                            <img src="@GetThumbnailUrl(_lightboxPhoto.Id, "detail")" alt="@_lightboxPhoto.FileName"
+                                 style="@GetEditImageStyle()" />
                         </div>
-                        <button class="lb-nav lb-next" @onclick="LightboxNext" disabled="@(!CanLightboxNext)">›</button>
+                        <button class="lb-nav lb-next" @onclick="LightboxNextAsync" disabled="@(!CanLightboxNext)">›</button>
 
                         @* Info Panel *@
                         @if (_showInfoPanel)
@@ -491,15 +492,15 @@
                                     <button class="edit-btn" @onclick="() => ApplyEditAsync(PhotoEditType.Flip, 1)">↕ Flip V</button>
                                     <div class="edit-separator"></div>
                                     <label class="edit-slider-label">Brightness
-                                        <input type="range" min="-100" max="100" value="0"
+                                        <input type="range" min="-100" max="100" value="@_editState.Brightness"
                                                @onchange="@(e => ApplyEditAsync(PhotoEditType.Brightness, int.Parse(e.Value?.ToString() ?? "0")))" />
                                     </label>
                                     <label class="edit-slider-label">Contrast
-                                        <input type="range" min="-100" max="100" value="0"
+                                        <input type="range" min="-100" max="100" value="@_editState.Contrast"
                                                @onchange="@(e => ApplyEditAsync(PhotoEditType.Contrast, int.Parse(e.Value?.ToString() ?? "0")))" />
                                     </label>
                                     <label class="edit-slider-label">Saturation
-                                        <input type="range" min="-100" max="100" value="0"
+                                        <input type="range" min="-100" max="100" value="@_editState.Saturation"
                                                @onchange="@(e => ApplyEditAsync(PhotoEditType.Saturation, int.Parse(e.Value?.ToString() ?? "0")))" />
                                     </label>
                                     <div class="edit-separator"></div>
@@ -508,6 +509,14 @@
                                     <div class="edit-separator"></div>
                                     <button class="edit-btn undo" @onclick="UndoEditAsync">↩ Undo</button>
                                     <button class="edit-btn danger" @onclick="RevertAllEditsAsync">⟲ Revert All</button>
+                                    <div class="edit-separator"></div>
+                                    <button class="edit-btn save" @onclick="SaveEditsToThumbnailsAsync" disabled="@_editSaving">
+                                        @(_editSaving ? "Saving…" : "💾 Save Edits")
+                                    </button>
+                                    @if (_editSaveMessage is not null)
+                                    {
+                                        <div class="edit-save-msg @(_editSaveSuccess ? "success" : "error")">@_editSaveMessage</div>
+                                    }
                                 </div>
                             </aside>
                         }
