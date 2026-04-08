@@ -172,8 +172,8 @@ public sealed class PhotoEditService : IPhotoEditService
             case PhotoEditType.Saturation:
                 if (operation.Parameters.TryGetValue("value", out var valueStr))
                 {
-                    if (!float.TryParse(valueStr, out var value) || value < -1.0f || value > 1.0f)
-                        throw new BusinessRuleException(ErrorCodes.InvalidPhotoEdit, $"{operation.OperationType} value must be between -1.0 and 1.0.");
+                    if (!float.TryParse(valueStr, out var value) || value < -100f || value > 100f)
+                        throw new BusinessRuleException(ErrorCodes.InvalidPhotoEdit, $"{operation.OperationType} value must be between -100 and 100.");
                 }
                 break;
 
