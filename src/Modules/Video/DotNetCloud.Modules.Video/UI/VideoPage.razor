@@ -55,7 +55,7 @@
         @* ── Collections in sidebar ── *@
         @if (_collections.Count > 0)
         {
-            <div class="sidebar-divider"></div>
+            <div class="video-nav-separator"></div>
             <div class="sidebar-collections">
                 <div class="sidebar-collections-header">
                     <span class="label-muted">Collections</span>
@@ -63,11 +63,12 @@
                 </div>
                 @foreach (var coll in _collections)
                 {
-                    <button class="sidebar-collection-item @(_selectedCollectionId == coll.Id ? "active" : "")"
-                            @onclick="() => SelectCollectionAsync(coll.Id)">
+                    var capturedColl = coll;
+                    <button class="sidebar-collection-item @(_selectedCollectionId == capturedColl.Id ? "active" : "")"
+                            @onclick="() => SelectCollectionAsync(capturedColl.Id)">
                         <span class="coll-icon">📂</span>
-                        <span class="coll-name">@coll.Name</span>
-                        <span class="coll-count">@coll.VideoCount</span>
+                        <span class="coll-name">@capturedColl.Name</span>
+                        <span class="coll-count">@capturedColl.VideoCount</span>
                     </button>
                 }
             </div>
@@ -83,7 +84,7 @@
                 {
                     @foreach (var crumb in _breadcrumb)
                     {
-                        <button class="breadcrumb-item" @onclick="crumb.Action">@crumb.Label</button>
+                        <button type="button" class="breadcrumb-item" @onclick="crumb.Action">@crumb.Label</button>
                         <span class="breadcrumb-sep">›</span>
                     }
                 }
@@ -125,17 +126,19 @@
                             <div class="video-carousel">
                                 @foreach (var wp in _continueWatching)
                                 {
-                                    <div class="video-card continue-card" @onclick="() => OpenPlayerForContinue(wp)">
+                                    var capturedWp = wp;
+                                    <div class="video-card continue-card"
+                                         @onclick="() => OpenPlayerForContinueAsync(capturedWp)">
                                         <div class="video-thumb">
-                                            <img src="@GetThumbnailUrl(wp.VideoId)" alt="@wp.VideoTitle" loading="lazy" />
+                                            <img src="@GetThumbnailUrl(capturedWp.VideoId)" alt="@capturedWp.VideoTitle" loading="lazy" />
                                             <div class="video-progress-bar">
-                                                <div class="video-progress-fill" style="width: @wp.ProgressPercent%"></div>
+                                                <div class="video-progress-fill" style="width: @capturedWp.ProgressPercent%"></div>
                                             </div>
                                             <span class="thumb-overlay-play">▶</span>
                                         </div>
                                         <div class="video-card-info">
-                                            <span class="video-card-title">@wp.VideoTitle</span>
-                                            <span class="video-card-meta">@((int)wp.ProgressPercent)% watched</span>
+                                            <span class="video-card-title">@capturedWp.VideoTitle</span>
+                                            <span class="video-card-meta">@((int)capturedWp.ProgressPercent)% watched</span>
                                         </div>
                                     </div>
                                 }
@@ -150,15 +153,17 @@
                             <div class="video-grid">
                                 @foreach (var video in _recentVideos)
                                 {
-                                    <div class="video-card" @onclick="() => OpenVideoDetail(video)">
+                                    var capturedVideo = video;
+                                    <div class="video-card"
+                                         @onclick="() => OpenVideoDetailAsync(capturedVideo)">
                                         <div class="video-thumb">
-                                            <img src="@GetThumbnailUrl(video.Id)" alt="@video.Title" loading="lazy" />
-                                            <span class="thumb-duration">@FormatDuration(video.Duration)</span>
+                                            <img src="@GetThumbnailUrl(capturedVideo.Id)" alt="@capturedVideo.Title" loading="lazy" />
+                                            <span class="thumb-duration">@FormatDuration(capturedVideo.Duration)</span>
                                             <span class="thumb-overlay-play">▶</span>
                                         </div>
                                         <div class="video-card-info">
-                                            <span class="video-card-title">@video.Title</span>
-                                            <span class="video-card-meta">@FormatFileSize(video.SizeBytes) · @FormatResolution(video.Width, video.Height)</span>
+                                            <span class="video-card-title">@capturedVideo.Title</span>
+                                            <span class="video-card-meta">@FormatFileSize(capturedVideo.SizeBytes) · @FormatResolution(capturedVideo.Width, capturedVideo.Height)</span>
                                         </div>
                                     </div>
                                 }
@@ -180,34 +185,47 @@
             @* ─── Library (full grid) ─── *@
             @if (_section == Section.Library && !_playerOpen)
             {
-                <div class="video-grid padded">
-                    @foreach (var video in _videos)
-                    {
-                        <div class="video-card" @onclick="() => OpenVideoDetail(video)">
-                            <div class="video-thumb">
-                                <img src="@GetThumbnailUrl(video.Id)" alt="@video.Title" loading="lazy" />
-                                <span class="thumb-duration">@FormatDuration(video.Duration)</span>
-                                @if (video.WatchPositionTicks.HasValue && video.Duration.Ticks > 0)
-                                {
-                                    <div class="video-progress-bar">
-                                        <div class="video-progress-fill" style="width: @GetWatchPercent(video)%"></div>
-                                    </div>
-                                }
-                                <span class="thumb-overlay-play">▶</span>
-                            </div>
-                            <div class="video-card-info">
-                                <span class="video-card-title">@video.Title</span>
-                                <span class="video-card-meta">
-                                    @FormatFileSize(video.SizeBytes)
-                                    @if (video.ViewCount > 0)
+                @if (_videos.Count == 0)
+                {
+                    <div class="video-empty">
+                        <div class="empty-icon">🎬</div>
+                        <h4>Your video library is empty</h4>
+                        <p>Upload video files through the Files module, then configure a library path in Settings.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="video-grid padded">
+                        @foreach (var video in _videos)
+                        {
+                            var capturedVideo = video;
+                            <div class="video-card"
+                                 @onclick="() => OpenVideoDetailAsync(capturedVideo)">
+                                <div class="video-thumb">
+                                    <img src="@GetThumbnailUrl(capturedVideo.Id)" alt="@capturedVideo.Title" loading="lazy" />
+                                    <span class="thumb-duration">@FormatDuration(capturedVideo.Duration)</span>
+                                    @if (capturedVideo.WatchPositionTicks.HasValue && capturedVideo.Duration.Ticks > 0)
                                     {
-                                        <text> · @video.ViewCount views</text>
+                                        <div class="video-progress-bar">
+                                            <div class="video-progress-fill" style="width: @GetWatchPercent(capturedVideo)%"></div>
+                                        </div>
                                     }
-                                </span>
+                                    <span class="thumb-overlay-play">▶</span>
+                                </div>
+                                <div class="video-card-info">
+                                    <span class="video-card-title">@capturedVideo.Title</span>
+                                    <span class="video-card-meta">
+                                        @FormatFileSize(capturedVideo.SizeBytes)
+                                        @if (capturedVideo.ViewCount > 0)
+                                        {
+                                            <text> · @capturedVideo.ViewCount views</text>
+                                        }
+                                    </span>
+                                </div>
                             </div>
-                        </div>
-                    }
-                </div>
+                        }
+                    </div>
+                }
             }
 
             @* ─── Collections list ─── *@
@@ -216,19 +234,21 @@
                 <div class="collections-grid">
                     @foreach (var coll in _collections)
                     {
-                        <div class="collection-card" @onclick="() => SelectCollectionAsync(coll.Id)">
+                        var capturedColl = coll;
+                        <div class="collection-card"
+                             @onclick="() => SelectCollectionAsync(capturedColl.Id)">
                             <div class="collection-card-icon">📁</div>
                             <div class="collection-card-info">
-                                <span class="collection-card-title">@coll.Name</span>
-                                <span class="collection-card-meta">@coll.VideoCount videos · @FormatDuration(coll.TotalDuration)</span>
-                                @if (!string.IsNullOrWhiteSpace(coll.Description))
+                                <span class="collection-card-title">@capturedColl.Name</span>
+                                <span class="collection-card-meta">@capturedColl.VideoCount videos · @FormatDuration(capturedColl.TotalDuration)</span>
+                                @if (!string.IsNullOrWhiteSpace(capturedColl.Description))
                                 {
-                                    <span class="collection-card-desc">@coll.Description</span>
+                                    <span class="collection-card-desc">@capturedColl.Description</span>
                                 }
                             </div>
                             <div class="collection-card-actions" @onclick:stopPropagation="true">
-                                <button class="btn-icon-action" @onclick="() => BeginEditCollection(coll)" title="Edit">✎</button>
-                                <button class="btn-icon-action danger" @onclick="() => DeleteCollectionAsync(coll.Id)" title="Delete">🗑</button>
+                                <button type="button" class="btn-icon-action" @onclick="() => BeginEditCollection(capturedColl)" title="Edit">✎</button>
+                                <button type="button" class="btn-icon-action danger" @onclick="() => DeleteCollectionAsync(capturedColl.Id)" title="Delete">🗑</button>
                             </div>
                         </div>
                     }
@@ -238,7 +258,7 @@
                             <div class="empty-icon">📁</div>
                             <h4>No collections yet</h4>
                             <p>Create a collection to organize your videos.</p>
-                            <button class="btn-primary" @onclick="BeginCreateCollection" style="margin-top:12px">Create Collection</button>
+                            <button type="button" class="btn-primary" @onclick="BeginCreateCollection" style="margin-top:12px">Create Collection</button>
                         </div>
                     }
                 </div>
@@ -262,15 +282,17 @@
                     <div class="video-grid">
                         @foreach (var video in _collectionVideos)
                         {
-                            <div class="video-card" @onclick="() => OpenVideoDetail(video)">
+                            var capturedVideo = video;
+                            <div class="video-card"
+                                 @onclick="() => OpenVideoDetailAsync(capturedVideo)">
                                 <div class="video-thumb">
-                                    <img src="@GetThumbnailUrl(video.Id)" alt="@video.Title" loading="lazy" />
-                                    <span class="thumb-duration">@FormatDuration(video.Duration)</span>
+                                    <img src="@GetThumbnailUrl(capturedVideo.Id)" alt="@capturedVideo.Title" loading="lazy" />
+                                    <span class="thumb-duration">@FormatDuration(capturedVideo.Duration)</span>
                                     <span class="thumb-overlay-play">▶</span>
                                 </div>
                                 <div class="video-card-info">
-                                    <span class="video-card-title">@video.Title</span>
-                                    <span class="video-card-meta">@FormatFileSize(video.SizeBytes)</span>
+                                    <span class="video-card-title">@capturedVideo.Title</span>
+                                    <span class="video-card-meta">@FormatFileSize(capturedVideo.SizeBytes)</span>
                                 </div>
                             </div>
                         }
@@ -281,30 +303,35 @@
             @* ─── Favorites ─── *@
             @if (_section == Section.Favorites && !_playerOpen)
             {
-                <div class="video-grid padded">
-                    @if (_favoriteVideos.Count == 0)
-                    {
-                        <div class="video-empty">
-                            <div class="empty-icon">⭐</div>
-                            <h4>No favorites yet</h4>
-                            <p>Favorite videos to see them here.</p>
-                        </div>
-                    }
-                    @foreach (var video in _favoriteVideos)
-                    {
-                        <div class="video-card" @onclick="() => OpenVideoDetail(video)">
-                            <div class="video-thumb">
-                                <img src="@GetThumbnailUrl(video.Id)" alt="@video.Title" loading="lazy" />
-                                <span class="thumb-duration">@FormatDuration(video.Duration)</span>
-                                <span class="thumb-overlay-play">▶</span>
+                @if (_favoriteVideos.Count == 0)
+                {
+                    <div class="video-empty">
+                        <div class="empty-icon">⭐</div>
+                        <h4>No favorites yet</h4>
+                        <p>Favorite videos to see them here.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="video-grid padded">
+                        @foreach (var video in _favoriteVideos)
+                        {
+                            var capturedVideo = video;
+                            <div class="video-card"
+                                 @onclick="() => OpenVideoDetailAsync(capturedVideo)">
+                                <div class="video-thumb">
+                                    <img src="@GetThumbnailUrl(capturedVideo.Id)" alt="@capturedVideo.Title" loading="lazy" />
+                                    <span class="thumb-duration">@FormatDuration(capturedVideo.Duration)</span>
+                                    <span class="thumb-overlay-play">▶</span>
+                                </div>
+                                <div class="video-card-info">
+                                    <span class="video-card-title">@capturedVideo.Title</span>
+                                    <span class="video-card-meta">@FormatFileSize(capturedVideo.SizeBytes) · @capturedVideo.ViewCount views</span>
+                                </div>
                             </div>
-                            <div class="video-card-info">
-                                <span class="video-card-title">@video.Title</span>
-                                <span class="video-card-meta">@FormatFileSize(video.SizeBytes) · @video.ViewCount views</span>
-                            </div>
-                        </div>
-                    }
-                </div>
+                        }
+                    </div>
+                }
             }
 
             @* ─── Search Results ─── *@
@@ -315,15 +342,17 @@
                     <div class="video-grid padded">
                         @foreach (var video in _searchResults)
                         {
-                            <div class="video-card" @onclick="() => OpenVideoDetail(video)">
+                            var capturedVideo = video;
+                            <div class="video-card"
+                                 @onclick="() => OpenVideoDetailAsync(capturedVideo)">
                                 <div class="video-thumb">
-                                    <img src="@GetThumbnailUrl(video.Id)" alt="@video.Title" loading="lazy" />
-                                    <span class="thumb-duration">@FormatDuration(video.Duration)</span>
+                                    <img src="@GetThumbnailUrl(capturedVideo.Id)" alt="@capturedVideo.Title" loading="lazy" />
+                                    <span class="thumb-duration">@FormatDuration(capturedVideo.Duration)</span>
                                     <span class="thumb-overlay-play">▶</span>
                                 </div>
                                 <div class="video-card-info">
-                                    <span class="video-card-title">@video.Title</span>
-                                    <span class="video-card-meta">@FormatFileSize(video.SizeBytes)</span>
+                                    <span class="video-card-title">@capturedVideo.Title</span>
+                                    <span class="video-card-meta">@FormatFileSize(capturedVideo.SizeBytes)</span>
                                 </div>
                             </div>
                         }
@@ -344,15 +373,15 @@
                             <div class="input-with-browse">
                                 <input type="text" class="input" @bind="_libraryPath"
                                        placeholder="/home/user/Videos" />
-                                <button class="btn btn-outline btn-sm" @onclick="OpenDirectoryBrowser">Browse…</button>
+                                <button type="button" class="btn btn-outline btn-sm" @onclick="OpenDirectoryBrowser">Browse…</button>
                             </div>
                         </div>
                         <div class="settings-actions">
-                            <button class="btn btn-primary btn-sm" @onclick="SaveLibraryPathAsync"
+                            <button type="button" class="btn btn-primary btn-sm" @onclick="SaveLibraryPathAsync"
                                     disabled="@_settingsSaving">
                                 @(_settingsSaving ? "Saving..." : "Save Path")
                             </button>
-                            <button class="btn btn-outline btn-sm" @onclick="ScanLibraryAsync"
+                            <button type="button" class="btn btn-outline btn-sm" @onclick="ScanLibraryAsync"
                                     disabled="@(_settingsScanning || string.IsNullOrWhiteSpace(_libraryPath))">
                                 @(_settingsScanning ? "Scanning..." : "Scan Now")
                             </button>
@@ -386,18 +415,18 @@
                     <div class="folder-picker-dialog" @onclick:stopPropagation>
                         <div class="folder-picker-header">
                             <h3>Select Folder</h3>
-                            <button class="btn-icon" @onclick="HideDirectoryBrowser" title="Close">✕</button>
+                            <button type="button" class="btn-icon" @onclick="HideDirectoryBrowser" title="Close">✕</button>
                         </div>
 
                         <nav class="folder-picker-breadcrumbs">
-                            <button class="btn btn-sm" @onclick="DirBrowserNavigateToRoot">
+                            <button type="button" class="btn btn-sm" @onclick="DirBrowserNavigateToRoot">
                                 Home
                             </button>
                             @for (int i = 0; i < _dirBrowserBreadcrumbs.Count; i++)
                             {
                                 var idx = i;
                                 <span class="separator">/</span>
-                                <button class="btn btn-sm" @onclick="() => DirBrowserNavigateToCrumb(idx)">@_dirBrowserBreadcrumbs[idx].Name</button>
+                                <button type="button" class="btn btn-sm" @onclick="() => DirBrowserNavigateToCrumb(idx)">@_dirBrowserBreadcrumbs[idx].Name</button>
                             }
                         </nav>
 
@@ -408,7 +437,7 @@
                         <div class="folder-picker-list">
                             @if (_dirBrowserBreadcrumbs.Count > 0)
                             {
-                                <button class="folder-picker-item" @onclick="DirBrowserGoUp">
+                                <button type="button" class="folder-picker-item" @onclick="DirBrowserGoUp">
                                     📁 ..
                                 </button>
                             }
@@ -424,18 +453,20 @@
                             {
                                 @foreach (var folder in _dirBrowserFolders)
                                 {
-                                    <button class="folder-picker-item" @onclick="() => DirBrowserNavigate(folder.Id, folder.Name)">
-                                        📁 @folder.Name
+                                    var capturedFolder = folder;
+                                    <button type="button" class="folder-picker-item"
+                                            @onclick="() => DirBrowserNavigate(capturedFolder.Id, capturedFolder.Name)">
+                                        📁 @capturedFolder.Name
                                     </button>
                                 }
                             }
                         </div>
 
                         <div class="folder-picker-actions">
-                            <button class="btn btn-primary btn-sm" @onclick="ConfirmDirectoryBrowser">
+                            <button type="button" class="btn btn-primary btn-sm" @onclick="ConfirmDirectoryBrowser">
                                 Select this folder
                             </button>
-                            <button class="btn btn-sm" @onclick="HideDirectoryBrowser">Cancel</button>
+                            <button type="button" class="btn btn-sm" @onclick="HideDirectoryBrowser">Cancel</button>
                         </div>
                     </div>
                 </div>
@@ -463,6 +494,27 @@
                                 }
                             }
                         </video>
+
+                        @if (_codecErrorMessage is not null)
+                        {
+                            <div class="codec-error-overlay">
+                                <div class="codec-error-card">
+                                    <div class="codec-error-icon">⚠️</div>
+                                    <h4>Video Cannot Be Played</h4>
+                                    <p>Your browser was unable to play this video. This can happen if the video uses an unsupported codec (such as HEVC/H.265) or if the file failed to load.</p>
+                                    <div class="codec-error-instructions">
+                                        <strong>Suggestions:</strong>
+                                        <ul style="margin: 8px 0 0 0; padding-left: 20px; text-align: left;">
+                                            <li>Try refreshing the page</li>
+                                            <li>On Windows, install the free
+                                                <a href="ms-windows-store://pdp/?productid=9n4wgh0z6vhq" target="_blank" rel="noopener">HEVC Video Extensions</a>
+                                                from the Microsoft Store</li>
+                                            <li>Try a different browser (Firefox generally supports more codecs)</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        }
                     </div>
 
                     <div class="player-info-panel">
@@ -476,12 +528,12 @@
                                 </span>
                             </div>
                             <div class="player-actions">
-                                <button class="btn-icon-action" @onclick="ToggleFavoriteAsync"
+                                <button type="button" class="btn-icon-action" @onclick="ToggleFavoriteAsync"
                                         title="@(_playerVideo.IsFavorite ? "Remove from favorites" : "Add to favorites")">
                                     @(_playerVideo.IsFavorite ? "★" : "☆")
                                 </button>
-                                <button class="btn-icon-action" @onclick="() => _showAddToCollection = true" title="Add to collection">📁</button>
-                                <button class="btn-close-player" @onclick="ClosePlayer">✕ Close</button>
+                                <button type="button" class="btn-icon-action" @onclick="() => _showAddToCollection = true" title="Add to collection">📁</button>
+                                <button type="button" class="btn-close-player" @onclick="ClosePlayer">✕ Close</button>
                             </div>
                         </div>
 
@@ -530,8 +582,10 @@
                 <div class="collection-select-list">
                     @foreach (var coll in _collections)
                     {
-                        <button class="collection-select-item" @onclick="() => AddToCollectionAsync(coll.Id)">
-                            <span>📂</span> @coll.Name
+                        var capturedColl = coll;
+                        <button type="button" class="collection-select-item"
+                                @onclick="() => AddToCollectionAsync(capturedColl.Id)">
+                            <span>📂</span> @capturedColl.Name
                         </button>
                     }
                     @if (_collections.Count == 0)
@@ -540,7 +594,7 @@
                     }
                 </div>
                 <div class="dialog-actions">
-                    <button class="btn-cancel" @onclick="() => _showAddToCollection = false">Cancel</button>
+                    <button type="button" class="btn-cancel" @onclick="() => _showAddToCollection = false">Cancel</button>
                 </div>
             </div>
         </div>
@@ -561,8 +615,8 @@
                     </label>
                 </div>
                 <div class="dialog-actions">
-                    <button class="btn-cancel" @onclick="CloseCollectionDialog">Cancel</button>
-                    <button class="btn-primary" @onclick="SaveCollectionAsync">
+                    <button type="button" class="btn-cancel" @onclick="CloseCollectionDialog">Cancel</button>
+                    <button type="button" class="btn-primary" @onclick="SaveCollectionAsync">
                         @(_showEditCollectionDialog ? "Save" : "Create")
                     </button>
                 </div>

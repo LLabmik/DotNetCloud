@@ -1,6 +1,9 @@
+using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
+using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Video.Data.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DotNetCloud.Modules.Video.Host.Controllers;
@@ -17,6 +20,7 @@ public class VideoController : VideoControllerBase
     private readonly WatchProgressService _watchProgressService;
     private readonly VideoStreamingService _streamingService;
     private readonly VideoMetadataService _metadataService;
+    private readonly IDownloadService _downloadService;
     private readonly ILogger<VideoController> _logger;
 
     /// <summary>
@@ -29,6 +33,7 @@ public class VideoController : VideoControllerBase
         WatchProgressService watchProgressService,
         VideoStreamingService streamingService,
         VideoMetadataService metadataService,
+        IDownloadService downloadService,
         ILogger<VideoController> logger)
     {
         _videoService = videoService;
@@ -37,6 +42,7 @@ public class VideoController : VideoControllerBase
         _watchProgressService = watchProgressService;
         _streamingService = streamingService;
         _metadataService = metadataService;
+        _downloadService = downloadService;
         _logger = logger;
     }
 
@@ -379,5 +385,67 @@ public class VideoController : VideoControllerBase
         var caller = GetAuthenticatedCaller();
         var count = _streamingService.GetActiveStreamCount(caller.UserId);
         return Ok(Envelope(new { activeStreams = count, maxStreams = _streamingService.MaxConcurrentStreams }));
+    }
+
+    /// <summary>Streams a video file with full HTTP range-request support for seeking.</summary>
+    [AllowAnonymous]
+    [HttpGet("{videoId:guid}/stream")]
+    public async Task<IActionResult> StreamVideo(Guid videoId, [FromQuery] string? token)
+    {
+        // Validate token
+        if (string.IsNullOrWhiteSpace(token))
+            return Unauthorized(ErrorEnvelope("invalid_token", "Stream token is required."));
+
+        var streamToken = _streamingService.ValidateStreamToken(token);
+        if (streamToken is null)
+            return Unauthorized(ErrorEnvelope("invalid_token", "Stream token is invalid or expired."));
+
+        if (streamToken.VideoId != videoId)
+            return Forbid();
+
+        // Look up the video
+        var video = await _streamingService.GetVideoForStreamingAsync(videoId, streamToken.UserId);
+        if (video is null)
+            return NotFound(ErrorEnvelope(ErrorCodes.VideoNotFound, "Video not found."));
+
+        // Build caller context from the validated token for the download service
+        var caller = new CallerContext(streamToken.UserId, Array.Empty<string>(), CallerType.User);
+
+        // Reconstruct file from chunks via the Files download service.
+        // Returns a FileStream opened with DeleteOnClose on a temp file.
+        Stream fileStream;
+        try
+        {
+            fileStream = await _downloadService.DownloadCurrentAsync(video.FileNodeId, caller);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to reconstruct video file for {VideoId} (FileNodeId={FileNodeId})", videoId, video.FileNodeId);
+            return NotFound(ErrorEnvelope("file_not_found", "Video file not found in storage."));
+        }
+
+        var contentType = VideoStreamingService.GetContentType(video.MimeType);
+
+        // Serve via PhysicalFile which uses Kestrel's sendfile() syscall:
+        // - Zero-copy: kernel sends file data directly to the socket
+        // - Bypasses response.Body entirely (no MemoryStream, no compression wrapping)
+        // - No 2 GB limit
+        // - Built-in HTTP range-request support (206 Partial Content) for video seeking
+        if (fileStream is FileStream fs)
+        {
+            var filePath = fs.Name;
+
+            // Keep the FileStream alive until the response completes so the
+            // DeleteOnClose temp file isn't removed before Kestrel finishes reading it.
+            HttpContext.Response.OnCompleted(async () =>
+            {
+                await fs.DisposeAsync();
+            });
+
+            return PhysicalFile(filePath, contentType, enableRangeProcessing: true);
+        }
+
+        // Fallback for non-FileStream (shouldn't happen with current download service)
+        return File(fileStream, contentType, enableRangeProcessing: true);
     }
 }

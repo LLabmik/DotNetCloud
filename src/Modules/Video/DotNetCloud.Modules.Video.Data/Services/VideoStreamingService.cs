@@ -14,8 +14,8 @@ public sealed class VideoStreamingService : IVideoStreamingService
 {
     private readonly VideoDbContext _db;
     private readonly ILogger<VideoStreamingService> _logger;
-    private readonly ConcurrentDictionary<Guid, int> _activeStreams = new();
-    private readonly ConcurrentDictionary<string, VideoStreamToken> _streamTokens = new();
+    private static readonly ConcurrentDictionary<Guid, int> _activeStreams = new();
+    private static readonly ConcurrentDictionary<string, VideoStreamToken> _streamTokens = new();
 
     /// <summary>Maximum concurrent streams per user (configurable).</summary>
     public int MaxConcurrentStreams { get; set; } = 3;

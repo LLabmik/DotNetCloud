@@ -43,6 +43,10 @@ public partial class VideoPage : IAsyncDisposable
     private VideoMetadataDto? _playerMetadata;
     private List<SubtitleDto> _playerSubtitles = [];
     private string? _streamToken;
+    private string? _codecErrorMessage;
+    private IJSObjectReference? _jsModule;
+    private DotNetObjectReference<VideoPage>? _dotNetRef;
+    private bool _videoErrorListenerAttached;
 
     // ── Dialogs ──
     private bool _showCreateCollectionDialog;
@@ -83,14 +87,40 @@ public partial class VideoPage : IAsyncDisposable
     //  Lifecycle
     // ────────────────────────────────────────────────────────
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_playerOpen && !_videoErrorListenerAttached)
+        {
+            _videoErrorListenerAttached = true;
+            try
+            {
+                _jsModule ??= await Js.InvokeAsync<IJSObjectReference>(
+                    "import", "./_content/DotNetCloud.Modules.Video/video-player.js");
+                _dotNetRef ??= DotNetObjectReference.Create(this);
+                await _jsModule.InvokeVoidAsync("attachVideoErrorListener", "video-player", _dotNetRef);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Failed to attach video error listener");
+            }
+        }
+    }
+
+    /// <summary>Called from JS when the video element fires an error event.</summary>
+    [JSInvokable]
+    public void OnVideoError(int code, string message)
+    {
+        _codecErrorMessage = "playback_error";
+        InvokeAsync(StateHasChanged);
+    }
+
     protected override async Task OnInitializedAsync()
     {
         try
         {
             _loading = true;
-            var caller = await GetCallerAsync();
-            _caller = caller;
-            _collections = (await CollectionService.ListCollectionsAsync(caller)).ToList();
+            _caller = await GetCallerAsync();
+            _collections = (await CollectionService.ListCollectionsAsync(_caller)).ToList();
             await LoadLibraryPathAsync();
             await LoadCurrentSectionAsync();
         }
@@ -124,7 +154,6 @@ public partial class VideoPage : IAsyncDisposable
     {
         if (_section == Section.Settings)
         {
-            // Settings UI is self-contained — no data load needed, skip loading spinner
             _loading = false;
             _errorMessage = null;
             StateHasChanged();
@@ -175,31 +204,26 @@ public partial class VideoPage : IAsyncDisposable
     //  Video Detail → Player
     // ────────────────────────────────────────────────────────
 
-    private async void OpenVideoDetail(VideoDto video)
+    private async Task OpenVideoDetailAsync(VideoDto video)
     {
         try
         {
             var caller = await GetCallerAsync();
             _playerVideo = video;
-            _playerOpen = true;
             _playerSubtitles = (await SubtitleService.GetSubtitlesAsync(video.Id, caller)).ToList();
             _playerMetadata = await MetadataService.GetMetadataAsync(video.Id);
 
-            // Generate streaming token
             _streamToken = StreamingService.GenerateStreamToken(video.Id, caller.UserId);
-
-            // Record view
+            _codecErrorMessage = null;
+            _videoErrorListenerAttached = false;
+            _playerOpen = true;
             await WatchProgressService.RecordViewAsync(video.Id, caller);
-
-            // Start progress saving timer
             await StartProgressTimerAsync(video.Id);
 
             _breadcrumb =
             [
                 new BreadcrumbItem(GetSectionLabel(), () => { ClosePlayer(); StateHasChanged(); })
             ];
-
-            StateHasChanged();
         }
         catch (Exception ex)
         {
@@ -207,7 +231,7 @@ public partial class VideoPage : IAsyncDisposable
         }
     }
 
-    private async void OpenPlayerForContinue(WatchProgressDto wp)
+    private async Task OpenPlayerForContinueAsync(WatchProgressDto wp)
     {
         try
         {
@@ -215,7 +239,7 @@ public partial class VideoPage : IAsyncDisposable
             var video = await VideoService.GetVideoAsync(wp.VideoId, caller);
             if (video is not null)
             {
-                OpenVideoDetail(video);
+                await OpenVideoDetailAsync(video);
             }
         }
         catch (Exception ex)
@@ -231,6 +255,8 @@ public partial class VideoPage : IAsyncDisposable
         _playerMetadata = null;
         _playerSubtitles.Clear();
         _streamToken = null;
+        _codecErrorMessage = null;
+        _videoErrorListenerAttached = false;
         _breadcrumb.Clear();
         StopProgressTimer();
     }
@@ -246,7 +272,6 @@ public partial class VideoPage : IAsyncDisposable
         {
             var caller = await GetCallerAsync();
             await VideoService.ToggleFavoriteAsync(_playerVideo.Id, caller);
-            // Refresh the player video to reflect updated state
             _playerVideo = await VideoService.GetVideoAsync(_playerVideo.Id, caller);
         }
         catch (Exception ex)
@@ -445,14 +470,14 @@ public partial class VideoPage : IAsyncDisposable
             : $"{bitrate / 1_000.0:F0} kbps";
     }
 
-    private static string GetThumbnailUrl(Guid videoId) => $"/api/video/{videoId}/thumbnail";
+    private static string GetThumbnailUrl(Guid videoId) => $"/api/v1/videos/{videoId}/thumbnail";
 
     private string GetStreamUrl(Guid videoId) =>
         _streamToken is not null
-            ? $"/api/video/{videoId}/stream?token={Uri.EscapeDataString(_streamToken)}"
-            : $"/api/video/{videoId}/stream";
+            ? $"/api/v1/videos/{videoId}/stream?token={Uri.EscapeDataString(_streamToken)}"
+            : $"/api/v1/videos/{videoId}/stream";
 
-    private static string GetSubtitleUrl(Guid subtitleId) => $"/api/video/subtitles/{subtitleId}";
+    private static string GetSubtitleUrl(Guid subtitleId) => $"/api/v1/videos/subtitles/{subtitleId}";
 
     private static double GetWatchPercent(VideoDto video)
     {
@@ -486,7 +511,6 @@ public partial class VideoPage : IAsyncDisposable
                 while (await _progressTimer.WaitForNextTickAsync(_timerCts.Token))
                 {
                     // In a real implementation, JS interop would report currentTime
-                    // For now, progress is saved on player events
                 }
             }
             catch (OperationCanceledException) { }
@@ -654,9 +678,13 @@ public partial class VideoPage : IAsyncDisposable
         _showDirBrowser = false;
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         StopProgressTimer();
-        return ValueTask.CompletedTask;
+        _dotNetRef?.Dispose();
+        if (_jsModule is not null)
+        {
+            try { await _jsModule.DisposeAsync(); } catch { /* circuit may be gone */ }
+        }
     }
 }

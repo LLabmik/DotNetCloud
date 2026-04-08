@@ -77,12 +77,6 @@
     flex-shrink: 0;
 }
 
-.sidebar-divider {
-    height: 1px;
-    background: var(--color-border, #e2e8f0);
-    margin: 8px 16px;
-}
-
 .video-nav-separator {
     height: 1px;
     background: var(--color-border, #e2e8f0);
@@ -525,6 +519,7 @@
 }
 
 .player-container {
+    position: relative;
     width: 100%;
     background: #000;
     display: flex;
@@ -537,6 +532,74 @@
     max-height: 65vh;
     display: block;
     outline: none;
+}
+
+/* ── Codec Error Overlay ── */
+
+.codec-error-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+.codec-error-card {
+    background: var(--color-surface, #1e293b);
+    border: 1px solid var(--color-border, #334155);
+    border-radius: 12px;
+    padding: 32px 40px;
+    max-width: 500px;
+    text-align: center;
+    color: #e2e8f0;
+}
+
+.codec-error-icon {
+    font-size: 2.5rem;
+    margin-bottom: 12px;
+}
+
+.codec-error-card h4 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0 0 12px;
+    color: #f8fafc;
+}
+
+.codec-error-card p {
+    font-size: 0.9rem;
+    line-height: 1.6;
+    margin: 0 0 16px;
+    color: #94a3b8;
+}
+
+.codec-error-instructions {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 16px;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: #cbd5e1;
+}
+
+.codec-error-instructions a {
+    color: #60a5fa;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.codec-error-instructions a:hover {
+    color: #93bbfd;
+}
+
+.codec-error-alt {
+    font-size: 0.82rem !important;
+    color: #64748b !important;
+    margin-bottom: 0 !important;
 }
 
 .player-info-panel {

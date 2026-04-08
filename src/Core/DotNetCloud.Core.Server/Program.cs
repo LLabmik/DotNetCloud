@@ -610,12 +610,16 @@ public class Program
 
         // Response envelope middleware (wraps API responses in standard format).
         // WOPI file protocol endpoints must remain unwrapped for Collabora compatibility.
+        // Video/music stream endpoints return raw binary data that must not be buffered
+        // into a MemoryStream (which overflows at 2 GB for large files).
         app.UseResponseEnvelope(options =>
         {
             options.ExcludePaths =
             [
                 .. options.ExcludePaths,
                 "/api/v1/wopi/files/",
+                "/api/v1/videos/",
+                "/api/v1/music/",
             ];
         });
 
