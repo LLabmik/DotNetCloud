@@ -29,9 +29,10 @@ DotNetCloud gives you full control of your data by running your own cloud server
 | 👤 **Contacts** | Contact management with CardDAV support | ✅ Phase 3 |
 | 📅 **Calendar** | Events, scheduling, CalDAV support | ✅ Phase 3 |
 | 📝 **Notes** | Markdown-based note taking | ✅ Phase 3 |
-| 📋 **Tracks** | Kanban boards and project management | � Rearchitecting (Phase 4) |
-| 🖼️ **Photos** | Photo/video library and management | 🚧 In Progress (Phase 5) |
+| 📋 **Tracks** | Kanban boards and project management | ✅ Phase 4 |
+| 🖼️ **Photos** | Photo library, albums, geo-clustering, slideshow, editing | ✅ Phase 5 |
 | 🎵 **Music** | Music player with equalizer, playlists, favorites, Subsonic API | ✅ Phase 5 |
+| 🎬 **Video** | Video library, collections, subtitles, watch progress, streaming | ✅ Phase 5 |
 | 📧 **Email** | Integrated email client (SMTP/IMAP/Gmail) | Phase 6 |
 | 🔖 **Bookmarks** | Browser bookmark sync via extension | Phase 6 |
 | 📹 **Video Calls** | WebRTC video calling and screen sharing | Phase 7 |
@@ -49,8 +50,8 @@ See [MASTER_PROJECT_PLAN.md](docs/MASTER_PROJECT_PLAN.md) for the full phased im
 | **Phase 1** | Files + Desktop Sync Client — file browser, upload/download, sharing, Collabora editing, bulk operations, trash, tags, versioning, Windows & Linux sync | ✅ Complete |
 | **Phase 2** | Chat + Notifications + Android — real-time messaging, push notifications, Android MAUI client | ✅ Complete |
 | **Phase 3** | Contacts + Calendar + Notes + NextCloud Migration | ✅ Complete |
-| **Phase 4** | Project Management (Tracks) | 🔄 Rearchitecting |
-| **Phase 5** | Photos + Music + Video | 🚧 In Progress |
+| **Phase 4** | Project Management (Tracks) | ✅ Complete |
+| **Phase 5** | Photos + Music + Video | ✅ Complete |
 | **Phase 6** | Email + Bookmarks | ⬜ Planned |
 | **Phase 7** | Video Calling + Screen Sharing | ⬜ Planned |
 | **Phase 8** | Search + Auto-Updates + E2EE | ⬜ Planned |
@@ -205,6 +206,27 @@ graph TB
             TracksDB[("Tracks DB<br/><small>tracks.*</small>")]
             TracksLogic --- TracksDB
         end
+
+        subgraph PhotosM["🖼️ Photos Module"]
+            direction TB
+            PhotosLogic["Library · Albums<br/>Geo · Slideshow"]
+            PhotosDB[("Photos DB<br/><small>photos.*</small>")]
+            PhotosLogic --- PhotosDB
+        end
+
+        subgraph MusicM["🎵 Music Module"]
+            direction TB
+            MusicLogic["Library · Playlists<br/>Streaming · Subsonic"]
+            MusicDB[("Music DB<br/><small>music.*</small>")]
+            MusicLogic --- MusicDB
+        end
+
+        subgraph VideoM["🎬 Video Module"]
+            direction TB
+            VideoLogic["Library · Collections<br/>Subtitles · Streaming"]
+            VideoDB[("Video DB<br/><small>video.*</small>")]
+            VideoLogic --- VideoDB
+        end
     end
 
     %% ── External / Managed Components ────────────────────────
@@ -230,6 +252,9 @@ graph TB
     RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> ConLogic
     RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> NotesLogic
     RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> TracksLogic
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> PhotosLogic
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> MusicLogic
+    RESTAPI -- "gRPC<br/><small>Unix Socket / Named Pipe</small>" --> VideoLogic
 
     %% ── Connections: Core → Database ─────────────────────────
     CoreServices --> CoreDB
@@ -253,8 +278,8 @@ graph TB
     class BlazorUI,Desktop,Android,CLI,SyncService clientNode
     class Supervisor,AuthServer,Identity,SignalR,CapSystem,EventBus,RESTAPI coreNode
     class Serilog,OTel,HealthChecks,SecurityMW infraNode
-    class FilesLogic,FilesWOPI,ChatLogic,CalLogic,ConLogic,NotesLogic,TracksLogic moduleNode
-    class CoreDB,FilesDB,ChatDB,CalDB,ConDB,NotesDB,TracksDB dbNode
+    class FilesLogic,FilesWOPI,ChatLogic,CalLogic,ConLogic,NotesLogic,TracksLogic,PhotosLogic,MusicLogic,VideoLogic moduleNode
+    class CoreDB,FilesDB,ChatDB,CalDB,ConDB,NotesDB,TracksDB,PhotosDB,MusicDB,VideoDB dbNode
     class Collabora,LiveKit managedNode
 ```
 

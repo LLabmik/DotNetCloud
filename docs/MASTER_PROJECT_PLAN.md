@@ -96,7 +96,7 @@
 | Phase 4.7                   | 6       | 6         | 0           | 0       |
 | Phase 4.8                   | 8       | 8         | 0           | 0       |
 | Phase 4.9                   | 42      | 42        | 0           | 0       |
-| Phase 5-9                   | Summary | 7         | 1           | 0       |
+| Phase 5-9                   | Summary | 8         | 0           | 0       |
 | Infrastructure              | Summary | 0         | 0           | 1       |
 | Documentation               | Summary | 0         | 0           | 1       |
 
@@ -1975,10 +1975,8 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 #### Step: phase-5.18 - Video Web UI
 
-**Status:** deferred ☐
-**Notes:** Blazor UI components deferred to integration phase along with Photos and Music UI.
-
-**Notes:** Sub-Phase D (Video Module) fully complete. All projects compile, 105 tests passing.
+**Status:** completed ✅
+**Notes:** Sub-Phase D (Video Module) fully complete. All projects compile, 105 tests passing. Video is a separate process-isolated module.
 
 ---
 

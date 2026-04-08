@@ -3856,7 +3856,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Step 5.15 — Video Contracts & Data Model
 - ✓ Step 5.16 — Video Core Services (74 tests passing)
 - ✓ Step 5.17 — Video Streaming & API
-- ☐ Step 5.18 — Video Web UI (deferred to integration phase)
+- ✓ Step 5.18 — Video Web UI
 
 ### Sub-Phase E: Integration & Quality (Steps 5.19–5.20)
 
