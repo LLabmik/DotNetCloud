@@ -171,7 +171,8 @@
 
             if (_models.Count > 0)
             {
-                _selectedModel = _models[0].Id;
+                _selectedModel = _models.FirstOrDefault(m => m.Id == "gpt-oss:20b")?.Id
+                    ?? _models[0].Id;
             }
         }
         catch (Exception ex)
