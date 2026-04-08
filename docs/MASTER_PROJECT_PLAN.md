@@ -96,7 +96,8 @@
 | Phase 4.7                   | 6       | 6         | 0           | 0       |
 | Phase 4.8                   | 8       | 8         | 0           | 0       |
 | Phase 4.9                   | 42      | 42        | 0           | 0       |
-| Phase 5-9                   | Summary | 8         | 0           | 0       |
+| Phase 5-8                   | Summary | 8         | 0           | 0       |
+| Phase 9                     | 7       | 4         | 0           | 3       |
 | Infrastructure              | Summary | 0         | 0           | 1       |
 | Documentation               | Summary | 0         | 0           | 1       |
 
@@ -2071,3 +2072,84 @@ New-Item -ItemType Junction -Path "C:\Users\benk\synctray\Documents" -Target "C:
 ```
 
 The sync engine follows junction contents transparently. Caveat: deleting the junction server-side could affect real local files.
+
+---
+
+## Phase 9: AI Assistant
+
+### Section: Phase 9.1 — Core AI Interfaces & Module Scaffold
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `ILlmProvider` capability interface (Restricted tier) in `DotNetCloud.Core/Capabilities/`
+- ✓ Core DTOs: `LlmRequest`, `LlmResponse`, `LlmResponseChunk`, `LlmModelInfo`, `LlmMessage` in `DotNetCloud.Core/AI/`
+- ✓ `AiModule` (IModuleLifecycle) and `AiModuleManifest` (IModuleManifest)
+- ✓ Domain models: `Conversation`, `ConversationMessage`
+- ✓ Events: `ConversationCreatedEvent`, `ConversationMessageEvent`
+- ✓ Service interfaces: `IAiChatService`, `IOllamaClient`
+- ✓ Module manifest (`manifest.json`)
+
+**Notes:** Foundation layer complete. ILlmProvider follows the existing capability tier model.
+
+### Section: Phase 9.2 — Data Layer & Ollama Provider
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `AiDbContext` with EF Core entity configurations
+- ✓ `ConversationConfiguration` / `ConversationMessageConfiguration` with soft-delete, indexes
+- ✓ `OllamaClient` — Full Ollama REST API client (chat, streaming NDJSON, model listing, health check)
+- ✓ `AiChatService` — Conversation CRUD, history-aware LLM requests, message persistence
+- ✓ `AiServiceRegistration` — DI with `HttpClientFactory`, configurable base URL
+
+**Notes:** Ollama at `http://monolith.kimball.home:11434`, default model `gpt-oss:20b`. InMemory DB for dev.
+
+### Section: Phase 9.3 — Module Host & REST API
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `DotNetCloud.Modules.AI.Host` — Standalone web host (`Program.cs`)
+- ✓ `AiChatController` — REST API endpoints:
+  - POST `/api/ai/conversations` — Create conversation
+  - GET `/api/ai/conversations` — List conversations
+  - GET `/api/ai/conversations/{id}` — Get conversation with messages
+  - DELETE `/api/ai/conversations/{id}` — Soft-delete conversation
+  - POST `/api/ai/conversations/{id}/messages` — Send message (full response)
+  - POST `/api/ai/conversations/{id}/messages/stream` — Send message (SSE streaming)
+  - GET `/api/ai/models` — List available models
+  - GET `/api/ai/health/ollama` — Ollama health check
+- ✓ `AiHealthCheck` — Ollama connectivity health check
+- ✓ `InProcessEventBus` — Standalone operation event bus
+
+**Notes:** All projects registered in DotNetCloud.sln. Build succeeds with 0 warnings.
+
+### Section: Phase 9.4 — Unit Tests
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `AiModuleTests` — 7 lifecycle tests (init, start, stop, event sub/unsub)
+- ✓ `AiChatServiceTests` — 11 tests (CRUD, ownership, message sending, model listing)
+- ✓ `OllamaClientTests` — 10 tests (health, chat, models, system prompt, error handling)
+- ✓ All 28 tests passing
+
+**Notes:** Tests use InMemory EF Core and mocked HttpMessageHandler — no Ollama instance required.
+
+### Section: Phase 9.5 — Blazor UI Chat Panel
+**Status:** pending ☐
+**Deliverables:**
+- ☐ Chat-style AI assistant panel component
+- ☐ Streaming response rendering via SSE
+- ☐ Model selector dropdown
+- ☐ Conversation history sidebar
+
+### Section: Phase 9.6 — Cloud Providers
+**Status:** pending ☐
+**Deliverables:**
+- ☐ Anthropic Claude provider
+- ☐ OpenAI / Azure OpenAI provider
+- ☐ Provider fallback chain
+- ☐ Per-user API key storage (encrypted)
+- ☐ Rate limiting per user
+
+### Section: Phase 9.7 — Module Integration
+**Status:** pending ☐
+**Deliverables:**
+- ☐ Notes module integration (summarize, expand, translate)
+- ☐ Chat module integration (message summarization, smart replies)
+- ☐ Files module integration (content summarization, document Q&A)
+- ☐ Admin UI for provider configuration

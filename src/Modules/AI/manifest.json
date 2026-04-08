@@ -1,0 +1,20 @@
+{
+  "id": "dotnetcloud.ai",
+  "name": "AI Assistant",
+  "version": "1.0.0",
+  "description": "LLM-powered AI assistant with chat, summarization, and content generation. Supports local (Ollama) and cloud providers.",
+  "author": "DotNetCloud",
+  "requiredCapabilities": [
+    "ICurrentUserContext",
+    "IAuditLogger",
+    "IUserDirectory",
+    "INotificationService",
+    "ILlmProvider"
+  ],
+  "publishedEvents": [
+    "ConversationCreatedEvent",
+    "ConversationMessageEvent"
+  ],
+  "subscribedEvents": [],
+  "minCoreVersion": "1.0.0"
+}

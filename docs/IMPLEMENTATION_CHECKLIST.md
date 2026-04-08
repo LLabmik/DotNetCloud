@@ -3876,3 +3876,62 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
   - ✓ Video: 105 tests (12 handler + 9 notification + 10 service + 5 callback = 31 new, replaced 3 basic)
   - ✓ Core: 410 tests (16 new cross-module DTO tests)
   - ☐ Security tests, performance tests, admin/user docs — deferred
+
+---
+
+## Phase 9: AI Assistant
+
+### Step 9.1 — Core AI Interfaces & Module Scaffold
+
+- ✓ `ILlmProvider` capability interface in `DotNetCloud.Core/Capabilities/`
+- ✓ Core DTOs: `LlmRequest`, `LlmResponse`, `LlmResponseChunk`, `LlmModelInfo`, `LlmMessage` in `DotNetCloud.Core/AI/`
+- ✓ `AiModule` (IModuleLifecycle) + `AiModuleManifest` (IModuleManifest)
+- ✓ Models: `Conversation`, `ConversationMessage`
+- ✓ Events: `ConversationCreatedEvent`, `ConversationMessageEvent`, `ConversationCreatedEventHandler`
+- ✓ Service interfaces: `IAiChatService`, `IOllamaClient`
+- ✓ `manifest.json` for AI module
+
+### Step 9.2 — Data Layer & Ollama Provider
+
+- ✓ `AiDbContext` with EF Core (Conversation + ConversationMessage entities)
+- ✓ Entity configurations: `ConversationConfiguration`, `ConversationMessageConfiguration`
+- ✓ `OllamaClient` — HTTP client for Ollama REST API (chat, streaming, model listing, health)
+- ✓ `AiChatService` — Conversation management, message persistence, LLM routing
+- ✓ `AiServiceRegistration` — DI setup with configurable Ollama base URL
+
+### Step 9.3 — Module Host & REST API
+
+- ✓ `DotNetCloud.Modules.AI.Host` — Standalone web host (Program.cs)
+- ✓ `AiChatController` — REST API: conversations CRUD, send message, streaming SSE, model listing
+- ✓ `AiHealthCheck` — Ollama connectivity health check
+- ✓ `InProcessEventBus` — Standalone event bus for module isolation
+- ✓ `appsettings.json` configured for Ollama at `monolith.kimball.home:11434`, default model `gpt-oss:20b`
+
+### Step 9.4 — Unit Tests
+
+- ✓ `AiModuleTests` — Module lifecycle (7 tests)
+- ✓ `AiChatServiceTests` — Conversation CRUD, message sending, model listing (11 tests)
+- ✓ `OllamaClientTests` — HTTP client with mocked handler (7 tests + 3 additional)
+- ✓ All 28 tests passing
+
+### Step 9.5 — Blazor UI Chat Panel (Pending)
+
+- ☐ Chat-style AI assistant panel component
+- ☐ Streaming response rendering via SignalR or SSE
+- ☐ Model selector dropdown
+- ☐ Conversation history sidebar
+
+### Step 9.6 — Cloud Providers (Pending)
+
+- ☐ Anthropic Claude provider
+- ☐ OpenAI / Azure OpenAI provider
+- ☐ Provider fallback chain
+- ☐ Per-user API key storage (encrypted)
+- ☐ Rate limiting per user
+
+### Step 9.7 — Module Integration (Pending)
+
+- ☐ Notes module: summarize, expand, translate, grammar check
+- ☐ Chat module: message summarization, smart replies
+- ☐ Files module: content summarization, document Q&A
+- ☐ Admin UI for provider configuration
