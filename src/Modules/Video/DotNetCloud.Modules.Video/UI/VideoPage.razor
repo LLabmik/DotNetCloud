@@ -501,7 +501,7 @@
             @if (_playerOpen && _playerVideo is not null)
             {
                 <div class="player-view">
-                    <div class="player-container">
+                    <div id="player-container" class="player-container">
                         <video id="video-player"
                                class="video-player"
                                src="@GetStreamUrl(_playerVideo.Id)"

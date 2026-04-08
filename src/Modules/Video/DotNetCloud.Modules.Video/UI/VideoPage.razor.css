@@ -534,6 +534,16 @@
     outline: none;
 }
 
+/* ── Idle auto-hide: cursor disappears after inactivity ── */
+
+::deep .player-container.idle-hide {
+    cursor: none;
+}
+
+::deep .player-container.idle-hide .video-player {
+    cursor: none;
+}
+
 /* ── Codec Error Overlay ── */
 
 .codec-error-overlay {

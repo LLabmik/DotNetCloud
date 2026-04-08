@@ -33,3 +33,77 @@ export function attachVideoErrorListener(elementId, dotNetRef) {
         }
     }, { once: true });
 }
+
+/**
+ * Auto-hides the cursor (and encourages browser to hide native controls)
+ * after a period of mouse inactivity over the video player container.
+ *
+ * @param {string} containerId - The DOM id of the player container element.
+ * @param {number} [idleMs=3000] - Milliseconds of inactivity before hiding.
+ * @returns {{ dispose: function }} A handle to call dispose() for cleanup.
+ */
+export function attachIdleAutoHide(containerId, idleMs) {
+    const container = document.getElementById(containerId);
+    if (!container) return { dispose() {} };
+
+    idleMs = idleMs || 3000;
+    let timer = null;
+
+    function showCursor() {
+        container.classList.remove('idle-hide');
+        clearTimeout(timer);
+        timer = setTimeout(hideCursor, idleMs);
+    }
+
+    function hideCursor() {
+        container.classList.add('idle-hide');
+    }
+
+    container.addEventListener('mousemove', showCursor);
+    container.addEventListener('mousedown', showCursor);
+    // Start the idle timer immediately
+    timer = setTimeout(hideCursor, idleMs);
+
+    return {
+        dispose() {
+            clearTimeout(timer);
+            container.removeEventListener('mousemove', showCursor);
+            container.removeEventListener('mousedown', showCursor);
+            container.classList.remove('idle-hide');
+        }
+    };
+}
+
+/**
+ * Attaches a global keydown listener so that pressing Space toggles
+ * play/pause on the video element (preventing page scroll).
+ *
+ * @param {string} elementId - The DOM id of the <video> element.
+ * @returns {{ dispose: function }} A handle to call dispose() for cleanup.
+ */
+export function attachKeyboardShortcuts(elementId) {
+    const video = document.getElementById(elementId);
+    if (!video) return { dispose() {} };
+
+    function onKeyDown(e) {
+        // Only handle Space; ignore if user is typing in an input/textarea
+        if (e.code !== 'Space') return;
+        const tag = (e.target.tagName || '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
+
+        e.preventDefault();
+        if (video.paused) {
+            video.play();
+        } else {
+            video.pause();
+        }
+    }
+
+    document.addEventListener('keydown', onKeyDown);
+
+    return {
+        dispose() {
+            document.removeEventListener('keydown', onKeyDown);
+        }
+    };
+}

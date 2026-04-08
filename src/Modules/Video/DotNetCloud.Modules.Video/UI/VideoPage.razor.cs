@@ -46,6 +46,8 @@ public partial class VideoPage : IAsyncDisposable
     private string? _codecErrorMessage;
     private bool _noAudioDetected;
     private IJSObjectReference? _jsModule;
+    private IJSObjectReference? _idleAutoHideHandle;
+    private IJSObjectReference? _keyboardShortcutsHandle;
     private DotNetObjectReference<VideoPage>? _dotNetRef;
     private bool _videoErrorListenerAttached;
 
@@ -103,6 +105,8 @@ public partial class VideoPage : IAsyncDisposable
                     "import", "./_content/DotNetCloud.Modules.Video/video-player.js");
                 _dotNetRef ??= DotNetObjectReference.Create(this);
                 await _jsModule.InvokeVoidAsync("attachVideoErrorListener", "video-player", _dotNetRef);
+                _idleAutoHideHandle = await _jsModule.InvokeAsync<IJSObjectReference>("attachIdleAutoHide", "player-container", 3000);
+                _keyboardShortcutsHandle = await _jsModule.InvokeAsync<IJSObjectReference>("attachKeyboardShortcuts", "video-player");
             }
             catch (Exception ex)
             {
@@ -734,6 +738,14 @@ public partial class VideoPage : IAsyncDisposable
     {
         StopProgressTimer();
         _dotNetRef?.Dispose();
+        if (_idleAutoHideHandle is not null)
+        {
+            try { await _idleAutoHideHandle.InvokeVoidAsync("dispose"); await _idleAutoHideHandle.DisposeAsync(); } catch { /* circuit may be gone */ }
+        }
+        if (_keyboardShortcutsHandle is not null)
+        {
+            try { await _keyboardShortcutsHandle.InvokeVoidAsync("dispose"); await _keyboardShortcutsHandle.DisposeAsync(); } catch { /* circuit may be gone */ }
+        }
         if (_jsModule is not null)
         {
             try { await _jsModule.DisposeAsync(); } catch { /* circuit may be gone */ }
