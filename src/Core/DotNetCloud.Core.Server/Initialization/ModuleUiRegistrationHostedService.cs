@@ -86,7 +86,15 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
             Icon: "🎬",
             SortOrder: 90,
             RouteKey: "video.page",
-            ComponentType: typeof(DotNetCloud.Modules.Video.UI.VideoPage))
+            ComponentType: typeof(DotNetCloud.Modules.Video.UI.VideoPage)),
+        new(
+            ModuleId: "dotnetcloud.ai",
+            Label: "AI Assistant",
+            Href: "/apps/ai",
+            Icon: "🤖",
+            SortOrder: 100,
+            RouteKey: "ai.page",
+            ComponentType: typeof(DotNetCloud.Modules.AI.UI.AiChatPage))
     ];
 
     private readonly IServiceScopeFactory _scopeFactory;

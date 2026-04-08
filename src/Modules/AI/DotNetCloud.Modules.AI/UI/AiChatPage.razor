@@ -1,0 +1,325 @@
+@namespace DotNetCloud.Modules.AI.UI
+
+@using DotNetCloud.Core.AI
+@using DotNetCloud.Core.Authorization
+@using DotNetCloud.Modules.AI.Models
+@using DotNetCloud.Modules.AI.Services
+@using System.Text
+@inject IAiChatService ChatService
+@inject IOllamaClient OllamaClient
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
+@inject Microsoft.Extensions.Logging.ILogger<AiChatPage> Logger
+
+<div class="ai-layout">
+    @* ─── Sidebar ─── *@
+    <aside class="ai-sidebar">
+        <div class="ai-sidebar-header">
+            <h3>AI Assistant</h3>
+            <button class="btn-new-chat" @onclick="StartNewConversation" title="New Chat">
+                <span>+</span>
+            </button>
+        </div>
+
+        <div class="ai-model-select">
+            <select class="form-select form-select-sm" @bind="_selectedModel">
+                @foreach (var model in _models)
+                {
+                    <option value="@model.Id">@model.Name</option>
+                }
+                @if (_models.Count == 0)
+                {
+                    <option value="">Loading models…</option>
+                }
+            </select>
+        </div>
+
+        <div class="ai-conversation-list">
+            @if (_conversations.Count == 0 && !_isLoading)
+            {
+                <div class="ai-empty-hint">No conversations yet.</div>
+            }
+            @foreach (var conv in _conversations)
+            {
+                <button class="ai-conversation-item @(_activeConversationId == conv.Id ? "active" : "")"
+                        @onclick="() => LoadConversationAsync(conv.Id)">
+                    <span class="conv-title">@(string.IsNullOrWhiteSpace(conv.Title) ? "Untitled" : conv.Title)</span>
+                    <span class="conv-date">@conv.UpdatedAt.ToLocalTime().ToString("MMM d")</span>
+                </button>
+            }
+        </div>
+    </aside>
+
+    @* ─── Main Chat Area ─── *@
+    <main class="ai-main">
+        @if (_activeConversation is null && !_isLoading)
+        {
+            <div class="ai-welcome">
+                <div class="ai-welcome-icon">🤖</div>
+                <h2>DotNetCloud AI Assistant</h2>
+                <p>Start a conversation or select one from the sidebar.</p>
+                @if (!_ollamaHealthy)
+                {
+                    <div class="ai-warning">⚠ Ollama is not reachable. AI features may be unavailable.</div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="ai-messages" @ref="_messagesContainer">
+                @if (_activeConversation is not null)
+                {
+                    @foreach (var msg in _activeMessages)
+                    {
+                        <div class="ai-message @(msg.Role == "user" ? "user" : "assistant")">
+                            <div class="ai-message-avatar">
+                                @(msg.Role == "user" ? "👤" : "🤖")
+                            </div>
+                            <div class="ai-message-content">
+                                <div class="ai-message-role">@(msg.Role == "user" ? "You" : "Assistant")</div>
+                                <div class="ai-message-text">@msg.Content</div>
+                            </div>
+                        </div>
+                    }
+
+                    @if (_isStreaming)
+                    {
+                        <div class="ai-message assistant">
+                            <div class="ai-message-avatar">🤖</div>
+                            <div class="ai-message-content">
+                                <div class="ai-message-role">Assistant</div>
+                                <div class="ai-message-text">
+                                    @_streamingContent
+                                    <span class="ai-cursor">▍</span>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+
+            <div class="ai-input-area">
+                <div class="ai-input-row">
+                    <textarea class="ai-input"
+                              placeholder="Type a message…"
+                              @bind="_userInput"
+                              @bind:event="oninput"
+                              @onkeydown="HandleKeyDown"
+                              rows="1"
+                              disabled="@_isStreaming"></textarea>
+                    <button class="btn-send" @onclick="SendMessageAsync" disabled="@(_isStreaming || string.IsNullOrWhiteSpace(_userInput))">
+                        @if (_isStreaming)
+                        {
+                            <span class="spinner"></span>
+                        }
+                        else
+                        {
+                            <span>➤</span>
+                        }
+                    </button>
+                </div>
+                @if (!string.IsNullOrEmpty(_errorMessage))
+                {
+                    <div class="ai-error">@_errorMessage</div>
+                }
+            </div>
+        }
+    </main>
+</div>
+
+@code {
+    private List<Conversation> _conversations = [];
+    private List<LlmModelInfo> _models = [];
+    private List<ConversationMessage> _activeMessages = [];
+    private Conversation? _activeConversation;
+    private Guid? _activeConversationId;
+    private string _selectedModel = string.Empty;
+    private string _userInput = string.Empty;
+    private string _streamingContent = string.Empty;
+    private string? _errorMessage;
+    private bool _isLoading;
+    private bool _isStreaming;
+    private bool _ollamaHealthy = true;
+    private CallerContext? _caller;
+    private ElementReference _messagesContainer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _caller = await GetCallerContextAsync();
+        if (_caller is null) return;
+
+        _isLoading = true;
+        try
+        {
+            var modelsTask = ChatService.ListModelsAsync(_caller, CancellationToken.None);
+            var convsTask = ChatService.ListConversationsAsync(_caller, CancellationToken.None);
+            var healthTask = OllamaClient.IsHealthyAsync(CancellationToken.None);
+
+            await Task.WhenAll(modelsTask, convsTask, healthTask);
+
+            _models = [.. await modelsTask];
+            _conversations = [.. await convsTask];
+            _ollamaHealthy = await healthTask;
+
+            if (_models.Count > 0)
+            {
+                _selectedModel = _models[0].Id;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to initialize AI assistant page");
+            _errorMessage = "Failed to load AI assistant. Check Ollama connectivity.";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task StartNewConversation()
+    {
+        if (_caller is null) return;
+
+        _errorMessage = null;
+        try
+        {
+            var model = string.IsNullOrWhiteSpace(_selectedModel) && _models.Count > 0
+                ? _models[0].Id
+                : _selectedModel;
+
+            var conv = await ChatService.CreateConversationAsync(
+                _caller, "New Chat", model, null, CancellationToken.None);
+
+            _conversations.Insert(0, conv);
+            _activeConversation = conv;
+            _activeConversationId = conv.Id;
+            _activeMessages = [];
+            _userInput = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to create conversation");
+            _errorMessage = "Failed to create conversation.";
+        }
+    }
+
+    private async Task LoadConversationAsync(Guid conversationId)
+    {
+        if (_caller is null) return;
+
+        _errorMessage = null;
+        try
+        {
+            var conv = await ChatService.GetConversationAsync(_caller, conversationId, CancellationToken.None);
+            if (conv is null) return;
+
+            _activeConversation = conv;
+            _activeConversationId = conv.Id;
+            _activeMessages = [.. conv.Messages.OrderBy(m => m.CreatedAt)];
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load conversation {Id}", conversationId);
+            _errorMessage = "Failed to load conversation.";
+        }
+    }
+
+    private async Task SendMessageAsync()
+    {
+        if (_caller is null || _activeConversation is null || string.IsNullOrWhiteSpace(_userInput)) return;
+
+        var userMessage = _userInput.Trim();
+        _userInput = string.Empty;
+        _errorMessage = null;
+
+        // Add user message to display immediately
+        _activeMessages.Add(new ConversationMessage
+        {
+            Id = Guid.NewGuid(),
+            ConversationId = _activeConversation.Id,
+            Role = "user",
+            Content = userMessage,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        _isStreaming = true;
+        _streamingContent = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            var fullResponse = new StringBuilder();
+            await foreach (var chunk in ChatService.SendMessageStreamingAsync(
+                _caller, _activeConversation.Id, userMessage, CancellationToken.None))
+            {
+                fullResponse.Append(chunk.Content);
+                _streamingContent = fullResponse.ToString();
+                StateHasChanged();
+                await Task.Delay(1); // Yield for UI updates
+            }
+
+            // Replace streaming with final message
+            _activeMessages.Add(new ConversationMessage
+            {
+                Id = Guid.NewGuid(),
+                ConversationId = _activeConversation.Id,
+                Role = "assistant",
+                Content = fullResponse.ToString(),
+                CreatedAt = DateTime.UtcNow
+            });
+
+            // Update conversation title if first exchange
+            if (_activeMessages.Count(m => m.Role == "user") == 1)
+            {
+                var titlePreview = userMessage.Length > 40 ? userMessage[..40] + "…" : userMessage;
+                _activeConversation.Title = titlePreview;
+                var listItem = _conversations.FirstOrDefault(c => c.Id == _activeConversation.Id);
+                if (listItem is not null)
+                {
+                    listItem.Title = titlePreview;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to send message");
+            _errorMessage = "Failed to get response from AI. Check Ollama connectivity.";
+        }
+        finally
+        {
+            _isStreaming = false;
+            _streamingContent = string.Empty;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SendMessageAsync();
+        }
+    }
+
+    private async Task<CallerContext?> GetCallerContextAsync()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            if (user.Identity?.IsAuthenticated != true) return null;
+
+            var userIdClaim = user.FindFirst("sub")?.Value ?? user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (!Guid.TryParse(userIdClaim, out var userId)) return null;
+
+            var roles = user.FindAll(System.Security.Claims.ClaimTypes.Role).Select(c => c.Value).ToArray();
+
+            return new CallerContext(userId, roles, CallerType.User);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to get caller context");
+            return null;
+        }
+    }
+}
