@@ -4,9 +4,11 @@
 @using DotNetCloud.Core.Authorization
 @using DotNetCloud.Modules.AI.Models
 @using DotNetCloud.Modules.AI.Services
+@using DotNetCloud.UI.Shared.Services
 @using System.Text
 @inject IAiChatService ChatService
 @inject IOllamaClient OllamaClient
+@inject IMarkdownRenderer MarkdownRenderer
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
 @inject Microsoft.Extensions.Logging.ILogger<AiChatPage> Logger
 
@@ -76,7 +78,14 @@
                             </div>
                             <div class="ai-message-content">
                                 <div class="ai-message-role">@(msg.Role == "user" ? "You" : "Assistant")</div>
-                                <div class="ai-message-text">@msg.Content</div>
+                                @if (msg.Role == "assistant")
+                                {
+                                    <div class="ai-message-text markdown-body">@((MarkupString)MarkdownRenderer.RenderToHtml(msg.Content))</div>
+                                }
+                                else
+                                {
+                                    <div class="ai-message-text">@msg.Content</div>
+                                }
                             </div>
                         </div>
                     }
@@ -87,7 +96,7 @@
                             <div class="ai-message-avatar">🤖</div>
                             <div class="ai-message-content">
                                 <div class="ai-message-role">Assistant</div>
-                                <div class="ai-message-text">
+                                <div class="ai-message-text ai-streaming">
                                     @_streamingContent
                                     <span class="ai-cursor">▍</span>
                                 </div>
