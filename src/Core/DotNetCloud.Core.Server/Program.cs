@@ -135,6 +135,9 @@ public class Program
                         var videoDbContext = scope.ServiceProvider.GetRequiredService<VideoDbContext>();
                         await videoDbContext.Database.MigrateAsync();
                         logger.LogInformation("Video module database migrated");
+
+                        var aiDbContext = scope.ServiceProvider.GetRequiredService<AiDbContext>();
+                        await EnsureModuleTablesCreatedAsync(aiDbContext, "Conversations", logger);
                     }
                     catch (InvalidOperationException ex)
                     {
@@ -174,6 +177,9 @@ public class Program
                     var videoDbContext = scope.ServiceProvider.GetRequiredService<VideoDbContext>();
                     await videoDbContext.Database.MigrateAsync();
                     logger.LogInformation("Video module database migrated");
+
+                    var aiDbContext = scope.ServiceProvider.GetRequiredService<AiDbContext>();
+                    await EnsureModuleTablesCreatedAsync(aiDbContext, "Conversations", logger);
                 }
 
                 // Mark the application as ready for traffic now that DB is initialized
