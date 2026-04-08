@@ -29,7 +29,7 @@ DotNetCloud gives you full control of your data by running your own cloud server
 | 👤 **Contacts** | Contact management with CardDAV support | ✅ Phase 3 |
 | 📅 **Calendar** | Events, scheduling, CalDAV support | ✅ Phase 3 |
 | 📝 **Notes** | Markdown-based note taking | ✅ Phase 3 |
-| 📋 **Tracks** | Kanban boards and project management | ✅ Phase 4 |
+| 📋 **Tracks** | Kanban boards and project management | 🔄 Rearchitecting |
 | 🖼️ **Photos** | Photo library, albums, geo-clustering, slideshow, editing | ✅ Phase 5 |
 | 🎵 **Music** | Music player with equalizer, playlists, favorites, Subsonic API | ✅ Phase 5 |
 | 🎬 **Video** | Video library, collections, subtitles, watch progress, streaming | ✅ Phase 5 |
@@ -50,7 +50,7 @@ See [MASTER_PROJECT_PLAN.md](docs/MASTER_PROJECT_PLAN.md) for the full phased im
 | **Phase 1** | Files + Desktop Sync Client — file browser, upload/download, sharing, Collabora editing, bulk operations, trash, tags, versioning, Windows & Linux sync | ✅ Complete |
 | **Phase 2** | Chat + Notifications + Android — real-time messaging, push notifications, Android MAUI client | ✅ Complete |
 | **Phase 3** | Contacts + Calendar + Notes + NextCloud Migration | ✅ Complete |
-| **Phase 4** | Project Management (Tracks) | ✅ Complete |
+| **Phase 4** | Project Management (Tracks) | 🔄 Rearchitecting |
 | **Phase 5** | Photos + Music + Video | ✅ Complete |
 | **Phase 6** | Email + Bookmarks | ⬜ Planned |
 | **Phase 7** | Video Calling + Screen Sharing | ⬜ Planned |
