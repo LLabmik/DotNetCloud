@@ -3,6 +3,7 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Video.Data.Services;
+using DotNetCloud.Modules.Video.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -21,6 +22,7 @@ public class VideoController : VideoControllerBase
     private readonly VideoStreamingService _streamingService;
     private readonly VideoMetadataService _metadataService;
     private readonly IDownloadService _downloadService;
+    private readonly IVideoThumbnailService _thumbnailService;
     private readonly ILogger<VideoController> _logger;
 
     /// <summary>
@@ -34,6 +36,7 @@ public class VideoController : VideoControllerBase
         VideoStreamingService streamingService,
         VideoMetadataService metadataService,
         IDownloadService downloadService,
+        IVideoThumbnailService thumbnailService,
         ILogger<VideoController> logger)
     {
         _videoService = videoService;
@@ -43,6 +46,7 @@ public class VideoController : VideoControllerBase
         _streamingService = streamingService;
         _metadataService = metadataService;
         _downloadService = downloadService;
+        _thumbnailService = thumbnailService;
         _logger = logger;
     }
 
@@ -66,6 +70,18 @@ public class VideoController : VideoControllerBase
         return video is null
             ? NotFound(ErrorEnvelope(ErrorCodes.VideoNotFound, "Video not found."))
             : Ok(Envelope(video));
+    }
+
+    /// <summary>Gets a poster thumbnail for a video.</summary>
+    [HttpGet("{videoId:guid}/thumbnail")]
+    public async Task<IActionResult> GetThumbnail(Guid videoId)
+    {
+        var (stream, contentType) = await _thumbnailService.GetThumbnailAsync(videoId);
+        if (stream is null)
+            return NotFound();
+
+        Response.Headers.CacheControl = "private, max-age=3600";
+        return File(stream, contentType ?? "image/jpeg");
     }
 
     /// <summary>Searches videos by title.</summary>

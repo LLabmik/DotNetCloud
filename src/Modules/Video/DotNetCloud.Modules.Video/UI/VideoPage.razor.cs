@@ -77,6 +77,10 @@ public partial class VideoPage : IAsyncDisposable
     private string? _settingsSuccess;
     private MediaScanResult? _scanResult;
 
+    // Reset Collection
+    private bool _showResetConfirm;
+    private bool _settingsResetting;
+
     // Directory Browser
     private bool _showDirBrowser;
     private Guid? _dirBrowserFolderId;
@@ -601,6 +605,43 @@ public partial class VideoPage : IAsyncDisposable
         finally
         {
             _settingsScanning = false;
+        }
+    }
+
+    private async Task ResetCollectionAsync()
+    {
+        _settingsResetting = true;
+        _settingsError = null;
+        _settingsSuccess = null;
+        _scanResult = null;
+        StateHasChanged();
+        try
+        {
+            await VideoIndexingCallback.ResetCollectionAsync();
+            _settingsSuccess = "Video collection reset. Click Scan Now to rebuild your library.";
+            _showResetConfirm = false;
+
+            // Clear displayed data
+            _videos.Clear();
+            _recentVideos.Clear();
+            _favoriteVideos.Clear();
+            _collectionVideos.Clear();
+            _continueWatching.Clear();
+            _collections.Clear();
+            _searchResults = null;
+            _selectedCollection = null;
+            _selectedCollectionId = null;
+            _playerOpen = false;
+            _playerVideo = null;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to reset video collection");
+            _settingsError = $"Reset failed: {ex.Message}";
+        }
+        finally
+        {
+            _settingsResetting = false;
         }
     }
 

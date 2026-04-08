@@ -32,6 +32,10 @@ public static class VideoServiceRegistration
         services.AddScoped<VideoStreamingService>();
         services.AddScoped<IVideoStreamingService>(sp => sp.GetRequiredService<VideoStreamingService>());
 
+        // Thumbnail service (FFmpeg + ImageSharp)
+        services.AddScoped<VideoThumbnailService>();
+        services.AddScoped<IVideoThumbnailService>(sp => sp.GetRequiredService<VideoThumbnailService>());
+
         // Indexing callback (bridges Module → Data for FileUploadedEvent handling)
         services.AddScoped<IVideoIndexingCallback, VideoIndexingCallback>();
 

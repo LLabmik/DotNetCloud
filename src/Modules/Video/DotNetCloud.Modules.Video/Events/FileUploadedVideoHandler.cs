@@ -85,4 +85,11 @@ public interface IVideoIndexingCallback
     /// <param name="storagePath">Relative content-addressable storage path. Null when unavailable.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task IndexVideoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, string? storagePath = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes all video library metadata from the database (videos, collections, subtitles,
+    /// watch progress, watch history, shares). The actual video files are NOT affected.
+    /// After calling this, a re-scan will rebuild the entire library from scratch.
+    /// </summary>
+    Task ResetCollectionAsync(CancellationToken cancellationToken = default);
 }

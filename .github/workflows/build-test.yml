@@ -166,7 +166,7 @@ jobs:
             db_env: |
               ACCEPT_EULA=Y
               MSSQL_SA_PASSWORD=TestPassword123!
-            connection_string: "Server=localhost,1433;Database=dotnetcloud_integration;User Id=sa;Password=TestPassword123!;TrustServerCertificate=true"
+            connection_string: "Server=localhost,1433;Database=dotnetcloud_integration;User Id=sa;Password=TestPassword123!;TrustServerCertificate=true;MultipleActiveResultSets=true"
 
     services:
       database:

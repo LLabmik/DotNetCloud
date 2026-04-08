@@ -170,7 +170,7 @@ internal static class SetupCommand
                     var defaultConnStr = config.DatabaseProvider switch
                     {
                         "PostgreSQL" => "Host=localhost;Database=dotnetcloud;Username=dotnetcloud;Password=yourpassword",
-                        "SqlServer" => "Server=localhost;Database=dotnetcloud;Trusted_Connection=True;TrustServerCertificate=True",
+                        "SqlServer" => "Server=localhost;Database=dotnetcloud;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=True",
                         "MariaDB" => "Server=localhost;Database=dotnetcloud;User=dotnetcloud;Password=yourpassword",
                         _ => ""
                     };

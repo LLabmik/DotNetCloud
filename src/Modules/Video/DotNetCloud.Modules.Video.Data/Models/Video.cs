@@ -59,6 +59,9 @@ public sealed class Video
     /// <summary>Watch history records for this video.</summary>
     public ICollection<WatchHistory> WatchHistories { get; set; } = new List<WatchHistory>();
 
+    /// <summary>Poster thumbnail JPEG bytes (300px wide, extracted from video via FFmpeg).</summary>
+    public byte[]? ThumbnailPoster { get; set; }
+
     /// <summary>Watch progress records for this video.</summary>
     public ICollection<WatchProgress> WatchProgresses { get; set; } = new List<WatchProgress>();
 
