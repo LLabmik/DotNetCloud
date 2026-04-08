@@ -500,18 +500,32 @@
                                 <div class="codec-error-card">
                                     <div class="codec-error-icon">⚠️</div>
                                     <h4>Video Cannot Be Played</h4>
-                                    <p>Your browser was unable to play this video. This can happen if the video uses an unsupported codec (such as HEVC/H.265) or if the file failed to load.</p>
+                                    <p>Your browser was unable to play this video. This can happen if the video uses an unsupported codec or if the file failed to load.</p>
                                     <div class="codec-error-instructions">
                                         <strong>Suggestions:</strong>
                                         <ul style="margin: 8px 0 0 0; padding-left: 20px; text-align: left;">
                                             <li>Try refreshing the page</li>
-                                            <li>On Windows, install the free
+                                            <li>Try <strong>Microsoft Edge</strong>, which supports the widest range of video and audio codecs on Windows</li>
+                                            <li>On Edge, install the free
                                                 <a href="ms-windows-store://pdp/?productid=9n4wgh0z6vhq" target="_blank" rel="noopener">HEVC Video Extensions</a>
-                                                from the Microsoft Store</li>
-                                            <li>Try a different browser (Firefox generally supports more codecs)</li>
+                                                from the Microsoft Store for H.265 video support</li>
                                         </ul>
                                     </div>
+                                    <p class="codec-error-alt">Server-side transcoding is planned for a future release.</p>
                                 </div>
+                            </div>
+                        }
+
+                        @if (_noAudioDetected)
+                        {
+                            <div class="no-audio-banner">
+                                <span class="no-audio-icon">🔇</span>
+                                <span>
+                                    <strong>No audio:</strong> This video uses a Dolby Digital (AC-3/EAC-3) audio track
+                                    that your browser cannot decode. For full audio support, open this page in
+                                    <strong>Microsoft Edge</strong>.
+                                    Server-side audio transcoding is planned for a future release.
+                                </span>
                             </div>
                         }
                     </div>

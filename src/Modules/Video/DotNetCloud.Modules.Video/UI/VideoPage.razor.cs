@@ -44,6 +44,7 @@ public partial class VideoPage : IAsyncDisposable
     private List<SubtitleDto> _playerSubtitles = [];
     private string? _streamToken;
     private string? _codecErrorMessage;
+    private bool _noAudioDetected;
     private IJSObjectReference? _jsModule;
     private DotNetObjectReference<VideoPage>? _dotNetRef;
     private bool _videoErrorListenerAttached;
@@ -111,6 +112,14 @@ public partial class VideoPage : IAsyncDisposable
     public void OnVideoError(int code, string message)
     {
         _codecErrorMessage = "playback_error";
+        InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Called from JS when the video plays but no audio track is decoded (e.g. Firefox + Dolby Digital).</summary>
+    [JSInvokable]
+    public void OnNoAudio()
+    {
+        _noAudioDetected = true;
         InvokeAsync(StateHasChanged);
     }
 
@@ -215,6 +224,7 @@ public partial class VideoPage : IAsyncDisposable
 
             _streamToken = StreamingService.GenerateStreamToken(video.Id, caller.UserId);
             _codecErrorMessage = null;
+            _noAudioDetected = false;
             _videoErrorListenerAttached = false;
             _playerOpen = true;
             await WatchProgressService.RecordViewAsync(video.Id, caller);
@@ -256,6 +266,7 @@ public partial class VideoPage : IAsyncDisposable
         _playerSubtitles.Clear();
         _streamToken = null;
         _codecErrorMessage = null;
+        _noAudioDetected = false;
         _videoErrorListenerAttached = false;
         _breadcrumb.Clear();
         StopProgressTimer();

@@ -598,8 +598,33 @@
 
 .codec-error-alt {
     font-size: 0.82rem !important;
-    color: #64748b !important;
+    color: #94a3b8 !important;
     margin-bottom: 0 !important;
+    font-style: italic;
+}
+
+/* ── No Audio Banner ── */
+.no-audio-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: #1e293b;
+    border: 1px solid #f59e0b;
+    border-radius: 6px;
+    color: #fef3c7;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    margin-top: 8px;
+}
+
+.no-audio-banner strong {
+    color: #fbbf24;
+}
+
+.no-audio-icon {
+    font-size: 1.2rem;
+    flex-shrink: 0;
 }
 
 .player-info-panel {
