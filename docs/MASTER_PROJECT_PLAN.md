@@ -97,7 +97,7 @@
 | Phase 4.8                   | 8       | 8         | 0           | 0       |
 | Phase 4.9                   | 42      | 42        | 0           | 0       |
 | Phase 5-8                   | Summary | 8         | 0           | 0       |
-| Phase 9                     | 7       | 4         | 0           | 3       |
+| Phase 9                     | 7       | 5         | 0           | 2       |
 | Infrastructure              | Summary | 0         | 0           | 1       |
 | Documentation               | Summary | 0         | 0           | 1       |
 
@@ -2098,8 +2098,9 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 - ✓ `OllamaClient` — Full Ollama REST API client (chat, streaming NDJSON, model listing, health check)
 - ✓ `AiChatService` — Conversation CRUD, history-aware LLM requests, message persistence
 - ✓ `AiServiceRegistration` — DI with `HttpClientFactory`, configurable base URL
+- ✓ `IAiSettingsProvider` / `AiSettingsProvider` — DB-backed settings with IConfiguration fallback
 
-**Notes:** Ollama at `http://monolith.kimball.home:11434`, default model `gpt-oss:20b`. InMemory DB for dev.
+**Notes:** Default Ollama URL `http://localhost:11434/` for fresh installs, configurable via admin settings. Default model `gpt-oss:20b`. InMemory DB for dev.
 
 ### Section: Phase 9.3 — Module Host & REST API
 **Status:** completed ✅
@@ -2137,14 +2138,21 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 - ☐ Model selector dropdown
 - ☐ Conversation history sidebar
 
-### Section: Phase 9.6 — Cloud Providers
-**Status:** pending ☐
+### Section: Phase 9.6 — Admin Settings & Multi-Provider Support
+**Status:** in-progress 🔄
 **Deliverables:**
-- ☐ Anthropic Claude provider
-- ☐ OpenAI / Azure OpenAI provider
-- ☐ Provider fallback chain
+- ✓ `AiAdminSettingsViewModel` — Settings model (Provider, ApiBaseUrl, ApiKey, OrgId, DefaultModel, MaxTokens, Timeout)
+- ✓ `AiAdminSettings.razor` / `.razor.cs` — Blazor admin UI with provider-aware sections
+- ✓ `IAiSettingsProvider` / `AiSettingsProvider` — DB-first settings with IConfiguration fallback
+- ✓ `OllamaClient` dynamic base URL from settings (live reconfiguration, no restart)
+- ✓ DB seed: 7 AI settings via `DbInitializer` with backfill for existing databases
+- ✓ Provider selection: Ollama (local), OpenAI, Anthropic — auth fields shown/hidden per provider
+- ☐ Full OpenAI-compatible request routing (Authorization header, API paths)
+- ☐ Full Anthropic-compatible request routing (x-api-key header, Messages API)
 - ☐ Per-user API key storage (encrypted)
 - ☐ Rate limiting per user
+
+**Notes:** Admin settings infrastructure complete. Ollama fully working via DB settings. OpenAI/Anthropic provider routing pending.
 
 ### Section: Phase 9.7 — Module Integration
 **Status:** pending ☐
@@ -2152,4 +2160,3 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 - ☐ Notes module integration (summarize, expand, translate)
 - ☐ Chat module integration (message summarization, smart replies)
 - ☐ Files module integration (content summarization, document Q&A)
-- ☐ Admin UI for provider configuration

@@ -15,10 +15,15 @@ public static class AiServiceRegistration
     /// </summary>
     public static IServiceCollection AddAiServices(this IServiceCollection services, IConfiguration configuration)
     {
-        // Register the Ollama HTTP client with base address from configuration
+        // Register settings provider (reads from DB with IConfiguration fallback)
+        services.AddScoped<IAiSettingsProvider, AiSettingsProvider>();
+
+        // Register the LLM HTTP client with base address from configuration.
+        // The base address set here is the startup default; the OllamaClient
+        // uses IAiSettingsProvider at request time for dynamic reconfiguration.
         services.AddHttpClient<IOllamaClient, OllamaClient>((sp, client) =>
         {
-            var baseUrl = configuration.GetValue<string>("AI:Ollama:BaseUrl") ?? "http://monolith.kimball.home:11434";
+            var baseUrl = configuration.GetValue<string>("AI:Ollama:BaseUrl") ?? "http://localhost:11434/";
             client.BaseAddress = new Uri(baseUrl);
             client.Timeout = TimeSpan.FromMinutes(5); // LLM responses can be slow
         });

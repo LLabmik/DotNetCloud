@@ -9,12 +9,15 @@ using Microsoft.Extensions.Logging;
 namespace DotNetCloud.Modules.AI.Data.Services;
 
 /// <summary>
-/// HTTP client for communicating with an Ollama instance.
-/// Wraps the Ollama REST API for chat completions, streaming, and model listing.
+/// HTTP client for communicating with an LLM provider (Ollama, OpenAI-compatible, etc.).
+/// Wraps the REST API for chat completions, streaming, and model listing.
+/// Reads the base URL dynamically from <see cref="IAiSettingsProvider"/> on each request
+/// so that admin settings changes take effect without a restart.
 /// </summary>
 public sealed class OllamaClient : IOllamaClient
 {
     private readonly HttpClient _httpClient;
+    private readonly IAiSettingsProvider _settingsProvider;
     private readonly ILogger<OllamaClient> _logger;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -26,9 +29,10 @@ public sealed class OllamaClient : IOllamaClient
     /// <summary>
     /// Initializes a new instance of the <see cref="OllamaClient"/> class.
     /// </summary>
-    public OllamaClient(HttpClient httpClient, ILogger<OllamaClient> logger)
+    public OllamaClient(HttpClient httpClient, IAiSettingsProvider settingsProvider, ILogger<OllamaClient> logger)
     {
         _httpClient = httpClient;
+        _settingsProvider = settingsProvider;
         _logger = logger;
     }
 
@@ -37,8 +41,9 @@ public sealed class OllamaClient : IOllamaClient
     {
         try
         {
+            var baseUrl = await GetBaseUrlAsync(cancellationToken);
             // Ollama exposes GET / (returns "Ollama is running"), not /health
-            var response = await _httpClient.GetAsync("/", cancellationToken);
+            var response = await _httpClient.GetAsync(new Uri(baseUrl, "/"), cancellationToken);
             return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
@@ -53,12 +58,13 @@ public sealed class OllamaClient : IOllamaClient
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        var baseUrl = await GetBaseUrlAsync(cancellationToken);
         var ollamaRequest = BuildChatRequest(request, stream: false);
 
         _logger.LogDebug("Sending chat request to Ollama: model={Model}, messages={Count}",
             request.Model, request.Messages.Count);
 
-        var response = await _httpClient.PostAsJsonAsync("/api/chat", ollamaRequest, JsonOptions, cancellationToken);
+        var response = await _httpClient.PostAsJsonAsync(new Uri(baseUrl, "/api/chat"), ollamaRequest, JsonOptions, cancellationToken);
         response.EnsureSuccessStatusCode();
 
         var ollamaResponse = await response.Content.ReadFromJsonAsync<OllamaChatResponse>(JsonOptions, cancellationToken)
@@ -82,12 +88,13 @@ public sealed class OllamaClient : IOllamaClient
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        var baseUrl = await GetBaseUrlAsync(cancellationToken);
         var ollamaRequest = BuildChatRequest(request, stream: true);
 
         _logger.LogDebug("Sending streaming chat request to Ollama: model={Model}, messages={Count}",
             request.Model, request.Messages.Count);
 
-        var httpRequest = new HttpRequestMessage(HttpMethod.Post, "/api/chat")
+        var httpRequest = new HttpRequestMessage(HttpMethod.Post, new Uri(baseUrl, "/api/chat"))
         {
             Content = JsonContent.Create(ollamaRequest, options: JsonOptions)
         };
@@ -141,9 +148,10 @@ public sealed class OllamaClient : IOllamaClient
     /// <inheritdoc />
     public async Task<IReadOnlyList<LlmModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Listing models from Ollama");
+        var baseUrl = await GetBaseUrlAsync(cancellationToken);
+        _logger.LogDebug("Listing models from Ollama at {BaseUrl}", baseUrl);
 
-        var response = await _httpClient.GetAsync("/api/tags", cancellationToken);
+        var response = await _httpClient.GetAsync(new Uri(baseUrl, "/api/tags"), cancellationToken);
         response.EnsureSuccessStatusCode();
 
         var tagsResponse = await response.Content.ReadFromJsonAsync<OllamaTagsResponse>(JsonOptions, cancellationToken);
@@ -197,6 +205,12 @@ public sealed class OllamaClient : IOllamaClient
         }
 
         return chatRequest;
+    }
+
+    private async Task<Uri> GetBaseUrlAsync(CancellationToken cancellationToken)
+    {
+        var url = await _settingsProvider.GetApiBaseUrlAsync(cancellationToken);
+        return new Uri(url.TrimEnd('/') + "/");
     }
 
     // --- Ollama API DTOs (internal) ---

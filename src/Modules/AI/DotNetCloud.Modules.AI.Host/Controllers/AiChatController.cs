@@ -14,15 +14,15 @@ namespace DotNetCloud.Modules.AI.Host.Controllers;
 public sealed class AiChatController : ControllerBase
 {
     private readonly IAiChatService _chatService;
-    private readonly IConfiguration _configuration;
+    private readonly IAiSettingsProvider _settingsProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AiChatController"/> class.
     /// </summary>
-    public AiChatController(IAiChatService chatService, IConfiguration configuration)
+    public AiChatController(IAiChatService chatService, IAiSettingsProvider settingsProvider)
     {
         _chatService = chatService;
-        _configuration = configuration;
+        _settingsProvider = settingsProvider;
     }
 
     /// <summary>Creates a new conversation.</summary>
@@ -32,7 +32,7 @@ public sealed class AiChatController : ControllerBase
         CancellationToken cancellationToken)
     {
         var caller = GetCallerContext();
-        var defaultModel = _configuration.GetValue<string>("AI:Ollama:DefaultModel") ?? "gpt-oss:20b";
+        var defaultModel = await _settingsProvider.GetDefaultModelAsync(cancellationToken);
         var model = string.IsNullOrWhiteSpace(request.Model) ? defaultModel : request.Model;
 
         var conversation = await _chatService.CreateConversationAsync(

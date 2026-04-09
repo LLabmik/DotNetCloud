@@ -3898,6 +3898,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `OllamaClient` — HTTP client for Ollama REST API (chat, streaming, model listing, health)
 - ✓ `AiChatService` — Conversation management, message persistence, LLM routing
 - ✓ `AiServiceRegistration` — DI setup with configurable Ollama base URL
+- ✓ `IAiSettingsProvider` / `AiSettingsProvider` — DB-backed settings with IConfiguration fallback
 
 ### Step 9.3 — Module Host & REST API
 
@@ -3905,7 +3906,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `AiChatController` — REST API: conversations CRUD, send message, streaming SSE, model listing
 - ✓ `AiHealthCheck` — Ollama connectivity health check
 - ✓ `InProcessEventBus` — Standalone event bus for module isolation
-- ✓ `appsettings.json` configured for Ollama at `monolith.kimball.home:11434`, default model `gpt-oss:20b`
+- ✓ `appsettings.json` configured for Ollama (default `http://localhost:11434/`), default model `gpt-oss:20b`
 
 ### Step 9.4 — Unit Tests
 
@@ -3921,11 +3922,19 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ☐ Model selector dropdown
 - ☐ Conversation history sidebar
 
-### Step 9.6 — Cloud Providers (Pending)
+### Step 9.6 — Admin Settings & Multi-Provider Support
 
-- ☐ Anthropic Claude provider
-- ☐ OpenAI / Azure OpenAI provider
-- ☐ Provider fallback chain
+- ✓ `AiAdminSettingsViewModel` — Settings model (Provider, ApiBaseUrl, ApiKey, OrgId, DefaultModel, MaxTokens, Timeout)
+- ✓ `AiAdminSettings.razor` / `.razor.cs` — Blazor admin settings page with provider-aware UI
+- ✓ `IAiSettingsProvider` / `AiSettingsProvider` — DB-backed settings (SystemSettings table) with IConfiguration fallback
+- ✓ `OllamaClient` uses dynamic base URL from `IAiSettingsProvider` (no restart needed)
+- ✓ `AiChatController` uses `IAiSettingsProvider` for default model
+- ✓ DB seed: 7 AI settings in `DbInitializer` (Provider, ApiBaseUrl, ApiKey, OrgId, DefaultModel, MaxTokens, RequestTimeoutSeconds)
+- ✓ `DbInitializer` upgraded to backfill missing settings on existing databases
+- ✓ Provider selection: Ollama (local), OpenAI, Anthropic
+- ✓ Auth fields shown/hidden based on provider (Ollama = no key needed, cloud = key required)
+- ☐ Full OpenAI-compatible request routing (header auth, different API paths)
+- ☐ Full Anthropic-compatible request routing
 - ☐ Per-user API key storage (encrypted)
 - ☐ Rate limiting per user
 
@@ -3934,4 +3943,3 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ☐ Notes module: summarize, expand, translate, grammar check
 - ☐ Chat module: message summarization, smart replies
 - ☐ Files module: content summarization, document Q&A
-- ☐ Admin UI for provider configuration

@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using DotNetCloud.Core.AI;
 using DotNetCloud.Modules.AI.Data.Services;
+using DotNetCloud.Modules.AI.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Moq.Protected;
@@ -28,7 +29,12 @@ public class OllamaClientTests
         {
             BaseAddress = new Uri("http://localhost:11434")
         };
-        _client = new OllamaClient(_httpClient, NullLogger<OllamaClient>.Instance);
+
+        var settingsProvider = new Mock<IAiSettingsProvider>();
+        settingsProvider.Setup(s => s.GetApiBaseUrlAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync("http://localhost:11434/");
+
+        _client = new OllamaClient(_httpClient, settingsProvider.Object, NullLogger<OllamaClient>.Instance);
     }
 
     [TestCleanup]
@@ -40,7 +46,7 @@ public class OllamaClientTests
     [TestMethod]
     public async Task IsHealthy_SuccessResponse_ReturnsTrue()
     {
-        SetupResponse(HttpStatusCode.OK, "OK", "/health");
+        SetupResponse(HttpStatusCode.OK, "Ollama is running", "/");
 
         var result = await _client.IsHealthyAsync();
 
@@ -50,7 +56,7 @@ public class OllamaClientTests
     [TestMethod]
     public async Task IsHealthy_FailedResponse_ReturnsFalse()
     {
-        SetupResponse(HttpStatusCode.ServiceUnavailable, "Error", "/health");
+        SetupResponse(HttpStatusCode.ServiceUnavailable, "Error", "/");
 
         var result = await _client.IsHealthyAsync();
 
