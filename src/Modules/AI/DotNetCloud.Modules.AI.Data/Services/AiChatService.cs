@@ -102,6 +102,31 @@ public sealed class AiChatService : IAiChatService
     }
 
     /// <inheritdoc />
+    public async Task<bool> RenameConversationAsync(
+        CallerContext caller,
+        Guid conversationId,
+        string newTitle,
+        CancellationToken cancellationToken = default)
+    {
+        var conversation = await _db.Conversations
+            .FirstOrDefaultAsync(c => c.Id == conversationId && c.OwnerId == caller.UserId, cancellationToken);
+
+        if (conversation is null)
+        {
+            return false;
+        }
+
+        conversation.Title = newTitle.Trim();
+        conversation.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Renamed conversation {ConversationId} for user {UserId}",
+            conversationId, caller.UserId);
+
+        return true;
+    }
+
+    /// <inheritdoc />
     public async Task<LlmResponse> SendMessageAsync(
         CallerContext caller,
         Guid conversationId,

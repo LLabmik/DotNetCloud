@@ -43,11 +43,32 @@
             }
             @foreach (var conv in _conversations)
             {
-                <button class="ai-conversation-item @(_activeConversationId == conv.Id ? "active" : "")"
-                        @onclick="() => LoadConversationAsync(conv.Id)">
-                    <span class="conv-title">@(string.IsNullOrWhiteSpace(conv.Title) ? "Untitled" : conv.Title)</span>
-                    <span class="conv-date">@conv.UpdatedAt.ToLocalTime().ToString("MMM d")</span>
-                </button>
+                <div class="ai-conversation-item @(_activeConversationId == conv.Id ? "active" : "")">
+                    @if (_renamingConversationId == conv.Id)
+                    {
+                        <input class="conv-title-input"
+                               @bind="_renameTitle"
+                               @bind:event="oninput"
+                               @onblur="CommitRenameAsync"
+                               @onkeydown="OnRenameTitleKeyDown"
+                               @ref="_renameTitleInput" />
+                    }
+                    else
+                    {
+                        <button class="ai-conversation-btn"
+                                @onclick="() => LoadConversationAsync(conv.Id)"
+                                @ondblclick="() => StartRenaming(conv)"
+                                @ondblclick:stopPropagation="true">
+                            <span class="conv-title">@(string.IsNullOrWhiteSpace(conv.Title) ? "Untitled" : conv.Title)</span>
+                            <span class="conv-date">@conv.UpdatedAt.ToLocalTime().ToString("MMM d")</span>
+                        </button>
+                    }
+                    <button class="ai-conversation-delete" title="Delete chat"
+                            @onclick="() => DeleteConversationAsync(conv.Id)"
+                            @onclick:stopPropagation="true">
+                        ✕
+                    </button>
+                </div>
             }
         </div>
     </aside>
@@ -185,6 +206,9 @@
     private Guid? _copiedMessageId;
     private string? _copiedFormat;
     private CancellationTokenSource? _modelLoadCts;
+    private Guid? _renamingConversationId;
+    private string _renameTitle = string.Empty;
+    private ElementReference _renameTitleInput;
 
     protected override async Task OnInitializedAsync()
     {
@@ -245,6 +269,97 @@
         {
             Logger.LogError(ex, "Failed to create conversation");
             _errorMessage = "Failed to create conversation.";
+        }
+    }
+
+    private void StartRenaming(Conversation conv)
+    {
+        _renamingConversationId = conv.Id;
+        _renameTitle = conv.Title ?? string.Empty;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_renamingConversationId is not null)
+        {
+            try
+            {
+                await _renameTitleInput.FocusAsync();
+            }
+            catch
+            {
+                // Element may not be rendered yet
+            }
+        }
+    }
+
+    private async Task CommitRenameAsync()
+    {
+        if (_caller is null || _renamingConversationId is null) return;
+
+        var convId = _renamingConversationId.Value;
+        var newTitle = _renameTitle.Trim();
+        _renamingConversationId = null;
+
+        if (string.IsNullOrWhiteSpace(newTitle)) return;
+
+        try
+        {
+            var renamed = await ChatService.RenameConversationAsync(_caller, convId, newTitle, CancellationToken.None);
+            if (renamed)
+            {
+                var conv = _conversations.FirstOrDefault(c => c.Id == convId);
+                if (conv is not null)
+                {
+                    conv.Title = newTitle;
+                }
+                if (_activeConversation?.Id == convId)
+                {
+                    _activeConversation.Title = newTitle;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to rename conversation {Id}", convId);
+            _errorMessage = "Failed to rename conversation.";
+        }
+    }
+
+    private async Task OnRenameTitleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await CommitRenameAsync();
+        }
+        else if (e.Key == "Escape")
+        {
+            _renamingConversationId = null;
+        }
+    }
+
+    private async Task DeleteConversationAsync(Guid conversationId)
+    {
+        if (_caller is null) return;
+
+        try
+        {
+            var deleted = await ChatService.DeleteConversationAsync(_caller, conversationId, CancellationToken.None);
+            if (deleted)
+            {
+                _conversations.RemoveAll(c => c.Id == conversationId);
+                if (_activeConversationId == conversationId)
+                {
+                    _activeConversation = null;
+                    _activeConversationId = null;
+                    _activeMessages = [];
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to delete conversation {Id}", conversationId);
+            _errorMessage = "Failed to delete conversation.";
         }
     }
 

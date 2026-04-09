@@ -22,6 +22,9 @@ public interface IAiChatService
     /// <summary>Deletes (soft-delete) a conversation.</summary>
     Task<bool> DeleteConversationAsync(CallerContext caller, Guid conversationId, CancellationToken cancellationToken = default);
 
+    /// <summary>Renames a conversation, allowing the user to override the auto-generated title.</summary>
+    Task<bool> RenameConversationAsync(CallerContext caller, Guid conversationId, string newTitle, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Sends a user message to the conversation and returns the full assistant response.
     /// The message and response are persisted to the conversation history.
