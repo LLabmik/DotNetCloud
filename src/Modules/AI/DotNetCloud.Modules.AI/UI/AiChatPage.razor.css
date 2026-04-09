@@ -264,11 +264,87 @@
     color: var(--color-primary, #3b82f6);
 }
 
+/* ─── Copy Buttons ─── */
+
+.ai-copy-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+    opacity: 0;
+    transition: opacity 180ms ease;
+}
+
+.ai-message-content:hover .ai-copy-actions {
+    opacity: 1;
+}
+
+/* Keep visible when showing "Copied!" feedback */
+.ai-copy-actions:has(.ai-copy-icon) {
+    opacity: 1;
+}
+
+.ai-copy-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 6px;
+    background: var(--color-surface, #ffffff);
+    color: var(--color-text-muted, #94a3b8);
+    font-size: 12px;
+    cursor: pointer;
+    transition: color 150ms ease, border-color 150ms ease, background 150ms ease;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+.ai-copy-btn:hover {
+    color: var(--color-text, #1e293b);
+    border-color: var(--color-primary, #3b82f6);
+    background: color-mix(in srgb, var(--color-primary, #3b82f6) 6%, transparent);
+}
+
+.ai-copy-icon {
+    font-size: 13px;
+    line-height: 1;
+}
+
 /* Streaming text before markdown render */
 .ai-streaming {
     white-space: pre-wrap;
     word-wrap: break-word;
     font-family: inherit;
+}
+
+/* ─── Model Loading Indicator ─── */
+
+.ai-model-loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--color-primary, #3b82f6) 8%, transparent);
+    color: var(--color-text-secondary, #64748b);
+    font-size: 13px;
+    animation: fadeIn 300ms ease;
+}
+
+.ai-model-loading-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid color-mix(in srgb, var(--color-primary, #3b82f6) 25%, transparent);
+    border-top-color: var(--color-primary, #3b82f6);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes blink {

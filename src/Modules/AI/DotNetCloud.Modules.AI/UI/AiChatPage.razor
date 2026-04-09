@@ -11,6 +11,7 @@
 @inject IMarkdownRenderer MarkdownRenderer
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
 @inject Microsoft.Extensions.Logging.ILogger<AiChatPage> Logger
+@inject IJSRuntime JS
 
 <div class="ai-layout">
     @* ─── Sidebar ─── *@
@@ -81,6 +82,32 @@
                                 @if (msg.Role == "assistant")
                                 {
                                     <div class="ai-message-text markdown-body">@((MarkupString)MarkdownRenderer.RenderToHtml(msg.Content))</div>
+                                    <div class="ai-copy-actions">
+                                        <button class="ai-copy-btn" @onclick="() => CopyAsMarkdownAsync(msg.Content)" title="Copy as Markdown">
+                                            @if (_copiedMessageId == msg.Id && _copiedFormat == "md")
+                                            {
+                                                <span class="ai-copy-icon">✓</span>
+                                                <span>Copied!</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="ai-copy-icon">📋</span>
+                                                <span>Copy as Markdown</span>
+                                            }
+                                        </button>
+                                        <button class="ai-copy-btn" @onclick="() => CopyAsFormattedAsync(msg.Content)" title="Copy as Formatted">
+                                            @if (_copiedMessageId == msg.Id && _copiedFormat == "html")
+                                            {
+                                                <span class="ai-copy-icon">✓</span>
+                                                <span>Copied!</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="ai-copy-icon">📄</span>
+                                                <span>Copy as Formatted</span>
+                                            }
+                                        </button>
+                                    </div>
                                 }
                                 else
                                 {
@@ -96,10 +123,14 @@
                             <div class="ai-message-avatar">🤖</div>
                             <div class="ai-message-content">
                                 <div class="ai-message-role">Assistant</div>
-                                <div class="ai-message-text ai-streaming">
-                                    @_streamingContent
-                                    <span class="ai-cursor">▍</span>
-                                </div>
+                                @if (_isModelLoading && string.IsNullOrEmpty(_streamingContent))
+                                {
+                                    <div class="ai-model-loading">
+                                        <span class="ai-model-loading-spinner"></span>
+                                        <span>Loading model into memory — this may take a moment…</span>
+                                    </div>
+                                }
+                                <div class="ai-message-text ai-streaming">@_streamingContent<span class="ai-cursor">▍</span></div>
                             </div>
                         </div>
                     }
@@ -147,9 +178,13 @@
     private string? _errorMessage;
     private bool _isLoading;
     private bool _isStreaming;
+    private bool _isModelLoading;
     private bool _ollamaHealthy = true;
     private CallerContext? _caller;
     private ElementReference _messagesContainer;
+    private Guid? _copiedMessageId;
+    private string? _copiedFormat;
+    private CancellationTokenSource? _modelLoadCts;
 
     protected override async Task OnInitializedAsync()
     {
@@ -253,15 +288,29 @@
         });
 
         _isStreaming = true;
+        _isModelLoading = false;
         _streamingContent = string.Empty;
         StateHasChanged();
+
+        // Detect model cold-start: if no tokens arrive within 3s, show loading indicator
+        _modelLoadCts?.Cancel();
+        _modelLoadCts = new CancellationTokenSource();
+        var loadToken = _modelLoadCts.Token;
+        _ = DetectModelLoadingAsync(loadToken);
 
         try
         {
             var fullResponse = new StringBuilder();
+            var firstChunk = true;
             await foreach (var chunk in ChatService.SendMessageStreamingAsync(
                 _caller, _activeConversation.Id, userMessage, CancellationToken.None))
             {
+                if (firstChunk)
+                {
+                    firstChunk = false;
+                    _modelLoadCts?.Cancel();
+                    _isModelLoading = false;
+                }
                 fullResponse.Append(chunk.Content);
                 _streamingContent = fullResponse.ToString();
                 StateHasChanged();
@@ -278,10 +327,10 @@
                 CreatedAt = DateTime.UtcNow
             });
 
-            // Update conversation title if first exchange
+            // Update conversation title if first exchange (matches server-side auto-title)
             if (_activeMessages.Count(m => m.Role == "user") == 1)
             {
-                var titlePreview = userMessage.Length > 40 ? userMessage[..40] + "…" : userMessage;
+                var titlePreview = userMessage.Length > 60 ? userMessage[..60].TrimEnd() + "…" : userMessage;
                 _activeConversation.Title = titlePreview;
                 var listItem = _conversations.FirstOrDefault(c => c.Id == _activeConversation.Id);
                 if (listItem is not null)
@@ -298,7 +347,9 @@
         finally
         {
             _isStreaming = false;
+            _isModelLoading = false;
             _streamingContent = string.Empty;
+            _modelLoadCts?.Cancel();
             StateHasChanged();
         }
     }
@@ -330,6 +381,70 @@
         {
             Logger.LogError(ex, "Failed to get caller context");
             return null;
+        }
+    }
+
+    private async Task DetectModelLoadingAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(3000, cancellationToken);
+            if (!cancellationToken.IsCancellationRequested && _isStreaming && string.IsNullOrEmpty(_streamingContent))
+            {
+                _isModelLoading = true;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (TaskCanceledException)
+        {
+            // Expected when first chunk arrives before the timeout
+        }
+    }
+
+    private async Task CopyAsMarkdownAsync(string markdownContent)
+    {
+        try
+        {
+            await JS.InvokeAsync<bool>("aiClipboard.copyMarkdown", markdownContent);
+            var msg = _activeMessages.FirstOrDefault(m => m.Content == markdownContent && m.Role == "assistant");
+            if (msg is not null)
+            {
+                _copiedMessageId = msg.Id;
+                _copiedFormat = "md";
+                StateHasChanged();
+                await Task.Delay(2000);
+                _copiedMessageId = null;
+                _copiedFormat = null;
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to copy markdown to clipboard");
+        }
+    }
+
+    private async Task CopyAsFormattedAsync(string markdownContent)
+    {
+        try
+        {
+            var html = MarkdownRenderer.RenderToHtml(markdownContent);
+            await JS.InvokeAsync<bool>("aiClipboard.copyFormatted", html, markdownContent);
+            var msg = _activeMessages.FirstOrDefault(m => m.Content == markdownContent && m.Role == "assistant");
+            if (msg is not null)
+            {
+                _copiedMessageId = msg.Id;
+                _copiedFormat = "html";
+                StateHasChanged();
+                await Task.Delay(2000);
+                _copiedMessageId = null;
+                _copiedFormat = null;
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to copy formatted HTML to clipboard");
         }
     }
 }

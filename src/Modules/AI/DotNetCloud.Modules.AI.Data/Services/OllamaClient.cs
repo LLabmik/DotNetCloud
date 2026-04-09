@@ -37,7 +37,8 @@ public sealed class OllamaClient : IOllamaClient
     {
         try
         {
-            var response = await _httpClient.GetAsync("/health", cancellationToken);
+            // Ollama exposes GET / (returns "Ollama is running"), not /health
+            var response = await _httpClient.GetAsync("/", cancellationToken);
             return response.IsSuccessStatusCode;
         }
         catch (Exception ex)

@@ -140,6 +140,9 @@ public sealed class AiChatService : IAiChatService
         };
         _db.ConversationMessages.Add(assistantMsg);
 
+        // Auto-title from first user message if still default
+        UpdateTitleFromFirstMessage(conversation, userMessage);
+
         // Update conversation timestamp
         conversation.UpdatedAt = DateTime.UtcNow;
 
@@ -205,6 +208,9 @@ public sealed class AiChatService : IAiChatService
         };
         _db.ConversationMessages.Add(assistantMsg);
 
+        // Auto-title from first user message if still default
+        UpdateTitleFromFirstMessage(conversation, userMessage);
+
         conversation.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
     }
@@ -230,5 +236,26 @@ public sealed class AiChatService : IAiChatService
             Messages = messages,
             SystemPrompt = conversation.SystemPrompt
         };
+    }
+
+    /// <summary>
+    /// Sets the conversation title from the first user message if the title is still a default placeholder.
+    /// </summary>
+    private static void UpdateTitleFromFirstMessage(Conversation conversation, string userMessage)
+    {
+        if (string.IsNullOrWhiteSpace(conversation.Title)
+            || conversation.Title is "New Chat" or "New Conversation"
+            || conversation.Title.StartsWith("New ", StringComparison.OrdinalIgnoreCase))
+        {
+            // Only auto-title on the first user message (no prior user messages persisted yet,
+            // since the current one was just added)
+            var userMessageCount = conversation.Messages.Count(m => m.Role == "user");
+            if (userMessageCount <= 1)
+            {
+                conversation.Title = userMessage.Length > 60
+                    ? userMessage[..60].TrimEnd() + "\u2026"
+                    : userMessage;
+            }
+        }
     }
 }
