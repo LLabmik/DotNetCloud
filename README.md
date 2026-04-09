@@ -38,7 +38,7 @@ DotNetCloud gives you full control of your data by running your own cloud server
 | 📹 **Video Calls** | WebRTC video calling and screen sharing | Phase 7 |
 | 🔍 **Search** | Full-text search across all modules | Phase 8 |
 | 🔒 **E2EE** | Optional zero-knowledge encryption | Phase 8 |
-| 🤖 **AI Assistant** | LLM-powered assistant via Ollama (local) or Claude/OpenAI (cloud) | Phase 9 |
+| 🤖 **AI Assistant** | LLM-powered assistant via Ollama (local) or Claude/OpenAI (cloud) | ✅ Phase 9 |
 
 ### Roadmap
 
@@ -55,7 +55,7 @@ See [MASTER_PROJECT_PLAN.md](docs/MASTER_PROJECT_PLAN.md) for the full phased im
 | **Phase 6** | Email + Bookmarks | ⬜ Planned |
 | **Phase 7** | Video Calling + Screen Sharing | ⬜ Planned |
 | **Phase 8** | Search + Auto-Updates + E2EE | ⬜ Planned |
-| **Phase 9** | AI Assistant | ⬜ Planned |
+| **Phase 9** | AI Assistant | ✅ Complete |
 
 ---
 
