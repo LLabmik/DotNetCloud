@@ -13,13 +13,18 @@ namespace DotNetCloud.Modules.Search.Host.Controllers;
 public sealed class SearchController : SearchControllerBase
 {
     private readonly SearchQueryService _queryService;
+    private readonly SearchReindexBackgroundService? _reindexService;
     private readonly ILogger<SearchController> _logger;
 
     /// <summary>Initializes a new instance of the <see cref="SearchController"/> class.</summary>
-    public SearchController(SearchQueryService queryService, ILogger<SearchController> logger)
+    public SearchController(
+        SearchQueryService queryService,
+        ILogger<SearchController> logger,
+        SearchReindexBackgroundService? reindexService = null)
     {
         _queryService = queryService;
         _logger = logger;
+        _reindexService = reindexService;
     }
 
     /// <summary>
@@ -131,7 +136,11 @@ public sealed class SearchController : SearchControllerBase
 
         _logger.LogInformation("Admin {UserId} triggered full reindex", caller.UserId);
 
-        // This would trigger the background reindex service
+        if (_reindexService is not null)
+        {
+            _reindexService.TriggerFullReindex();
+        }
+
         return Ok(Envelope(new { message = "Full reindex queued." }));
     }
 
@@ -150,7 +159,16 @@ public sealed class SearchController : SearchControllerBase
 
         _logger.LogInformation("Admin {UserId} triggered reindex for module {ModuleId}", caller.UserId, moduleId);
 
-        await _queryService.ReindexModuleAsync(moduleId);
-        return Ok(Envelope(new { message = $"Reindex for module '{moduleId}' completed." }));
+        if (_reindexService is not null)
+        {
+            _reindexService.TriggerModuleReindex(moduleId);
+        }
+        else
+        {
+            // Fallback: direct reindex via query service
+            await _queryService.ReindexModuleAsync(moduleId);
+        }
+
+        return Ok(Envelope(new { message = $"Reindex for module '{moduleId}' queued." }));
     }
 }

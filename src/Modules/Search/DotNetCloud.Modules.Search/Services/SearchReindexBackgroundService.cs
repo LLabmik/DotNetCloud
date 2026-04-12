@@ -12,12 +12,19 @@ namespace DotNetCloud.Modules.Search.Services;
 /// <summary>
 /// Background service that performs scheduled full reindex operations.
 /// Iterates all registered <see cref="ISearchableModule"/> implementations and rebuilds their index entries.
+/// Supports both automatic scheduled reindexing and on-demand manual triggers.
 /// </summary>
 public sealed class SearchReindexBackgroundService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<SearchReindexBackgroundService> _logger;
     private readonly TimeSpan _reindexInterval;
+    private readonly SemaphoreSlim _triggerSemaphore = new(0, 1);
+    private volatile bool _manualReindexRequested;
+    private volatile string? _manualReindexModuleId;
+
+    /// <summary>Default batch size for indexing operations during full reindex.</summary>
+    public const int DefaultBatchSize = 200;
 
     /// <summary>Initializes a new instance of the <see cref="SearchReindexBackgroundService"/> class.</summary>
     public SearchReindexBackgroundService(
@@ -27,6 +34,26 @@ public sealed class SearchReindexBackgroundService : BackgroundService
         _scopeFactory = scopeFactory;
         _logger = logger;
         _reindexInterval = TimeSpan.FromHours(24); // Default: daily
+    }
+
+    /// <summary>
+    /// Triggers an on-demand full reindex of all modules.
+    /// </summary>
+    public void TriggerFullReindex()
+    {
+        _manualReindexModuleId = null;
+        _manualReindexRequested = true;
+        _triggerSemaphore.Release();
+    }
+
+    /// <summary>
+    /// Triggers an on-demand reindex for a specific module.
+    /// </summary>
+    public void TriggerModuleReindex(string moduleId)
+    {
+        _manualReindexModuleId = moduleId;
+        _manualReindexRequested = true;
+        _triggerSemaphore.Release();
     }
 
     /// <inheritdoc />
@@ -41,15 +68,52 @@ public sealed class SearchReindexBackgroundService : BackgroundService
         {
             try
             {
-                await PerformFullReindexAsync(stoppingToken);
+                // Wait for either the interval to elapse or a manual trigger
+                var triggered = await WaitForNextRunAsync(stoppingToken);
+
+                if (triggered && _manualReindexRequested)
+                {
+                    _manualReindexRequested = false;
+                    var moduleId = _manualReindexModuleId;
+                    _manualReindexModuleId = null;
+
+                    if (moduleId is not null)
+                    {
+                        await PerformModuleReindexAsync(moduleId, stoppingToken);
+                    }
+                    else
+                    {
+                        await PerformFullReindexAsync(stoppingToken);
+                    }
+                }
+                else
+                {
+                    await PerformFullReindexAsync(stoppingToken);
+                }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                _logger.LogError(ex, "Full reindex failed");
+                _logger.LogError(ex, "Reindex operation failed");
             }
-
-            await Task.Delay(_reindexInterval, stoppingToken);
         }
+    }
+
+    private async Task<bool> WaitForNextRunAsync(CancellationToken cancellationToken)
+    {
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var delayTask = Task.Delay(_reindexInterval, linkedCts.Token);
+        var triggerTask = _triggerSemaphore.WaitAsync(linkedCts.Token);
+
+        var completed = await Task.WhenAny(delayTask, triggerTask);
+
+        if (completed == triggerTask)
+        {
+            // Cancel the delay
+            await linkedCts.CancelAsync();
+            return true; // Manual trigger
+        }
+
+        return false; // Scheduled interval
     }
 
     /// <summary>
@@ -72,6 +136,7 @@ public sealed class SearchReindexBackgroundService : BackgroundService
         await db.SaveChangesAsync(cancellationToken);
 
         var totalProcessed = 0;
+        var totalDocuments = 0;
 
         try
         {
@@ -81,17 +146,24 @@ public sealed class SearchReindexBackgroundService : BackgroundService
 
                 try
                 {
+                    var documents = await module.GetAllSearchableDocumentsAsync(cancellationToken);
+                    totalDocuments += documents.Count;
+
+                    // Collect entity IDs for stale detection
+                    var freshEntityIds = new HashSet<string>(documents.Select(d => d.EntityId));
+
                     // Clear existing entries for this module
                     await searchProvider.ReindexModuleAsync(module.ModuleId, cancellationToken);
 
-                    // Get all documents from the module
-                    var documents = await module.GetAllSearchableDocumentsAsync(cancellationToken);
-
                     // Index in batches
-                    foreach (var document in documents)
+                    foreach (var batch in documents.Chunk(DefaultBatchSize))
                     {
-                        await searchProvider.IndexDocumentAsync(document, cancellationToken);
-                        totalProcessed++;
+                        foreach (var document in batch)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            await searchProvider.IndexDocumentAsync(document, cancellationToken);
+                            totalProcessed++;
+                        }
                     }
 
                     _logger.LogInformation("Module {ModuleId}: indexed {Count} documents",
@@ -103,10 +175,87 @@ public sealed class SearchReindexBackgroundService : BackgroundService
                 }
             }
 
+            // Clean up stale entries from modules that are no longer registered
+            await CleanupOrphanedEntriesAsync(db, searchableModules, cancellationToken);
+
             job.Status = IndexJobStatus.Completed;
             job.CompletedAt = DateTimeOffset.UtcNow;
             job.DocumentsProcessed = totalProcessed;
-            job.DocumentsTotal = totalProcessed;
+            job.DocumentsTotal = totalDocuments;
+        }
+        catch (Exception ex)
+        {
+            job.Status = IndexJobStatus.Failed;
+            job.CompletedAt = DateTimeOffset.UtcNow;
+            job.ErrorMessage = ex.Message;
+            job.DocumentsProcessed = totalProcessed;
+            job.DocumentsTotal = totalDocuments;
+            throw;
+        }
+        finally
+        {
+            await db.SaveChangesAsync(CancellationToken.None);
+        }
+
+        _logger.LogInformation("Full reindex completed: {Count}/{Total} documents indexed",
+            totalProcessed, totalDocuments);
+    }
+
+    /// <summary>
+    /// Performs a reindex for a specific module, tracking it with an <see cref="IndexingJob"/>.
+    /// </summary>
+    public async Task PerformModuleReindexAsync(string moduleId, CancellationToken cancellationToken = default)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<SearchDbContext>();
+        var searchProvider = scope.ServiceProvider.GetRequiredService<ISearchProvider>();
+        var searchableModules = scope.ServiceProvider.GetServices<ISearchableModule>();
+
+        var module = searchableModules.FirstOrDefault(m => m.ModuleId == moduleId);
+        if (module is null)
+        {
+            _logger.LogWarning("Module {ModuleId} not found for reindex", moduleId);
+            return;
+        }
+
+        var job = new IndexingJob
+        {
+            ModuleId = moduleId,
+            Type = IndexJobType.Incremental,
+            Status = IndexJobStatus.Running,
+            StartedAt = DateTimeOffset.UtcNow
+        };
+        db.IndexingJobs.Add(job);
+        await db.SaveChangesAsync(cancellationToken);
+
+        var totalProcessed = 0;
+
+        try
+        {
+            _logger.LogInformation("Reindexing module {ModuleId}", moduleId);
+
+            var documents = await module.GetAllSearchableDocumentsAsync(cancellationToken);
+
+            // Clear existing entries for this module
+            await searchProvider.ReindexModuleAsync(moduleId, cancellationToken);
+
+            // Index in batches
+            foreach (var batch in documents.Chunk(DefaultBatchSize))
+            {
+                foreach (var document in batch)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    await searchProvider.IndexDocumentAsync(document, cancellationToken);
+                    totalProcessed++;
+                }
+            }
+
+            job.Status = IndexJobStatus.Completed;
+            job.CompletedAt = DateTimeOffset.UtcNow;
+            job.DocumentsProcessed = totalProcessed;
+            job.DocumentsTotal = documents.Count;
+
+            _logger.LogInformation("Module {ModuleId}: reindexed {Count} documents", moduleId, totalProcessed);
         }
         catch (Exception ex)
         {
@@ -120,7 +269,32 @@ public sealed class SearchReindexBackgroundService : BackgroundService
         {
             await db.SaveChangesAsync(CancellationToken.None);
         }
+    }
 
-        _logger.LogInformation("Full reindex completed: {Count} documents indexed", totalProcessed);
+    /// <summary>
+    /// Removes index entries for modules that are no longer registered as searchable.
+    /// </summary>
+    internal static async Task CleanupOrphanedEntriesAsync(
+        SearchDbContext db,
+        IEnumerable<ISearchableModule> registeredModules,
+        CancellationToken cancellationToken)
+    {
+        var registeredModuleIds = new HashSet<string>(registeredModules.Select(m => m.ModuleId));
+
+        var orphanedModuleIds = await db.SearchIndexEntries
+            .Select(e => e.ModuleId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        foreach (var moduleId in orphanedModuleIds.Where(id => !registeredModuleIds.Contains(id)))
+        {
+            var orphanedEntries = await db.SearchIndexEntries
+                .Where(e => e.ModuleId == moduleId)
+                .ToListAsync(cancellationToken);
+
+            db.SearchIndexEntries.RemoveRange(orphanedEntries);
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
     }
 }

@@ -45,10 +45,12 @@ public sealed class SearchModule : IModuleLifecycle
         // Create and register event handler for search index requests
         var handlerLogger = context.Services.GetService<ILogger<SearchIndexRequestEventHandler>>();
         var searchProvider = context.Services.GetService<Core.Capabilities.ISearchProvider>();
+        var indexingService = context.Services.GetService<Services.SearchIndexingService>();
 
         _indexRequestHandler = new SearchIndexRequestEventHandler(
             handlerLogger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<SearchIndexRequestEventHandler>.Instance,
-            searchProvider);
+            searchProvider,
+            indexingService);
 
         await _eventBus.SubscribeAsync(_indexRequestHandler, cancellationToken);
 

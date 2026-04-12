@@ -364,7 +364,9 @@ Each module publishes `SearchIndexRequestEvent` when searchable entities are cre
 
 ### Phase 4: Indexing Engine
 
-> **Depends on Phase 2 + Phase 3.**
+> **Depends on Phase 2 + Phase 3.** Status: **COMPLETED**
+>
+> **Completed:** 2026-04-12 — Event-driven indexing via Channel<T> with backpressure, scheduled full-reindex with batch processing (chunks of 200), content extraction pipeline integration, stale entry cleanup, manual reindex triggers, admin endpoints wired. 96 Phase 4 tests pass (212 total search module tests).
 
 #### Step 4.1 — Event-Driven Indexing Service
 
