@@ -20,42 +20,43 @@ DotNetCloud gives you full control of your data by running your own cloud server
 
 ### Features (Planned)
 
-| Feature | Description | Status |
-|---|---|---|
-| 📁 **Files** | File sync and sharing with desktop client, browser UI with context menus, drag-drop move, upload queue management, and paste-to-upload | ✅ Phase 1 |
-| 📝 **Document Editing** | Browser-based editing via Collabora Online (LibreOffice-based) | ✅ Phase 1 |
-| 💬 **Chat** | Real-time messaging, channels, direct messages | ✅ Phase 2 |
-| 📱 **Android App** | Mobile client with photo auto-upload | ✅ Phase 2 |
-| 👤 **Contacts** | Contact management with CardDAV support | ✅ Phase 3 |
-| 📅 **Calendar** | Events, scheduling, CalDAV support | ✅ Phase 3 |
-| 📝 **Notes** | Markdown-based note taking | ✅ Phase 3 |
-| 📋 **Tracks** | Kanban boards and project management | 🔄 Rearchitecting |
-| 🖼️ **Photos** | Photo library, albums, geo-clustering, slideshow, editing | ✅ Phase 5 |
-| 🎵 **Music** | Music player with equalizer, playlists, favorites, Subsonic API | ✅ Phase 5 |
-| 🎬 **Video** | Video library, collections, subtitles, watch progress, streaming | ✅ Phase 5 |
-| 📧 **Email** | Integrated email client (SMTP/IMAP/Gmail) | Phase 6 |
-| 🔖 **Bookmarks** | Browser bookmark sync via extension | Phase 6 |
-| 📹 **Video Calls** | WebRTC video calling and screen sharing | Phase 7 |
-| 🔍 **Search** | Full-text search across all modules | Phase 8 |
-| 🔒 **E2EE** | Optional zero-knowledge encryption | Phase 8 |
-| 🤖 **AI Assistant** | LLM-powered assistant via Ollama (local) or Claude/OpenAI (cloud) | ✅ Phase 9 |
+| Feature                 | Description                                                                                                                            | Status            |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| 📁 **Files**            | File sync and sharing with desktop client, browser UI with context menus, drag-drop move, upload queue management, and paste-to-upload | ✅ Phase 1        |
+| 📝 **Document Editing** | Browser-based editing via Collabora Online (LibreOffice-based)                                                                         | ✅ Phase 1        |
+| 💬 **Chat**             | Real-time messaging, channels, direct messages                                                                                         | ✅ Phase 2        |
+| 📱 **Android App**      | Mobile client with photo auto-upload                                                                                                   | ✅ Phase 2        |
+| 👤 **Contacts**         | Contact management with CardDAV support                                                                                                | ✅ Phase 3        |
+| 📅 **Calendar**         | Events, scheduling, CalDAV support                                                                                                     | ✅ Phase 3        |
+| 📝 **Notes**            | Markdown-based note taking                                                                                                             | ✅ Phase 3        |
+| 📋 **Tracks**           | Kanban boards and project management                                                                                                   | 🔄 Rearchitecting |
+| 🖼️ **Photos**           | Photo library, albums, geo-clustering, slideshow, editing                                                                              | ✅ Phase 5        |
+| 🎵 **Music**            | Music player with equalizer, playlists, favorites, Subsonic API                                                                        | ✅ Phase 5        |
+| 🎬 **Video**            | Video library, collections, subtitles, watch progress, streaming                                                                       | ✅ Phase 5        |
+| 📧 **Email**            | Integrated email client (SMTP/IMAP/Gmail)                                                                                              | Phase 6           |
+| 🔖 **Bookmarks**        | Browser bookmark sync via extension                                                                                                    | Phase 6           |
+| 📹 **Video Calls**      | WebRTC video calling and screen sharing                                                                                                | Phase 7           |
+| 🔍 **Search**           | Full-text search across all modules                                                                                                    | Phase 8           |
+| 🤖 **AI Assistant**     | LLM-powered assistant via Ollama (local) or Claude/OpenAI (cloud)                                                                      | ✅ Phase 9        |
+| 🔒 **E2EE**             | Optional zero-knowledge encryption                                                                                                     | Phase 10          |
 
 ### Roadmap
 
 See [MASTER_PROJECT_PLAN.md](docs/MASTER_PROJECT_PLAN.md) for the full phased implementation plan with detailed status tracking.
 
-| Phase | Milestone | Status |
-|---|---|---|
-| **Phase 0** | Foundation — core platform, auth, module system, CLI, web shell, observability | ✅ Complete |
-| **Phase 1** | Files + Desktop Sync Client — file browser, upload/download, sharing, Collabora editing, bulk operations, trash, tags, versioning, Windows & Linux sync | ✅ Complete |
-| **Phase 2** | Chat + Notifications + Android — real-time messaging, push notifications, Android MAUI client | ✅ Complete |
-| **Phase 3** | Contacts + Calendar + Notes + NextCloud Migration | ✅ Complete |
-| **Phase 4** | Project Management (Tracks) | 🔄 Rearchitecting |
-| **Phase 5** | Photos + Music + Video | ✅ Complete |
-| **Phase 6** | Email + Bookmarks | ⬜ Planned |
-| **Phase 7** | Video Calling + Screen Sharing | ⬜ Planned |
-| **Phase 8** | Search + Auto-Updates + E2EE | ⬜ Planned |
-| **Phase 9** | AI Assistant | ✅ Complete |
+| Phase        | Milestone                                                                                                                                               | Status            |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| **Phase 0**  | Foundation — core platform, auth, module system, CLI, web shell, observability                                                                          | ✅ Complete       |
+| **Phase 1**  | Files + Desktop Sync Client — file browser, upload/download, sharing, Collabora editing, bulk operations, trash, tags, versioning, Windows & Linux sync | ✅ Complete       |
+| **Phase 2**  | Chat + Notifications + Android — real-time messaging, push notifications, Android MAUI client                                                           | ✅ Complete       |
+| **Phase 3**  | Contacts + Calendar + Notes + NextCloud Migration                                                                                                       | ✅ Complete       |
+| **Phase 4**  | Project Management (Tracks)                                                                                                                             | 🔄 Rearchitecting |
+| **Phase 5**  | Photos + Music + Video                                                                                                                                  | ✅ Complete       |
+| **Phase 6**  | Email + Bookmarks                                                                                                                                       | ⬜ Planned        |
+| **Phase 7**  | Video Calling + Screen Sharing                                                                                                                          | ⬜ Planned        |
+| **Phase 8**  | Search + Auto-Updates                                                                                                                                   | ⬜ Planned        |
+| **Phase 9**  | AI Assistant                                                                                                                                            | ✅ Complete       |
+| **Phase 10** | End-to-End Encryption (E2EE)                                                                                                                            | ⬜ Planned        |
 
 ---
 
@@ -289,30 +290,30 @@ For full details, see the [Architecture Document](docs/architecture/ARCHITECTURE
 
 ## Platform Support
 
-| Platform | Server | Desktop Client | Mobile Client |
-|---|---|---|---|
-| **Windows** | ✅ | ✅ (Avalonia) | — |
-| **Linux (Debian-derived)** | ✅ | ✅ (Avalonia) | — |
-| **Android** | — | — | ✅ (.NET MAUI) |
-| **macOS** | 🔜 Future | 🔜 Future | — |
-| **iOS** | — | — | 🔜 Future |
+| Platform                   | Server    | Desktop Client | Mobile Client  |
+| -------------------------- | --------- | -------------- | -------------- |
+| **Windows**                | ✅        | ✅ (Avalonia)  | —              |
+| **Linux (Debian-derived)** | ✅        | ✅ (Avalonia)  | —              |
+| **Android**                | —         | —              | ✅ (.NET MAUI) |
+| **macOS**                  | 🔜 Future | 🔜 Future      | —              |
+| **iOS**                    | —         | —              | 🔜 Future      |
 
 ### Deployment Options
 
-| Option | Reverse Proxy |
-|---|---|
+| Option                                   | Reverse Proxy                         |
+| ---------------------------------------- | ------------------------------------- |
 | Bare metal (built-in process supervisor) | IIS, Apache, nginx, or direct Kestrel |
-| Docker Compose | Any |
-| Kubernetes (Helm chart) | Any |
+| Docker Compose                           | Any                                   |
+| Kubernetes (Helm chart)                  | Any                                   |
 
 ### Database Support
 
-| Database | Status |
-|---|---|
+| Database   | Status       |
+| ---------- | ------------ |
 | PostgreSQL | ✅ Supported |
 | SQL Server | ✅ Supported |
-| MariaDB | ✅ Supported |
-| Oracle | 🔜 Future |
+| MariaDB    | ✅ Supported |
+| Oracle     | 🔜 Future    |
 
 ---
 
@@ -395,20 +396,20 @@ Imports users, files, calendars, contacts, and bookmarks.
 
 ## Technology Stack
 
-| Component | Technology |
-|---|---|
-| Server | ASP.NET Core (.NET 10) |
-| Web UI | Blazor |
-| Desktop Client | Avalonia |
-| Mobile Client | .NET MAUI (Android) |
-| Database ORM | Entity Framework Core |
-| Auth | ASP.NET Core Identity + OpenIddict (OAuth2/OIDC) |
-| Real-time | SignalR |
-| Module IPC | gRPC |
-| Video (optional) | LiveKit (Apache 2.0) |
-| Document Editing (optional) | Collabora CODE / Collabora Online (MPL-2.0) |
-| Logging | Serilog |
-| Telemetry | OpenTelemetry |
+| Component                   | Technology                                       |
+| --------------------------- | ------------------------------------------------ |
+| Server                      | ASP.NET Core (.NET 10)                           |
+| Web UI                      | Blazor                                           |
+| Desktop Client              | Avalonia                                         |
+| Mobile Client               | .NET MAUI (Android)                              |
+| Database ORM                | Entity Framework Core                            |
+| Auth                        | ASP.NET Core Identity + OpenIddict (OAuth2/OIDC) |
+| Real-time                   | SignalR                                          |
+| Module IPC                  | gRPC                                             |
+| Video (optional)            | LiveKit (Apache 2.0)                             |
+| Document Editing (optional) | Collabora CODE / Collabora Online (MPL-2.0)      |
+| Logging                     | Serilog                                          |
+| Telemetry                   | OpenTelemetry                                    |
 
 All dependencies are open source with permissive licenses. Zero cost. See the [full dependency list](docs/architecture/ARCHITECTURE.md#21-dependencies).
 
