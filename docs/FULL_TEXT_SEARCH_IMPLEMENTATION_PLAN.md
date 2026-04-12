@@ -1,9 +1,9 @@
 # Full-Text Search Implementation Plan
 
-**Status:** Planning  
+**Status:** In Progress  
 **Phase:** 8 (Search, Auto-Updates & Polish)  
 **Created:** 2026-04-12  
-**Last Updated:** 2026-04-12
+**Last Updated:** 2026-06-11
 
 ---
 
@@ -176,9 +176,9 @@ Metadata  (IReadOnlyDictionary<string, string>)  Author, title, page count, etc.
 
 ---
 
-### Phase 2: Search Module Scaffold
+### Phase 2: Search Module Scaffold ✅
 
-> **Depends on Phase 1.**
+> **Depends on Phase 1.** Status: **COMPLETED**
 
 #### Step 2.1 — Project Structure
 

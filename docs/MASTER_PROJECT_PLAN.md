@@ -97,6 +97,7 @@
 | Phase 4.8                   | 8       | 8         | 0           | 0       |
 | Phase 4.9                   | 42      | 42        | 0           | 0       |
 | Phase 5-8                   | Summary | 8         | 0           | 0       |
+| Phase 8 (Full-Text Search)  | 10      | 10        | 0           | 0       |
 | Phase 9                     | 7       | 5         | 0           | 2       |
 | Infrastructure              | Summary | 0         | 0           | 1       |
 | Documentation               | Summary | 0         | 0           | 1       |
@@ -2160,3 +2161,26 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 - ☐ Notes module integration (summarize, expand, translate)
 - ☐ Chat module integration (message summarization, smart replies)
 - ☐ Files module integration (content summarization, document Q&A)
+
+---
+
+## Phase 8: Full-Text Search Module
+
+**Reference:** `docs/FULL_TEXT_SEARCH_IMPLEMENTATION_PLAN.md`
+
+### Section: Phase 8.2 — Search Module Scaffold
+**Status:** completed ✅
+**Duration:** ~3 hours
+**Deliverables:**
+- ✓ `DotNetCloud.Modules.Search/` — Business logic project (services, extractors, event handler, module lifecycle)
+- ✓ `DotNetCloud.Modules.Search.Data/` — EF Core data project (SearchDbContext, SearchIndexEntry, IndexingJob, configurations)
+- ✓ `DotNetCloud.Modules.Search.Host/` — gRPC host + REST controllers (search_service.proto, SearchGrpcService, SearchController, Program.cs)
+- ✓ 3 provider-specific ISearchProvider implementations (PostgreSQL, SQL Server, MariaDB)
+- ✓ 5 content extractors (PlainText, Markdown, PDF via PdfPig, DOCX, XLSX via OpenXml)
+- ✓ SearchModule + SearchModuleManifest (IModuleLifecycle, event subscription)
+- ✓ SearchIndexingService (Channel-based background queue), SearchQueryService, ContentExtractionService, SearchReindexBackgroundService
+- ✓ InProcessEventBus for standalone module operation
+- ✓ REST endpoints: GET /search, GET /suggest, GET /stats, POST /admin/reindex, POST /admin/reindex/{moduleId}
+- ✓ `DotNetCloud.Modules.Search.Tests` — 116 tests, all passing (12 test files covering providers, services, extractors, module lifecycle, DbContext)
+
+**Notes:** Phase 2 complete. Search module scaffold fully operational with EF Core InMemory. Phase 1 interfaces/DTOs (in DotNetCloud.Core) were already in place. Next: Phase 3 — PostgreSQL Full-Text Search Integration (tsvector, tsquery, GIN indexes).

@@ -3944,3 +3944,75 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ☐ Notes module: summarize, expand, translate, grammar check
 - ☐ Chat module: message summarization, smart replies
 - ☐ Files module: content summarization, document Q&A
+
+---
+
+## Phase 8: Full-Text Search Module (from FULL_TEXT_SEARCH_IMPLEMENTATION_PLAN.md)
+
+### Phase 2: Search Module Scaffold ✅
+
+#### Step 2.1 — Project Structure
+- ✓ `DotNetCloud.Modules.Search/` — Business logic project (.csproj, services, extractors, events)
+- ✓ `DotNetCloud.Modules.Search.Data/` — EF Core data project (.csproj, models, configurations, DbContext)
+- ✓ `DotNetCloud.Modules.Search.Host/` — gRPC host + REST controllers (.csproj, Program.cs, proto, controllers)
+- ✓ All 3 projects added to solution
+
+#### Step 2.2 — SearchDbContext & Index Table Model
+- ✓ `SearchIndexEntry` entity (Id, ModuleId, EntityId, EntityType, Title, Content, Summary, OwnerId, OrganizationId, CreatedAt, UpdatedAt, IndexedAt, MetadataJson)
+- ✓ `IndexingJob` entity (Id, ModuleId, Type, Status, StartedAt, CompletedAt, DocumentsProcessed, DocumentsTotal, ErrorMessage)
+- ✓ `SearchIndexEntryConfiguration` — Composite unique index, owner/org/module/type/date indexes
+- ✓ `IndexingJobConfiguration` — Status/Type as string conversion, status/module indexes
+- ✓ `SearchDbContext` — DbSets for SearchIndexEntries and IndexingJobs
+
+#### Step 2.3 — Provider-Specific ISearchProvider Implementations
+- ✓ `PostgreSqlSearchProvider` — ILIKE fallback (native tsvector/tsquery for production PostgreSQL)
+- ✓ `SqlServerSearchProvider` — Contains() fallback (native FREETEXT for production SQL Server)
+- ✓ `MariaDbSearchProvider` — Contains() fallback (native MATCH AGAINST for production MariaDB)
+- ✓ All providers: IndexDocument (upsert), RemoveDocument, Search (with pagination, sorting, facets, permission scoping), ReindexModule, GetIndexStats
+
+#### Step 2.4 — SearchModuleManifest & SearchModule
+- ✓ `SearchModuleManifest` — Id: "dotnetcloud.search", Name: "Search", Version: "1.0.0"
+- ✓ `SearchModule` — IModuleLifecycle implementation with Initialize/Start/Stop/Dispose
+- ✓ Event subscription: SearchIndexRequestEvent handler registered on init
+
+#### Step 2.5 — Services
+- ✓ `SearchQueryService` — Query execution wrapper with empty-query short-circuit, stats, reindex delegation
+- ✓ `ContentExtractionService` — Orchestrates IContentExtractor instances, MIME type selection, content truncation (100KB max)
+- ✓ `SearchIndexingService` — Channel<T>-based background queue (capacity 1000), processes index/remove events
+- ✓ `SearchReindexBackgroundService` — BackgroundService, 24h interval, creates IndexingJob records
+
+#### Step 2.6 — Content Extractors
+- ✓ `PlainTextExtractor` — text/plain, text/csv
+- ✓ `MarkdownContentExtractor` — text/markdown with regex-based syntax stripping
+- ✓ `PdfContentExtractor` — application/pdf via PdfPig
+- ✓ `DocxContentExtractor` — DOCX via DocumentFormat.OpenXml
+- ✓ `XlsxContentExtractor` — XLSX via DocumentFormat.OpenXml (shared string table resolution)
+
+#### Step 2.7 — Event Handler
+- ✓ `SearchIndexRequestEventHandler` — Handles SearchIndexRequestEvent (Remove action via ISearchProvider)
+
+#### Step 2.8 — gRPC & REST
+- ✓ `search_service.proto` — 5 RPCs: Search, IndexDocument, RemoveDocument, ReindexModule, GetIndexStats
+- ✓ `SearchGrpcService` — gRPC service implementation delegating to SearchQueryService/ISearchProvider
+- ✓ `SearchControllerBase` — Base controller with auth, CallerContext, envelope helpers
+- ✓ `SearchController` — REST endpoints: GET /search, GET /suggest, GET /stats, POST /admin/reindex, POST /admin/reindex/{moduleId}
+- ✓ `InProcessEventBus` — Standalone event bus for module isolation
+
+#### Step 2.9 — Host Program.cs
+- ✓ Service registration (module, DbContext, event bus, providers, extractors, services, gRPC, REST, health checks)
+- ✓ Middleware pipeline (gRPC, controllers, health, info endpoint)
+
+#### Step 2.10 — Comprehensive Tests
+- ✓ `DotNetCloud.Modules.Search.Tests` project (MSTest 4.1.0 + Moq 4.20.72, InMemory EF Core)
+- ✓ `SqlServerSearchProviderTests` — Index, upsert, remove, search (text match, pagination, sort, facets, permission scoping, metadata), reindex, stats (32 tests)
+- ✓ `MariaDbSearchProviderTests` — Index, upsert, remove, search (title match, content match, permission scoping, facets), reindex, stats (10 tests)
+- ✓ `SearchQueryServiceTests` — Empty query, valid query delegation, null query, stats, reindex (5 tests)
+- ✓ `ContentExtractionServiceTests` — Supported/unsupported MIME types, null handling, extractor errors, truncation, CanExtract (10 tests)
+- ✓ `PlainTextExtractorTests` — CanExtract (text/plain, text/csv, case-insensitive), extract text, CSV, empty, unicode (9 tests)
+- ✓ `MarkdownContentExtractorTests` — CanExtract, strip headings/bold/italic/links/images/code blocks/inline code/blockquotes/lists/strikethrough/horizontal rules, metadata, StripMarkdown edge cases (17 tests)
+- ✓ `SearchIndexingServiceTests` — Enqueue, process remove, process index, unknown module, document not found, pending count, dispose, stop without start (8 tests)
+- ✓ `SearchIndexRequestEventHandlerTests` — Remove action, index action, null provider (3 tests)
+- ✓ `SearchModuleTests` — Manifest properties, lifecycle (init/start/stop/dispose), event bus subscription/unsubscription, initial state, null context (10 tests)
+- ✓ `SearchModuleManifestTests` — All manifest properties and counts (9 tests)
+- ✓ `SearchDbContextTests` — CRUD for SearchIndexEntry and IndexingJob, all fields persisted, nullable fields, status transitions, auto-generated IDs (9 tests)
+- ✓ All 116 tests passing
