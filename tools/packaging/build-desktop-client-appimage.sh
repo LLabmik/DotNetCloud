@@ -12,7 +12,7 @@
 # =============================================================================
 set -euo pipefail
 
-VERSION="${1:-0.1.3-alpha}"
+VERSION="${1:-0.1.4-alpha}"
 CONFIGURATION="${2:-Release}"
 OUTPUT_DIR="${3:-./artifacts/installers}"
 

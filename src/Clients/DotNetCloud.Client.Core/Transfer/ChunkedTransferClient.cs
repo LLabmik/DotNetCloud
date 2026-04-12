@@ -520,13 +520,16 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
         catch
         {
             // On error, clean up the assembled file if it was created.
-            try { if (File.Exists(assembledPath)) File.Delete(assembledPath); } catch { }
+            try
+            { if (File.Exists(assembledPath)) File.Delete(assembledPath); }
+            catch { }
             throw;
         }
         finally
         {
             // Always clean up the per-chunk temp directory.
-            try { Directory.Delete(tempDir, recursive: true); }
+            try
+            { Directory.Delete(tempDir, recursive: true); }
             catch (Exception ex) { _logger.LogWarning(ex, "Failed to clean up chunk temp dir: {TempDir}.", tempDir); }
         }
     }
@@ -546,17 +549,9 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
             return await File.ReadAllBytesAsync(cachePath, cancellationToken);
         }
 
-        // Send If-None-Match with the chunk hash. The server returns 304 if it matches,
-        // meaning the client already has the chunk locally (Stream.Null is returned).
-        // In practice, a cache miss + 304 means the cache file was deleted but the
-        // server confirms the hash — this shouldn't happen, so fall through to error.
-        using var chunkStream = await _api.DownloadChunkByHashAsync(hash, cancellationToken);
-        if (chunkStream == Stream.Null)
-        {
-            // 304 but no local cache — should not happen; log and re-download without ETag.
-            _logger.LogWarning("Server returned 304 for chunk {Hash} but no local cache exists. This is unexpected.", hash);
-            throw new InvalidOperationException($"Chunk {hash}: server returned 304 Not Modified but chunk is not in local cache.");
-        }
+        // No local cache — download unconditionally (skip If-None-Match to avoid
+        // a guaranteed 304 → retry round-trip).
+        using var chunkStream = await _api.DownloadChunkByHashAsync(hash, useConditional: false, cancellationToken);
 
         using var ms = new MemoryStream();
         await chunkStream.CopyToAsync(ms, cancellationToken);
@@ -665,7 +660,8 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
         while (true)
         {
             var n = await ReadFullBufferAsync(stream, buf, cancellationToken);
-            if (n == 0) break;
+            if (n == 0)
+                break;
 
             var processed = 0;
             while (processed < n)
@@ -724,7 +720,8 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
         while (true)
         {
             var n = await ReadFullBufferAsync(stream, buf, cancellationToken);
-            if (n == 0) break;
+            if (n == 0)
+                break;
 
             var segStart = 0;
             var processed = 0;
@@ -757,7 +754,8 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                     var totalLen = chunkAccum.Sum(s => s.Length);
                     var data = new byte[totalLen];
                     var pos = 0;
-                    foreach (var seg in chunkAccum) { seg.CopyTo(data, pos); pos += seg.Length; }
+                    foreach (var seg in chunkAccum)
+                    { seg.CopyTo(data, pos); pos += seg.Length; }
 
                     yield return new ChunkData { Data = data, Hash = hash };
 
@@ -778,7 +776,8 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
             var totalLen = chunkAccum.Sum(s => s.Length);
             var data = new byte[totalLen];
             var pos = 0;
-            foreach (var seg in chunkAccum) { seg.CopyTo(data, pos); pos += seg.Length; }
+            foreach (var seg in chunkAccum)
+            { seg.CopyTo(data, pos); pos += seg.Length; }
 
             yield return new ChunkData { Data = data, Hash = hash };
         }
@@ -790,7 +789,8 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
         while (totalRead < buffer.Length)
         {
             var n = await stream.ReadAsync(buffer.AsMemory(totalRead), cancellationToken);
-            if (n == 0) break;
+            if (n == 0)
+                break;
             totalRead += n;
         }
         return totalRead;

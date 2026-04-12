@@ -74,6 +74,7 @@ public partial class App : Application
 
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Information()
+            .MinimumLevel.Override("System.Net.Http.HttpClient", Serilog.Events.LogEventLevel.Warning)
             .WriteTo.Console()
             .WriteTo.File(
                 Path.Combine(logDir, "sync-tray.log"),

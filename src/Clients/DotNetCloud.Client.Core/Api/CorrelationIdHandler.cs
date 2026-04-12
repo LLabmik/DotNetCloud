@@ -32,7 +32,7 @@ public sealed class CorrelationIdHandler : DelegatingHandler
 
         var response = await base.SendAsync(request, cancellationToken);
 
-        if (!response.IsSuccessStatusCode)
+        if (!response.IsSuccessStatusCode && response.StatusCode != System.Net.HttpStatusCode.NotModified)
         {
             _logger.LogError(
                 "API call failed. RequestId={RequestId}, Status={StatusCode}",
