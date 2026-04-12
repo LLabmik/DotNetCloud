@@ -4016,3 +4016,50 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `SearchModuleManifestTests` — All manifest properties and counts (9 tests)
 - ✓ `SearchDbContextTests` — CRUD for SearchIndexEntry and IndexingJob, all fields persisted, nullable fields, status transitions, auto-generated IDs (9 tests)
 - ✓ All 116 tests passing
+
+### Phase 3: Module Search API Integration ✅
+
+#### Step 3.1 — Search RPCs Added to Module Protos
+- ✓ `files_service.proto` — GetSearchableDocuments, GetSearchableDocument, SearchableDocument
+- ✓ `chat_service.proto` — GetSearchableDocuments, GetSearchableDocument, SearchableDocument
+- ✓ `notes_service.proto` — GetSearchableDocuments, GetSearchableDocument, SearchableDocument
+- ✓ `contacts_service.proto` — GetSearchableDocuments, GetSearchableDocument, SearchableDocument
+- ✓ `calendar_service.proto` — GetSearchableDocuments, GetSearchableDocument, SearchableDocument
+- ✓ `photos_service.proto` — GetSearchableDocuments, GetSearchableDocument, SearchableDocument
+- ✓ `music_service.proto` — GetSearchableDocuments, GetSearchableDocument, MusicSearchableDocument
+- ✓ `video_service.proto` — GetSearchableDocuments, GetSearchableDocument, SearchableDocument
+- ✓ `tracks_service.proto` — GetSearchableDocuments, GetSearchableDocument, SearchableDocument
+
+#### Step 3.2 — gRPC Service Implementations for Search RPCs
+- ✓ `FilesGrpcService` — Maps FileNode entities to SearchableDocument
+- ✓ `ChatGrpcService` — Maps Message entities to SearchableDocument
+- ✓ `NotesGrpcService` — Maps Note entities to SearchableDocument
+- ✓ `ContactsGrpcService` — Maps Contact entities to SearchableDocument
+- ✓ `CalendarGrpcService` — Maps CalendarEvent entities to SearchableDocument
+- ✓ `PhotosGrpcServiceImpl` — Maps Photo entities to SearchableDocument
+- ✓ `MusicGrpcServiceImpl` — Maps Track/Artist/Album to MusicSearchableDocument
+- ✓ `VideoGrpcServiceImpl` — Maps Video entities to SearchableDocument
+- ✓ `TracksGrpcService` — Maps Card/Board/Label entities to SearchableDocument
+
+#### Step 3.3 — SearchIndexRequestEvent Publishing on CRUD
+- ✓ `FileService` — CreateFolder (Index), Rename (Index), Move (Index), Delete (Remove)
+- ✓ `MessageService` (Chat) — Send (Index), Edit (Index), Delete (Remove)
+- ✓ `NoteService` — Create (Index), Update (Index), Delete (Remove)
+- ✓ `ContactService` — Create (Index), Update (Index), Delete (Remove)
+- ✓ `CalendarEventService` — Create (Index), Update (Index), Delete (Remove)
+- ✓ `PhotoService` — Create (Index), Delete (Remove)
+- ✓ `VideoService` — Create (Index), Delete (Remove)
+- ✓ `CardService` (Tracks) — Create (Index), Update (Index), Move (Index), Delete (Remove)
+- ✓ `LibraryScanService` (Music) — IndexFile (Index)
+- ✓ `TrackService` (Music) — Delete (Remove), IEventBus injected
+
+#### Step 3.4 — Comprehensive Tests
+- ✓ `ContactServiceSearchIndexTests` — 4 tests (create, update, delete, event properties)
+- ✓ `CalendarEventServiceSearchIndexTests` — 3 tests (create, update, delete)
+- ✓ `MessageServiceSearchIndexTests` — 3 tests (send, edit, delete)
+- ✓ `NoteServiceSearchIndexTests` — 3 tests (create, update, delete)
+- ✓ `PhotoServiceSearchIndexTests` — 2 tests (create, delete)
+- ✓ `VideoServiceSearchIndexTests` — 2 tests (create, delete)
+- ✓ `TrackServiceSearchIndexTests` — 2 tests (delete, event properties)
+- ✓ `CardServiceSearchIndexTests` — 4 tests (create, update, move, delete)
+- ✓ All 23 tests passing, zero regressions

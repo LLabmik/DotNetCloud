@@ -398,4 +398,68 @@ public sealed class ChatGrpcService : ChatService.ChatServiceBase
 
         return msg;
     }
+
+    /// <inheritdoc />
+    public override async Task GetSearchableDocuments(
+        GetSearchableDocumentsRequest request,
+        IServerStreamWriter<SearchableDocument> responseStream,
+        ServerCallContext context)
+    {
+        var messages = await _db.Messages
+            .Include(m => m.Channel)
+            .Where(m => !m.IsDeleted)
+            .OrderBy(m => m.Id)
+            .ToListAsync(context.CancellationToken);
+
+        foreach (var message in messages)
+        {
+            var doc = MapToSearchableDocument(message);
+            await responseStream.WriteAsync(doc, context.CancellationToken);
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<SearchableDocumentResponse> GetSearchableDocument(
+        GetSearchableDocumentRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.EntityId, out var entityId))
+            return new SearchableDocumentResponse { Found = false };
+
+        var message = await _db.Messages
+            .Include(m => m.Channel)
+            .FirstOrDefaultAsync(m => m.Id == entityId && !m.IsDeleted, context.CancellationToken);
+
+        if (message is null)
+            return new SearchableDocumentResponse { Found = false };
+
+        return new SearchableDocumentResponse
+        {
+            Found = true,
+            Document = MapToSearchableDocument(message)
+        };
+    }
+
+    private static SearchableDocument MapToSearchableDocument(Message message)
+    {
+        var doc = new SearchableDocument
+        {
+            ModuleId = "chat",
+            EntityId = message.Id.ToString(),
+            EntityType = "Message",
+            Title = message.Channel?.Name ?? "Direct Message",
+            Content = message.Content,
+            Summary = message.Content.Length > 200
+                ? message.Content[..200] + "..."
+                : message.Content,
+            OwnerId = message.SenderUserId.ToString(),
+            CreatedAt = message.SentAt.ToString("O"),
+            UpdatedAt = (message.EditedAt ?? message.SentAt).ToString("O")
+        };
+
+        doc.Metadata["ChannelId"] = message.ChannelId.ToString();
+        doc.Metadata["SenderId"] = message.SenderUserId.ToString();
+        doc.Metadata["MessageType"] = message.Type.ToString();
+
+        return doc;
+    }
 }

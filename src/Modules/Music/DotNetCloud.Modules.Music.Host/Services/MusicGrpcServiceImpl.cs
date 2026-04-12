@@ -395,4 +395,76 @@ public sealed class MusicGrpcServiceImpl : MusicGrpcService.MusicGrpcServiceBase
             UpdatedAt = dto.UpdatedAt.ToString("O")
         };
     }
+
+    /// <inheritdoc />
+    public override async Task GetSearchableDocuments(
+        GetSearchableDocumentsRequest request,
+        IServerStreamWriter<MusicSearchableDocument> responseStream,
+        ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.UserId, out var userId))
+            return;
+
+        var caller = new CallerContext(userId, ["user"], CallerType.User);
+
+        // Index tracks (they reference artist + album)
+        var tracks = await _trackService.ListTracksAsync(caller, skip: 0, take: int.MaxValue,
+            context.CancellationToken);
+
+        foreach (var track in tracks)
+        {
+            var doc = MapTrackToSearchableDocument(track);
+            await responseStream.WriteAsync(doc, context.CancellationToken);
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<SearchableDocumentResponse> GetSearchableDocument(
+        GetSearchableDocumentRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.EntityId, out var entityId))
+            return new SearchableDocumentResponse { Found = false };
+
+        var track = await _trackService.GetTrackAsync(
+            entityId,
+            new CallerContext(Guid.Empty, ["system"], CallerType.System),
+            context.CancellationToken);
+
+        if (track is null)
+            return new SearchableDocumentResponse { Found = false };
+
+        return new SearchableDocumentResponse
+        {
+            Found = true,
+            Document = MapTrackToSearchableDocument(track)
+        };
+    }
+
+    private static MusicSearchableDocument MapTrackToSearchableDocument(TrackDto track)
+    {
+        var contentParts = new List<string>();
+        if (!string.IsNullOrEmpty(track.ArtistName)) contentParts.Add(track.ArtistName);
+        if (!string.IsNullOrEmpty(track.AlbumTitle)) contentParts.Add(track.AlbumTitle);
+        if (!string.IsNullOrEmpty(track.Genre)) contentParts.Add(track.Genre);
+
+        var doc = new MusicSearchableDocument
+        {
+            ModuleId = "music",
+            EntityId = track.Id.ToString(),
+            EntityType = "Track",
+            Title = track.Title,
+            Content = string.Join(" ", contentParts),
+            Summary = $"{track.ArtistName} - {track.AlbumTitle}",
+            OwnerId = string.Empty,
+            CreatedAt = track.CreatedAt.ToString("O"),
+            UpdatedAt = track.CreatedAt.ToString("O")
+        };
+
+        doc.Metadata["Genre"] = track.Genre ?? string.Empty;
+        doc.Metadata["Year"] = track.Year.ToString();
+        doc.Metadata["ArtistId"] = track.ArtistId.ToString();
+        doc.Metadata["AlbumId"] = track.AlbumId?.ToString() ?? string.Empty;
+
+        return doc;
+    }
 }

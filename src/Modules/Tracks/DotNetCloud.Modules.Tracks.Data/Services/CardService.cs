@@ -2,6 +2,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Events.Search;
 using DotNetCloud.Modules.Tracks.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -123,6 +124,15 @@ public sealed class CardService
             BoardId = swimlane.BoardId,
             SwimlaneId = swimlaneId,
             CreatedByUserId = caller.UserId
+        }, caller, cancellationToken);
+
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "tracks",
+            EntityId = card.Id.ToString(),
+            Action = SearchIndexAction.Index
         }, caller, cancellationToken);
 
         return await GetCardDtoAsync(card.Id, cancellationToken)
@@ -254,6 +264,15 @@ public sealed class CardService
             UpdatedByUserId = caller.UserId
         }, caller, cancellationToken);
 
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "tracks",
+            EntityId = cardId.ToString(),
+            Action = SearchIndexAction.Index
+        }, caller, cancellationToken);
+
         return await GetCardDtoAsync(cardId, cancellationToken)
             ?? throw new System.InvalidOperationException("Card was updated but could not be retrieved.");
     }
@@ -313,6 +332,15 @@ public sealed class CardService
             MovedByUserId = caller.UserId
         }, caller, cancellationToken);
 
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "tracks",
+            EntityId = cardId.ToString(),
+            Action = SearchIndexAction.Index
+        }, caller, cancellationToken);
+
         return await GetCardDtoAsync(cardId, cancellationToken)
             ?? throw new System.InvalidOperationException("Card was moved but could not be retrieved.");
     }
@@ -348,6 +376,15 @@ public sealed class CardService
             BoardId = card.Swimlane.BoardId,
             DeletedByUserId = caller.UserId,
             IsPermanent = false
+        }, caller, cancellationToken);
+
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "tracks",
+            EntityId = cardId.ToString(),
+            Action = SearchIndexAction.Remove
         }, caller, cancellationToken);
     }
 

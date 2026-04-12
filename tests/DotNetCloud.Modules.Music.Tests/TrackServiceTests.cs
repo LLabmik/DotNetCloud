@@ -1,8 +1,10 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Music.Data.Services;
 using DotNetCloud.Modules.Music.Services;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 
 namespace DotNetCloud.Modules.Music.Tests;
 
@@ -17,7 +19,7 @@ public class TrackServiceTests
     public void Setup()
     {
         _db = TestHelpers.CreateDb();
-        _service = new TrackService(_db, NullLogger<TrackService>.Instance);
+        _service = new TrackService(_db, new Mock<IEventBus>().Object, NullLogger<TrackService>.Instance);
         _caller = TestHelpers.CreateCaller();
     }
 

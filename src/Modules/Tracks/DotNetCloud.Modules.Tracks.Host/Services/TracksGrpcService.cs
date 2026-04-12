@@ -582,4 +582,91 @@ public sealed class TracksGrpcService : Protos.TracksGrpcService.TracksGrpcServi
             msg.ActivePokerSession = MapPokerSession(dto.ActivePokerSession);
         return msg;
     }
+
+    /// <inheritdoc />
+    public override async Task GetSearchableDocuments(
+        GetSearchableDocumentsRequest request,
+        IServerStreamWriter<SearchableDocument> responseStream,
+        ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.UserId, out var userId))
+            return;
+
+        var caller = new CallerContext(userId, ["user"], CallerType.User);
+
+        var boards = await _boardService.ListBoardsAsync(
+            caller, includeArchived: false, cancellationToken: context.CancellationToken);
+
+        foreach (var board in boards)
+        {
+            var swimlanes = await _swimlaneService.GetSwimlanesAsync(
+                board.Id, caller, context.CancellationToken);
+
+            foreach (var swimlane in swimlanes)
+            {
+                var cards = await _cardService.ListCardsAsync(
+                    swimlane.Id, caller, cancellationToken: context.CancellationToken);
+
+                foreach (var card in cards)
+                {
+                    var doc = MapCardToSearchableDocument(card, board.Title);
+                    await responseStream.WriteAsync(doc, context.CancellationToken);
+                }
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<SearchableDocumentResponse> GetSearchableDocument(
+        GetSearchableDocumentRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.EntityId, out var entityId))
+            return new SearchableDocumentResponse { Found = false };
+
+        var card = await _cardService.GetCardAsync(
+            entityId,
+            new CallerContext(Guid.Empty, ["system"], CallerType.System),
+            context.CancellationToken);
+
+        if (card is null)
+            return new SearchableDocumentResponse { Found = false };
+
+        return new SearchableDocumentResponse
+        {
+            Found = true,
+            Document = MapCardToSearchableDocument(card, null)
+        };
+    }
+
+    private static SearchableDocument MapCardToSearchableDocument(CardDto card, string? boardTitle)
+    {
+        var contentParts = new List<string>();
+        if (!string.IsNullOrEmpty(card.Description)) contentParts.Add(card.Description);
+        foreach (var label in card.Labels)
+            contentParts.Add(label.Title);
+
+        var doc = new SearchableDocument
+        {
+            ModuleId = "tracks",
+            EntityId = card.Id.ToString(),
+            EntityType = "Card",
+            Title = card.Title,
+            Content = string.Join(" ", contentParts),
+            Summary = card.Description?.Length > 200
+                ? card.Description[..200] + "..."
+                : card.Description ?? string.Empty,
+            OwnerId = string.Empty,
+            CreatedAt = card.CreatedAt.ToString("O"),
+            UpdatedAt = card.UpdatedAt.ToString("O")
+        };
+
+        doc.Metadata["BoardId"] = card.BoardId.ToString();
+        doc.Metadata["Priority"] = card.Priority.ToString();
+        if (boardTitle is not null)
+            doc.Metadata["BoardTitle"] = boardTitle;
+        if (card.Labels.Count > 0)
+            doc.Metadata["Labels"] = string.Join(",", card.Labels.Select(l => l.Title));
+
+        return doc;
+    }
 }

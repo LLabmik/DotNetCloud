@@ -51,6 +51,12 @@ service MusicGrpcService {
 
   // Searches across artists, albums, and tracks.
   rpc Search (SearchRequest) returns (SearchResponse);
+
+  // Returns all searchable documents for full reindex (streaming).
+  rpc GetSearchableDocuments (GetSearchableDocumentsRequest) returns (stream MusicSearchableDocument);
+
+  // Returns a single searchable document by entity ID.
+  rpc GetSearchableDocument (GetSearchableDocumentRequest) returns (SearchableDocumentResponse);
 }
 
 // ── Artist Messages ─────────────────────────────────────────────
@@ -265,4 +271,33 @@ message SearchResponse {
 message GenericResponse {
   bool success = 1;
   string error_message = 2;
+}
+
+// --- Search Integration ---
+
+message GetSearchableDocumentsRequest {
+  string user_id = 1;
+}
+
+message GetSearchableDocumentRequest {
+  string entity_id = 1;
+}
+
+message SearchableDocumentResponse {
+  bool found = 1;
+  MusicSearchableDocument document = 2;
+}
+
+message MusicSearchableDocument {
+  string module_id = 1;
+  string entity_id = 2;
+  string entity_type = 3;
+  string title = 4;
+  string content = 5;
+  string summary = 6;
+  string owner_id = 7;
+  string organization_id = 8;
+  string created_at = 9;
+  string updated_at = 10;
+  map<string, string> metadata = 11;
 }

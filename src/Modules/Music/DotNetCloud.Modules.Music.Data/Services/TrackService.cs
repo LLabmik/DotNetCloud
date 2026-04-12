@@ -1,6 +1,8 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
+using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Events.Search;
 using DotNetCloud.Modules.Music.Models;
 using DotNetCloud.Modules.Music.Services;
 using Microsoft.EntityFrameworkCore;
@@ -14,14 +16,16 @@ namespace DotNetCloud.Modules.Music.Data.Services;
 public sealed class TrackService : ITrackService
 {
     private readonly MusicDbContext _db;
+    private readonly IEventBus _eventBus;
     private readonly ILogger<TrackService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TrackService"/> class.
     /// </summary>
-    public TrackService(MusicDbContext db, ILogger<TrackService> logger)
+    public TrackService(MusicDbContext db, IEventBus eventBus, ILogger<TrackService> logger)
     {
         _db = db;
+        _eventBus = eventBus;
         _logger = logger;
     }
 
@@ -148,6 +152,15 @@ public sealed class TrackService : ITrackService
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Track {TrackId} soft-deleted by user {UserId}", trackId, caller.UserId);
+
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "music",
+            EntityId = trackId.ToString(),
+            Action = SearchIndexAction.Remove
+        }, caller, cancellationToken);
     }
 
     /// <summary>

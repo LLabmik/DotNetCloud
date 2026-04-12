@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Events.Search;
 using DotNetCloud.Modules.Calendar.Models;
 using DotNetCloud.Modules.Calendar.Services;
 using Microsoft.EntityFrameworkCore;
@@ -102,6 +103,15 @@ public sealed class CalendarEventService : ICalendarEventService
             StartUtc = calendarEvent.StartUtc,
             EndUtc = calendarEvent.EndUtc,
             IsRecurring = calendarEvent.RecurrenceRule is not null
+        }, caller, cancellationToken);
+
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "calendar",
+            EntityId = calendarEvent.Id.ToString(),
+            Action = SearchIndexAction.Index
         }, caller, cancellationToken);
 
         return MapToDto(calendarEvent);
@@ -221,6 +231,15 @@ public sealed class CalendarEventService : ICalendarEventService
             UpdatedByUserId = caller.UserId
         }, caller, cancellationToken);
 
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "calendar",
+            EntityId = eventId.ToString(),
+            Action = SearchIndexAction.Index
+        }, caller, cancellationToken);
+
         return MapToDto(calendarEvent);
     }
 
@@ -259,6 +278,15 @@ public sealed class CalendarEventService : ICalendarEventService
             CalendarId = calendarEvent.CalendarId,
             DeletedByUserId = caller.UserId,
             IsPermanent = false
+        }, caller, cancellationToken);
+
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "calendar",
+            EntityId = eventId.ToString(),
+            Action = SearchIndexAction.Remove
         }, caller, cancellationToken);
     }
 

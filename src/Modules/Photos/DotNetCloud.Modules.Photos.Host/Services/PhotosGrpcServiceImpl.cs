@@ -313,4 +313,77 @@ public sealed class PhotosGrpcServiceImpl : PhotosGrpcService.PhotosGrpcServiceB
             IsShared = dto.IsShared
         };
     }
+
+    /// <inheritdoc />
+    public override async Task GetSearchableDocuments(
+        GetSearchableDocumentsRequest request,
+        IServerStreamWriter<SearchableDocument> responseStream,
+        ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.UserId, out var userId))
+            return;
+
+        var caller = new CallerContext(userId, ["user"], CallerType.User);
+
+        var photos = await _photoService.ListPhotosAsync(
+            caller, skip: 0, take: int.MaxValue, context.CancellationToken);
+
+        foreach (var photo in photos)
+        {
+            var doc = MapPhotoToSearchableDocument(photo);
+            await responseStream.WriteAsync(doc, context.CancellationToken);
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<SearchableDocumentResponse> GetSearchableDocument(
+        GetSearchableDocumentRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.EntityId, out var entityId))
+            return new SearchableDocumentResponse { Found = false };
+
+        var photo = await _photoService.GetPhotoAsync(
+            entityId,
+            new CallerContext(Guid.Empty, ["system"], CallerType.System),
+            context.CancellationToken);
+
+        if (photo is null)
+            return new SearchableDocumentResponse { Found = false };
+
+        return new SearchableDocumentResponse
+        {
+            Found = true,
+            Document = MapPhotoToSearchableDocument(photo)
+        };
+    }
+
+    private static SearchableDocument MapPhotoToSearchableDocument(PhotoDto photo)
+    {
+        var contentParts = new List<string> { photo.FileName };
+        if (photo.Metadata is not null)
+        {
+            if (!string.IsNullOrEmpty(photo.Metadata.CameraModel))
+                contentParts.Add(photo.Metadata.CameraModel);
+        }
+
+        var doc = new SearchableDocument
+        {
+            ModuleId = "photos",
+            EntityId = photo.Id.ToString(),
+            EntityType = "Photo",
+            Title = photo.FileName,
+            Content = string.Join(" ", contentParts),
+            Summary = $"{photo.MimeType} ({photo.Width}x{photo.Height})",
+            OwnerId = photo.OwnerId.ToString(),
+            CreatedAt = photo.CreatedAt.ToString("O"),
+            UpdatedAt = photo.UpdatedAt.ToString("O")
+        };
+
+        doc.Metadata["MimeType"] = photo.MimeType;
+        doc.Metadata["TakenAt"] = photo.TakenAt.ToString("O");
+        if (photo.Metadata?.CameraModel is not null)
+            doc.Metadata["Camera"] = photo.Metadata.CameraModel;
+
+        return doc;
+    }
 }

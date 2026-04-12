@@ -2,6 +2,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Events.Search;
 using DotNetCloud.Modules.Video.Models;
 using DotNetCloud.Modules.Video.Services;
 using Microsoft.EntityFrameworkCore;
@@ -66,6 +67,15 @@ public sealed class VideoService : IVideoService
             FileNodeId = fileNodeId,
             OwnerId = ownerId,
             FileName = fileName
+        }, caller, cancellationToken);
+
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "video",
+            EntityId = video.Id.ToString(),
+            Action = SearchIndexAction.Index
         }, caller, cancellationToken);
 
         return MapToDto(video, ownerId);
@@ -177,6 +187,15 @@ public sealed class VideoService : IVideoService
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Video {VideoId} soft-deleted by user {UserId}", videoId, caller.UserId);
+
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "video",
+            EntityId = videoId.ToString(),
+            Action = SearchIndexAction.Remove
+        }, caller, cancellationToken);
     }
 
     internal VideoDto MapToDto(Models.Video video, Guid userId)

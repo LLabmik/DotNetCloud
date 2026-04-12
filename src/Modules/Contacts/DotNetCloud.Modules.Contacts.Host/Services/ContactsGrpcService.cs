@@ -314,4 +314,79 @@ public sealed class ContactsGrpcService : ContactsService.ContactsServiceBase
         !string.IsNullOrEmpty(value) && DateOnly.TryParse(value, out var date)
             ? date
             : null;
+
+    /// <inheritdoc />
+    public override async Task GetSearchableDocuments(
+        GetSearchableDocumentsRequest request,
+        IServerStreamWriter<SearchableDocument> responseStream,
+        ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.UserId, out var userId))
+            return;
+
+        var contacts = await _contactService.ListContactsAsync(
+            new CallerContext(userId, ["user"], CallerType.User),
+            search: null, skip: 0, take: int.MaxValue,
+            context.CancellationToken);
+
+        foreach (var contact in contacts)
+        {
+            var doc = MapContactToSearchableDocument(contact);
+            await responseStream.WriteAsync(doc, context.CancellationToken);
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<SearchableDocumentResponse> GetSearchableDocument(
+        GetSearchableDocumentRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.EntityId, out var entityId))
+            return new SearchableDocumentResponse { Found = false };
+
+        var contact = await _contactService.GetContactAsync(
+            entityId,
+            new CallerContext(Guid.Empty, ["system"], CallerType.System),
+            context.CancellationToken);
+
+        if (contact is null)
+            return new SearchableDocumentResponse { Found = false };
+
+        return new SearchableDocumentResponse
+        {
+            Found = true,
+            Document = MapContactToSearchableDocument(contact)
+        };
+    }
+
+    private static SearchableDocument MapContactToSearchableDocument(ContactDto dto)
+    {
+        var contentParts = new List<string>();
+        if (!string.IsNullOrEmpty(dto.FirstName)) contentParts.Add(dto.FirstName);
+        if (!string.IsNullOrEmpty(dto.LastName)) contentParts.Add(dto.LastName);
+        if (!string.IsNullOrEmpty(dto.Organization)) contentParts.Add(dto.Organization);
+        if (!string.IsNullOrEmpty(dto.Department)) contentParts.Add(dto.Department);
+        if (!string.IsNullOrEmpty(dto.JobTitle)) contentParts.Add(dto.JobTitle);
+        if (!string.IsNullOrEmpty(dto.Notes)) contentParts.Add(dto.Notes);
+        foreach (var email in dto.Emails)
+            contentParts.Add(email.Address);
+        foreach (var phone in dto.PhoneNumbers)
+            contentParts.Add(phone.Number);
+
+        var doc = new SearchableDocument
+        {
+            ModuleId = "contacts",
+            EntityId = dto.Id.ToString(),
+            EntityType = "Contact",
+            Title = dto.DisplayName,
+            Content = string.Join(" ", contentParts),
+            Summary = dto.Organization ?? dto.JobTitle ?? string.Empty,
+            OwnerId = dto.OwnerId.ToString(),
+            CreatedAt = dto.CreatedAt.ToString("O"),
+            UpdatedAt = dto.UpdatedAt.ToString("O")
+        };
+
+        doc.Metadata["ContactType"] = dto.ContactType.ToString();
+
+        return doc;
+    }
 }

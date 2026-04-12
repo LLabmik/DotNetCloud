@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Events.Search;
 using DotNetCloud.Modules.Music.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -199,6 +200,15 @@ public sealed class LibraryScanService
         _logger.LogInformation(
             "Indexed track {TrackId} '{Title}' by '{Artist}' on '{Album}'",
             track.Id, track.Title, artist.Name, album.Title);
+
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "music",
+            EntityId = track.Id.ToString(),
+            Action = SearchIndexAction.Index
+        }, new CallerContext(ownerId, ["user"], CallerType.User), cancellationToken);
 
         return track;
     }

@@ -286,4 +286,69 @@ public sealed class VideoGrpcServiceImpl : VideoGrpcService.VideoGrpcServiceBase
             UpdatedAt = dto.LastWatchedAt.ToString("O")
         };
     }
+
+    /// <inheritdoc />
+    public override async Task GetSearchableDocuments(
+        GetSearchableDocumentsRequest request,
+        IServerStreamWriter<SearchableDocument> responseStream,
+        ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.UserId, out var userId))
+            return;
+
+        var caller = new CallerContext(userId, ["user"], CallerType.User);
+
+        var videos = await _videoService.ListVideosAsync(
+            caller, skip: 0, take: int.MaxValue, context.CancellationToken);
+
+        foreach (var video in videos)
+        {
+            var doc = MapVideoToSearchableDocument(video);
+            await responseStream.WriteAsync(doc, context.CancellationToken);
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<SearchableDocumentResponse> GetSearchableDocument(
+        GetSearchableDocumentRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.EntityId, out var entityId))
+            return new SearchableDocumentResponse { Found = false };
+
+        var video = await _videoService.GetVideoAsync(
+            entityId,
+            new CallerContext(Guid.Empty, ["system"], CallerType.System),
+            context.CancellationToken);
+
+        if (video is null)
+            return new SearchableDocumentResponse { Found = false };
+
+        return new SearchableDocumentResponse
+        {
+            Found = true,
+            Document = MapVideoToSearchableDocument(video)
+        };
+    }
+
+    private static SearchableDocument MapVideoToSearchableDocument(VideoDto video)
+    {
+        var doc = new SearchableDocument
+        {
+            ModuleId = "video",
+            EntityId = video.Id.ToString(),
+            EntityType = "Video",
+            Title = video.Title,
+            Content = string.Empty,
+            Summary = video.FileName,
+            OwnerId = string.Empty,
+            CreatedAt = video.CreatedAt.ToString("O"),
+            UpdatedAt = video.CreatedAt.ToString("O")
+        };
+
+        doc.Metadata["MimeType"] = video.MimeType;
+        doc.Metadata["Duration"] = video.Duration.ToString();
+        doc.Metadata["FileName"] = video.FileName;
+
+        return doc;
+    }
 }

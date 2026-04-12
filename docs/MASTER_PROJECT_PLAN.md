@@ -97,7 +97,7 @@
 | Phase 4.8                   | 8       | 8         | 0           | 0       |
 | Phase 4.9                   | 42      | 42        | 0           | 0       |
 | Phase 5-8                   | Summary | 8         | 0           | 0       |
-| Phase 8 (Full-Text Search)  | 10      | 10        | 0           | 0       |
+| Phase 8 (Full-Text Search)  | 13      | 13        | 0           | 0       |
 | Phase 9                     | 7       | 5         | 0           | 2       |
 | Infrastructure              | Summary | 0         | 0           | 1       |
 | Documentation               | Summary | 0         | 0           | 1       |
@@ -2183,4 +2183,17 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 - ✓ REST endpoints: GET /search, GET /suggest, GET /stats, POST /admin/reindex, POST /admin/reindex/{moduleId}
 - ✓ `DotNetCloud.Modules.Search.Tests` — 116 tests, all passing (12 test files covering providers, services, extractors, module lifecycle, DbContext)
 
-**Notes:** Phase 2 complete. Search module scaffold fully operational with EF Core InMemory. Phase 1 interfaces/DTOs (in DotNetCloud.Core) were already in place. Next: Phase 3 — PostgreSQL Full-Text Search Integration (tsvector, tsquery, GIN indexes).
+**Notes:** Phase 2 complete. Search module scaffold fully operational with EF Core InMemory. Phase 1 interfaces/DTOs (in DotNetCloud.Core) were already in place.
+
+### Section: Phase 8.3 — Module Search API Integration
+**Status:** completed ✅
+**Duration:** ~4 hours
+**Deliverables:**
+- ✓ Search RPCs added to all 9 module protos (Files, Chat, Notes, Contacts, Calendar, Photos, Music, Video, Tracks)
+- ✓ `GetSearchableDocuments` (server streaming) + `GetSearchableDocument` (unary) + `SearchableDocument` message per module
+- ✓ gRPC service implementations mapping domain entities to SearchableDocument in all 9 modules
+- ✓ `SearchIndexRequestEvent` publishing on CRUD operations in 10 service files across 9 modules
+- ✓ 8 new test files with 23 SearchIndex tests — all passing
+- ✓ Zero regressions across full test suite
+
+**Notes:** Phase 3 complete. All modules now expose searchable data via gRPC and publish SearchIndexRequestEvent on CRUD operations. AI module excluded (REST only, no proto/gRPC). Next: Phase 4 — Indexing Engine (event-driven + scheduled reindex).

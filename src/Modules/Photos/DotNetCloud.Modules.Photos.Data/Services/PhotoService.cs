@@ -2,6 +2,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Events.Search;
 using DotNetCloud.Modules.Photos.Data;
 using DotNetCloud.Modules.Photos.Models;
 using DotNetCloud.Modules.Photos.Services;
@@ -70,6 +71,15 @@ public sealed class PhotoService : IPhotoService
             FileNodeId = fileNodeId,
             OwnerId = ownerId,
             FileName = fileName
+        }, caller, cancellationToken);
+
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "photos",
+            EntityId = photo.Id.ToString(),
+            Action = SearchIndexAction.Index
         }, caller, cancellationToken);
 
         return MapToDto(photo);
@@ -175,6 +185,15 @@ public sealed class PhotoService : IPhotoService
             PhotoId = photoId,
             DeletedByUserId = caller.UserId,
             IsPermanent = false
+        }, caller, cancellationToken);
+
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "photos",
+            EntityId = photoId.ToString(),
+            Action = SearchIndexAction.Remove
         }, caller, cancellationToken);
     }
 

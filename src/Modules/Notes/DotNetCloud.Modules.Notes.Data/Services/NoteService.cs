@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Events.Search;
 using DotNetCloud.Modules.Notes.Models;
 using DotNetCloud.Modules.Notes.Services;
 using Microsoft.EntityFrameworkCore;
@@ -87,6 +88,15 @@ public sealed class NoteService : INoteService
             Title = note.Title,
             OwnerId = caller.UserId,
             FolderId = note.FolderId
+        }, caller, cancellationToken);
+
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "notes",
+            EntityId = note.Id.ToString(),
+            Action = SearchIndexAction.Index
         }, caller, cancellationToken);
 
         return MapToDto(note);
@@ -215,6 +225,15 @@ public sealed class NoteService : INoteService
             NewVersion = note.Version
         }, caller, cancellationToken);
 
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "notes",
+            EntityId = noteId.ToString(),
+            Action = SearchIndexAction.Index
+        }, caller, cancellationToken);
+
         // Reload with all navigations for the response DTO
         var updated = await QueryNotes()
             .FirstAsync(n => n.Id == noteId, cancellationToken);
@@ -244,6 +263,15 @@ public sealed class NoteService : INoteService
             NoteId = noteId,
             DeletedByUserId = caller.UserId,
             IsPermanent = false
+        }, caller, cancellationToken);
+
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "notes",
+            EntityId = noteId.ToString(),
+            Action = SearchIndexAction.Remove
         }, caller, cancellationToken);
     }
 

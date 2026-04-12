@@ -331,4 +331,73 @@ public sealed class NotesGrpcService : Protos.NotesGrpcService.NotesGrpcServiceB
 
     private static string? NullIfEmpty(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value;
+
+    /// <inheritdoc />
+    public override async Task GetSearchableDocuments(
+        GetSearchableDocumentsRequest request,
+        IServerStreamWriter<SearchableDocument> responseStream,
+        ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.UserId, out var userId))
+            return;
+
+        var notes = await _noteService.ListNotesAsync(
+            new CallerContext(userId, ["user"], CallerType.User),
+            folderId: null, skip: 0, take: int.MaxValue,
+            context.CancellationToken);
+
+        foreach (var note in notes)
+        {
+            var doc = MapNoteToSearchableDocument(note);
+            await responseStream.WriteAsync(doc, context.CancellationToken);
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<SearchableDocumentResponse> GetSearchableDocument(
+        GetSearchableDocumentRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.EntityId, out var entityId))
+            return new SearchableDocumentResponse { Found = false };
+
+        // Use a system-level caller to retrieve the note for indexing
+        var note = await _noteService.GetNoteAsync(
+            entityId,
+            new CallerContext(Guid.Empty, ["system"], CallerType.System),
+            context.CancellationToken);
+
+        if (note is null)
+            return new SearchableDocumentResponse { Found = false };
+
+        return new SearchableDocumentResponse
+        {
+            Found = true,
+            Document = MapNoteToSearchableDocument(note)
+        };
+    }
+
+    private static SearchableDocument MapNoteToSearchableDocument(NoteDto note)
+    {
+        var doc = new SearchableDocument
+        {
+            ModuleId = "notes",
+            EntityId = note.Id.ToString(),
+            EntityType = "Note",
+            Title = note.Title,
+            Content = note.Content,
+            Summary = note.Content.Length > 200
+                ? note.Content[..200] + "..."
+                : note.Content,
+            OwnerId = note.OwnerId.ToString(),
+            CreatedAt = note.CreatedAt.ToString("O"),
+            UpdatedAt = note.UpdatedAt.ToString("O")
+        };
+
+        doc.Metadata["Format"] = note.Format.ToString();
+        doc.Metadata["FolderId"] = note.FolderId?.ToString() ?? string.Empty;
+        if (note.Tags.Count > 0)
+            doc.Metadata["Tags"] = string.Join(",", note.Tags);
+
+        return doc;
+    }
 }
