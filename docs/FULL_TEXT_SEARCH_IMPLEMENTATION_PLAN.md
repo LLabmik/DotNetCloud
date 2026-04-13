@@ -461,11 +461,11 @@ All snippets use HTML-safe highlighting with `<mark>` tags (sanitized to prevent
 
 ---
 
-### Phase 6: REST + gRPC API
+### Phase 6: REST + gRPC API ✅ COMPLETED
 
-> **Depends on Phase 5.**
+> **Depends on Phase 5.** Status: **Completed** (2026-06-14)
 
-#### Step 6.1 — REST SearchController
+#### Step 6.1 — REST SearchController ✅
 
 **Location:** `src/Modules/Search/DotNetCloud.Modules.Search.Host/Controllers/SearchController.cs`
 
@@ -479,23 +479,30 @@ All snippets use HTML-safe highlighting with `<mark>` tags (sanitized to prevent
 
 Standard envelope response format (matches existing API pattern). `CallerContext` for permission scoping.
 
-#### Step 6.2 — gRPC SearchGrpcService
+#### Step 6.2 — gRPC SearchGrpcService ✅
 
 - Implements proto from Step 2.5
 - Used by other modules to query search results programmatically
 - Same underlying `SearchQueryService`
 
-#### Step 6.3 — Enhanced Per-Module Search Endpoints
+#### Step 6.3 — Enhanced Per-Module Search Endpoints ✅
 
 Upgrade existing module search endpoints to use FTS:
 
 | Module | Endpoint | Current | Upgraded |
 |--------|----------|---------|----------|
-| **Files** | `GET /api/v1/files/search` | LIKE query | FTS via Search module gRPC |
-| **Chat** | `GET /api/v1/chat/channels/{id}/messages/search` | LIKE query | FTS via Search module gRPC |
-| **Notes** | `GET /api/v1/notes/search` | Case-insensitive substring | FTS via Search module gRPC |
+| **Files** | `GET /api/v1/files/search` | ~~LIKE query~~ | ✅ FTS via Search module gRPC |
+| **Chat** | `GET /api/v1/chat/channels/{id}/messages/search` | ~~LIKE query~~ | ✅ FTS via Search module gRPC |
+| **Notes** | `GET /api/v1/notes/search` | ~~Case-insensitive substring~~ | ✅ FTS via Search module gRPC |
 
-Each module calls the Search module's gRPC with a module filter for consistency.
+Each module calls the Search module's gRPC with a module filter for consistency. Graceful fallback to LIKE-based search when the Search module is unavailable.
+
+**Implementation Details:**
+- ✓ Created `DotNetCloud.Modules.Search.Client` project — shared gRPC client library with `ISearchFtsClient` / `SearchFtsClient`
+- ✓ `SearchFtsClient` handles lazy channel creation, Unix socket support, timeout configuration, graceful degradation (returns null on gRPC errors)
+- ✓ DI via `AddSearchFtsClient()` extension methods (IConfiguration or direct address string)
+- ✓ Files/Chat/Notes controllers updated with optional `ISearchFtsClient?` injection
+- ✓ 89 comprehensive Phase 6 unit tests (432 total Search module tests)
 
 ---
 

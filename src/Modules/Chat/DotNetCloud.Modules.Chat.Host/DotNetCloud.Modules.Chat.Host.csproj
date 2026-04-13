@@ -27,6 +27,7 @@
     <ProjectReference Include="..\DotNetCloud.Modules.Chat\DotNetCloud.Modules.Chat.csproj" />
     <ProjectReference Include="..\DotNetCloud.Modules.Chat.Data\DotNetCloud.Modules.Chat.Data.csproj" />
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
+    <ProjectReference Include="..\..\Search\DotNetCloud.Modules.Search.Client\DotNetCloud.Modules.Search.Client.csproj" />
   </ItemGroup>
 
 </Project>

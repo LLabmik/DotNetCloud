@@ -2,6 +2,7 @@ using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Chat;
 using DotNetCloud.Modules.Chat.Data;
 using DotNetCloud.Modules.Chat.Host.Services;
+using DotNetCloud.Modules.Search.Client;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,6 +19,9 @@ builder.Services.AddDbContext<ChatDbContext>(options =>
 
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
+
+// Search FTS client for full-text search via Search module gRPC
+builder.Services.AddSearchFtsClient(builder.Configuration);
 
 // Register all chat business-logic services (Channel, Message, Reaction, Pin, Typing)
 builder.Services.AddChatServices(builder.Configuration);

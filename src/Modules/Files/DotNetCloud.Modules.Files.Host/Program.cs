@@ -3,6 +3,7 @@ using DotNetCloud.Modules.Files;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Host.Services;
 using DotNetCloud.Modules.Files.Services;
+using DotNetCloud.Modules.Search.Client;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 
@@ -35,6 +36,9 @@ builder.Services.AddSingleton<IFileStorageEngine>(sp =>
 
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
+
+// Search FTS client for full-text search via Search module gRPC
+builder.Services.AddSearchFtsClient(builder.Configuration);
 
 // gRPC
 builder.Services.AddGrpc();

@@ -1,8 +1,10 @@
 using System.ComponentModel.DataAnnotations;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.DTOs.Search;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Notes.Models;
 using DotNetCloud.Modules.Notes.Services;
+using DotNetCloud.Modules.Search.Client;
 using DotNetCloud.UI.Shared.Services;
 using Microsoft.AspNetCore.Mvc;
 using ValidationException = DotNetCloud.Core.Errors.ValidationException;
@@ -20,6 +22,7 @@ public class NotesController : NotesControllerBase
     private readonly INoteShareService _shareService;
     private readonly IMarkdownRenderer _markdownRenderer;
     private readonly ILogger<NotesController> _logger;
+    private readonly ISearchFtsClient? _searchFtsClient;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="NotesController"/> class.
@@ -29,13 +32,15 @@ public class NotesController : NotesControllerBase
         INoteFolderService folderService,
         INoteShareService shareService,
         IMarkdownRenderer markdownRenderer,
-        ILogger<NotesController> logger)
+        ILogger<NotesController> logger,
+        ISearchFtsClient? searchFtsClient = null)
     {
         _noteService = noteService;
         _folderService = folderService;
         _shareService = shareService;
         _markdownRenderer = markdownRenderer;
         _logger = logger;
+        _searchFtsClient = searchFtsClient;
     }
 
     // ─── Note CRUD ────────────────────────────────────────────────────────
@@ -121,7 +126,7 @@ public class NotesController : NotesControllerBase
 
     // ─── Search ───────────────────────────────────────────────────────────
 
-    /// <summary>Searches notes by title, content, and tags.</summary>
+    /// <summary>Searches notes by title, content, and tags using full-text search when available.</summary>
     [HttpGet("search")]
     public async Task<IActionResult> SearchNotesAsync(
         [FromQuery] string? q = null,
@@ -129,6 +134,22 @@ public class NotesController : NotesControllerBase
         [FromQuery] int take = 50)
     {
         var caller = GetAuthenticatedCaller();
+
+        // Try FTS via Search module gRPC when available
+        if (!string.IsNullOrWhiteSpace(q) && _searchFtsClient is { IsAvailable: true })
+        {
+            var page = skip > 0 ? (skip / take) + 1 : 1;
+            var ftsResult = await _searchFtsClient.SearchAsync(
+                q, moduleFilter: "notes", userId: caller.UserId,
+                page: page, pageSize: take);
+
+            if (ftsResult is not null)
+            {
+                return Ok(Envelope(ftsResult.Items));
+            }
+        }
+
+        // Fallback to LIKE-based search
         var notes = await _noteService.SearchNotesAsync(caller, q, skip, take);
         return Ok(Envelope(notes));
     }

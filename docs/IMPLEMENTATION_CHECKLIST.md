@@ -4127,3 +4127,34 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `CrossModuleResultAggregationTests` — 20 tests
 - ✓ `SearchQueryServicePhase5Tests` — 14 tests
 - ✓ All 343 search tests passing
+
+### Phase 6: REST + gRPC API ✅
+
+#### Step 6.1 — REST SearchController
+- ✓ `SearchController` — GET /search, GET /suggest, GET /stats, POST /admin/reindex, POST /admin/reindex/{moduleId}
+- ✓ Authentication & authorization (admin-only for stats/reindex)
+- ✓ Standard envelope response format, CallerContext permission scoping
+
+#### Step 6.2 — gRPC SearchGrpcService
+- ✓ `SearchGrpcService` — Search, IndexDocument, RemoveDocument, ReindexModule, GetIndexStats RPCs
+- ✓ Delegates to SearchQueryService/ISearchProvider
+
+#### Step 6.3 — Enhanced Per-Module Search Endpoints
+- ✓ `DotNetCloud.Modules.Search.Client` project — shared gRPC client library
+- ✓ `ISearchFtsClient` interface with IsAvailable + SearchAsync
+- ✓ `SearchFtsClient` — lazy GrpcChannel, Unix socket support, timeout config, graceful degradation
+- ✓ `SearchFtsClientOptions` — SearchModuleAddress + Timeout configuration
+- ✓ `SearchClientServiceExtensions` — AddSearchFtsClient DI registration (IConfiguration or address string)
+- ✓ Files controller updated — FTS first, fallback to LIKE
+- ✓ Chat controller updated — FTS first, fallback to LIKE
+- ✓ Notes controller updated — FTS first, fallback to LIKE
+
+#### Step 6.4 — Comprehensive Tests
+- ✓ `SearchControllerTests` — 18 tests (search, suggest, stats, reindex endpoints)
+- ✓ `SearchGrpcServiceTests` — 18 tests (all 5 RPCs with various scenarios)
+- ✓ `SearchFtsClientTests` — 8 tests (IsAvailable, SearchAsync unavailable, graceful degradation, Dispose)
+- ✓ `SearchFtsClientOptionsTests` — 6 tests (defaults, address types, timeout)
+- ✓ `SearchClientServiceExtensionsTests` — 5 tests (DI registration, lifecycle, Unix socket)
+- ✓ `EnhancedModuleSearchTests` — 15 tests (FTS integration, graceful fallback, permissions, pagination)
+- ✓ `Phase6ApiIntegrationTests` — 19 tests (REST + gRPC pipeline, cross-module consistency)
+- ✓ All 432 search tests passing (89 Phase 6 + 343 previous)

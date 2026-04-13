@@ -22,6 +22,9 @@
     <ProjectReference Include="..\..\src\Modules\Search\DotNetCloud.Modules.Search\DotNetCloud.Modules.Search.csproj" />
     <ProjectReference Include="..\..\src\Modules\Search\DotNetCloud.Modules.Search.Data\DotNetCloud.Modules.Search.Data.csproj" />
     <ProjectReference Include="..\..\src\Modules\Search\DotNetCloud.Modules.Search.Host\DotNetCloud.Modules.Search.Host.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Search\DotNetCloud.Modules.Search.Client\DotNetCloud.Modules.Search.Client.csproj">
+      <Aliases>SearchClient</Aliases>
+    </ProjectReference>
   </ItemGroup>
 
   <ItemGroup>

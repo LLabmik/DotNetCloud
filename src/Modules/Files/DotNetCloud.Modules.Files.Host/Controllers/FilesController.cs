@@ -1,6 +1,8 @@
+using DotNetCloud.Core.DTOs.Search;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
+using DotNetCloud.Modules.Search.Client;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -24,6 +26,7 @@ public class FilesController : FilesControllerBase
     private readonly ILogger<FilesController> _logger;
     private readonly FileSystemOptions _fileSystemOptions;
     private readonly FileUploadOptions _uploadOptions;
+    private readonly ISearchFtsClient? _searchFtsClient;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FilesController"/> class.
@@ -37,7 +40,8 @@ public class FilesController : FilesControllerBase
         IThumbnailService thumbnailService,
         ILogger<FilesController> logger,
         IOptions<FileSystemOptions> fileSystemOptions,
-        IOptions<FileUploadOptions> uploadOptions)
+        IOptions<FileUploadOptions> uploadOptions,
+        ISearchFtsClient? searchFtsClient = null)
     {
         _fileService = fileService;
         _uploadService = uploadService;
@@ -48,6 +52,7 @@ public class FilesController : FilesControllerBase
         _logger = logger;
         _fileSystemOptions = fileSystemOptions.Value;
         _uploadOptions = uploadOptions.Value;
+        _searchFtsClient = searchFtsClient;
     }
 
     /// <summary>
@@ -279,7 +284,8 @@ public class FilesController : FilesControllerBase
     });
 
     /// <summary>
-    /// Searches for files and folders by name.
+    /// Searches for files and folders by name using full-text search when available.
+    /// Falls back to LIKE-based search when the Search module is unavailable.
     /// </summary>
     [HttpGet("search")]
     public Task<IActionResult> SearchAsync(
@@ -287,7 +293,32 @@ public class FilesController : FilesControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20) => ExecuteAsync(async () =>
     {
-        var result = await _fileService.SearchAsync(query, page, pageSize, GetAuthenticatedCaller());
+        var caller = GetAuthenticatedCaller();
+
+        // Try FTS via Search module gRPC when available
+        if (_searchFtsClient is { IsAvailable: true })
+        {
+            var ftsResult = await _searchFtsClient.SearchAsync(
+                query, moduleFilter: "files", userId: caller.UserId,
+                page: page, pageSize: pageSize);
+
+            if (ftsResult is not null)
+            {
+                return Ok(new
+                {
+                    items = ftsResult.Items,
+                    page = ftsResult.Page,
+                    pageSize = ftsResult.PageSize,
+                    totalCount = ftsResult.TotalCount,
+                    totalPages = ftsResult.TotalCount > 0
+                        ? (int)Math.Ceiling((double)ftsResult.TotalCount / ftsResult.PageSize)
+                        : 0
+                });
+            }
+        }
+
+        // Fallback to LIKE-based search
+        var result = await _fileService.SearchAsync(query, page, pageSize, caller);
         return Ok(new { items = result.Items, page = result.Page, pageSize = result.PageSize, totalCount = result.TotalCount, totalPages = result.TotalPages });
     });
 
