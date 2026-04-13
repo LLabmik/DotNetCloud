@@ -314,9 +314,12 @@
         }
     }
 
-    private static string GetResultUrl(SearchResultItem item) => item.ModuleId switch
+    private static string GetResultUrl(SearchResultItem item)
     {
-        "files" => $"/apps/files?fileId={item.EntityId}",
+        var nav = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        return item.ModuleId switch
+        {
+            "files" => $"/apps/files?fileId={item.EntityId}&_nav={nav}",
         "notes" => $"/apps/notes?noteId={item.EntityId}",
         "chat" => item.Metadata.TryGetValue("ChannelId", out var channelId)
             ? $"/apps/chat?channelId={channelId}&messageId={item.EntityId}"
@@ -327,9 +330,10 @@
         "music" => $"/apps/music?trackId={item.EntityId}",
         "video" => $"/apps/video?videoId={item.EntityId}",
         "tracks" => $"/apps/tracks?cardId={item.EntityId}",
-        "ai" => $"/apps/ai?conversationId={item.EntityId}",
-        _ => $"/search?q={item.Title}"
-    };
+            "ai" => $"/apps/ai?conversationId={item.EntityId}",
+            _ => $"/search?q={item.Title}"
+        };
+    }
 
     private static string GetModuleIcon(string moduleId) => moduleId switch
     {

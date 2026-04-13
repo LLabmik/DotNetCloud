@@ -1,7 +1,34 @@
 @page "/apps/files"
 @rendermode InteractiveServer
 @attribute [Authorize]
+@using Microsoft.AspNetCore.Components
 
 <PageTitle>Files - DotNetCloud</PageTitle>
 
-<ModulePageHost RouteKey="files.browser" />
+<ModulePageHost RouteKey="files.browser" Parameters="_parameters" />
+
+@code {
+    [SupplyParameterFromQuery(Name = "fileId")]
+    public string? FileId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "_nav")]
+    public string? Nav { get; set; }
+
+    private Dictionary<string, object>? _parameters;
+
+    protected override void OnParametersSet()
+    {
+        if (!string.IsNullOrEmpty(FileId))
+        {
+            _parameters = new Dictionary<string, object>
+            {
+                ["FileId"] = FileId,
+                ["FileIdNav"] = Nav ?? string.Empty
+            };
+        }
+        else
+        {
+            _parameters = null;
+        }
+    }
+}

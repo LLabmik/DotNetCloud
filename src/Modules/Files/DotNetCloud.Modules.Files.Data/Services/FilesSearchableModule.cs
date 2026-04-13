@@ -44,10 +44,15 @@ public sealed class FilesSearchableModule : ISearchableModule
             .Where(n => !n.IsDeleted)
             .ToListAsync(cancellationToken);
 
-        _logger.LogDebug("Retrieved {Count} file nodes for search indexing", nodes.Count);
+        _logger.LogInformation("FilesSearchableModule: retrieved {Count} file nodes for search indexing", nodes.Count);
 
-        var tasks = nodes.Select(node => ToSearchDocumentAsync(node, cancellationToken));
-        return await Task.WhenAll(tasks);
+        // Process sequentially — DbContext is not thread-safe
+        var results = new List<SearchDocument>(nodes.Count);
+        foreach (var node in nodes)
+        {
+            results.Add(await ToSearchDocumentAsync(node, cancellationToken));
+        }
+        return results;
     }
 
     /// <inheritdoc />
@@ -65,10 +70,17 @@ public sealed class FilesSearchableModule : ISearchableModule
     private async Task<SearchDocument> ToSearchDocumentAsync(FileNode node, CancellationToken cancellationToken)
     {
         var content = node.Name;
-        var extractedText = await TryExtractTextContentAsync(node, cancellationToken);
-        if (!string.IsNullOrWhiteSpace(extractedText))
+        try
         {
-            content = $"{node.Name}\n{extractedText}";
+            var extractedText = await TryExtractTextContentAsync(node, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(extractedText))
+            {
+                content = $"{node.Name}\n{extractedText}";
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Failed to extract text content for file {FileName} (Id={FileId})", node.Name, node.Id);
         }
 
         var metadata = new Dictionary<string, string>();
@@ -103,8 +115,13 @@ public sealed class FilesSearchableModule : ISearchableModule
     {
         if (node.NodeType != FileNodeType.File || !IsTextLike(node))
         {
+            _logger.LogDebug("Skipping content extraction for {FileName}: NodeType={NodeType}, IsTextLike={IsText}",
+                node.Name, node.NodeType, node.NodeType == FileNodeType.File && IsTextLike(node));
             return null;
         }
+
+        _logger.LogInformation("Extracting text content for file {FileName} (Id={FileId}, Mime={MimeType})",
+            node.Name, node.Id, node.MimeType);
 
         var latestVersion = await _db.FileVersions
             .AsNoTracking()
@@ -115,8 +132,11 @@ public sealed class FilesSearchableModule : ISearchableModule
 
         if (latestVersion is null)
         {
+            _logger.LogWarning("No file version found for {FileName} (Id={FileId})", node.Name, node.Id);
             return null;
         }
+
+        _logger.LogDebug("Found latest version {VersionId} for {FileName}", latestVersion.Id, node.Name);
 
         var chunks = await _db.FileVersionChunks
             .AsNoTracking()
@@ -127,8 +147,11 @@ public sealed class FilesSearchableModule : ISearchableModule
 
         if (chunks.Count == 0)
         {
+            _logger.LogWarning("No chunks found for version {VersionId} of file {FileName}", latestVersion.Id, node.Name);
             return null;
         }
+
+        _logger.LogDebug("Found {ChunkCount} chunks for {FileName}", chunks.Count, node.Name);
 
         using var aggregate = new MemoryStream(capacity: Math.Min(MaxExtractedBytes, 16 * 1024));
         foreach (var vc in chunks)
@@ -138,12 +161,14 @@ public sealed class FilesSearchableModule : ISearchableModule
             var chunkPath = vc.FileChunk?.StoragePath;
             if (string.IsNullOrWhiteSpace(chunkPath))
             {
+                _logger.LogWarning("Chunk {Index} has null/empty StoragePath for file {FileName}", vc.SequenceIndex, node.Name);
                 continue;
             }
 
             await using var chunkStream = await _storageEngine.OpenReadStreamAsync(chunkPath, cancellationToken);
             if (chunkStream is null)
             {
+                _logger.LogWarning("Storage engine returned null stream for chunk path {ChunkPath} of file {FileName}", chunkPath, node.Name);
                 continue;
             }
 
@@ -174,9 +199,11 @@ public sealed class FilesSearchableModule : ISearchableModule
 
         if (aggregate.Length == 0)
         {
-            _logger.LogDebug("Search content extraction skipped: no readable chunks found for file {FileId}", node.Id);
+            _logger.LogWarning("Content extraction yielded 0 bytes for file {FileName} (Id={FileId})", node.Name, node.Id);
             return null;
         }
+
+        _logger.LogInformation("Extracted {ByteCount} bytes from {FileName}, converting to text", aggregate.Length, node.Name);
 
         aggregate.Position = 0;
 
@@ -198,7 +225,10 @@ public sealed class FilesSearchableModule : ISearchableModule
             builder.Append(charBuffer, 0, readCount);
         }
 
-        return builder.Length == 0 ? null : builder.ToString();
+        var result = builder.Length == 0 ? null : builder.ToString();
+        _logger.LogInformation("Content extraction for {FileName}: {CharCount} characters extracted",
+            node.Name, result?.Length ?? 0);
+        return result;
     }
 
     private static bool IsTextLike(FileNode node)

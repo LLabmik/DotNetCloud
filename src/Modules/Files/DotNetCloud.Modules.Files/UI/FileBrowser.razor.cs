@@ -45,6 +45,12 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     /// <summary>Base URL for the Files API (e.g., "https://cloud.example.com"), used for the document editor.</summary>
     [Parameter] public string ApiBaseUrl { get; set; } = string.Empty;
 
+    /// <summary>Optional file ID to navigate to on load (deep-link from search results).</summary>
+    [Parameter] public string? FileId { get; set; }
+
+    /// <summary>Navigation nonce — changes each time a search result is clicked, even for the same file.</summary>
+    [Parameter] public string? FileIdNav { get; set; }
+
     private FileSidebarSection _activeSection = FileSidebarSection.AllFiles;
     private int _trashItemCount;
     private long _trashBytes;
@@ -167,6 +173,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     private string? _commentsFileName;
     private List<FileCommentViewModel> _commentItems = [];
     private Guid _currentUserId;
+    private string? _lastHandledNav;
 
     protected override async Task OnInitializedAsync()
     {
@@ -177,6 +184,25 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         await LoadTrashCountAsync();
         await LoadQuotaAsync();
         await LoadUserTagsAsync();
+
+        // Deep-link: navigate to a specific file (e.g., from search results)
+        if (Guid.TryParse(FileId, out var fileId))
+        {
+            _lastHandledNav = FileIdNav;
+            await NavigateToFileAsync(fileId);
+        }
+    }
+
+    /// <inheritdoc />
+    protected override async Task OnParametersSetAsync()
+    {
+        // Handle FileId changes when already on the page (same-page navigation).
+        // FileIdNav is a timestamp nonce that changes on every click, even for the same file.
+        if (!string.IsNullOrEmpty(FileId) && FileIdNav != _lastHandledNav && Guid.TryParse(FileId, out var fileId))
+        {
+            _lastHandledNav = FileIdNav;
+            await NavigateToFileAsync(fileId);
+        }
     }
 
     /// <summary>Handles sidebar section navigation.</summary>
@@ -398,6 +424,60 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         }
 
         _ = LoadCurrentFolderAsync();
+    }
+
+    /// <summary>
+    /// Navigates to a specific file by ID: loads its parent folder, builds breadcrumbs,
+    /// then opens the file in preview. Used for deep-linking from search results.
+    /// </summary>
+    private async Task NavigateToFileAsync(Guid fileId)
+    {
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            var node = await FileService.GetNodeAsync(fileId, caller);
+            if (node is null)
+            {
+                Logger.LogWarning("Deep-link file {FileId} not found", fileId);
+                return;
+            }
+
+            // Navigate to the file's parent folder
+            if (node.ParentId.HasValue)
+            {
+                // Build breadcrumb trail by walking up the folder tree
+                var ancestors = new List<(Guid Id, string Name)>();
+                var currentId = node.ParentId;
+                while (currentId.HasValue)
+                {
+                    var folder = await FileService.GetNodeAsync(currentId.Value, caller);
+                    if (folder is null) break;
+                    ancestors.Add((folder.Id, folder.Name));
+                    currentId = folder.ParentId;
+                }
+
+                _breadcrumbs.Clear();
+                ancestors.Reverse();
+                foreach (var ancestor in ancestors)
+                {
+                    _breadcrumbs.Add(new BreadcrumbItem(ancestor.Id, ancestor.Name));
+                }
+
+                _currentFolderId = node.ParentId;
+                _currentPage = 1;
+                _selectedNodes.Clear();
+                await LoadCurrentFolderAsync();
+            }
+
+            // Open the file (preview or editor)
+            var vm = ToViewModel(node);
+            await HandleNodeDoubleClick(vm);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to navigate to file {FileId}", fileId);
+        }
     }
 
     protected void HandleNodeClick(FileNodeViewModel node)
