@@ -1498,6 +1498,18 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    aspect-ratio: 16 / 9;
+    max-height: 100%;
+    margin: auto;
+}
+
+.visualizer-container.visualizer-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    pointer-events: none;
 }
 
 .visualizer-canvas {
@@ -1551,6 +1563,11 @@
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.vis-preset-select option {
+    background: #1e1e2e;
+    color: #fff;
 }
 
 .vis-preset-select:focus {
@@ -1609,16 +1626,6 @@
     font-size: 0.875rem;
     text-align: center;
     padding: 2rem;
-}
-
-/* Mini-visualizer in now-playing bar */
-
-.mini-visualizer {
-    width: 52px;
-    height: 52px;
-    border-radius: 6px;
-    flex-shrink: 0;
-    object-fit: cover;
 }
 
 /* Fullscreen adjustments */

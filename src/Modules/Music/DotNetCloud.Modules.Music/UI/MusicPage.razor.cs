@@ -82,11 +82,12 @@ public partial class MusicPage : IAsyncDisposable
     private string _newPresetName = string.Empty;
 
     // ── Visualizer ──
+    private bool _visualizerEnabled;
     private bool _showVisualizer;
     private bool _visualizerStarted;
     private string[] _visualizerPresets = [];
     private string? _selectedVisualizerPreset;
-    private bool _autoCyclePresets;
+    private bool _autoCyclePresets = true;
     private int _autoCycleInterval = 30;
     private double _visualizerBlendDuration = 2.0;
     private bool _allPresetsLoaded;
@@ -540,10 +541,14 @@ public partial class MusicPage : IAsyncDisposable
             // Re-apply current EQ band settings to the new track
             await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setEqBands", _eqBands);
 
-            // Start visualizer render loop if toggled on
-            if (_showVisualizer && !_visualizerStarted)
+            // Start visualizer render loop if enabled
+            if (_visualizerEnabled && !_visualizerStarted)
             {
                 _visualizerStarted = await Js.InvokeAsync<bool>("dotnetcloudVisualizer.start");
+                if (_visualizerStarted && _autoCyclePresets)
+                {
+                    await Js.InvokeVoidAsync("dotnetcloudVisualizer.startAutoCycle", _autoCycleInterval, _visualizerBlendDuration);
+                }
             }
         }
 
@@ -606,10 +611,14 @@ public partial class MusicPage : IAsyncDisposable
             if (_isPlaying)
             {
                 await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.resume");
-                // Resume visualizer render loop if active
-                if (_showVisualizer && !_visualizerStarted)
+                // Resume visualizer render loop if enabled
+                if (_visualizerEnabled && !_visualizerStarted)
                 {
                     _visualizerStarted = await Js.InvokeAsync<bool>("dotnetcloudVisualizer.start");
+                    if (_visualizerStarted && _autoCyclePresets)
+                    {
+                        await Js.InvokeVoidAsync("dotnetcloudVisualizer.startAutoCycle", _autoCycleInterval, _visualizerBlendDuration);
+                    }
                 }
             }
             else
@@ -1222,17 +1231,29 @@ public partial class MusicPage : IAsyncDisposable
 
     private async Task ToggleVisualizerAsync()
     {
-        _showVisualizer = !_showVisualizer;
+        _visualizerEnabled = !_visualizerEnabled;
 
-        if (_showVisualizer)
+        if (_visualizerEnabled)
         {
+            _showVisualizer = true;
             await StartVisualizerAsync();
         }
         else
         {
+            _showVisualizer = false;
             await StopVisualizerAsync();
         }
     }
+
+    private async Task HideVisualizerOverlay()
+    {
+        _showVisualizer = false;
+        if (_jsInitialized)
+        {
+            await Js.InvokeVoidAsync("dotnetcloudVisualizer.exitFullscreen");
+        }
+    }
+
 
     private async Task StartVisualizerAsync()
     {
@@ -1243,23 +1264,32 @@ public partial class MusicPage : IAsyncDisposable
             if (!_visualizerSupported)
             {
                 _showVisualizer = false;
+                _visualizerEnabled = false;
                 return;
             }
 
             var initOk = await Js.InvokeAsync<bool>("dotnetcloudVisualizer.init", "dnc-visualizer-canvas");
             if (!initOk) return;
 
-            await Js.InvokeVoidAsync("dotnetcloudVisualizer.initMiniCanvas", "dnc-mini-visualizer");
-
-            // Load curated preset names
+            // Load preset names
             _visualizerPresets = await Js.InvokeAsync<string[]>("dotnetcloudVisualizer.getPresetNames");
+            _allPresetsLoaded = await Js.InvokeAsync<bool>("dotnetcloudVisualizer.isAllPresetsLoaded");
 
             if (_isPlaying)
             {
                 _visualizerStarted = await Js.InvokeAsync<bool>("dotnetcloudVisualizer.start");
-                if (_visualizerStarted && _visualizerPresets.Length > 0)
+                if (_visualizerStarted)
                 {
-                    _selectedVisualizerPreset = await Js.InvokeAsync<string?>("dotnetcloudVisualizer.getCurrentPresetName");
+                    if (_visualizerPresets.Length > 0)
+                    {
+                        _selectedVisualizerPreset = await Js.InvokeAsync<string?>("dotnetcloudVisualizer.getCurrentPresetName");
+                    }
+
+                    // Start auto-cycle by default
+                    if (_autoCyclePresets)
+                    {
+                        await Js.InvokeVoidAsync("dotnetcloudVisualizer.startAutoCycle", _autoCycleInterval, _visualizerBlendDuration);
+                    }
                 }
             }
         }
@@ -1267,6 +1297,7 @@ public partial class MusicPage : IAsyncDisposable
         {
             Logger.LogWarning(ex, "Failed to start visualizer");
             _showVisualizer = false;
+            _visualizerEnabled = false;
         }
     }
 
@@ -1326,7 +1357,7 @@ public partial class MusicPage : IAsyncDisposable
     private async Task ToggleVisualizerFullscreenAsync()
     {
         if (!_jsInitialized) return;
-        await Js.InvokeVoidAsync("dotnetcloudVisualizer.enterFullscreen");
+        await Js.InvokeVoidAsync("dotnetcloudVisualizer.toggleFullscreen");
     }
 
     private async Task ToggleAutoCyclePresetsAsync()

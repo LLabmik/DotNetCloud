@@ -3,8 +3,6 @@ window.dotnetcloudVisualizer = window.dotnetcloudVisualizer || (function () {
 
     /** @type {HTMLCanvasElement|null} */
     var canvas = null;
-    /** @type {HTMLCanvasElement|null} */
-    var miniCanvas = null;
     var visualizer = null;
     var animFrameId = null;
     var running = false;
@@ -22,24 +20,47 @@ window.dotnetcloudVisualizer = window.dotnetcloudVisualizer || (function () {
     // ResizeObserver
     var resizeObserver = null;
 
-    // Mini-canvas: draw via 2D context from main canvas
-    var miniCtx = null;
-    var miniAnimFrameId = null;
-
     // ── Helpers ──
 
-    function loadCuratedPresets() {
-        if (typeof butterchurnPresets !== "undefined" && butterchurnPresets.getPresets) {
-            // Full library loaded — filter to curated names
-            var all = butterchurnPresets.getPresets();
-            var names = window.dotnetcloudCuratedPresetNames || [];
-            for (var i = 0; i < names.length; i++) {
-                if (all[names[i]]) {
-                    presets[names[i]] = all[names[i]];
-                }
-            }
+    function getButterchurn() {
+        // UMD webpack builds wrap ES default exports: window.butterchurn = { default: TheClass }
+        if (typeof butterchurn !== "undefined") {
+            return butterchurn.default || butterchurn;
         }
-        presetNames = Object.keys(presets);
+        return null;
+    }
+
+    function resolvePresetLib(global) {
+        if (!global) return null;
+        var mod = global.default || global;
+        if (mod && mod.default) mod = mod.default;
+        if (typeof mod.getPresets === "function") return mod.getPresets();
+        // Maybe the object IS the presets map directly
+        var keys = Object.keys(mod).filter(function(k) { return k !== "default" && k !== "__esModule"; });
+        if (keys.length > 5) return mod;
+        return null;
+    }
+
+    function loadAllPresetsFromLibs() {
+        presets = {};
+        // Base presets
+        if (typeof butterchurnPresets !== "undefined") {
+            var base = resolvePresetLib(butterchurnPresets);
+            if (base) Object.assign(presets, base);
+        }
+        // Extra presets
+        if (typeof butterchurnPresetsExtra !== "undefined") {
+            var extra = resolvePresetLib(butterchurnPresetsExtra);
+            if (extra) Object.assign(presets, extra);
+        }
+        // Extra2 presets
+        if (typeof butterchurnPresetsExtra2 !== "undefined") {
+            var extra2 = resolvePresetLib(butterchurnPresetsExtra2);
+            if (extra2) Object.assign(presets, extra2);
+        }
+        presetNames = Object.keys(presets).sort();
+        allPresetsLoaded = true;
+        console.log("[Visualizer] Loaded " + presetNames.length + " presets from all libraries");
     }
 
     // ── Public API ──
@@ -67,9 +88,8 @@ window.dotnetcloudVisualizer = window.dotnetcloudVisualizer || (function () {
             console.warn("[Visualizer] WebGL2 not supported in this browser");
             return false;
         }
-        // Load curated presets from the full butterchurn-presets library
-        // (The presets lib must be loaded before this script, or lazy-loaded later)
-        loadCuratedPresets();
+        // Load all available presets from all included preset libraries
+        loadAllPresetsFromLibs();
         return true;
     }
 
@@ -97,12 +117,17 @@ window.dotnetcloudVisualizer = window.dotnetcloudVisualizer || (function () {
             var rect = canvas.parentElement
                 ? canvas.parentElement.getBoundingClientRect()
                 : { width: 800, height: 600 };
-            var w = Math.min(Math.floor(rect.width), 1920);
-            var h = Math.min(Math.floor(rect.height), 1080);
+            var w = Math.floor(rect.width);
+            var h = Math.floor(rect.height);
             canvas.width = w;
             canvas.height = h;
 
-            visualizer = butterchurn.createVisualizer(audioCtx, canvas, {
+            var bc = getButterchurn();
+            if (!bc || typeof bc.createVisualizer !== "function") {
+                console.error("[Visualizer] butterchurn.createVisualizer not found. Keys:", typeof butterchurn !== "undefined" ? Object.keys(butterchurn) : "undefined");
+                return false;
+            }
+            visualizer = bc.createVisualizer(audioCtx, canvas, {
                 width: w,
                 height: h,
                 pixelRatio: 1
@@ -110,18 +135,17 @@ window.dotnetcloudVisualizer = window.dotnetcloudVisualizer || (function () {
 
             visualizer.connectAudio(sourceNode);
 
-            // Load a default preset
+            // Load a random preset
             if (presetNames.length > 0) {
                 var defaultPreset = currentPresetName && presets[currentPresetName]
                     ? currentPresetName
-                    : presetNames[0];
+                    : presetNames[Math.floor(Math.random() * presetNames.length)];
                 visualizer.loadPreset(presets[defaultPreset], 0);
                 currentPresetName = defaultPreset;
             }
 
             running = true;
             renderLoop();
-            startMiniCanvasLoop();
             setupResizeObserver();
             return true;
         } catch (e) {
@@ -136,7 +160,6 @@ window.dotnetcloudVisualizer = window.dotnetcloudVisualizer || (function () {
             cancelAnimationFrame(animFrameId);
             animFrameId = null;
         }
-        stopMiniCanvasLoop();
         stopAutoCycle();
         teardownResizeObserver();
     }
@@ -177,38 +200,10 @@ window.dotnetcloudVisualizer = window.dotnetcloudVisualizer || (function () {
     }
 
     function loadAllPresets() {
-        return new Promise(function (resolve, reject) {
-            if (allPresetsLoaded) {
-                resolve(presetNames.slice());
-                return;
-            }
-            // Check if already loaded in global scope
-            if (typeof butterchurnPresets !== "undefined" && butterchurnPresets.getPresets) {
-                var all = butterchurnPresets.getPresets();
-                presets = all;
-                presetNames = Object.keys(presets);
-                allPresetsLoaded = true;
-                resolve(presetNames.slice());
-                return;
-            }
-            // Dynamic script injection
-            var script = document.createElement("script");
-            script.src = "_content/DotNetCloud.UI.Web/lib/butterchurn/butterchurn-presets.min.js";
-            script.onload = function () {
-                if (typeof butterchurnPresets !== "undefined" && butterchurnPresets.getPresets) {
-                    var all = butterchurnPresets.getPresets();
-                    presets = all;
-                    presetNames = Object.keys(presets);
-                    allPresetsLoaded = true;
-                    resolve(presetNames.slice());
-                } else {
-                    reject(new Error("butterchurnPresets not available after script load"));
-                }
-            };
-            script.onerror = function () {
-                reject(new Error("Failed to load butterchurn-presets.min.js"));
-            };
-            document.head.appendChild(script);
+        return new Promise(function (resolve) {
+            // All preset libs are eagerly loaded via script tags — just re-merge
+            loadAllPresetsFromLibs();
+            resolve(presetNames.slice());
         });
     }
 
@@ -216,8 +211,8 @@ window.dotnetcloudVisualizer = window.dotnetcloudVisualizer || (function () {
 
     function setSize(width, height) {
         if (!visualizer || !canvas) return;
-        var w = Math.min(Math.floor(width), 1920);
-        var h = Math.min(Math.floor(height), 1080);
+        var w = Math.floor(width);
+        var h = Math.floor(height);
         if (w < 1 || h < 1) return;
         canvas.width = w;
         canvas.height = h;
@@ -244,36 +239,6 @@ window.dotnetcloudVisualizer = window.dotnetcloudVisualizer || (function () {
         }
     }
 
-    // ── Mini-canvas ──
-
-    function initMiniCanvas(canvasId) {
-        miniCanvas = document.getElementById(canvasId);
-        if (miniCanvas) {
-            miniCtx = miniCanvas.getContext("2d");
-        }
-        return !!miniCanvas;
-    }
-
-    function startMiniCanvasLoop() {
-        if (!miniCanvas || !miniCtx || !canvas) return;
-        stopMiniCanvasLoop();
-        function miniLoop() {
-            if (!running || !canvas || !miniCanvas || !miniCtx) return;
-            try {
-                miniCtx.drawImage(canvas, 0, 0, miniCanvas.width, miniCanvas.height);
-            } catch (_) { /* cross-origin or canvas issues — ignore */ }
-            miniAnimFrameId = requestAnimationFrame(miniLoop);
-        }
-        miniLoop();
-    }
-
-    function stopMiniCanvasLoop() {
-        if (miniAnimFrameId) {
-            cancelAnimationFrame(miniAnimFrameId);
-            miniAnimFrameId = null;
-        }
-    }
-
     // ── Fullscreen ──
 
     function enterFullscreen() {
@@ -292,6 +257,14 @@ window.dotnetcloudVisualizer = window.dotnetcloudVisualizer || (function () {
             document.exitFullscreen();
         } else if (document.webkitFullscreenElement) {
             document.webkitExitFullscreen();
+        }
+    }
+
+    function toggleFullscreen() {
+        if (document.fullscreenElement || document.webkitFullscreenElement) {
+            exitFullscreen();
+        } else {
+            enterFullscreen();
         }
     }
 
@@ -321,8 +294,6 @@ window.dotnetcloudVisualizer = window.dotnetcloudVisualizer || (function () {
             visualizer = null;
         }
         canvas = null;
-        miniCanvas = null;
-        miniCtx = null;
         currentPresetName = null;
     }
 
@@ -333,13 +304,14 @@ window.dotnetcloudVisualizer = window.dotnetcloudVisualizer || (function () {
         stop: stop,
         getPresetNames: getPresetNames,
         getCurrentPresetName: getCurrentPresetName,
+        isAllPresetsLoaded: function () { return allPresetsLoaded; },
         loadPreset: loadPreset,
         randomPreset: randomPreset,
         loadAllPresets: loadAllPresets,
         setSize: setSize,
-        initMiniCanvas: initMiniCanvas,
         enterFullscreen: enterFullscreen,
         exitFullscreen: exitFullscreen,
+        toggleFullscreen: toggleFullscreen,
         startAutoCycle: startAutoCycle,
         stopAutoCycle: stopAutoCycle,
         dispose: dispose

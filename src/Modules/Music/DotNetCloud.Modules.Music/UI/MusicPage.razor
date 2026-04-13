@@ -117,10 +117,12 @@
         </div>
 
         @* ─── Visualizer Overlay ─── *@
-        @if (_showVisualizer)
+        @if (_visualizerEnabled)
         {
-            <div class="visualizer-container">
+            <div class="visualizer-container @(_showVisualizer ? "" : "visualizer-hidden")">
                 <canvas id="dnc-visualizer-canvas" class="visualizer-canvas"></canvas>
+                @if (_showVisualizer)
+                {
                 <div class="visualizer-controls">
                     <div class="vis-controls-left">
                         <select class="vis-preset-select" value="@_selectedVisualizerPreset"
@@ -149,9 +151,10 @@
                         <button class="vis-btn @(_autoCyclePresets ? "active-control" : "")"
                                 @onclick="ToggleAutoCyclePresetsAsync" title="Auto-cycle presets">🔄</button>
                         <button class="vis-btn" @onclick="ToggleVisualizerFullscreenAsync" title="Fullscreen">⛶</button>
-                        <button class="vis-btn" @onclick="ToggleVisualizerAsync" title="Close visualizer">✕</button>
+                        <button class="vis-btn" @onclick="HideVisualizerOverlay" title="Hide visualizer overlay">✕</button>
                     </div>
                 </div>
+                }
                 @if (!_visualizerSupported)
                 {
                     <div class="vis-unsupported">
@@ -758,10 +761,6 @@
                         </svg>
                     }
                 </div>
-                @if (_showVisualizer)
-                {
-                    <canvas id="dnc-mini-visualizer" class="mini-visualizer" width="52" height="52"></canvas>
-                }
                 <div class="np-text">
                     <span class="np-title">@_nowPlaying.Title</span>
                     <span class="np-artist-album">
@@ -812,7 +811,7 @@
                     <span class="@(_showEqualizer ? "active-control" : "")"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="3" y1="14" x2="3" y2="5"/><line x1="8" y1="14" x2="8" y2="3"/><line x1="13" y1="14" x2="13" y2="7"/><circle cx="3" cy="5" r="1.5" fill="currentColor" stroke="none"/><circle cx="8" cy="3" r="1.5" fill="currentColor" stroke="none"/><circle cx="13" cy="7" r="1.5" fill="currentColor" stroke="none"/></svg></span>
                 </button>
                 <button class="np-btn" @onclick="ToggleVisualizerAsync" title="Visualizer">
-                    <span class="@(_showVisualizer ? "active-control" : "")">🎆</span>
+                    <span class="@(_visualizerEnabled ? "active-control" : "")">🎆</span>
                 </button>
                 <div class="np-volume">
                     <button class="np-btn" @onclick="ToggleMute" title="Volume">
