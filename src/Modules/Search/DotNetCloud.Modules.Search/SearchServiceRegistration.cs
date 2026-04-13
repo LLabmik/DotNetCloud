@@ -33,9 +33,11 @@ public static class SearchServiceRegistration
         // Search services
         services.AddScoped<SearchQueryService>();
         services.AddScoped<ContentExtractionService>();
+        services.AddSingleton<SearchIndexingService>();
 
-        // Background reindex service (uses IServiceScopeFactory for scoped dependencies)
-        services.AddHostedService<SearchReindexBackgroundService>();
+        // Background reindex service (registered as singleton to allow controller injection)
+        services.AddSingleton<SearchReindexBackgroundService>();
+        services.AddHostedService(sp => sp.GetRequiredService<SearchReindexBackgroundService>());
 
         // Event handler for real-time indexing
         services.AddScoped<SearchIndexRequestEventHandler>();

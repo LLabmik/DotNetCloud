@@ -115,16 +115,9 @@ public sealed class SearchController : SearchControllerBase
     /// Returns search index statistics. Admin only.
     /// </summary>
     [HttpGet("stats")]
+    [Authorize(Policy = "RequireAdmin")]
     public async Task<IActionResult> GetStatsAsync()
     {
-        var caller = GetAuthenticatedCaller();
-
-        // Check for admin role
-        if (!caller.Roles.Contains("admin", StringComparer.OrdinalIgnoreCase))
-        {
-            return Forbid();
-        }
-
         var stats = await _queryService.GetStatsAsync();
         return Ok(Envelope(stats));
     }
@@ -133,14 +126,10 @@ public sealed class SearchController : SearchControllerBase
     /// Triggers a full reindex of all modules. Admin only.
     /// </summary>
     [HttpPost("admin/reindex")]
+    [Authorize(Policy = "RequireAdmin")]
     public async Task<IActionResult> ReindexAllAsync()
     {
         var caller = GetAuthenticatedCaller();
-
-        if (!caller.Roles.Contains("admin", StringComparer.OrdinalIgnoreCase))
-        {
-            return Forbid();
-        }
 
         _logger.LogInformation("Admin {UserId} triggered full reindex", caller.UserId);
 
@@ -156,14 +145,10 @@ public sealed class SearchController : SearchControllerBase
     /// Triggers a reindex for a specific module. Admin only.
     /// </summary>
     [HttpPost("admin/reindex/{moduleId}")]
+    [Authorize(Policy = "RequireAdmin")]
     public async Task<IActionResult> ReindexModuleAsync(string moduleId)
     {
         var caller = GetAuthenticatedCaller();
-
-        if (!caller.Roles.Contains("admin", StringComparer.OrdinalIgnoreCase))
-        {
-            return Forbid();
-        }
 
         _logger.LogInformation("Admin {UserId} triggered reindex for module {ModuleId}", caller.UserId, moduleId);
 
@@ -185,15 +170,9 @@ public sealed class SearchController : SearchControllerBase
     /// last job info, and live reindex progress. Admin only.
     /// </summary>
     [HttpGet("admin/status")]
+    [Authorize(Policy = "RequireAdmin")]
     public async Task<IActionResult> GetAdminStatusAsync()
     {
-        var caller = GetAuthenticatedCaller();
-
-        if (!caller.Roles.Contains("admin", StringComparer.OrdinalIgnoreCase))
-        {
-            return Forbid();
-        }
-
         var stats = await _queryService.GetStatsAsync();
 
         // Get the most recent completed full reindex job

@@ -1,11 +1,9 @@
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Search;
 using DotNetCloud.Modules.Search.Data;
-using DotNetCloud.Modules.Search.Extractors;
 using DotNetCloud.Modules.Search.Host.Services;
 using DotNetCloud.Modules.Search.Services;
 using Microsoft.EntityFrameworkCore;
-using IContentExtractor = DotNetCloud.Core.Capabilities.IContentExtractor;
 using ISearchProvider = DotNetCloud.Core.Capabilities.ISearchProvider;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -26,21 +24,8 @@ builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
 // Search provider — PostgreSQL as default; auto-selected based on DB config in production
 builder.Services.AddScoped<ISearchProvider, PostgreSqlSearchProvider>();
 
-// Content extractors
-builder.Services.AddSingleton<IContentExtractor, PlainTextExtractor>();
-builder.Services.AddSingleton<IContentExtractor, MarkdownContentExtractor>();
-builder.Services.AddSingleton<IContentExtractor, PdfContentExtractor>();
-builder.Services.AddSingleton<IContentExtractor, DocxContentExtractor>();
-builder.Services.AddSingleton<IContentExtractor, XlsxContentExtractor>();
-
-// Search services
-builder.Services.AddScoped<SearchQueryService>();
-builder.Services.AddScoped<ContentExtractionService>();
-builder.Services.AddSingleton<SearchIndexingService>();
-
-// Background reindex service (registered as singleton to allow controller injection)
-builder.Services.AddSingleton<SearchReindexBackgroundService>();
-builder.Services.AddHostedService(sp => sp.GetRequiredService<SearchReindexBackgroundService>());
+// Register all search services (query, indexing, extractors, reindex background service)
+builder.Services.AddSearchServices(builder.Configuration);
 
 // gRPC
 builder.Services.AddGrpc();

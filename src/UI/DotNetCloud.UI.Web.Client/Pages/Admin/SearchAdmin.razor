@@ -315,9 +315,11 @@ else
     /// </summary>
     private void UpdatePolling()
     {
+        // Always clear the queued button state once we have a valid status refresh
+        _reindexTriggered = false;
+
         if (_status?.IsReindexing == true)
         {
-            _reindexTriggered = false; // Clear the button state; progress is now live
             _pollTimer ??= new System.Threading.Timer(async _ =>
             {
                 try
