@@ -1,0 +1,205 @@
+/* ── Search Admin stat-card icon colors ─────────────────────────────── */
+.dash-stat-icon--search-indexed  { background: #dbeafe; color: #2563eb; }
+.dash-stat-icon--search-pending  { background: #fef3c7; color: #d97706; }
+.dash-stat-icon--search-processed { background: #dcfce7; color: #16a34a; }
+.dash-stat-icon--search-last     { background: #ede9fe; color: #7c3aed; }
+:global(.dark-mode) .dash-stat-icon--search-indexed  { background: #1e3a5f; color: #60a5fa; }
+:global(.dark-mode) .dash-stat-icon--search-pending  { background: #451a03; color: #fbbf24; }
+:global(.dark-mode) .dash-stat-icon--search-processed { background: #14532d; color: #4ade80; }
+:global(.dark-mode) .dash-stat-icon--search-last     { background: #2e1065; color: #a78bfa; }
+
+.search-stat-value-sm {
+    font-size: 18px;
+}
+
+.search-failed {
+    color: #dc2626;
+    font-weight: 600;
+}
+
+/* ── Section layout ────────────────────────────────────────────────── */
+.search-admin-section {
+    margin-bottom: 28px;
+}
+
+.search-admin-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.search-admin-section-header h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+}
+
+/* ── Reindex controls ──────────────────────────────────────────────── */
+.reindex-controls {
+    background: var(--color-surface);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+}
+
+.reindex-controls p {
+    margin: 0;
+    flex: 1;
+}
+
+/* ── Reindex progress card ─────────────────────────────────────────── */
+.reindex-progress-card {
+    background: var(--color-surface);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: var(--shadow);
+    border-left: 4px solid var(--color-primary);
+}
+
+.reindex-progress-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.reindex-progress-status {
+    font-weight: 600;
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.reindex-progress-elapsed {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+}
+
+.reindex-progress-module {
+    font-size: 14px;
+    color: var(--color-text-secondary);
+    margin-bottom: 16px;
+}
+
+.reindex-progress-bar-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.reindex-progress-bar {
+    flex: 1;
+    height: 8px;
+    background: var(--color-border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.reindex-progress-bar-fill {
+    height: 100%;
+    background: var(--color-primary);
+    border-radius: 4px;
+    transition: width 0.4s ease;
+}
+
+.reindex-progress-counts {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+    min-width: 100px;
+    text-align: right;
+}
+
+/* Spinner animation */
+.reindex-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--color-border);
+    border-top-color: var(--color-primary);
+    border-radius: 50%;
+    animation: reindex-spin 0.8s linear infinite;
+}
+
+@keyframes reindex-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ── Module distribution bar ───────────────────────────────────────── */
+.module-bar {
+    width: 100%;
+    height: 6px;
+    background: var(--color-border);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.module-bar-fill {
+    height: 100%;
+    background: var(--color-primary);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+    min-width: 2px;
+}
+
+/* ── Last job card ─────────────────────────────────────────────────── */
+.last-job-card {
+    background: var(--color-surface);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    box-shadow: var(--shadow);
+}
+
+.last-job-row {
+    display: flex;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.last-job-row:last-child {
+    border-bottom: none;
+}
+
+.last-job-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    width: 120px;
+    flex-shrink: 0;
+}
+
+.last-job-error span:last-child {
+    color: #dc2626;
+    font-size: 13px;
+}
+
+/* ── Text utilities ────────────────────────────────────────────────── */
+.text-right {
+    text-align: right;
+}
+
+/* ── Responsive ────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+    .search-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .reindex-controls {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+@media (max-width: 600px) {
+    .search-stats {
+        grid-template-columns: 1fr;
+    }
+}

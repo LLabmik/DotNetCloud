@@ -38,8 +38,9 @@ builder.Services.AddScoped<SearchQueryService>();
 builder.Services.AddScoped<ContentExtractionService>();
 builder.Services.AddSingleton<SearchIndexingService>();
 
-// Background reindex service
-builder.Services.AddHostedService<SearchReindexBackgroundService>();
+// Background reindex service (registered as singleton to allow controller injection)
+builder.Services.AddSingleton<SearchReindexBackgroundService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<SearchReindexBackgroundService>());
 
 // gRPC
 builder.Services.AddGrpc();

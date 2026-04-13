@@ -23,6 +23,35 @@ public sealed class SearchReindexBackgroundService : BackgroundService
     private volatile bool _manualReindexRequested;
     private volatile string? _manualReindexModuleId;
 
+    // ── Live progress tracking (read by admin status endpoint) ──────────
+    private volatile bool _isReindexing;
+    private volatile string? _currentModuleId;
+    private int _reindexDocumentsProcessed;
+    private int _reindexDocumentsTotal;
+    private long _reindexStartedAtTicks;
+
+    /// <summary>Whether a full reindex is currently running.</summary>
+    public bool IsReindexing => _isReindexing;
+
+    /// <summary>Module currently being reindexed, or null.</summary>
+    public string? CurrentModuleId => _currentModuleId;
+
+    /// <summary>Documents processed so far in the current reindex run.</summary>
+    public int ReindexDocumentsProcessed => Interlocked.CompareExchange(ref _reindexDocumentsProcessed, 0, 0);
+
+    /// <summary>Total documents to process in the current reindex run.</summary>
+    public int ReindexDocumentsTotal => Interlocked.CompareExchange(ref _reindexDocumentsTotal, 0, 0);
+
+    /// <summary>When the current reindex run started, or null.</summary>
+    public DateTimeOffset? ReindexStartedAt
+    {
+        get
+        {
+            var ticks = Interlocked.Read(ref _reindexStartedAtTicks);
+            return ticks == 0 ? null : new DateTimeOffset(ticks, TimeSpan.Zero);
+        }
+    }
+
     /// <summary>Default batch size for indexing operations during full reindex.</summary>
     public const int DefaultBatchSize = 200;
 
@@ -138,20 +167,39 @@ public sealed class SearchReindexBackgroundService : BackgroundService
         var totalProcessed = 0;
         var totalDocuments = 0;
 
+        // Set live progress tracking
+        _isReindexing = true;
+        Interlocked.Exchange(ref _reindexStartedAtTicks, DateTimeOffset.UtcNow.UtcTicks);
+        Interlocked.Exchange(ref _reindexDocumentsProcessed, 0);
+        Interlocked.Exchange(ref _reindexDocumentsTotal, 0);
+
         try
         {
+            // First pass: count total documents across all modules
+            var moduleDocuments = new List<(ISearchableModule Module, IReadOnlyList<SearchDocument> Documents)>();
             foreach (var module in searchableModules)
             {
+                try
+                {
+                    var documents = await module.GetAllSearchableDocumentsAsync(cancellationToken);
+                    moduleDocuments.Add((module, documents));
+                    totalDocuments += documents.Count;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogError(ex, "Failed to retrieve documents for module {ModuleId}", module.ModuleId);
+                }
+            }
+
+            Interlocked.Exchange(ref _reindexDocumentsTotal, totalDocuments);
+
+            foreach (var (module, documents) in moduleDocuments)
+            {
+                _currentModuleId = module.ModuleId;
                 _logger.LogInformation("Reindexing module {ModuleId}", module.ModuleId);
 
                 try
                 {
-                    var documents = await module.GetAllSearchableDocumentsAsync(cancellationToken);
-                    totalDocuments += documents.Count;
-
-                    // Collect entity IDs for stale detection
-                    var freshEntityIds = new HashSet<string>(documents.Select(d => d.EntityId));
-
                     // Clear existing entries for this module
                     await searchProvider.ReindexModuleAsync(module.ModuleId, cancellationToken);
 
@@ -163,6 +211,7 @@ public sealed class SearchReindexBackgroundService : BackgroundService
                             cancellationToken.ThrowIfCancellationRequested();
                             await searchProvider.IndexDocumentAsync(document, cancellationToken);
                             totalProcessed++;
+                            Interlocked.Exchange(ref _reindexDocumentsProcessed, totalProcessed);
                         }
                     }
 
@@ -194,6 +243,9 @@ public sealed class SearchReindexBackgroundService : BackgroundService
         }
         finally
         {
+            _isReindexing = false;
+            _currentModuleId = null;
+            Interlocked.Exchange(ref _reindexStartedAtTicks, 0);
             await db.SaveChangesAsync(CancellationToken.None);
         }
 

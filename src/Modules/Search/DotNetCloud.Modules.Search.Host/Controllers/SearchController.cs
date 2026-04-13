@@ -1,7 +1,9 @@
 using DotNetCloud.Core.DTOs.Search;
+using DotNetCloud.Modules.Search.Data;
 using DotNetCloud.Modules.Search.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace DotNetCloud.Modules.Search.Host.Controllers;
 
@@ -14,17 +16,23 @@ public sealed class SearchController : SearchControllerBase
 {
     private readonly SearchQueryService _queryService;
     private readonly SearchReindexBackgroundService? _reindexService;
+    private readonly SearchIndexingService? _indexingService;
+    private readonly SearchDbContext _db;
     private readonly ILogger<SearchController> _logger;
 
     /// <summary>Initializes a new instance of the <see cref="SearchController"/> class.</summary>
     public SearchController(
         SearchQueryService queryService,
+        SearchDbContext db,
         ILogger<SearchController> logger,
-        SearchReindexBackgroundService? reindexService = null)
+        SearchReindexBackgroundService? reindexService = null,
+        SearchIndexingService? indexingService = null)
     {
         _queryService = queryService;
+        _db = db;
         _logger = logger;
         _reindexService = reindexService;
+        _indexingService = indexingService;
     }
 
     /// <summary>
@@ -170,5 +178,82 @@ public sealed class SearchController : SearchControllerBase
         }
 
         return Ok(Envelope(new { message = $"Reindex for module '{moduleId}' queued." }));
+    }
+
+    /// <summary>
+    /// Returns comprehensive search admin status including index stats, queue depth,
+    /// last job info, and live reindex progress. Admin only.
+    /// </summary>
+    [HttpGet("admin/status")]
+    public async Task<IActionResult> GetAdminStatusAsync()
+    {
+        var caller = GetAuthenticatedCaller();
+
+        if (!caller.Roles.Contains("admin", StringComparer.OrdinalIgnoreCase))
+        {
+            return Forbid();
+        }
+
+        var stats = await _queryService.GetStatsAsync();
+
+        // Get the most recent completed full reindex job
+        var lastFullJob = await _db.IndexingJobs
+            .Where(j => j.Type == Data.Models.IndexJobType.Full && j.Status == Data.Models.IndexJobStatus.Completed)
+            .OrderByDescending(j => j.CompletedAt)
+            .FirstOrDefaultAsync();
+
+        // Get the most recent job of any kind (for "last run" display)
+        var lastJob = await _db.IndexingJobs
+            .OrderByDescending(j => j.StartedAt)
+            .FirstOrDefaultAsync();
+
+        // Build reindex progress if one is currently running
+        object? reindexProgress = null;
+        if (_reindexService?.IsReindexing == true)
+        {
+            reindexProgress = new
+            {
+                currentModule = _reindexService.CurrentModuleId,
+                documentsProcessed = _reindexService.ReindexDocumentsProcessed,
+                documentsTotal = _reindexService.ReindexDocumentsTotal,
+                startedAt = _reindexService.ReindexStartedAt
+            };
+        }
+
+        var result = new
+        {
+            totalDocuments = stats.TotalDocuments,
+            documentsPerModule = stats.DocumentsPerModule,
+            lastFullReindexAt = stats.LastFullReindexAt,
+            lastIncrementalIndexAt = stats.LastIncrementalIndexAt,
+            pendingQueueCount = _indexingService?.PendingCount ?? 0,
+            realtimeProcessed = _indexingService?.TotalProcessed ?? 0L,
+            realtimeFailed = _indexingService?.TotalFailed ?? 0L,
+            isReindexing = _reindexService?.IsReindexing ?? false,
+            reindexProgress,
+            lastJob = lastJob is not null ? new
+            {
+                id = lastJob.Id,
+                moduleId = lastJob.ModuleId,
+                type = lastJob.Type.ToString(),
+                status = lastJob.Status.ToString(),
+                startedAt = lastJob.StartedAt,
+                completedAt = lastJob.CompletedAt,
+                documentsProcessed = lastJob.DocumentsProcessed,
+                documentsTotal = lastJob.DocumentsTotal,
+                errorMessage = lastJob.ErrorMessage
+            } : null,
+            lastFullReindexJob = lastFullJob is not null ? new
+            {
+                completedAt = lastFullJob.CompletedAt,
+                documentsProcessed = lastFullJob.DocumentsProcessed,
+                documentsTotal = lastFullJob.DocumentsTotal,
+                durationSeconds = lastFullJob.StartedAt.HasValue && lastFullJob.CompletedAt.HasValue
+                    ? (lastFullJob.CompletedAt.Value - lastFullJob.StartedAt.Value).TotalSeconds
+                    : (double?)null
+            } : null
+        };
+
+        return Ok(Envelope(result));
     }
 }

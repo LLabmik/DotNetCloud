@@ -6,10 +6,12 @@ using SearchClient::DotNetCloud.Modules.Search.Client;
 using DotNetCloud.Modules.Search.Host.Controllers;
 using DotNetCloud.Modules.Search.Host.Protos;
 using DotNetCloud.Modules.Search.Host.Services;
+using DotNetCloud.Modules.Search.Data;
 using DotNetCloud.Modules.Search.Services;
 using Grpc.Core;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using System.Security.Claims;
@@ -353,8 +355,14 @@ public class Phase6ApiIntegrationTests
         foreach (var role in roles)
             claims.Add(new Claim(ClaimTypes.Role, role));
 
+        var dbOptions = new DbContextOptionsBuilder<SearchDbContext>()
+            .UseInMemoryDatabase($"Phase6ApiTests_{Guid.NewGuid()}")
+            .Options;
+        var db = new SearchDbContext(dbOptions);
+
         var controller = new SearchController(
             _queryService,
+            db,
             NullLogger<SearchController>.Instance);
 
         controller.ControllerContext = new ControllerContext

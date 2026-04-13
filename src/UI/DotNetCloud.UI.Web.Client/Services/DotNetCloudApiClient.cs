@@ -740,6 +740,34 @@ public sealed class DotNetCloudApiClient
         return envelope?.Data ?? [];
     }
 
+    /// <summary>
+    /// Returns comprehensive search admin status (index stats, queue depth, reindex progress).
+    /// </summary>
+    public async Task<SearchAdminStatusDto?> GetSearchAdminStatusAsync(CancellationToken ct = default)
+    {
+        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<SearchAdminStatusDto>>(
+            "api/v1/search/admin/status", JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Triggers a full search reindex of all modules.
+    /// </summary>
+    public async Task<bool> TriggerSearchReindexAsync(CancellationToken ct = default)
+    {
+        var response = await _http.PostAsync("api/v1/search/admin/reindex", null, ct);
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>
+    /// Triggers a search reindex for a specific module.
+    /// </summary>
+    public async Task<bool> TriggerSearchModuleReindexAsync(string moduleId, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsync($"api/v1/search/admin/reindex/{Uri.EscapeDataString(moduleId)}", null, ct);
+        return response.IsSuccessStatusCode;
+    }
+
     // -----------------------------------------------------------------------
     // Response envelope
     // -----------------------------------------------------------------------
@@ -840,4 +868,112 @@ public sealed class MediaScanResultResponse
 
     /// <summary>Error messages for failed imports.</summary>
     public List<string> Errors { get; set; } = [];
+}
+
+/// <summary>
+/// Admin status DTO for the search engine management page.
+/// </summary>
+public sealed class SearchAdminStatusDto
+{
+    /// <summary>Total documents currently in the search index.</summary>
+    public int TotalDocuments { get; set; }
+
+    /// <summary>Document counts per module.</summary>
+    public Dictionary<string, int> DocumentsPerModule { get; set; } = [];
+
+    /// <summary>When the last full reindex completed.</summary>
+    public DateTimeOffset? LastFullReindexAt { get; set; }
+
+    /// <summary>When the last incremental index completed.</summary>
+    public DateTimeOffset? LastIncrementalIndexAt { get; set; }
+
+    /// <summary>Number of items waiting in the real-time indexing queue.</summary>
+    public int PendingQueueCount { get; set; }
+
+    /// <summary>Total documents processed by the real-time indexer since startup.</summary>
+    public long RealtimeProcessed { get; set; }
+
+    /// <summary>Total failed real-time indexing operations since startup.</summary>
+    public long RealtimeFailed { get; set; }
+
+    /// <summary>Whether a full reindex is currently in progress.</summary>
+    public bool IsReindexing { get; set; }
+
+    /// <summary>Live progress data for an active reindex, or null.</summary>
+    public ReindexProgressDto? ReindexProgress { get; set; }
+
+    /// <summary>Most recent indexing job (any type).</summary>
+    public IndexingJobDto? LastJob { get; set; }
+
+    /// <summary>Most recent completed full reindex job.</summary>
+    public LastFullReindexJobDto? LastFullReindexJob { get; set; }
+}
+
+/// <summary>
+/// Live progress of an active full reindex operation.
+/// </summary>
+public sealed class ReindexProgressDto
+{
+    /// <summary>Module currently being indexed.</summary>
+    public string? CurrentModule { get; set; }
+
+    /// <summary>Documents processed so far.</summary>
+    public int DocumentsProcessed { get; set; }
+
+    /// <summary>Total documents to process.</summary>
+    public int DocumentsTotal { get; set; }
+
+    /// <summary>When the reindex started.</summary>
+    public DateTimeOffset? StartedAt { get; set; }
+}
+
+/// <summary>
+/// Summary of a recent indexing job.
+/// </summary>
+public sealed class IndexingJobDto
+{
+    /// <summary>Job identifier.</summary>
+    public Guid Id { get; set; }
+
+    /// <summary>Module targeted, or null for global.</summary>
+    public string? ModuleId { get; set; }
+
+    /// <summary>Job type (Full, Incremental).</summary>
+    public string Type { get; set; } = string.Empty;
+
+    /// <summary>Job status (Pending, Running, Completed, Failed).</summary>
+    public string Status { get; set; } = string.Empty;
+
+    /// <summary>When the job started.</summary>
+    public DateTimeOffset? StartedAt { get; set; }
+
+    /// <summary>When the job completed.</summary>
+    public DateTimeOffset? CompletedAt { get; set; }
+
+    /// <summary>Documents processed.</summary>
+    public int DocumentsProcessed { get; set; }
+
+    /// <summary>Total documents in the job.</summary>
+    public int DocumentsTotal { get; set; }
+
+    /// <summary>Error message if failed.</summary>
+    public string? ErrorMessage { get; set; }
+}
+
+/// <summary>
+/// Summary of the last completed full reindex.
+/// </summary>
+public sealed class LastFullReindexJobDto
+{
+    /// <summary>When the reindex completed.</summary>
+    public DateTimeOffset? CompletedAt { get; set; }
+
+    /// <summary>Documents processed.</summary>
+    public int DocumentsProcessed { get; set; }
+
+    /// <summary>Total documents found.</summary>
+    public int DocumentsTotal { get; set; }
+
+    /// <summary>Duration in seconds.</summary>
+    public double? DurationSeconds { get; set; }
 }

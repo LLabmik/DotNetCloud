@@ -1,10 +1,12 @@
 using System.Security.Claims;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs.Search;
+using DotNetCloud.Modules.Search.Data;
 using DotNetCloud.Modules.Search.Host.Controllers;
 using DotNetCloud.Modules.Search.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
@@ -21,6 +23,7 @@ public class SearchControllerTests
     private SearchQueryService _queryService = null!;
     private Mock<SearchReindexBackgroundService> _reindexServiceMock = null!;
     private SearchController _controller = null!;
+    private SearchDbContext _db = null!;
 
     private static readonly Guid TestUserId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid AdminUserId = Guid.Parse("22222222-2222-2222-2222-222222222222");
@@ -33,8 +36,14 @@ public class SearchControllerTests
             _searchProviderMock.Object,
             NullLogger<SearchQueryService>.Instance);
 
+        var dbOptions = new DbContextOptionsBuilder<SearchDbContext>()
+            .UseInMemoryDatabase($"SearchControllerTests_{Guid.NewGuid()}")
+            .Options;
+        _db = new SearchDbContext(dbOptions);
+
         _controller = new SearchController(
             _queryService,
+            _db,
             NullLogger<SearchController>.Instance);
 
         SetupAuthenticatedUser(TestUserId, "user");
