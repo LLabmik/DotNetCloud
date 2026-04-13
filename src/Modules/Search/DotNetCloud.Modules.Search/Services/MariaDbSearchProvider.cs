@@ -9,8 +9,9 @@ using Microsoft.Extensions.Logging;
 namespace DotNetCloud.Modules.Search.Services;
 
 /// <summary>
-/// MariaDB full-text search provider using <c>MATCH ... AGAINST ... IN BOOLEAN MODE</c>.
-/// Falls back to <c>LIKE</c> when running on non-MariaDB providers (e.g., InMemory for tests).
+/// MariaDB full-text search provider using <c>MATCH ... AGAINST ... IN BOOLEAN MODE</c> for native FTS.
+/// Falls back to <c>Contains</c> when running on non-MariaDB providers (e.g., InMemory for tests).
+/// Supports query parsing with phrases, exclusions, and relevance ranking.
 /// </summary>
 public sealed class MariaDbSearchProvider : ISearchProvider
 {
@@ -93,6 +94,8 @@ public sealed class MariaDbSearchProvider : ISearchProvider
     {
         ArgumentNullException.ThrowIfNull(query);
 
+        var parsed = SearchQueryParser.Parse(query.QueryText);
+
         var dbQuery = _db.SearchIndexEntries
             .Where(e => e.OwnerId == query.UserId);
 
@@ -106,22 +109,36 @@ public sealed class MariaDbSearchProvider : ISearchProvider
             dbQuery = dbQuery.Where(e => e.EntityType == query.EntityTypeFilter);
         }
 
-        // MariaDB MATCH AGAINST fallback to Contains for InMemory
-        if (!string.IsNullOrWhiteSpace(query.QueryText))
+        // MariaDB MATCH AGAINST fallback to Contains() for InMemory
+        if (parsed.HasSearchableContent)
         {
-            var searchText = query.QueryText.Trim();
+            var searchTerms = parsed.Terms.Concat(parsed.Phrases).ToList();
+            foreach (var term in searchTerms)
+            {
+                var t = term;
+                dbQuery = dbQuery.Where(e =>
+                    e.Title.Contains(t) ||
+                    e.Content.Contains(t));
+            }
+        }
+
+        // Apply exclusions
+        foreach (var exclusion in parsed.Exclusions)
+        {
+            var ex = exclusion;
             dbQuery = dbQuery.Where(e =>
-                e.Title.Contains(searchText) ||
-                e.Content.Contains(searchText));
+                !e.Title.Contains(ex) &&
+                !e.Content.Contains(ex));
         }
 
         var totalCount = await dbQuery.CountAsync(cancellationToken);
 
+        // Sort order with relevance support
         dbQuery = query.SortOrder switch
         {
             SearchSortOrder.DateDesc => dbQuery.OrderByDescending(e => e.UpdatedAt),
             SearchSortOrder.DateAsc => dbQuery.OrderBy(e => e.UpdatedAt),
-            _ => dbQuery.OrderByDescending(e => e.UpdatedAt)
+            _ => ApplyRelevanceSort(dbQuery, parsed)
         };
 
         var skip = (query.Page - 1) * query.PageSize;
@@ -130,17 +147,8 @@ public sealed class MariaDbSearchProvider : ISearchProvider
             .Take(query.PageSize)
             .ToListAsync(cancellationToken);
 
-        var facetQuery = _db.SearchIndexEntries
-            .Where(e => e.OwnerId == query.UserId);
-
-        if (!string.IsNullOrWhiteSpace(query.QueryText))
-        {
-            var searchText = query.QueryText.Trim();
-            facetQuery = facetQuery.Where(e =>
-                e.Title.Contains(searchText) ||
-                e.Content.Contains(searchText));
-        }
-
+        // Facet counts
+        var facetQuery = BuildFacetQuery(query, parsed);
         var facetCounts = await facetQuery
             .GroupBy(e => e.ModuleId)
             .Select(g => new { ModuleId = g.Key, Count = g.Count() })
@@ -151,9 +159,9 @@ public sealed class MariaDbSearchProvider : ISearchProvider
             ModuleId = e.ModuleId,
             EntityId = e.EntityId,
             EntityType = e.EntityType,
-            Title = e.Title,
-            Snippet = GenerateSnippet(e.Content, query.QueryText),
-            RelevanceScore = 1.0,
+            Title = SnippetGenerator.HighlightTitle(e.Title, parsed),
+            Snippet = SnippetGenerator.Generate(e.Content, parsed),
+            RelevanceScore = CalculateRelevanceScore(e, parsed),
             UpdatedAt = e.UpdatedAt,
             Metadata = DeserializeMetadata(e.MetadataJson)
         }).ToList();
@@ -211,26 +219,74 @@ public sealed class MariaDbSearchProvider : ISearchProvider
         };
     }
 
-    private static string GenerateSnippet(string content, string? queryText, int maxLength = 200)
+    private IQueryable<SearchIndexEntry> BuildFacetQuery(SearchQuery query, ParsedSearchQuery parsed)
     {
-        if (string.IsNullOrEmpty(content))
-            return string.Empty;
+        var facetQuery = _db.SearchIndexEntries
+            .Where(e => e.OwnerId == query.UserId);
 
-        if (string.IsNullOrWhiteSpace(queryText))
-            return content.Length > maxLength ? content[..maxLength] + "..." : content;
+        if (parsed.HasSearchableContent)
+        {
+            var searchTerms = parsed.Terms.Concat(parsed.Phrases).ToList();
+            foreach (var term in searchTerms)
+            {
+                var t = term;
+                facetQuery = facetQuery.Where(e =>
+                    e.Title.Contains(t) ||
+                    e.Content.Contains(t));
+            }
+        }
 
-        var index = content.IndexOf(queryText, StringComparison.OrdinalIgnoreCase);
-        if (index < 0)
-            return content.Length > maxLength ? content[..maxLength] + "..." : content;
+        foreach (var exclusion in parsed.Exclusions)
+        {
+            var ex = exclusion;
+            facetQuery = facetQuery.Where(e =>
+                !e.Title.Contains(ex) &&
+                !e.Content.Contains(ex));
+        }
 
-        var start = Math.Max(0, index - 50);
-        var end = Math.Min(content.Length, index + queryText.Length + 150);
-        var snippet = content[start..end];
+        return facetQuery;
+    }
 
-        if (start > 0) snippet = "..." + snippet;
-        if (end < content.Length) snippet += "...";
+    private static IQueryable<SearchIndexEntry> ApplyRelevanceSort(
+        IQueryable<SearchIndexEntry> query, ParsedSearchQuery parsed)
+    {
+        if (parsed.Terms.Count > 0)
+        {
+            var firstTerm = parsed.Terms[0];
+            return query
+                .OrderByDescending(e => e.Title.Contains(firstTerm))
+                .ThenByDescending(e => e.UpdatedAt);
+        }
 
-        return snippet;
+        if (parsed.Phrases.Count > 0)
+        {
+            var firstPhrase = parsed.Phrases[0];
+            return query
+                .OrderByDescending(e => e.Title.Contains(firstPhrase))
+                .ThenByDescending(e => e.UpdatedAt);
+        }
+
+        return query.OrderByDescending(e => e.UpdatedAt);
+    }
+
+    private static double CalculateRelevanceScore(SearchIndexEntry entry, ParsedSearchQuery parsed)
+    {
+        var score = 0.0;
+        var allTerms = parsed.Terms.Concat(parsed.Phrases).ToList();
+
+        foreach (var term in allTerms)
+        {
+            if (entry.Title.Contains(term, StringComparison.OrdinalIgnoreCase))
+                score += 2.0;
+
+            if (entry.Content.Contains(term, StringComparison.OrdinalIgnoreCase))
+                score += 1.0;
+
+            if (entry.Title.Equals(term, StringComparison.OrdinalIgnoreCase))
+                score += 3.0;
+        }
+
+        return score > 0 ? score : 0.1;
     }
 
     private static IReadOnlyDictionary<string, string> DeserializeMetadata(string? json)

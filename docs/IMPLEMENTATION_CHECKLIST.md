@@ -4063,3 +4063,67 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `TrackServiceSearchIndexTests` — 2 tests (delete, event properties)
 - ✓ `CardServiceSearchIndexTests` — 4 tests (create, update, move, delete)
 - ✓ All 23 tests passing, zero regressions
+
+### Phase 4: Indexing Engine ✅
+
+#### Step 4.1 — Background Indexing Pipeline
+- ✓ `SearchIndexingService` — Channel-based queue with Start/Stop lifecycle, batch processing
+- ✓ Module lookup from `ISearchableModule` registry, null-safe document retrieval
+- ✓ Content extraction pipeline integration (`ContentExtractionService`)
+- ✓ Error handling — individual failures don't stop the queue
+
+#### Step 4.2 — Search Reindex Background Service
+- ✓ `SearchReindexBackgroundService` — Full reindex and per-module reindex
+- ✓ Batch processing with configurable size (default 200)
+- ✓ `IndexingJob` creation with status tracking (Pending → Running → Completed/Failed)
+- ✓ Orphaned entry cleanup for unregistered modules
+
+#### Step 4.3 — Event Handler Integration
+- ✓ `SearchIndexRequestEventHandler` — Routes Index events to indexing service, Remove events to provider
+- ✓ Null-safe for both provider and indexing service injection
+
+#### Step 4.4 — Comprehensive Tests
+- ✓ `SearchIndexingServicePhase4Tests` — 8 tests
+- ✓ `SearchIndexRequestEventHandlerPhase4Tests` — 6 tests
+- ✓ `SearchReindexBackgroundServicePhase4Tests` — 16 tests
+- ✓ `ContentExtractionPipelinePhase4Tests` — 8 tests
+- ✓ `IndexingPipelineIntegrationTests` — 5 tests
+- ✓ All 43 Phase 4 tests passing (212 total search tests)
+
+### Phase 5: Search Query Engine ✅
+
+#### Step 5.1 — Query Parsing
+- ✓ `SearchQueryParser` — Parses raw input into `ParsedSearchQuery`
+- ✓ Keywords, quoted phrases, `in:module`, `type:value`, `-exclusion` syntax
+- ✓ Edge case handling (empty quotes, standalone dashes)
+
+#### Step 5.2 — Provider-Specific Query Translation
+- ✓ `ParsedSearchQuery.ToPostgreSqlTsQuery()` — & operators, <-> phrases, ! exclusions
+- ✓ `ParsedSearchQuery.ToSqlServerContainsQuery()` — AND/AND NOT keywords
+- ✓ `ParsedSearchQuery.ToMariaDbBooleanQuery()` — +term, +"phrase", -exclusion
+- ✓ Special character sanitization per provider
+
+#### Step 5.3 — Cross-Module Result Aggregation
+- ✓ `SearchQueryService` — Parser integration, filter extraction from query syntax
+- ✓ Short-circuit on empty or filter-only queries
+- ✓ All three database providers upgraded with parsed query support
+
+#### Step 5.4 — Snippet Generation
+- ✓ `SnippetGenerator.Generate()` — Contextual window with `<mark>` highlighting
+- ✓ `SnippetGenerator.HighlightTitle()` — Title term highlighting
+- ✓ XSS prevention via HtmlEncode before mark tag insertion
+
+#### Step 5.5 — Provider Upgrades
+- ✓ PostgreSQL — ILIKE term matching, exclusion WHERE clauses, relevance scoring
+- ✓ SQL Server — Contains() fallback, exclusions, relevance scoring
+- ✓ MariaDB — Contains() fallback, exclusions, relevance scoring
+- ✓ All providers: title highlighting, snippet generation, metadata deserialization
+
+#### Step 5.6 — Comprehensive Tests
+- ✓ `SearchQueryParserTests` — 28 tests
+- ✓ `ParsedSearchQueryTests` — 20 tests
+- ✓ `SnippetGeneratorTests` — 18 tests
+- ✓ `SearchQueryEngineIntegrationTests` — 25 tests
+- ✓ `CrossModuleResultAggregationTests` — 20 tests
+- ✓ `SearchQueryServicePhase5Tests` — 14 tests
+- ✓ All 343 search tests passing

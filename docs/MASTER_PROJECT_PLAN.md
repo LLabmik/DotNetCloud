@@ -97,7 +97,7 @@
 | Phase 4.8                   | 8       | 8         | 0           | 0       |
 | Phase 4.9                   | 42      | 42        | 0           | 0       |
 | Phase 5-8                   | Summary | 8         | 0           | 0       |
-| Phase 8 (Full-Text Search)  | 13      | 13        | 0           | 0       |
+| Phase 8 (Full-Text Search)  | 15      | 15        | 0           | 0       |
 | Phase 9                     | 7       | 5         | 0           | 2       |
 | Infrastructure              | Summary | 0         | 0           | 1       |
 | Documentation               | Summary | 0         | 0           | 1       |
@@ -2197,3 +2197,28 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 - ✓ Zero regressions across full test suite
 
 **Notes:** Phase 3 complete. All modules now expose searchable data via gRPC and publish SearchIndexRequestEvent on CRUD operations. AI module excluded (REST only, no proto/gRPC). Next: Phase 4 — Indexing Engine (event-driven + scheduled reindex).
+
+### Section: Phase 8.4 — Indexing Engine
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `SearchIndexingService` upgraded — Channel-based queue with Start/Stop lifecycle, module lookup, content extraction pipeline
+- ✓ `SearchReindexBackgroundService` — Full reindex, per-module reindex, batch processing (200 default), IndexingJob tracking
+- ✓ `SearchIndexRequestEventHandler` — Routes Index → indexing service, Remove → provider directly
+- ✓ Orphaned entry cleanup for unregistered modules
+- ✓ 43 Phase 4 tests in 5 test files (IndexingService, EventHandler, ReindexService, ContentExtraction, IntegrationPipeline)
+- ✓ 212 total search tests passing
+
+**Notes:** Phase 4 complete. Background indexing pipeline processes events asynchronously via channel queue. Full and per-module reindex with batch processing and job tracking.
+
+### Section: Phase 8.5 — Search Query Engine
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `SearchQueryParser` — Parses user input into structured `ParsedSearchQuery` (keywords, phrases, in:module, type:value, -exclusion)
+- ✓ `ParsedSearchQuery` with provider-specific query string builders (PostgreSQL tsquery, SQL Server CONTAINS, MariaDB BOOLEAN MODE)
+- ✓ `SnippetGenerator` — HTML-safe snippet generation with `<mark>` highlighting and XSS prevention
+- ✓ `SearchQueryService` upgraded — Parser integration, filter extraction from query syntax, empty/filter-only short-circuit
+- ✓ All 3 providers (PostgreSQL, SQL Server, MariaDB) upgraded — parsed query support, exclusion WHERE clauses, relevance scoring, title/snippet highlighting, facet queries
+- ✓ 6 new test files with ~125 Phase 5 tests (Parser, ParsedQuery, Snippet, Integration, Aggregation, ServicePhase5)
+- ✓ 343 total search tests passing
+
+**Notes:** Phase 5 complete. Full query engine with advanced syntax parsing, provider-specific query translation, relevance scoring, and highlighted snippets. Next: Phase 6 — REST + gRPC API integration.

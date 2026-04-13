@@ -6,6 +6,8 @@ namespace DotNetCloud.Modules.Search.Services;
 
 /// <summary>
 /// Executes search queries against the search index via the configured <see cref="ISearchProvider"/>.
+/// Parses user input using <see cref="SearchQueryParser"/> to support advanced syntax
+/// (quoted phrases, <c>in:module</c>, <c>type:value</c>, <c>-exclusions</c>).
 /// Provides a single entry point for all search operations.
 /// </summary>
 public sealed class SearchQueryService
@@ -20,7 +22,7 @@ public sealed class SearchQueryService
         _logger = logger;
     }
 
-    /// <summary>Executes a full-text search query.</summary>
+    /// <summary>Executes a full-text search query with advanced query syntax parsing.</summary>
     public async Task<SearchResultDto> SearchAsync(SearchQuery query, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(query);
@@ -37,10 +39,40 @@ public sealed class SearchQueryService
             };
         }
 
-        _logger.LogDebug("Executing search: \"{QueryText}\" (module={Module}, type={Type}, page={Page})",
-            query.QueryText, query.ModuleFilter ?? "all", query.EntityTypeFilter ?? "all", query.Page);
+        // Parse the raw query text into structured components
+        var parsed = SearchQueryParser.Parse(query.QueryText);
 
-        var result = await _searchProvider.SearchAsync(query, cancellationToken);
+        // If parsed query has no searchable terms (only filters/exclusions), return empty
+        if (!parsed.HasSearchableContent)
+        {
+            return new SearchResultDto
+            {
+                Items = [],
+                TotalCount = 0,
+                Page = query.Page,
+                PageSize = query.PageSize,
+                FacetCounts = new Dictionary<string, int>()
+            };
+        }
+
+        // Apply in:module and type:value filters from parsed syntax (override explicit filters)
+        var effectiveQuery = query with
+        {
+            ModuleFilter = parsed.ModuleFilter ?? query.ModuleFilter,
+            EntityTypeFilter = parsed.TypeFilter ?? query.EntityTypeFilter
+        };
+
+        _logger.LogDebug(
+            "Executing search: \"{QueryText}\" (terms={Terms}, phrases={Phrases}, exclusions={Exclusions}, module={Module}, type={Type}, page={Page})",
+            query.QueryText,
+            string.Join(", ", parsed.Terms),
+            string.Join(", ", parsed.Phrases),
+            string.Join(", ", parsed.Exclusions),
+            effectiveQuery.ModuleFilter ?? "all",
+            effectiveQuery.EntityTypeFilter ?? "all",
+            effectiveQuery.Page);
+
+        var result = await _searchProvider.SearchAsync(effectiveQuery, cancellationToken);
 
         _logger.LogDebug("Search returned {Count} results (total: {Total})",
             result.Items.Count, result.TotalCount);

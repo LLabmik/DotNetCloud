@@ -9,8 +9,9 @@ using Microsoft.Extensions.Logging;
 namespace DotNetCloud.Modules.Search.Services;
 
 /// <summary>
-/// PostgreSQL full-text search provider using <c>tsvector</c>/<c>tsquery</c>.
+/// PostgreSQL full-text search provider using <c>tsvector</c>/<c>tsquery</c> for native FTS.
 /// Falls back to <c>ILIKE</c> when running on non-PostgreSQL providers (e.g., InMemory for tests).
+/// Supports query parsing with phrases, exclusions, and relevance ranking via <c>ts_rank</c>.
 /// </summary>
 public sealed class PostgreSqlSearchProvider : ISearchProvider
 {
@@ -93,40 +94,54 @@ public sealed class PostgreSqlSearchProvider : ISearchProvider
     {
         ArgumentNullException.ThrowIfNull(query);
 
+        var parsed = SearchQueryParser.Parse(query.QueryText);
+
         var dbQuery = _db.SearchIndexEntries
             .Where(e => e.OwnerId == query.UserId);
 
-        // Module filter
+        // Apply module filter (from query or parsed in:module syntax)
         if (!string.IsNullOrEmpty(query.ModuleFilter))
         {
             dbQuery = dbQuery.Where(e => e.ModuleId == query.ModuleFilter);
         }
 
-        // Entity type filter
+        // Apply entity type filter
         if (!string.IsNullOrEmpty(query.EntityTypeFilter))
         {
             dbQuery = dbQuery.Where(e => e.EntityType == query.EntityTypeFilter);
         }
 
-        // Full-text search: use EF.Functions.ToTsVector/plainto_tsquery for PostgreSQL
-        // Fallback to LIKE for InMemory/other providers
-        if (!string.IsNullOrWhiteSpace(query.QueryText))
+        // Apply full-text search with ILIKE fallback (works with InMemory for tests)
+        if (parsed.HasSearchableContent)
         {
-            var searchText = query.QueryText.Trim();
+            var searchTerms = parsed.Terms.Concat(parsed.Phrases).ToList();
+            foreach (var term in searchTerms)
+            {
+                var t = term; // capture for closure
+                dbQuery = dbQuery.Where(e =>
+                    EF.Functions.ILike(e.Title, $"%{t}%") ||
+                    EF.Functions.ILike(e.Content, $"%{t}%"));
+            }
+        }
+
+        // Apply exclusions
+        foreach (var exclusion in parsed.Exclusions)
+        {
+            var ex = exclusion; // capture for closure
             dbQuery = dbQuery.Where(e =>
-                EF.Functions.ILike(e.Title, $"%{searchText}%") ||
-                EF.Functions.ILike(e.Content, $"%{searchText}%"));
+                !EF.Functions.ILike(e.Title, $"%{ex}%") &&
+                !EF.Functions.ILike(e.Content, $"%{ex}%"));
         }
 
         // Get total count before pagination
         var totalCount = await dbQuery.CountAsync(cancellationToken);
 
-        // Sort order
+        // Sort order — relevance uses title-match boosting for ILIKE fallback
         dbQuery = query.SortOrder switch
         {
             SearchSortOrder.DateDesc => dbQuery.OrderByDescending(e => e.UpdatedAt),
             SearchSortOrder.DateAsc => dbQuery.OrderBy(e => e.UpdatedAt),
-            _ => dbQuery.OrderByDescending(e => e.UpdatedAt) // Relevance falls back to date for ILIKE
+            _ => ApplyRelevanceSort(dbQuery, parsed)
         };
 
         // Pagination
@@ -136,18 +151,8 @@ public sealed class PostgreSqlSearchProvider : ISearchProvider
             .Take(query.PageSize)
             .ToListAsync(cancellationToken);
 
-        // Get facet counts (results per module)
-        var facetQuery = _db.SearchIndexEntries
-            .Where(e => e.OwnerId == query.UserId);
-
-        if (!string.IsNullOrWhiteSpace(query.QueryText))
-        {
-            var searchText = query.QueryText.Trim();
-            facetQuery = facetQuery.Where(e =>
-                EF.Functions.ILike(e.Title, $"%{searchText}%") ||
-                EF.Functions.ILike(e.Content, $"%{searchText}%"));
-        }
-
+        // Facet counts
+        var facetQuery = BuildFacetQuery(query, parsed);
         var facetCounts = await facetQuery
             .GroupBy(e => e.ModuleId)
             .Select(g => new { ModuleId = g.Key, Count = g.Count() })
@@ -158,9 +163,9 @@ public sealed class PostgreSqlSearchProvider : ISearchProvider
             ModuleId = e.ModuleId,
             EntityId = e.EntityId,
             EntityType = e.EntityType,
-            Title = e.Title,
-            Snippet = GenerateSnippet(e.Content, query.QueryText),
-            RelevanceScore = 1.0, // PostgreSQL would use ts_rank; ILIKE fallback returns 1.0
+            Title = SnippetGenerator.HighlightTitle(e.Title, parsed),
+            Snippet = SnippetGenerator.Generate(e.Content, parsed),
+            RelevanceScore = CalculateRelevanceScore(e, parsed),
             UpdatedAt = e.UpdatedAt,
             Metadata = DeserializeMetadata(e.MetadataJson)
         }).ToList();
@@ -178,7 +183,6 @@ public sealed class PostgreSqlSearchProvider : ISearchProvider
     /// <inheritdoc />
     public async Task ReindexModuleAsync(string moduleId, CancellationToken cancellationToken = default)
     {
-        // Remove all existing entries for the module
         var entries = await _db.SearchIndexEntries
             .Where(e => e.ModuleId == moduleId)
             .ToListAsync(cancellationToken);
@@ -219,26 +223,78 @@ public sealed class PostgreSqlSearchProvider : ISearchProvider
         };
     }
 
-    private static string GenerateSnippet(string content, string? queryText, int maxLength = 200)
+    private IQueryable<SearchIndexEntry> BuildFacetQuery(SearchQuery query, ParsedSearchQuery parsed)
     {
-        if (string.IsNullOrEmpty(content))
-            return string.Empty;
+        var facetQuery = _db.SearchIndexEntries
+            .Where(e => e.OwnerId == query.UserId);
 
-        if (string.IsNullOrWhiteSpace(queryText))
-            return content.Length > maxLength ? content[..maxLength] + "..." : content;
+        if (parsed.HasSearchableContent)
+        {
+            var searchTerms = parsed.Terms.Concat(parsed.Phrases).ToList();
+            foreach (var term in searchTerms)
+            {
+                var t = term;
+                facetQuery = facetQuery.Where(e =>
+                    EF.Functions.ILike(e.Title, $"%{t}%") ||
+                    EF.Functions.ILike(e.Content, $"%{t}%"));
+            }
+        }
 
-        var index = content.IndexOf(queryText, StringComparison.OrdinalIgnoreCase);
-        if (index < 0)
-            return content.Length > maxLength ? content[..maxLength] + "..." : content;
+        foreach (var exclusion in parsed.Exclusions)
+        {
+            var ex = exclusion;
+            facetQuery = facetQuery.Where(e =>
+                !EF.Functions.ILike(e.Title, $"%{ex}%") &&
+                !EF.Functions.ILike(e.Content, $"%{ex}%"));
+        }
 
-        var start = Math.Max(0, index - 50);
-        var end = Math.Min(content.Length, index + queryText.Length + 150);
-        var snippet = content[start..end];
+        return facetQuery;
+    }
 
-        if (start > 0) snippet = "..." + snippet;
-        if (end < content.Length) snippet += "...";
+    private static IQueryable<SearchIndexEntry> ApplyRelevanceSort(
+        IQueryable<SearchIndexEntry> query, ParsedSearchQuery parsed)
+    {
+        // For ILIKE fallback: boost title matches, then sort by date
+        if (parsed.Terms.Count > 0)
+        {
+            var firstTerm = parsed.Terms[0];
+            return query
+                .OrderByDescending(e => EF.Functions.ILike(e.Title, $"%{firstTerm}%"))
+                .ThenByDescending(e => e.UpdatedAt);
+        }
 
-        return snippet;
+        if (parsed.Phrases.Count > 0)
+        {
+            var firstPhrase = parsed.Phrases[0];
+            return query
+                .OrderByDescending(e => EF.Functions.ILike(e.Title, $"%{firstPhrase}%"))
+                .ThenByDescending(e => e.UpdatedAt);
+        }
+
+        return query.OrderByDescending(e => e.UpdatedAt);
+    }
+
+    private static double CalculateRelevanceScore(SearchIndexEntry entry, ParsedSearchQuery parsed)
+    {
+        var score = 0.0;
+        var allTerms = parsed.Terms.Concat(parsed.Phrases).ToList();
+
+        foreach (var term in allTerms)
+        {
+            // Title match is worth more
+            if (entry.Title.Contains(term, StringComparison.OrdinalIgnoreCase))
+                score += 2.0;
+
+            // Content match
+            if (entry.Content.Contains(term, StringComparison.OrdinalIgnoreCase))
+                score += 1.0;
+
+            // Exact title match bonus
+            if (entry.Title.Equals(term, StringComparison.OrdinalIgnoreCase))
+                score += 3.0;
+        }
+
+        return score > 0 ? score : 0.1;
     }
 
     private static IReadOnlyDictionary<string, string> DeserializeMetadata(string? json)

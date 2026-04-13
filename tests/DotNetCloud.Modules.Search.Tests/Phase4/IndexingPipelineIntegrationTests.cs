@@ -134,7 +134,9 @@ public class IndexingPipelineIntegrationTests
         });
 
         Assert.AreEqual(1, result.TotalCount);
-        Assert.AreEqual("Quarterly Report", result.Items[0].Title);
+        // Phase 5 title highlighting wraps matched terms in <mark> tags
+        Assert.IsTrue(result.Items[0].Title.Contains("Quarterly", StringComparison.OrdinalIgnoreCase),
+            $"Title should contain the search term, got: {result.Items[0].Title}");
     }
 
     [TestMethod]
@@ -265,7 +267,9 @@ public class IndexingPipelineIntegrationTests
         });
 
         Assert.AreEqual(1, result.TotalCount);
-        Assert.AreEqual("Final Version", result.Items[0].Title);
+        // Phase 5 title highlighting wraps matched terms in <mark> tags
+        Assert.IsTrue(result.Items[0].Title.Contains("Final", StringComparison.OrdinalIgnoreCase),
+            $"Title should contain search terms, got: {result.Items[0].Title}");
 
         // 4. Old title should not match
         var oldResult = await _queryService.SearchAsync(new SearchQuery

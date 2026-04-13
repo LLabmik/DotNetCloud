@@ -362,7 +362,7 @@ Each module publishes `SearchIndexRequestEvent` when searchable entities are cre
 
 ---
 
-### Phase 4: Indexing Engine
+### Phase 4: Indexing Engine ✅ COMPLETED
 
 > **Depends on Phase 2 + Phase 3.** Status: **COMPLETED**
 >
@@ -410,9 +410,9 @@ File content fetched via module's gRPC file download RPC.
 
 ---
 
-### Phase 5: Search Query Engine
+### Phase 5: Search Query Engine ✅ COMPLETED
 
-> **Depends on Phase 2.**
+> **Depends on Phase 2.** Status: **COMPLETED**
 
 #### Step 5.1 — Query Parsing
 
