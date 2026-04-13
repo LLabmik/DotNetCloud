@@ -195,5 +195,5 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
         }
     }
 
-    return { init: init, dispose: dispose, play: play, resume: resume, pause: pause, stop: stop, seek: seek, setVolume: setVolume, setMuted: setMuted, setEqBand: setEqBand, setEqBands: setEqBands };
+    return { init: init, dispose: dispose, play: play, resume: resume, pause: pause, stop: stop, seek: seek, setVolume: setVolume, setMuted: setMuted, setEqBand: setEqBand, setEqBands: setEqBands, getAudioContext: function () { return audioCtx; }, getSourceNode: function () { return sourceNode; } };
 })();
