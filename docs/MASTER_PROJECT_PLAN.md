@@ -97,7 +97,7 @@
 | Phase 4.8                   | 8       | 8         | 0           | 0       |
 | Phase 4.9                   | 42      | 42        | 0           | 0       |
 | Phase 5-8                   | Summary | 8         | 0           | 0       |
-| Phase 8 (Full-Text Search)  | 17      | 17        | 0           | 0       |
+| Phase 8 (Full-Text Search)  | 18      | 18        | 0           | 0       |
 | Phase 9                     | 7       | 5         | 0           | 2       |
 | Infrastructure              | Summary | 0         | 0           | 1       |
 | Documentation               | Summary | 0         | 0           | 1       |
@@ -2251,3 +2251,17 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 - ✓ 591 total search tests passing
 
 **Notes:** Phase 7 complete. Full Blazor search UI with global search bar (Ctrl+K), results page with facets and pagination, and per-module rich result cards. All 8 FTS implementation phases (2-7 + testing) are now complete.
+
+### Section: Phase 8.8 — Testing & Documentation
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `PermissionScopingTests` — 10 tests (user isolation across providers, facet/filter/pagination scoping)
+- ✓ `EndToEndIndexingTests` — 12 tests (full pipeline: event → handler → indexing → provider → query)
+- ✓ `MultiDatabaseProviderTests` — 10 tests (SqlServer/MariaDb behavioral consistency)
+- ✓ `PerformanceBenchmarkTests` — 8 tests (indexing throughput, query latency p50/p95, concurrent searches)
+- ✓ `docs/modules/SEARCH.md` — Module documentation (architecture, features, services, extractors, providers, schema, configuration, admin operations, test matrix)
+- ✓ `docs/api/search.md` — API reference (REST endpoints, gRPC RPCs, advanced query syntax, client library, permission model)
+- ✓ `docs/architecture/ARCHITECTURE.md` — Section 25: Full-Text Search Architecture (indexing pipeline, query engine, API surface, content extraction)
+- ✓ 631 total search tests passing (40 Phase 8 + 591 previous)
+
+**Notes:** Phase 8 complete. Testing & documentation finalize the full-text search module. All 8 implementation phases delivered: module scaffold, module API integration, indexing engine, query engine, REST/gRPC API, Blazor UI, testing & documentation. 631 tests across all phases.

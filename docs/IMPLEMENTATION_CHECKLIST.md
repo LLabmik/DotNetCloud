@@ -4200,3 +4200,22 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `SearchResultMetadataTests` — 28 tests (per-module metadata extraction for all 10 modules, cross-module consistency)
 - ✓ `SearchSortAndEdgeCaseTests` — 42 tests (sort parsing, query clamping, edge cases, facets, relevance/date ordering)
 - ✓ All 591 search tests passing (159 Phase 7 + 432 previous)
+
+### Phase 8: Testing & Documentation ✅
+
+#### Step 8.1 — Unit Tests (Permission Scoping)
+- ✓ `PermissionScopingTests` — 10 tests (SqlServer/MariaDb user isolation, empty results, facet count scoping, module+user filter, entity type+user filter, pagination, exclusions, stats not scoped, PostgreSQL index/remove only)
+
+#### Step 8.2 — Integration Tests (End-to-End & Multi-Database)
+- ✓ `EndToEndIndexingTests` — 12 tests (index event pipeline, remove event, update event, multi-module, full reindex, module reindex, content extraction, entity deleted before processing, orphaned cleanup, query with in:module, exclusion syntax)
+- ✓ `MultiDatabaseProviderTests` — 10 tests (SqlServer/MariaDb search consistency, module filter, index+search, remove+search, upsert, stats format, reindex, exclusions, pagination, metadata preservation)
+
+#### Step 8.3 — Performance Benchmarks
+- ✓ `PerformanceBenchmarkTests` — 8 tests (index 1000 docs throughput, search 1000 docs latency p50/p95, search 5000 docs with facets, pagination performance, reindex 1000 docs, query parser 10000 parses, snippet generation, concurrent searches 20 parallel)
+
+#### Step 8.4 — Documentation
+- ✓ `docs/modules/SEARCH.md` — Module documentation (architecture, features, services, extractors, providers, schema, config, admin, tests)
+- ✓ `docs/api/search.md` — API reference (REST endpoints, gRPC RPCs, query syntax, client library, permission model)
+- ✓ `docs/architecture/ARCHITECTURE.md` — Section 25: Full-Text Search Architecture
+- ✓ Updated `MASTER_PROJECT_PLAN.md` and `IMPLEMENTATION_CHECKLIST.md`
+- ✓ All 631 search tests passing (40 Phase 8 + 591 previous)

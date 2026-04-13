@@ -1215,6 +1215,96 @@ This section summarizes the March 2026 hardening pass focused on Files module te
 
 ---
 
+## 25. Full-Text Search Architecture
+
+The Search module provides cross-module full-text search with a three-layer architecture: **indexing pipeline**, **query engine**, and **API surface**.
+
+### Design Goals
+
+1. **Multi-database** — PostgreSQL (`tsvector`/`tsquery`), SQL Server (`FREETEXT`), MariaDB (`MATCH AGAINST`) with a single `ISearchProvider` interface.
+2. **Event-driven indexing** — Modules publish `SearchIndexRequestEvent` on CRUD; search indexes incrementally via a bounded `Channel<T>` queue.
+3. **Permission-scoped** — Every query is filtered by `OwnerId`. Users only see their own content.
+4. **Module-agnostic** — Any module implementing `ISearchableModule` is automatically searchable. No compile-time dependency between modules.
+
+### Module Structure
+
+```
+src/Modules/Search/
+├── DotNetCloud.Modules.Search/           # Services, extractors, query parser, events
+├── DotNetCloud.Modules.Search.Data/      # SearchDbContext, SearchIndexEntry, IndexingJob
+├── DotNetCloud.Modules.Search.Host/      # REST + gRPC host (SearchController, SearchGrpcService)
+└── DotNetCloud.Modules.Search.Client/    # gRPC client library (ISearchFtsClient)
+```
+
+### Indexing Pipeline
+
+```
+Module CRUD operation
+  → Publishes SearchIndexRequestEvent (ModuleId, EntityId, Action)
+  → SearchIndexRequestEventHandler routes to:
+      Remove → ISearchProvider.RemoveDocumentAsync() (immediate)
+      Index  → SearchIndexingService channel queue (bounded, 1000 capacity)
+                → Fetches SearchDocument from ISearchableModule
+                → ContentExtractionService extracts text (PDF, DOCX, XLSX, MD, plain text)
+                → ISearchProvider.IndexDocumentAsync() (upsert by ModuleId + EntityId)
+```
+
+A `SearchReindexBackgroundService` runs scheduled full reindexes (default: 24 hours) and supports on-demand triggers via admin API. Batch size: 200 documents. Orphaned entries for unregistered modules are cleaned up automatically.
+
+### Query Engine
+
+`SearchQueryParser` parses user input into `ParsedSearchQuery`:
+
+| Input | Parsed As |
+|---|---|
+| `quarterly report` | Terms: [quarterly, report] |
+| `"project plan"` | Phrases: [project plan] |
+| `in:notes` | ModuleFilter: notes |
+| `type:pdf` | TypeFilter: pdf |
+| `-draft` | Exclusions: [draft] |
+
+`ParsedSearchQuery` generates provider-specific query strings:
+
+| Provider | Format |
+|---|---|
+| PostgreSQL | `to_tsquery('quarterly & report & !draft')` |
+| SQL Server | `CONTAINS(*, '"quarterly" AND "report" AND NOT "draft"')` |
+| MariaDB | `MATCH() AGAINST('+quarterly +report -draft' IN BOOLEAN MODE)` |
+
+`SnippetGenerator` produces XSS-safe highlighted snippets using `<mark>` tags with ~60 characters of context around matches.
+
+### API Surface
+
+**REST** (`/api/v1/search`): GET `/search`, GET `/suggest`, GET `/stats`, POST `/admin/reindex`, POST `/admin/reindex/{moduleId}`.
+
+**gRPC** (`SearchService`): `Search`, `IndexDocument`, `RemoveDocument`, `ReindexModule`, `GetIndexStats`.
+
+**Client library** (`ISearchFtsClient`): Lazy gRPC channel with graceful degradation. When unavailable, module controllers fall back to LIKE-based queries.
+
+### Searchable Modules
+
+Files, Notes, Chat, Contacts, Calendar, Photos, Music, Video, and Tracks all implement `ISearchableModule` and publish search index events on CRUD operations.
+
+### Content Extraction
+
+| Extractor | MIME Types | Library |
+|---|---|---|
+| PlainText | `text/plain`, `text/csv` | Built-in |
+| Markdown | `text/markdown` | Regex-based |
+| PDF | `application/pdf` | UglyToad.PdfPig |
+| DOCX | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` | DocumentFormat.OpenXml |
+| XLSX | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` | DocumentFormat.OpenXml |
+
+Max extracted content: 100KB per document.
+
+### Test Coverage
+
+631 tests across 8 implementation phases covering providers, services, extractors, query parsing, snippet generation, API endpoints, UI logic, permission scoping, multi-database consistency, and performance benchmarks.
+
+**Reference:** [docs/modules/SEARCH.md](../modules/SEARCH.md) | [docs/api/search.md](../api/search.md)
+
+---
+
 ## Documentation Plan
 
 Documentation is continuous — every phase ships with complete docs for what was built.
