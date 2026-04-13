@@ -36,7 +36,7 @@ DotNetCloud gives you full control of your data by running your own cloud server
 | 📧 **Email**            | Integrated email client (SMTP/IMAP/Gmail)                                                                                              | Phase 6           |
 | 🔖 **Bookmarks**        | Browser bookmark sync via extension                                                                                                    | Phase 6           |
 | 📹 **Video Calls**      | WebRTC video calling and screen sharing                                                                                                | Phase 7           |
-| 🔍 **Search**           | Full-text search across all modules                                                                                                    | Phase 8           |
+| 🔍 **Search**           | Full-text search across all modules                                                                                                    | 🔄 In Progress   |
 | 🤖 **AI Assistant**     | LLM-powered assistant via Ollama (local) or Claude/OpenAI (cloud)                                                                      | ✅ Phase 9        |
 | 🔒 **E2EE**             | Optional zero-knowledge encryption                                                                                                     | Phase 10          |
 
@@ -54,7 +54,7 @@ See [MASTER_PROJECT_PLAN.md](docs/MASTER_PROJECT_PLAN.md) for the full phased im
 | **Phase 5**  | Photos + Music + Video                                                                                                                                  | ✅ Complete       |
 | **Phase 6**  | Email + Bookmarks                                                                                                                                       | ⬜ Planned        |
 | **Phase 7**  | Video Calling + Screen Sharing                                                                                                                          | ⬜ Planned        |
-| **Phase 8**  | Search + Auto-Updates                                                                                                                                   | ⬜ Planned        |
+| **Phase 8**  | Search + Auto-Updates                                                                                                                                   | 🔄 In Progress   |
 | **Phase 9**  | AI Assistant                                                                                                                                            | ✅ Complete       |
 | **Phase 10** | End-to-End Encryption (E2EE)                                                                                                                            | ⬜ Planned        |
 
