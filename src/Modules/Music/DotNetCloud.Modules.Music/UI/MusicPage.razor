@@ -793,6 +793,7 @@
                             @(_repeat == RepeatMode.One ? "🔂" : "🔁")
                         </span>
                     </button>
+                    <span class="repeat-label">@(_repeat == RepeatMode.Off ? "Off" : _repeat == RepeatMode.All ? "All" : "One")</span>
                 </div>
                 <div class="np-progress">
                     <span class="np-time">@FormatDuration(_playbackPosition)</span>

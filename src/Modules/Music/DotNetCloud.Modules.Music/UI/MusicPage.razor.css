@@ -952,6 +952,14 @@
     gap: 16px;
 }
 
+.repeat-label {
+    font-size: 0.625rem;
+    color: var(--color-text-secondary, #64748b);
+    min-width: 20px;
+    margin-left: -10px;
+    user-select: none;
+}
+
 .np-btn {
     background: none;
     border: none;
