@@ -361,11 +361,12 @@
         _ => moduleId
     };
 
-    /// <summary>Strips HTML highlight tags for plain-text display in the modal.</summary>
+    /// <summary>Strips HTML highlight tags and decodes HTML entities for plain-text display in the modal.</summary>
     private static string StripHighlight(string text)
     {
         if (string.IsNullOrEmpty(text)) return text;
-        return text.Replace("<mark>", "").Replace("</mark>", "");
+        var plain = text.Replace("<mark>", "").Replace("</mark>", "");
+        return System.Web.HttpUtility.HtmlDecode(plain);
     }
 
     async ValueTask IAsyncDisposable.DisposeAsync()

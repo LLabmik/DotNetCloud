@@ -132,20 +132,33 @@
 
     /// <summary>
     /// Sanitizes highlight markup. Only allows &lt;mark&gt; tags, strips everything else.
+    /// The input is already HTML-encoded by SnippetGenerator (XSS-safe), so we only need
+    /// to preserve the <c>&lt;mark&gt;</c> tags that were applied after encoding.
     /// </summary>
     private static string SanitizeHighlight(string html)
     {
         if (string.IsNullOrEmpty(html)) return html;
 
-        // Allow only <mark> and </mark> tags — strip all others for XSS prevention
-        var result = html;
-        // Replace <mark> tags with placeholders
-        result = result.Replace("<mark>", "\x01MARK_OPEN\x01").Replace("</mark>", "\x01MARK_CLOSE\x01");
-        // Escape all remaining HTML
-        result = System.Net.WebUtility.HtmlEncode(result);
-        // Restore <mark> tags
-        result = result.Replace("\x01MARK_OPEN\x01", "<mark>").Replace("\x01MARK_CLOSE\x01", "</mark>");
-        return result;
+        // The SnippetGenerator already HTML-encodes content before inserting <mark> tags,
+        // so the only raw HTML present should be <mark>...</mark> pairs.
+        // Strip any tags that are NOT <mark> or </mark> to prevent XSS.
+        return StripNonMarkTags(html);
+    }
+
+    /// <summary>Removes all HTML tags except &lt;mark&gt; and &lt;/mark&gt;.</summary>
+    private static string StripNonMarkTags(string input)
+    {
+        // Replace <mark> tags with placeholders, strip all other tags, restore marks
+        var result = input
+            .Replace("<mark>", "\x01MO\x01")
+            .Replace("</mark>", "\x01MC\x01");
+
+        // Remove any remaining HTML tags (shouldn't exist if SnippetGenerator is correct)
+        result = System.Text.RegularExpressions.Regex.Replace(result, @"<[^>]+>", string.Empty);
+
+        return result
+            .Replace("\x01MO\x01", "<mark>")
+            .Replace("\x01MC\x01", "</mark>");
     }
 
     private static string FormatDate(DateTimeOffset date)
