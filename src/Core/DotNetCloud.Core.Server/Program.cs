@@ -23,6 +23,8 @@ using DotNetCloud.Modules.Photos.Data;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Video.Data;
 using DotNetCloud.Modules.AI.Data;
+using DotNetCloud.Modules.Search;
+using DotNetCloud.Modules.Search.Data;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.UI.Web.Client.Services;
 using DotNetCloud.UI.Web.Services;
@@ -138,6 +140,9 @@ public class Program
 
                         var aiDbContext = scope.ServiceProvider.GetRequiredService<AiDbContext>();
                         await EnsureModuleTablesCreatedAsync(aiDbContext, "Conversations", logger);
+
+                        var searchDbContext = scope.ServiceProvider.GetRequiredService<SearchDbContext>();
+                        await EnsureModuleTablesCreatedAsync(searchDbContext, "SearchIndexEntries", logger);
                     }
                     catch (InvalidOperationException ex)
                     {
@@ -180,6 +185,9 @@ public class Program
 
                     var aiDbContext = scope.ServiceProvider.GetRequiredService<AiDbContext>();
                     await EnsureModuleTablesCreatedAsync(aiDbContext, "Conversations", logger);
+
+                    var searchDbContext = scope.ServiceProvider.GetRequiredService<SearchDbContext>();
+                    await EnsureModuleTablesCreatedAsync(searchDbContext, "SearchIndexEntries", logger);
                 }
 
                 // Mark the application as ready for traffic now that DB is initialized
@@ -279,6 +287,8 @@ public class Program
             ConfigureModuleDbContext(options, provider, connectionString));
         builder.Services.AddDbContext<AiDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString));
+        builder.Services.AddDbContext<SearchDbContext>(options =>
+            ConfigureModuleDbContext(options, provider, connectionString));
         builder.Services.AddFilesServices(builder.Configuration);
         builder.Services.AddChatServices(builder.Configuration);
         builder.Services.AddContactsServices(builder.Configuration);
@@ -289,6 +299,11 @@ public class Program
         builder.Services.AddMusicServices(builder.Configuration);
         builder.Services.AddVideoServices(builder.Configuration);
         builder.Services.AddAiServices(builder.Configuration);
+        builder.Services.AddSearchServices(builder.Configuration);
+        // Register ISearchableModule implementations for search indexing
+        builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Files.Data.Services.FilesSearchableModule>();
+        builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Notes.Data.Services.NotesSearchableModule>();
+        builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ISearchableModule, DotNetCloud.Modules.Calendar.Data.Services.CalendarSearchableModule>();
         builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
         builder.Services.AddSingleton<DotNetCloud.Core.Capabilities.ICrossModuleLinkResolver, CrossModuleLinkResolver>();
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.INotificationService, NotificationService>();
@@ -446,6 +461,7 @@ public class Program
         builder.Services.AddScoped<OidcClientSeeder>();
         builder.Services.AddHostedService<ModuleUiRegistrationHostedService>();
         builder.Services.AddHostedService<NotificationEventSubscriber>();
+        builder.Services.AddHostedService<SearchEventSubscriber>();
 
         // Configure forwarded headers for reverse proxy support.
         // SECURITY: Only trust forwarded headers from known proxies to prevent IP spoofing.

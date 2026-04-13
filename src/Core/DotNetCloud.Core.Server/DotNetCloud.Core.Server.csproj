@@ -65,6 +65,9 @@
     <ProjectReference Include="..\..\Modules\Video\DotNetCloud.Modules.Video.Host\DotNetCloud.Modules.Video.Host.csproj" />
     <ProjectReference Include="..\..\Modules\AI\DotNetCloud.Modules.AI\DotNetCloud.Modules.AI.csproj" />
     <ProjectReference Include="..\..\Modules\AI\DotNetCloud.Modules.AI.Data\DotNetCloud.Modules.AI.Data.csproj" />
+    <ProjectReference Include="..\..\Modules\Search\DotNetCloud.Modules.Search\DotNetCloud.Modules.Search.csproj" />
+    <ProjectReference Include="..\..\Modules\Search\DotNetCloud.Modules.Search.Data\DotNetCloud.Modules.Search.Data.csproj" />
+    <ProjectReference Include="..\..\Modules\Search\DotNetCloud.Modules.Search.Host\DotNetCloud.Modules.Search.Host.csproj" />
     <ProjectReference Include="..\..\UI\DotNetCloud.UI.Web\DotNetCloud.UI.Web.csproj" />
     <ProjectReference Include="..\..\UI\DotNetCloud.UI.Web.Client\DotNetCloud.UI.Web.Client.csproj" />
   </ItemGroup>

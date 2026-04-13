@@ -43,7 +43,7 @@ public static class TracksServiceRegistration
         // Real-time & notification services (Phase 4.6)
         services.AddSingleton<TracksInProcessSignalRService>();
         services.AddSingleton<ITracksRealtimeService, TracksRealtimeService>();
-        services.AddSingleton<ITracksNotificationService, TracksNotificationService>();
+        services.AddScoped<ITracksNotificationService, TracksNotificationService>();
         services.AddSingleton<ITracksSignalRService>(sp => sp.GetRequiredService<TracksInProcessSignalRService>());
 
         // Cross-module cleanup services

@@ -148,7 +148,7 @@ public class PhotoEditServiceTests
         var op = new PhotoEditOperationDto
         {
             OperationType = PhotoEditType.Brightness,
-            Parameters = new Dictionary<string, string> { ["value"] = "2.0" }
+            Parameters = new Dictionary<string, string> { ["value"] = "200.0" }
         };
 
         var ex = await Assert.ThrowsExactlyAsync<BusinessRuleException>(
