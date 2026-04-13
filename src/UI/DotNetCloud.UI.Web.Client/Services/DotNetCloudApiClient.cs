@@ -246,13 +246,30 @@ public sealed class DotNetCloudApiClient
     }
 
     /// <summary>
-    /// Gets a specific module by ID.
+    /// Gets a specific module by ID (admin only).
     /// </summary>
     public async Task<ModuleDto?> GetModuleAsync(string moduleId, CancellationToken ct = default)
     {
         var envelope = await _http.GetFromJsonAsync<ApiEnvelope<ModuleDto>>(
             $"api/v1/core/admin/modules/{Uri.EscapeDataString(moduleId)}", ct);
         return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Checks whether a module is installed and available. Accessible by any authenticated user.
+    /// </summary>
+    public async Task<bool> IsModuleAvailableAsync(string moduleId, CancellationToken ct = default)
+    {
+        try
+        {
+            var envelope = await _http.GetFromJsonAsync<ApiEnvelope<ModuleAvailabilityDto>>(
+                $"api/v1/core/modules/{Uri.EscapeDataString(moduleId)}/available", ct);
+            return envelope?.Data?.Installed ?? false;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     /// <summary>
@@ -976,4 +993,13 @@ public sealed class LastFullReindexJobDto
 
     /// <summary>Duration in seconds.</summary>
     public double? DurationSeconds { get; set; }
+}
+
+/// <summary>
+/// Response DTO for the module availability check endpoint.
+/// </summary>
+public sealed class ModuleAvailabilityDto
+{
+    /// <summary>Whether the module is installed.</summary>
+    public bool Installed { get; set; }
 }

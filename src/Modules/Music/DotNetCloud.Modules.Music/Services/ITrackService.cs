@@ -11,6 +11,9 @@ public interface ITrackService
     /// <summary>Gets a track by ID.</summary>
     Task<TrackDto?> GetTrackAsync(Guid trackId, CallerContext caller, CancellationToken cancellationToken = default);
 
+    /// <summary>Gets a track by its associated FileNode ID from the Files module.</summary>
+    Task<TrackDto?> GetTrackByFileNodeIdAsync(Guid fileNodeId, CallerContext caller, CancellationToken cancellationToken = default);
+
     /// <summary>Lists tracks with paging.</summary>
     Task<IReadOnlyList<TrackDto>> ListTracksAsync(CallerContext caller, int skip = 0, int take = 50, CancellationToken cancellationToken = default);
 

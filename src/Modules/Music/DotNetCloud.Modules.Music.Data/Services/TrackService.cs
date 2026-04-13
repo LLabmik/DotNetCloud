@@ -43,6 +43,18 @@ public sealed class TrackService : ITrackService
         return track is null ? null : MapToDto(track, caller.UserId);
     }
 
+    /// <inheritdoc/>
+    public async Task<TrackDto?> GetTrackByFileNodeIdAsync(Guid fileNodeId, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        var track = await _db.Tracks
+            .Include(t => t.Album)
+            .Include(t => t.TrackArtists).ThenInclude(ta => ta.Artist)
+            .Include(t => t.TrackGenres).ThenInclude(tg => tg.Genre)
+            .FirstOrDefaultAsync(t => t.FileNodeId == fileNodeId && t.OwnerId == caller.UserId, cancellationToken);
+
+        return track is null ? null : MapToDto(track, caller.UserId);
+    }
+
     /// <summary>
     /// Lists tracks for the authenticated user.
     /// </summary>

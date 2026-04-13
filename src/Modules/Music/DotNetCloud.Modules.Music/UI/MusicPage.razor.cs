@@ -96,6 +96,11 @@ public partial class MusicPage : IAsyncDisposable
     // ── Auth ──
     private CallerContext? _caller;
 
+    // ── Deep-link parameters (from search) ──
+    [Parameter] public string? FileId { get; set; }
+    [Parameter] public string? FileIdNav { get; set; }
+    private string? _lastHandledNav;
+
     // ── Library Settings ──
     private string _libraryPath = string.Empty;
     private Guid? _libraryFolderId;
@@ -129,6 +134,13 @@ public partial class MusicPage : IAsyncDisposable
             await LoadEqPresetsAsync(caller);
             await LoadLibraryPathAsync();
             await LoadCurrentSectionAsync();
+
+            // Deep-link: auto-play from search if fileId parameter was supplied on first load
+            if (!string.IsNullOrEmpty(FileId) && Guid.TryParse(FileId, out var fileId))
+            {
+                _lastHandledNav = FileIdNav;
+                await TryAutoPlayFileAsync(fileId, caller);
+            }
         }
         catch (Exception ex)
         {
@@ -138,6 +150,19 @@ public partial class MusicPage : IAsyncDisposable
         finally
         {
             _loading = false;
+        }
+    }
+
+    /// <inheritdoc />
+    protected override async Task OnParametersSetAsync()
+    {
+        // Handle fileId changes when already on the page (same-page navigation via search).
+        // FileIdNav is a timestamp nonce that changes on every click, even for the same file.
+        if (!string.IsNullOrEmpty(FileId) && FileIdNav != _lastHandledNav && Guid.TryParse(FileId, out var fileId))
+        {
+            _lastHandledNav = FileIdNav;
+            var caller = _caller ?? await GetCallerAsync();
+            await TryAutoPlayFileAsync(fileId, caller);
         }
     }
 
@@ -155,6 +180,40 @@ public partial class MusicPage : IAsyncDisposable
             {
                 Logger.LogWarning(ex, "Failed to initialize music player JS interop");
             }
+        }
+
+        // Auto-play needs JS audio to be ready; trigger play if a file was queued during init
+        if (_jsInitialized && _pendingAutoPlayTrack is not null)
+        {
+            var track = _pendingAutoPlayTrack;
+            _pendingAutoPlayTrack = null;
+            await PlayTrackAsync(track);
+            StateHasChanged();
+        }
+    }
+
+    private TrackDto? _pendingAutoPlayTrack;
+
+    /// <summary>
+    /// Looks up a track by its Files-module FileNodeId and queues it for auto-play.
+    /// </summary>
+    private async Task TryAutoPlayFileAsync(Guid fileNodeId, CallerContext caller)
+    {
+        try
+        {
+            var track = await TrackService.GetTrackByFileNodeIdAsync(fileNodeId, caller);
+            if (track is not null)
+            {
+                _pendingAutoPlayTrack = track;
+            }
+            else
+            {
+                Logger.LogWarning("No music track found for FileNodeId {FileNodeId}", fileNodeId);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to auto-play track for FileNodeId {FileNodeId}", fileNodeId);
         }
     }
 

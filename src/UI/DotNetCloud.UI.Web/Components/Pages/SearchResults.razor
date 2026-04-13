@@ -3,8 +3,10 @@
 @attribute [Authorize]
 @using DotNetCloud.Core.DTOs.Search
 @using DotNetCloud.UI.Web.Client.Services
+@using DotNetCloud.UI.Shared.Services
 @inject DotNetCloudApiClient Api
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <PageTitle>Search - DotNetCloud</PageTitle>
 
@@ -85,7 +87,7 @@
                 <div class="search-results-list">
                     @foreach (var item in _result.Items)
                     {
-                        <SearchResultCard Item="item" OnClick="() => NavigateToResult(item)" />
+                        <SearchResultCard Item="item" OnClick="() => NavigateToResultAsync(item)" />
                     }
                 </div>
 
@@ -149,6 +151,7 @@
     private bool _hasSearched;
     private SearchResultDto? _result;
     private CancellationTokenSource? _debounceCts;
+    private bool? _isMusicModuleInstalled;
 
     private int TotalPages => _result is null ? 1 : Math.Max(1, (int)Math.Ceiling((double)_result.TotalCount / _pageSize));
 
@@ -272,31 +275,47 @@
         Navigation.NavigateTo(url, replace: true);
     }
 
-    private void NavigateToResult(SearchResultItem item)
+    private async Task NavigateToResultAsync(SearchResultItem item)
     {
-        var url = GetResultUrl(item);
+        var url = await GetResultUrlAsync(item);
         Navigation.NavigateTo(url);
     }
 
-    private static string GetResultUrl(SearchResultItem item)
+    private async Task<string> GetResultUrlAsync(SearchResultItem item)
     {
-        var nav = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        return item.ModuleId switch
+        var openMusicModule = false;
+
+        if (SearchResultNavigationHelper.IsMusicFileSearchResult(item))
         {
-            "files" => $"/apps/files?fileId={item.EntityId}&_nav={nav}",
-        "notes" => $"/apps/notes?noteId={item.EntityId}",
-        "chat" => item.Metadata.TryGetValue("ChannelId", out var channelId)
-            ? $"/apps/chat?channelId={channelId}&messageId={item.EntityId}"
-            : $"/apps/chat?messageId={item.EntityId}",
-        "contacts" => $"/apps/contacts?contactId={item.EntityId}",
-        "calendar" => $"/apps/calendar?eventId={item.EntityId}",
-        "photos" => $"/apps/photos?photoId={item.EntityId}",
-        "music" => $"/apps/music?trackId={item.EntityId}",
-        "video" => $"/apps/video?videoId={item.EntityId}",
-        "tracks" => $"/apps/tracks?cardId={item.EntityId}",
-            "ai" => $"/apps/ai?conversationId={item.EntityId}",
-            _ => $"/search?q={item.Title}"
-        };
+            var isMusicModuleInstalled = await IsMusicModuleInstalledAsync();
+            if (isMusicModuleInstalled)
+            {
+                openMusicModule = await JS.InvokeAsync<bool>("confirm",
+                    "This looks like a music file. Open in Music module?\n\nOK = Music, Cancel = Files");
+            }
+        }
+
+        var nav = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        return SearchResultNavigationHelper.GetResultUrl(item, nav, openMusicModule);
+    }
+
+    private async Task<bool> IsMusicModuleInstalledAsync()
+    {
+        if (_isMusicModuleInstalled.HasValue)
+        {
+            return _isMusicModuleInstalled.Value;
+        }
+
+        try
+        {
+            _isMusicModuleInstalled = await Api.IsModuleAvailableAsync("dotnetcloud.music");
+        }
+        catch
+        {
+            _isMusicModuleInstalled = false;
+        }
+
+        return _isMusicModuleInstalled.Value;
     }
 
     private static string GetModuleIcon(string moduleId) => moduleId switch
