@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.DTOs.Search;
 
 namespace DotNetCloud.UI.Web.Client.Services;
 
@@ -696,6 +697,47 @@ public sealed class DotNetCloudApiClient
     {
         var response = await _http.DeleteAsync($"api/v1/core/users/{userId}/avatar", ct);
         return response.IsSuccessStatusCode;
+    }
+
+    // -----------------------------------------------------------------------
+    // Search
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Executes a full-text search query.
+    /// </summary>
+    public async Task<SearchResultDto?> SearchAsync(
+        string query,
+        string? module = null,
+        string? type = null,
+        int page = 1,
+        int pageSize = 20,
+        string sort = "relevance",
+        CancellationToken ct = default)
+    {
+        var url = $"api/v1/search?q={Uri.EscapeDataString(query)}&page={page}&pageSize={pageSize}&sort={Uri.EscapeDataString(sort)}";
+        if (!string.IsNullOrWhiteSpace(module))
+            url += $"&module={Uri.EscapeDataString(module)}";
+        if (!string.IsNullOrWhiteSpace(type))
+            url += $"&type={Uri.EscapeDataString(type)}";
+
+        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<SearchResultDto>>(url, JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Returns autocomplete suggestions for a search prefix.
+    /// </summary>
+    public async Task<IReadOnlyList<SearchResultItem>?> SearchSuggestAsync(
+        string query,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(query) || query.Length < 2)
+            return [];
+
+        var url = $"api/v1/search/suggest?q={Uri.EscapeDataString(query)}";
+        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<IReadOnlyList<SearchResultItem>>>(url, JsonOptions, ct);
+        return envelope?.Data ?? [];
     }
 
     // -----------------------------------------------------------------------

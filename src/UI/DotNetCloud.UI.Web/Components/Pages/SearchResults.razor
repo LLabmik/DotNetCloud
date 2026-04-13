@@ -1,0 +1,327 @@
+@page "/search"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using DotNetCloud.Core.DTOs.Search
+@using DotNetCloud.UI.Web.Client.Services
+@inject DotNetCloudApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Search - DotNetCloud</PageTitle>
+
+<div class="search-results-page">
+    <div class="search-results-header">
+        <div class="search-results-input-row">
+            <div class="search-results-input-wrapper">
+                <span class="search-results-input-icon">🔍</span>
+                <input type="text"
+                       class="search-results-input"
+                       placeholder="Search…"
+                       autocomplete="off"
+                       @bind="_query"
+                       @bind:event="oninput"
+                       @bind:after="OnQueryChanged"
+                       @onkeydown="OnKeyDown" />
+                @if (!string.IsNullOrEmpty(_query))
+                {
+                    <button class="search-results-clear" @onclick="ClearQuery">✕</button>
+                }
+            </div>
+            <div class="search-results-sort">
+                <label class="sort-label">Sort:</label>
+                <select class="sort-select" @bind="_sortOrder" @bind:after="ExecuteSearch">
+                    <option value="relevance">Relevance</option>
+                    <option value="date_desc">Newest first</option>
+                    <option value="date_asc">Oldest first</option>
+                </select>
+            </div>
+        </div>
+        @if (_result is not null)
+        {
+            <p class="search-results-count">
+                @_result.TotalCount result@(_result.TotalCount != 1 ? "s" : "") for "<strong>@_lastQuery</strong>"
+                @if (!string.IsNullOrWhiteSpace(_moduleFilter))
+                {
+                    <span> in <strong>@FormatModuleName(_moduleFilter)</strong></span>
+                }
+            </p>
+        }
+    </div>
+
+    <div class="search-results-layout">
+        @* ── Left Sidebar: Facets ──────────────────────────── *@
+        @if (_result?.FacetCounts is not null && _result.FacetCounts.Count > 0)
+        {
+            <aside class="search-facets">
+                <div class="facet-header">Modules</div>
+                <button class="facet-item @(string.IsNullOrWhiteSpace(_moduleFilter) ? "active" : "")"
+                        @onclick='() => SetModuleFilter(null)'>
+                    <span class="facet-icon">🔍</span>
+                    <span class="facet-label">All</span>
+                    <span class="facet-count">@_result.TotalCount</span>
+                </button>
+                @foreach (var facet in _result.FacetCounts.OrderByDescending(f => f.Value))
+                {
+                    <button class="facet-item @(_moduleFilter == facet.Key ? "active" : "")"
+                            @onclick="() => SetModuleFilter(facet.Key)">
+                        <span class="facet-icon">@GetModuleIcon(facet.Key)</span>
+                        <span class="facet-label">@FormatModuleName(facet.Key)</span>
+                        <span class="facet-count">@facet.Value</span>
+                    </button>
+                }
+            </aside>
+        }
+
+        @* ── Main Content: Results ─────────────────────────── *@
+        <div class="search-results-main">
+            @if (_isLoading)
+            {
+                <div class="search-results-loading">
+                    <div class="results-spinner"></div>
+                    <span>Searching…</span>
+                </div>
+            }
+            else if (_result is not null && _result.Items.Count > 0)
+            {
+                <div class="search-results-list">
+                    @foreach (var item in _result.Items)
+                    {
+                        <SearchResultCard Item="item" OnClick="() => NavigateToResult(item)" />
+                    }
+                </div>
+
+                @* ── Pagination ─────────────────────────────── *@
+                @if (_result.TotalCount > _pageSize)
+                {
+                    <div class="search-pagination">
+                        <button class="pagination-btn"
+                                disabled="@(_page <= 1)"
+                                @onclick="PreviousPage">
+                            ← Previous
+                        </button>
+                        <span class="pagination-info">
+                            Page @_page of @TotalPages
+                        </span>
+                        <button class="pagination-btn"
+                                disabled="@(_page >= TotalPages)"
+                                @onclick="NextPage">
+                            Next →
+                        </button>
+                    </div>
+                }
+            }
+            else if (_hasSearched)
+            {
+                <div class="search-results-empty">
+                    <span class="empty-icon">🔎</span>
+                    <h3>No results found</h3>
+                    <p>Try different keywords, check spelling, or broaden your search</p>
+                </div>
+            }
+            else
+            {
+                <div class="search-results-empty">
+                    <span class="empty-icon">🔍</span>
+                    <h3>Search DotNetCloud</h3>
+                    <p>Enter a query to search across all your files, notes, messages, and more</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "q")]
+    public string? QueryParam { get; set; }
+
+    [SupplyParameterFromQuery(Name = "module")]
+    public string? ModuleParam { get; set; }
+
+    [SupplyParameterFromQuery(Name = "page")]
+    public int? PageParam { get; set; }
+
+    private string _query = string.Empty;
+    private string _lastQuery = string.Empty;
+    private string? _moduleFilter;
+    private string _sortOrder = "relevance";
+    private int _page = 1;
+    private int _pageSize = 20;
+    private bool _isLoading;
+    private bool _hasSearched;
+    private SearchResultDto? _result;
+    private CancellationTokenSource? _debounceCts;
+
+    private int TotalPages => _result is null ? 1 : Math.Max(1, (int)Math.Ceiling((double)_result.TotalCount / _pageSize));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _query = QueryParam ?? string.Empty;
+        _moduleFilter = ModuleParam;
+        _page = PageParam ?? 1;
+
+        if (!string.IsNullOrWhiteSpace(_query))
+        {
+            await ExecuteSearch();
+        }
+    }
+
+    private async Task OnQueryChanged()
+    {
+        _debounceCts?.Cancel();
+        _debounceCts = new CancellationTokenSource();
+        var token = _debounceCts.Token;
+
+        if (string.IsNullOrWhiteSpace(_query))
+        {
+            _result = null;
+            _hasSearched = false;
+            return;
+        }
+
+        try
+        {
+            await Task.Delay(400, token);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        _page = 1;
+        await ExecuteSearch();
+    }
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(_query))
+        {
+            _debounceCts?.Cancel();
+            _page = 1;
+            _ = ExecuteSearch();
+        }
+    }
+
+    private async Task ExecuteSearch()
+    {
+        if (string.IsNullOrWhiteSpace(_query)) return;
+
+        _isLoading = true;
+        _lastQuery = _query;
+        StateHasChanged();
+
+        try
+        {
+            _result = await Api.SearchAsync(
+                _query,
+                _moduleFilter,
+                page: _page,
+                pageSize: _pageSize,
+                sort: _sortOrder);
+            _hasSearched = true;
+            UpdateUrl();
+        }
+        catch
+        {
+            _result = null;
+            _hasSearched = true;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ClearQuery()
+    {
+        _query = string.Empty;
+        _result = null;
+        _hasSearched = false;
+    }
+
+    private async Task SetModuleFilter(string? module)
+    {
+        _moduleFilter = module;
+        _page = 1;
+        await ExecuteSearch();
+    }
+
+    private async Task PreviousPage()
+    {
+        if (_page > 1)
+        {
+            _page--;
+            await ExecuteSearch();
+        }
+    }
+
+    private async Task NextPage()
+    {
+        if (_page < TotalPages)
+        {
+            _page++;
+            await ExecuteSearch();
+        }
+    }
+
+    private void UpdateUrl()
+    {
+        var url = $"/search?q={Uri.EscapeDataString(_query)}";
+        if (!string.IsNullOrWhiteSpace(_moduleFilter))
+            url += $"&module={Uri.EscapeDataString(_moduleFilter)}";
+        if (_page > 1)
+            url += $"&page={_page}";
+        Navigation.NavigateTo(url, replace: true);
+    }
+
+    private void NavigateToResult(SearchResultItem item)
+    {
+        var url = GetResultUrl(item);
+        Navigation.NavigateTo(url);
+    }
+
+    private static string GetResultUrl(SearchResultItem item) => item.ModuleId switch
+    {
+        "files" => $"/apps/files?fileId={item.EntityId}",
+        "notes" => $"/apps/notes?noteId={item.EntityId}",
+        "chat" => item.Metadata.TryGetValue("ChannelId", out var channelId)
+            ? $"/apps/chat?channelId={channelId}&messageId={item.EntityId}"
+            : $"/apps/chat?messageId={item.EntityId}",
+        "contacts" => $"/apps/contacts?contactId={item.EntityId}",
+        "calendar" => $"/apps/calendar?eventId={item.EntityId}",
+        "photos" => $"/apps/photos?photoId={item.EntityId}",
+        "music" => $"/apps/music?trackId={item.EntityId}",
+        "video" => $"/apps/video?videoId={item.EntityId}",
+        "tracks" => $"/apps/tracks?cardId={item.EntityId}",
+        "ai" => $"/apps/ai?conversationId={item.EntityId}",
+        _ => $"/search?q={item.Title}"
+    };
+
+    private static string GetModuleIcon(string moduleId) => moduleId switch
+    {
+        "files" => "📁",
+        "notes" => "📝",
+        "chat" => "💬",
+        "contacts" => "👤",
+        "calendar" => "📅",
+        "photos" => "📷",
+        "music" => "🎵",
+        "video" => "🎬",
+        "tracks" => "📋",
+        "ai" => "🤖",
+        _ => "🔍"
+    };
+
+    private static string FormatModuleName(string moduleId) => moduleId switch
+    {
+        "files" => "Files",
+        "notes" => "Notes",
+        "chat" => "Chat",
+        "contacts" => "Contacts",
+        "calendar" => "Calendar",
+        "photos" => "Photos",
+        "music" => "Music",
+        "video" => "Video",
+        "tracks" => "Tracks",
+        "ai" => "AI",
+        _ => moduleId
+    };
+}

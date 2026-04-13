@@ -97,7 +97,7 @@
 | Phase 4.8                   | 8       | 8         | 0           | 0       |
 | Phase 4.9                   | 42      | 42        | 0           | 0       |
 | Phase 5-8                   | Summary | 8         | 0           | 0       |
-| Phase 8 (Full-Text Search)  | 15      | 15        | 0           | 0       |
+| Phase 8 (Full-Text Search)  | 17      | 17        | 0           | 0       |
 | Phase 9                     | 7       | 5         | 0           | 2       |
 | Infrastructure              | Summary | 0         | 0           | 1       |
 | Documentation               | Summary | 0         | 0           | 1       |
@@ -2222,3 +2222,32 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 - ✓ 343 total search tests passing
 
 **Notes:** Phase 5 complete. Full query engine with advanced syntax parsing, provider-specific query translation, relevance scoring, and highlighted snippets. Next: Phase 6 — REST + gRPC API integration.
+
+### Section: Phase 8.6 — REST + gRPC API
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `DotNetCloud.Modules.Search.Client` project — shared gRPC client library
+- ✓ `ISearchFtsClient` interface with IsAvailable + SearchAsync
+- ✓ `SearchFtsClient` — lazy GrpcChannel, Unix socket support, timeout config, graceful degradation
+- ✓ `SearchFtsClientOptions` — SearchModuleAddress + Timeout configuration
+- ✓ `SearchClientServiceExtensions` — AddSearchFtsClient DI registration
+- ✓ Files, Chat, Notes controllers updated — FTS first, fallback to LIKE
+- ✓ 7 new test files with 89 Phase 6 tests (Controller, gRPC, FtsClient, Options, Extensions, EnhancedModule, Integration)
+- ✓ 432 total search tests passing
+
+**Notes:** Phase 6 complete. Search module client library with graceful degradation. Module controllers upgraded with FTS-first search. Next: Phase 7 — Blazor UI.
+
+### Section: Phase 8.7 — Blazor UI
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `GlobalSearchBar.razor` — Modal search overlay with Ctrl+K/Cmd+K shortcut, debounced suggestions, keyboard navigation, recent searches (localStorage)
+- ✓ `SearchResults.razor` — Full results page at `/search?q=...` with faceted sidebar, pagination, sort (relevance/date)
+- ✓ `SearchResultCard.razor` — Per-module result card with XSS-safe highlight, module-specific metadata rendering (10 modules)
+- ✓ `global-search.js` — JS interop for keyboard shortcut registration and localStorage management
+- ✓ Scoped CSS for all 3 components (responsive, dark mode support)
+- ✓ `DotNetCloudApiClient` — SearchAsync + SearchSuggestAsync methods added
+- ✓ MainLayout integration (topbar-center), _Imports.razor, App.razor script tag
+- ✓ 6 new test files with 159 Phase 7 tests (URLs, Sanitizer, Display, QueryBuilder, Metadata, Sort/EdgeCases)
+- ✓ 591 total search tests passing
+
+**Notes:** Phase 7 complete. Full Blazor search UI with global search bar (Ctrl+K), results page with facets and pagination, and per-module rich result cards. All 8 FTS implementation phases (2-7 + testing) are now complete.

@@ -25,6 +25,13 @@
             <div class="topbar-left">
                 <h1 class="page-title">@_pageTitle</h1>
             </div>
+            <div class="topbar-center">
+                <AuthorizeView>
+                    <Authorized>
+                        <GlobalSearchBar @rendermode="InteractiveServer" />
+                    </Authorized>
+                </AuthorizeView>
+            </div>
             <div class="topbar-right">
                 <CultureSelector @rendermode="InteractiveAuto" />
                 <NotificationBell @rendermode="InteractiveAuto" />

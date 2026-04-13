@@ -4158,3 +4158,45 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `EnhancedModuleSearchTests` — 15 tests (FTS integration, graceful fallback, permissions, pagination)
 - ✓ `Phase6ApiIntegrationTests` — 19 tests (REST + gRPC pipeline, cross-module consistency)
 - ✓ All 432 search tests passing (89 Phase 6 + 343 previous)
+
+### Phase 7: Blazor UI ✅
+
+#### Step 7.1 — Global Search Bar Component
+- ✓ `GlobalSearchBar.razor` — Modal search overlay with Ctrl+K/Cmd+K keyboard shortcut
+- ✓ Debounced input (300ms) → calls `/api/v1/search/suggest` for live suggestions
+- ✓ Keyboard navigation (↑↓ Enter Esc), recent searches from localStorage
+- ✓ Per-module icons/badges in suggestion results
+- ✓ `global-search.js` — JS interop for shortcut registration + localStorage management
+- ✓ `GlobalSearchBar.razor.css` — Scoped CSS with animations, responsive breakpoints, dark mode
+
+#### Step 7.2 — Search Results Page
+- ✓ `SearchResults.razor` — Full results page at `/search?q=...`
+- ✓ Left sidebar facet filters with module counts
+- ✓ Sort toggle (Relevance / Date)
+- ✓ Pagination with URL state management (`NavigationManager.NavigateTo` with replace)
+- ✓ Loading, empty, and error states
+- ✓ `SearchResults.razor.css` — Scoped CSS for results layout, facets, pagination
+
+#### Step 7.3 — Per-Module Search Result Renderers
+- ✓ `SearchResultCard.razor` — Per-module result card with rich metadata display
+- ✓ XSS-safe `SanitizeHighlight()` — only allows `<mark>` tags, HTML-encodes everything else
+- ✓ Module-specific metadata rendering for 10 modules (Files, Notes, Chat, Contacts, Calendar, Photos, Music, Video, Tracks, AI)
+- ✓ Deep-link URL generation for all modules
+- ✓ `FormatDate()` relative time, `FormatFileSize()`, `GetFileTypeLabel()` helpers
+- ✓ `SearchResultCard.razor.css` — Scoped CSS with hover effects, metadata tags, responsive
+
+#### Step 7.4 — Integration & API Client
+- ✓ `DotNetCloudApiClient` — `SearchAsync()` + `SearchSuggestAsync()` methods added
+- ✓ MainLayout integration — `<GlobalSearchBar>` in topbar-center with `InteractiveServer` render mode
+- ✓ `_Imports.razor` updated with Search components namespace
+- ✓ `App.razor` — `global-search.js` script tag added
+- ✓ `app.css` — `.topbar-center` flex layout added
+
+#### Step 7.5 — Comprehensive Tests
+- ✓ `SearchResultUrlTests` — 23 tests (deep-link URL generation for all 11 modules, icon/name mapping)
+- ✓ `SearchHighlightSanitizerTests` — 16 tests (XSS prevention, mark tag preservation, HTML encoding)
+- ✓ `SearchDisplayFormatTests` — 23 tests (relative date formatting, file size formatting, MIME type labels)
+- ✓ `SearchQueryUrlBuilderTests` — 27 tests (API URL construction, suggest URL, pagination, page URL, DTO validation)
+- ✓ `SearchResultMetadataTests` — 28 tests (per-module metadata extraction for all 10 modules, cross-module consistency)
+- ✓ `SearchSortAndEdgeCaseTests` — 42 tests (sort parsing, query clamping, edge cases, facets, relevance/date ordering)
+- ✓ All 591 search tests passing (159 Phase 7 + 432 previous)

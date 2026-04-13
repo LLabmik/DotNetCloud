@@ -506,13 +506,14 @@ Each module calls the Search module's gRPC with a module filter for consistency.
 
 ---
 
-### Phase 7: Blazor UI
+### Phase 7: Blazor UI ✅
 
 > **Depends on Phase 6. Can run in parallel with Phase 8.**
+> **Status: COMPLETED** — GlobalSearchBar, SearchResults page, SearchResultCard per-module renderers, JS interop, scoped CSS, MainLayout integration, 159 tests (591 total)
 
 #### Step 7.1 — Global Search Bar Component
 
-**Location:** `src/UI/DotNetCloud.UI.Shared/Components/Search/`
+**Location:** `src/UI/DotNetCloud.UI.Web/Components/Shared/Search/`
 
 - `GlobalSearchBar.razor` — keyboard shortcut (Ctrl+K / Cmd+K) opens modal overlay
 - Debounced input (300ms) → calls `/api/v1/search/suggest` for live suggestions
