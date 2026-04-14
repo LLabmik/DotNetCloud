@@ -16,6 +16,8 @@ public sealed class MusicAlbumConfiguration : IEntityTypeConfiguration<MusicAlbu
 
         builder.Property(a => a.Title).IsRequired().HasMaxLength(500);
         builder.Property(a => a.CoverArtPath).HasMaxLength(1000);
+        builder.Property(a => a.MusicBrainzReleaseGroupId).HasMaxLength(36);
+        builder.Property(a => a.MusicBrainzReleaseId).HasMaxLength(36);
         builder.Property(a => a.CreatedAt).IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");
         builder.Property(a => a.UpdatedAt).IsRequired().HasDefaultValueSql("CURRENT_TIMESTAMP");
 
@@ -31,5 +33,6 @@ public sealed class MusicAlbumConfiguration : IEntityTypeConfiguration<MusicAlbu
         builder.HasIndex(a => a.Title).HasDatabaseName("ix_music_albums_title");
         builder.HasIndex(a => a.Year).HasDatabaseName("ix_music_albums_year");
         builder.HasIndex(a => a.IsDeleted).HasDatabaseName("ix_music_albums_is_deleted");
+        builder.HasIndex(a => a.MusicBrainzReleaseGroupId).HasDatabaseName("ix_music_albums_musicbrainz_release_group_id");
     }
 }

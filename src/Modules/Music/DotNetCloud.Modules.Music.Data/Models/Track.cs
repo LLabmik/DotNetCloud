@@ -65,6 +65,12 @@ public sealed class Track
     /// <summary>When the track record was last modified (UTC).</summary>
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>MusicBrainz recording identifier.</summary>
+    public string? MusicBrainzRecordingId { get; set; }
+
+    /// <summary>When the track was last enriched from external sources (UTC).</summary>
+    public DateTime? LastEnrichedAt { get; set; }
+
     /// <summary>Navigation to the album.</summary>
     public MusicAlbum? Album { get; set; }
 

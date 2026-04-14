@@ -3852,6 +3852,44 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Step 5.13 — Subsonic API Compatibility
 - ✓ Step 5.14 — Music API, gRPC & Blazor UI
 
+### Sub-Phase C.1: MusicBrainz Metadata Enrichment
+
+#### Phase A — Data Model Changes (Migration)
+- ✓ Add MusicBrainz enrichment fields to Artist model (MusicBrainzId, Biography, ImageUrl, WikipediaUrl, DiscogsUrl, OfficialUrl, LastEnrichedAt)
+- ✓ Add MusicBrainz enrichment fields to MusicAlbum model (MusicBrainzReleaseGroupId, MusicBrainzReleaseId, LastEnrichedAt)
+- ✓ Add MusicBrainz enrichment fields to Track model (MusicBrainzRecordingId, LastEnrichedAt)
+- ✓ Update EF Core configurations with max lengths and indexes
+- ✓ Create AddMusicBrainzEnrichment migration
+
+#### Phase B — MusicBrainz + Cover Art Archive Services
+- ☐ `IMusicBrainzClient` / `MusicBrainzClient` — typed HTTP client with rate limiting
+- ☐ `ICoverArtArchiveClient` / `CoverArtArchiveClient` — album art fetcher
+- ☐ `IMetadataEnrichmentService` / `MetadataEnrichmentService` — orchestrator
+
+#### Phase C — Scan Progress Infrastructure
+- ☐ `LibraryScanProgress` DTO
+- ☐ Update `LibraryScanService` with progress reporting
+- ☐ `ScanProgressState` — scoped Blazor state service
+
+#### Phase D — API Endpoints
+- ☐ Enrichment endpoints on MusicController
+- ☐ Scan progress endpoint
+
+#### Phase E — Blazor UI Updates
+- ☐ Scan progress UI overhaul
+- ☐ Album enrichment UI
+- ☐ Artist enrichment UI
+- ☐ Settings: enrichment toggles
+
+#### Phase F — Service Registration + Configuration
+- ☐ Register new services and HTTP clients
+- ☐ Configuration section for enrichment settings
+
+#### Phase G — Comprehensive Unit Tests
+- ☐ `MusicBrainzClientTests` (~20 tests)
+- ☐ `CoverArtArchiveClientTests` (~12 tests)
+- ☐ `MetadataEnrichmentServiceTests` (~25 tests)
+
 ### Sub-Phase D: Video Module (Steps 5.15–5.18)
 
 - ✓ Step 5.15 — Video Contracts & Data Model

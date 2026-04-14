@@ -1923,6 +1923,26 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
+## Phase 5: MusicBrainz Metadata Enrichment (Sub-Phase C.1)
+
+### Section: Phase A - Data Model Changes (Migration)
+
+#### Step: phase-5-mb-A - MusicBrainz Data Model Changes
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ Artist model: `MusicBrainzId`, `Biography`, `ImageUrl`, `WikipediaUrl`, `DiscogsUrl`, `OfficialUrl`, `LastEnrichedAt`
+- ✓ MusicAlbum model: `MusicBrainzReleaseGroupId`, `MusicBrainzReleaseId`, `LastEnrichedAt`
+- ✓ Track model: `MusicBrainzRecordingId`, `LastEnrichedAt`
+- ✓ EF Core configurations updated with max lengths and indexes (ix_artists_musicbrainz_id, ix_music_albums_musicbrainz_release_group_id, ix_tracks_musicbrainz_recording_id)
+- ✓ `AddMusicBrainzEnrichment` migration created
+- ✓ 250 existing Music tests still passing
+
+**Notes:** Phase A complete. All enrichment fields added as nullable columns — no breaking changes. Ready for Phase B (MusicBrainz + Cover Art Archive service clients).
+
+---
+
 ## Phase 5: Video Module (Sub-Phase D)
 
 ### Section: Phase 5.15 - Video Contracts & Data

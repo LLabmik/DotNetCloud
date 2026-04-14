@@ -41,6 +41,15 @@ public sealed class MusicAlbum
     /// <summary>When the album record was last modified (UTC).</summary>
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>MusicBrainz release group identifier (album concept).</summary>
+    public string? MusicBrainzReleaseGroupId { get; set; }
+
+    /// <summary>MusicBrainz release identifier (specific release, needed for Cover Art Archive lookup).</summary>
+    public string? MusicBrainzReleaseId { get; set; }
+
+    /// <summary>When the album was last enriched from external sources (UTC).</summary>
+    public DateTime? LastEnrichedAt { get; set; }
+
     /// <summary>Navigation to the primary artist.</summary>
     public Artist? Artist { get; set; }
 
