@@ -2,12 +2,14 @@
 @using System.Security.Claims
 @using DotNetCloud.Core.DTOs
 @using DotNetCloud.Core.Services
+@using DotNetCloud.Modules.Music.UI
 @inject IUserSettingsService UserSettingsService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject PersistentComponentState PersistentState
+@inject MusicPlaybackState MusicPlayback
 @implements IDisposable
 
-<div class="app-container">
+<div class="app-container @(MusicPlayback.NowPlaying is not null ? "has-global-player" : "")">
     <nav class="sidebar @(_collapsed ? "collapsed" : "")">
         <div class="sidebar-header">
             <a href="/" class="brand">
@@ -68,6 +70,7 @@
         </main>
 
         <ToastContainer />
+        <GlobalMusicPlaybar @rendermode="InteractiveServer" />
     </div>
 </div>
 

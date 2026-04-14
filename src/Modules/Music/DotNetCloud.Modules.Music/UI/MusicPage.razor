@@ -9,7 +9,6 @@
 @inject Music.Services.IPlaylistService PlaylistService
 @inject IPlaybackService PlaybackService
 @inject IRecommendationService RecommendationService
-@inject IEqPresetService EqPresetService
 @inject IMusicStreamingService StreamingService
 @inject DotNetCloud.Modules.Music.Events.IMusicIndexingCallback MusicIndexingCallback
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
@@ -19,6 +18,7 @@
 @inject Microsoft.AspNetCore.Components.NavigationManager Navigation
 @inject IJSRuntime Js
 @inject Microsoft.Extensions.Logging.ILogger<MusicPage> Logger
+@inject MusicPlaybackState Playback
 
 <div class="music-layout">
     @* ─── Sidebar ─── *@
@@ -93,7 +93,7 @@
     </aside>
 
     @* ─── Main Content ─── *@
-    <main class="music-main @(_nowPlaying is not null ? "has-player" : "")">
+    <main class="music-main @(Playback.NowPlaying is not null ? "has-player" : "")">
         @* Toolbar *@
         <div class="music-toolbar">
             <div class="toolbar-left">
@@ -108,6 +108,13 @@
                 <h3 class="section-title">@GetSectionTitle()</h3>
             </div>
             <div class="toolbar-right">
+                @if (Playback.NowPlaying is not null)
+                {
+                    <button class="toolbar-btn visualizer-toggle @(_visualizerEnabled ? "active" : "")"
+                            @onclick="ToggleVisualizerAsync" title="Toggle Visualizer">
+                        🎆 Visualizer
+                    </button>
+                }
                 <div class="search-box">
                     <input type="text" placeholder="Search music…"
                            @bind="_searchQuery" @bind:event="oninput"
@@ -221,7 +228,7 @@
                             <div class="track-list">
                                 @foreach (var (track, index) in _newTracks.Take(10).Select((t, i) => (t, i)))
                                 {
-                                    <div class="track-row @(_nowPlaying?.Id == track.Id ? "playing" : "")"
+                                    <div class="track-row @(Playback.NowPlaying?.Id == track.Id ? "playing" : "")"
                                          @ondblclick="() => PlayTrackAsync(track)">
                                         <span class="track-num">@(index + 1)</span>
                                         <div class="track-info">
@@ -245,7 +252,7 @@
                             <div class="track-list">
                                 @foreach (var (track, index) in _recommendations.Take(10).Select((t, i) => (t, i)))
                                 {
-                                    <div class="track-row @(_nowPlaying?.Id == track.Id ? "playing" : "")"
+                                    <div class="track-row @(Playback.NowPlaying?.Id == track.Id ? "playing" : "")"
                                          @ondblclick="() => PlayTrackAsync(track)">
                                         <span class="track-num">@(index + 1)</span>
                                         <div class="track-info">
@@ -388,7 +395,7 @@
                     <div class="track-list album-tracks">
                         @foreach (var (track, index) in _albumTracks.Select((t, i) => (t, i)))
                         {
-                            <div class="track-row @(_nowPlaying?.Id == track.Id ? "playing" : "")"
+                            <div class="track-row @(Playback.NowPlaying?.Id == track.Id ? "playing" : "")"
                                  @ondblclick="() => PlayTrackAsync(track)">
                                 <span class="track-num">@(track.TrackNumber > 0 ? track.TrackNumber : index + 1)</span>
                                 <div class="track-info">
@@ -407,7 +414,7 @@
                                     @if (_trackMenuId == track.Id)
                                     {
                                         <div class="track-dropdown">
-                                            <button @onclick="() => AddToQueueAsync(track)">Add to Queue</button>
+                                            <button @onclick="() => AddToQueue(track)">Add to Queue</button>
                                             @foreach (var pl in _playlists)
                                             {
                                                 <button @onclick="() => AddToPlaylistAsync(pl.Id, track.Id)">Add to @pl.Name</button>
@@ -439,7 +446,7 @@
                     <div class="track-list" style="margin-top: 16px;">
                         @foreach (var (track, index) in _genreTracks.Select((t, i) => (t, i)))
                         {
-                            <div class="track-row @(_nowPlaying?.Id == track.Id ? "playing" : "")"
+                            <div class="track-row @(Playback.NowPlaying?.Id == track.Id ? "playing" : "")"
                                  @ondblclick="() => PlayTrackAsync(track)">
                                 <span class="track-num">@(index + 1)</span>
                                 <div class="track-info">
@@ -469,7 +476,7 @@
                     <div class="track-list">
                         @foreach (var (track, index) in _playlistTracks.Select((t, i) => (t, i)))
                         {
-                            <div class="track-row @(_nowPlaying?.Id == track.Id ? "playing" : "")"
+                            <div class="track-row @(Playback.NowPlaying?.Id == track.Id ? "playing" : "")"
                                  @ondblclick="() => PlayTrackAsync(track)">
                                 <span class="track-num">@(index + 1)</span>
                                 <div class="track-info">
@@ -530,7 +537,7 @@
                     <div class="track-list">
                         @foreach (var (track, index) in _starredTracks.Select((t, i) => (t, i)))
                         {
-                            <div class="track-row @(_nowPlaying?.Id == track.Id ? "playing" : "")"
+                            <div class="track-row @(Playback.NowPlaying?.Id == track.Id ? "playing" : "")"
                                  @ondblclick="() => PlayTrackAsync(track)">
                                 <span class="track-num">@(index + 1)</span>
                                 <div class="track-info">
@@ -559,7 +566,7 @@
                     }
                     @foreach (var (track, index) in _recentlyPlayed.Select((t, i) => (t, i)))
                     {
-                        <div class="track-row @(_nowPlaying?.Id == track.Id ? "playing" : "")"
+                        <div class="track-row @(Playback.NowPlaying?.Id == track.Id ? "playing" : "")"
                              @ondblclick="() => PlayTrackAsync(track)">
                             <span class="track-num">@(index + 1)</span>
                             <div class="track-info">
@@ -580,7 +587,7 @@
                     <div class="track-list">
                         @foreach (var (track, index) in _searchResults.Select((t, i) => (t, i)))
                         {
-                            <div class="track-row @(_nowPlaying?.Id == track.Id ? "playing" : "")"
+                            <div class="track-row @(Playback.NowPlaying?.Id == track.Id ? "playing" : "")"
                                  @ondblclick="() => PlayTrackAsync(track)">
                                 <span class="track-num">@(index + 1)</span>
                                 <div class="track-info">
@@ -729,182 +736,6 @@
             }
         }
     </main>
-    @if (_nowPlaying is not null)
-    {
-        <div class="now-playing-bar">
-            <div class="np-track-info">
-                <div class="np-art" id="np-art-container">
-                    @if (_nowPlaying.AlbumId.HasValue)
-                    {
-                        <img src="@GetAlbumArtUrl(_nowPlaying.AlbumId.Value)" alt=""
-                             onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" style="display:none;width:100%;height:100%">
-                            <defs><linearGradient id="npbg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#cbd5e1"/><stop offset="100%" stop-color="#94a3b8"/></linearGradient></defs>
-                            <rect width="200" height="200" rx="12" fill="url(#npbg)"/>
-                            <circle cx="100" cy="96" r="56" fill="#475569" opacity="0.55"/>
-                            <circle cx="100" cy="96" r="40" fill="none" stroke="#64748b" stroke-width="1.5" opacity="0.5"/>
-                            <circle cx="100" cy="96" r="12" fill="#cbd5e1"/>
-                            <circle cx="100" cy="96" r="4" fill="#475569"/>
-                            <g transform="translate(100,96)" fill="#e2e8f0"><rect x="6" y="-30" width="3.5" height="36" rx="1.75"/><circle cx="2" cy="6" r="7"/><path d="M9.5-30 Q18-34 18-24 Q18-18 9.5-22Z"/></g>
-                        </svg>
-                    }
-                    else
-                    {
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" style="width:100%;height:100%">
-                            <defs><linearGradient id="npbg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#cbd5e1"/><stop offset="100%" stop-color="#94a3b8"/></linearGradient></defs>
-                            <rect width="200" height="200" rx="12" fill="url(#npbg2)"/>
-                            <circle cx="100" cy="96" r="56" fill="#475569" opacity="0.55"/>
-                            <circle cx="100" cy="96" r="40" fill="none" stroke="#64748b" stroke-width="1.5" opacity="0.5"/>
-                            <circle cx="100" cy="96" r="12" fill="#cbd5e1"/>
-                            <circle cx="100" cy="96" r="4" fill="#475569"/>
-                            <g transform="translate(100,96)" fill="#e2e8f0"><rect x="6" y="-30" width="3.5" height="36" rx="1.75"/><circle cx="2" cy="6" r="7"/><path d="M9.5-30 Q18-34 18-24 Q18-18 9.5-22Z"/></g>
-                        </svg>
-                    }
-                </div>
-                <div class="np-text">
-                    <span class="np-title">@_nowPlaying.Title</span>
-                    <span class="np-artist-album">
-                        <span>@_nowPlaying.ArtistName</span>
-                        @if (!string.IsNullOrEmpty(_nowPlaying.AlbumTitle))
-                        {
-                            <span class="np-separator"> · </span>
-                            <a class="np-album-link" @onclick="() => NavigateToAlbumAsync(_nowPlaying.AlbumId)" @onclick:preventDefault>@_nowPlaying.AlbumTitle</a>
-                        }
-                    </span>
-                </div>
-                <button class="np-star" @onclick="() => ToggleStarTrackAsync(_nowPlaying)">
-                    @(_nowPlaying.IsStarred ? "★" : "☆")
-                </button>
-            </div>
-
-            <div class="np-controls">
-                <div class="np-buttons">
-                    <button class="np-btn" @onclick="ToggleShuffle" title="Shuffle">
-                        <span class="@(_shuffle ? "active-control" : "")">⇄</span>
-                    </button>
-                    <button class="np-btn" @onclick="PlayPreviousAsync" title="Previous">⏮</button>
-                    <button class="np-btn play-pause" @onclick="TogglePlayPause" title="@(_isPlaying ? "Pause" : "Play")">
-                        @(_isPlaying ? "⏸" : "▶")
-                    </button>
-                    <button class="np-btn" @onclick="PlayNextAsync" title="Next">⏭</button>
-                    <button class="np-btn" @onclick="CycleRepeat" title="Repeat">
-                        <span class="@(_repeat != RepeatMode.Off ? "active-control" : "")">
-                            @(_repeat == RepeatMode.One ? "🔂" : "🔁")
-                        </span>
-                    </button>
-                    <span class="repeat-label">@(_repeat == RepeatMode.Off ? "Off" : _repeat == RepeatMode.All ? "All" : "One")</span>
-                </div>
-                <div class="np-progress">
-                    <span class="np-time">@FormatDuration(_playbackPosition)</span>
-                    <div class="np-progress-bar" @onclick="SeekAsync">
-                        <div class="np-progress-fill" style="width: @GetProgressPercent()%"></div>
-                    </div>
-                    <span class="np-time">@FormatDuration(_nowPlaying.Duration)</span>
-                </div>
-            </div>
-
-            <div class="np-extras">
-                <button class="np-btn" @onclick="() => _showQueue = !_showQueue" title="Queue">
-                    <span class="@(_showQueue ? "active-control" : "")">☰</span>
-                </button>
-                <button class="np-btn" @onclick="() => _showEqualizer = !_showEqualizer" title="Equalizer">
-                    <span class="@(_showEqualizer ? "active-control" : "")"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="3" y1="14" x2="3" y2="5"/><line x1="8" y1="14" x2="8" y2="3"/><line x1="13" y1="14" x2="13" y2="7"/><circle cx="3" cy="5" r="1.5" fill="currentColor" stroke="none"/><circle cx="8" cy="3" r="1.5" fill="currentColor" stroke="none"/><circle cx="13" cy="7" r="1.5" fill="currentColor" stroke="none"/></svg></span>
-                </button>
-                <button class="np-btn" @onclick="ToggleVisualizerAsync" title="Visualizer">
-                    <span class="@(_visualizerEnabled ? "active-control" : "")">🎆</span>
-                </button>
-                <div class="np-volume">
-                    <button class="np-btn" @onclick="ToggleMute" title="Volume">
-                        @(_muted ? "🔇" : _volume > 50 ? "🔊" : "🔉")
-                    </button>
-                    <input type="range" min="0" max="100" value="@_volume"
-                           @oninput="OnVolumeChanged" class="volume-slider" />
-                </div>
-            </div>
-        </div>
-    }
-
-    @* ─── Queue Panel ─── *@
-    @if (_showQueue)
-    {
-        <aside class="queue-panel">
-            <div class="queue-header">
-                <h4>Play Queue</h4>
-                <button class="btn-icon" @onclick="() => _showQueue = false">✕</button>
-            </div>
-            <div class="queue-list">
-                @if (_queue.Count == 0)
-                {
-                    <p class="queue-empty">Queue is empty</p>
-                }
-                @foreach (var (track, index) in _queue.Select((t, i) => (t, i)))
-                {
-                    <div class="queue-item @(_nowPlaying?.Id == track.Id ? "playing" : "")">
-                        <span class="queue-num">@(index + 1)</span>
-                        <div class="queue-info">
-                            <span>@track.Title</span>
-                            <span class="queue-artist">@track.ArtistName</span>
-                        </div>
-                        <button class="queue-remove" @onclick="() => RemoveFromQueueAsync(index)">✕</button>
-                    </div>
-                }
-            </div>
-        </aside>
-    }
-
-    @* ─── Equalizer Panel ─── *@
-    @if (_showEqualizer)
-    {
-        <aside class="eq-panel">
-            <div class="eq-header">
-                <h4>Equalizer</h4>
-                <div class="eq-header-actions">
-                    <button class="btn-icon btn-small" title="Reset to flat" @onclick="ResetEqBands">⟲</button>
-                    <button class="btn-icon btn-small" title="Save as preset" @onclick="() => _showSavePresetDialog = true">💾</button>
-                    <button class="btn-icon" @onclick="() => _showEqualizer = false">✕</button>
-                </div>
-            </div>
-            <div class="eq-presets">
-                @foreach (var preset in _eqPresets)
-                {
-                    <button class="eq-preset-btn @(_activePresetId == preset.Id ? "active" : "")"
-                            @onclick="() => ApplyPresetAsync(preset)">@preset.Name</button>
-                }
-            </div>
-            <div class="eq-bands">
-                @for (int i = 0; i < _eqBands.Length; i++)
-                {
-                    var bandIndex = i;
-                    <div class="eq-band">
-                        <input type="range" min="-12" max="12" step="0.5"
-                               value="@_eqBands[bandIndex]"
-                               @oninput="(e) => OnEqBandChanged(bandIndex, e)"
-                               orient="vertical" class="eq-slider" />
-                        <span class="eq-label">@_bandLabels[bandIndex]</span>
-                    </div>
-                }
-            </div>
-        </aside>
-    }
-
-    @* ─── Save EQ Preset Dialog ─── *@
-    @if (_showSavePresetDialog)
-    {
-        <div class="dialog-overlay" @onclick="() => _showSavePresetDialog = false">
-            <div class="dialog-panel" @onclick:stopPropagation="true">
-                <h4>Save EQ Preset</h4>
-                <div class="dialog-form">
-                    <label>Preset Name
-                        <input type="text" @bind="_newPresetName" placeholder="My Custom Preset" />
-                    </label>
-                </div>
-                <div class="dialog-actions">
-                    <button class="btn-secondary" @onclick="() => _showSavePresetDialog = false">Cancel</button>
-                    <button class="btn-primary" @onclick="SaveCurrentAsPresetAsync" disabled="@string.IsNullOrWhiteSpace(_newPresetName)">Save</button>
-                </div>
-            </div>
-        </div>
-    }
 
     @* ─── Create/Edit Playlist Dialog ─── *@
     @if (_showCreatePlaylistDialog || _showEditPlaylistDialog)

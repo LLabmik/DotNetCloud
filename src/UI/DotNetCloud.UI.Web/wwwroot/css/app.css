@@ -5474,3 +5474,524 @@ textarea.form-control {
     font-size: 13px;
     color: var(--color-text-secondary);
 }
+
+/* ═══════════════════════════════════════════════════════════
+   Global Music Playbar (gmp-*)
+   Persistent playbar rendered in MainLayout, survives navigation.
+   ═══════════════════════════════════════════════════════════ */
+
+.global-music-playbar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: grid;
+    grid-template-columns: 1fr 2fr 1fr;
+    align-items: center;
+    gap: 16px;
+    padding: 0 16px;
+    height: 80px;
+    background: var(--color-surface, #ffffff);
+    border-top: 1px solid var(--color-border, #e2e8f0);
+    z-index: 100;
+}
+
+/* ── When global playbar is active, add bottom padding to page ── */
+.has-global-player .page-content {
+    padding-bottom: 80px;
+}
+
+/* ── Track info (left) ── */
+.gmp-track-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.gmp-art {
+    width: 52px;
+    height: 52px;
+    border-radius: 6px;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: var(--color-border, #e2e8f0);
+}
+
+.gmp-art img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.gmp-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.gmp-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-text, #1e293b);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-decoration: none;
+    cursor: pointer;
+    transition: color var(--transition, 200ms ease);
+}
+
+.gmp-title:hover {
+    color: var(--color-primary, #6366f1);
+    text-decoration: underline;
+}
+
+.gmp-artist-album {
+    font-size: 0.8125rem;
+    color: var(--color-text-secondary, #64748b);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.gmp-separator {
+    color: var(--color-muted, #94a3b8);
+}
+
+.gmp-star {
+    background: none;
+    border: none;
+    font-size: 1.125rem;
+    cursor: pointer;
+    color: var(--color-muted, #94a3b8);
+    transition: color var(--transition, 200ms ease);
+    padding: 4px;
+    flex-shrink: 0;
+}
+
+.gmp-star:hover {
+    color: #f59e0b;
+}
+
+/* ── Controls (center) ── */
+.gmp-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.gmp-buttons {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.gmp-repeat-label {
+    font-size: 0.625rem;
+    color: var(--color-text-secondary, #64748b);
+    min-width: 20px;
+    margin-left: -10px;
+    user-select: none;
+}
+
+.gmp-btn {
+    background: none;
+    border: none;
+    font-size: 1rem;
+    color: var(--color-text-secondary, #64748b);
+    cursor: pointer;
+    padding: 4px;
+    transition: color var(--transition, 200ms ease);
+    line-height: 1;
+}
+
+.gmp-btn:hover {
+    color: var(--color-text, #1e293b);
+}
+
+.gmp-play-pause {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--color-primary, #3b82f6);
+    color: #fff;
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.gmp-play-pause:hover {
+    background: #2563eb;
+    color: #fff;
+}
+
+.global-music-playbar .active-control {
+    color: var(--color-primary, #3b82f6) !important;
+}
+
+/* ── Progress bar ── */
+.gmp-progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    max-width: 600px;
+}
+
+.gmp-time {
+    font-size: 0.6875rem;
+    color: var(--color-muted, #94a3b8);
+    font-variant-numeric: tabular-nums;
+    min-width: 40px;
+    text-align: center;
+}
+
+.gmp-progress-bar {
+    flex: 1;
+    height: 4px;
+    background: var(--color-border, #e2e8f0);
+    border-radius: 2px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.gmp-progress-bar:hover {
+    height: 6px;
+}
+
+.gmp-progress-fill {
+    height: 100%;
+    background: var(--color-primary, #3b82f6);
+    border-radius: 2px;
+    transition: width 1s linear;
+}
+
+/* ── Extras (right) ── */
+.gmp-extras {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.gmp-volume {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.gmp-volume-slider {
+    width: 80px;
+    height: 4px;
+    accent-color: var(--color-primary, #3b82f6);
+    cursor: pointer;
+}
+
+.gmp-close-btn:hover {
+    color: #ef4444 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Global Music Playbar — Queue Panel
+   ═══════════════════════════════════════════════════════════ */
+
+.gmp-queue-panel {
+    position: fixed;
+    right: 0;
+    bottom: 80px;
+    width: 320px;
+    max-height: 60vh;
+    background: var(--color-surface, #ffffff);
+    border-left: 1px solid var(--color-border, #e2e8f0);
+    border-top: 1px solid var(--color-border, #e2e8f0);
+    border-top-left-radius: var(--radius, 8px);
+    box-shadow: var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.12));
+    z-index: 90;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.gmp-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
+
+.gmp-panel-header h4 {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: 600;
+}
+
+.gmp-queue-list {
+    overflow-y: auto;
+    flex: 1;
+    padding: 4px;
+}
+
+.gmp-queue-empty {
+    padding: 24px 16px;
+    text-align: center;
+    color: var(--color-muted, #94a3b8);
+    font-size: 0.875rem;
+}
+
+.gmp-queue-item {
+    display: grid;
+    grid-template-columns: 28px 1fr auto;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    transition: background var(--transition, 200ms ease);
+}
+
+.gmp-queue-item:hover {
+    background: var(--color-bg, #f5f7fa);
+}
+
+.gmp-queue-item.playing {
+    background: rgba(59, 130, 246, 0.08);
+}
+
+.gmp-queue-num {
+    font-size: 0.75rem;
+    color: var(--color-muted, #94a3b8);
+    text-align: center;
+}
+
+.gmp-queue-info {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+
+.gmp-queue-info span {
+    font-size: 0.8125rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.gmp-queue-artist {
+    color: var(--color-text-secondary, #64748b);
+    font-size: 0.75rem !important;
+}
+
+.gmp-queue-remove {
+    background: none;
+    border: none;
+    color: var(--color-muted, #94a3b8);
+    cursor: pointer;
+    font-size: 0.75rem;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: all var(--transition, 200ms ease);
+}
+
+.gmp-queue-remove:hover {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.08);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Global Music Playbar — Equalizer Panel
+   ═══════════════════════════════════════════════════════════ */
+
+.gmp-eq-panel {
+    position: fixed;
+    right: 0;
+    bottom: 80px;
+    width: 360px;
+    background: var(--color-surface, #ffffff);
+    border-left: 1px solid var(--color-border, #e2e8f0);
+    border-top: 1px solid var(--color-border, #e2e8f0);
+    border-top-left-radius: var(--radius, 8px);
+    box-shadow: var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.12));
+    z-index: 90;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 16px;
+}
+
+.gmp-eq-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.gmp-eq-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 12px 16px;
+}
+
+.gmp-eq-preset-btn {
+    padding: 5px 14px;
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 999px;
+    background: var(--color-surface, #ffffff);
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--color-text-secondary, #64748b);
+    cursor: pointer;
+    transition: all var(--transition, 200ms ease);
+}
+
+.gmp-eq-preset-btn:hover {
+    border-color: var(--color-primary, #3b82f6);
+    color: var(--color-primary, #3b82f6);
+}
+
+.gmp-eq-preset-btn.active {
+    background: var(--color-primary, #3b82f6);
+    color: #fff;
+    border-color: var(--color-primary, #3b82f6);
+}
+
+.gmp-eq-bands {
+    display: flex;
+    justify-content: space-around;
+    padding: 12px 16px 0;
+    gap: 4px;
+}
+
+.gmp-eq-band {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.gmp-eq-slider {
+    writing-mode: vertical-lr;
+    direction: rtl;
+    width: 4px;
+    height: 100px;
+    accent-color: var(--color-primary, #3b82f6);
+    cursor: pointer;
+    appearance: slider-vertical;
+}
+
+.gmp-eq-label {
+    font-size: 0.625rem;
+    font-weight: 600;
+    color: var(--color-muted, #94a3b8);
+    text-transform: uppercase;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Global Music Playbar — Save Preset Dialog
+   ═══════════════════════════════════════════════════════════ */
+
+.gmp-dialog-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+}
+
+.gmp-dialog-panel {
+    background: var(--color-surface, #ffffff);
+    border-radius: 12px;
+    box-shadow: var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.12));
+    padding: 24px;
+    width: 90%;
+    max-width: 420px;
+}
+
+.gmp-dialog-panel h4 {
+    margin: 0 0 16px;
+    font-size: 1.125rem;
+    font-weight: 600;
+}
+
+.gmp-dialog-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.gmp-dialog-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-text-secondary, #64748b);
+}
+
+.gmp-dialog-form input[type="text"] {
+    padding: 8px 12px;
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: var(--radius, 8px);
+    font-size: 0.875rem;
+    color: var(--color-text, #1e293b);
+    background: var(--color-bg, #f5f7fa);
+    transition: border-color var(--transition, 200ms ease);
+}
+
+.gmp-dialog-form input[type="text"]:focus {
+    outline: none;
+    border-color: var(--color-primary, #3b82f6);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.gmp-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 20px;
+}
+
+/* ── Responsive — Global music playbar ── */
+
+@media (max-width: 768px) {
+    .global-music-playbar {
+        grid-template-columns: 1fr auto;
+        height: 64px;
+        gap: 8px;
+    }
+
+    .gmp-extras {
+        display: none;
+    }
+
+    .gmp-controls {
+        display: none;
+    }
+
+    .gmp-track-info {
+        grid-column: 1;
+    }
+
+    .gmp-queue-panel,
+    .gmp-eq-panel {
+        width: 100%;
+    }
+}
+
+/* ── Dark mode — Global music playbar ── */
+
+.dark-mode .gmp-play-pause {
+    background: #f1f5f9;
+    color: #0f172a;
+}
+
+.dark-mode .gmp-play-pause:hover {
+    background: #e2e8f0;
+}

@@ -11,6 +11,8 @@ using Microsoft.JSInterop;
 
 namespace DotNetCloud.Modules.Music.UI;
 
+// MusicPlaybackState is injected in the .razor file as 'Playback'
+
 /// <summary>
 /// Code-behind for the Music module Blazor page.
 /// </summary>
@@ -18,7 +20,6 @@ public partial class MusicPage : IAsyncDisposable
 {
     // ── Section / State ──
     private enum Section { Library, Artists, Albums, Genres, Playlists, Favorites, RecentlyPlayed, Settings }
-    private enum RepeatMode { Off, All, One }
 
     private Section _section = Section.Library;
     private bool _loading;
@@ -41,7 +42,6 @@ public partial class MusicPage : IAsyncDisposable
     private List<PlaylistDto> _playlists = [];
     private List<TrackDto> _playlistTracks = [];
     private List<string> _genres = [];
-    private List<EqPresetDto> _eqPresets = [];
 
     // ── Selection state ──
     private ArtistDto? _selectedArtist;
@@ -51,20 +51,7 @@ public partial class MusicPage : IAsyncDisposable
     private string? _selectedGenre;
     private List<MusicAlbumDto> _artistAlbums = [];
 
-    // ── Playback state ──
-    private TrackDto? _nowPlaying;
-    private bool _isPlaying;
-    private bool _shuffle;
-    private RepeatMode _repeat = RepeatMode.Off;
-    private int _volume = 80;
-    private bool _muted;
-    private TimeSpan _playbackPosition = TimeSpan.Zero;
-    private List<TrackDto> _queue = [];
-    private int _queueIndex = -1;
-
     // ── UI panels ──
-    private bool _showQueue;
-    private bool _showEqualizer;
     private bool _showCreatePlaylistDialog;
     private bool _showEditPlaylistDialog;
     private Guid? _trackMenuId;
@@ -73,13 +60,6 @@ public partial class MusicPage : IAsyncDisposable
     private string _playlistName = string.Empty;
     private string _playlistDescription = string.Empty;
     private bool _playlistPublic;
-
-    // ── Equalizer ──
-    private double[] _eqBands = new double[10];
-    private Guid? _activePresetId;
-    private static readonly string[] _bandLabels = ["31", "63", "125", "250", "500", "1K", "2K", "4K", "8K", "16K"];
-    private bool _showSavePresetDialog;
-    private string _newPresetName = string.Empty;
 
     // ── Visualizer ──
     private bool _visualizerEnabled;
@@ -98,21 +78,15 @@ public partial class MusicPage : IAsyncDisposable
     private record BreadcrumbItem(string Label, Action Action);
     private List<BreadcrumbItem> _breadcrumb = [];
 
-    // ── Timer ──
-    private PeriodicTimer? _playbackTimer;
-    private CancellationTokenSource? _timerCts;
-
-    // ── JS Audio Interop ──
-    private DotNetObjectReference<MusicPage>? _dotNetRef;
-    private bool _jsInitialized;
-
     // ── Auth ──
     private CallerContext? _caller;
 
     // ── Deep-link parameters (from search) ──
     [Parameter] public string? FileId { get; set; }
     [Parameter] public string? FileIdNav { get; set; }
+    [Parameter] public string? ScrollToPlaying { get; set; }
     private string? _lastHandledNav;
+    private bool _pendingScrollToPlaying;
 
     // ── Library Settings ──
     private string _libraryPath = string.Empty;
@@ -138,13 +112,14 @@ public partial class MusicPage : IAsyncDisposable
 
     protected override async Task OnInitializedAsync()
     {
+        Playback.OnChange += OnPlaybackStateChanged;
+
         try
         {
             _loading = true;
             var caller = await GetCallerAsync();
             _caller = caller;
             _playlists = (await PlaylistService.ListPlaylistsAsync(caller)).ToList();
-            await LoadEqPresetsAsync(caller);
             await LoadLibraryPathAsync();
             await LoadCurrentSectionAsync();
 
@@ -177,31 +152,44 @@ public partial class MusicPage : IAsyncDisposable
             var caller = _caller ?? await GetCallerAsync();
             await TryAutoPlayFileAsync(fileId, caller);
         }
+
+        // Handle "scroll to playing track" when navigating from global playbar
+        if (string.Equals(ScrollToPlaying, "true", StringComparison.OrdinalIgnoreCase) && Playback.NowPlaying is not null)
+        {
+            ScrollToPlaying = null; // consume once
+            var nowPlaying = Playback.NowPlaying;
+
+            // Navigate to the album containing the playing track
+            if (nowPlaying.AlbumId.HasValue)
+            {
+                NavigateToAlbumAsync(nowPlaying.AlbumId);
+            }
+
+            _pendingScrollToPlaying = true;
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && !_jsInitialized)
-        {
-            try
-            {
-                _dotNetRef = DotNetObjectReference.Create(this);
-                await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.init", _dotNetRef);
-                _jsInitialized = true;
-            }
-            catch (Exception ex)
-            {
-                Logger.LogWarning(ex, "Failed to initialize music player JS interop");
-            }
-        }
-
-        // Auto-play needs JS audio to be ready; trigger play if a file was queued during init
-        if (_jsInitialized && _pendingAutoPlayTrack is not null)
+        // Auto-play needs the global player's JS to be ready; trigger play if a file was queued during init
+        if (_pendingAutoPlayTrack is not null)
         {
             var track = _pendingAutoPlayTrack;
             _pendingAutoPlayTrack = null;
             await PlayTrackAsync(track);
             StateHasChanged();
+        }
+
+        // Scroll the currently-playing track row into view
+        if (_pendingScrollToPlaying)
+        {
+            _pendingScrollToPlaying = false;
+            try
+            {
+                await Js.InvokeVoidAsync("eval",
+                    "document.querySelector('.track-row.playing')?.scrollIntoView({behavior:'smooth',block:'center'})");
+            }
+            catch (JSDisconnectedException) { }
         }
     }
 
@@ -228,6 +216,11 @@ public partial class MusicPage : IAsyncDisposable
         {
             Logger.LogError(ex, "Failed to auto-play track for FileNodeId {FileNodeId}", fileNodeId);
         }
+    }
+
+    private void OnPlaybackStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
     }
 
     // ────────────────────────────────────────────────────────
@@ -517,51 +510,16 @@ public partial class MusicPage : IAsyncDisposable
 
     private async Task PlayTrackAsync(TrackDto track)
     {
-        _nowPlaying = track;
-        _isPlaying = true;
-        _playbackPosition = TimeSpan.Zero;
+        Playback.PlayTrack(track);
 
-        // Insert into queue if not already
-        if (!_queue.Any(t => t.Id == track.Id))
+        // Start visualizer render loop if enabled
+        if (_visualizerEnabled && !_visualizerStarted)
         {
-            _queue.Add(track);
-            _queueIndex = _queue.Count - 1;
-        }
-        else
-        {
-            _queueIndex = _queue.FindIndex(t => t.Id == track.Id);
-        }
-
-        // Start real audio playback via JS interop using the Files content endpoint
-        if (_jsInitialized && track.FileNodeId != Guid.Empty)
-        {
-            var audioUrl = $"/api/v1/files/{track.FileNodeId}/content";
-            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.play", audioUrl);
-            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setVolume", _muted ? 0 : _volume);
-            // Re-apply current EQ band settings to the new track
-            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setEqBands", _eqBands);
-
-            // Start visualizer render loop if enabled
-            if (_visualizerEnabled && !_visualizerStarted)
+            _visualizerStarted = await Js.InvokeAsync<bool>("dotnetcloudVisualizer.start");
+            if (_visualizerStarted && _autoCyclePresets)
             {
-                _visualizerStarted = await Js.InvokeAsync<bool>("dotnetcloudVisualizer.start");
-                if (_visualizerStarted && _autoCyclePresets)
-                {
-                    await Js.InvokeVoidAsync("dotnetcloudVisualizer.startAutoCycle", _autoCycleInterval, _visualizerBlendDuration);
-                }
+                await Js.InvokeVoidAsync("dotnetcloudVisualizer.startAutoCycle", _autoCycleInterval, _visualizerBlendDuration);
             }
-        }
-
-        await StartPlaybackTimerAsync();
-
-        try
-        {
-            var caller = await GetCallerAsync();
-            await PlaybackService.RecordPlayAsync(track.Id, (int)track.Duration.TotalSeconds, caller);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error recording play");
         }
     }
 
@@ -573,9 +531,7 @@ public partial class MusicPage : IAsyncDisposable
             var tracks = (await TrackService.ListTracksByAlbumAsync(albumId, caller)).ToList();
             if (tracks.Count > 0)
             {
-                _queue = tracks;
-                _queueIndex = 0;
-                await PlayTrackAsync(tracks[0]);
+                Playback.PlayQueue(tracks);
             }
         }
         catch (Exception ex)
@@ -592,9 +548,7 @@ public partial class MusicPage : IAsyncDisposable
             var tracks = (await PlaylistService.GetPlaylistTracksAsync(playlistId, caller)).ToList();
             if (tracks.Count > 0)
             {
-                _queue = tracks;
-                _queueIndex = 0;
-                await PlayTrackAsync(tracks[0]);
+                Playback.PlayQueue(tracks);
             }
         }
         catch (Exception ex)
@@ -603,140 +557,10 @@ public partial class MusicPage : IAsyncDisposable
         }
     }
 
-    private async Task TogglePlayPause()
+    private void AddToQueue(TrackDto track)
     {
-        _isPlaying = !_isPlaying;
-        if (_jsInitialized)
-        {
-            if (_isPlaying)
-            {
-                await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.resume");
-                // Resume visualizer render loop if enabled
-                if (_visualizerEnabled && !_visualizerStarted)
-                {
-                    _visualizerStarted = await Js.InvokeAsync<bool>("dotnetcloudVisualizer.start");
-                    if (_visualizerStarted && _autoCyclePresets)
-                    {
-                        await Js.InvokeVoidAsync("dotnetcloudVisualizer.startAutoCycle", _autoCycleInterval, _visualizerBlendDuration);
-                    }
-                }
-            }
-            else
-            {
-                await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.pause");
-                // Pause visualizer render loop to save GPU
-                if (_visualizerStarted)
-                {
-                    await Js.InvokeVoidAsync("dotnetcloudVisualizer.stop");
-                    _visualizerStarted = false;
-                }
-            }
-        }
-    }
-
-    private async Task PlayNextAsync()
-    {
-        if (_queue.Count == 0) return;
-
-        if (_shuffle)
-        {
-            _queueIndex = Random.Shared.Next(_queue.Count);
-        }
-        else
-        {
-            _queueIndex++;
-            if (_queueIndex >= _queue.Count)
-            {
-                _queueIndex = _repeat == RepeatMode.All ? 0 : _queue.Count - 1;
-                if (_repeat == RepeatMode.Off)
-                {
-                    _isPlaying = false;
-                    return;
-                }
-            }
-        }
-
-        await PlayTrackAsync(_queue[_queueIndex]);
-    }
-
-    private async Task PlayPreviousAsync()
-    {
-        if (_queue.Count == 0) return;
-
-        // If more than 3 seconds in, restart current track
-        if (_playbackPosition.TotalSeconds > 3)
-        {
-            _playbackPosition = TimeSpan.Zero;
-            return;
-        }
-
-        _queueIndex = Math.Max(0, _queueIndex - 1);
-        await PlayTrackAsync(_queue[_queueIndex]);
-    }
-
-    private Task AddToQueueAsync(TrackDto track)
-    {
-        _queue.Add(track);
+        Playback.AddToQueue(track);
         _trackMenuId = null;
-        return Task.CompletedTask;
-    }
-
-    private Task RemoveFromQueueAsync(int index)
-    {
-        if (index >= 0 && index < _queue.Count)
-        {
-            _queue.RemoveAt(index);
-            if (index < _queueIndex) _queueIndex--;
-        }
-        return Task.CompletedTask;
-    }
-
-    private void ToggleShuffle() => _shuffle = !_shuffle;
-
-    private void CycleRepeat()
-    {
-        _repeat = _repeat switch
-        {
-            RepeatMode.Off => RepeatMode.All,
-            RepeatMode.All => RepeatMode.One,
-            RepeatMode.One => RepeatMode.Off,
-            _ => RepeatMode.Off
-        };
-    }
-
-    private async Task ToggleMute()
-    {
-        _muted = !_muted;
-        if (_jsInitialized)
-        {
-            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setMuted", _muted);
-        }
-    }
-
-    private async Task OnVolumeChanged(ChangeEventArgs e)
-    {
-        if (int.TryParse(e.Value?.ToString(), out var vol))
-        {
-            _volume = vol;
-            if (_jsInitialized)
-            {
-                await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setVolume", _muted ? 0 : _volume);
-            }
-        }
-    }
-
-    private async Task SeekAsync(MouseEventArgs e)
-    {
-        if (_nowPlaying is null) return;
-        // Approximate seek from click position within the progress bar (assumed ~400px wide)
-        // The progress bar fraction is estimated from OffsetX vs element width.
-        // A more precise approach would use JS interop to get the exact element width.
-        var fraction = Math.Clamp(e.OffsetX / 400.0, 0, 1);
-        _playbackPosition = TimeSpan.FromTicks((long)(_nowPlaying.Duration.Ticks * fraction));
-        if (_jsInitialized)
-        {
-            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.seek", _playbackPosition.TotalSeconds);
-        }
     }
 
     // ────────────────────────────────────────────────────────
@@ -755,8 +579,8 @@ public partial class MusicPage : IAsyncDisposable
             ReplaceInList(_starredTracks, updated);
             ReplaceInList(_genreTracks, updated);
             ReplaceInList(_playlistTracks, updated);
-            if (_nowPlaying?.Id == track.Id)
-                _nowPlaying = updated;
+            if (Playback.NowPlaying?.Id == track.Id)
+                Playback.UpdateNowPlaying(updated);
         }
         catch (Exception ex)
         {
@@ -808,91 +632,6 @@ public partial class MusicPage : IAsyncDisposable
     }
 
     // ────────────────────────────────────────────────────────
-    //  Equalizer
-    // ────────────────────────────────────────────────────────
-
-    private async Task LoadEqPresetsAsync(CallerContext caller)
-    {
-        try
-        {
-            _eqPresets = (await EqPresetService.ListPresetsAsync(caller)).ToList();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "Failed to load EQ presets");
-        }
-    }
-
-    private async Task ApplyPresetAsync(EqPresetDto preset)
-    {
-        _activePresetId = preset.Id;
-        if (preset.Bands is not null && preset.Bands.Count >= 10)
-        {
-            var bandValues = preset.Bands.Values.Take(10).ToArray();
-            for (int i = 0; i < bandValues.Length; i++)
-                _eqBands[i] = bandValues[i];
-        }
-
-        if (_jsInitialized)
-        {
-            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setEqBands", _eqBands);
-        }
-    }
-
-    private async Task OnEqBandChanged(int bandIndex, ChangeEventArgs e)
-    {
-        if (double.TryParse(e.Value?.ToString(), out var gain))
-        {
-            _eqBands[bandIndex] = gain;
-            if (_jsInitialized)
-            {
-                await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setEqBand", bandIndex, gain);
-            }
-        }
-    }
-
-    private async Task ResetEqBands()
-    {
-        _activePresetId = null;
-        Array.Clear(_eqBands);
-        if (_jsInitialized)
-        {
-            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setEqBands", _eqBands);
-        }
-    }
-
-    private async Task SaveCurrentAsPresetAsync()
-    {
-        if (string.IsNullOrWhiteSpace(_newPresetName)) return;
-
-        try
-        {
-            var caller = await GetCallerAsync();
-            var bands = new Dictionary<string, double>();
-            for (int i = 0; i < _eqBands.Length && i < _bandLabels.Length; i++)
-            {
-                bands[_bandLabels[i]] = _eqBands[i];
-            }
-
-            var dto = new SaveEqPresetDto
-            {
-                Name = _newPresetName.Trim(),
-                Bands = bands
-            };
-
-            var created = await EqPresetService.CreatePresetAsync(dto, caller);
-            _eqPresets.Add(created);
-            _activePresetId = created.Id;
-            _showSavePresetDialog = false;
-            _newPresetName = string.Empty;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to save EQ preset");
-        }
-    }
-
-    // ────────────────────────────────────────────────────────
     //  Track context menu
     // ────────────────────────────────────────────────────────
 
@@ -921,14 +660,9 @@ public partial class MusicPage : IAsyncDisposable
         _ => "Music"
     };
 
-    private static string FormatDuration(TimeSpan duration)
-    {
-        return duration.TotalHours >= 1
-            ? $"{(int)duration.TotalHours}:{duration.Minutes:D2}:{duration.Seconds:D2}"
-            : $"{duration.Minutes}:{duration.Seconds:D2}";
-    }
+    private static string FormatDuration(TimeSpan duration) => MusicPlaybackState.FormatDuration(duration);
 
-    private static string GetAlbumArtUrl(Guid albumId) => $"/api/v1/music/albums/{albumId}/cover";
+    private static string GetAlbumArtUrl(Guid albumId) => MusicPlaybackState.GetAlbumArtUrl(albumId);
 
     private static string GetInitials(string name)
     {
@@ -938,12 +672,6 @@ public partial class MusicPage : IAsyncDisposable
             : name.Length >= 2 ? name[..2].ToUpperInvariant() : name.ToUpperInvariant();
     }
 
-    private double GetProgressPercent()
-    {
-        if (_nowPlaying is null || _nowPlaying.Duration.TotalSeconds < 1) return 0;
-        return _playbackPosition.TotalSeconds / _nowPlaying.Duration.TotalSeconds * 100;
-    }
-
     private async Task<CallerContext> GetCallerAsync()
     {
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
@@ -951,45 +679,6 @@ public partial class MusicPage : IAsyncDisposable
                      ?? throw new UnauthorizedAccessException("Not authenticated.");
         var roles = authState.User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
         return new CallerContext(Guid.Parse(userId), roles, CallerType.User);
-    }
-
-    // ────────────────────────────────────────────────────────
-    //  Playback timer (simulated progress)
-    // ────────────────────────────────────────────────────────
-
-    private async Task StartPlaybackTimerAsync()
-    {
-        await StopPlaybackTimerAsync();
-        _timerCts = new CancellationTokenSource();
-        _playbackTimer = new PeriodicTimer(TimeSpan.FromSeconds(1));
-
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                while (await _playbackTimer.WaitForNextTickAsync(_timerCts.Token))
-                {
-                    if (!_isPlaying || _nowPlaying is null) continue;
-                    _playbackPosition += TimeSpan.FromSeconds(1);
-                    if (_playbackPosition >= _nowPlaying.Duration)
-                    {
-                        await InvokeAsync(async () => await PlayNextAsync());
-                    }
-                    await InvokeAsync(StateHasChanged);
-                }
-            }
-            catch (OperationCanceledException) { }
-        });
-    }
-
-    private Task StopPlaybackTimerAsync()
-    {
-        _timerCts?.Cancel();
-        _playbackTimer?.Dispose();
-        _playbackTimer = null;
-        _timerCts?.Dispose();
-        _timerCts = null;
-        return Task.CompletedTask;
     }
 
     // ── Library Settings Methods ─────────────────────────────
@@ -1085,9 +774,7 @@ public partial class MusicPage : IAsyncDisposable
             _playlists.Clear();
             _starredTracks.Clear();
             _recentlyPlayed.Clear();
-            _queue.Clear();
-            _nowPlaying = null;
-            _isPlaying = false;
+            Playback.Stop();
         }
         catch (Exception ex)
         {
@@ -1186,46 +873,6 @@ public partial class MusicPage : IAsyncDisposable
     }
 
     // ────────────────────────────────────────────────────────
-    //  JS Interop callbacks (invoked from music-player.js)
-    // ────────────────────────────────────────────────────────
-
-    /// <summary>Called by JS when audio currentTime changes.</summary>
-    [JSInvokable]
-    public void OnJsTimeUpdate(double currentTime, double duration)
-    {
-        _playbackPosition = TimeSpan.FromSeconds(currentTime);
-        InvokeAsync(StateHasChanged);
-    }
-
-    /// <summary>Called by JS when the current track finishes playing.</summary>
-    [JSInvokable]
-    public async Task OnJsTrackEnded()
-    {
-        await InvokeAsync(async () => await PlayNextAsync());
-    }
-
-    /// <summary>Called by JS when an audio error occurs.</summary>
-    [JSInvokable]
-    public void OnJsPlaybackError(string message)
-    {
-        Logger.LogWarning("Audio playback error: {Message}", message);
-        _isPlaying = false;
-        InvokeAsync(StateHasChanged);
-    }
-
-    /// <summary>Called by JS when audio metadata (duration) is loaded from the file.</summary>
-    [JSInvokable]
-    public void OnJsMetadataLoaded(double duration)
-    {
-        // If the track has no duration stored, use the one from the audio element
-        if (_nowPlaying is not null && _nowPlaying.Duration.TotalSeconds < 1 && duration > 0)
-        {
-            _nowPlaying = _nowPlaying with { Duration = TimeSpan.FromSeconds(duration) };
-            InvokeAsync(StateHasChanged);
-        }
-    }
-
-    // ────────────────────────────────────────────────────────
     //  Visualizer
     // ────────────────────────────────────────────────────────
 
@@ -1248,16 +895,15 @@ public partial class MusicPage : IAsyncDisposable
     private async Task HideVisualizerOverlay()
     {
         _showVisualizer = false;
-        if (_jsInitialized)
+        try
         {
             await Js.InvokeVoidAsync("dotnetcloudVisualizer.exitFullscreen");
         }
+        catch (JSDisconnectedException) { }
     }
-
 
     private async Task StartVisualizerAsync()
     {
-        if (!_jsInitialized) return;
         try
         {
             _visualizerSupported = await Js.InvokeAsync<bool>("dotnetcloudVisualizer.isSupported");
@@ -1275,7 +921,7 @@ public partial class MusicPage : IAsyncDisposable
             _visualizerPresets = await Js.InvokeAsync<string[]>("dotnetcloudVisualizer.getPresetNames");
             _allPresetsLoaded = await Js.InvokeAsync<bool>("dotnetcloudVisualizer.isAllPresetsLoaded");
 
-            if (_isPlaying)
+            if (Playback.IsPlaying)
             {
                 _visualizerStarted = await Js.InvokeAsync<bool>("dotnetcloudVisualizer.start");
                 if (_visualizerStarted)
@@ -1285,7 +931,6 @@ public partial class MusicPage : IAsyncDisposable
                         _selectedVisualizerPreset = await Js.InvokeAsync<string?>("dotnetcloudVisualizer.getCurrentPresetName");
                     }
 
-                    // Start auto-cycle by default
                     if (_autoCyclePresets)
                     {
                         await Js.InvokeVoidAsync("dotnetcloudVisualizer.startAutoCycle", _autoCycleInterval, _visualizerBlendDuration);
@@ -1303,7 +948,6 @@ public partial class MusicPage : IAsyncDisposable
 
     private async Task StopVisualizerAsync()
     {
-        if (!_jsInitialized) return;
         try
         {
             await Js.InvokeVoidAsync("dotnetcloudVisualizer.stop");
@@ -1318,14 +962,14 @@ public partial class MusicPage : IAsyncDisposable
 
     private async Task ChangeVisualizerPresetAsync(string presetName)
     {
-        if (!_jsInitialized || !_visualizerStarted) return;
+        if (!_visualizerStarted) return;
         await Js.InvokeAsync<bool>("dotnetcloudVisualizer.loadPreset", presetName, _visualizerBlendDuration);
         _selectedVisualizerPreset = presetName;
     }
 
     private async Task RandomVisualizerPresetAsync()
     {
-        if (!_jsInitialized || !_visualizerStarted) return;
+        if (!_visualizerStarted) return;
         var name = await Js.InvokeAsync<string?>("dotnetcloudVisualizer.randomPreset", _visualizerBlendDuration);
         if (name is not null)
         {
@@ -1335,7 +979,7 @@ public partial class MusicPage : IAsyncDisposable
 
     private async Task LoadAllVisualizerPresetsAsync()
     {
-        if (_allPresetsLoaded || _loadingAllPresets || !_jsInitialized) return;
+        if (_allPresetsLoaded || _loadingAllPresets) return;
         _loadingAllPresets = true;
         StateHasChanged();
         try
@@ -1356,14 +1000,12 @@ public partial class MusicPage : IAsyncDisposable
 
     private async Task ToggleVisualizerFullscreenAsync()
     {
-        if (!_jsInitialized) return;
         await Js.InvokeVoidAsync("dotnetcloudVisualizer.toggleFullscreen");
     }
 
     private async Task ToggleAutoCyclePresetsAsync()
     {
         _autoCyclePresets = !_autoCyclePresets;
-        if (!_jsInitialized) return;
         if (_autoCyclePresets)
         {
             await Js.InvokeVoidAsync("dotnetcloudVisualizer.startAutoCycle", _autoCycleInterval, _visualizerBlendDuration);
@@ -1376,21 +1018,13 @@ public partial class MusicPage : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await StopPlaybackTimerAsync();
-        if (_jsInitialized)
+        Playback.OnChange -= OnPlaybackStateChanged;
+
+        try
         {
-            try
-            {
-                await Js.InvokeVoidAsync("dotnetcloudVisualizer.dispose");
-            }
-            catch (JSDisconnectedException) { }
-            try
-            {
-                await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.dispose");
-            }
-            catch (JSDisconnectedException) { }
+            await Js.InvokeVoidAsync("dotnetcloudVisualizer.dispose");
         }
-        _dotNetRef?.Dispose();
+        catch (JSDisconnectedException) { }
     }
 
     // ────────────────────────────────────────────────────────

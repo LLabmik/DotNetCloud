@@ -3,6 +3,7 @@ using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Music.Data.Services;
 using DotNetCloud.Modules.Music.Events;
 using DotNetCloud.Modules.Music.Services;
+using DotNetCloud.Modules.Music.UI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -38,6 +39,9 @@ public static class MusicServiceRegistration
         services.AddScoped<AlbumArtService>();
         services.AddScoped<MusicStreamingService>();
         services.AddScoped<IMusicStreamingService>(sp => sp.GetRequiredService<MusicStreamingService>());
+
+        // Shared playback state (survives page navigations within a circuit)
+        services.AddScoped<MusicPlaybackState>();
 
         // Indexing callback (bridges Module → Data for FileUploadedEvent handling)
         services.AddScoped<IMusicIndexingCallback, MusicIndexingCallback>();

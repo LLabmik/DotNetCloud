@@ -69,6 +69,12 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
             document.body.appendChild(audio);
         }
 
+        // Remove any existing listeners before re-attaching (idempotent re-init)
+        audio.removeEventListener("ended", onEnded);
+        audio.removeEventListener("error", onError);
+        audio.removeEventListener("canplay", onCanPlay);
+        audio.removeEventListener("loadedmetadata", onMetadata);
+
         audio.addEventListener("ended", onEnded);
         audio.addEventListener("error", onError);
         audio.addEventListener("canplay", onCanPlay);
@@ -77,6 +83,22 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
         // Poll current time every 500ms (more responsive than timeupdate event)
         if (updateInterval) clearInterval(updateInterval);
         updateInterval = setInterval(onTimeUpdate, 500);
+    }
+
+    /**
+     * Detach the .NET reference without stopping audio or destroying the audio element.
+     * Used when the Blazor component re-renders or disposes but audio should keep playing.
+     */
+    function detach() {
+        dotNetRef = null;
+        if (updateInterval) { clearInterval(updateInterval); updateInterval = null; }
+    }
+
+    /**
+     * Returns true if audio is currently loaded and not paused.
+     */
+    function isPlaying() {
+        return audio && !audio.paused && audio.src;
     }
 
     function dispose() {
@@ -195,5 +217,5 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
         }
     }
 
-    return { init: init, dispose: dispose, play: play, resume: resume, pause: pause, stop: stop, seek: seek, setVolume: setVolume, setMuted: setMuted, setEqBand: setEqBand, setEqBands: setEqBands, getAudioContext: function () { return audioCtx; }, getSourceNode: function () { return sourceNode; } };
+    return { init: init, detach: detach, isPlaying: isPlaying, dispose: dispose, play: play, resume: resume, pause: pause, stop: stop, seek: seek, setVolume: setVolume, setMuted: setMuted, setEqBand: setEqBand, setEqBands: setEqBands, getAudioContext: function () { return audioCtx; }, getSourceNode: function () { return sourceNode; } };
 })();
