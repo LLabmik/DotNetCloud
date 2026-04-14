@@ -1669,4 +1669,15 @@
 
 .visualizer-container:fullscreen .visualizer-controls {
     padding: 12px 20px;
+    opacity: 1;
+}
+
+/* Fullscreen auto-hide controls */
+.visualizer-container:fullscreen.fs-controls-hidden {
+    cursor: none;
+}
+
+.visualizer-container:fullscreen.fs-controls-hidden .visualizer-controls {
+    opacity: 0 !important;
+    pointer-events: none;
 }

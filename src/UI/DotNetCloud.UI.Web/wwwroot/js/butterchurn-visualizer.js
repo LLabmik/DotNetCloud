@@ -241,6 +241,47 @@ window.dotnetcloudVisualizer = window.dotnetcloudVisualizer || (function () {
 
     // ── Fullscreen ──
 
+    var fsHideTimer = null;
+    var fsHideDelay = 5000; // ms before hiding controls in fullscreen
+
+    function fsShowControls() {
+        if (!canvas) return;
+        var container = canvas.parentElement || canvas;
+        container.classList.remove('fs-controls-hidden');
+        clearTimeout(fsHideTimer);
+        fsHideTimer = setTimeout(fsHideControls, fsHideDelay);
+    }
+
+    function fsHideControls() {
+        if (!canvas) return;
+        if (!document.fullscreenElement && !document.webkitFullscreenElement) return;
+        var container = canvas.parentElement || canvas;
+        container.classList.add('fs-controls-hidden');
+    }
+
+    function onFsMouseMove() {
+        fsShowControls();
+    }
+
+    function onFullscreenChange() {
+        if (!canvas) return;
+        var container = canvas.parentElement || canvas;
+        if (document.fullscreenElement || document.webkitFullscreenElement) {
+            // Entered fullscreen — show controls initially, start hide timer
+            container.addEventListener('mousemove', onFsMouseMove);
+            fsShowControls();
+        } else {
+            // Exited fullscreen — clean up
+            container.removeEventListener('mousemove', onFsMouseMove);
+            container.classList.remove('fs-controls-hidden');
+            clearTimeout(fsHideTimer);
+            fsHideTimer = null;
+        }
+    }
+
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+
     function enterFullscreen() {
         if (!canvas) return false;
         var container = canvas.parentElement || canvas;

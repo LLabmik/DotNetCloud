@@ -1,12 +1,15 @@
 @using DotNetCloud.Core.Authorization
 @using DotNetCloud.Core.DTOs
+@using DotNetCloud.Core.Services
 @using DotNetCloud.Modules.Music.UI
 @using DotNetCloud.UI.Web.Services
 @using Microsoft.Extensions.Logging
+@using System.Text.Json
 @inject MusicPlaybackState Playback
 @inject ModuleUiRegistry ModuleRegistry
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
+@inject IUserSettingsService UserSettingsService
 @inject IJSRuntime Js
 @inject ILogger<GlobalMusicPlaybar> Logger
 @implements IAsyncDisposable
@@ -57,7 +60,7 @@
 
         <div class="gmp-controls">
             <div class="gmp-buttons">
-                <button class="gmp-btn" @onclick="Playback.ToggleShuffle" title="Shuffle">
+                <button class="gmp-btn" @onclick="ToggleShuffleAsync" title="Shuffle">
                     <span class="@(Playback.Shuffle ? "active-control" : "")">⇄</span>
                 </button>
                 <button class="gmp-btn" @onclick="PlayPreviousAsync" title="Previous">⏮</button>
@@ -65,7 +68,7 @@
                     @(Playback.IsPlaying ? "⏸" : "▶")
                 </button>
                 <button class="gmp-btn" @onclick="PlayNextAsync" title="Next">⏭</button>
-                <button class="gmp-btn" @onclick="Playback.CycleRepeat" title="Repeat">
+                <button class="gmp-btn" @onclick="CycleRepeatAsync" title="Repeat">
                     <span class="@(Playback.Repeat != RepeatMode.Off ? "active-control" : "")">
                         @(Playback.Repeat == RepeatMode.One ? "🔂" : "🔁")
                     </span>
@@ -193,6 +196,16 @@
     private DotNetObjectReference<GlobalMusicPlaybar>? _dotNetRef;
     private string _newPresetName = string.Empty;
 
+    // ── Settings persistence ──
+    private const string SettingsModule = "dotnetcloud.music";
+    private const string VolumeKey = "player.volume";
+    private const string MutedKey = "player.muted";
+    private const string ShuffleKey = "player.shuffle";
+    private const string RepeatKey = "player.repeat";
+    private const string EqBandsKey = "player.eq-bands";
+    private bool _settingsLoaded;
+    private CancellationTokenSource? _saveCts;
+
     protected override void OnInitialized()
     {
         _musicModuleEnabled = ModuleRegistry.NavItems.Any(n =>
@@ -267,6 +280,18 @@
         }
     }
 
+    private async Task ToggleShuffleAsync()
+    {
+        Playback.ToggleShuffle();
+        await SaveSettingImmediateAsync(ShuffleKey, Playback.Shuffle.ToString().ToLowerInvariant());
+    }
+
+    private async Task CycleRepeatAsync()
+    {
+        Playback.CycleRepeat();
+        await SaveSettingImmediateAsync(RepeatKey, Playback.Repeat.ToString());
+    }
+
     private async Task ToggleMuteAsync()
     {
         Playback.ToggleMute();
@@ -274,6 +299,7 @@
         {
             await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setMuted", Playback.Muted);
         }
+        await SaveSettingImmediateAsync(MutedKey, Playback.Muted.ToString().ToLowerInvariant());
     }
 
     private async Task OnVolumeChangedAsync(ChangeEventArgs e)
@@ -285,6 +311,7 @@
             {
                 await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setVolume", Playback.Muted ? 0 : Playback.Volume);
             }
+            SaveSettingDebounced(VolumeKey, Playback.Volume.ToString());
         }
     }
 
@@ -319,6 +346,7 @@
         {
             await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setEqBands", Playback.EqBands);
         }
+        SaveSettingDebounced(EqBandsKey, JsonSerializer.Serialize(Playback.EqBands));
     }
 
     private async Task OnEqBandChangedAsync(int bandIndex, ChangeEventArgs e)
@@ -330,6 +358,7 @@
             {
                 await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setEqBand", bandIndex, gain);
             }
+            SaveSettingDebounced(EqBandsKey, JsonSerializer.Serialize(Playback.EqBands));
         }
     }
 
@@ -340,6 +369,7 @@
         {
             await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setEqBands", Playback.EqBands);
         }
+        await SaveSettingImmediateAsync(EqBandsKey, JsonSerializer.Serialize(Playback.EqBands));
     }
 
     private async Task SavePresetAsync()
@@ -422,6 +452,11 @@
     /// </summary>
     private async Task StartPlaybackJsAsync(TrackDto track)
     {
+        if (!_settingsLoaded)
+        {
+            await LoadPersistedSettingsAsync();
+        }
+
         if (!_jsInitialized)
         {
             try
@@ -471,11 +506,93 @@
         }
     }
 
+    // ── Settings persistence ──
+
+    private async Task LoadPersistedSettingsAsync()
+    {
+        if (_settingsLoaded) return;
+        _settingsLoaded = true;
+        try
+        {
+            var userId = await GetUserIdAsync();
+            if (userId is null) return;
+
+            var volSetting = await UserSettingsService.GetSettingAsync(userId.Value, SettingsModule, VolumeKey);
+            if (volSetting is not null && int.TryParse(volSetting.Value, out var vol))
+                Playback.SetVolume(vol);
+
+            var muteSetting = await UserSettingsService.GetSettingAsync(userId.Value, SettingsModule, MutedKey);
+            if (muteSetting is not null && bool.TryParse(muteSetting.Value, out var muted) && muted != Playback.Muted)
+                Playback.ToggleMute();
+
+            var shuffleSetting = await UserSettingsService.GetSettingAsync(userId.Value, SettingsModule, ShuffleKey);
+            if (shuffleSetting is not null && bool.TryParse(shuffleSetting.Value, out var shuffle) && shuffle != Playback.Shuffle)
+                Playback.ToggleShuffle();
+
+            var repeatSetting = await UserSettingsService.GetSettingAsync(userId.Value, SettingsModule, RepeatKey);
+            if (repeatSetting is not null && Enum.TryParse<RepeatMode>(repeatSetting.Value, out var repeat))
+                while (Playback.Repeat != repeat) Playback.CycleRepeat();
+
+            var eqSetting = await UserSettingsService.GetSettingAsync(userId.Value, SettingsModule, EqBandsKey);
+            if (eqSetting is not null)
+            {
+                var bands = JsonSerializer.Deserialize<double[]>(eqSetting.Value);
+                if (bands is { Length: 10 })
+                    for (int i = 0; i < 10; i++) Playback.SetEqBand(i, bands[i]);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load persisted music player settings");
+        }
+    }
+
+    private async Task SaveSettingImmediateAsync(string key, string value)
+    {
+        try
+        {
+            var userId = await GetUserIdAsync();
+            if (userId is null) return;
+            await UserSettingsService.UpsertSettingAsync(userId.Value, SettingsModule, key,
+                new UpsertUserSettingDto { Value = value });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to save music setting {Key}", key);
+        }
+    }
+
+    private void SaveSettingDebounced(string key, string value)
+    {
+        _saveCts?.Cancel();
+        _saveCts = new CancellationTokenSource();
+        var token = _saveCts.Token;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(1000, token);
+                if (token.IsCancellationRequested) return;
+                await InvokeAsync(async () => await SaveSettingImmediateAsync(key, value));
+            }
+            catch (OperationCanceledException) { }
+        }, token);
+    }
+
+    private async Task<Guid?> GetUserIdAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var claim = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return claim is not null && Guid.TryParse(claim, out var id) ? id : null;
+    }
+
     public async ValueTask DisposeAsync()
     {
         Playback.OnChange -= OnPlaybackStateChanged;
         Playback.OnTrackChanged -= OnTrackChanged;
         ModuleRegistry.OnChange -= OnModuleRegistryChanged;
+        _saveCts?.Cancel();
+        _saveCts?.Dispose();
         if (_jsInitialized)
         {
             try
