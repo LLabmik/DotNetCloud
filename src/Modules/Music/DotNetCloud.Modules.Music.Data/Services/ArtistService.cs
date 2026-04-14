@@ -96,6 +96,33 @@ public sealed class ArtistService : IArtistService
         return await _db.Artists.CountAsync(a => a.OwnerId == ownerId, cancellationToken);
     }
 
+    /// <summary>
+    /// Gets the artist biography and external links.
+    /// </summary>
+    public async Task<ArtistBioDto?> GetArtistBioAsync(Guid artistId, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        var artist = await _db.Artists
+            .FirstOrDefaultAsync(a => a.Id == artistId && a.OwnerId == caller.UserId, cancellationToken);
+
+        if (artist is null)
+        {
+            return null;
+        }
+
+        return new ArtistBioDto
+        {
+            ArtistId = artist.Id,
+            Name = artist.Name,
+            Biography = artist.Biography,
+            ImageUrl = artist.ImageUrl,
+            WikipediaUrl = artist.WikipediaUrl,
+            DiscogsUrl = artist.DiscogsUrl,
+            OfficialUrl = artist.OfficialUrl,
+            MusicBrainzId = artist.MusicBrainzId,
+            LastEnrichedAt = artist.LastEnrichedAt
+        };
+    }
+
     internal ArtistDto MapToDto(Artist artist, Guid userId)
     {
         var isStarred = _db.StarredItems.Any(s =>

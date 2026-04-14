@@ -22,4 +22,7 @@ public interface IArtistService
 
     /// <summary>Gets the total artist count for an owner.</summary>
     Task<int> GetCountAsync(Guid ownerId, CancellationToken cancellationToken = default);
+
+    /// <summary>Gets the artist biography and external links.</summary>
+    Task<ArtistBioDto?> GetArtistBioAsync(Guid artistId, CallerContext caller, CancellationToken cancellationToken = default);
 }

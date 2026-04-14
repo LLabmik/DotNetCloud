@@ -96,7 +96,7 @@
 | Phase 4.7                   | 6       | 6         | 0           | 0       |
 | Phase 4.8                   | 8       | 8         | 0           | 0       |
 | Phase 4.9                   | 42      | 42        | 0           | 0       |
-| Phase 5-8                   | Summary | 8         | 0           | 0       |
+| Phase 5-8                   | Summary | 10        | 0           | 0       |
 | Phase 8 (Full-Text Search)  | 18      | 18        | 0           | 0       |
 | Phase 9                     | 7       | 5         | 0           | 2       |
 | Infrastructure              | Summary | 0         | 0           | 1       |
@@ -1940,6 +1940,126 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ 250 existing Music tests still passing
 
 **Notes:** Phase A complete. All enrichment fields added as nullable columns — no breaking changes. Ready for Phase B (MusicBrainz + Cover Art Archive service clients).
+
+---
+
+### Section: Phase B - MusicBrainz + Cover Art Archive Services
+
+#### Step: phase-5-mb-B - MusicBrainz + Cover Art Archive Services
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `IMusicBrainzClient` interface — search artists, release groups, recordings; get artist/release group/recording details
+- ✓ `MusicBrainzClient` implementation — typed HttpClient, rate-limited (shared `MusicBrainzRateLimiter`), JSON deserialization of MB API v2 responses
+- ✓ `ICoverArtArchiveClient` interface — get front cover, get cover list, fallback through releases
+- ✓ `CoverArtArchiveClient` implementation — typed HttpClient, rate-limited, release fallback logic, MIME type detection
+- ✓ `MusicBrainzRateLimiter` — shared `SemaphoreSlim`-based rate limiter (1 req/sec) for both MB and CAA clients
+- ✓ `IMetadataEnrichmentService` interface — enrich album/artist/track, batch enrich missing art, batch enrich all
+- ✓ `MetadataEnrichmentService` implementation — orchestrates MB lookups + CAA art fetching, score threshold ≥90, 30-day cooldown, force flag override, progress reporting
+- ✓ `EnrichmentProgress` DTO added to `MusicDtos.cs`
+- ✓ Full solution build: 0 errors
+- ✓ 250 existing Music tests still passing
+
+**Notes:** Phase B complete. All MusicBrainz and Cover Art Archive service interfaces and implementations created. Rate limiting shared between clients via singleton `MusicBrainzRateLimiter`. Service registration (DI + HttpClient configuration) deferred to Phase F. Ready for Phase C (scan progress infrastructure).
+
+---
+
+### Section: Phase C - Scan Progress Infrastructure
+
+#### Step: phase-5-mb-C - Scan Progress Infrastructure
+
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `LibraryScanProgress` DTO — real-time progress record with phase, file counts, track stats, percentage, elapsed time
+- ✓ `LibraryScanService` updated — accepts `IProgress<LibraryScanProgress>?`, reports per-file progress, runs enrichment phase (auto-fetch art + auto-enrich artists) controlled by configuration
+- ✓ `ScanProgressState` — scoped Blazor state service bridging `IProgress<T>` callbacks to `StateHasChanged()` via `OnProgressChanged` event
+- ✓ `ScanProgressState` registered as scoped in `MusicServiceRegistration`
+- ✓ `IMetadataEnrichmentService?` injected into `LibraryScanService` as optional dependency
+- ✓ Configuration-driven enrichment: `Music:Enrichment:Enabled`, `AutoFetchArt`, `AutoEnrichArtists`
+- ✓ Full solution build: 0 errors, 250 existing tests passing
+
+**Notes:** Phase C complete. Scan progress infrastructure in place. `ScanLibraryAsync` now reports real-time progress through all phases (metadata extraction → enrichment → complete) and supports cancellation. Enrichment runs automatically after scan if configured. The `ScanProgressState` service enables Blazor components to subscribe to progress updates. Ready for Phase D (API endpoints).
+
+---
+
+### Section: Phase D - API Endpoints
+
+#### Step: phase-5-mb-D - Enrichment & Scan Progress API Endpoints
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `POST /api/v1/music/enrich/album/{albumId}` — enrich single album (MusicBrainz metadata + Cover Art Archive cover art)
+- ✓ `POST /api/v1/music/enrich/artist/{artistId}` — enrich single artist (biography, external links)
+- ✓ `POST /api/v1/music/enrich/all` — batch enrich all unenriched items for user
+- ✓ `POST /api/v1/music/enrich/missing-art` — batch enrich only albums missing cover art
+- ✓ `GET /api/v1/music/artists/{artistId}/bio` — get artist biography and external links
+- ✓ `GET /api/v1/music/scan/progress` — current scan progress for authenticated user
+- ✓ `ArtistBioDto` — new DTO with biography, image URL, Wikipedia/Discogs/official links, MusicBrainz ID
+- ✓ `IArtistService.GetArtistBioAsync()` — new interface method + implementation
+- ✓ `IMetadataEnrichmentService` and `ScanProgressState` injected into `MusicController`
+- ✓ Full solution build: 0 errors, 250 tests passing
+
+**Notes:** Phase D complete. All enrichment and scan progress REST API endpoints added to `MusicController`. Single-item enrichment endpoints support `?force=true` query parameter to bypass 30-day cooldown. Artist bio endpoint returns enriched data including biography, external links, and enrichment timestamp. Scan progress endpoint returns current `ScanProgressState` for non-Blazor clients. Ready for Phase E (Blazor UI updates).
+
+---
+
+### Section: Phase E - Blazor UI Updates
+
+#### Step: phase-5-mb-E - Blazor UI Updates
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ E1: Scan progress UI overhaul — progress bar, phase indicator, file counts (added/updated/skipped/failed/art), elapsed time, cancel button hooked to CancellationTokenSource
+- ✓ E2: Album enrichment UI — "Fetch Cover Art" button on albums without art, spinner during enrichment, toast notification on success
+- ✓ E3: Artist enrichment UI — biography section, external links (Wikipedia/Discogs/Website), artist image, "Fetch Info" button with spinner
+- ✓ E4: Settings enrichment toggles — auto-fetch metadata and auto-fetch album art checkboxes, persisted via UserSettingsService
+- ✓ ~300 lines of scoped CSS for all new UI elements (progress bar, artist bio, toggles, toast animations)
+- ✓ Full solution build: 0 errors, 250 tests passing
+
+**Notes:** Phase E complete. All Blazor UI components for MusicBrainz enrichment are in place. Scan progress panel shows real-time progress with cancel support. Album and artist detail views have contextual enrichment buttons. Settings section includes enrichment toggle controls. Ready for Phase G (comprehensive unit tests).
+
+---
+
+### Section: Phase F - Service Registration + Configuration
+
+#### Step: phase-5-mb-F - Service Registration + Configuration
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `MusicBrainzRateLimiter` registered as singleton in `MusicServiceRegistration.cs`
+- ✓ `AddHttpClient<IMusicBrainzClient, MusicBrainzClient>` — base URL `https://musicbrainz.org/ws/2/`, Accept + User-Agent headers
+- ✓ `AddHttpClient<ICoverArtArchiveClient, CoverArtArchiveClient>` — base URL `https://coverartarchive.org/`
+- ✓ `MetadataEnrichmentService` registered as scoped with interface forward-registration
+- ✓ `Microsoft.Extensions.Http` package reference added to `DotNetCloud.Modules.Music.Data.csproj`
+- ✓ Rate limit configurable via `Music:Enrichment:RateLimitMs` (default 1100ms)
+- ✓ Full solution build: 0 errors, 250 tests passing
+
+**Notes:** Phase F complete. All MusicBrainz enrichment services registered in DI. HTTP clients configured with proper base URLs, headers, and shared rate limiting. Done as a dependency of Phase E (UI needs injected services). Ready for Phase G (comprehensive unit tests).
+
+---
+
+### Section: Phase G - Comprehensive Unit Tests
+
+#### Step: phase-5-mb-G - Comprehensive Unit Tests
+
+**Status:** completed ✅
+**Deliverables:**
+
+- ✓ `MockHttpMessageHandler.cs` — shared reusable HTTP mock infrastructure (ForJson, ForBytes, ForStatus, ForSequence, ForNetworkError, ForTimeout, ForRoutes, ForException)
+- ✓ `MusicBrainzClientTests.cs` — 23 tests: URL construction, JSON deserialization, rate limiting, error handling
+- ✓ `CoverArtArchiveClientTests.cs` — 15 tests: image fetching, release fallback, MIME types, error handling
+- ✓ `MetadataEnrichmentServiceTests.cs` — 30 tests: album/artist/track enrichment, batch operations, progress, caching, cooldown
+- ✓ `LibraryScanProgressTests.cs` — 12 tests: progress reporting, enrichment integration, cancellation
+- ✓ `ScanProgressStateTests.cs` — 8 tests: Blazor scoped state, event notifications, multiple subscribers
+- ✓ `TestHelpers.cs` updated — `SeedAlbumWithoutArtAsync`, `SeedEnrichedArtistAsync`, `CreateMockMusicBrainzArtistJson`
+- ✓ `DotNetCloud.Modules.Music.Tests.csproj` — added `Microsoft.Extensions.Configuration` package
+- ✓ Full test suite: 338 tests passing (88 new + 250 existing)
+
+**Notes:** Phase G complete. All MusicBrainz enrichment plan phases (A–G) now fully implemented. 88 new unit tests covering all service clients, enrichment orchestration, scan progress, and Blazor state. No existing tests broken.
 
 ---
 

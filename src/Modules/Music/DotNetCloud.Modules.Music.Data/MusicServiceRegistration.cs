@@ -43,6 +43,28 @@ public static class MusicServiceRegistration
         // Shared playback state (survives page navigations within a circuit)
         services.AddScoped<MusicPlaybackState>();
 
+        // Scan progress state (bridges IProgress callbacks to Blazor StateHasChanged)
+        services.AddScoped<ScanProgressState>();
+
+        // MusicBrainz + Cover Art Archive enrichment services
+        var rateLimitMs = configuration.GetValue("Music:Enrichment:RateLimitMs", 1100);
+        services.AddSingleton(new MusicBrainzRateLimiter(rateLimitMs));
+
+        services.AddHttpClient<IMusicBrainzClient, MusicBrainzClient>(client =>
+        {
+            client.BaseAddress = new Uri("https://musicbrainz.org/ws/2/");
+            client.DefaultRequestHeaders.Add("Accept", "application/json");
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("DotNetCloud/0.2.0 (https://github.com/LLabmik/DotNetCloud)");
+        });
+
+        services.AddHttpClient<ICoverArtArchiveClient, CoverArtArchiveClient>(client =>
+        {
+            client.BaseAddress = new Uri("https://coverartarchive.org/");
+        });
+
+        services.AddScoped<MetadataEnrichmentService>();
+        services.AddScoped<IMetadataEnrichmentService>(sp => sp.GetRequiredService<MetadataEnrichmentService>());
+
         // Indexing callback (bridges Module → Data for FileUploadedEvent handling)
         services.AddScoped<IMusicIndexingCallback, MusicIndexingCallback>();
 

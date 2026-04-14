@@ -106,6 +106,21 @@ public partial class MusicPage : IAsyncDisposable
     private List<(Guid Id, string Name)> _dirBrowserBreadcrumbs = [];
     private string? _dirBrowserError;
 
+    // Scan progress
+    private CancellationTokenSource? _scanCts;
+
+    // Enrichment state
+    private bool _enrichingAlbum;
+    private Guid? _enrichingAlbumId;
+    private bool _enrichingArtist;
+    private Guid? _enrichingArtistId;
+    private ArtistBioDto? _artistBio;
+    private string? _enrichmentToast;
+
+    // Settings: enrichment toggles
+    private bool _autoFetchMetadata = true;
+    private bool _autoFetchAlbumArt = true;
+
     // ────────────────────────────────────────────────────────
     //  Lifecycle
     // ────────────────────────────────────────────────────────
@@ -113,6 +128,7 @@ public partial class MusicPage : IAsyncDisposable
     protected override async Task OnInitializedAsync()
     {
         Playback.OnChange += OnPlaybackStateChanged;
+        ScanProgress.OnProgressChanged += OnScanProgressChanged;
 
         try
         {
@@ -121,6 +137,7 @@ public partial class MusicPage : IAsyncDisposable
             _caller = caller;
             _playlists = (await PlaylistService.ListPlaylistsAsync(caller)).ToList();
             await LoadLibraryPathAsync();
+            await LoadEnrichmentSettingsAsync();
             await LoadCurrentSectionAsync();
 
             // Deep-link: auto-play from search if fileId parameter was supplied on first load
@@ -223,6 +240,11 @@ public partial class MusicPage : IAsyncDisposable
         InvokeAsync(StateHasChanged);
     }
 
+    private void OnScanProgressChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
     // ────────────────────────────────────────────────────────
     //  Section navigation
     // ────────────────────────────────────────────────────────
@@ -303,15 +325,18 @@ public partial class MusicPage : IAsyncDisposable
     private async void OpenArtistDetail(ArtistDto artist)
     {
         _selectedArtist = artist;
+        _artistBio = null;
+        _enrichmentToast = null;
         _breadcrumb =
         [
-            new BreadcrumbItem("Artists", () => { _selectedArtist = null; _breadcrumb.Clear(); StateHasChanged(); })
+            new BreadcrumbItem("Artists", () => { _selectedArtist = null; _artistBio = null; _breadcrumb.Clear(); StateHasChanged(); })
         ];
 
         try
         {
             var caller = await GetCallerAsync();
             _artistAlbums = (await AlbumService.ListAlbumsByArtistAsync(artist.Id, caller)).ToList();
+            _artistBio = await ArtistService.GetArtistBioAsync(artist.Id, caller);
         }
         catch (Exception ex)
         {
@@ -730,10 +755,14 @@ public partial class MusicPage : IAsyncDisposable
         _settingsError = null;
         _settingsSuccess = null;
         _scanResult = null;
+        _scanCts?.Dispose();
+        _scanCts = new CancellationTokenSource();
+        ScanProgress.StartScan();
         StateHasChanged();
         try
         {
-            _scanResult = await MediaLibraryScanner.ScanFolderAsync(_libraryFolderId, _caller.UserId, "Music");
+            _scanResult = await MediaLibraryScanner.ScanFolderAsync(_libraryFolderId, _caller.UserId, "Music", _scanCts.Token);
+            ScanProgress.CompleteScan();
             _settingsSuccess = $"Scan complete: {_scanResult.Imported} imported, {_scanResult.Skipped} already up to date.";
 
             // Reload library data so navigating to Library shows freshly imported tracks
@@ -742,14 +771,25 @@ public partial class MusicPage : IAsyncDisposable
             _newTracks = (await TrackService.ListTracksAsync(caller, 0, 10)).ToList();
             _playlists = (await PlaylistService.ListPlaylistsAsync(caller)).ToList();
         }
+        catch (OperationCanceledException)
+        {
+            ScanProgress.CompleteScan();
+            _settingsSuccess = "Scan cancelled.";
+        }
         catch (Exception ex)
         {
+            ScanProgress.CompleteScan();
             _settingsError = $"Scan failed: {ex.Message}";
         }
         finally
         {
             _settingsScanning = false;
         }
+    }
+
+    private void CancelScan()
+    {
+        _scanCts?.Cancel();
     }
 
     private async Task ResetCollectionAsync()
@@ -1019,6 +1059,8 @@ public partial class MusicPage : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         Playback.OnChange -= OnPlaybackStateChanged;
+        ScanProgress.OnProgressChanged -= OnScanProgressChanged;
+        _scanCts?.Dispose();
 
         try
         {
@@ -1028,8 +1070,122 @@ public partial class MusicPage : IAsyncDisposable
     }
 
     // ────────────────────────────────────────────────────────
+    //  Enrichment
+    // ────────────────────────────────────────────────────────
+
+    private async Task EnrichAlbumAsync(Guid albumId)
+    {
+        if (_caller is null) return;
+        _enrichingAlbum = true;
+        _enrichingAlbumId = albumId;
+        _enrichmentToast = null;
+        StateHasChanged();
+        try
+        {
+            await EnrichmentService.EnrichAlbumAsync(albumId, _caller, force: false);
+            // Reload album to get updated cover art status
+            var updated = await AlbumService.GetAlbumAsync(albumId, _caller);
+            if (updated is not null)
+            {
+                if (_selectedAlbum?.Id == albumId)
+                    _selectedAlbum = updated;
+                ReplaceInList(_albums, updated);
+                ReplaceInList(_recentAlbums, updated);
+                ReplaceInList(_artistAlbums, updated);
+                _enrichmentToast = updated.HasCoverArt ? "Cover art fetched from MusicBrainz!" : "No cover art found on MusicBrainz.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error enriching album {AlbumId}", albumId);
+            _enrichmentToast = "Failed to fetch cover art.";
+        }
+        finally
+        {
+            _enrichingAlbum = false;
+            _enrichingAlbumId = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task EnrichArtistAsync(Guid artistId)
+    {
+        if (_caller is null) return;
+        _enrichingArtist = true;
+        _enrichingArtistId = artistId;
+        _enrichmentToast = null;
+        StateHasChanged();
+        try
+        {
+            await EnrichmentService.EnrichArtistAsync(artistId, _caller, force: false);
+            _artistBio = await ArtistService.GetArtistBioAsync(artistId, _caller);
+            _enrichmentToast = _artistBio?.Biography is not null ? "Artist info fetched from MusicBrainz!" : "No additional info found on MusicBrainz.";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error enriching artist {ArtistId}", artistId);
+            _enrichmentToast = "Failed to fetch artist info.";
+        }
+        finally
+        {
+            _enrichingArtist = false;
+            _enrichingArtistId = null;
+            StateHasChanged();
+        }
+    }
+
+    private void DismissEnrichmentToast()
+    {
+        _enrichmentToast = null;
+    }
+
+    private async Task SaveEnrichmentSettingsAsync()
+    {
+        if (_caller is null) return;
+        try
+        {
+            await UserSettingsService.UpsertSettingAsync(_caller.UserId, "media-library", "music-auto-fetch-metadata",
+                new UpsertUserSettingDto { Value = _autoFetchMetadata.ToString(), Description = "Auto-fetch metadata from MusicBrainz during scan" });
+            await UserSettingsService.UpsertSettingAsync(_caller.UserId, "media-library", "music-auto-fetch-art",
+                new UpsertUserSettingDto { Value = _autoFetchAlbumArt.ToString(), Description = "Auto-fetch missing album art from Cover Art Archive" });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving enrichment settings");
+        }
+    }
+
+    private async Task LoadEnrichmentSettingsAsync()
+    {
+        if (_caller is null) return;
+        try
+        {
+            var metadataSetting = await UserSettingsService.GetSettingAsync(_caller.UserId, "media-library", "music-auto-fetch-metadata");
+            if (metadataSetting?.Value is not null)
+                _autoFetchMetadata = bool.TryParse(metadataSetting.Value, out var v) && v;
+            var artSetting = await UserSettingsService.GetSettingAsync(_caller.UserId, "media-library", "music-auto-fetch-art");
+            if (artSetting?.Value is not null)
+                _autoFetchAlbumArt = bool.TryParse(artSetting.Value, out var v2) && v2;
+        }
+        catch { /* ignore load failures */ }
+    }
+
+    // ────────────────────────────────────────────────────────
     //  Helpers
     // ────────────────────────────────────────────────────────
+
+    private static string FormatElapsed(TimeSpan elapsed)
+    {
+        return elapsed.TotalMinutes >= 1
+            ? $"{(int)elapsed.TotalMinutes}:{elapsed.Seconds:D2}"
+            : $"{elapsed.Seconds}s";
+    }
+
+    private static string TruncateFileName(string path, int maxLength)
+    {
+        var name = Path.GetFileName(path);
+        return name.Length <= maxLength ? name : string.Concat(name.AsSpan(0, maxLength - 3), "...");
+    }
 
     private static void ReplaceInList<T>(List<T> list, T updated) where T : class
     {

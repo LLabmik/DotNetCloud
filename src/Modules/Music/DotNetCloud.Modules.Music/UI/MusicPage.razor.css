@@ -1516,6 +1516,318 @@
     background: linear-gradient(135deg, #334155, #475569);
 }
 
+/* ═══════════════════════════════════════════════════════════
+   Scan Progress Panel
+   ═══════════════════════════════════════════════════════════ */
+
+.scan-progress-panel {
+    margin-top: 16px;
+    padding: 16px;
+    background: var(--color-bg, #f5f7fa);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: var(--radius, 8px);
+}
+
+.scan-progress-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.scan-phase {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-primary, #3b82f6);
+}
+
+.scan-elapsed {
+    font-size: 0.75rem;
+    color: var(--color-muted, #94a3b8);
+    font-variant-numeric: tabular-nums;
+}
+
+.scan-progress-bar {
+    width: 100%;
+    height: 6px;
+    background: var(--color-border, #e2e8f0);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+
+.scan-progress-fill {
+    height: 100%;
+    background: var(--color-primary, #3b82f6);
+    border-radius: 3px;
+    transition: width 0.4s ease;
+}
+
+.scan-progress-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.scan-current-file {
+    font-size: 0.75rem;
+    color: var(--color-text-secondary, #64748b);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+}
+
+.scan-counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.scan-count {
+    font-size: 0.75rem;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+}
+
+.scan-count.added { color: #22c55e; }
+.scan-count.updated { color: var(--color-primary, #3b82f6); }
+.scan-count.skipped { color: var(--color-muted, #94a3b8); }
+.scan-count.failed { color: #ef4444; }
+.scan-count.art { color: #a855f7; }
+
+.scan-file-count {
+    font-size: 0.75rem;
+    color: var(--color-text-secondary, #64748b);
+    font-variant-numeric: tabular-nums;
+}
+
+.btn-cancel-scan {
+    border-color: #ef4444 !important;
+    color: #ef4444 !important;
+}
+
+.btn-cancel-scan:hover {
+    background: rgba(239, 68, 68, 0.08) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Album Enrichment — Fetch Art Button
+   ═══════════════════════════════════════════════════════════ */
+
+.album-art-placeholder.large {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.btn-fetch-art {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 6px;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition, 200ms ease);
+    white-space: nowrap;
+}
+
+.btn-fetch-art:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+.btn-fetch-art:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.enrich-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: enrich-spin 0.6s linear infinite;
+}
+
+@keyframes enrich-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Artist Enrichment — Bio, Links, Image
+   ═══════════════════════════════════════════════════════════ */
+
+.artist-detail-image {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    box-shadow: var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.12));
+}
+
+.artist-detail-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.artist-detail-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.artist-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 12px;
+    background: var(--color-bg, #f5f7fa);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 6px;
+    color: var(--color-primary, #3b82f6);
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all var(--transition, 200ms ease);
+}
+
+.artist-link:hover {
+    background: var(--color-primary, #3b82f6);
+    color: #fff;
+    border-color: var(--color-primary, #3b82f6);
+}
+
+.link-icon {
+    font-size: 0.8125rem;
+}
+
+.btn-fetch-info {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    background: transparent;
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 6px;
+    color: var(--color-text-secondary, #64748b);
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition, 200ms ease);
+}
+
+.btn-fetch-info:hover {
+    background: var(--color-bg, #f5f7fa);
+    color: var(--color-text, #1e293b);
+    border-color: var(--color-primary, #3b82f6);
+}
+
+.btn-fetch-info:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.artist-biography {
+    margin-bottom: 20px;
+    padding: 16px;
+    background: var(--color-bg, #f5f7fa);
+    border-radius: var(--radius, 8px);
+    border: 1px solid var(--color-border, #e2e8f0);
+}
+
+.artist-biography p {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.65;
+    color: var(--color-text-secondary, #64748b);
+    white-space: pre-wrap;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Enrichment Settings Toggles
+   ═══════════════════════════════════════════════════════════ */
+
+.toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    font-size: 0.8125rem;
+    color: var(--color-text, #1e293b);
+    cursor: pointer;
+}
+
+.toggle-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--color-primary, #3b82f6);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Enrichment Toast Notification
+   ═══════════════════════════════════════════════════════════ */
+
+.enrichment-toast {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 20px;
+    background: var(--color-surface, #ffffff);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: var(--radius, 8px);
+    box-shadow: var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.12));
+    font-size: 0.8125rem;
+    color: var(--color-text, #1e293b);
+    z-index: 100;
+    animation: toast-slide-in 0.3s ease;
+}
+
+.toast-dismiss {
+    background: none;
+    border: none;
+    color: var(--color-muted, #94a3b8);
+    cursor: pointer;
+    font-size: 0.875rem;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: color var(--transition, 200ms ease);
+}
+
+.toast-dismiss:hover {
+    color: var(--color-text, #1e293b);
+}
+
+@keyframes toast-slide-in {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
 /* ─── Visualizer ─── */
 
 .visualizer-container {

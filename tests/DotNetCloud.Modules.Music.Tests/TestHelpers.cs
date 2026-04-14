@@ -245,4 +245,60 @@ internal static class TestHelpers
         await SeedTrackArtistAsync(db, track.Id, artist.Id);
         return (artist, album, track);
     }
+
+    /// <summary>Seeds an album with HasCoverArt = false, no CoverArtPath.</summary>
+    public static async Task<MusicAlbum> SeedAlbumWithoutArtAsync(
+        MusicDbContext db,
+        Guid artistId,
+        string title = "No Art Album",
+        Guid? ownerId = null)
+    {
+        var album = new MusicAlbum
+        {
+            Title = title,
+            ArtistId = artistId,
+            HasCoverArt = false,
+            CoverArtPath = null,
+            TotalDurationTicks = TimeSpan.FromMinutes(45).Ticks,
+            OwnerId = ownerId ?? Guid.NewGuid()
+        };
+        db.Albums.Add(album);
+        await db.SaveChangesAsync();
+        return album;
+    }
+
+    /// <summary>Seeds an artist with MusicBrainz enrichment data populated.</summary>
+    public static async Task<Artist> SeedEnrichedArtistAsync(
+        MusicDbContext db,
+        string name = "Enriched Artist",
+        Guid? ownerId = null)
+    {
+        var artist = new Artist
+        {
+            Name = name,
+            SortName = name,
+            OwnerId = ownerId ?? Guid.NewGuid(),
+            MusicBrainzId = Guid.NewGuid().ToString(),
+            Biography = $"{name} is a well-known musical act.",
+            WikipediaUrl = $"https://en.wikipedia.org/wiki/{name.Replace(' ', '_')}",
+            DiscogsUrl = "https://www.discogs.com/artist/12345",
+            OfficialUrl = $"https://www.{name.Replace(' ', '-').ToLowerInvariant()}.com",
+            LastEnrichedAt = DateTime.UtcNow.AddDays(-10)
+        };
+        db.Artists.Add(artist);
+        await db.SaveChangesAsync();
+        return artist;
+    }
+
+    /// <summary>Creates a JSON string mimicking a MusicBrainz artist search response.</summary>
+    public static string CreateMockMusicBrainzArtistJson(string name, string mbid, int score)
+    {
+        return $$"""
+        {
+            "artists": [
+                {"id":"{{mbid}}","name":"{{name}}","score":{{score}},"disambiguation":""}
+            ]
+        }
+        """;
+    }
 }

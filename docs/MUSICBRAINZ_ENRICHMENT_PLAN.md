@@ -12,7 +12,7 @@ Add external metadata enrichment to the music module using **MusicBrainz + Cover
 
 ---
 
-## Phase A: Data Model Changes (Migration)
+## Phase A: Data Model Changes (Migration) ✅ COMPLETE
 
 ### A1. Add external ID and enrichment fields to existing models
 
@@ -55,7 +55,7 @@ dotnet ef migrations add AddMusicBrainzEnrichment \
 
 ---
 
-## Phase B: MusicBrainz + Cover Art Archive Services
+## Phase B: MusicBrainz + Cover Art Archive Services ✅ COMPLETE
 
 ### B1. `MusicBrainzClient` — Low-level HTTP client
 
@@ -119,7 +119,7 @@ Responsibilities:
 
 ---
 
-## Phase C: Scan Progress Infrastructure
+## Phase C: Scan Progress Infrastructure ✅ COMPLETE
 
 ### C1. `LibraryScanProgress` — Progress reporting model
 
@@ -175,7 +175,7 @@ public sealed record LibraryScanProgress
 
 ---
 
-## Phase D: API Endpoints
+## Phase D: API Endpoints ✅ COMPLETE
 
 ### D1. Enrichment endpoints on MusicController
 
@@ -196,7 +196,7 @@ New endpoints:
 
 ---
 
-## Phase E: Blazor UI Updates
+## Phase E: Blazor UI Updates ✅ COMPLETE
 
 ### E1. Scan progress UI overhaul
 
@@ -241,7 +241,7 @@ Replace current scan UX (button → spinner → result banner) with:
 
 ---
 
-## Phase F: Service Registration + Configuration
+## Phase F: Service Registration + Configuration ✅ COMPLETE
 
 ### F1. Register new services
 
@@ -278,7 +278,7 @@ Replace current scan UX (button → spinner → result banner) with:
 
 ---
 
-## Phase G: Comprehensive Unit Tests
+## Phase G: Comprehensive Unit Tests ✅ COMPLETE
 
 **Framework:** MSTest (`[TestClass]`, `[TestMethod]`, `[TestInitialize]`, `[TestCleanup]`)  
 **Mocking:** Moq (`Mock<T>`, `.Setup()`, `.Verify()`)  
@@ -478,14 +478,14 @@ internal sealed class MockHttpMessageHandler : HttpMessageHandler
 
 | Test File | Test Count | What It Tests |
 |-----------|-----------|---------------|
-| `MusicBrainzClientTests.cs` | ~20 | URL construction, JSON parsing, rate limiting, error handling |
-| `CoverArtArchiveClientTests.cs` | ~15 | Image fetching, release fallback, redirects, error handling |
-| `MetadataEnrichmentServiceTests.cs` | ~30 | Album/artist/track enrichment, batch operations, progress, caching |
-| `LibraryScanProgressTests.cs` | ~12 | Scan progress reporting, enrichment integration, cancellation |
-| `ScanProgressStateTests.cs` | ~8 | Blazor state service, event notifications |
-| Existing test updates | ~5 | Signature compatibility with new parameters |
+| `MusicBrainzClientTests.cs` | 23 | URL construction, JSON parsing, rate limiting, error handling |
+| `CoverArtArchiveClientTests.cs` | 15 | Image fetching, release fallback, redirects, error handling |
+| `MetadataEnrichmentServiceTests.cs` | 30 | Album/artist/track enrichment, batch operations, progress, caching |
+| `LibraryScanProgressTests.cs` | 12 | Scan progress reporting, enrichment integration, cancellation |
+| `ScanProgressStateTests.cs` | 8 | Blazor state service, event notifications |
+| Existing test updates | — | Signature compatibility (TestHelpers updated) |
 | `MockHttpMessageHandler.cs` | — | Shared test infrastructure |
-| **Total** | **~90** | |
+| **Total** | **88** | |
 
 ---
 
@@ -534,7 +534,7 @@ internal sealed class MockHttpMessageHandler : HttpMessageHandler
 
 ## Verification Checklist
 
-1. ☐ **Unit tests pass**: `dotnet test tests/DotNetCloud.Modules.Music.Tests/`
+1. ✓ **Unit tests pass**: `dotnet test tests/DotNetCloud.Modules.Music.Tests/` — 338 tests passing (88 new Phase G tests + 250 existing)
 2. ☐ **Full build**: `dotnet build`
 3. ☐ **Migration applies**: `dotnet ef database update --project src/Modules/Music/DotNetCloud.Modules.Music.Data --context MusicDbContext`
 4. ☐ **Manual test — scan with progress**: Start a library scan on a folder with 20+ audio files, verify progress bar updates live with file names and counts

@@ -29,6 +29,39 @@ public sealed record ArtistDto
     public required DateTime CreatedAt { get; init; }
 }
 
+/// <summary>
+/// Artist biography and external links from MusicBrainz enrichment.
+/// </summary>
+public sealed record ArtistBioDto
+{
+    /// <summary>Artist identifier.</summary>
+    public required Guid ArtistId { get; init; }
+
+    /// <summary>Artist name.</summary>
+    public required string Name { get; init; }
+
+    /// <summary>Biography text from MusicBrainz annotation.</summary>
+    public string? Biography { get; init; }
+
+    /// <summary>Artist image URL.</summary>
+    public string? ImageUrl { get; init; }
+
+    /// <summary>Wikipedia page URL.</summary>
+    public string? WikipediaUrl { get; init; }
+
+    /// <summary>Discogs page URL.</summary>
+    public string? DiscogsUrl { get; init; }
+
+    /// <summary>Official website URL.</summary>
+    public string? OfficialUrl { get; init; }
+
+    /// <summary>MusicBrainz artist identifier.</summary>
+    public string? MusicBrainzId { get; init; }
+
+    /// <summary>When the artist was last enriched from external sources (UTC).</summary>
+    public DateTime? LastEnrichedAt { get; init; }
+}
+
 // ── Album DTOs ──────────────────────────────────────────────────────
 
 /// <summary>
@@ -246,7 +279,73 @@ public sealed record SaveEqPresetDto
     public required IDictionary<string, double> Bands { get; init; }
 }
 
+// ── Enrichment DTOs ─────────────────────────────────────────────────
+
+/// <summary>
+/// Progress information for metadata enrichment operations.
+/// </summary>
+public sealed record EnrichmentProgress
+{
+    /// <summary>Current enrichment phase (e.g. "Enriching artists...", "Enriching albums...", "Fetching cover art...").</summary>
+    public required string Phase { get; init; }
+
+    /// <summary>Number of items processed so far in the current phase.</summary>
+    public int Current { get; init; }
+
+    /// <summary>Total items to process in the current phase.</summary>
+    public int Total { get; init; }
+
+    /// <summary>Name of the item currently being processed.</summary>
+    public string? CurrentItem { get; init; }
+
+    /// <summary>Number of album covers found so far.</summary>
+    public int AlbumArtFound { get; init; }
+
+    /// <summary>Number of artist biographies found so far.</summary>
+    public int ArtistBiosFound { get; init; }
+}
+
 // ── Library Scan DTOs ───────────────────────────────────────────────
+
+/// <summary>
+/// Real-time progress information for an in-progress library scan.
+/// Reported via <see cref="IProgress{T}"/> during scan and enrichment phases.
+/// </summary>
+public sealed record LibraryScanProgress
+{
+    /// <summary>Current scan phase ("Discovering files", "Extracting metadata", "Enriching metadata", "Complete").</summary>
+    public required string Phase { get; init; }
+
+    /// <summary>Name of the file currently being processed.</summary>
+    public string? CurrentFile { get; init; }
+
+    /// <summary>Number of files processed so far.</summary>
+    public int FilesProcessed { get; init; }
+
+    /// <summary>Total files to process.</summary>
+    public int TotalFiles { get; init; }
+
+    /// <summary>Tracks successfully added.</summary>
+    public int TracksAdded { get; init; }
+
+    /// <summary>Tracks updated (re-indexed).</summary>
+    public int TracksUpdated { get; init; }
+
+    /// <summary>Tracks skipped (already up to date).</summary>
+    public int TracksSkipped { get; init; }
+
+    /// <summary>Tracks that failed to index.</summary>
+    public int TracksFailed { get; init; }
+
+    /// <summary>Album covers fetched from external source.</summary>
+    public int AlbumArtFetched { get; init; }
+
+    /// <summary>Completion percentage (0-100).</summary>
+    public int PercentComplete { get; init; }
+
+    /// <summary>Time elapsed since scan started.</summary>
+    public TimeSpan ElapsedTime { get; init; }
+}
 
 /// <summary>
 /// Result of a library scan operation.

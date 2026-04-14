@@ -19,6 +19,8 @@
 @inject IJSRuntime Js
 @inject Microsoft.Extensions.Logging.ILogger<MusicPage> Logger
 @inject MusicPlaybackState Playback
+@inject ScanProgressState ScanProgress
+@inject IMetadataEnrichmentService EnrichmentService
 
 <div class="music-layout">
     @* ─── Sidebar ─── *@
@@ -297,12 +299,68 @@
             {
                 <div class="artist-detail">
                     <div class="artist-detail-header">
-                        <div class="artist-detail-avatar">@GetInitials(_selectedArtist.Name)</div>
+                        @if (_artistBio?.ImageUrl is not null)
+                        {
+                            <div class="artist-detail-image">
+                                <img src="@_artistBio.ImageUrl" alt="@_selectedArtist.Name" />
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="artist-detail-avatar">@GetInitials(_selectedArtist.Name)</div>
+                        }
                         <div class="artist-detail-info">
                             <h3>@_selectedArtist.Name</h3>
                             <span>@_selectedArtist.AlbumCount albums · @_selectedArtist.TrackCount tracks</span>
+                            <div class="artist-detail-actions">
+                                @if (_artistBio?.WikipediaUrl is not null)
+                                {
+                                    <a href="@_artistBio.WikipediaUrl" target="_blank" rel="noopener noreferrer"
+                                       class="artist-link" title="Wikipedia">
+                                        <span class="link-icon">📖</span> Wikipedia
+                                    </a>
+                                }
+                                @if (_artistBio?.DiscogsUrl is not null)
+                                {
+                                    <a href="@_artistBio.DiscogsUrl" target="_blank" rel="noopener noreferrer"
+                                       class="artist-link" title="Discogs">
+                                        <span class="link-icon">💿</span> Discogs
+                                    </a>
+                                }
+                                @if (_artistBio?.OfficialUrl is not null)
+                                {
+                                    <a href="@_artistBio.OfficialUrl" target="_blank" rel="noopener noreferrer"
+                                       class="artist-link" title="Official Website">
+                                        <span class="link-icon">🌐</span> Website
+                                    </a>
+                                }
+                                @if (_artistBio is null || _artistBio.LastEnrichedAt is null)
+                                {
+                                    <button class="btn-fetch-info"
+                                            @onclick="() => EnrichArtistAsync(_selectedArtist.Id)"
+                                            disabled="@(_enrichingArtist && _enrichingArtistId == _selectedArtist.Id)">
+                                        @if (_enrichingArtist && _enrichingArtistId == _selectedArtist.Id)
+                                        {
+                                            <span class="enrich-spinner"></span>
+                                            <span>Fetching…</span>
+                                        }
+                                        else
+                                        {
+                                            <span>🔍 Fetch Info</span>
+                                        }
+                                    </button>
+                                }
+                            </div>
                         </div>
                     </div>
+
+                    @if (_artistBio?.Biography is not null)
+                    {
+                        <div class="artist-biography">
+                            <h4 class="section-subhead">Biography</h4>
+                            <p>@_artistBio.Biography</p>
+                        </div>
+                    }
 
                     @if (_artistAlbums.Count > 0)
                     {
@@ -374,7 +432,22 @@
                             }
                             else
                             {
-                                <div class="album-art-placeholder large">♫</div>
+                                <div class="album-art-placeholder large">
+                                    <span>♫</span>
+                                    <button class="btn-fetch-art"
+                                            @onclick="() => EnrichAlbumAsync(_selectedAlbum.Id)"
+                                            disabled="@(_enrichingAlbum && _enrichingAlbumId == _selectedAlbum.Id)"
+                                            title="Fetch cover art from MusicBrainz">
+                                        @if (_enrichingAlbum && _enrichingAlbumId == _selectedAlbum.Id)
+                                        {
+                                            <span class="enrich-spinner"></span>
+                                        }
+                                        else
+                                        {
+                                            <span>Fetch Art</span>
+                                        }
+                                    </button>
+                                </div>
                             }
                         </div>
                         <div class="album-detail-info">
@@ -622,10 +695,71 @@
                                     disabled="@_settingsSaving">
                                 @(_settingsSaving ? "Saving..." : "Save Path")
                             </button>
-                            <button class="btn btn-outline btn-sm" @onclick="ScanLibraryAsync"
-                                    disabled="@(_settingsScanning || string.IsNullOrWhiteSpace(_libraryPath))">
-                                @(_settingsScanning ? "Scanning..." : "Scan Now")
-                            </button>
+                            @if (ScanProgress.IsScanning)
+                            {
+                                <button class="btn btn-outline btn-sm btn-cancel-scan" @onclick="CancelScan">
+                                    Cancel Scan
+                                </button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-outline btn-sm" @onclick="ScanLibraryAsync"
+                                        disabled="@(_settingsScanning || string.IsNullOrWhiteSpace(_libraryPath))">
+                                    @(_settingsScanning ? "Scanning..." : "Scan Now")
+                                </button>
+                            }
+                        </div>
+
+                        @* ─── Scan Progress Panel ─── *@
+                        @if (ScanProgress.IsScanning && ScanProgress.CurrentProgress is not null)
+                        {
+                            var p = ScanProgress.CurrentProgress;
+                            <div class="scan-progress-panel">
+                                <div class="scan-progress-header">
+                                    <span class="scan-phase">@p.Phase</span>
+                                    <span class="scan-elapsed">@FormatElapsed(p.ElapsedTime)</span>
+                                </div>
+                                <div class="scan-progress-bar">
+                                    <div class="scan-progress-fill" style="width: @(p.PercentComplete)%"></div>
+                                </div>
+                                <div class="scan-progress-detail">
+                                    @if (!string.IsNullOrEmpty(p.CurrentFile))
+                                    {
+                                        <span class="scan-current-file" title="@p.CurrentFile">@TruncateFileName(p.CurrentFile, 60)</span>
+                                    }
+                                    <div class="scan-counts">
+                                        <span class="scan-count added">+@p.TracksAdded added</span>
+                                        <span class="scan-count updated">↻@p.TracksUpdated updated</span>
+                                        <span class="scan-count skipped">→@p.TracksSkipped skipped</span>
+                                        @if (p.TracksFailed > 0)
+                                        {
+                                            <span class="scan-count failed">✕@p.TracksFailed failed</span>
+                                        }
+                                        @if (p.AlbumArtFetched > 0)
+                                        {
+                                            <span class="scan-count art">🎨@p.AlbumArtFetched covers</span>
+                                        }
+                                    </div>
+                                    @if (p.TotalFiles > 0)
+                                    {
+                                        <span class="scan-file-count">@p.FilesProcessed / @p.TotalFiles files (@p.PercentComplete%)</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        @* ─── Enrichment Settings ─── *@
+                        <div class="enrichment-settings" style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--color-border, rgba(255,255,255,0.08));">
+                            <h5 style="margin-bottom: 10px;">MusicBrainz Enrichment</h5>
+                            <p class="hint" style="margin-bottom: 12px;">Automatically fetch metadata and cover art from MusicBrainz and Cover Art Archive during library scans.</p>
+                            <label class="toggle-label">
+                                <input type="checkbox" @bind="_autoFetchMetadata" @bind:after="SaveEnrichmentSettingsAsync" />
+                                <span>Auto-fetch metadata from MusicBrainz during scan</span>
+                            </label>
+                            <label class="toggle-label">
+                                <input type="checkbox" @bind="_autoFetchAlbumArt" @bind:after="SaveEnrichmentSettingsAsync" />
+                                <span>Auto-fetch missing album art from Cover Art Archive</span>
+                            </label>
                         </div>
 
                         <div class="settings-danger-zone" style="margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.08);">
@@ -762,6 +896,15 @@
                     </button>
                 </div>
             </div>
+        </div>
+    }
+
+    @* ─── Enrichment Toast ─── *@
+    @if (_enrichmentToast is not null)
+    {
+        <div class="enrichment-toast">
+            <span>@_enrichmentToast</span>
+            <button class="toast-dismiss" @onclick="DismissEnrichmentToast">✕</button>
         </div>
     }
 </div>

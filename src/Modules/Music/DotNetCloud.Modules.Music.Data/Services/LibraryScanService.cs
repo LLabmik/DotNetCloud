@@ -3,9 +3,11 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Events.Search;
 using DotNetCloud.Modules.Music.Models;
+using DotNetCloud.Modules.Music.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 namespace DotNetCloud.Modules.Music.Data.Services;
 
@@ -18,8 +20,11 @@ public sealed class LibraryScanService
     private readonly MusicMetadataService _metadataService;
     private readonly AlbumArtService _albumArtService;
     private readonly IEventBus _eventBus;
+    private readonly IMetadataEnrichmentService? _enrichmentService;
     private readonly ILogger<LibraryScanService> _logger;
     private readonly string _artCacheDir;
+    private readonly bool _autoFetchArt;
+    private readonly bool _autoEnrichArtists;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="LibraryScanService"/> class.
@@ -30,16 +35,22 @@ public sealed class LibraryScanService
         AlbumArtService albumArtService,
         IEventBus eventBus,
         IConfiguration configuration,
-        ILogger<LibraryScanService> logger)
+        ILogger<LibraryScanService> logger,
+        IMetadataEnrichmentService? enrichmentService = null)
     {
         _db = db;
         _metadataService = metadataService;
         _albumArtService = albumArtService;
         _eventBus = eventBus;
+        _enrichmentService = enrichmentService;
         _logger = logger;
         var storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
         _artCacheDir = Path.Combine(storageRoot, ".album-art");
         Directory.CreateDirectory(_artCacheDir);
+
+        var enrichmentEnabled = configuration.GetValue("Music:Enrichment:Enabled", true);
+        _autoFetchArt = enrichmentEnabled && configuration.GetValue("Music:Enrichment:AutoFetchArt", true);
+        _autoEnrichArtists = enrichmentEnabled && configuration.GetValue("Music:Enrichment:AutoEnrichArtists", true);
     }
 
     /// <summary>
@@ -215,35 +226,164 @@ public sealed class LibraryScanService
 
     /// <summary>
     /// Performs a full library scan for a user, indexing all audio files found at the given paths.
+    /// Optionally reports real-time progress and runs metadata enrichment after the scan phase.
     /// </summary>
+    /// <param name="audioFiles">Audio files to index.</param>
+    /// <param name="ownerId">User whose library is being scanned.</param>
+    /// <param name="caller">Caller context for authorization and event publishing.</param>
+    /// <param name="progress">Optional progress reporter for real-time scan status.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     public async Task<LibraryScanResultDto> ScanLibraryAsync(
         IEnumerable<(Guid FileNodeId, string FilePath, string MimeType, long SizeBytes)> audioFiles,
         Guid ownerId,
         CallerContext caller,
+        IProgress<LibraryScanProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        var startTime = DateTime.UtcNow;
+        var sw = Stopwatch.StartNew();
+        var fileList = audioFiles.ToList();
+        var totalFiles = fileList.Count;
         var added = 0;
         var updated = 0;
+        var skipped = 0;
+        var failed = 0;
 
-        foreach (var file in audioFiles)
+        // Report initial progress
+        progress?.Report(new LibraryScanProgress
         {
+            Phase = "Extracting metadata",
+            FilesProcessed = 0,
+            TotalFiles = totalFiles,
+            PercentComplete = 0,
+            ElapsedTime = sw.Elapsed
+        });
+
+        for (var i = 0; i < fileList.Count; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var file = fileList[i];
+            var fileName = Path.GetFileName(file.FilePath);
+
+            progress?.Report(new LibraryScanProgress
+            {
+                Phase = "Extracting metadata",
+                CurrentFile = fileName,
+                FilesProcessed = i,
+                TotalFiles = totalFiles,
+                TracksAdded = added,
+                TracksUpdated = updated,
+                TracksSkipped = skipped,
+                TracksFailed = failed,
+                PercentComplete = totalFiles > 0 ? (int)((long)i * 100 / totalFiles) : 0,
+                ElapsedTime = sw.Elapsed
+            });
+
             var existingTrack = await _db.Tracks
                 .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(t => t.FileNodeId == file.FileNodeId, cancellationToken);
 
-            var track = await IndexFileAsync(
-                file.FileNodeId, file.FilePath, file.MimeType, file.SizeBytes, ownerId,
-                metadataFilePath: file.FilePath, cancellationToken: cancellationToken);
-
-            if (track is not null)
+            try
             {
-                if (existingTrack is null)
-                    added++;
+                var track = await IndexFileAsync(
+                    file.FileNodeId, file.FilePath, file.MimeType, file.SizeBytes, ownerId,
+                    metadataFilePath: file.FilePath, cancellationToken: cancellationToken);
+
+                if (track is not null)
+                {
+                    if (existingTrack is null)
+                        added++;
+                    else
+                        updated++;
+                }
                 else
-                    updated++;
+                {
+                    skipped++;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to index file {FileName}", fileName);
+                failed++;
             }
         }
+
+        // Report metadata phase complete
+        progress?.Report(new LibraryScanProgress
+        {
+            Phase = "Extracting metadata",
+            FilesProcessed = totalFiles,
+            TotalFiles = totalFiles,
+            TracksAdded = added,
+            TracksUpdated = updated,
+            TracksSkipped = skipped,
+            TracksFailed = failed,
+            PercentComplete = 100,
+            ElapsedTime = sw.Elapsed
+        });
+
+        // Enrichment phase: fetch missing album art and artist data from MusicBrainz
+        var albumArtFetched = 0;
+        if (_enrichmentService is not null && (_autoFetchArt || _autoEnrichArtists) && !cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogInformation("Starting metadata enrichment phase for user {UserId}", ownerId);
+
+            progress?.Report(new LibraryScanProgress
+            {
+                Phase = "Enriching metadata",
+                FilesProcessed = totalFiles,
+                TotalFiles = totalFiles,
+                TracksAdded = added,
+                TracksUpdated = updated,
+                TracksSkipped = skipped,
+                TracksFailed = failed,
+                PercentComplete = 100,
+                ElapsedTime = sw.Elapsed
+            });
+
+            try
+            {
+                var enrichmentProgress = new Progress<EnrichmentProgress>(ep =>
+                {
+                    var phase = ep.Phase ?? "Enriching metadata";
+                    albumArtFetched = ep.AlbumArtFound;
+                    progress?.Report(new LibraryScanProgress
+                    {
+                        Phase = phase,
+                        CurrentFile = ep.CurrentItem,
+                        FilesProcessed = totalFiles,
+                        TotalFiles = totalFiles,
+                        TracksAdded = added,
+                        TracksUpdated = updated,
+                        TracksSkipped = skipped,
+                        TracksFailed = failed,
+                        AlbumArtFetched = ep.AlbumArtFound,
+                        PercentComplete = 100,
+                        ElapsedTime = sw.Elapsed
+                    });
+                });
+
+                if (_autoFetchArt)
+                {
+                    await _enrichmentService.EnrichAlbumsWithoutArtAsync(ownerId, enrichmentProgress, cancellationToken);
+                }
+
+                if (_autoEnrichArtists)
+                {
+                    await _enrichmentService.EnrichAllAsync(ownerId, enrichmentProgress, cancellationToken);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation("Enrichment phase cancelled for user {UserId}", ownerId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Enrichment phase failed for user {UserId}, scan results preserved", ownerId);
+            }
+        }
+
+        sw.Stop();
 
         var totalTracks = await _db.Tracks.CountAsync(t => t.OwnerId == ownerId, cancellationToken);
         var totalArtists = await _db.Artists.CountAsync(a => a.OwnerId == ownerId, cancellationToken);
@@ -257,7 +397,7 @@ public sealed class LibraryScanService
             TotalTracks = totalTracks,
             TotalArtists = totalArtists,
             TotalAlbums = totalAlbums,
-            Duration = DateTime.UtcNow - startTime
+            Duration = sw.Elapsed
         };
 
         await _eventBus.PublishAsync(new LibraryScanCompletedEvent
@@ -269,6 +409,21 @@ public sealed class LibraryScanService
             TracksUpdated = updated,
             TracksRemoved = 0
         }, caller, cancellationToken);
+
+        // Report completion
+        progress?.Report(new LibraryScanProgress
+        {
+            Phase = "Complete",
+            FilesProcessed = totalFiles,
+            TotalFiles = totalFiles,
+            TracksAdded = added,
+            TracksUpdated = updated,
+            TracksSkipped = skipped,
+            TracksFailed = failed,
+            AlbumArtFetched = albumArtFetched,
+            PercentComplete = 100,
+            ElapsedTime = sw.Elapsed
+        });
 
         _logger.LogInformation(
             "Library scan complete for user {UserId}: {Added} added, {Updated} updated, {Total} total tracks",

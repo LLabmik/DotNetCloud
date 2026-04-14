@@ -21,6 +21,8 @@ public class MusicController : MusicControllerBase
     private readonly RecommendationService _recommendationService;
     private readonly MusicStreamingService _streamingService;
     private readonly EqPresetService _eqPresetService;
+    private readonly IMetadataEnrichmentService _enrichmentService;
+    private readonly ScanProgressState _scanProgressState;
     private readonly ILogger<MusicController> _logger;
 
     /// <summary>
@@ -35,6 +37,8 @@ public class MusicController : MusicControllerBase
         RecommendationService recommendationService,
         MusicStreamingService streamingService,
         EqPresetService eqPresetService,
+        IMetadataEnrichmentService enrichmentService,
+        ScanProgressState scanProgressState,
         ILogger<MusicController> logger)
     {
         _artistService = artistService;
@@ -45,6 +49,8 @@ public class MusicController : MusicControllerBase
         _recommendationService = recommendationService;
         _streamingService = streamingService;
         _eqPresetService = eqPresetService;
+        _enrichmentService = enrichmentService;
+        _scanProgressState = scanProgressState;
         _logger = logger;
     }
 
@@ -526,5 +532,89 @@ public class MusicController : MusicControllerBase
         var caller = GetAuthenticatedCaller();
         await _eqPresetService.SetActivePresetAsync(presetId, caller);
         return Ok(Envelope(new { activePresetId = presetId }));
+    }
+
+    // ─── Enrichment ───────────────────────────────────────────────────
+
+    /// <summary>Enriches a single album with MusicBrainz metadata and cover art.</summary>
+    [HttpPost("enrich/album/{albumId:guid}")]
+    public async Task<IActionResult> EnrichAlbum(Guid albumId, [FromQuery] bool force = false)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            await _enrichmentService.EnrichAlbumAsync(albumId, caller, force);
+            return Ok(Envelope(new { enriched = true, albumId }));
+        }
+        catch (DotNetCloudException ex) when (ex.ErrorCode == ErrorCodes.MusicAlbumNotFound)
+        {
+            return NotFound(ErrorEnvelope(ErrorCodes.MusicAlbumNotFound, ex.Message));
+        }
+    }
+
+    /// <summary>Enriches a single artist with MusicBrainz metadata (biography, links).</summary>
+    [HttpPost("enrich/artist/{artistId:guid}")]
+    public async Task<IActionResult> EnrichArtist(Guid artistId, [FromQuery] bool force = false)
+    {
+        var caller = GetAuthenticatedCaller();
+        try
+        {
+            await _enrichmentService.EnrichArtistAsync(artistId, caller, force);
+            return Ok(Envelope(new { enriched = true, artistId }));
+        }
+        catch (DotNetCloudException ex) when (ex.ErrorCode == ErrorCodes.ArtistNotFound)
+        {
+            return NotFound(ErrorEnvelope(ErrorCodes.ArtistNotFound, ex.Message));
+        }
+    }
+
+    /// <summary>Batch-enriches all unenriched items in the user's music library.</summary>
+    [HttpPost("enrich/all")]
+    public async Task<IActionResult> EnrichAll()
+    {
+        var caller = GetAuthenticatedCaller();
+        _logger.LogInformation("User {UserId} triggered full library enrichment", caller.UserId);
+        await _enrichmentService.EnrichAllAsync(caller.UserId);
+        return Ok(Envelope(new { enriched = true }));
+    }
+
+    /// <summary>Batch-enriches only albums missing cover art for the current user.</summary>
+    [HttpPost("enrich/missing-art")]
+    public async Task<IActionResult> EnrichMissingArt()
+    {
+        var caller = GetAuthenticatedCaller();
+        _logger.LogInformation("User {UserId} triggered missing art enrichment", caller.UserId);
+        await _enrichmentService.EnrichAlbumsWithoutArtAsync(caller.UserId);
+        return Ok(Envelope(new { enriched = true }));
+    }
+
+    /// <summary>Gets the artist biography and external links.</summary>
+    [HttpGet("artists/{artistId:guid}/bio")]
+    public async Task<IActionResult> GetArtistBio(Guid artistId)
+    {
+        var caller = GetAuthenticatedCaller();
+        var bio = await _artistService.GetArtistBioAsync(artistId, caller);
+        return bio is null
+            ? NotFound(ErrorEnvelope(ErrorCodes.ArtistNotFound, "Artist not found."))
+            : Ok(Envelope(bio));
+    }
+
+    // ─── Scan Progress ────────────────────────────────────────────────
+
+    /// <summary>Gets the current library scan progress for the authenticated user.</summary>
+    [HttpGet("scan/progress")]
+    public IActionResult GetScanProgress()
+    {
+        GetAuthenticatedCaller();
+        if (!_scanProgressState.IsScanning)
+        {
+            return Ok(Envelope(new { isScanning = false }));
+        }
+
+        return Ok(Envelope(new
+        {
+            isScanning = true,
+            progress = _scanProgressState.CurrentProgress
+        }));
     }
 }

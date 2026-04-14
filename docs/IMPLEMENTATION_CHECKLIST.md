@@ -3862,33 +3862,37 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Create AddMusicBrainzEnrichment migration
 
 #### Phase B — MusicBrainz + Cover Art Archive Services
-- ☐ `IMusicBrainzClient` / `MusicBrainzClient` — typed HTTP client with rate limiting
-- ☐ `ICoverArtArchiveClient` / `CoverArtArchiveClient` — album art fetcher
-- ☐ `IMetadataEnrichmentService` / `MetadataEnrichmentService` — orchestrator
+- ✓ `IMusicBrainzClient` / `MusicBrainzClient` — typed HTTP client with rate limiting
+- ✓ `ICoverArtArchiveClient` / `CoverArtArchiveClient` — album art fetcher
+- ✓ `IMetadataEnrichmentService` / `MetadataEnrichmentService` — orchestrator
 
 #### Phase C — Scan Progress Infrastructure
-- ☐ `LibraryScanProgress` DTO
-- ☐ Update `LibraryScanService` with progress reporting
-- ☐ `ScanProgressState` — scoped Blazor state service
+- ✓ `LibraryScanProgress` DTO
+- ✓ Update `LibraryScanService` with progress reporting
+- ✓ `ScanProgressState` — scoped Blazor state service
 
 #### Phase D — API Endpoints
-- ☐ Enrichment endpoints on MusicController
-- ☐ Scan progress endpoint
+- ✓ Enrichment endpoints on MusicController
+- ✓ Scan progress endpoint
 
 #### Phase E — Blazor UI Updates
-- ☐ Scan progress UI overhaul
-- ☐ Album enrichment UI
-- ☐ Artist enrichment UI
-- ☐ Settings: enrichment toggles
+- ✓ Scan progress UI overhaul
+- ✓ Album enrichment UI
+- ✓ Artist enrichment UI
+- ✓ Settings: enrichment toggles
 
 #### Phase F — Service Registration + Configuration
-- ☐ Register new services and HTTP clients
-- ☐ Configuration section for enrichment settings
+- ✓ Register new services and HTTP clients
+- ✓ Configuration section for enrichment settings
 
 #### Phase G — Comprehensive Unit Tests
-- ☐ `MusicBrainzClientTests` (~20 tests)
-- ☐ `CoverArtArchiveClientTests` (~12 tests)
-- ☐ `MetadataEnrichmentServiceTests` (~25 tests)
+- ✓ `MusicBrainzClientTests` (23 tests)
+- ✓ `CoverArtArchiveClientTests` (15 tests)
+- ✓ `MetadataEnrichmentServiceTests` (30 tests)
+- ✓ `LibraryScanProgressTests` (12 tests)
+- ✓ `ScanProgressStateTests` (8 tests)
+- ✓ `MockHttpMessageHandler` shared test infrastructure
+- ✓ `TestHelpers` updated with enrichment seeding helpers
 
 ### Sub-Phase D: Video Module (Steps 5.15–5.18)
 
