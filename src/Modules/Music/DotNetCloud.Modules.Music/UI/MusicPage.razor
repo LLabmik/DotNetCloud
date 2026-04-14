@@ -711,40 +711,52 @@
                         </div>
 
                         @* ─── Scan Progress Panel ─── *@
-                        @if (ScanProgress.IsScanning && ScanProgress.CurrentProgress is not null)
+                        @if (ScanProgress.IsScanning)
                         {
                             var p = ScanProgress.CurrentProgress;
                             <div class="scan-progress-panel">
-                                <div class="scan-progress-header">
-                                    <span class="scan-phase">@p.Phase</span>
-                                    <span class="scan-elapsed">@FormatElapsed(p.ElapsedTime)</span>
-                                </div>
-                                <div class="scan-progress-bar">
-                                    <div class="scan-progress-fill" style="width: @(p.PercentComplete)%"></div>
-                                </div>
-                                <div class="scan-progress-detail">
-                                    @if (!string.IsNullOrEmpty(p.CurrentFile))
-                                    {
-                                        <span class="scan-current-file" title="@p.CurrentFile">@TruncateFileName(p.CurrentFile, 60)</span>
-                                    }
-                                    <div class="scan-counts">
-                                        <span class="scan-count added">+@p.TracksAdded added</span>
-                                        <span class="scan-count updated">↻@p.TracksUpdated updated</span>
-                                        <span class="scan-count skipped">→@p.TracksSkipped skipped</span>
-                                        @if (p.TracksFailed > 0)
+                                @if (p is not null)
+                                {
+                                    <div class="scan-progress-header">
+                                        <span class="scan-phase">@p.Phase</span>
+                                        <span class="scan-elapsed">@FormatElapsed(p.ElapsedTime)</span>
+                                    </div>
+                                    <div class="scan-progress-bar">
+                                        <div class="scan-progress-fill" style="width: @(p.PercentComplete)%"></div>
+                                    </div>
+                                    <div class="scan-progress-detail">
+                                        @if (!string.IsNullOrEmpty(p.CurrentFile))
                                         {
-                                            <span class="scan-count failed">✕@p.TracksFailed failed</span>
+                                            <span class="scan-current-file" title="@p.CurrentFile">@TruncateFileName(p.CurrentFile, 60)</span>
                                         }
-                                        @if (p.AlbumArtFetched > 0)
+                                        <div class="scan-counts">
+                                            <span class="scan-count added">+@p.TracksAdded added</span>
+                                            <span class="scan-count updated">↻@p.TracksUpdated updated</span>
+                                            <span class="scan-count skipped">→@p.TracksSkipped skipped</span>
+                                            @if (p.TracksFailed > 0)
+                                            {
+                                                <span class="scan-count failed">✕@p.TracksFailed failed</span>
+                                            }
+                                            @if (p.AlbumArtFetched > 0)
+                                            {
+                                                <span class="scan-count art">🎨@p.AlbumArtFetched covers</span>
+                                            }
+                                        </div>
+                                        @if (p.TotalFiles > 0)
                                         {
-                                            <span class="scan-count art">🎨@p.AlbumArtFetched covers</span>
+                                            <span class="scan-file-count">@p.FilesProcessed / @p.TotalFiles files (@p.PercentComplete%)</span>
                                         }
                                     </div>
-                                    @if (p.TotalFiles > 0)
-                                    {
-                                        <span class="scan-file-count">@p.FilesProcessed / @p.TotalFiles files (@p.PercentComplete%)</span>
-                                    }
-                                </div>
+                                }
+                                else
+                                {
+                                    <div class="scan-progress-header">
+                                        <span class="scan-phase">Discovering files…</span>
+                                    </div>
+                                    <div class="scan-progress-bar">
+                                        <div class="scan-progress-fill indeterminate"></div>
+                                    </div>
+                                }
                             </div>
                         }
 

@@ -322,6 +322,12 @@ public class Program
                 : Path.Combine(builder.Environment.ContentRootPath, "storage");
         }
 
+        // Propagate the resolved storage path so all services reading
+        // "Files:Storage:RootPath" use the persistent location instead of
+        // falling back to Path.GetTempPath() (which is ephemeral under
+        // systemd PrivateTmp=true).
+        builder.Configuration["Files:Storage:RootPath"] = filesStoragePath;
+
         // Create the server-owned temp directory with restricted permissions (700).
         var tmpDir = !string.IsNullOrWhiteSpace(dataDirForStorage)
             ? Path.Combine(dataDirForStorage, "tmp")

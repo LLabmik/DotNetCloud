@@ -131,7 +131,7 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
     }
 
     /// <inheritdoc />
-    public async Task<MediaScanResult> ScanFolderAsync(Guid? folderId, Guid ownerId, string mediaType, CancellationToken cancellationToken = default)
+    public async Task<MediaScanResult> ScanFolderAsync(Guid? folderId, Guid ownerId, string mediaType, IProgress<MediaScanProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         if (!Enum.TryParse<MediaType>(mediaType, ignoreCase: true, out var parsed))
         {
@@ -183,9 +183,22 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
             "Virtual folder scan: found {Count} {MediaType} files under folder {FolderId} for user {OwnerId}",
             matchingFiles.Count, parsed, folderId?.ToString() ?? "root", ownerId);
 
+        var filesProcessed = 0;
         foreach (var file in matchingFiles)
         {
             if (cancellationToken.IsCancellationRequested) break;
+
+            progress?.Report(new MediaScanProgress
+            {
+                Phase = "Indexing media",
+                CurrentFile = file.Name,
+                FilesProcessed = filesProcessed,
+                TotalFiles = matchingFiles.Count,
+                Imported = result.Imported,
+                Failed = result.Failed,
+                PercentComplete = matchingFiles.Count > 0 ? (int)((long)filesProcessed * 100 / matchingFiles.Count) : 0,
+            });
+
             try
             {
                 var mime = file.MimeType ?? GetMimeType(file.Name);
@@ -256,7 +269,19 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
                 result.Errors.Add($"{file.Name}: {ex.Message}");
                 _logger.LogWarning(ex, "Failed to index media file {FileId}", file.Id);
             }
+
+            filesProcessed++;
         }
+
+        progress?.Report(new MediaScanProgress
+        {
+            Phase = "Complete",
+            FilesProcessed = filesProcessed,
+            TotalFiles = matchingFiles.Count,
+            Imported = result.Imported,
+            Failed = result.Failed,
+            PercentComplete = 100,
+        });
 
         _logger.LogInformation(
             "Virtual folder scan complete: {Imported} indexed, {Failed} failed out of {Total}",

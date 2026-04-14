@@ -103,8 +103,8 @@ public sealed class MetadataEnrichmentService : IMetadataEnrichmentService
             // Store the first release ID
             album.MusicBrainzReleaseId = releaseGroup.Releases[0].Id;
 
-            // Fetch cover art if album doesn't already have it
-            if (!album.HasCoverArt)
+            // Fetch cover art if album doesn't have it or the cached file is missing
+            if (!album.HasCoverArt || (album.CoverArtPath is not null && !File.Exists(album.CoverArtPath)))
             {
                 var coverArt = await _coverArtClient.GetFrontCoverFromReleasesAsync(releaseGroup.Releases, cancellationToken);
                 if (coverArt is not null)

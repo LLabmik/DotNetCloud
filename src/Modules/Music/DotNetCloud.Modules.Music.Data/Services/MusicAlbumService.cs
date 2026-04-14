@@ -152,6 +152,18 @@ public sealed class MusicAlbumService : IMusicAlbumService
 
         // On-demand extraction: try to extract from one of the album's tracks
         var artPath = await ExtractCoverArtForAlbumAsync(album, cancellationToken);
+
+        // If on-demand extraction also failed and the DB still claims we have art,
+        // clear the stale state so the next enrichment run can re-fetch from MusicBrainz.
+        if (artPath is null && album.HasCoverArt)
+        {
+            album.HasCoverArt = false;
+            album.CoverArtPath = null;
+            album.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Cleared stale cover art state for album {AlbumId} (file missing, extraction failed)", album.Id);
+        }
+
         return artPath;
     }
 

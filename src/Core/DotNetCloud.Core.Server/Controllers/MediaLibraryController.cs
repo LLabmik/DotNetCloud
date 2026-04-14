@@ -134,7 +134,7 @@ public sealed class MediaLibraryController : ControllerBase
         _logger.LogInformation("User {UserId} triggered {MediaType} library scan of {Path} (folderId: {FolderId})",
             userId, mediaType, directoryPath, folderId?.ToString() ?? "root");
 
-        var result = await _importService.ScanFolderAsync(folderId, userId, request.MediaType);
+        var result = await _importService.ScanFolderAsync(folderId, userId, request.MediaType, progress: null);
 
         return Ok(new { success = true, data = result });
     }

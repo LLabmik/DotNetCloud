@@ -22,9 +22,10 @@ public interface IMediaLibraryScanner
     /// <param name="folderId">The Files module folder ID to scan, or null for root.</param>
     /// <param name="ownerId">User ID whose files to scan.</param>
     /// <param name="mediaType">Type of media to scan for: "Photos", "Music", or "Video".</param>
+    /// <param name="progress">Optional progress reporter for real-time scan updates.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Result with counts of found and indexed files.</returns>
-    Task<MediaScanResult> ScanFolderAsync(Guid? folderId, Guid ownerId, string mediaType, CancellationToken cancellationToken = default);
+    Task<MediaScanResult> ScanFolderAsync(Guid? folderId, Guid ownerId, string mediaType, IProgress<MediaScanProgress>? progress = null, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -46,4 +47,31 @@ public sealed class MediaScanResult
 
     /// <summary>Error messages for failed imports.</summary>
     public List<string> Errors { get; set; } = [];
+}
+
+/// <summary>
+/// Real-time progress update during a media library scan.
+/// </summary>
+public sealed class MediaScanProgress
+{
+    /// <summary>Current scan phase description.</summary>
+    public string Phase { get; init; } = "Scanning";
+
+    /// <summary>Name of the file currently being processed.</summary>
+    public string? CurrentFile { get; init; }
+
+    /// <summary>Number of files processed so far.</summary>
+    public int FilesProcessed { get; init; }
+
+    /// <summary>Total number of files to process.</summary>
+    public int TotalFiles { get; init; }
+
+    /// <summary>Number of files successfully imported.</summary>
+    public int Imported { get; init; }
+
+    /// <summary>Number of files that failed to import.</summary>
+    public int Failed { get; init; }
+
+    /// <summary>Percentage complete (0-100).</summary>
+    public int PercentComplete { get; init; }
 }
