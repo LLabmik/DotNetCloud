@@ -4,6 +4,7 @@ using DotNetCloud.Core.DTOs.Search;
 using DotNetCloud.Modules.Search.Data;
 using DotNetCloud.Modules.Search.Host.Controllers;
 using DotNetCloud.Modules.Search.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -284,14 +285,21 @@ public class SearchControllerTests
         Assert.IsInstanceOfType<OkObjectResult>(result);
     }
 
+    /// <summary>
+    /// Verifies that <c>GetStatsAsync</c> is protected by the RequireAdmin policy attribute.
+    /// Attribute-based authorization is enforced by middleware, not the controller body,
+    /// so we validate the attribute is present rather than expecting a <see cref="ForbidResult"/>.
+    /// </summary>
     [TestMethod]
-    public async Task GetStatsAsync_NonAdminUser_ReturnsForbid()
+    public void GetStatsAsync_HasRequireAdminPolicy()
     {
-        SetupAuthenticatedUser(TestUserId, "user");
+        var method = typeof(SearchController).GetMethod(nameof(SearchController.GetStatsAsync));
+        var attr = method!.GetCustomAttributes(typeof(AuthorizeAttribute), true)
+            .Cast<AuthorizeAttribute>()
+            .FirstOrDefault();
 
-        var result = await _controller.GetStatsAsync();
-
-        Assert.IsInstanceOfType<ForbidResult>(result);
+        Assert.IsNotNull(attr, "GetStatsAsync should have [Authorize] attribute");
+        Assert.AreEqual("RequireAdmin", attr.Policy);
     }
 
     #endregion
@@ -306,12 +314,19 @@ public class SearchControllerTests
         Assert.IsInstanceOfType<OkObjectResult>(result);
     }
 
+    /// <summary>
+    /// Verifies that <c>ReindexAllAsync</c> is protected by the RequireAdmin policy attribute.
+    /// </summary>
     [TestMethod]
-    public async Task ReindexAllAsync_NonAdminUser_ReturnsForbid()
+    public void ReindexAllAsync_HasRequireAdminPolicy()
     {
-        SetupAuthenticatedUser(TestUserId, "user");
-        var result = await _controller.ReindexAllAsync();
-        Assert.IsInstanceOfType<ForbidResult>(result);
+        var method = typeof(SearchController).GetMethod(nameof(SearchController.ReindexAllAsync));
+        var attr = method!.GetCustomAttributes(typeof(AuthorizeAttribute), true)
+            .Cast<AuthorizeAttribute>()
+            .FirstOrDefault();
+
+        Assert.IsNotNull(attr, "ReindexAllAsync should have [Authorize] attribute");
+        Assert.AreEqual("RequireAdmin", attr.Policy);
     }
 
     [TestMethod]
@@ -322,12 +337,19 @@ public class SearchControllerTests
         Assert.IsInstanceOfType<OkObjectResult>(result);
     }
 
+    /// <summary>
+    /// Verifies that <c>ReindexModuleAsync</c> is protected by the RequireAdmin policy attribute.
+    /// </summary>
     [TestMethod]
-    public async Task ReindexModuleAsync_NonAdminUser_ReturnsForbid()
+    public void ReindexModuleAsync_HasRequireAdminPolicy()
     {
-        SetupAuthenticatedUser(TestUserId, "user");
-        var result = await _controller.ReindexModuleAsync("files");
-        Assert.IsInstanceOfType<ForbidResult>(result);
+        var method = typeof(SearchController).GetMethod(nameof(SearchController.ReindexModuleAsync));
+        var attr = method!.GetCustomAttributes(typeof(AuthorizeAttribute), true)
+            .Cast<AuthorizeAttribute>()
+            .FirstOrDefault();
+
+        Assert.IsNotNull(attr, "ReindexModuleAsync should have [Authorize] attribute");
+        Assert.AreEqual("RequireAdmin", attr.Policy);
     }
 
     #endregion
