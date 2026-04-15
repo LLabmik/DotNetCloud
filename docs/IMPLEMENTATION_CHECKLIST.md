@@ -4340,8 +4340,12 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 ### Phase D: Documentation & Integration
 
 #### Step 11.15 — Auto-Update Documentation
-- ☐ `docs/modules/AUTO_UPDATES.md` — feature documentation
-- ☐ Architecture doc updates
+- ✓ `docs/modules/AUTO_UPDATES.md` — feature documentation
+- ✓ `docs/user/AUTO_UPDATES.md` — user-facing update configuration guide
+- ✓ Architecture doc updates (Phase 8 → Phase 11 split in ARCHITECTURE.md)
+- ✓ README.md roadmap table updated with Phase 11
 
 #### Step 11.16 — Integration Testing
-- ☐ End-to-end update check flow tests
+- ✓ End-to-end update check flow tests
+- ✓ Update releases endpoint integration tests
+- ✓ Backward compatibility tests (graceful degradation)

@@ -1136,15 +1136,31 @@ All dependencies are open source with permissive or compatible licenses. Zero co
 
 **Milestone:** Video calls and screen sharing from Chat.
 
-### Phase 8: Search, Auto-Updates & Polish
+### Phase 8: Search & Polish
 
-**Goal:** Cross-module search, automated updates, production hardening.
+**Goal:** Cross-module search and production hardening.
 
 - Full-text search across all modules via `ISearchProvider`
-- Auto-update CLI + admin UI + desktop client auto-update
 - Performance optimization, security audit
 
-**Milestone:** Feature-complete platform.
+**Milestone:** Feature-complete search across all modules.
+
+> **Note:** Auto-updates were moved to [Phase 11](#phase-11-auto-updates) as a dedicated effort.
+
+### Phase 11: Auto-Updates
+
+**Goal:** Automated update checking, notification, and self-update across all DotNetCloud surfaces.
+
+- GitHub Releases API as the single source of truth (public, no auth required)
+- Server-side `IUpdateService` / `GitHubUpdateService` with 1-hour memory cache to respect rate limits
+- Public API endpoints: `GET /api/v1/core/updates/check`, `/releases`, `/releases/latest`
+- CLI: `dotnetcloud update [--check]` — check for updates, download tarball (manual apply for server safety)
+- Admin UI: `/admin/updates` page with version cards, release notes, download links, settings
+- Desktop SyncTray: `UpdateCheckBackgroundService` (24h periodic check), tray notification, `UpdateDialog` with download/apply flow
+- Android: update notification with Play Store / F-Droid / APK link (no in-app install for security)
+- SHA256 checksum verification on downloaded assets
+
+**Milestone:** All surfaces automatically detect and notify about available updates. Desktop clients can self-update.
 
 ### Phase 9: AI Assistant
 

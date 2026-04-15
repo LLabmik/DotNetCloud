@@ -99,7 +99,7 @@
 | Phase 5-8                   | Summary | 10        | 0           | 0       |
 | Phase 8 (Full-Text Search)  | 18      | 18        | 0           | 0       |
 | Phase 9                     | 7       | 5         | 0           | 2       |
-| Phase 11 (Auto-Updates)     | 16      | 5         | 0           | 11      |
+| Phase 11 (Auto-Updates)     | 16      | 7         | 0           | 9       |
 | Infrastructure              | Summary | 0         | 0           | 1       |
 | Documentation               | Summary | 0         | 0           | 1       |
 
@@ -2535,12 +2535,20 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 ### Section: Phase 11 — Phase D: Documentation & Integration
 
 #### Step: phase-11.15 — Auto-Update Documentation
-**Status:** pending
+**Status:** completed ✅
 **Deliverables:**
-- ☐ `docs/modules/AUTO_UPDATES.md` — feature documentation
-- ☐ Architecture doc updates
+- ✓ `docs/modules/AUTO_UPDATES.md` — feature documentation (architecture, API reference, configuration)
+- ✓ `docs/user/AUTO_UPDATES.md` — user-facing update configuration guide
+- ✓ Architecture doc updated — Phase 8 split into Phase 8 (Search) + Phase 11 (Auto-Updates)
+- ✓ README.md roadmap table updated with Phase 11 row
+
+**Notes:** All documentation covering server, CLI, desktop, and Android update flows. User guide covers configuration for all surfaces.
 
 #### Step: phase-11.16 — Integration Testing
-**Status:** pending
+**Status:** completed ✅
 **Deliverables:**
-- ☐ End-to-end update check flow tests
+- ✓ `UpdateEndpointTests.cs` — 6 integration tests covering check, releases, latest, version param, count clamping, graceful degradation
+- ✓ Uses `DotNetCloudWebApplicationFactory` in-memory test infrastructure
+- ✓ Verifies standard API envelope format (`{ success: true, data: {...} }`)
+
+**Notes:** Phase D complete. All documentation and integration tests in place. Remaining Phase 11 work: Phase C (Android).
