@@ -1,0 +1,310 @@
+@page "/admin/updates"
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveAutoRenderMode(prerender: false))
+@attribute [Authorize(Policy = "RequireAdmin")]
+
+<PageTitle>Updates - DotNetCloud</PageTitle>
+
+<div class="page-header">
+    <h1>System Updates</h1>
+    <button class="btn btn-outline" @onclick="CheckForUpdatesAsync" disabled="@_checking">
+        @if (_checking)
+        {
+            <span>Checking…</span>
+        }
+        else
+        {
+            <span>Check Now</span>
+        }
+    </button>
+</div>
+
+@if (_loading && _updateCheck is null)
+{
+    <LoadingIndicator Message="Checking for updates..." />
+}
+else
+{
+    @* ── Top Stat Cards ─────────────────────────────────────── *@
+    <div class="dash-stats update-stats">
+        <div class="dash-stat-card">
+            <div class="dash-stat-icon update-icon-current">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/><path d="M12 8v4l3 3"/></svg>
+            </div>
+            <div class="dash-stat-body">
+                <span class="dash-stat-label">Current Version</span>
+                <span class="dash-stat-value update-version-value">@(_updateCheck?.CurrentVersion ?? "—")</span>
+            </div>
+        </div>
+
+        <div class="dash-stat-card">
+            <div class="dash-stat-icon @(_updateCheck?.IsUpdateAvailable == true ? "update-icon-available" : "update-icon-uptodate")">
+                @if (_updateCheck?.IsUpdateAvailable == true)
+                {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                }
+                else
+                {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                }
+            </div>
+            <div class="dash-stat-body">
+                <span class="dash-stat-label">Latest Version</span>
+                <span class="dash-stat-value update-version-value">@(_updateCheck?.LatestVersion ?? "—")</span>
+                @if (_updateCheck?.IsUpdateAvailable == true)
+                {
+                    <span class="update-badge update-badge-available">Update Available</span>
+                }
+                else if (_updateCheck is not null)
+                {
+                    <span class="update-badge update-badge-current">Up to Date</span>
+                }
+            </div>
+        </div>
+
+        <div class="dash-stat-card">
+            <div class="dash-stat-icon update-icon-published">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </div>
+            <div class="dash-stat-body">
+                <span class="dash-stat-label">Latest Published</span>
+                <span class="dash-stat-value update-date-value">@FormatDate(_updateCheck?.PublishedAt)</span>
+            </div>
+        </div>
+
+        <div class="dash-stat-card">
+            <div class="dash-stat-icon update-icon-runtime">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            </div>
+            <div class="dash-stat-body">
+                <span class="dash-stat-label">Runtime</span>
+                <span class="dash-stat-value update-runtime-value">@_runtimeVersion</span>
+            </div>
+        </div>
+    </div>
+
+    @* ── Latest Release Details ────────────────────────────── *@
+    @if (_updateCheck?.IsUpdateAvailable == true)
+    {
+        <div class="update-section">
+            <div class="update-section-header">
+                <h2>Update Available: @_updateCheck.LatestVersion</h2>
+                @if (!string.IsNullOrEmpty(_updateCheck.ReleaseUrl))
+                {
+                    <a href="@_updateCheck.ReleaseUrl" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm">
+                        View on GitHub
+                    </a>
+                }
+            </div>
+
+            @if (_updateCheck.Assets.Count > 0)
+            {
+                <div class="update-downloads-card">
+                    <h3>Downloads</h3>
+                    <div class="update-asset-list">
+                        @foreach (var asset in _updateCheck.Assets.Where(a => !a.Name.EndsWith(".sha256", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            <div class="update-asset-row">
+                                <div class="update-asset-info">
+                                    <span class="update-asset-name">@asset.Name</span>
+                                    @if (!string.IsNullOrEmpty(asset.Platform))
+                                    {
+                                        <span class="update-asset-platform">@asset.Platform</span>
+                                    }
+                                </div>
+                                <div class="update-asset-meta">
+                                    <span class="update-asset-size">@FormatSize(asset.Size)</span>
+                                    <a href="@asset.DownloadUrl" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline">
+                                        Download
+                                    </a>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(_updateCheck.ReleaseNotes))
+            {
+                <div class="update-notes-card">
+                    <h3>Release Notes</h3>
+                    <pre class="update-notes-content">@_updateCheck.ReleaseNotes</pre>
+                </div>
+            }
+        </div>
+    }
+
+    @* ── Recent Releases ───────────────────────────────────── *@
+    @if (_releases.Count > 0)
+    {
+        <div class="update-section">
+            <div class="update-section-header">
+                <h2>Recent Releases</h2>
+            </div>
+
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Version</th>
+                            <th>Tag</th>
+                            <th>Type</th>
+                            <th>Published</th>
+                            <th>Assets</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var release in _releases)
+                        {
+                            <tr>
+                                <td><strong>@release.Version</strong></td>
+                                <td><code>@release.TagName</code></td>
+                                <td>
+                                    @if (release.IsPreRelease)
+                                    {
+                                        <span class="badge badge-warning">Pre-release</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-success">Stable</span>
+                                    }
+                                </td>
+                                <td>@FormatDate(release.PublishedAt)</td>
+                                <td>@release.Assets.Count</td>
+                                <td class="actions">
+                                    @if (!string.IsNullOrEmpty(release.ReleaseUrl))
+                                    {
+                                        <a href="@release.ReleaseUrl" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline">
+                                            View
+                                        </a>
+                                    }
+                                    @if (_expandedRelease == release.TagName)
+                                    {
+                                        <button class="btn btn-sm btn-outline" @onclick="() => _expandedRelease = null">
+                                            Hide Notes
+                                        </button>
+                                    }
+                                    else if (!string.IsNullOrWhiteSpace(release.ReleaseNotes))
+                                    {
+                                        <button class="btn btn-sm btn-outline" @onclick="() => _expandedRelease = release.TagName">
+                                            Notes
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                            @if (_expandedRelease == release.TagName && !string.IsNullOrWhiteSpace(release.ReleaseNotes))
+                            {
+                                <tr class="release-notes-row">
+                                    <td colspan="6">
+                                        <pre class="update-notes-content update-notes-inline">@release.ReleaseNotes</pre>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    @* ── Update Instructions ───────────────────────────────── *@
+    <div class="update-section">
+        <div class="update-section-header">
+            <h2>How to Update</h2>
+        </div>
+
+        <div class="update-instructions-card">
+            <ol class="update-steps">
+                <li>Stop the running server: <code>dotnetcloud stop</code></li>
+                <li>Download the latest release for your platform</li>
+                <li>Extract and replace the installation files</li>
+                <li>Run database migrations if needed: <code>dotnet ef database update</code></li>
+                <li>Start the server: <code>dotnetcloud serve</code></li>
+            </ol>
+            <p class="text-muted">
+                Alternatively, use the CLI: <code>dotnetcloud update --check</code> to check for updates from the command line.
+            </p>
+        </div>
+    </div>
+}
+
+@code {
+    [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+
+    private bool _loading = true;
+    private bool _checking;
+    private UpdateCheckResult? _updateCheck;
+    private IReadOnlyList<ReleaseInfo> _releases = [];
+    private string? _expandedRelease;
+    private string _runtimeVersion = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _loading = true;
+        try
+        {
+            _updateCheck = await Api.CheckForUpdateAsync();
+            _releases = await Api.GetRecentReleasesAsync(10);
+        }
+        catch
+        {
+            Toast.ShowError("Failed to load update information.");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task CheckForUpdatesAsync()
+    {
+        _checking = true;
+        try
+        {
+            _updateCheck = await Api.CheckForUpdateAsync();
+            _releases = await Api.GetRecentReleasesAsync(10);
+
+            if (_updateCheck?.IsUpdateAvailable == true)
+            {
+                Toast.ShowSuccess($"Update available: v{_updateCheck.LatestVersion}");
+            }
+            else
+            {
+                Toast.ShowSuccess("You are running the latest version.");
+            }
+        }
+        catch
+        {
+            Toast.ShowError("Failed to check for updates.");
+        }
+        finally
+        {
+            _checking = false;
+        }
+    }
+
+    private static string FormatDate(DateTimeOffset? dt)
+    {
+        if (dt is null) return "—";
+        var span = DateTimeOffset.UtcNow - dt.Value;
+        if (span.TotalMinutes < 1) return "just now";
+        if (span.TotalHours < 1) return $"{(int)span.TotalMinutes}m ago";
+        if (span.TotalHours < 24) return $"{(int)span.TotalHours}h ago";
+        if (span.TotalDays < 30) return $"{(int)span.TotalDays}d ago";
+        return dt.Value.ToString("yyyy-MM-dd");
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes >= 1024 * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0 * 1024.0):F1} GB";
+        if (bytes >= 1024 * 1024) return $"{bytes / (1024.0 * 1024.0):F1} MB";
+        if (bytes >= 1024) return $"{bytes / 1024.0:F0} KB";
+        return $"{bytes} B";
+    }
+}

@@ -786,6 +786,40 @@ public sealed class DotNetCloudApiClient
     }
 
     // -----------------------------------------------------------------------
+    // Updates
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Checks whether a newer version of DotNetCloud is available.
+    /// </summary>
+    public async Task<UpdateCheckResult?> CheckForUpdateAsync(CancellationToken ct = default)
+    {
+        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<UpdateCheckResult>>(
+            "api/v1/core/updates/check", JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Returns a list of recent releases.
+    /// </summary>
+    public async Task<IReadOnlyList<ReleaseInfo>> GetRecentReleasesAsync(int count = 5, CancellationToken ct = default)
+    {
+        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<IReadOnlyList<ReleaseInfo>>>(
+            $"api/v1/core/updates/releases?count={count}", JsonOptions, ct);
+        return envelope?.Data ?? [];
+    }
+
+    /// <summary>
+    /// Returns the latest release.
+    /// </summary>
+    public async Task<ReleaseInfo?> GetLatestReleaseAsync(CancellationToken ct = default)
+    {
+        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<ReleaseInfo>>(
+            "api/v1/core/updates/releases/latest", JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    // -----------------------------------------------------------------------
     // Response envelope
     // -----------------------------------------------------------------------
 
