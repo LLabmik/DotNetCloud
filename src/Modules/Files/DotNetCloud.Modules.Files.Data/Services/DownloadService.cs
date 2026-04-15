@@ -264,7 +264,13 @@ internal sealed class DownloadService : IDownloadService
             if (vc.FileChunk!.Size == 0) continue;
 
             var chunkStream = await _storageEngine.OpenReadStreamAsync(vc.FileChunk.StoragePath, cancellationToken);
-            if (chunkStream is null) continue;
+            if (chunkStream is null)
+            {
+                _logger.LogWarning("Chunk blob missing from storage for hash '{ChunkHash}' during ZIP assembly for file '{EntryPath}'.",
+                    vc.FileChunk.ChunkHash, entryPath);
+                throw new NotFoundException(
+                    $"File content is unavailable: chunk '{vc.FileChunk.ChunkHash[..8]}…' blob is missing from storage.");
+            }
 
             await using (chunkStream)
             {

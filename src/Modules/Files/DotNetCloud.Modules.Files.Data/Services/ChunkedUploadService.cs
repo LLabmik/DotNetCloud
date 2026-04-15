@@ -227,6 +227,14 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
 
         FileNode fileNode;
         long quotaDelta;
+
+        // Wrap DB mutations in an explicit transaction to ensure FileNode/FileVersion/FileVersionChunks are atomic.
+        // InMemory provider does not support transactions, so skip in test scenarios.
+        var useTransaction = !ChunkReferenceHelper.IsInMemoryProvider(_db);
+        var transaction = useTransaction ? await _db.Database.BeginTransactionAsync(cancellationToken) : null;
+        try
+        {
+
         if (session.TargetFileNodeId.HasValue)
         {
             fileNode = await _db.FileNodes.FindAsync([session.TargetFileNodeId.Value], cancellationToken)
@@ -349,7 +357,9 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         for (var i = 0; i < manifest.Count; i++)
         {
             var chunk = await _db.FileChunks
-                .FirstAsync(c => c.ChunkHash == manifest[i], cancellationToken);
+                .FirstOrDefaultAsync(c => c.ChunkHash == manifest[i], cancellationToken)
+                ?? throw new Core.Errors.ValidationException("Chunks",
+                    $"Chunk '{manifest[i][..12]}…' was removed during completion. Retry the upload.");
 
             var chunkSize = chunkSizes?[i] ?? chunk.Size;
 
@@ -394,7 +404,17 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
             throw new Core.Errors.ValidationException("Name", $"A node named '{session.FileName}' already exists in {scope}.");
         }
 
-        // Update quota usage in real time
+        if (transaction is not null)
+            await transaction.CommitAsync(cancellationToken);
+
+        } // end transaction try
+        finally
+        {
+            if (transaction is not null)
+                await transaction.DisposeAsync();
+        }
+
+        // Update quota usage in real time (outside transaction — idempotent)
         if (quotaDelta != 0)
             await _quotaService.AdjustUsedBytesAsync(caller.UserId, quotaDelta, cancellationToken);
 
