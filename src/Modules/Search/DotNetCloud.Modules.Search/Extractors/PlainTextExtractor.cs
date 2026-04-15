@@ -11,7 +11,18 @@ public sealed class PlainTextExtractor : IContentExtractor
     private static readonly HashSet<string> SupportedMimeTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "text/plain",
-        "text/csv"
+        "text/csv",
+        "application/json",
+        "application/xml",
+        "text/yaml",
+        "text/css",
+        "text/javascript",
+        "text/x-python",
+        "text/x-shellscript",
+        "text/x-csharp",
+        "text/x-sql",
+        "text/toml",
+        "text/typescript"
     };
 
     /// <inheritdoc />

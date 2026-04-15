@@ -219,9 +219,10 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
         DisplayNode?.Name?.EndsWith(".md", StringComparison.OrdinalIgnoreCase) == true ||
         DisplayNode?.Name?.EndsWith(".markdown", StringComparison.OrdinalIgnoreCase) == true;
 
-    /// <summary>True when the file is source code or another text/* sub-type.</summary>
+    /// <summary>True when the file is source code, another text/* sub-type, or a structured text format (JSON, XML).</summary>
     protected bool IsCode =>
-        DisplayNode?.MimeType?.StartsWith("text/") == true && !IsText && !IsMarkdown;
+        (DisplayNode?.MimeType?.StartsWith("text/") == true && !IsText && !IsMarkdown) ||
+        DisplayNode?.MimeType is "application/json" or "application/xml";
 
     /// <summary>True when the file is an editable office document (handled by Collabora).</summary>
     protected bool IsDocument =>

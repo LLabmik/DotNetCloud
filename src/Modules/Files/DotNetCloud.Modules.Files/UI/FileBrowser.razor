@@ -159,9 +159,9 @@ else
     {
         <div class="files-actions">
             <button class="btn btn-primary btn-sm" @onclick="ShowCreateFolderDialog">New Folder</button>
-            @if (CanCreateCollaboraDocument)
+            @if (CanCreateNewFile)
             {
-                <button class="btn btn-primary btn-sm" @onclick="ShowCreateDocumentDialog">New Document</button>
+                <button class="btn btn-primary btn-sm" @onclick="ShowCreateDocumentDialog">New File</button>
             }
             <button class="btn btn-primary btn-sm" @onclick="ShowUploadDialog">Upload</button>
         </div>
@@ -217,14 +217,27 @@ else
     @if (IsShowCreateDocument)
     {
         <div class="create-folder-dialog">
-            <input type="text" @bind="NewDocumentName" placeholder="Document name"
+            <input type="text" @bind="NewDocumentName" placeholder="File name"
                    @onkeydown="HandleCreateDocumentKeyDown" autofocus />
-            <select @bind="SelectedDocumentExtension">
-                @foreach (var extension in SupportedNewDocumentExtensions)
-                {
-                    <option value="@extension">.@extension</option>
-                }
-            </select>
+            @if (UseCustomExtension)
+            {
+                <div class="custom-extension-input">
+                    <span class="extension-dot">.</span>
+                    <input type="text" @bind="CustomExtension" placeholder="ext"
+                           class="ext-input" @onkeydown="HandleCreateDocumentKeyDown" />
+                </div>
+                <button class="btn btn-sm" @onclick="() => UseCustomExtension = false" title="Use dropdown">↩</button>
+            }
+            else
+            {
+                <select @bind="SelectedDocumentExtension">
+                    @foreach (var extension in SupportedNewFileExtensions)
+                    {
+                        <option value="@extension">.@extension</option>
+                    }
+                </select>
+                <button class="btn btn-sm" @onclick="() => UseCustomExtension = true" title="Type a custom extension">✏️</button>
+            }
             <button class="btn btn-primary btn-sm" @onclick="CreateDocumentAsync">Create</button>
             <button class="btn btn-sm" @onclick="HideCreateDocumentDialog">Cancel</button>
         </div>
@@ -252,9 +265,9 @@ else
             <p class="text-muted empty-state-hint">You can also drag and drop files anywhere on this page.</p>
             <div class="empty-state-actions">
                 <button class="btn btn-primary btn-sm" @onclick="ShowCreateFolderDialog">New Folder</button>
-                @if (CanCreateCollaboraDocument)
+                @if (CanCreateNewFile)
                 {
-                    <button class="btn btn-primary btn-sm" @onclick="ShowCreateDocumentDialog">New Document</button>
+                    <button class="btn btn-primary btn-sm" @onclick="ShowCreateDocumentDialog">New File</button>
                 }
                 <button class="btn btn-primary btn-sm" @onclick="ShowUploadDialog">Upload</button>
             </div>

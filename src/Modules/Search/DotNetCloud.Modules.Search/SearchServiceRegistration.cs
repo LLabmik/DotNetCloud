@@ -26,9 +26,14 @@ public static class SearchServiceRegistration
         // Content extractors
         services.AddSingleton<IContentExtractor, PlainTextExtractor>();
         services.AddSingleton<IContentExtractor, MarkdownContentExtractor>();
+        services.AddSingleton<IContentExtractor, HtmlContentExtractor>();
+        services.AddSingleton<IContentExtractor, RtfContentExtractor>();
         services.AddSingleton<IContentExtractor, PdfContentExtractor>();
         services.AddSingleton<IContentExtractor, DocxContentExtractor>();
         services.AddSingleton<IContentExtractor, XlsxContentExtractor>();
+        services.AddSingleton<IContentExtractor, PptxContentExtractor>();
+        services.AddSingleton<IContentExtractor, OdfContentExtractor>();
+        services.AddSingleton<IContentExtractor, XlsContentExtractor>();
 
         // Search services
         services.AddScoped<SearchQueryService>();

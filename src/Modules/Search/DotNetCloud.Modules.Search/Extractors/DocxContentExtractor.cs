@@ -11,12 +11,16 @@ namespace DotNetCloud.Modules.Search.Extractors;
 /// </summary>
 public sealed class DocxContentExtractor : IContentExtractor
 {
+    private static readonly HashSet<string> SupportedMimeTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-word.document.macroEnabled.12"
+    };
+
     /// <inheritdoc />
     public bool CanExtract(string mimeType)
     {
-        return string.Equals(mimeType,
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            StringComparison.OrdinalIgnoreCase);
+        return SupportedMimeTypes.Contains(mimeType);
     }
 
     /// <inheritdoc />

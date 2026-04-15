@@ -11,12 +11,16 @@ namespace DotNetCloud.Modules.Search.Extractors;
 /// </summary>
 public sealed class XlsxContentExtractor : IContentExtractor
 {
+    private static readonly HashSet<string> SupportedMimeTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-excel.sheet.macroEnabled.12"
+    };
+
     /// <inheritdoc />
     public bool CanExtract(string mimeType)
     {
-        return string.Equals(mimeType,
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            StringComparison.OrdinalIgnoreCase);
+        return SupportedMimeTypes.Contains(mimeType);
     }
 
     /// <inheritdoc />

@@ -115,10 +115,26 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     private string _newFolderName = string.Empty;
     private string _newDocumentName = "Untitled";
     private string _selectedDocumentExtension = "docx";
+    private string _customExtension = string.Empty;
+    private bool _useCustomExtension;
     private bool _isCollaboraAvailable;
     private bool _isCollaboraConfigured;
     private HashSet<string> _collaboraEditableExtensions = new(StringComparer.OrdinalIgnoreCase);
-    private List<string> _supportedNewDocumentExtensions = [];
+    private List<string> _supportedNewFileExtensions = [];
+
+    /// <summary>Extensions that should always open in native editors, never in Collabora.</summary>
+    private static readonly HashSet<string> NativeEditorExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "txt", "md", "markdown", "json", "xml", "yaml", "yml", "csv", "log",
+        "html", "htm", "css", "js", "ts", "cs", "py", "sh", "bash",
+        "sql", "ini", "toml", "cfg", "conf", "env"
+    };
+
+    /// <summary>Base file extensions always available in the New File dialog, regardless of Collabora.</summary>
+    private static readonly string[] BaseFileExtensions =
+    [
+        "txt", "md", "json", "html", "xml", "csv", "yaml", "css", "js", "py", "sh"
+    ];
     private FileNodeViewModel? _shareTargetNode;
     private FileNodeViewModel? _previewNode;
     private FileNodeViewModel? _editorNode;
@@ -354,8 +370,10 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     protected bool IsShowDocumentEditor => _showDocumentEditor;
     protected bool IsShowCreateDocument => _showCreateDocument;
     protected bool IsCollaboraAvailable => _isCollaboraAvailable;
-    protected bool CanCreateCollaboraDocument => _isCollaboraConfigured && _supportedNewDocumentExtensions.Count > 0;
-    protected IReadOnlyList<string> SupportedNewDocumentExtensions => _supportedNewDocumentExtensions;
+    protected bool CanCreateNewFile => _supportedNewFileExtensions.Count > 0;
+    protected IReadOnlyList<string> SupportedNewFileExtensions => _supportedNewFileExtensions;
+    protected string CustomExtension { get => _customExtension; set => _customExtension = value; }
+    protected bool UseCustomExtension { get => _useCustomExtension; set => _useCustomExtension = value; }
     protected bool IsShowBulkTagAdd => _showBulkTagAdd;
     protected FileTagViewModel? ActiveTag => _activeTag;
     protected IReadOnlyList<FileNodeViewModel> TaggedNodes => _taggedNodes;
@@ -605,14 +623,14 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     protected void ShowCreateDocumentDialog()
     {
-        if (!CanCreateCollaboraDocument)
-            return;
-
         _showCreateDocument = true;
         _newDocumentName = "Untitled";
+        _customExtension = string.Empty;
+        _useCustomExtension = false;
 
-        if (!_supportedNewDocumentExtensions.Contains(_selectedDocumentExtension, StringComparer.OrdinalIgnoreCase))
-            _selectedDocumentExtension = _supportedNewDocumentExtensions[0];
+        if (_supportedNewFileExtensions.Count > 0 &&
+            !_supportedNewFileExtensions.Contains(_selectedDocumentExtension, StringComparer.OrdinalIgnoreCase))
+            _selectedDocumentExtension = _supportedNewFileExtensions[0];
     }
 
     protected void HideCreateDocumentDialog() => _showCreateDocument = false;
@@ -628,11 +646,10 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     protected async Task CreateDocumentAsync()
     {
-        if (!CanCreateCollaboraDocument)
-            return;
-
         var caller = await GetCallerContextAsync();
-        var extension = NormalizeExtension(_selectedDocumentExtension);
+        var extension = _useCustomExtension && !string.IsNullOrWhiteSpace(_customExtension)
+            ? NormalizeExtension(_customExtension)
+            : NormalizeExtension(_selectedDocumentExtension);
         var requestedName = string.IsNullOrWhiteSpace(_newDocumentName) ? "Untitled" : _newDocumentName.Trim();
         var fileName = EnsureUniqueFileName(BuildFileName(requestedName, extension));
 
@@ -650,9 +667,14 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         _showCreateDocument = false;
         await LoadCurrentFolderAsync();
 
+        var viewModel = ToViewModel(created);
         if (CanOpenInDocumentEditor(created.Name))
         {
-            ShowDocumentEditor(ToViewModel(created));
+            ShowDocumentEditor(viewModel);
+        }
+        else if (CanOpenInNativePreview(viewModel))
+        {
+            ShowPreview(viewModel);
         }
     }
 
@@ -1923,52 +1945,58 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         _isCollaboraConfigured = options.Enabled &&
                                 (!string.IsNullOrWhiteSpace(options.ServerUrl) || options.UseBuiltInCollabora);
 
-        var preferredOrder = new[] { "docx", "xlsx", "pptx", "odt", "ods", "odp", "txt", "csv", "rtf" };
+        var preferredOrder = new[] { "docx", "xlsx", "pptx", "odt", "ods", "odp" };
 
-        if (!_isCollaboraConfigured)
+        if (_isCollaboraConfigured)
+        {
+            try
+            {
+                var discovery = await CollaboraDiscoveryService.DiscoverAsync();
+                _isCollaboraAvailable = discovery.IsAvailable;
+
+                if (_isCollaboraAvailable)
+                {
+                    _collaboraEditableExtensions = discovery.Actions
+                        .Where(a => string.Equals(a.Action, "edit", StringComparison.OrdinalIgnoreCase)
+                                    || string.Equals(a.Action, "view", StringComparison.OrdinalIgnoreCase))
+                        .Select(a => NormalizeExtension(a.Extension))
+                        .Where(ext => !string.IsNullOrWhiteSpace(ext))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                    // Remove extensions that have native editors — native always wins
+                    _collaboraEditableExtensions.ExceptWith(NativeEditorExtensions);
+                }
+                else
+                {
+                    _collaboraEditableExtensions = preferredOrder.ToHashSet(StringComparer.OrdinalIgnoreCase);
+                }
+            }
+            catch
+            {
+                _isCollaboraAvailable = false;
+                _collaboraEditableExtensions = preferredOrder.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            }
+        }
+        else
         {
             _isCollaboraAvailable = false;
             _collaboraEditableExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            _supportedNewDocumentExtensions = [];
-            return;
         }
 
-        try
-        {
-            var discovery = await CollaboraDiscoveryService.DiscoverAsync();
-            _isCollaboraAvailable = discovery.IsAvailable;
+        // Build the New File extension list: Collabora-supported (preferred order) + base text extensions
+        var ordered = preferredOrder
+            .Where(ext => _collaboraEditableExtensions.Contains(ext))
+            .Concat(_collaboraEditableExtensions
+                .Where(ext => !preferredOrder.Contains(ext, StringComparer.OrdinalIgnoreCase))
+                .OrderBy(ext => ext, StringComparer.OrdinalIgnoreCase))
+            .Concat(BaseFileExtensions
+                .Where(ext => !_collaboraEditableExtensions.Contains(ext)));
 
-            if (_isCollaboraAvailable)
-            {
-                _collaboraEditableExtensions = discovery.Actions
-                    .Where(a => string.Equals(a.Action, "edit", StringComparison.OrdinalIgnoreCase)
-                                || string.Equals(a.Action, "view", StringComparison.OrdinalIgnoreCase))
-                    .Select(a => NormalizeExtension(a.Extension))
-                    .Where(ext => !string.IsNullOrWhiteSpace(ext))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        _supportedNewFileExtensions = [.. ordered.Distinct(StringComparer.OrdinalIgnoreCase)];
 
-                var ordered = preferredOrder
-                    .Where(ext => _collaboraEditableExtensions.Contains(ext))
-                    .Concat(_collaboraEditableExtensions.Where(ext => !preferredOrder.Contains(ext, StringComparer.OrdinalIgnoreCase)).OrderBy(ext => ext, StringComparer.OrdinalIgnoreCase));
-
-                _supportedNewDocumentExtensions = [.. ordered];
-            }
-            else
-            {
-                _collaboraEditableExtensions = preferredOrder.ToHashSet(StringComparer.OrdinalIgnoreCase);
-                _supportedNewDocumentExtensions = [.. preferredOrder];
-            }
-        }
-        catch
-        {
-            _isCollaboraAvailable = false;
-            _collaboraEditableExtensions = preferredOrder.ToHashSet(StringComparer.OrdinalIgnoreCase);
-            _supportedNewDocumentExtensions = [.. preferredOrder];
-        }
-
-        if (_supportedNewDocumentExtensions.Count > 0 && !_supportedNewDocumentExtensions.Contains(_selectedDocumentExtension, StringComparer.OrdinalIgnoreCase))
-            _selectedDocumentExtension = _supportedNewDocumentExtensions[0];
+        if (_supportedNewFileExtensions.Count > 0 && !_supportedNewFileExtensions.Contains(_selectedDocumentExtension, StringComparer.OrdinalIgnoreCase))
+            _selectedDocumentExtension = _supportedNewFileExtensions[0];
     }
 
     private string EnsureUniqueFileName(string fileName)
@@ -2012,10 +2040,25 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         return NormalizeExtension(extension) switch
         {
             "docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "docm" => "application/vnd.ms-word.document.macroEnabled.12",
             "odt" => "application/vnd.oasis.opendocument.text",
             "rtf" => "application/rtf",
-            "txt" => "text/plain",
+            "txt" or "log" or "ini" or "cfg" or "conf" or "env" => "text/plain",
+            "md" or "markdown" => "text/markdown",
+            "json" => "application/json",
+            "xml" => "application/xml",
+            "html" or "htm" => "text/html",
+            "css" => "text/css",
+            "js" => "text/javascript",
+            "ts" => "text/typescript",
+            "cs" => "text/x-csharp",
+            "py" => "text/x-python",
+            "sh" or "bash" => "text/x-shellscript",
+            "sql" => "text/x-sql",
+            "yaml" or "yml" => "text/yaml",
+            "toml" => "text/toml",
             "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "xlsm" => "application/vnd.ms-excel.sheet.macroEnabled.12",
             "ods" => "application/vnd.oasis.opendocument.spreadsheet",
             "csv" => "text/csv",
             "pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",

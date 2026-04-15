@@ -43,6 +43,36 @@ public class PlainTextExtractorTests
     }
 
     [TestMethod]
+    public void CanExtract_Json_ReturnsTrue()
+    {
+        Assert.IsTrue(_extractor.CanExtract("application/json"));
+    }
+
+    [TestMethod]
+    public void CanExtract_Xml_ReturnsTrue()
+    {
+        Assert.IsTrue(_extractor.CanExtract("application/xml"));
+    }
+
+    [TestMethod]
+    public void CanExtract_Yaml_ReturnsTrue()
+    {
+        Assert.IsTrue(_extractor.CanExtract("text/yaml"));
+    }
+
+    [TestMethod]
+    public void CanExtract_Css_ReturnsTrue()
+    {
+        Assert.IsTrue(_extractor.CanExtract("text/css"));
+    }
+
+    [TestMethod]
+    public void CanExtract_JavaScript_ReturnsTrue()
+    {
+        Assert.IsTrue(_extractor.CanExtract("text/javascript"));
+    }
+
+    [TestMethod]
     public void CanExtract_Docx_ReturnsFalse()
     {
         Assert.IsFalse(_extractor.CanExtract("application/vnd.openxmlformats-officedocument.wordprocessingml.document"));
