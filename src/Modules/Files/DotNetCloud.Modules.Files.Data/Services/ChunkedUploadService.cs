@@ -2,6 +2,7 @@ using System.Text.Json;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Events.Search;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Models;
@@ -408,6 +409,15 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
             ParentId = fileNode.ParentId,
             UploadedByUserId = caller.UserId,
             StoragePath = storagePath
+        }, caller, cancellationToken);
+
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "files",
+            EntityId = fileNode.Id.ToString(),
+            Action = SearchIndexAction.Index
         }, caller, cancellationToken);
 
         _logger.LogInformation("Upload session {SessionId} completed. File {FileNodeId} '{FileName}' created/updated.",

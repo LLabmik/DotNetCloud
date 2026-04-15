@@ -39,7 +39,8 @@
                 <div class="preview-image-container">
                     <img src="@GetContentUrl()" alt="@DisplayNode.Name" class="preview-image"
                          style="@GetImageStyle()"
-                         loading="lazy" />
+                         loading="lazy"
+                         @onerror="HandleImageError" />
                 </div>
             }
             else if (IsVideo)

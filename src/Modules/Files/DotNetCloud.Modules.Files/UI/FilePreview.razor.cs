@@ -196,6 +196,9 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
         }
     }
 
+    /// <summary>Handles image load errors gracefully (broken image fallback handled via CSS).</summary>
+    protected void HandleImageError() { /* Graceful fallback — CSS hides broken image icon */ }
+
     // ── MIME type checks ────────────────────────────────────────────────────────
 
     /// <summary>True when the file is a raster or vector image.</summary>
@@ -364,12 +367,14 @@ public partial class FilePreview : ComponentBase, IAsyncDisposable
 
     /// <summary>
     /// Constructs the API URL for streaming the current file's content inline.
+    /// Includes a version query parameter for cache-busting when the file is updated.
     /// </summary>
     protected string GetContentUrl()
     {
         if (DisplayNode is null) return "#";
         var base_ = string.IsNullOrEmpty(ApiBaseUrl) ? string.Empty : ApiBaseUrl.TrimEnd('/');
-        return $"{base_}/api/v1/files/{DisplayNode.Id}/content";
+        var version = DisplayNode.CurrentVersion > 0 ? DisplayNode.CurrentVersion : 1;
+        return $"{base_}/api/v1/files/{DisplayNode.Id}/content?v={version}";
     }
 
     // ── Formatting ──────────────────────────────────────────────────────────────

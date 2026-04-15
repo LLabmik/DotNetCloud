@@ -93,34 +93,65 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
 
         try
         {
-            using var sourceStream = await _storageEngine.OpenReadStreamAsync(storagePath, cancellationToken);
+            // Try direct storage path first (fast path for single-chunk files),
+            // then fall back to chunk reconstruction via IDownloadService.
+            Stream? sourceStream = await _storageEngine.OpenReadStreamAsync(storagePath, cancellationToken);
+            var ownsStream = true;
+
             if (sourceStream is null)
             {
-                _logger.LogWarning("Source file not found in storage engine for photo thumbnail generation: {Path}", storagePath);
-                return;
+                // Storage path doesn't exist as a single file — reconstruct from chunks.
+                var photo = await _db.Photos.IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(p => p.Id == photoId, cancellationToken);
+
+                if (photo is null)
+                {
+                    _logger.LogWarning("Photo {PhotoId} not found for thumbnail generation", photoId);
+                    return;
+                }
+
+                try
+                {
+                    var caller = new CallerContext(photo.OwnerId, [], CallerType.System);
+                    sourceStream = await _downloadService.DownloadCurrentAsync(photo.FileNodeId, caller, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to reconstruct file from chunks for photo {PhotoId} (FileNode {FileNodeId})",
+                        photoId, photo.FileNodeId);
+                    return;
+                }
             }
 
-            using var image = await Image.LoadAsync(sourceStream, cancellationToken);
-
-            var gridData = await GenerateThumbnailBytesAsync(image, PhotoThumbnailSize.Grid, cancellationToken);
-            var detailData = await GenerateThumbnailBytesAsync(image, PhotoThumbnailSize.Detail, cancellationToken);
-
-            // Update the photo record with thumbnail data
-            var photo = await _db.Photos.IgnoreQueryFilters()
-                .FirstOrDefaultAsync(p => p.Id == photoId, cancellationToken);
-
-            if (photo is null)
+            try
             {
-                _logger.LogWarning("Photo {PhotoId} not found for thumbnail storage", photoId);
-                return;
+                using var image = await Image.LoadAsync(sourceStream, cancellationToken);
+
+                var gridData = await GenerateThumbnailBytesAsync(image, PhotoThumbnailSize.Grid, cancellationToken);
+                var detailData = await GenerateThumbnailBytesAsync(image, PhotoThumbnailSize.Detail, cancellationToken);
+
+                // Update the photo record with thumbnail data
+                var photoRecord = await _db.Photos.IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(p => p.Id == photoId, cancellationToken);
+
+                if (photoRecord is null)
+                {
+                    _logger.LogWarning("Photo {PhotoId} not found for thumbnail storage", photoId);
+                    return;
+                }
+
+                photoRecord.ThumbnailGrid = gridData;
+                photoRecord.ThumbnailDetail = detailData;
+                await _db.SaveChangesAsync(cancellationToken);
+
+                _logger.LogDebug("Photo thumbnails generated and stored in DB for {PhotoId} (grid={GridSize}b, detail={DetailSize}b)",
+                    photoId, gridData?.Length ?? 0, detailData?.Length ?? 0);
             }
-
-            photo.ThumbnailGrid = gridData;
-            photo.ThumbnailDetail = detailData;
-            await _db.SaveChangesAsync(cancellationToken);
-
-            _logger.LogDebug("Photo thumbnails generated and stored in DB for {PhotoId} (grid={GridSize}b, detail={DetailSize}b)",
-                photoId, gridData?.Length ?? 0, detailData?.Length ?? 0);
+            finally
+            {
+                if (ownsStream)
+                    sourceStream.Dispose();
+            }
         }
         catch (Exception ex)
         {

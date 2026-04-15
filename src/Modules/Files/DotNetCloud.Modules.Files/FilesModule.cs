@@ -28,6 +28,7 @@ public sealed class FilesModule : IModuleLifecycle
 {
     private IEventBus? _eventBus;
     private FileUploadedEventHandler? _fileUploadedHandler;
+    private List<IEventHandler<FileUploadedEvent>>? _diEventHandlers;
     private ILogger<FilesModule>? _logger;
     private bool _initialized;
     private bool _running;
@@ -52,6 +53,13 @@ public sealed class FilesModule : IModuleLifecycle
             handlerLogger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<FileUploadedEventHandler>.Instance);
 
         await _eventBus.SubscribeAsync(_fileUploadedHandler, cancellationToken);
+
+        // Subscribe any DI-registered handlers for FileUploadedEvent (e.g. thumbnail generation)
+        _diEventHandlers = context.Services.GetServices<IEventHandler<FileUploadedEvent>>().ToList();
+        foreach (var handler in _diEventHandlers)
+        {
+            await _eventBus.SubscribeAsync(handler, cancellationToken);
+        }
 
         // Load module-specific configuration
         if (context.Configuration.TryGetValue("storage_path", out var storagePathObj))
@@ -90,6 +98,14 @@ public sealed class FilesModule : IModuleLifecycle
         if (_eventBus is not null && _fileUploadedHandler is not null)
         {
             await _eventBus.UnsubscribeAsync(_fileUploadedHandler, cancellationToken);
+        }
+
+        if (_eventBus is not null && _diEventHandlers is not null)
+        {
+            foreach (var handler in _diEventHandlers)
+            {
+                await _eventBus.UnsubscribeAsync(handler, cancellationToken);
+            }
         }
 
         _logger?.LogInformation("Files module stopped");

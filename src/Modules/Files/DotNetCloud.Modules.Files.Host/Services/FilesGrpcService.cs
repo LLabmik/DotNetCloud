@@ -1,4 +1,6 @@
+using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Files.Data;
+using DotNetCloud.Modules.Files.Events;
 using DotNetCloud.Modules.Files.Host.Protos;
 using DotNetCloud.Modules.Files.Models;
 using Grpc.Core;
@@ -16,14 +18,16 @@ namespace DotNetCloud.Modules.Files.Host.Services;
 public sealed class FilesGrpcService : FilesService.FilesServiceBase
 {
     private readonly FilesDbContext _db;
+    private readonly IEventBus _eventBus;
     private readonly ILogger<FilesGrpcService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FilesGrpcService"/> class.
     /// </summary>
-    public FilesGrpcService(FilesDbContext db, ILogger<FilesGrpcService> logger)
+    public FilesGrpcService(FilesDbContext db, IEventBus eventBus, ILogger<FilesGrpcService> logger)
     {
         _db = db;
+        _eventBus = eventBus;
         _logger = logger;
     }
 
@@ -785,6 +789,22 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         _logger.LogInformation(
             "Upload completed: {FileName} ({Size} bytes) -> node {NodeId}",
             session.FileName, session.TotalSize, fileNode.Id);
+
+        // Publish event so thumbnail generation and other handlers can react
+        var caller = new DotNetCloud.Core.Authorization.CallerContext(
+            userId, [], DotNetCloud.Core.Authorization.CallerType.User);
+        await _eventBus.PublishAsync(new FileUploadedEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            FileNodeId = fileNode.Id,
+            FileName = session.FileName,
+            Size = session.TotalSize,
+            MimeType = session.MimeType,
+            ParentId = session.TargetParentId,
+            UploadedByUserId = userId,
+            StoragePath = storagePath
+        }, caller, context.CancellationToken);
 
         return new CompleteUploadResponse { Success = true, Node = ToMessage(fileNode) };
     }

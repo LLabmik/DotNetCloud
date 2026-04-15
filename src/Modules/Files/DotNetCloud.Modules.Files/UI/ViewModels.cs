@@ -29,6 +29,9 @@ public sealed class FileNodeViewModel
     /// <summary>Last modified timestamp.</summary>
     public DateTime UpdatedAt { get; init; }
 
+    /// <summary>Current version number (used for cache-busting content URLs).</summary>
+    public int CurrentVersion { get; init; }
+
     /// <summary>
     /// URL to a server-generated thumbnail image, or <c>null</c> if no thumbnail is available
     /// (e.g. for folders or unsupported file types). Populated from the thumbnail API.

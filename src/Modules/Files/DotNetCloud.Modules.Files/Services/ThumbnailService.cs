@@ -101,6 +101,30 @@ public sealed class ThumbnailService : IThumbnailService
         }
     }
 
+    /// <inheritdoc />
+    public async Task GenerateThumbnailFromStreamAsync(
+        Guid fileNodeId,
+        Stream contentStream,
+        string mimeType,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_supportedImageMimeTypes.Contains(mimeType))
+        {
+            _logger.LogDebug("Unsupported MIME type for stream thumbnail: {MimeType}", mimeType);
+            return;
+        }
+
+        try
+        {
+            using var image = await Image.LoadAsync(contentStream, cancellationToken);
+            await GenerateResizedThumbnailsAsync(fileNodeId, image, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to generate thumbnail from stream for file {FileId}", fileNodeId);
+        }
+    }
+
     private async Task GenerateFromImageAsync(Guid fileNodeId, string storagePath, CancellationToken cancellationToken)
     {
         try

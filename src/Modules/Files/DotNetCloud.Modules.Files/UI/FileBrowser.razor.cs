@@ -2169,6 +2169,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             ParentId = dto.ParentId,
             IsFavorite = dto.IsFavorite,
             UpdatedAt = dto.UpdatedAt,
+            CurrentVersion = dto.CurrentVersion,
             Tags = dto.Tags.Select(t => new FileTagViewModel
             {
                 Id = t.Id,
