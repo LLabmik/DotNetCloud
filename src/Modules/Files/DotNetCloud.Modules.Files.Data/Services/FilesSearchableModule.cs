@@ -4,7 +4,6 @@ using DotNetCloud.Modules.Files.Models;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using System.Text;
 
 namespace DotNetCloud.Modules.Files.Data.Services;
 
@@ -16,6 +15,7 @@ public sealed class FilesSearchableModule : ISearchableModule
 {
     private readonly FilesDbContext _db;
     private readonly IFileStorageEngine _storageEngine;
+    private readonly IEnumerable<IContentExtractor> _extractors;
     private readonly ILogger<FilesSearchableModule> _logger;
     private const int MaxExtractedCharacters = 100_000;
     private const int MaxExtractedBytes = 200_000;
@@ -24,10 +24,12 @@ public sealed class FilesSearchableModule : ISearchableModule
     public FilesSearchableModule(
         FilesDbContext db,
         IFileStorageEngine storageEngine,
+        IEnumerable<IContentExtractor> extractors,
         ILogger<FilesSearchableModule> logger)
     {
         _db = db;
         _storageEngine = storageEngine;
+        _extractors = extractors;
         _logger = logger;
     }
 
@@ -113,16 +115,65 @@ public sealed class FilesSearchableModule : ISearchableModule
 
     private async Task<string?> TryExtractTextContentAsync(FileNode node, CancellationToken cancellationToken)
     {
-        if (node.NodeType != FileNodeType.File || !IsTextLike(node))
+        if (node.NodeType != FileNodeType.File)
         {
-            _logger.LogDebug("Skipping content extraction for {FileName}: NodeType={NodeType}, IsTextLike={IsText}",
-                node.Name, node.NodeType, node.NodeType == FileNodeType.File && IsTextLike(node));
+            _logger.LogDebug("Skipping content extraction for {FileName}: not a file", node.Name);
             return null;
         }
 
-        _logger.LogInformation("Extracting text content for file {FileName} (Id={FileId}, Mime={MimeType})",
-            node.Name, node.Id, node.MimeType);
+        // Determine MIME type and find an appropriate extractor
+        var mimeType = node.MimeType;
+        if (string.IsNullOrWhiteSpace(mimeType))
+        {
+            _logger.LogDebug("Skipping content extraction for {FileName}: no MIME type", node.Name);
+            return null;
+        }
 
+        var extractor = _extractors.FirstOrDefault(e => e.CanExtract(mimeType));
+        if (extractor is null)
+        {
+            _logger.LogDebug("No content extractor found for {FileName} (Mime={MimeType})", node.Name, mimeType);
+            return null;
+        }
+
+        _logger.LogInformation("Extracting text content for file {FileName} (Id={FileId}, Mime={MimeType}) using {Extractor}",
+            node.Name, node.Id, mimeType, extractor.GetType().Name);
+
+        // Reassemble file from chunks
+        var stream = await ReassembleFileStreamAsync(node, cancellationToken);
+        if (stream is null)
+            return null;
+
+        try
+        {
+            var extracted = await extractor.ExtractAsync(stream, mimeType, cancellationToken);
+            if (extracted is null || string.IsNullOrWhiteSpace(extracted.Text))
+            {
+                _logger.LogDebug("Extractor returned no content for {FileName}", node.Name);
+                return null;
+            }
+
+            var text = extracted.Text.Length > MaxExtractedCharacters
+                ? extracted.Text[..MaxExtractedCharacters]
+                : extracted.Text;
+
+            _logger.LogInformation("Content extraction for {FileName}: {CharCount} characters extracted",
+                node.Name, text.Length);
+            return text;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Content extraction failed for {FileName} (Mime={MimeType})", node.Name, mimeType);
+            return null;
+        }
+        finally
+        {
+            await stream.DisposeAsync();
+        }
+    }
+
+    private async Task<MemoryStream?> ReassembleFileStreamAsync(FileNode node, CancellationToken cancellationToken)
+    {
         var latestVersion = await _db.FileVersions
             .AsNoTracking()
             .Where(v => v.FileNodeId == node.Id)
@@ -135,8 +186,6 @@ public sealed class FilesSearchableModule : ISearchableModule
             _logger.LogWarning("No file version found for {FileName} (Id={FileId})", node.Name, node.Id);
             return null;
         }
-
-        _logger.LogDebug("Found latest version {VersionId} for {FileName}", latestVersion.Id, node.Name);
 
         var chunks = await _db.FileVersionChunks
             .AsNoTracking()
@@ -151,9 +200,9 @@ public sealed class FilesSearchableModule : ISearchableModule
             return null;
         }
 
-        _logger.LogDebug("Found {ChunkCount} chunks for {FileName}", chunks.Count, node.Name);
+        _logger.LogDebug("Reassembling {ChunkCount} chunks for {FileName}", chunks.Count, node.Name);
 
-        using var aggregate = new MemoryStream(capacity: Math.Min(MaxExtractedBytes, 16 * 1024));
+        var aggregate = new MemoryStream(capacity: Math.Min(MaxExtractedBytes, 16 * 1024));
         foreach (var vc in chunks)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -174,88 +223,34 @@ public sealed class FilesSearchableModule : ISearchableModule
 
             var remainingBytes = MaxExtractedBytes - (int)aggregate.Length;
             if (remainingBytes <= 0)
-            {
                 break;
-            }
 
             var byteBuffer = new byte[Math.Min(8192, remainingBytes)];
             while (remainingBytes > 0)
             {
                 var read = await chunkStream.ReadAsync(byteBuffer.AsMemory(0, Math.Min(byteBuffer.Length, remainingBytes)), cancellationToken);
                 if (read == 0)
-                {
                     break;
-                }
 
                 await aggregate.WriteAsync(byteBuffer.AsMemory(0, read), cancellationToken);
                 remainingBytes -= read;
             }
 
             if (aggregate.Length >= MaxExtractedBytes)
-            {
                 break;
-            }
         }
 
         if (aggregate.Length == 0)
         {
             _logger.LogWarning("Content extraction yielded 0 bytes for file {FileName} (Id={FileId})", node.Name, node.Id);
+            await aggregate.DisposeAsync();
             return null;
         }
 
-        _logger.LogInformation("Extracted {ByteCount} bytes from {FileName}, converting to text", aggregate.Length, node.Name);
+        _logger.LogInformation("Reassembled {ByteCount} bytes from {ChunkCount} chunks for {FileName}",
+            aggregate.Length, chunks.Count, node.Name);
 
         aggregate.Position = 0;
-
-        var builder = new StringBuilder(capacity: 4096);
-        var charBuffer = new char[4096];
-        using var reader = new StreamReader(aggregate, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: false);
-
-        while (builder.Length < MaxExtractedCharacters)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var remaining = MaxExtractedCharacters - builder.Length;
-            var readCount = await reader.ReadAsync(charBuffer.AsMemory(0, Math.Min(charBuffer.Length, remaining)));
-            if (readCount == 0)
-            {
-                break;
-            }
-
-            builder.Append(charBuffer, 0, readCount);
-        }
-
-        var result = builder.Length == 0 ? null : builder.ToString();
-        _logger.LogInformation("Content extraction for {FileName}: {CharCount} characters extracted",
-            node.Name, result?.Length ?? 0);
-        return result;
-    }
-
-    private static bool IsTextLike(FileNode node)
-    {
-        if (!string.IsNullOrWhiteSpace(node.MimeType))
-        {
-            var mimeType = node.MimeType;
-            if (mimeType.StartsWith("text/", StringComparison.OrdinalIgnoreCase))
-                return true;
-
-            if (mimeType.Equals("application/json", StringComparison.OrdinalIgnoreCase) ||
-                mimeType.Equals("application/xml", StringComparison.OrdinalIgnoreCase) ||
-                mimeType.Equals("application/javascript", StringComparison.OrdinalIgnoreCase) ||
-                mimeType.Equals("application/x-yaml", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        var extension = Path.GetExtension(node.Name);
-        return extension.Equals(".txt", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".md", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".csv", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".log", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".json", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".xml", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".yml", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".yaml", StringComparison.OrdinalIgnoreCase);
+        return aggregate;
     }
 }

@@ -1,4 +1,6 @@
 using System.Text;
+using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Core.DTOs.Search;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Data.Services;
 using DotNetCloud.Modules.Files.Models;
@@ -69,7 +71,9 @@ public class FilesSearchableModuleTests
             .Setup(s => s.OpenReadStreamAsync("chunks/test/path", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MemoryStream(Encoding.UTF8.GetBytes("This is the first version. This is the second version.")));
 
-        var module = new FilesSearchableModule(db, storageMock.Object, NullLogger<FilesSearchableModule>.Instance);
+        // PlainTextExtractor handles text/plain
+        var plainTextExtractor = new TestPlainTextExtractor();
+        var module = new FilesSearchableModule(db, storageMock.Object, new IContentExtractor[] { plainTextExtractor }, NullLogger<FilesSearchableModule>.Instance);
 
         var doc = await module.GetSearchableDocumentAsync(node.Id.ToString());
 
@@ -123,11 +127,25 @@ public class FilesSearchableModuleTests
         await db.SaveChangesAsync();
 
         var storageMock = new Mock<IFileStorageEngine>(MockBehavior.Strict);
-        var module = new FilesSearchableModule(db, storageMock.Object, NullLogger<FilesSearchableModule>.Instance);
+        var module = new FilesSearchableModule(db, storageMock.Object, Array.Empty<IContentExtractor>(), NullLogger<FilesSearchableModule>.Instance);
 
         var doc = await module.GetSearchableDocumentAsync(node.Id.ToString());
 
         Assert.IsNotNull(doc);
         Assert.AreEqual("Photo.png", doc.Content);
+    }
+
+    /// <summary>Simple text extractor for unit tests — returns stream content as-is.</summary>
+    private sealed class TestPlainTextExtractor : IContentExtractor
+    {
+        public bool CanExtract(string mimeType) =>
+            mimeType.StartsWith("text/", StringComparison.OrdinalIgnoreCase);
+
+        public async Task<ExtractedContent?> ExtractAsync(Stream fileStream, string mimeType, CancellationToken cancellationToken = default)
+        {
+            using var reader = new StreamReader(fileStream, leaveOpen: true);
+            var text = await reader.ReadToEndAsync(cancellationToken);
+            return new ExtractedContent { Text = text, Metadata = new Dictionary<string, string>() };
+        }
     }
 }
