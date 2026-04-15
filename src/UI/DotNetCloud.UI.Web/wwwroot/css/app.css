@@ -1435,6 +1435,58 @@ textarea.input { resize: vertical; min-height: 60px; }
     color: var(--color-text);
 }
 
+/* New file dialog — two-row layout */
+.create-file-dialog {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-bg);
+}
+
+.create-file-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.create-file-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    min-width: 72px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.create-file-row input {
+    min-width: 200px;
+    flex: 1;
+    padding: 7px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 0.9rem;
+}
+
+.create-file-row select {
+    padding: 7px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: 0.9rem;
+}
+
+.create-file-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
 .custom-extension-input {
     display: flex;
     align-items: center;

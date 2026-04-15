@@ -216,30 +216,31 @@ else
 
     @if (IsShowCreateDocument)
     {
-        <div class="create-folder-dialog">
-            <input type="text" @bind="NewDocumentName" placeholder="File name"
-                   @onkeydown="HandleCreateDocumentKeyDown" autofocus />
-            @if (UseCustomExtension)
+        <div class="create-file-dialog">
+            @if (CollaboraNewFileExtensions.Count > 0)
             {
-                <div class="custom-extension-input">
-                    <span class="extension-dot">.</span>
-                    <input type="text" @bind="CustomExtension" placeholder="ext"
-                           class="ext-input" @onkeydown="HandleCreateDocumentKeyDown" />
+                <div class="create-file-row">
+                    <span class="create-file-label">Document</span>
+                    <input type="text" @bind="NewDocumentName" placeholder="Document name"
+                           @onkeydown="HandleCreateDocumentKeyDown" autofocus />
+                    <select @bind="SelectedDocumentExtension">
+                        @foreach (var extension in CollaboraNewFileExtensions)
+                        {
+                            <option value="@extension">.@extension</option>
+                        }
+                    </select>
+                    <button class="btn btn-primary btn-sm" @onclick="CreateDocumentAsync">Create</button>
                 </div>
-                <button class="btn btn-sm" @onclick="() => UseCustomExtension = false" title="Use dropdown">↩</button>
             }
-            else
-            {
-                <select @bind="SelectedDocumentExtension">
-                    @foreach (var extension in SupportedNewFileExtensions)
-                    {
-                        <option value="@extension">.@extension</option>
-                    }
-                </select>
-                <button class="btn btn-sm" @onclick="() => UseCustomExtension = true" title="Type a custom extension">✏️</button>
-            }
-            <button class="btn btn-primary btn-sm" @onclick="CreateDocumentAsync">Create</button>
-            <button class="btn btn-sm" @onclick="HideCreateDocumentDialog">Cancel</button>
+            <div class="create-file-row">
+                <span class="create-file-label">File</span>
+                <input type="text" @bind="FreeformFileName" placeholder="filename.txt"
+                       @onkeydown="HandleFreeformFileKeyDown" @ref="_freeformInput" />
+                <button class="btn btn-primary btn-sm" @onclick="CreateFreeformFileAsync">Create</button>
+            </div>
+            <div class="create-file-actions">
+                <button class="btn btn-sm" @onclick="HideCreateDocumentDialog">Cancel</button>
+            </div>
         </div>
     }
 
