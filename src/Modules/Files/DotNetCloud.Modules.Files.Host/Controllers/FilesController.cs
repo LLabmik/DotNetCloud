@@ -394,6 +394,10 @@ public class FilesController : FilesControllerBase
         if (node is null)
             return NotFound(ErrorEnvelope("not_found", "Node not found."));
 
+        // Raw file content must not be wrapped by ResponseEnvelopeMiddleware.
+        // Without this, JSON files would appear enveloped when previewed/edited.
+        HttpContext.Items["SkipResponseEnvelope"] = true;
+
         var stream = await _downloadService.DownloadCurrentAsync(nodeId, caller);
         var mime = string.IsNullOrWhiteSpace(node.MimeType) ? "application/octet-stream" : node.MimeType;
         return File(stream, mime, enableRangeProcessing: true);
