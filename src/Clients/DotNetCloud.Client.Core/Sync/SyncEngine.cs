@@ -1214,6 +1214,18 @@ public sealed class SyncEngine : ISyncEngine
                     context.StateDatabasePath, op.Id, op.RetryCount,
                     DateTime.UtcNow.AddSeconds(5), growEx.Message, cancellationToken);
             }
+            catch (FileModifiedDuringUploadException modEx)
+            {
+                // File changed between Pass 1 (metadata) and Pass 2 (data) — defer without consuming retry budget.
+                _logger.LogWarning(
+                    "Deferring upload of {Path} — file modified between upload passes (size: {OriginalSize} → {CurrentSize} bytes). Will retry in 5 seconds. (Operation {OpId})",
+                    modEx.FilePath, modEx.OriginalSize, modEx.CurrentSize, op.Id);
+
+                // Schedule a short retry without incrementing RetryCount.
+                await _stateDb.UpdateOperationRetryAsync(
+                    context.StateDatabasePath, op.Id, op.RetryCount,
+                    DateTime.UtcNow.AddSeconds(5), modEx.Message, cancellationToken);
+            }
             catch (LockedFileException lockEx)
             {
                 // Locked files are not sync failures — defer without consuming the retry budget.

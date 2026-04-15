@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Threading.Channels;
 using DotNetCloud.Client.Core.Api;
 using DotNetCloud.Client.Core.LocalState;
+using DotNetCloud.Client.Core.Platform;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 
@@ -108,6 +109,10 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
 
         try
         {
+            // Snapshot file metadata before Pass 1 for cross-pass integrity check.
+            var prePassMtime = File.GetLastWriteTimeUtc(localPath);
+            var prePassSize = fileSize;
+
             // Pass 1: compute chunk metadata (hashes + sizes) without retaining data.
             // Memory: only the 64 KB read buffer + incremental hash state.
             var metadata = await ComputeChunkMetadataAsync(fileStream, cancellationToken);
@@ -159,6 +164,21 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
             // Track uploaded hashes for incremental crash-resilience DB flushes.
             var uploadedHashes = new HashSet<string>(presentChunks, StringComparer.OrdinalIgnoreCase);
             var hashFlushLock = new SemaphoreSlim(1, 1);
+
+            // Verify file was not modified between Pass 1 (metadata) and Pass 2 (data upload).
+            // Guard with File.Exists — tests may use MemoryStream with non-existent paths.
+            if (File.Exists(localPath))
+            {
+                var currentMtime = File.GetLastWriteTimeUtc(localPath);
+                var currentSize = new FileInfo(localPath).Length;
+                if (currentMtime != prePassMtime || currentSize != prePassSize)
+                {
+                    _logger.LogWarning(
+                        "File {File} modified between upload passes (mtime: {OldMtime} → {NewMtime}, size: {OldSize} → {NewSize}). Aborting upload.",
+                        fileName, prePassMtime, currentMtime, prePassSize, currentSize);
+                    throw new FileModifiedDuringUploadException(localPath, prePassSize, currentSize);
+                }
+            }
 
             // Pass 2: re-read file via CDC, feed chunks into bounded channel.
             // Peak memory: ChannelCapacity × avg chunk size ≈ 32 MB.
