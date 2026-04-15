@@ -104,6 +104,9 @@ public sealed class ActiveUploadSessionRecord
 
     /// <summary>UTC time when the upload session was initiated.</summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>JSON-serialized chunk metadata (hashes + sizes) from the hashing pass, used to skip re-hashing on resume.</summary>
+    public string? ChunkMetadataJson { get; set; }
 }
 
 /// <summary>

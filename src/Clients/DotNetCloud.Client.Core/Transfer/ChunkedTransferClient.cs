@@ -41,7 +41,7 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
     }
 
     /// <inheritdoc/>
-    public async Task<Guid> UploadAsync(
+    public async Task<UploadResult> UploadAsync(
         Guid? existingNodeId,
         string localPath,
         Stream fileStream,
@@ -113,9 +113,21 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
             var prePassMtime = File.GetLastWriteTimeUtc(localPath);
             var prePassSize = fileSize;
 
-            // Pass 1: compute chunk metadata (hashes + sizes) without retaining data.
-            // Memory: only the 64 KB read buffer + incremental hash state.
-            var metadata = await ComputeChunkMetadataAsync(fileStream, cancellationToken);
+            List<ChunkMetadata> metadata;
+
+            // On resume, reuse cached chunk metadata to skip the expensive hashing pass.
+            if (existingSession?.ChunkMetadataJson is not null)
+            {
+                metadata = JsonSerializer.Deserialize<List<ChunkMetadata>>(existingSession.ChunkMetadataJson) ?? [];
+                _logger.LogInformation("Reusing cached chunk metadata for {File}: {ChunkCount} chunks (hashing pass skipped).", fileName, metadata.Count);
+            }
+            else
+            {
+                // Pass 1: compute chunk metadata (hashes + sizes) without retaining data.
+                // Memory: only the 64 KB read buffer + incremental hash state.
+                // Reports hashing progress so the UI can show scan status.
+                metadata = await ComputeChunkMetadataAsync(fileStream, fileSize, progress, cancellationToken);
+            }
             _logger.LogDebug("Uploading {File}: {ChunkCount} CDC chunks, {Size} bytes.", fileName, metadata.Count, fileSize);
 
             Guid sessionId;
@@ -140,7 +152,7 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                 sessionId = session.SessionId;
                 presentChunks = new HashSet<string>(session.PresentChunks, StringComparer.OrdinalIgnoreCase);
 
-                // Persist the session for crash resilience.
+                // Persist the session (with chunk metadata) for crash resilience.
                 if (_stateDb is not null && stateDatabasePath is not null)
                 {
                     await _stateDb.SaveActiveUploadSessionAsync(stateDatabasePath, new ActiveUploadSessionRecord
@@ -152,6 +164,7 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                         FileModifiedAt = File.GetLastWriteTimeUtc(localPath),
                         TotalChunks = metadata.Count,
                         UploadedChunkHashesJson = "[]",
+                        ChunkMetadataJson = JsonSerializer.Serialize(metadata),
                         CreatedAt = DateTime.UtcNow,
                     }, cancellationToken);
                 }
@@ -300,7 +313,7 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                 uploadTimer.Stop();
 
                 // Return empty GUID — caller should look up the existing node if needed.
-                return existingNodeId ?? Guid.Empty;
+                return new UploadResult(existingNodeId ?? Guid.Empty, null);
             }
 
             // Session complete: remove the tracking record.
@@ -316,7 +329,7 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                 fileSize,
                 uploadTimer.ElapsedMilliseconds);
 
-            return result.Id;
+            return new UploadResult(result.Id, result.ContentHash);
         }
         catch (Exception ex)
         {
@@ -664,14 +677,19 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
     /// <summary>
     /// Computes chunk metadata (hashes and sizes) using CDC without retaining chunk data.
     /// Memory-efficient: only a 64 KB read buffer and incremental hash state are held.
+    /// Reports hashing progress via <paramref name="progress"/> during the scan.
     /// </summary>
     private static async Task<List<ChunkMetadata>> ComputeChunkMetadataAsync(
-        Stream stream, CancellationToken cancellationToken)
+        Stream stream, long totalSize, IProgress<TransferProgress>? progress, CancellationToken cancellationToken)
     {
         var result = new List<ChunkMetadata>();
         var mask = ComputeGearMask(DefaultChunkSize);
         ulong gearHash = 0;
         var chunkLen = 0;
+        long bytesHashed = 0;
+        long lastProgressBytes = 0;
+        // Report hashing progress roughly every 4 MB to avoid excessive callbacks.
+        const long progressInterval = 4 * 1024 * 1024;
 
         using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         var buf = new byte[65536];
@@ -682,6 +700,20 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
             var n = await ReadFullBufferAsync(stream, buf, cancellationToken);
             if (n == 0)
                 break;
+
+            bytesHashed += n;
+
+            // Report hashing progress periodically.
+            if (progress is not null && bytesHashed - lastProgressBytes >= progressInterval)
+            {
+                lastProgressBytes = bytesHashed;
+                progress.Report(new TransferProgress
+                {
+                    Phase = TransferPhase.Hashing,
+                    BytesTransferred = bytesHashed,
+                    TotalBytes = totalSize,
+                });
+            }
 
             var processed = 0;
             while (processed < n)

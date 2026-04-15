@@ -56,7 +56,7 @@ public class ChunkedTransferClientTests
 
         var result = await client.UploadAsync(null, "test.txt", data, null);
 
-        Assert.AreEqual(nodeId, result);
+        Assert.AreEqual(nodeId, result.NodeId);
         apiMock.Verify(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()), Times.Once);
         apiMock.Verify(a => a.CompleteUploadAsync(sessionId, It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -134,7 +134,7 @@ public class ChunkedTransferClientTests
 
         var result = await client.UploadAsync(null, "file.txt", data, null);
 
-        Assert.AreEqual(nodeId, result);
+        Assert.AreEqual(nodeId, result.NodeId);
         // Should have been called twice (one failure + one success)
         apiMock.Verify(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()), Times.Exactly(2));
     }
@@ -441,7 +441,7 @@ public class ChunkedTransferClientTests
 
         var result = await client.UploadAsync(null, "big.bin", data, null);
 
-        Assert.AreEqual(nodeId, result);
+        Assert.AreEqual(nodeId, result.NodeId);
         Assert.IsNotNull(capturedHashes);
         // All chunks should have been uploaded (none pre-existing)
         Assert.AreEqual(capturedHashes!.Count, uploadCallCount,
@@ -595,7 +595,7 @@ public class ChunkedTransferClientTests
                 It.IsAny<Stream>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()), Times.Never);
             // Complete called with the resumed session ID
             apiMock.Verify(a => a.CompleteUploadAsync(sessionId, It.IsAny<CancellationToken>()), Times.Once);
-            Assert.AreEqual(nodeId, result);
+            Assert.AreEqual(nodeId, result.NodeId);
         }
         finally
         {
@@ -846,7 +846,7 @@ public class ChunkedTransferClientTests
 
         var result = await client.UploadAsync(null, "file.txt", data, null);
 
-        Assert.AreEqual(nodeId, result);
+        Assert.AreEqual(nodeId, result.NodeId);
         // Should have been called twice (one timeout + one success)
         apiMock.Verify(a => a.UploadChunkAsync(sessionId, 0, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>(), It.IsAny<string?>()), Times.Exactly(2));
     }
@@ -941,7 +941,7 @@ public class ChunkedTransferClientTests
                 It.IsAny<IReadOnlyList<int>?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()), Times.Never);
             apiMock.Verify(a => a.CompleteUploadAsync(sessionId, It.IsAny<CancellationToken>()), Times.Once);
-            Assert.AreEqual(nodeId, result);
+            Assert.AreEqual(nodeId, result.NodeId);
         }
         finally
         {

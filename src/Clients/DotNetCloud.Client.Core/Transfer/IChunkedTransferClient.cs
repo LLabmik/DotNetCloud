@@ -18,8 +18,8 @@ public interface IChunkedTransferClient
     /// <param name="posixMode">POSIX permission bitmask to send with the upload. Null on Windows or non-Linux systems.</param>
     /// <param name="posixOwnerHint">POSIX owner/group hint ("user:group"). Null if not known.</param>
     /// <param name="parentFolderId">Server-side parent folder ID. Null places file at root.</param>
-    /// <returns>The node ID of the uploaded file.</returns>
-    Task<Guid> UploadAsync(
+    /// <returns>The upload result containing the node ID and content hash of the uploaded file.</returns>
+    Task<UploadResult> UploadAsync(
         Guid? existingNodeId,
         string localPath,
         Stream fileStream,

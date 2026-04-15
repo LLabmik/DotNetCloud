@@ -16,7 +16,10 @@
 
         @if (!string.IsNullOrWhiteSpace(ErrorMessage) && !IsUploading)
         {
-            <div class="alert alert-danger">@ErrorMessage</div>
+            <div class="alert alert-danger alert-dismissible">
+                @ErrorMessage
+                <button class="btn-icon alert-close" @onclick="DismissError" title="Dismiss">✕</button>
+            </div>
         }
 
         <div class="file-upload-dropzone @(IsDragging ? "dragging" : "")"
@@ -49,6 +52,7 @@
                     {
                         var idx = i;
                         var file = Files[idx];
+                        @if (file.DismissedFromView) { continue; }
                         <div class="upload-panel-file @(file.Status == UploadStatus.Failed ? "upload-panel-file--error" : "")">
                             <div class="upload-file-header">
                                 <span class="upload-file-name" title="@file.Name">@TruncateName(file.Name)</span>

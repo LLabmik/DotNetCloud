@@ -92,6 +92,9 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
     /// <summary>Clears the dragging state on drag leave.</summary>
     protected void HandleDragLeave() => _isDragging = false;
 
+    /// <summary>Dismisses the error alert.</summary>
+    protected void DismissError() => _errorMessage = null;
+
     /// <summary>
     /// Called when the native file input fires its <c>change</c> event.
     /// Invokes JS to register the selected <c>File</c> objects and adds
@@ -236,7 +239,17 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
     public void OnJsUploadComplete(int fileIndex)
     {
         ApplyComplete(fileIndex);
-        InvokeAsync(StateHasChanged);
+        InvokeAsync(async () =>
+        {
+            StateHasChanged();
+            await Task.Delay(1500);
+            if (fileIndex >= 0 && fileIndex < _files.Count
+                && _files[fileIndex].Status == UploadStatus.Complete)
+            {
+                _files[fileIndex].DismissedFromView = true;
+                StateHasChanged();
+            }
+        });
     }
 
     /// <summary>JS callback: file upload failed.</summary>

@@ -823,6 +823,9 @@ textarea.input { resize: vertical; min-height: 60px; }
 .alert-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
 .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
 .alert-warning { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+.alert-dismissible { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.alert-dismissible .alert-close { flex-shrink: 0; font-size: 14px; opacity: 0.7; }
+.alert-dismissible .alert-close:hover { opacity: 1; }
 
 /* --- Dialog / Modal --- */
 .dialog-overlay {

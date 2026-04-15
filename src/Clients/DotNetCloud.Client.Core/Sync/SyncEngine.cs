@@ -1385,6 +1385,9 @@ public sealed class SyncEngine : ISyncEngine
             }
 
             // Issue #40: idempotency check — skip upload if server already has this version.
+            // Compare the locally-stored content hash (manifest hash from last upload) against
+            // the server's current content hash.  Only valid when the file hasn't changed since
+            // the hash was recorded (verified by mtime + size).
             if (upload.NodeId.HasValue)
             {
                 FileNodeResponse? serverNode = null;
@@ -1397,8 +1400,12 @@ public sealed class SyncEngine : ISyncEngine
 
                 if (serverNode?.ContentHash is not null)
                 {
-                    var localHash = await ComputeFileHashAsync(upload.LocalPath, cancellationToken);
-                    if (string.Equals(serverNode.ContentHash, localHash, StringComparison.OrdinalIgnoreCase))
+                    var localRecord = await _stateDb.GetFileRecordAsync(context.StateDatabasePath, upload.LocalPath, cancellationToken);
+                    // Use stored hash only if the file hasn't changed since it was recorded.
+                    if (localRecord?.ContentHash is not null
+                        && fileInfo.Exists
+                        && fileInfo.LastWriteTimeUtc == localRecord.LocalModifiedAt
+                        && string.Equals(serverNode.ContentHash, localRecord.ContentHash, StringComparison.OrdinalIgnoreCase))
                     {
                         _logger.LogInformation(
                             "Skipping upload of {LocalPath} — server already has this version (hash match).",
@@ -1407,9 +1414,9 @@ public sealed class SyncEngine : ISyncEngine
                         {
                             LocalPath = upload.LocalPath,
                             NodeId = upload.NodeId.Value,
-                            ContentHash = localHash,
+                            ContentHash = localRecord.ContentHash,
                             LastSyncedAt = DateTime.UtcNow,
-                            LocalModifiedAt = File.GetLastWriteTimeUtc(upload.LocalPath),
+                            LocalModifiedAt = fileInfo.LastWriteTimeUtc,
                             PosixMode = OperatingSystem.IsLinux()
                                 ? TryGetUnixFileMode(upload.LocalPath)
                                 : null,
@@ -1472,7 +1479,7 @@ public sealed class SyncEngine : ISyncEngine
             var parentFolderId = await EnsureParentFolderAsync(
                 context, upload.LocalPath, folderPathMap, cancellationToken);
 
-            var nodeId = await _transfer.UploadAsync(
+            var uploadResult = await _transfer.UploadAsync(
                 upload.NodeId, upload.LocalPath, fileStream, uploadProgress, cancellationToken,
                 context.StateDatabasePath, posixMode, parentFolderId: parentFolderId);
 
@@ -1484,11 +1491,14 @@ public sealed class SyncEngine : ISyncEngine
                 TotalChunks = 0,
             });
 
-            var hash = await ComputeFileHashAsync(upload.LocalPath, cancellationToken);
+            // Use the content hash returned by the server (manifest hash) — avoids a
+            // redundant whole-file read that previously re-hashed the entire file.
+            var hash = uploadResult.ContentHash
+                ?? await ComputeFileHashAsync(upload.LocalPath, cancellationToken);
             await _stateDb.UpsertFileRecordAsync(context.StateDatabasePath, new LocalFileRecord
             {
                 LocalPath = upload.LocalPath,
-                NodeId = nodeId,
+                NodeId = uploadResult.NodeId,
                 ContentHash = hash,
                 LastSyncedAt = DateTime.UtcNow,
                 LocalModifiedAt = File.GetLastWriteTimeUtc(upload.LocalPath),

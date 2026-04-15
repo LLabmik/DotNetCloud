@@ -569,6 +569,11 @@ public sealed class LocalStateDb : ILocalStateDb
                 CreatedAt TEXT NOT NULL DEFAULT '0001-01-01 00:00:00'
             )", cancellationToken);
 
+        // Add ChunkMetadataJson column to ActiveUploadSessions for hash-cache on resume
+        var uploadSessionColumns = await GetColumnNamesAsync(conn, "ActiveUploadSessions", cancellationToken);
+        if (!uploadSessionColumns.Contains("ChunkMetadataJson"))
+            await ExecuteNonQueryAsync(conn, "ALTER TABLE ActiveUploadSessions ADD COLUMN ChunkMetadataJson TEXT NULL", cancellationToken);
+
         // Create ConflictRecords table for conflict tracking and auto-resolution history
         await ExecuteNonQueryAsync(conn, @"
             CREATE TABLE IF NOT EXISTS ConflictRecords (

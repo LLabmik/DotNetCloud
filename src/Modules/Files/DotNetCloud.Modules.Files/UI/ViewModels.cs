@@ -123,6 +123,9 @@ public sealed class UploadFileItem
 
     /// <summary>Upload progress percentage (0-100).</summary>
     public int Progress { get; set; }
+
+    /// <summary>True after a completed upload has been auto-dismissed from the visible list.</summary>
+    public bool DismissedFromView { get; set; }
 }
 
 /// <summary>

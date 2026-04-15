@@ -351,7 +351,7 @@ public class SyncEngineTests
             .Setup(t => t.UploadAsync(
                 It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(), It.IsAny<IProgress<TransferProgress>?>(),
                 It.IsAny<CancellationToken>(), It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<string?>()))
-            .ReturnsAsync(expectedNodeId);
+            .ReturnsAsync(new UploadResult(expectedNodeId, null));
 
         _stateDbMock.Setup(db => db.RemoveOperationAsync(
                 It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -412,7 +412,7 @@ public class SyncEngineTests
             .Setup(t => t.UploadAsync(
                 It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(), It.IsAny<IProgress<TransferProgress>?>(),
                 It.IsAny<CancellationToken>(), It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<string?>()))
-            .ReturnsAsync(expectedNodeId);
+            .ReturnsAsync(new UploadResult(expectedNodeId, null));
 
         _stateDbMock.Setup(db => db.RemoveOperationAsync(
                 It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -614,7 +614,7 @@ public class SyncEngineTests
                 It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(),
                 It.IsAny<IProgress<TransferProgress>>(), It.IsAny<CancellationToken>(),
                 It.IsAny<string?>(), It.IsAny<int?>()))
-            .ReturnsAsync(expectedNodeId);
+            .ReturnsAsync(new UploadResult(expectedNodeId, null));
 
         var pendingOp = new PendingUpload { Id = 101, LocalPath = filePath, RetryCount = 0 };
         _stateDbMock
@@ -676,7 +676,7 @@ public class SyncEngineTests
                         TotalChunks = 2,
                     });
                 })
-            .ReturnsAsync(expectedNodeId);
+            .ReturnsAsync(new UploadResult(expectedNodeId, null));
 
         _stateDbMock.Setup(db => db.RemoveOperationAsync(
                 It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -736,7 +736,7 @@ public class SyncEngineTests
             .Setup(t => t.UploadAsync(
                 It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(), It.IsAny<IProgress<TransferProgress>?>(),
                 It.IsAny<CancellationToken>(), It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<string?>()))
-            .ReturnsAsync(Guid.NewGuid());
+            .ReturnsAsync(new UploadResult(Guid.NewGuid(), null));
 
         _stateDbMock.Setup(db => db.RemoveOperationAsync(
                 It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -989,10 +989,23 @@ public class SyncEngineTests
         var content = "already-synced content"u8.ToArray();
         await File.WriteAllBytesAsync(filePath, content);
         var hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(content));
+        var fileMtime = new FileInfo(filePath).LastWriteTimeUtc;
 
         var existingNodeId = Guid.NewGuid();
         _apiMock.Setup(a => a.GetNodeAsync(existingNodeId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new FileNodeResponse { Id = existingNodeId, Name = "idempotent.txt", NodeType = "File", ContentHash = hash });
+
+        // The idempotency check now compares the locally-stored content hash against the server hash,
+        // but only if the file's mtime hasn't changed since the hash was recorded.
+        _stateDbMock.Setup(db => db.GetFileRecordAsync(It.IsAny<string>(), filePath, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new LocalFileRecord
+            {
+                LocalPath = filePath,
+                NodeId = existingNodeId,
+                ContentHash = hash,
+                LocalModifiedAt = fileMtime,
+                LastSyncedAt = DateTime.UtcNow.AddMinutes(-5),
+            });
 
         var transferMock = new Mock<IChunkedTransferClient>();
         _stateDbMock.Setup(db => db.RemoveOperationAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -1038,7 +1051,7 @@ public class SyncEngineTests
         transferMock.Setup(t => t.UploadAsync(
                 It.IsAny<Guid?>(), filePath, It.IsAny<Stream>(), It.IsAny<IProgress<TransferProgress>?>(),
                 It.IsAny<CancellationToken>(), It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<string?>()))
-            .ReturnsAsync(uploadedNodeId);
+            .ReturnsAsync(new UploadResult(uploadedNodeId, null));
 
         _stateDbMock.Setup(db => db.RemoveOperationAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
@@ -1072,7 +1085,7 @@ public class SyncEngineTests
         transferMock.Setup(t => t.UploadAsync(
                 null, filePath, It.IsAny<Stream>(), It.IsAny<IProgress<TransferProgress>?>(),
                 It.IsAny<CancellationToken>(), It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<string?>()))
-            .ReturnsAsync(Guid.NewGuid());
+            .ReturnsAsync(new UploadResult(Guid.NewGuid(), null));
 
         _stateDbMock.Setup(db => db.RemoveOperationAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);

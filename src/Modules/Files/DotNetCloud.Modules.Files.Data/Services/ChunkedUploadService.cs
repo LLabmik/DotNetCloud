@@ -225,15 +225,21 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         var contentHash = ContentHasher.ComputeManifestHash(manifest);
         var storagePath = ContentHasher.GetFileStoragePath(contentHash);
 
-        FileNode fileNode;
-        long quotaDelta;
+        FileNode fileNode = null!;
+        long quotaDelta = 0;
 
-        // Wrap DB mutations in an explicit transaction to ensure FileNode/FileVersion/FileVersionChunks are atomic.
+        // Wrap DB mutations in an execution-strategy-aware transaction to ensure
+        // FileNode/FileVersion/FileVersionChunks are atomic.  NpgsqlRetryingExecutionStrategy
+        // does not allow bare BeginTransactionAsync — the whole unit must be wrapped in
+        // CreateExecutionStrategy().ExecuteAsync() so EF can replay on transient failures.
         // InMemory provider does not support transactions, so skip in test scenarios.
         var useTransaction = !ChunkReferenceHelper.IsInMemoryProvider(_db);
-        var transaction = useTransaction ? await _db.Database.BeginTransactionAsync(cancellationToken) : null;
-        try
+
+        async Task ExecuteTransactionBody()
         {
+            var transaction = useTransaction ? await _db.Database.BeginTransactionAsync(cancellationToken) : null;
+            try
+            {
 
         if (session.TargetFileNodeId.HasValue)
         {
@@ -407,11 +413,22 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         if (transaction is not null)
             await transaction.CommitAsync(cancellationToken);
 
-        } // end transaction try
-        finally
+            } // end transaction try
+            finally
+            {
+                if (transaction is not null)
+                    await transaction.DisposeAsync();
+            }
+        } // end ExecuteTransactionBody
+
+        if (useTransaction)
         {
-            if (transaction is not null)
-                await transaction.DisposeAsync();
+            var strategy = _db.Database.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(ExecuteTransactionBody);
+        }
+        else
+        {
+            await ExecuteTransactionBody();
         }
 
         // Update quota usage in real time (outside transaction — idempotent)
