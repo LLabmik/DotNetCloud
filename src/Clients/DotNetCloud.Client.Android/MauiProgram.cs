@@ -7,6 +7,7 @@ using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Client.Android.ViewModels;
 using DotNetCloud.Client.Android.Views;
 using DotNetCloud.Client.Core;
+using DotNetCloud.Client.Core.Services;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Client.Android;
@@ -66,6 +67,11 @@ public static class MauiProgram
 
         // ── Platform services ─────────────────────────────────────────
         builder.Services.AddSingleton<IBatteryOptimizationService, AndroidBatteryOptimizationService>();
+
+        // ── Update services ───────────────────────────────────────────
+        builder.Services.AddHttpClient<IClientUpdateService, ClientUpdateService>()
+            .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
+        builder.Services.AddSingleton<IAndroidUpdateService, AndroidUpdateService>();
 
         // ── ViewModels ────────────────────────────────────────────────
         builder.Services.AddTransient<LoginViewModel>();

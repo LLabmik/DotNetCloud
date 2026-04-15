@@ -32,6 +32,8 @@
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IMediaAutoUploadService.cs" Link="AndroidApp\Services\IMediaAutoUploadService.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IBatteryOptimizationService.cs" Link="AndroidApp\Services\IBatteryOptimizationService.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IAppPreferences.cs" Link="AndroidApp\Services\IAppPreferences.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IAndroidUpdateService.cs" Link="AndroidApp\Services\IAndroidUpdateService.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\AndroidUpdateService.cs" Link="AndroidApp\Services\AndroidUpdateService.cs" />
   </ItemGroup>
 
 </Project>
