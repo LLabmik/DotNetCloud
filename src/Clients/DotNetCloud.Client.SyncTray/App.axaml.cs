@@ -7,9 +7,11 @@ using DotNetCloud.Client.Core;
 using DotNetCloud.Client.Core.Api;
 using DotNetCloud.Client.Core.Auth;
 using DotNetCloud.Client.Core.SelectiveSync;
+using DotNetCloud.Client.Core.Services;
 using DotNetCloud.Client.Core.Sync;
 using DotNetCloud.Client.Core.SyncIgnore;
 using DotNetCloud.Client.SyncTray.Notifications;
+using DotNetCloud.Client.SyncTray.Services;
 using DotNetCloud.Client.SyncTray.Startup;
 using DotNetCloud.Client.SyncTray.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,6 +29,7 @@ public partial class App : Application
     private IServiceProvider? _services;
     private TrayIconManager? _trayIconManager;
     private ISyncContextManager? _syncManager;
+    private UpdateCheckBackgroundService? _updateChecker;
     private CancellationTokenSource? _cts;
     private int _shutdownRequested;
     private int _cleanupDone;
@@ -56,6 +59,12 @@ public partial class App : Application
 
             _trayIconManager.Initialize();
             logger.LogInformation("Tray icon manager initialized");
+
+            // Start background update checker.
+            _updateChecker = _services.GetRequiredService<UpdateCheckBackgroundService>();
+            var trayViewModel = _services.GetRequiredService<TrayViewModel>();
+            _updateChecker.UpdateAvailable += trayViewModel.OnUpdateAvailable;
+            _updateChecker.Start();
 
             // Load persisted sync contexts and start engines.
             _ = StartSyncManagerAsync(logger, _cts.Token);
@@ -128,6 +137,9 @@ public partial class App : Application
         // Platform-specific notification service.
         services.AddSingleton<INotificationService>(static sp =>
             NotificationServiceFactory.Create(sp.GetRequiredService<ILogger<INotificationService>>()));
+
+        // Background update checker.
+        services.AddSingleton<UpdateCheckBackgroundService>();
 
         return services.BuildServiceProvider();
     }
@@ -223,6 +235,10 @@ public partial class App : Application
 
         try
         { _trayIconManager?.Dispose(); }
+        catch { /* best-effort */ }
+
+        try
+        { _updateChecker?.Dispose(); }
         catch { /* best-effort */ }
 
         // Stop all sync engines gracefully.

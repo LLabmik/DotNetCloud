@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Reflection;
 using System.Text.Json;
 using System.Windows.Input;
 using DotNetCloud.Client.Core.Auth;
@@ -63,6 +64,9 @@ public sealed class SettingsViewModel : ViewModelBase
 
     // Issue #57: Symlink mode setting
     private string _symlinkMode = "ignore";
+
+    // Update settings
+    private bool _autoCheckForUpdates = true;
 
     // ── Properties ────────────────────────────────────────────────────────
 
@@ -284,6 +288,22 @@ public sealed class SettingsViewModel : ViewModelBase
 
     /// <summary>Available symlink mode options for the UI dropdown.</summary>
     public IReadOnlyList<string> SymlinkModeOptions { get; } = ["ignore", "sync-as-link"];
+
+    // ── Update settings ───────────────────────────────────────────────────
+
+    /// <summary>The currently running client version for display.</summary>
+    public string CurrentClientVersion { get; } = GetClientVersion();
+
+    /// <summary>Whether to automatically check for updates in the background.</summary>
+    public bool AutoCheckForUpdates
+    {
+        get => _autoCheckForUpdates;
+        set
+        {
+            if (SetProperty(ref _autoCheckForUpdates, value))
+                _ = PersistLocalSettingsAsync();
+        }
+    }
 
     // ── Commands ──────────────────────────────────────────────────────────
 
@@ -751,6 +771,7 @@ public sealed class SettingsViewModel : ViewModelBase
 
             _startOnLogin = settings.StartOnLogin;
             _isMuteChatNotifications = settings.IsMuteChatNotifications;
+            _autoCheckForUpdates = settings.AutoCheckForUpdates;
         }
         catch (Exception ex)
         {
@@ -773,6 +794,7 @@ public sealed class SettingsViewModel : ViewModelBase
                 {
                     StartOnLogin = _startOnLogin,
                     IsMuteChatNotifications = _isMuteChatNotifications,
+                    AutoCheckForUpdates = _autoCheckForUpdates,
                 },
                 new JsonSerializerOptions { WriteIndented = true });
         }
@@ -848,6 +870,15 @@ public sealed class SettingsViewModel : ViewModelBase
         return $"{username} @ {serverUrl}";
     }
 
+    private static string GetClientVersion()
+    {
+        var attr = System.Reflection.Assembly.GetEntryAssembly()
+            ?.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>();
+        var version = attr?.InformationalVersion ?? "0.0.0";
+        var plusIdx = version.IndexOf('+');
+        return plusIdx >= 0 ? version[..plusIdx] : version;
+    }
+
     // ── Conflicts tab ─────────────────────────────────────────────────────
 
     /// <summary>
@@ -889,6 +920,8 @@ internal sealed class SyncTrayLocalSettings
     public bool StartOnLogin { get; init; }
 
     public bool IsMuteChatNotifications { get; init; }
+
+    public bool AutoCheckForUpdates { get; init; } = true;
 }
 
 // ── Command helpers ────────────────────────────────────────────────────────────

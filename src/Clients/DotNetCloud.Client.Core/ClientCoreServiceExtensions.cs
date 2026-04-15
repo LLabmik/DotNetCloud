@@ -4,6 +4,7 @@ using DotNetCloud.Client.Core.Conflict;
 using DotNetCloud.Client.Core.LocalState;
 using DotNetCloud.Client.Core.Platform;
 using DotNetCloud.Client.Core.SelectiveSync;
+using DotNetCloud.Client.Core.Services;
 using DotNetCloud.Client.Core.Sync;
 using DotNetCloud.Client.Core.SyncIgnore;
 using DotNetCloud.Client.Core.Transfer;
@@ -58,6 +59,9 @@ public static class ClientCoreServiceExtensions
             services.AddTransient<ILockedFileReader, NoOpLockedFileReader>();
 
         services.AddTransient<ISyncEngine, SyncEngine>();
+
+        // Update checking service (public endpoint — no auth required).
+        services.AddHttpClient<IClientUpdateService, ClientUpdateService>();
 
         return services;
     }

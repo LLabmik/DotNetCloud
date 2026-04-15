@@ -26,6 +26,8 @@ public sealed class TrayViewModel : ViewModelBase
     private int _chatUnreadCount;
     private bool _chatHasMentions;
     private bool _isMuteChatNotifications;
+    private bool _isUpdateAvailable;
+    private string? _updateVersion;
 
     // Keyed by context ID for O(1) lookup on push events.
     private readonly Dictionary<Guid, AccountViewModel> _accounts = [];
@@ -114,6 +116,20 @@ public sealed class TrayViewModel : ViewModelBase
     {
         get => _isMuteChatNotifications;
         set => SetProperty(ref _isMuteChatNotifications, value);
+    }
+
+    /// <summary>Whether a software update is available for this client.</summary>
+    public bool IsUpdateAvailable
+    {
+        get => _isUpdateAvailable;
+        private set => SetProperty(ref _isUpdateAvailable, value);
+    }
+
+    /// <summary>The version number of the available update, if any.</summary>
+    public string? UpdateVersion
+    {
+        get => _updateVersion;
+        private set => SetProperty(ref _updateVersion, value);
     }
 
     /// <summary>Snapshot list of connected account view-models.</summary>
@@ -299,6 +315,28 @@ public sealed class TrayViewModel : ViewModelBase
         {
             ConflictCount--;
             UpdateAggregateState();
+        }
+    }
+
+    /// <summary>
+    /// Called by the background update checker or update dialog when a newer version
+    /// is discovered. Sets the <see cref="IsUpdateAvailable"/> flag and shows a
+    /// system notification.
+    /// </summary>
+    public void OnUpdateAvailable(object? sender, DotNetCloud.Core.DTOs.UpdateCheckResult result)
+    {
+        IsUpdateAvailable = result.IsUpdateAvailable;
+        UpdateVersion = result.IsUpdateAvailable ? result.LatestVersion : null;
+
+        if (result.IsUpdateAvailable)
+        {
+            _notifications.ShowNotification(
+                "DotNetCloud Update Available",
+                $"Version {result.LatestVersion} is ready to download.",
+                NotificationType.Info,
+                result.ReleaseUrl,
+                groupKey: "updates",
+                replaceKey: "update-available");
         }
     }
 

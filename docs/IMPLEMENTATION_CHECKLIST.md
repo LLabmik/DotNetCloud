@@ -2,7 +2,7 @@
 
 > **Document Version:** 1.0  
 > **Purpose:** Comprehensive task breakdown for implementing the DotNetCloud architecture  
-> **Scope:** All phases from Foundation (Phase 0) through E2EE (Phase 10)  
+> **Scope:** All phases from Foundation (Phase 0) through Auto-Updates (Phase 11)  
 > **Last Updated:** 2026-03-03
 > **Audience:** Development team, project managers, technical leads
 
@@ -22,8 +22,9 @@
 10. [Phase 8: Search, Auto-Updates & Polish](#phase-8-search-auto-updates--polish)
 11. [Phase 9: AI Assistant](#phase-9-ai-assistant)
 12. [Phase 10: End-to-End Encryption (E2EE)](#phase-10-end-to-end-encryption-e2ee)
-13. [Infrastructure & DevOps](#infrastructure--devops)
-14. [Documentation & Support](#documentation--support)
+13. [Phase 11: Auto-Updates](#phase-11-auto-updates)
+14. [Infrastructure & DevOps](#infrastructure--devops)
+15. [Documentation & Support](#documentation--support)
 
 ---
 
@@ -4261,3 +4262,86 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ `docs/architecture/ARCHITECTURE.md` — Section 25: Full-Text Search Architecture
 - ✓ Updated `MASTER_PROJECT_PLAN.md` and `IMPLEMENTATION_CHECKLIST.md`
 - ✓ All 631 search tests passing (40 Phase 8 + 591 previous)
+
+---
+
+## Phase 11: Auto-Updates
+
+### Phase A: Core Update Infrastructure (Server-Side)
+
+#### Step 11.1 — IUpdateService Interface & DTOs
+- ✓ `IUpdateService` interface (`CheckForUpdateAsync`, `GetLatestReleaseAsync`, `GetRecentReleasesAsync`)
+- ✓ `UpdateCheckResult` DTO (IsUpdateAvailable, CurrentVersion, LatestVersion, ReleaseUrl, ReleaseNotes, Assets)
+- ✓ `ReleaseInfo` DTO (Version, TagName, ReleaseNotes, PublishedAt, IsPreRelease, Assets)
+- ✓ `ReleaseAsset` DTO (Name, DownloadUrl, Size, ContentType, Platform)
+
+#### Step 11.2 — GitHubUpdateService Implementation
+- ✓ `GitHubUpdateService` — queries GitHub Releases API with MemoryCache (1-hour TTL)
+- ✓ Version comparison logic (semantic version + pre-release)
+- ✓ Platform asset matching (parse filenames)
+- ✓ DI registration in `SupervisorServiceExtensions`
+
+#### Step 11.3 — Update Check API Endpoint
+- ✓ `UpdateController` — `GET /api/v1/core/updates/check`, `/releases`, `/releases/latest`
+- ✓ Public endpoints (no auth required)
+
+#### Step 11.4 — CLI `dotnetcloud update` Implementation
+- ✓ `dotnetcloud update --check` command (check + display)
+- ✓ `dotnetcloud update` command (check + download)
+
+#### Step 11.5 — Admin UI Updates Page
+- ✓ `Updates.razor` — admin panel page at `/admin/updates`
+- ✓ Current version card, latest release card, update history, settings
+
+#### Step 11.6 — Unit Tests (Server-Side)
+- ✓ `GitHubUpdateServiceTests` — mock HTTP, version comparison, caching, asset matching
+- ✓ `UpdateControllerTests` — response format, edge cases
+
+### Phase B: Desktop Client Auto-Update (SyncTray)
+
+#### Step 11.7 — IClientUpdateService Interface
+- ✓ `IClientUpdateService` interface (`CheckForUpdateAsync`, `DownloadUpdateAsync`, `ApplyUpdateAsync`, `UpdateAvailable` event)
+- ✓ Reuses `UpdateCheckResult` and `ReleaseAsset` DTOs from `DotNetCloud.Core`
+
+#### Step 11.8 — ClientUpdateService Implementation
+- ✓ `ClientUpdateService` — server endpoint check with GitHub fallback
+- ✓ Download with `IProgress<double>` reporting
+- ✓ Version comparison logic (semver + pre-release)
+- ✓ DI registration via `ClientCoreServiceExtensions`
+
+#### Step 11.9 — Background Update Checker (SyncTray)
+- ✓ `UpdateCheckBackgroundService` — periodic timer (24h default, configurable)
+- ✓ `UpdateAvailable` event → TrayViewModel notification
+- ✓ Tray context menu "Check for Updates…" item
+
+#### Step 11.10 — SyncTray Update UI
+- ✓ `UpdateDialog.axaml` — dark themed Avalonia window (version cards, status badges, release notes, progress bar)
+- ✓ `UpdateViewModel` — check/download/apply commands, platform asset matching
+- ✓ Settings "Updates" tab — current version display, auto-check toggle
+
+#### Step 11.11 — Desktop Client Update Tests
+- ✓ `ClientUpdateServiceTests` — 10 tests (server check, fallback, download, events, error handling)
+- ✓ `UpdateCheckBackgroundServiceTests` — 8 tests (event firing, error resilience, lifecycle, defaults)
+- ✓ All 18 Phase B tests passing
+
+### Phase C: Android Client Update Notification
+
+#### Step 11.12 — Android Update Check Service
+- ☐ Android-specific update service checking server endpoint
+- ☐ Play Store / APK link handling
+
+#### Step 11.13 — Android Update UI
+- ☐ Update notification in Android app
+- ☐ Settings page update preferences
+
+#### Step 11.14 — Android Update Tests
+- ☐ Android update service unit tests
+
+### Phase D: Documentation & Integration
+
+#### Step 11.15 — Auto-Update Documentation
+- ☐ `docs/modules/AUTO_UPDATES.md` — feature documentation
+- ☐ Architecture doc updates
+
+#### Step 11.16 — Integration Testing
+- ☐ End-to-end update check flow tests

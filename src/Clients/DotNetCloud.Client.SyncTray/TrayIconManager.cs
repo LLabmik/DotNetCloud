@@ -6,6 +6,8 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using DotNetCloud.Client.Core.Services;
+using DotNetCloud.Client.SyncTray.Services;
 using DotNetCloud.Client.SyncTray.ViewModels;
 using DotNetCloud.Client.SyncTray.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -42,6 +44,7 @@ public sealed class TrayIconManager : IDisposable
     private NativeMenuItem? _syncNowItem;
     private NativeMenuItem? _pauseResumeItem;
     private NativeMenuItem? _quickReplyItem;
+    private NativeMenuItem? _updateItem;
 
     /// <summary>Initializes a new <see cref="TrayIconManager"/>.</summary>
     public TrayIconManager(TrayViewModel trayVm, IServiceProvider services, ILogger<TrayIconManager> logger)
@@ -135,6 +138,11 @@ public sealed class TrayIconManager : IDisposable
 
         menu.Items.Add(new NativeMenuItemSeparator());
 
+        // Check for updates
+        _updateItem = new NativeMenuItem("Check for Updates…");
+        _updateItem.Click += (_, _) => Dispatcher.UIThread.Post(OpenUpdateDialog);
+        menu.Items.Add(_updateItem);
+
         // Settings
         var settingsItem = new NativeMenuItem("Settings…");
         settingsItem.Click += OnSettingsClicked;
@@ -199,6 +207,15 @@ public sealed class TrayIconManager : IDisposable
             {
                 if (_quickReplyItem is not null)
                     _quickReplyItem.IsEnabled = _trayVm.ChatUnreadCount > 0;
+            }
+            else if (e.PropertyName is nameof(TrayViewModel.IsUpdateAvailable))
+            {
+                if (_updateItem is not null)
+                {
+                    _updateItem.Header = _trayVm.IsUpdateAvailable
+                        ? $"Update Available ({_trayVm.UpdateVersion})…"
+                        : "Check for Updates…";
+                }
             }
         });
     }
@@ -356,6 +373,16 @@ public sealed class TrayIconManager : IDisposable
             _syncProgressWindow = null;
         };
         _syncProgressWindow.Show();
+    }
+
+    private void OpenUpdateDialog()
+    {
+        var updateService = _services.GetRequiredService<IClientUpdateService>();
+        var backgroundService = _services.GetRequiredService<UpdateCheckBackgroundService>();
+        var loggerFactory = _services.GetRequiredService<ILoggerFactory>();
+        var vm = new UpdateViewModel(updateService, backgroundService, loggerFactory.CreateLogger<UpdateViewModel>());
+        var dialog = new UpdateDialog(vm);
+        dialog.Show();
     }
 
     private void OnQuitClicked(object? sender, EventArgs e)

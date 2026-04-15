@@ -99,6 +99,7 @@
 | Phase 5-8                   | Summary | 10        | 0           | 0       |
 | Phase 8 (Full-Text Search)  | 18      | 18        | 0           | 0       |
 | Phase 9                     | 7       | 5         | 0           | 2       |
+| Phase 11 (Auto-Updates)     | 16      | 5         | 0           | 11      |
 | Infrastructure              | Summary | 0         | 0           | 1       |
 | Documentation               | Summary | 0         | 0           | 1       |
 
@@ -2405,3 +2406,141 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 - ✓ 631 total search tests passing (40 Phase 8 + 591 previous)
 
 **Notes:** Phase 8 complete. Testing & documentation finalize the full-text search module. All 8 implementation phases delivered: module scaffold, module API integration, indexing engine, query engine, REST/gRPC API, Blazor UI, testing & documentation. 631 tests across all phases.
+
+---
+
+## Phase 11: Auto-Updates
+
+### Section: Phase 11 — Phase A: Core Update Infrastructure (Server-Side)
+
+#### Step: phase-11.1 — IUpdateService Interface & DTOs
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `IUpdateService` interface with `CheckForUpdateAsync`, `GetLatestReleaseAsync`, `GetRecentReleasesAsync`
+- ✓ `UpdateCheckResult` record (IsUpdateAvailable, CurrentVersion, LatestVersion, ReleaseUrl, ReleaseNotes, PublishedAt, Assets)
+- ✓ `ReleaseInfo` record (Version, TagName, ReleaseNotes, PublishedAt, IsPreRelease, Assets)
+- ✓ `ReleaseAsset` record (Name, DownloadUrl, Size, ContentType, Platform)
+
+**Notes:** DTOs shared by both server and client via DotNetCloud.Core package.
+
+#### Step: phase-11.2 — GitHubUpdateService Implementation
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `GitHubUpdateService` — queries GitHub Releases API with MemoryCache (1-hour TTL)
+- ✓ Semantic version comparison with pre-release support
+- ✓ Platform asset matching from release filenames
+- ✓ DI registration in `SupervisorServiceExtensions`
+
+**Notes:** Public GitHub API (60 req/hr); caching prevents rate limit issues.
+
+#### Step: phase-11.3 — Update Check API Endpoint
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `UpdateController` with `GET /api/v1/core/updates/check`, `/releases`, `/releases/latest`
+- ✓ Public endpoints (no auth required for client update checks)
+
+**Notes:** Response wraps in standard `{ success: true, data: {...} }` format.
+
+#### Step: phase-11.4 — CLI `dotnetcloud update` Implementation
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `dotnetcloud update --check` (display update status, exit code 0/1)
+- ✓ `dotnetcloud update` (check + download tarball)
+
+**Notes:** Server self-apply deferred for safety; download-only for now.
+
+#### Step: phase-11.5 — Admin UI Updates Page
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `Updates.razor` at `/admin/updates` with version card, latest release, history, settings
+
+**Notes:** Integrated into admin sidebar navigation.
+
+#### Step: phase-11.6 — Unit Tests (Server-Side)
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `GitHubUpdateServiceTests` (mock HTTP, version comparison, caching, asset matching)
+- ✓ `UpdateControllerTests` (response format, edge cases)
+
+**Notes:** Phase A complete. All server-side update infrastructure in place.
+
+### Section: Phase 11 — Phase B: Desktop Client Auto-Update (SyncTray)
+
+#### Step: phase-11.7 — IClientUpdateService Interface
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `IClientUpdateService` interface (`CheckForUpdateAsync`, `DownloadUpdateAsync`, `ApplyUpdateAsync`, `UpdateAvailable` event)
+- ✓ Reuses `UpdateCheckResult` and `ReleaseAsset` from `DotNetCloud.Core.DTOs`
+
+**Notes:** Client.Core now references DotNetCloud.Core for shared DTOs.
+
+#### Step: phase-11.8 — ClientUpdateService Implementation
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `ClientUpdateService` — server endpoint check with GitHub Releases API fallback
+- ✓ Streaming download with `IProgress<double>` progress reporting
+- ✓ Version comparison logic (semver + pre-release split)
+- ✓ DI registration via `ClientCoreServiceExtensions.AddHttpClient<IClientUpdateService, ClientUpdateService>()`
+
+**Notes:** Falls back to direct GitHub API if server unreachable or no base address configured.
+
+#### Step: phase-11.9 — Background Update Checker (SyncTray)
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `UpdateCheckBackgroundService` — periodic timer (30s initial delay, 24h interval, configurable)
+- ✓ `UpdateAvailable` event wired to `TrayViewModel.OnUpdateAvailable`
+- ✓ Tray context menu "Check for Updates…" item (updates text when update available)
+- ✓ System notification on update found
+
+**Notes:** Integrated into App.axaml.cs lifecycle (start after tray init, dispose on shutdown).
+
+#### Step: phase-11.10 — SyncTray Update UI
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `UpdateDialog.axaml` — dark themed 480×420 Avalonia window with version cards, status badges (green/amber), release notes, download progress bar, action buttons
+- ✓ `UpdateViewModel` — check/download commands, platform asset matching, `ShouldClose` property
+- ✓ Settings "Updates" tab — current version display, update available/up-to-date banners, auto-check toggle
+- ✓ `SettingsViewModel` — `CurrentClientVersion`, `AutoCheckForUpdates` (persisted to local settings)
+
+**Notes:** Follows existing dark theme and AddAccountDialog patterns.
+
+#### Step: phase-11.11 — Desktop Client Update Tests
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `ClientUpdateServiceTests` — 10 tests (server check, no-update, GitHub fallback, no base address skip, event firing, download with progress, null/missing/empty path errors)
+- ✓ `UpdateCheckBackgroundServiceTests` — 8 tests (update event, no-update silence, error resilience, result storage, start/stop lifecycle, double dispose, enabled/interval defaults)
+- ✓ All 18 Phase B tests passing
+
+**Notes:** Phase B complete. Desktop client auto-update fully implemented with background checking, tray integration, update dialog, settings tab. Ready for Phase C (Android) or Phase D (documentation).
+
+### Section: Phase 11 — Phase C: Android Client Update Notification
+
+#### Step: phase-11.12 — Android Update Check Service
+**Status:** pending
+**Deliverables:**
+- ☐ Android-specific update service checking server endpoint
+- ☐ Play Store / APK link handling
+
+#### Step: phase-11.13 — Android Update UI
+**Status:** pending
+**Deliverables:**
+- ☐ Update notification in Android app
+- ☐ Settings page update preferences
+
+#### Step: phase-11.14 — Android Update Tests
+**Status:** pending
+**Deliverables:**
+- ☐ Android update service unit tests
+
+### Section: Phase 11 — Phase D: Documentation & Integration
+
+#### Step: phase-11.15 — Auto-Update Documentation
+**Status:** pending
+**Deliverables:**
+- ☐ `docs/modules/AUTO_UPDATES.md` — feature documentation
+- ☐ Architecture doc updates
+
+#### Step: phase-11.16 — Integration Testing
+**Status:** pending
+**Deliverables:**
+- ☐ End-to-end update check flow tests

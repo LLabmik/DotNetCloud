@@ -542,6 +542,63 @@
                 </DockPanel>
             </TabItem>
 
+            <!-- ── Updates ── -->
+            <TabItem Header="Updates">
+                <StackPanel Margin="8" Spacing="12">
+
+                    <!-- Current version -->
+                    <Border Classes="card">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Client Version"
+                                       FontSize="11" FontWeight="SemiBold" Foreground="#9AACCA" />
+                            <TextBlock Text="{Binding CurrentClientVersion}"
+                                       FontSize="16" FontWeight="Bold" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Update available banner -->
+                    <Border Background="#3D2F1A"
+                            BorderBrush="#6B5A2D"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="12"
+                            IsVisible="{Binding TrayVm.IsUpdateAvailable}">
+                        <StackPanel Spacing="4">
+                            <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="#D4A543">
+                                <TextBlock.Text>
+                                    <MultiBinding StringFormat="⬆ Version {0} is available">
+                                        <Binding Path="TrayVm.UpdateVersion" />
+                                    </MultiBinding>
+                                </TextBlock.Text>
+                            </TextBlock>
+                            <TextBlock Text="Open the update dialog from the tray menu to download."
+                                       FontSize="11" Foreground="#A4936E" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Up to date banner -->
+                    <Border Background="#1A3D24"
+                            BorderBrush="#2D6B3D"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="12"
+                            IsVisible="{Binding !TrayVm.IsUpdateAvailable}">
+                        <TextBlock Text="✓ You are running the latest version."
+                                   FontSize="12" Foreground="#5CBA6F" />
+                    </Border>
+
+                    <Separator Background="#263247" />
+
+                    <!-- Update settings -->
+                    <TextBlock Text="Update Preferences"
+                               FontSize="13" FontWeight="SemiBold" Foreground="#A4B6D0" />
+                    <CheckBox Content="Check for updates automatically"
+                              ToolTip.Tip="Periodically check for new versions in the background"
+                              IsChecked="{Binding AutoCheckForUpdates}" />
+
+                </StackPanel>
+            </TabItem>
+
         </TabControl>
 
         <!-- Close button -->
