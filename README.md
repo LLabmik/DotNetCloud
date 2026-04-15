@@ -54,7 +54,7 @@ See [MASTER_PROJECT_PLAN.md](docs/MASTER_PROJECT_PLAN.md) for the full phased im
 | **Phase 5**  | Photos + Music + Video                                                                                                                                  | ✅ Complete       |
 | **Phase 6**  | Email + Bookmarks                                                                                                                                       | ⬜ Planned        |
 | **Phase 7**  | Video Calling + Screen Sharing                                                                                                                          | ⬜ Planned        |
-| **Phase 8**  | Search + Polish                                                                                                                                         | 🔄 In Progress   |
+| **Phase 8**  | Search                                                                                                                                                  | ✅ Complete       |
 | **Phase 9**  | AI Assistant                                                                                                                                            | ✅ Complete       |
 | **Phase 10** | End-to-End Encryption (E2EE)                                                                                                                            | ⬜ Planned        |
 | **Phase 11** | Auto-Updates — server, CLI, admin UI, desktop, Android                                                                                                  | ✅ Complete       |
