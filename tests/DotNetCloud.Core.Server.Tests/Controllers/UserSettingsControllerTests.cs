@@ -148,7 +148,7 @@ public class UserSettingsControllerTests
     {
         // Arrange
         var userId = Guid.NewGuid();
-        SetUserClaim("user_id", userId.ToString());
+        SetUserClaim("sub", userId.ToString());
 
         _settingsServiceMock
             .Setup(s => s.GetSettingAsync(userId, "dotnetcloud.ui", "navbar.collapsed"))
@@ -175,7 +175,7 @@ public class UserSettingsControllerTests
     {
         // Arrange
         var userId = Guid.NewGuid();
-        SetUserClaim("nameidentifier", userId.ToString());
+        SetUserClaim(System.Security.Claims.ClaimTypes.NameIdentifier, userId.ToString());
 
         var dto = new UpsertUserSettingDto
         {

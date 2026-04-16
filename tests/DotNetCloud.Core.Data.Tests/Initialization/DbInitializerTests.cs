@@ -397,9 +397,13 @@ public class DbInitializerTests
         // Act
         await _initializer.InitializeAsync();
 
-        // Assert - Verify only the pre-existing setting exists (no seeding occurred)
+        // Assert - Existing setting remains, and defaults are seeded without duplicates
         var settings = await _context.SystemSettings.ToListAsync();
-        Assert.AreEqual(1, settings.Count, "Should not seed settings when data already exists");
-        Assert.AreEqual("test.module", settings[0].Module);
+
+        Assert.IsTrue(settings.Count > 1, "Should seed missing default settings");
+        Assert.AreEqual(1, settings.Count(s => s.Module == "test.module" && s.Key == "TestKey"),
+            "Existing setting should not be duplicated");
+        Assert.IsTrue(settings.Any(s => s.Module == "dotnetcloud.core"),
+            "Default core settings should be present");
     }
 }

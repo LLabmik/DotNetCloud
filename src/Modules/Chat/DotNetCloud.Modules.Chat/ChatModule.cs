@@ -28,6 +28,9 @@ public sealed class ChatModule : IModuleLifecycle
     private MessageSentEventHandler? _messageSentHandler;
     private ChannelCreatedEventHandler? _channelCreatedHandler;
     private TracksActivityChatHandler? _tracksActivityHandler;
+    private IEventHandler<VideoCallInitiatedEvent>? _callNotificationInitiatedHandler;
+    private IEventHandler<VideoCallMissedEvent>? _callNotificationMissedHandler;
+    private IEventHandler<VideoCallEndedEvent>? _callNotificationEndedHandler;
     private ILogger<ChatModule>? _logger;
     private bool _initialized;
     private bool _running;
@@ -73,6 +76,18 @@ public sealed class ChatModule : IModuleLifecycle
         await _eventBus.SubscribeAsync<SprintCompletedEvent>(_tracksActivityHandler, cancellationToken);
         await _eventBus.SubscribeAsync<BoardCreatedEvent>(_tracksActivityHandler, cancellationToken);
         await _eventBus.SubscribeAsync<BoardDeletedEvent>(_tracksActivityHandler, cancellationToken);
+
+        // Register call notification push handlers
+        var callNotificationHandler = context.Services.GetService<Services.ICallNotificationHandler>();
+        if (callNotificationHandler is not null)
+        {
+            _callNotificationInitiatedHandler = callNotificationHandler;
+            _callNotificationMissedHandler = callNotificationHandler;
+            _callNotificationEndedHandler = callNotificationHandler;
+            await _eventBus.SubscribeAsync<VideoCallInitiatedEvent>(_callNotificationInitiatedHandler, cancellationToken);
+            await _eventBus.SubscribeAsync<VideoCallMissedEvent>(_callNotificationMissedHandler, cancellationToken);
+            await _eventBus.SubscribeAsync<VideoCallEndedEvent>(_callNotificationEndedHandler, cancellationToken);
+        }
 
         _initialized = true;
         _logger?.LogInformation("Chat module initialized successfully with Tracks integration");
@@ -122,6 +137,13 @@ public sealed class ChatModule : IModuleLifecycle
                 await _eventBus.UnsubscribeAsync<BoardCreatedEvent>(_tracksActivityHandler, cancellationToken);
                 await _eventBus.UnsubscribeAsync<BoardDeletedEvent>(_tracksActivityHandler, cancellationToken);
             }
+
+            if (_callNotificationInitiatedHandler is not null)
+                await _eventBus.UnsubscribeAsync<VideoCallInitiatedEvent>(_callNotificationInitiatedHandler, cancellationToken);
+            if (_callNotificationMissedHandler is not null)
+                await _eventBus.UnsubscribeAsync<VideoCallMissedEvent>(_callNotificationMissedHandler, cancellationToken);
+            if (_callNotificationEndedHandler is not null)
+                await _eventBus.UnsubscribeAsync<VideoCallEndedEvent>(_callNotificationEndedHandler, cancellationToken);
         }
 
         _logger?.LogInformation("Chat module stopped");

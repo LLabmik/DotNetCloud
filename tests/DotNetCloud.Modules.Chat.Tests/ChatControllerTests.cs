@@ -50,6 +50,8 @@ public class ChatControllerTests
         _chatMessageNotifier = new Mock<IChatMessageNotifier>();
         _pushNotificationService = new Mock<IPushNotificationService>();
         _notificationPreferenceStore = new Mock<INotificationPreferenceStore>();
+        var iceServerService = new Mock<IIceServerService>();
+        var videoCallService = new Mock<IVideoCallService>();
 
         _notificationPreferenceStore
             .Setup(s => s.Get(It.IsAny<Guid>()))
@@ -74,6 +76,8 @@ public class ChatControllerTests
             _chatMessageNotifier.Object,
             _pushNotificationService.Object,
             _notificationPreferenceStore.Object,
+            iceServerService.Object,
+            videoCallService.Object,
             NullLogger<ChatController>.Instance)
         {
             ControllerContext = new ControllerContext

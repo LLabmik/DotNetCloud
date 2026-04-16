@@ -42,6 +42,27 @@ service ChatService {
 
   // Returns a single searchable document by entity ID.
   rpc GetSearchableDocument (GetSearchableDocumentRequest) returns (SearchableDocumentResponse);
+
+  // Initiates a new video call in a channel.
+  rpc InitiateVideoCall (InitiateVideoCallRequest) returns (VideoCallResponse);
+
+  // Joins an active video call.
+  rpc JoinVideoCall (JoinVideoCallRequest) returns (VideoCallResponse);
+
+  // Leaves an active video call.
+  rpc LeaveVideoCall (LeaveVideoCallRequest) returns (VideoCallOperationResponse);
+
+  // Ends a video call for all participants.
+  rpc EndVideoCall (EndVideoCallRequest) returns (VideoCallOperationResponse);
+
+  // Rejects an incoming video call.
+  rpc RejectVideoCall (RejectVideoCallRequest) returns (VideoCallOperationResponse);
+
+  // Gets paginated call history for a channel.
+  rpc GetCallHistory (GetCallHistoryRequest) returns (GetCallHistoryResponse);
+
+  // Gets the currently active call for a channel.
+  rpc GetActiveCall (GetActiveCallRequest) returns (VideoCallResponse);
 }
 
 // --- CreateChannel ---
@@ -223,4 +244,99 @@ message SearchableDocument {
   string created_at = 9;
   string updated_at = 10;
   map<string, string> metadata = 11;
+}
+
+// --- Video Call Messages ---
+
+message InitiateVideoCallRequest {
+  string channel_id = 1;
+  string user_id = 2;
+  string media_type = 3;  // Audio or Video
+}
+
+message JoinVideoCallRequest {
+  string call_id = 1;
+  string user_id = 2;
+  bool with_audio = 3;
+  bool with_video = 4;
+}
+
+message LeaveVideoCallRequest {
+  string call_id = 1;
+  string user_id = 2;
+}
+
+message EndVideoCallRequest {
+  string call_id = 1;
+  string user_id = 2;
+}
+
+message RejectVideoCallRequest {
+  string call_id = 1;
+  string user_id = 2;
+}
+
+message GetCallHistoryRequest {
+  string channel_id = 1;
+  string user_id = 2;
+  int32 skip = 3;
+  int32 take = 4;
+}
+
+message GetActiveCallRequest {
+  string channel_id = 1;
+  string user_id = 2;
+}
+
+message VideoCallResponse {
+  bool success = 1;
+  string error_message = 2;
+  VideoCallMessage call = 3;
+}
+
+message VideoCallOperationResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message GetCallHistoryResponse {
+  repeated CallHistoryMessage calls = 1;
+}
+
+message VideoCallMessage {
+  string id = 1;
+  string channel_id = 2;
+  string initiator_user_id = 3;
+  string state = 4;
+  string media_type = 5;
+  bool is_group_call = 6;
+  string started_at_utc = 7;
+  string ended_at_utc = 8;
+  string end_reason = 9;
+  int32 max_participants = 10;
+  string created_at_utc = 11;
+  repeated CallParticipantMessage participants = 12;
+}
+
+message CallParticipantMessage {
+  string id = 1;
+  string user_id = 2;
+  string role = 3;
+  string joined_at_utc = 4;
+  string left_at_utc = 5;
+  bool has_audio = 6;
+  bool has_video = 7;
+  bool has_screen_share = 8;
+}
+
+message CallHistoryMessage {
+  string id = 1;
+  string channel_id = 2;
+  string initiator_user_id = 3;
+  string state = 4;
+  string media_type = 5;
+  string end_reason = 6;
+  int32 duration_seconds = 7;
+  int32 participant_count = 8;
+  string created_at_utc = 9;
 }

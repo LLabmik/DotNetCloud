@@ -28,13 +28,18 @@
 
         <ChannelHeader Channel="@_selectedChannel"
                        IsAdminOrOwner="@_currentUserIsAdminOrOwner"
+                       HasActiveCall="@_hasActiveCall"
                        OnPinChanged="@HandlePinChanged"
                        OnEditChannel="@HandleEditChannel"
                        OnArchiveChannel="@HandleArchiveChannel"
                        OnLeaveChannel="@HandleLeaveChannel"
                        OnToggleMemberList="@HandleToggleMemberList"
                        OnSearch="@HandleSearch"
-                       OnInvite="@HandleOpenInviteDialog" />
+                       OnInvite="@HandleOpenInviteDialog"
+                       OnAudioCall="@HandleStartAudioCall"
+                       OnVideoCall="@HandleStartVideoCall"
+                       OnJoinCall="@HandleJoinActiveCall"
+                       OnCallHistory="@HandleToggleCallHistory" />
 
         @if (_isSearchOpen && _selectedChannel is not null)
         {
@@ -108,6 +113,17 @@
                                  OnDemoteMember="@HandleDemoteMember"
                                  OnRemoveMember="@HandleRemoveMember" />
             }
+
+            @if (_showCallHistoryPanel)
+            {
+                <CallHistoryPanel Calls="@_callHistory"
+                                  IsLoading="@_isLoadingCallHistory"
+                                  IsLoadingMore="@_isLoadingMoreCallHistory"
+                                  HasMore="@_hasMoreCallHistory"
+                                  OnClose="@HandleCloseCallHistory"
+                                  OnLoadMore="@HandleLoadMoreCallHistory"
+                                  OnCallBack="@HandleCallBack" />
+            }
         </div>
     </div>
 </div>
@@ -173,3 +189,30 @@
         </div>
     </div>
 }
+
+<VideoCallDialog IsVisible="@_showVideoCallDialog"
+                 ChannelName="@(_selectedChannel?.Name ?? "")"
+                 CallState="@_currentCallState"
+                 LocalDisplayName="@_currentUserDisplayName"
+                 RemoteParticipants="@_remoteParticipants"
+                 IsMuted="@_isCallMuted"
+                 IsCameraOff="@_isCallCameraOff"
+                 IsScreenSharing="@_isCallScreenSharing"
+                 DurationSeconds="@_callDurationSeconds"
+                 ConnectionQuality="@_callConnectionQuality"
+                 OnToggleMute="@HandleCallToggleMute"
+                 OnToggleCamera="@HandleCallToggleCamera"
+                 OnToggleScreenShare="@HandleCallToggleScreenShare"
+                 OnHangUp="@HandleCallHangUp"
+                 OnMinimize="@HandleCallMinimize"
+                 OnPipClick="@HandleCallPipClick" />
+
+<IncomingCallNotification IsVisible="@_showIncomingCall"
+                          CallerName="@_incomingCallerName"
+                          ChannelName="@_incomingCallChannelName"
+                          MediaType="@_incomingCallMediaType"
+                          RemainingSeconds="@_incomingCallRemainingSeconds"
+                          IsRinging="@_isIncomingCallRinging"
+                          OnAcceptVideo="@HandleAcceptCallVideo"
+                          OnAcceptAudio="@HandleAcceptCallAudio"
+                          OnReject="@HandleRejectCall" />

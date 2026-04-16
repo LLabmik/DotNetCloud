@@ -36,7 +36,15 @@ public sealed class ChatModuleManifest : IModuleManifest
         nameof(ChannelDeletedEvent),
         nameof(UserJoinedChannelEvent),
         nameof(UserLeftChannelEvent),
-        nameof(PresenceChangedEvent)
+        nameof(PresenceChangedEvent),
+        nameof(VideoCallInitiatedEvent),
+        nameof(VideoCallAnsweredEvent),
+        nameof(VideoCallEndedEvent),
+        nameof(VideoCallMissedEvent),
+        nameof(ParticipantJoinedCallEvent),
+        nameof(ParticipantLeftCallEvent),
+        nameof(ScreenShareStartedEvent),
+        nameof(ScreenShareEndedEvent)
     };
 
     /// <inheritdoc />

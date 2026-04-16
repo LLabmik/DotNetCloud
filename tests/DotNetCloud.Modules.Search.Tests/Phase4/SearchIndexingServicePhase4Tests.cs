@@ -2,6 +2,7 @@ using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs.Search;
 using DotNetCloud.Core.Events.Search;
 using DotNetCloud.Modules.Search.Services;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
@@ -20,6 +21,7 @@ public class SearchIndexingServicePhase4Tests
     private Mock<IContentExtractor> _textExtractorMock = null!;
     private ContentExtractionService _extractionService = null!;
     private SearchIndexingService _service = null!;
+    private ServiceProvider _sp = null!;
 
     [TestInitialize]
     public void Setup()
@@ -39,11 +41,25 @@ public class SearchIndexingServicePhase4Tests
             [_textExtractorMock.Object],
             NullLogger<ContentExtractionService>.Instance);
 
+        var services = new ServiceCollection();
+        services.AddScoped<ISearchProvider>(_ => _searchProviderMock.Object);
+        services.AddScoped<ISearchableModule>(_ => _filesModuleMock.Object);
+        services.AddScoped<ISearchableModule>(_ => _notesModuleMock.Object);
+        services.AddSingleton<IContentExtractor>(_textExtractorMock.Object);
+        services.AddScoped<ContentExtractionService>();
+        services.AddLogging();
+        _sp = services.BuildServiceProvider();
+
         _service = new SearchIndexingService(
-            _searchProviderMock.Object,
-            [_filesModuleMock.Object, _notesModuleMock.Object],
-            _extractionService,
+            _sp.GetRequiredService<IServiceScopeFactory>(),
             NullLogger<SearchIndexingService>.Instance);
+    }
+
+    [TestCleanup]
+    public void Cleanup()
+    {
+        _service.Dispose();
+        _sp.Dispose();
     }
 
     // --- Processing Counter Tests ---
@@ -204,7 +220,7 @@ public class SearchIndexingServicePhase4Tests
         var doc = CreateSearchDocument("files", "e1", "FileNode", "Test",
             metadata: new Dictionary<string, string>());
 
-        var result = await _service.TryEnrichWithContentExtraction(doc, CancellationToken.None);
+        var result = await _service.TryEnrichWithContentExtraction(doc, _extractionService, CancellationToken.None);
 
         Assert.AreSame(doc, result);
     }
@@ -215,7 +231,7 @@ public class SearchIndexingServicePhase4Tests
         var doc = CreateSearchDocument("files", "e1", "FileNode", "Test",
             metadata: new Dictionary<string, string> { ["MimeType"] = "application/octet-stream" });
 
-        var result = await _service.TryEnrichWithContentExtraction(doc, CancellationToken.None);
+        var result = await _service.TryEnrichWithContentExtraction(doc, _extractionService, CancellationToken.None);
 
         Assert.AreSame(doc, result);
     }
@@ -227,7 +243,7 @@ public class SearchIndexingServicePhase4Tests
             content: "existing content",
             metadata: new Dictionary<string, string> { ["MimeType"] = "text/plain" });
 
-        var result = await _service.TryEnrichWithContentExtraction(doc, CancellationToken.None);
+        var result = await _service.TryEnrichWithContentExtraction(doc, _extractionService, CancellationToken.None);
 
         Assert.AreSame(doc, result);
     }
@@ -238,7 +254,7 @@ public class SearchIndexingServicePhase4Tests
         var doc = CreateSearchDocument("files", "e1", "FileNode", "Test",
             metadata: new Dictionary<string, string> { ["mimeType"] = "application/octet-stream" });
 
-        var result = await _service.TryEnrichWithContentExtraction(doc, CancellationToken.None);
+        var result = await _service.TryEnrichWithContentExtraction(doc, _extractionService, CancellationToken.None);
 
         // Should attempt extraction check (returns original since type is unsupported)
         Assert.AreSame(doc, result);

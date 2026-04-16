@@ -1,6 +1,6 @@
 # Chat Module REST API Reference
 
-> **Base URL:** `/api/v1/chat/` (channels, messages, reactions, pins, typing)
+> **Base URL:** `/api/v1/chat/` (channels, messages, reactions, pins, typing, video calls)
 > **Announcements:** `/api/v1/announcements/`
 > **Notifications:** `/api/v1/notifications/`
 > **Authentication:** All endpoints require a `userId` query parameter identifying the caller.
@@ -702,6 +702,224 @@ PUT /api/v1/notifications/preferences?userId={userId}
 ```
 
 **Response:** `200 OK` → `{ "updated": true }`
+
+---
+
+## Video Call Endpoints
+
+### Initiate Call
+
+```
+POST /api/v1/chat/channels/{channelId}/calls?userId={userId}
+```
+
+**Request Body:**
+```json
+{
+  "mediaType": "Video"
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `mediaType` | `string` | `Audio`, `Video`, or `ScreenShare` |
+
+**Response:** `201 Created` → `VideoCallDto`
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `Guid` | Call identifier |
+| `channelId` | `Guid` | Channel where the call was initiated |
+| `initiatorUserId` | `Guid` | User who started the call |
+| `state` | `string` | Current state (e.g., `Ringing`) |
+| `mediaType` | `string` | `Audio`, `Video`, or `ScreenShare` |
+| `isGroupCall` | `bool` | Whether the channel has 3+ members |
+| `maxParticipants` | `int` | Peak participant count |
+| `participants` | `CallParticipantDto[]` | Current participants |
+| `startedAtUtc` | `DateTime?` | When the call became active |
+| `endedAtUtc` | `DateTime?` | When the call ended |
+| `endReason` | `string?` | End reason (if ended) |
+| `liveKitRoomId` | `string?` | LiveKit room name (if SFU is active) |
+| `createdAtUtc` | `DateTime` | Creation timestamp |
+
+**Errors:**
+- `400` — Invalid media type
+- `403` — Not a channel member
+- `409` — A call is already active in this channel
+
+**Rate Limit:** `module-video-call-initiate`
+
+---
+
+### Join Call
+
+```
+POST /api/v1/chat/calls/{callId}/join?userId={userId}
+```
+
+**Request Body:**
+```json
+{
+  "withAudio": true,
+  "withVideo": true
+}
+```
+
+**Response:** `200 OK` → `VideoCallDto` (updated state and participant list)
+
+**Errors:**
+- `400` — Invalid request
+- `403` — Not a channel member
+- `404` — Call not found or not joinable
+
+---
+
+### Leave Call
+
+```
+POST /api/v1/chat/calls/{callId}/leave?userId={userId}
+```
+
+**Response:** `200 OK` → `{ "left": true }`
+
+**Errors:**
+- `403` — Not authorized
+- `404` — Call not found
+
+---
+
+### End Call
+
+```
+POST /api/v1/chat/calls/{callId}/end?userId={userId}
+```
+
+Ends the call for all participants.
+
+**Response:** `200 OK` → `{ "ended": true }`
+
+**Errors:**
+- `403` — Not authorized
+- `404` — Call not found
+
+---
+
+### Reject Call
+
+```
+POST /api/v1/chat/calls/{callId}/reject?userId={userId}
+```
+
+**Response:** `200 OK` → `{ "rejected": true }`
+
+**Errors:**
+- `403` — Not authorized
+- `404` — Call not found
+
+---
+
+### Get Call History
+
+```
+GET /api/v1/chat/channels/{channelId}/calls?userId={userId}&skip=0&take=20
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `skip` | `int` | `0` | Number of records to skip |
+| `take` | `int` | `20` | Number of records to return (max 100) |
+
+**Response:** `200 OK` → `CallHistoryDto[]`
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `Guid` | Call identifier |
+| `channelId` | `Guid` | Channel ID |
+| `initiatorUserId` | `Guid` | Who started the call |
+| `state` | `string` | Final state (`Ended`, `Missed`, `Rejected`, `Failed`) |
+| `mediaType` | `string` | Media type |
+| `startedAtUtc` | `DateTime?` | When the call started |
+| `endedAtUtc` | `DateTime?` | When the call ended |
+| `endReason` | `string?` | Why the call ended |
+| `maxParticipants` | `int` | Peak participant count |
+| `isGroupCall` | `bool` | Whether it was a group call |
+
+**Errors:**
+- `403` — Not a channel member
+
+---
+
+### Get Call by ID
+
+```
+GET /api/v1/chat/calls/{callId}?userId={userId}
+```
+
+**Response:** `200 OK` → `VideoCallDto`
+
+**Errors:**
+- `403` — Not authorized
+- `404` — Call not found
+
+---
+
+### Get Active Call
+
+```
+GET /api/v1/chat/channels/{channelId}/calls/active?userId={userId}
+```
+
+Returns the currently active call in a channel, or `null` if no call is active.
+
+**Response:** `200 OK` → `VideoCallDto` or `{ "data": null }`
+
+**Errors:**
+- `403` — Not a channel member
+
+---
+
+### Get ICE Servers
+
+```
+GET /api/v1/chat/ice-servers?userId={userId}
+```
+
+Returns ICE server configuration for WebRTC peer connections.
+
+**Response:** `200 OK`
+```json
+{
+  "success": true,
+  "data": {
+    "iceServers": [
+      { "urls": ["stun:example.com:3478"] },
+      { "urls": ["turn:turn.example.com:3478"], "username": "...", "credential": "..." }
+    ],
+    "iceTransportPolicy": "all"
+  }
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `iceServers` | `IceServerDto[]` | STUN and TURN server configurations |
+| `iceTransportPolicy` | `string` | `all` or `relay` |
+
+---
+
+## Video Call gRPC RPCs
+
+The Chat module also exposes video call operations via gRPC for inter-process communication:
+
+| RPC | Request | Response | Description |
+|---|---|---|---|
+| `InitiateVideoCall` | `InitiateVideoCallRequest` | `VideoCallResponse` | Start a call in a channel |
+| `JoinVideoCall` | `JoinVideoCallRequest` | `VideoCallResponse` | Join an active call |
+| `LeaveVideoCall` | `LeaveVideoCallRequest` | `VideoCallOperationResponse` | Leave a call |
+| `EndVideoCall` | `EndVideoCallRequest` | `VideoCallOperationResponse` | End a call for all |
+| `RejectVideoCall` | `RejectVideoCallRequest` | `VideoCallOperationResponse` | Reject an incoming call |
+| `GetCallHistory` | `GetCallHistoryRequest` | `GetCallHistoryResponse` | Paginated call history |
+| `GetActiveCall` | `GetActiveCallRequest` | `VideoCallResponse` | Get active call in channel |
 
 ---
 

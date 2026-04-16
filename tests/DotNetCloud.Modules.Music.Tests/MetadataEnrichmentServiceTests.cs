@@ -101,30 +101,41 @@ public class MetadataEnrichmentServiceTests
     {
         var artist = await TestHelpers.SeedArtistAsync(_db, "Pink Floyd", ownerId: _caller.UserId);
         var album = await TestHelpers.SeedAlbumAsync(_db, artist.Id, "The Wall", ownerId: _caller.UserId);
-        album.HasCoverArt = true;
-        album.CoverArtPath = "/some/path.jpg";
-        await _db.SaveChangesAsync();
 
-        _mockMbClient.Setup(x => x.SearchReleaseGroupAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<MusicBrainzReleaseGroupResult>
-            {
-                new() { Id = "rg-1", Title = "The Wall", Score = 95 }
-            });
+        // Create a real temp file so File.Exists returns true in the service
+        var tempCoverPath = Path.Combine(Path.GetTempPath(), $"test-cover-{Guid.NewGuid()}.jpg");
+        await File.WriteAllBytesAsync(tempCoverPath, [0xFF, 0xD8]);
+        try
+        {
+            album.HasCoverArt = true;
+            album.CoverArtPath = tempCoverPath;
+            await _db.SaveChangesAsync();
 
-        _mockMbClient.Setup(x => x.GetReleaseGroupAsync("rg-1", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new MusicBrainzReleaseGroupDetail
-            {
-                Id = "rg-1",
-                Title = "The Wall",
-                Releases = [new MusicBrainzRelease { Id = "r-1", Title = "The Wall" }]
-            });
+            _mockMbClient.Setup(x => x.SearchReleaseGroupAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<MusicBrainzReleaseGroupResult>
+                {
+                    new() { Id = "rg-1", Title = "The Wall", Score = 95 }
+                });
 
-        var service = CreateService();
-        await service.EnrichAlbumAsync(album.Id, _caller);
+            _mockMbClient.Setup(x => x.GetReleaseGroupAsync("rg-1", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new MusicBrainzReleaseGroupDetail
+                {
+                    Id = "rg-1",
+                    Title = "The Wall",
+                    Releases = [new MusicBrainzRelease { Id = "r-1", Title = "The Wall" }]
+                });
 
-        _mockCaaClient.Verify(
-            x => x.GetFrontCoverFromReleasesAsync(It.IsAny<IReadOnlyList<MusicBrainzRelease>>(), It.IsAny<CancellationToken>()),
-            Times.Never);
+            var service = CreateService();
+            await service.EnrichAlbumAsync(album.Id, _caller);
+
+            _mockCaaClient.Verify(
+                x => x.GetFrontCoverFromReleasesAsync(It.IsAny<IReadOnlyList<MusicBrainzRelease>>(), It.IsAny<CancellationToken>()),
+                Times.Never);
+        }
+        finally
+        {
+            File.Delete(tempCoverPath);
+        }
     }
 
     [TestMethod]

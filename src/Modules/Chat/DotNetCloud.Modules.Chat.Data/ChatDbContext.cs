@@ -59,6 +59,12 @@ public class ChatDbContext : DbContext
     /// <summary>Channel invitations.</summary>
     public DbSet<ChannelInvite> ChannelInvites => Set<ChannelInvite>();
 
+    /// <summary>Video/audio calls.</summary>
+    public DbSet<VideoCall> VideoCalls => Set<VideoCall>();
+
+    /// <summary>Participants in video/audio calls.</summary>
+    public DbSet<CallParticipant> CallParticipants => Set<CallParticipant>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -74,5 +80,7 @@ public class ChatDbContext : DbContext
         modelBuilder.ApplyConfiguration(new AnnouncementConfiguration());
         modelBuilder.ApplyConfiguration(new AnnouncementAcknowledgementConfiguration());
         modelBuilder.ApplyConfiguration(new ChannelInviteConfiguration());
+        modelBuilder.ApplyConfiguration(new VideoCallConfiguration());
+        modelBuilder.ApplyConfiguration(new CallParticipantConfiguration());
     }
 }

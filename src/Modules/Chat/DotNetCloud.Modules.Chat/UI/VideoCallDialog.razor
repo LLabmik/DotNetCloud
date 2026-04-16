@@ -1,0 +1,101 @@
+@namespace DotNetCloud.Modules.Chat.UI
+
+@*
+    Video call dialog - Main call window with video grid, controls, and participant overlays.
+    Supports 1×1, 2×1, and 2×2 layouts with picture-in-picture local video.
+    Code-behind: VideoCallDialog.razor.cs
+*@
+
+@if (IsVisible)
+{
+    <div class="video-call-overlay">
+        <div class="video-call-dialog @LayoutClass">
+            <div class="video-call-header">
+                <div class="call-header-info">
+                    <span class="call-channel-name">@ChannelName</span>
+                    <span class="call-state-badge state-@CallState.ToLowerInvariant()">@FormatCallState(CallState)</span>
+                </div>
+                @if (CallState is "Active" or "Connecting")
+                {
+                    <button class="btn-minimize" @onclick="HandleMinimize" title="Minimize call">
+                        ⊟
+                    </button>
+                }
+            </div>
+
+            <div class="video-grid video-grid-@GridLayoutName">
+                @if (RemoteParticipants.Count == 0)
+                {
+                    <div class="video-tile video-tile-solo">
+                        <div class="video-placeholder">
+                            <div class="placeholder-avatar">@GetInitials(LocalDisplayName)</div>
+                            <span class="placeholder-name">@LocalDisplayName</span>
+                            <span class="placeholder-status">@GetWaitingMessage()</span>
+                        </div>
+                        <video id="local-video-main" class="video-element video-local-main" autoplay muted playsinline></video>
+                    </div>
+                }
+                else
+                {
+                    @foreach (var participant in RemoteParticipants)
+                    {
+                        <div class="video-tile">
+                            <video id="remote-video-@participant.UserId" class="video-element" autoplay playsinline></video>
+                            <div class="video-tile-overlay">
+                                <span class="participant-name">@(participant.DisplayName ?? "Unknown")</span>
+                                <div class="participant-indicators">
+                                    @if (!participant.HasAudio)
+                                    {
+                                        <span class="indicator-icon" title="Muted">🔇</span>
+                                    }
+                                    @if (!participant.HasVideo)
+                                    {
+                                        <span class="indicator-icon" title="Camera off">📷</span>
+                                    }
+                                    @if (participant.HasScreenShare)
+                                    {
+                                        <span class="indicator-icon" title="Sharing screen">🖥️</span>
+                                    }
+                                </div>
+                            </div>
+                            @if (!participant.HasVideo && !participant.HasScreenShare)
+                            {
+                                <div class="video-placeholder">
+                                    <div class="placeholder-avatar">@GetInitials(participant.DisplayName)</div>
+                                    <span class="placeholder-name">@(participant.DisplayName ?? "Unknown")</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+
+                @* Picture-in-picture local video (shown when remote participants exist) *@
+                @if (RemoteParticipants.Count > 0)
+                {
+                    <div class="video-pip" @onclick="HandlePipClick" title="Your video">
+                        <video id="local-video-pip" class="video-element video-pip-element" autoplay muted playsinline></video>
+                        @if (IsCameraOff)
+                        {
+                            <div class="pip-placeholder">
+                                <div class="placeholder-avatar placeholder-avatar-sm">@GetInitials(LocalDisplayName)</div>
+                            </div>
+                        }
+                        <span class="pip-label">You</span>
+                    </div>
+                }
+            </div>
+
+            <CallControls IsMuted="@IsMuted"
+                          IsCameraOff="@IsCameraOff"
+                          IsScreenSharing="@IsScreenSharing"
+                          ParticipantCount="@TotalParticipantCount"
+                          DurationSeconds="@DurationSeconds"
+                          ConnectionQuality="@ConnectionQuality"
+                          IsDisabled="@AreControlsDisabled"
+                          OnToggleMute="@HandleToggleMute"
+                          OnToggleCamera="@HandleToggleCamera"
+                          OnToggleScreenShare="@HandleToggleScreenShare"
+                          OnHangUp="@HandleHangUp" />
+        </div>
+    </div>
+}

@@ -43,6 +43,26 @@ public partial class ChannelHeader : ComponentBase
     [Parameter]
     public EventCallback OnInvite { get; set; }
 
+    /// <summary>Callback to start an audio call.</summary>
+    [Parameter]
+    public EventCallback OnAudioCall { get; set; }
+
+    /// <summary>Callback to start a video call.</summary>
+    [Parameter]
+    public EventCallback OnVideoCall { get; set; }
+
+    /// <summary>Callback to join an active call.</summary>
+    [Parameter]
+    public EventCallback OnJoinCall { get; set; }
+
+    /// <summary>Callback to open call history panel.</summary>
+    [Parameter]
+    public EventCallback OnCallHistory { get; set; }
+
+    /// <summary>Whether there is an active call in the channel.</summary>
+    [Parameter]
+    public bool HasActiveCall { get; set; }
+
     /// <summary>Toggles the member list panel.</summary>
     protected async Task ToggleMemberList()
     {
@@ -86,6 +106,30 @@ public partial class ChannelHeader : ComponentBase
     protected async Task OnInviteClick()
     {
         await OnInvite.InvokeAsync();
+    }
+
+    /// <summary>Handles audio call button click.</summary>
+    protected async Task OnAudioCallClick()
+    {
+        await OnAudioCall.InvokeAsync();
+    }
+
+    /// <summary>Handles video call button click.</summary>
+    protected async Task OnVideoCallClick()
+    {
+        await OnVideoCall.InvokeAsync();
+    }
+
+    /// <summary>Handles join call button click.</summary>
+    protected async Task OnJoinCallClick()
+    {
+        await OnJoinCall.InvokeAsync();
+    }
+
+    /// <summary>Handles call history button click.</summary>
+    protected async Task OnCallHistoryClick()
+    {
+        await OnCallHistory.InvokeAsync();
     }
 
     private bool _showHelp;

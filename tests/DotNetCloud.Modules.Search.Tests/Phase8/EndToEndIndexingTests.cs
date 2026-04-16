@@ -45,6 +45,28 @@ public class EndToEndIndexingTests
         };
     }
 
+    /// <summary>Creates a SearchIndexingService with proper DI scope factory.</summary>
+    private static (SearchIndexingService service, ServiceProvider sp) CreateIndexingService(
+        ISearchProvider provider,
+        IContentExtractor[]? extractors = null,
+        params ISearchableModule[] modules)
+    {
+        var services = new ServiceCollection();
+        services.AddScoped<ISearchProvider>(_ => provider);
+        foreach (var m in modules)
+            services.AddScoped<ISearchableModule>(_ => m);
+        services.AddScoped<ContentExtractionService>();
+        services.AddSingleton<IEnumerable<IContentExtractor>>(extractors ?? []);
+        services.AddLogging();
+        var sp = services.BuildServiceProvider();
+
+        var svc = new SearchIndexingService(
+            sp.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<SearchIndexingService>.Instance);
+
+        return (svc, sp);
+    }
+
     [TestMethod]
     public async Task IndexEvent_ThroughPipeline_DocumentAppersInSearch()
     {
@@ -56,9 +78,8 @@ public class EndToEndIndexingTests
         module.Setup(m => m.GetSearchableDocumentAsync("note-1", It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateDocument("notes", "note-1", "meeting notes", "discuss quarterly budget and projections"));
 
-        var extractionService = new ContentExtractionService([], NullLogger<ContentExtractionService>.Instance);
-        var indexingService = new SearchIndexingService(
-            provider, [module.Object], extractionService, NullLogger<SearchIndexingService>.Instance);
+        var (indexingService, sp) = CreateIndexingService(provider, null, module.Object);
+        using var _sp = sp;
 
         var handler = new SearchIndexRequestEventHandler(
             NullLogger<SearchIndexRequestEventHandler>.Instance, provider, indexingService);
@@ -157,9 +178,8 @@ public class EndToEndIndexingTests
         module.Setup(m => m.GetSearchableDocumentAsync("note-3", It.IsAny<CancellationToken>()))
             .ReturnsAsync(CreateDocument("notes", "note-3", "updated title", "completely new content about finances"));
 
-        var extractionService = new ContentExtractionService([], NullLogger<ContentExtractionService>.Instance);
-        var indexingService = new SearchIndexingService(
-            provider, [module.Object], extractionService, NullLogger<SearchIndexingService>.Instance);
+        var (indexingService, sp) = CreateIndexingService(provider, null, module.Object);
+        using var _sp = sp;
 
         var handler = new SearchIndexRequestEventHandler(
             NullLogger<SearchIndexRequestEventHandler>.Instance, provider, indexingService);
@@ -342,11 +362,8 @@ public class EndToEndIndexingTests
         var provider = new SqlServerSearchProvider(db, NullLogger<SqlServerSearchProvider>.Instance);
 
         var extractor = new Extractors.PlainTextExtractor();
-        var extractionService = new ContentExtractionService(
-            [extractor], NullLogger<ContentExtractionService>.Instance);
-
-        var indexingService = new SearchIndexingService(
-            provider, [], extractionService, NullLogger<SearchIndexingService>.Instance);
+        var (indexingService, sp) = CreateIndexingService(provider, [extractor]);
+        using var _sp = sp;
 
         // Simulate extracting and indexing a text file
         using var stream = new MemoryStream("Important quarterly financial report data"u8.ToArray());
@@ -365,11 +382,8 @@ public class EndToEndIndexingTests
         var provider = new SqlServerSearchProvider(db, NullLogger<SqlServerSearchProvider>.Instance);
 
         var extractor = new Extractors.MarkdownContentExtractor();
-        var extractionService = new ContentExtractionService(
-            [extractor], NullLogger<ContentExtractionService>.Instance);
-
-        var indexingService = new SearchIndexingService(
-            provider, [], extractionService, NullLogger<SearchIndexingService>.Instance);
+        var (indexingService, sp) = CreateIndexingService(provider, [extractor]);
+        using var _sp = sp;
 
         var markdown = "# Budget Report\n\n**Q4 Results:**\n\n- Revenue: $1M\n- Expenses: $800K\n\n[Link](http://example.com)";
         using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(markdown));
@@ -398,9 +412,8 @@ public class EndToEndIndexingTests
         module.Setup(m => m.GetSearchableDocumentAsync("note-5", It.IsAny<CancellationToken>()))
             .ReturnsAsync((SearchDocument?)null);
 
-        var extractionService = new ContentExtractionService([], NullLogger<ContentExtractionService>.Instance);
-        var indexingService = new SearchIndexingService(
-            provider, [module.Object], extractionService, NullLogger<SearchIndexingService>.Instance);
+        var (indexingService, sp) = CreateIndexingService(provider, null, module.Object);
+        using var _sp = sp;
 
         indexingService.Start();
         try

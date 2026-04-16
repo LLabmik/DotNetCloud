@@ -60,6 +60,35 @@ public static class ChatServiceRegistration
         services.AddSingleton<IPushNotificationService>(sp => sp.GetRequiredService<NotificationRouter>());
         services.AddHostedService<NotificationDeliveryBackgroundService>();
 
+        // Video call management
+        services.AddScoped<IVideoCallService, VideoCallService>();
+        services.AddScoped<ICallSignalingService, CallSignalingService>();
+        services.AddScoped<ICallNotificationHandler, CallNotificationEventHandler>();
+
+        // ICE server configuration (built-in STUN + optional TURN)
+        services.Configure<IceServerOptions>(configuration.GetSection(IceServerOptions.SectionName));
+        services.AddSingleton<IIceServerService, IceServerService>();
+        services.AddHostedService<StunServer>();
+
+        // LiveKit SFU integration (optional — falls back to NullLiveKitService when not configured)
+        services.Configure<LiveKitOptions>(configuration.GetSection(LiveKitOptions.SectionName));
+        services.AddHttpClient("livekit");
+        services.AddSingleton<ILiveKitService>(sp =>
+        {
+            var liveKitOptions = sp.GetRequiredService<IOptions<LiveKitOptions>>().Value;
+            if (liveKitOptions.Enabled && liveKitOptions.IsValid())
+            {
+                return new LiveKitService(
+                    sp.GetRequiredService<IOptions<LiveKitOptions>>(),
+                    sp.GetRequiredService<IHttpClientFactory>(),
+                    sp.GetRequiredService<ILogger<LiveKitService>>());
+            }
+
+            return new NullLiveKitService(
+                sp.GetRequiredService<ILogger<NullLiveKitService>>(),
+                liveKitOptions.MaxP2PParticipants);
+        });
+
         // Cross-module Tracks activity display (null-object when Tracks not installed)
         services.AddSingleton<ITracksActivitySignalRService, NullTracksActivitySignalRService>();
 

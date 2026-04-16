@@ -37,6 +37,21 @@
                     ➕ Invite
                 </button>
             }
+            <button class="btn btn-sm btn-call" @onclick="OnAudioCallClick" title="Start audio call">
+                📞 Call
+            </button>
+            <button class="btn btn-sm btn-call" @onclick="OnVideoCallClick" title="Start video call">
+                📹 Video
+            </button>
+            @if (HasActiveCall)
+            {
+                <button class="btn btn-sm btn-call-active" @onclick="OnJoinCallClick" title="Join active call">
+                    🟢 Join Call
+                </button>
+            }
+            <button class="btn btn-sm" @onclick="OnCallHistoryClick" title="View call history">
+                📋 Calls
+            </button>
             <button class="btn btn-sm" @onclick="OnSearchClick" title="Search messages in this channel">
                 🔍
             </button>
@@ -67,7 +82,11 @@
                             <dd>Change the channel name, topic, and settings.</dd>
                             <dt>🔍 Search</dt>
                             <dd>Search through messages in this channel.</dd>
-                            <dt>👤 Members</dt>
+                            <dt>� Call / 📹 Video</dt>
+                            <dd>Start an audio or video call with channel members.</dd>
+                            <dt>📋 Calls</dt>
+                            <dd>View the call history for this channel.</dd>
+                            <dt>�👤 Members</dt>
                             <dd>View who's in this channel and manage membership.</dd>
                             <dt>Leave</dt>
                             <dd>Leave this channel. You can rejoin later.</dd>

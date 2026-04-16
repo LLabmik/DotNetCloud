@@ -2,6 +2,7 @@ using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs.Search;
 using DotNetCloud.Core.Events.Search;
 using DotNetCloud.Modules.Search.Services;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
@@ -16,7 +17,7 @@ public class SearchIndexingServiceTests
     private Mock<ISearchProvider> _searchProviderMock = null!;
     private Mock<ISearchableModule> _searchableModuleMock = null!;
     private SearchIndexingService _service = null!;
-    private ContentExtractionService _extractionService = null!;
+    private ServiceProvider _sp = null!;
 
     [TestInitialize]
     public void Setup()
@@ -25,15 +26,24 @@ public class SearchIndexingServiceTests
         _searchableModuleMock = new Mock<ISearchableModule>();
         _searchableModuleMock.Setup(m => m.ModuleId).Returns("files");
 
-        _extractionService = new ContentExtractionService(
-            [],
-            NullLogger<ContentExtractionService>.Instance);
+        var services = new ServiceCollection();
+        services.AddScoped<ISearchProvider>(_ => _searchProviderMock.Object);
+        services.AddScoped<ISearchableModule>(_ => _searchableModuleMock.Object);
+        services.AddScoped<ContentExtractionService>();
+        services.AddSingleton<IEnumerable<IContentExtractor>>(Array.Empty<IContentExtractor>());
+        services.AddLogging();
+        _sp = services.BuildServiceProvider();
 
         _service = new SearchIndexingService(
-            _searchProviderMock.Object,
-            [_searchableModuleMock.Object],
-            _extractionService,
+            _sp.GetRequiredService<IServiceScopeFactory>(),
             NullLogger<SearchIndexingService>.Instance);
+    }
+
+    [TestCleanup]
+    public void Cleanup()
+    {
+        _service.Dispose();
+        _sp.Dispose();
     }
 
     [TestMethod]

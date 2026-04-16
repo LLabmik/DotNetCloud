@@ -84,6 +84,37 @@ public partial class ChatPageLayout : ComponentBase, IDisposable
     private string? _inviteSuccessMessage;
     private bool _isInviting;
 
+    // Video call state
+    private bool _showVideoCallDialog;
+    private bool _showIncomingCall;
+    private bool _showCallHistoryPanel;
+#pragma warning disable CS0649 // Assigned via real-time events (SignalR callbacks to be wired in Phase 7.9+)
+    private bool _hasActiveCall;
+#pragma warning restore CS0649
+    private string _currentCallState = string.Empty;
+    private string _currentUserDisplayName = string.Empty;
+    private List<CallParticipantDto> _remoteParticipants = [];
+    private bool _isCallMuted;
+    private bool _isCallCameraOff;
+    private bool _isCallScreenSharing;
+    private int _callDurationSeconds;
+#pragma warning disable CS0649 // Assigned via real-time events (SignalR callbacks to be wired in Phase 7.9+)
+    private string? _callConnectionQuality;
+#pragma warning restore CS0649
+    private string _incomingCallerName = string.Empty;
+    private string _incomingCallChannelName = string.Empty;
+    private string _incomingCallMediaType = "Audio";
+#pragma warning disable CS0649 // Assigned via real-time events (SignalR callbacks to be wired in Phase 7.9+)
+    private int _incomingCallRemainingSeconds;
+    private bool _isIncomingCallRinging;
+#pragma warning restore CS0649
+    private List<CallHistoryDto> _callHistory = [];
+#pragma warning disable CS0649 // Assigned via real-time events (SignalR callbacks to be wired in Phase 7.9+)
+    private bool _isLoadingCallHistory;
+    private bool _isLoadingMoreCallHistory;
+    private bool _hasMoreCallHistory;
+#pragma warning restore CS0649
+
     // User state
     private Guid _currentUserId;
     private string _currentUserRole = "Member";
@@ -1055,6 +1086,122 @@ public partial class ChatPageLayout : ComponentBase, IDisposable
         {
             _avatarUrlCache[id] = url;
         }
+    }
+
+    // ── Video Call Operations ───────────────────────────────────────
+
+    private Task HandleStartAudioCall()
+    {
+        _showVideoCallDialog = true;
+        _currentCallState = "Ringing";
+        _isCallCameraOff = true;
+        _remoteParticipants = [];
+        return Task.CompletedTask;
+    }
+
+    private Task HandleStartVideoCall()
+    {
+        _showVideoCallDialog = true;
+        _currentCallState = "Ringing";
+        _isCallCameraOff = false;
+        _remoteParticipants = [];
+        return Task.CompletedTask;
+    }
+
+    private Task HandleJoinActiveCall()
+    {
+        _showVideoCallDialog = true;
+        _currentCallState = "Connecting";
+        return Task.CompletedTask;
+    }
+
+    private Task HandleCallToggleMute(bool muted)
+    {
+        _isCallMuted = muted;
+        return Task.CompletedTask;
+    }
+
+    private Task HandleCallToggleCamera(bool cameraOff)
+    {
+        _isCallCameraOff = cameraOff;
+        return Task.CompletedTask;
+    }
+
+    private Task HandleCallToggleScreenShare(bool sharing)
+    {
+        _isCallScreenSharing = sharing;
+        return Task.CompletedTask;
+    }
+
+    private Task HandleCallHangUp()
+    {
+        _showVideoCallDialog = false;
+        _currentCallState = "Ended";
+        _remoteParticipants = [];
+        _callDurationSeconds = 0;
+        return Task.CompletedTask;
+    }
+
+    private Task HandleCallMinimize()
+    {
+        _showVideoCallDialog = false;
+        return Task.CompletedTask;
+    }
+
+    private Task HandleCallPipClick()
+    {
+        return Task.CompletedTask;
+    }
+
+    private Task HandleAcceptCallVideo()
+    {
+        _showIncomingCall = false;
+        _showVideoCallDialog = true;
+        _currentCallState = "Connecting";
+        _isCallCameraOff = false;
+        return Task.CompletedTask;
+    }
+
+    private Task HandleAcceptCallAudio()
+    {
+        _showIncomingCall = false;
+        _showVideoCallDialog = true;
+        _currentCallState = "Connecting";
+        _isCallCameraOff = true;
+        return Task.CompletedTask;
+    }
+
+    private Task HandleRejectCall()
+    {
+        _showIncomingCall = false;
+        return Task.CompletedTask;
+    }
+
+    private Task HandleToggleCallHistory()
+    {
+        _showCallHistoryPanel = !_showCallHistoryPanel;
+        return Task.CompletedTask;
+    }
+
+    private Task HandleCloseCallHistory()
+    {
+        _showCallHistoryPanel = false;
+        return Task.CompletedTask;
+    }
+
+    private Task HandleLoadMoreCallHistory()
+    {
+        return Task.CompletedTask;
+    }
+
+    private Task HandleCallBack(string mediaType)
+    {
+        if (mediaType == "Video")
+        {
+            return HandleStartVideoCall();
+        }
+
+        return HandleStartAudioCall();
     }
 
     private MessageViewModel ToMessageViewModel(MessageDto dto)

@@ -4265,6 +4265,110 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 
 ---
 
+## Phase 7: Video Calling & Screen Sharing
+
+### Phase 7.1 — Architecture & Contracts
+
+#### Enums
+- ✓ `VideoCallState` enum (`Ringing`, `Connecting`, `Active`, `OnHold`, `Ended`, `Missed`, `Rejected`, `Failed`)
+- ✓ `VideoCallEndReason` enum (`Normal`, `Rejected`, `Missed`, `TimedOut`, `Failed`, `Cancelled`)
+- ✓ `CallParticipantRole` enum (`Initiator`, `Participant`)
+- ✓ `CallMediaType` enum (`Audio`, `Video`, `ScreenShare`)
+
+#### DTOs
+- ✓ `VideoCallDto` — response DTO for video calls
+- ✓ `CallParticipantDto` — response DTO for call participants
+- ✓ `CallSignalDto` — WebRTC signaling data (SDP offer/answer/ICE)
+- ✓ `StartCallRequest` — request DTO for initiating calls
+- ✓ `JoinCallRequest` — request DTO for joining calls
+- ✓ `CallHistoryDto` — response DTO for call history entries
+
+#### Events
+- ✓ `VideoCallInitiatedEvent`
+- ✓ `VideoCallAnsweredEvent`
+- ✓ `VideoCallEndedEvent`
+- ✓ `VideoCallMissedEvent`
+- ✓ `ParticipantJoinedCallEvent`
+- ✓ `ParticipantLeftCallEvent`
+- ✓ `ScreenShareStartedEvent`
+- ✓ `ScreenShareEndedEvent`
+
+#### Service Interfaces
+- ✓ `IVideoCallService` — call lifecycle management
+- ✓ `ICallSignalingService` — WebRTC signaling operations
+
+#### Module Manifest
+- ✓ `ChatModuleManifest.cs` — added 8 video call published events
+
+### Phase 7.2 — Data Model & Migration
+- ✓ `VideoCall` entity
+- ✓ `CallParticipant` entity
+- ✓ EF configurations (`VideoCallConfiguration.cs`, `CallParticipantConfiguration.cs`)
+- ✓ `ChatDbContext` — add `DbSet<VideoCall>` and `DbSet<CallParticipant>`
+- ✓ EF migration: `AddVideoCalling`
+- ✓ Soft-delete support on `VideoCall`
+
+### Phase 7.3 — Call Management Service
+- ✓ `VideoCallService` implementation
+- ✓ Call timeout background task (30s ring timeout)
+- ✓ `CallStateValidator` — state machine enforcement
+- ✓ Service registration in `ChatServiceRegistration.cs`
+
+### Phase 7.4 — WebRTC Signaling over SignalR
+- ✓ Extend `CoreHub.cs` with call signaling methods
+- ✓ Call-scoped SignalR groups (`call-{callId}`)
+- ✓ `CallSignalingService` implementation
+- ✓ Input validation (SDP max 64KB, ICE candidate max 4KB)
+
+### Phase 7.5 — Client-Side WebRTC Engine (JS Interop)
+- ✓ `video-call.js` — browser WebRTC API interop
+- ✓ P2P mesh topology for 2-3 participants
+- ✓ STUN/TURN configuration from server
+- ✓ Adaptive bitrate
+
+### Phase 7.6 — Blazor UI Components
+- ✓ `VideoCallDialog.razor` — main call window
+- ✓ `CallControls.razor` — bottom toolbar
+- ✓ `IncomingCallNotification.razor` — incoming call toast
+- ✓ `CallHistoryPanel.razor` — call log in channel sidebar
+- ✓ Extend `ChannelHeader.razor` with call buttons
+- ✓ Scoped CSS for all components
+
+### Phase 7.7 — LiveKit Integration (Optional SFU)
+- ✓ `ILiveKitService` interface
+- ✓ `LiveKitService` implementation
+- ✓ `NullLiveKitService` — graceful degradation
+- ✓ Auto-escalation for 4+ participants
+
+### Phase 7.8 — STUN/TURN Configuration
+- ✓ `IceServerOptions` configuration class
+- ✓ Built-in STUN server (RFC 5389, UDP, dual-stack)
+- ✓ `IIceServerService` + `IceServerService` implementation
+- ✓ API endpoint: `GET /api/v1/chat/ice-servers`
+- ✓ Ephemeral TURN credentials (HMAC-SHA1, coturn-compatible)
+
+### Phase 7.9 — REST API & gRPC Updates
+- ✓ REST API endpoints for call lifecycle
+- ✓ gRPC service updates to `chat_service.proto`
+- ✓ Authorization and rate limiting
+
+### Phase 7.10 — Push Notifications for Calls
+- ✓ Incoming call push notification (high-priority)
+- ✓ Missed call notification
+- ✓ Call-ended notification for disconnected participants
+- ✓ Extend `NotificationRouter.cs` — bypass online presence suppression for IncomingCall
+- ✓ New notification categories: `IncomingCall`, `MissedCall`, `CallEnded`
+- ✓ `CallNotificationEventHandler` event handler with `ICallNotificationHandler` interface
+- ✓ DI registration and event bus subscription in `ChatModule`
+- ✓ Comprehensive tests (37 tests)
+
+### Phase 7.11 — Testing & Documentation
+- ✓ Unit tests (120+ new tests)
+- ✓ Integration tests
+- ✓ Admin guide and user documentation
+
+---
+
 ## Phase 11: Auto-Updates
 
 ### Phase A: Core Update Infrastructure (Server-Side)

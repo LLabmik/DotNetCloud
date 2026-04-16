@@ -2,6 +2,7 @@ using System.Threading.Channels;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs.Search;
 using DotNetCloud.Core.Events.Search;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Modules.Search.Services;
@@ -13,9 +14,7 @@ namespace DotNetCloud.Modules.Search.Services;
 /// </summary>
 public sealed class SearchIndexingService : IDisposable
 {
-    private readonly ISearchProvider _searchProvider;
-    private readonly IEnumerable<ISearchableModule> _searchableModules;
-    private readonly ContentExtractionService _extractionService;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<SearchIndexingService> _logger;
     private readonly Channel<SearchIndexRequestEvent> _channel;
     private CancellationTokenSource? _cts;
@@ -25,14 +24,10 @@ public sealed class SearchIndexingService : IDisposable
 
     /// <summary>Initializes a new instance of the <see cref="SearchIndexingService"/> class.</summary>
     public SearchIndexingService(
-        ISearchProvider searchProvider,
-        IEnumerable<ISearchableModule> searchableModules,
-        ContentExtractionService extractionService,
+        IServiceScopeFactory scopeFactory,
         ILogger<SearchIndexingService> logger)
     {
-        _searchProvider = searchProvider;
-        _searchableModules = searchableModules;
-        _extractionService = extractionService;
+        _scopeFactory = scopeFactory;
         _logger = logger;
         _channel = Channel.CreateBounded<SearchIndexRequestEvent>(new BoundedChannelOptions(1000)
         {
@@ -113,15 +108,20 @@ public sealed class SearchIndexingService : IDisposable
 
     private async Task ProcessRequestAsync(SearchIndexRequestEvent request, CancellationToken cancellationToken)
     {
+        using var scope = _scopeFactory.CreateScope();
+        var searchProvider = scope.ServiceProvider.GetRequiredService<ISearchProvider>();
+        var searchableModules = scope.ServiceProvider.GetServices<ISearchableModule>();
+        var extractionService = scope.ServiceProvider.GetRequiredService<ContentExtractionService>();
+
         if (request.Action == SearchIndexAction.Remove)
         {
-            await _searchProvider.RemoveDocumentAsync(request.ModuleId, request.EntityId, cancellationToken);
+            await searchProvider.RemoveDocumentAsync(request.ModuleId, request.EntityId, cancellationToken);
             _logger.LogDebug("Removed {ModuleId}/{EntityId} from index", request.ModuleId, request.EntityId);
             return;
         }
 
         // Find the module that owns this entity
-        var module = _searchableModules.FirstOrDefault(m => m.ModuleId == request.ModuleId);
+        var module = searchableModules.FirstOrDefault(m => m.ModuleId == request.ModuleId);
         if (module is null)
         {
             _logger.LogWarning("No searchable module found for {ModuleId}", request.ModuleId);
@@ -133,16 +133,16 @@ public sealed class SearchIndexingService : IDisposable
         if (document is null)
         {
             // Entity no longer exists — remove from index
-            await _searchProvider.RemoveDocumentAsync(request.ModuleId, request.EntityId, cancellationToken);
+            await searchProvider.RemoveDocumentAsync(request.ModuleId, request.EntityId, cancellationToken);
             _logger.LogDebug("Entity {ModuleId}/{EntityId} no longer exists, removed from index",
                 request.ModuleId, request.EntityId);
             return;
         }
 
         // For file-type documents, attempt content extraction if MIME type is available
-        var enrichedDocument = await TryEnrichWithContentExtraction(document, cancellationToken);
+        var enrichedDocument = await TryEnrichWithContentExtraction(document, extractionService, cancellationToken);
 
-        await _searchProvider.IndexDocumentAsync(enrichedDocument, cancellationToken);
+        await searchProvider.IndexDocumentAsync(enrichedDocument, cancellationToken);
         _logger.LogDebug("Indexed {ModuleId}/{EntityId}", request.ModuleId, request.EntityId);
     }
 
@@ -151,7 +151,7 @@ public sealed class SearchIndexingService : IDisposable
     /// indicates extractable content and the document content is empty or minimal.
     /// </summary>
     internal async Task<SearchDocument> TryEnrichWithContentExtraction(
-        SearchDocument document, CancellationToken cancellationToken)
+        SearchDocument document, ContentExtractionService extractionService, CancellationToken cancellationToken)
     {
         // Only attempt content extraction if MimeType metadata is present and supported
         if (!document.Metadata.TryGetValue("MimeType", out var mimeType) &&
@@ -160,7 +160,7 @@ public sealed class SearchIndexingService : IDisposable
             return document;
         }
 
-        if (string.IsNullOrWhiteSpace(mimeType) || !_extractionService.CanExtract(mimeType))
+        if (string.IsNullOrWhiteSpace(mimeType) || !extractionService.CanExtract(mimeType))
         {
             return document;
         }
@@ -190,7 +190,9 @@ public sealed class SearchIndexingService : IDisposable
     public async Task<SearchDocument> EnrichDocumentFromStreamAsync(
         SearchDocument document, Stream fileStream, string mimeType, CancellationToken cancellationToken = default)
     {
-        var extracted = await _extractionService.ExtractAsync(fileStream, mimeType, cancellationToken);
+        using var scope = _scopeFactory.CreateScope();
+        var extractionService = scope.ServiceProvider.GetRequiredService<ContentExtractionService>();
+        var extracted = await extractionService.ExtractAsync(fileStream, mimeType, cancellationToken);
         if (extracted is null)
         {
             return document;

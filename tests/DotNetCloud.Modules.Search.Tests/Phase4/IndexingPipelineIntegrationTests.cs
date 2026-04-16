@@ -65,14 +65,18 @@ public class IndexingPipelineIntegrationTests
                 CreateDoc("notes", "n2", "Note", "Personal Notes", "Shopping list and reminders")
             });
 
-        var extractionService = new ContentExtractionService(
-            [],
-            NullLogger<ContentExtractionService>.Instance);
+        var services = new ServiceCollection();
+        services.AddDbContext<SearchDbContext>(o => o.UseInMemoryDatabase(Guid.NewGuid().ToString()));
+        services.AddScoped<ISearchProvider>(_ => _provider);
+        services.AddScoped<ISearchableModule>(_ => _filesModuleMock.Object);
+        services.AddScoped<ISearchableModule>(_ => _notesModuleMock.Object);
+        services.AddScoped<ContentExtractionService>();
+        services.AddSingleton<IEnumerable<IContentExtractor>>(Array.Empty<IContentExtractor>());
+        services.AddLogging();
+        var sp = services.BuildServiceProvider();
 
         _indexingService = new SearchIndexingService(
-            _provider,
-            [_filesModuleMock.Object, _notesModuleMock.Object],
-            extractionService,
+            sp.GetRequiredService<IServiceScopeFactory>(),
             NullLogger<SearchIndexingService>.Instance);
 
         _queryService = new SearchQueryService(

@@ -68,13 +68,21 @@ public class ChatModuleManifestTests
         var events = _manifest.PublishedEvents;
 
         Assert.IsNotNull(events);
-        Assert.AreEqual(6, events.Count);
+        Assert.AreEqual(14, events.Count);
         CollectionAssert.Contains(events.ToList(), nameof(MessageSentEvent));
         CollectionAssert.Contains(events.ToList(), nameof(ChannelCreatedEvent));
         CollectionAssert.Contains(events.ToList(), nameof(ChannelDeletedEvent));
         CollectionAssert.Contains(events.ToList(), nameof(UserJoinedChannelEvent));
         CollectionAssert.Contains(events.ToList(), nameof(UserLeftChannelEvent));
         CollectionAssert.Contains(events.ToList(), nameof(PresenceChangedEvent));
+        CollectionAssert.Contains(events.ToList(), nameof(VideoCallInitiatedEvent));
+        CollectionAssert.Contains(events.ToList(), nameof(VideoCallAnsweredEvent));
+        CollectionAssert.Contains(events.ToList(), nameof(VideoCallEndedEvent));
+        CollectionAssert.Contains(events.ToList(), nameof(VideoCallMissedEvent));
+        CollectionAssert.Contains(events.ToList(), nameof(ParticipantJoinedCallEvent));
+        CollectionAssert.Contains(events.ToList(), nameof(ParticipantLeftCallEvent));
+        CollectionAssert.Contains(events.ToList(), nameof(ScreenShareStartedEvent));
+        CollectionAssert.Contains(events.ToList(), nameof(ScreenShareEndedEvent));
     }
 
     [TestMethod]

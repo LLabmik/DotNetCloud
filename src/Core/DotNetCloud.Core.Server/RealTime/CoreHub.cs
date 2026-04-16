@@ -28,6 +28,7 @@ internal sealed class CoreHub : Hub
     private readonly IReactionService? _reactionService;
     private readonly ITypingIndicatorService? _typingIndicatorService;
     private readonly IChatRealtimeService? _chatRealtimeService;
+    private readonly ICallSignalingService? _callSignalingService;
     private readonly IEventBus? _eventBus;
     private readonly ILogger<CoreHub> _logger;
 
@@ -40,6 +41,7 @@ internal sealed class CoreHub : Hub
         ITypingIndicatorService? typingIndicatorService,
         IChatRealtimeService? chatRealtimeService,
         ILogger<CoreHub> logger,
+        ICallSignalingService? callSignalingService = null,
         IEventBus? eventBus = null)
     {
         _connectionTracker = connectionTracker;
@@ -49,6 +51,7 @@ internal sealed class CoreHub : Hub
         _reactionService = reactionService;
         _typingIndicatorService = typingIndicatorService;
         _chatRealtimeService = chatRealtimeService;
+        _callSignalingService = callSignalingService;
         _eventBus = eventBus;
         _logger = logger;
     }
@@ -439,6 +442,126 @@ internal sealed class CoreHub : Hub
         }
     }
 
+    // ── Video Call Signaling ────────────────────────────────────────────
+
+    /// <summary>
+    /// Relays an SDP offer to a target participant for WebRTC peer connection establishment.
+    /// </summary>
+    /// <param name="callId">The video call ID.</param>
+    /// <param name="targetUserId">The user to send the offer to.</param>
+    /// <param name="sdpOffer">The SDP offer payload.</param>
+    public async Task SendCallOfferAsync(Guid callId, Guid targetUserId, string sdpOffer)
+    {
+        EnsureCallSignalingAvailable();
+
+        try
+        {
+            var caller = CreateUserCaller();
+            await _callSignalingService!.SendOfferAsync(
+                callId, targetUserId, sdpOffer, caller, Context.ConnectionAborted);
+        }
+        catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
+        {
+            throw hubException;
+        }
+    }
+
+    /// <summary>
+    /// Relays an SDP answer back to the caller who sent the offer.
+    /// </summary>
+    /// <param name="callId">The video call ID.</param>
+    /// <param name="targetUserId">The user to send the answer to.</param>
+    /// <param name="sdpAnswer">The SDP answer payload.</param>
+    public async Task SendCallAnswerAsync(Guid callId, Guid targetUserId, string sdpAnswer)
+    {
+        EnsureCallSignalingAvailable();
+
+        try
+        {
+            var caller = CreateUserCaller();
+            await _callSignalingService!.SendAnswerAsync(
+                callId, targetUserId, sdpAnswer, caller, Context.ConnectionAborted);
+        }
+        catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
+        {
+            throw hubException;
+        }
+    }
+
+    /// <summary>
+    /// Relays an ICE candidate to a target participant for NAT traversal.
+    /// </summary>
+    /// <param name="callId">The video call ID.</param>
+    /// <param name="targetUserId">The user to send the candidate to.</param>
+    /// <param name="candidate">The ICE candidate payload.</param>
+    public async Task SendIceCandidateAsync(Guid callId, Guid targetUserId, string candidate)
+    {
+        EnsureCallSignalingAvailable();
+
+        try
+        {
+            var caller = CreateUserCaller();
+            await _callSignalingService!.SendIceCandidateAsync(
+                callId, targetUserId, candidate, caller, Context.ConnectionAborted);
+        }
+        catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
+        {
+            throw hubException;
+        }
+    }
+
+    /// <summary>
+    /// Notifies call participants of a media state change (mute/unmute, camera on/off, screen share).
+    /// </summary>
+    /// <param name="callId">The video call ID.</param>
+    /// <param name="mediaType">The media type that changed (Audio, Video, ScreenShare).</param>
+    /// <param name="enabled">Whether the media is now enabled.</param>
+    public async Task SendMediaStateChangeAsync(Guid callId, string mediaType, bool enabled)
+    {
+        EnsureCallSignalingAvailable();
+
+        try
+        {
+            var caller = CreateUserCaller();
+            await _callSignalingService!.SendMediaStateChangeAsync(
+                callId, mediaType, enabled, caller, Context.ConnectionAborted);
+        }
+        catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
+        {
+            throw hubException;
+        }
+    }
+
+    /// <summary>
+    /// Joins the caller's connection to a call-scoped SignalR group for receiving broadcast signals.
+    /// </summary>
+    /// <param name="callId">The video call ID.</param>
+    public async Task JoinCallGroupAsync(Guid callId)
+    {
+        var groupName = $"call-{callId}";
+        await Groups.AddToGroupAsync(Context.ConnectionId, groupName);
+        _connectionTracker.AddGroupMembership(GetUserId(), groupName);
+
+        _logger.LogDebug(
+            "User {UserId} joined call group {Group} via connection {ConnectionId}",
+            GetUserId(), groupName, Context.ConnectionId);
+    }
+
+    /// <summary>
+    /// Removes the caller's connection from a call-scoped SignalR group.
+    /// </summary>
+    /// <param name="callId">The video call ID.</param>
+    public async Task LeaveCallGroupAsync(Guid callId)
+    {
+        var groupName = $"call-{callId}";
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
+        _connectionTracker.RemoveGroupMembership(GetUserId(), groupName);
+
+        _logger.LogDebug(
+            "User {UserId} left call group {Group} via connection {ConnectionId}",
+            GetUserId(), groupName, Context.ConnectionId);
+    }
+
     private Guid GetUserId()
     {
         var nameIdentifier = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value
@@ -490,6 +613,14 @@ internal sealed class CoreHub : Hub
             || _chatRealtimeService is null)
         {
             throw new HubException("Chat services are not available.");
+        }
+    }
+
+    private void EnsureCallSignalingAvailable()
+    {
+        if (_callSignalingService is null)
+        {
+            throw new HubException("Call signaling services are not available.");
         }
     }
 }

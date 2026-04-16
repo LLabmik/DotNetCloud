@@ -2,6 +2,7 @@ using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Events.Search;
 using DotNetCloud.Modules.Search.Events;
 using DotNetCloud.Modules.Search.Services;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
@@ -15,19 +16,24 @@ namespace DotNetCloud.Modules.Search.Tests.Phase4;
 public class SearchIndexRequestEventHandlerPhase4Tests
 {
     private Mock<ISearchProvider> _searchProviderMock = null!;
-    private Mock<SearchIndexingService> _indexingServiceMock = null!;
     private SearchIndexingService _realIndexingService = null!;
     private SearchIndexRequestEventHandler _handler = null!;
+    private ServiceProvider _sp = null!;
 
     [TestInitialize]
     public void Setup()
     {
         _searchProviderMock = new Mock<ISearchProvider>();
 
+        var services = new ServiceCollection();
+        services.AddScoped<ISearchProvider>(_ => _searchProviderMock.Object);
+        services.AddScoped<ContentExtractionService>();
+        services.AddSingleton<IEnumerable<IContentExtractor>>(Array.Empty<IContentExtractor>());
+        services.AddLogging();
+        _sp = services.BuildServiceProvider();
+
         _realIndexingService = new SearchIndexingService(
-            _searchProviderMock.Object,
-            [],
-            new ContentExtractionService([], NullLogger<ContentExtractionService>.Instance),
+            _sp.GetRequiredService<IServiceScopeFactory>(),
             NullLogger<SearchIndexingService>.Instance);
     }
 
@@ -35,6 +41,7 @@ public class SearchIndexRequestEventHandlerPhase4Tests
     public void Cleanup()
     {
         _realIndexingService.Dispose();
+        _sp.Dispose();
     }
 
     [TestMethod]
