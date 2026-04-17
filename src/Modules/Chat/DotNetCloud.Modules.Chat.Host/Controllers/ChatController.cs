@@ -1068,6 +1068,29 @@ public class ChatController : ChatControllerBase
         }
     }
 
+    /// <summary>Transfers the host role of an active call to another participant. Only the current Host can transfer.</summary>
+    [HttpPost("calls/{callId:guid}/transfer-host")]
+    public async Task<IActionResult> TransferHostAsync(Guid callId, [FromBody] TransferHostRequest request)
+    {
+        try
+        {
+            await _videoCallService.TransferHostAsync(callId, request.UserId, GetAuthenticatedCaller());
+            return Ok(Envelope(new { transferred = true }));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ErrorEnvelope("VALIDATION_ERROR", ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ErrorEnvelope("TRANSFER_ERROR", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
     /// <summary>Gets paginated call history for a channel.</summary>
     [HttpGet("channels/{channelId:guid}/calls")]
     public async Task<IActionResult> GetCallHistoryAsync(

@@ -337,6 +337,11 @@ internal sealed class VideoCallService : IVideoCallService
         {
             await EndCallInternalAsync(call, VideoCallEndReason.Normal, caller, cancellationToken);
         }
+        else if (remainingActive > 0 && call.HostUserId == caller.UserId && !CallStateValidator.IsTerminalState(call.State))
+        {
+            // Auto-transfer host to the longest-active remaining participant
+            await AutoTransferHostAsync(call, caller, cancellationToken);
+        }
     }
 
     /// <inheritdoc />
@@ -354,6 +359,12 @@ internal sealed class VideoCallService : IVideoCallService
         if (CallStateValidator.IsTerminalState(call.State))
         {
             throw new InvalidOperationException($"Call is already in terminal state {call.State}.");
+        }
+
+        // Only the Host can end a call for all participants
+        if (call.HostUserId != caller.UserId)
+        {
+            throw new UnauthorizedAccessException("Only the call Host can end the call for all participants. Use LeaveCallAsync to leave.");
         }
 
         // Mark all active participants as left
@@ -708,6 +719,95 @@ internal sealed class VideoCallService : IVideoCallService
             caller.UserId, targetUserId, callId, call.ChannelId);
     }
 
+    /// <inheritdoc />
+    public async Task TransferHostAsync(
+        Guid callId,
+        Guid newHostUserId,
+        CallerContext caller,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+
+        var call = await _db.VideoCalls
+            .FirstOrDefaultAsync(vc => vc.Id == callId, cancellationToken)
+            ?? throw new InvalidOperationException($"Video call {callId} not found.");
+
+        // Only active or connecting calls allow host transfer
+        if (call.State != VideoCallState.Active && call.State != VideoCallState.Connecting)
+        {
+            throw new InvalidOperationException(
+                $"Cannot transfer host for a call in state {call.State}. Call must be Active or Connecting.");
+        }
+
+        // Only the current Host can transfer
+        if (call.HostUserId != caller.UserId)
+        {
+            throw new UnauthorizedAccessException("Only the current call Host can transfer host role.");
+        }
+
+        // Cannot transfer to yourself
+        if (newHostUserId == caller.UserId)
+        {
+            throw new ArgumentException("Cannot transfer host role to yourself.", nameof(newHostUserId));
+        }
+
+        // Validate target is an active participant (joined, not left)
+        var newHostParticipant = await _db.CallParticipants
+            .FirstOrDefaultAsync(cp => cp.VideoCallId == callId
+                && cp.UserId == newHostUserId
+                && cp.LeftAtUtc == null
+                && cp.State == ParticipantState.Joined,
+                cancellationToken)
+            ?? throw new InvalidOperationException("Target user is not an active participant in this call.");
+
+        // Find old host participant record
+        var oldHostParticipant = await _db.CallParticipants
+            .FirstOrDefaultAsync(cp => cp.VideoCallId == callId
+                && cp.UserId == caller.UserId
+                && cp.LeftAtUtc == null,
+                cancellationToken);
+
+        var previousHostUserId = call.HostUserId;
+
+        // Update call host
+        call.HostUserId = newHostUserId;
+
+        // Update participant roles
+        if (oldHostParticipant is not null)
+        {
+            oldHostParticipant.Role = CallParticipantRole.Participant;
+        }
+        newHostParticipant.Role = CallParticipantRole.Host;
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        // Publish domain event
+        await _eventBus.PublishAsync(new CallHostTransferredEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            CallId = callId,
+            ChannelId = call.ChannelId,
+            PreviousHostUserId = previousHostUserId,
+            NewHostUserId = newHostUserId
+        }, caller, cancellationToken);
+
+        // Broadcast to all channel members via SignalR
+        if (_realtimeService is not null)
+        {
+            await _realtimeService.BroadcastHostTransferredAsync(
+                call.ChannelId, callId, previousHostUserId, newHostUserId, cancellationToken);
+        }
+
+        // Notify in-process Blazor circuits
+        _messageNotifier?.NotifyCallHostTransferred(new CallHostTransferredNotification(
+            callId, call.ChannelId, previousHostUserId, newHostUserId));
+
+        _logger.LogInformation(
+            "Host transferred for call {CallId}: {PreviousHost} → {NewHost}",
+            callId, previousHostUserId, newHostUserId);
+    }
+
     /// <summary>
     /// Handles ring timeout: transitions ringing calls older than <see cref="RingTimeoutSeconds"/> to Missed.
     /// Called by a background timer or hosted service.
@@ -770,6 +870,57 @@ internal sealed class VideoCallService : IVideoCallService
         }
 
         return timedOutCalls.Count;
+    }
+
+    private async Task AutoTransferHostAsync(
+        VideoCall call,
+        CallerContext caller,
+        CancellationToken cancellationToken)
+    {
+        // Find the remaining participant with the earliest JoinedAtUtc
+        var newHost = await _db.CallParticipants
+            .Where(cp => cp.VideoCallId == call.Id
+                && cp.LeftAtUtc == null
+                && cp.State == ParticipantState.Joined)
+            .OrderBy(cp => cp.JoinedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (newHost is null)
+        {
+            return;
+        }
+
+        var previousHostUserId = call.HostUserId;
+        call.HostUserId = newHost.UserId;
+        newHost.Role = CallParticipantRole.Host;
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        // Publish domain event
+        await _eventBus.PublishAsync(new CallHostTransferredEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            CallId = call.Id,
+            ChannelId = call.ChannelId,
+            PreviousHostUserId = previousHostUserId,
+            NewHostUserId = newHost.UserId
+        }, caller, cancellationToken);
+
+        // Broadcast via SignalR
+        if (_realtimeService is not null)
+        {
+            await _realtimeService.BroadcastHostTransferredAsync(
+                call.ChannelId, call.Id, previousHostUserId, newHost.UserId, cancellationToken);
+        }
+
+        // Notify in-process Blazor circuits
+        _messageNotifier?.NotifyCallHostTransferred(new CallHostTransferredNotification(
+            call.Id, call.ChannelId, previousHostUserId, newHost.UserId));
+
+        _logger.LogInformation(
+            "Auto-transferred host for call {CallId}: {PreviousHost} → {NewHost} (host left)",
+            call.Id, previousHostUserId, newHost.UserId);
     }
 
     private async Task EndCallInternalAsync(

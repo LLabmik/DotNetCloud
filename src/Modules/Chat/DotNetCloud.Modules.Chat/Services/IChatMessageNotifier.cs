@@ -43,6 +43,16 @@ public sealed record CallInviteReceivedNotification(
     int ParticipantCount);
 
 /// <summary>
+/// Payload for a host transfer notification raised via <see cref="IChatMessageNotifier"/>.
+/// Notifies all call participants that the host role has changed.
+/// </summary>
+public sealed record CallHostTransferredNotification(
+    Guid CallId,
+    Guid ChannelId,
+    Guid PreviousHostUserId,
+    Guid NewHostUserId);
+
+/// <summary>
 /// Payload for a WebRTC signaling message (offer, answer, or ICE candidate) relayed in-process.
 /// </summary>
 public sealed record CallSignalNotification(
@@ -83,6 +93,9 @@ public interface IChatMessageNotifier
     /// <summary>Raised when a user is invited to join an ongoing call.</summary>
     event Action<CallInviteReceivedNotification>? CallInviteReceived;
 
+    /// <summary>Raised when the host of a call is transferred to another participant.</summary>
+    event Action<CallHostTransferredNotification>? CallHostTransferred;
+
     /// <summary>Notifies all subscribers that a new message was sent.</summary>
     void NotifyMessageReceived(Guid channelId, MessageDto message);
 
@@ -106,6 +119,9 @@ public interface IChatMessageNotifier
 
     /// <summary>Notifies all subscribers that a user has been invited to join an ongoing call.</summary>
     void NotifyCallInviteReceived(CallInviteReceivedNotification notification);
+
+    /// <summary>Notifies all subscribers that the host of a call has been transferred.</summary>
+    void NotifyCallHostTransferred(CallHostTransferredNotification notification);
 }
 
 /// <summary>
@@ -139,6 +155,9 @@ public sealed class InProcessChatMessageNotifier : IChatMessageNotifier
     public event Action<CallInviteReceivedNotification>? CallInviteReceived;
 
     /// <inheritdoc />
+    public event Action<CallHostTransferredNotification>? CallHostTransferred;
+
+    /// <inheritdoc />
     public void NotifyMessageReceived(Guid channelId, MessageDto message)
         => MessageReceived?.Invoke(channelId, message);
 
@@ -169,4 +188,8 @@ public sealed class InProcessChatMessageNotifier : IChatMessageNotifier
     /// <inheritdoc />
     public void NotifyCallInviteReceived(CallInviteReceivedNotification notification)
         => CallInviteReceived?.Invoke(notification);
+
+    /// <inheritdoc />
+    public void NotifyCallHostTransferred(CallHostTransferredNotification notification)
+        => CallHostTransferred?.Invoke(notification);
 }

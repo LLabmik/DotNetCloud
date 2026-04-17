@@ -54,6 +54,14 @@ public interface IChatRealtimeService
         int participantCount,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Broadcasts a host transfer notification to all members of a channel.</summary>
+    Task BroadcastHostTransferredAsync(
+        Guid channelId,
+        Guid callId,
+        Guid previousHostUserId,
+        Guid newHostUserId,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Adds a user to a channel's broadcast group.</summary>
     Task AddUserToChannelGroupAsync(Guid userId, Guid channelId, CancellationToken cancellationToken = default);
 
@@ -186,6 +194,23 @@ internal sealed class ChatRealtimeService : IChatRealtimeService
     {
         if (_broadcaster is null) return;
         await _broadcaster.AddToGroupAsync(userId, ChannelGroup(channelId), cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task BroadcastHostTransferredAsync(
+        Guid channelId,
+        Guid callId,
+        Guid previousHostUserId,
+        Guid newHostUserId,
+        CancellationToken cancellationToken)
+    {
+        if (_broadcaster is null) return;
+        await _broadcaster.BroadcastAsync(ChannelGroup(channelId), "HostTransferred", new
+        {
+            callId,
+            previousHostUserId,
+            newHostUserId
+        }, cancellationToken);
     }
 
     /// <inheritdoc />

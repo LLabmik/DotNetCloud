@@ -86,4 +86,15 @@ public interface IVideoCallService
     /// <param name="caller">The caller context (must be the call Host).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task InviteToCallAsync(Guid callId, Guid targetUserId, CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Transfers the host role of an active call to another participant. Only the current
+    /// host may transfer. The previous host becomes a regular participant and the new host
+    /// gains call control authority.
+    /// </summary>
+    /// <param name="callId">The active call.</param>
+    /// <param name="newHostUserId">The participant to become the new host.</param>
+    /// <param name="caller">The caller context (must be the current host).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task TransferHostAsync(Guid callId, Guid newHostUserId, CallerContext caller, CancellationToken cancellationToken = default);
 }

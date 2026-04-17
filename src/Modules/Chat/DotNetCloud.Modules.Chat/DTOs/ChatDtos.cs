@@ -652,3 +652,12 @@ public sealed record InviteToCallRequest
     /// <summary>The user ID to invite to the call.</summary>
     public Guid UserId { get; init; }
 }
+
+/// <summary>
+/// Request DTO for transferring the host role of a call to another participant.
+/// </summary>
+public sealed record TransferHostRequest
+{
+    /// <summary>The user ID to transfer host role to.</summary>
+    public Guid UserId { get; init; }
+}
