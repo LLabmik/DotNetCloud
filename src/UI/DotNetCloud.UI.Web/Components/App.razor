@@ -20,6 +20,25 @@
 </head>
 
 <body>
+    <div id="components-reconnect-modal" class="dnc-reconnect-modal">
+        <div class="dnc-reconnect-overlay"></div>
+        <div class="dnc-reconnect-dialog">
+            <div class="dnc-reconnect-spinner"><div></div><div></div></div>
+            <p class="dnc-reconnect-status">
+                Reconnecting to server<span class="dnc-reconnect-dots"></span>
+            </p>
+            <p class="dnc-reconnect-attempt">
+                Attempt <span id="components-reconnect-current-attempt"></span>
+                of <span id="components-reconnect-max-retries"></span>
+            </p>
+            <p class="dnc-reconnect-countdown">
+                Retrying in <span id="components-seconds-to-next-attempt"></span>s
+            </p>
+            <p class="dnc-reconnect-failed-msg">Connection lost. Please reload the page.</p>
+            <button class="dnc-reconnect-retry" onclick="Blazor.reconnect()">Retry</button>
+            <button class="dnc-reconnect-reload" onclick="location.reload()">Reload</button>
+        </div>
+    </div>
     <Routes @rendermode="InteractiveServer" />
     <script src="_content/DotNetCloud.UI.Web/js/timezone.js?v=20260401-01"></script>
     <script src="_content/DotNetCloud.UI.Web/js/theme.js?v=20260306-02"></script>
