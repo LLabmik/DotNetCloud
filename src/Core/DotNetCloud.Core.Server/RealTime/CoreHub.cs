@@ -29,6 +29,7 @@ internal sealed class CoreHub : Hub
     private readonly ITypingIndicatorService? _typingIndicatorService;
     private readonly IChatRealtimeService? _chatRealtimeService;
     private readonly ICallSignalingService? _callSignalingService;
+    private readonly IVideoCallService? _videoCallService;
     private readonly IEventBus? _eventBus;
     private readonly ILogger<CoreHub> _logger;
 
@@ -42,6 +43,7 @@ internal sealed class CoreHub : Hub
         IChatRealtimeService? chatRealtimeService,
         ILogger<CoreHub> logger,
         ICallSignalingService? callSignalingService = null,
+        IVideoCallService? videoCallService = null,
         IEventBus? eventBus = null)
     {
         _connectionTracker = connectionTracker;
@@ -52,6 +54,7 @@ internal sealed class CoreHub : Hub
         _typingIndicatorService = typingIndicatorService;
         _chatRealtimeService = chatRealtimeService;
         _callSignalingService = callSignalingService;
+        _videoCallService = videoCallService;
         _eventBus = eventBus;
         _logger = logger;
     }
@@ -562,6 +565,58 @@ internal sealed class CoreHub : Hub
             GetUserId(), groupName, Context.ConnectionId);
     }
 
+    // ── Video Call Management (Host / Invite) ───────────────────
+
+    /// <summary>
+    /// Invites a user to join an active call. Only the call Host may invite participants.
+    /// Relays to <see cref="IVideoCallService.InviteToCallAsync"/>.
+    /// </summary>
+    /// <param name="callId">The active call to invite the user to.</param>
+    /// <param name="targetUserId">The user to invite.</param>
+    public async Task InviteToCallAsync(Guid callId, Guid targetUserId)
+    {
+        EnsureVideoCallServiceAvailable();
+
+        try
+        {
+            var caller = CreateUserCaller();
+            await _videoCallService!.InviteToCallAsync(callId, targetUserId, caller, Context.ConnectionAborted);
+
+            _logger.LogInformation(
+                "User {UserId} invited {TargetUserId} to call {CallId}",
+                caller.UserId, targetUserId, callId);
+        }
+        catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
+        {
+            throw hubException;
+        }
+    }
+
+    /// <summary>
+    /// Transfers the host role of an active call to another participant.
+    /// Only the current host may transfer. Relays to <see cref="IVideoCallService.TransferHostAsync"/>.
+    /// </summary>
+    /// <param name="callId">The active call.</param>
+    /// <param name="newHostUserId">The participant to become the new host.</param>
+    public async Task TransferHostAsync(Guid callId, Guid newHostUserId)
+    {
+        EnsureVideoCallServiceAvailable();
+
+        try
+        {
+            var caller = CreateUserCaller();
+            await _videoCallService!.TransferHostAsync(callId, newHostUserId, caller, Context.ConnectionAborted);
+
+            _logger.LogInformation(
+                "User {UserId} transferred host of call {CallId} to {NewHostUserId}",
+                caller.UserId, callId, newHostUserId);
+        }
+        catch (Exception ex) when (TryConvertToHubException(ex, out var hubException))
+        {
+            throw hubException;
+        }
+    }
+
     private Guid GetUserId()
     {
         var nameIdentifier = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value
@@ -621,6 +676,14 @@ internal sealed class CoreHub : Hub
         if (_callSignalingService is null)
         {
             throw new HubException("Call signaling services are not available.");
+        }
+    }
+
+    private void EnsureVideoCallServiceAvailable()
+    {
+        if (_videoCallService is null)
+        {
+            throw new HubException("Video call services are not available.");
         }
     }
 }
