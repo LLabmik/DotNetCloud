@@ -40,7 +40,10 @@ internal sealed class ChannelMemberService : IChannelMemberService
     /// <inheritdoc />
     public async Task AddMemberAsync(Guid channelId, Guid userId, CallerContext caller, CancellationToken cancellationToken = default)
     {
-        await EnsureChannelExistsAsync(channelId, cancellationToken);
+        var channel = await _db.Channels
+            .FirstOrDefaultAsync(c => c.Id == channelId, cancellationToken)
+            ?? throw new InvalidOperationException(ChannelNotFoundError);
+
         await EnsureCallerCanManageMembersAsync(channelId, caller, cancellationToken);
 
         var exists = await _db.ChannelMembers
@@ -55,6 +58,24 @@ internal sealed class ChannelMemberService : IChannelMemberService
             UserId = userId,
             Role = ChannelMemberRole.Member
         });
+
+        // DM → Group auto-conversion: when a 3rd member is added to a DirectMessage channel,
+        // automatically escalate to a Group channel so all members see prior messages.
+        if (channel.Type == ChannelType.DirectMessage)
+        {
+            var currentMemberCount = await _db.ChannelMembers
+                .CountAsync(m => m.ChannelId == channelId, cancellationToken);
+
+            // currentMemberCount doesn't include the new member yet (not saved),
+            // so if there are already 2 members, adding a 3rd triggers conversion.
+            if (currentMemberCount >= 2)
+            {
+                channel.Type = ChannelType.Group;
+                _logger.LogInformation(
+                    "Channel {ChannelId} auto-converted from DirectMessage to Group (3rd member {UserId} added by {AddedBy})",
+                    channelId, userId, caller.UserId);
+            }
+        }
 
         await _db.SaveChangesAsync(cancellationToken);
 

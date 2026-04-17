@@ -502,6 +502,9 @@ public sealed record VideoCallDto
     /// <summary>Display name of the initiator.</summary>
     public string? InitiatorDisplayName { get; init; }
 
+    /// <summary>Current host of the call (has control authority).</summary>
+    public Guid HostUserId { get; init; }
+
     /// <summary>Current call state.</summary>
     public required string State { get; init; }
 
@@ -544,7 +547,7 @@ public sealed record CallParticipantDto
     /// <summary>Display name of the participant.</summary>
     public string? DisplayName { get; init; }
 
-    /// <summary>Role in the call (Initiator, Participant).</summary>
+    /// <summary>Role in the call (Host, Participant).</summary>
     public required string Role { get; init; }
 
     /// <summary>When the participant joined (UTC).</summary>

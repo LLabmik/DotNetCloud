@@ -66,7 +66,7 @@ public class VideoCallGrpcServiceTests
                 {
                     Id = Guid.NewGuid(),
                     UserId = Guid.NewGuid(),
-                    Role = "Initiator",
+                    Role = "Host",
                     JoinedAtUtc = DateTime.UtcNow,
                     HasAudio = true,
                     HasVideo = true,
@@ -657,7 +657,7 @@ public class VideoCallGrpcServiceTests
                 {
                     Id = participantId,
                     UserId = participantUserId,
-                    Role = "Initiator",
+                    Role = "Host",
                     JoinedAtUtc = joinedAt,
                     LeftAtUtc = null,
                     HasAudio = true,
@@ -686,7 +686,7 @@ public class VideoCallGrpcServiceTests
         var participant = result.Call.Participants[0];
         Assert.AreEqual(participantId.ToString(), participant.Id);
         Assert.AreEqual(participantUserId.ToString(), participant.UserId);
-        Assert.AreEqual("Initiator", participant.Role);
+        Assert.AreEqual("Host", participant.Role);
         Assert.IsTrue(participant.HasAudio);
         Assert.IsFalse(participant.HasVideo);
         Assert.IsTrue(participant.HasScreenShare);

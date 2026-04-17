@@ -17,7 +17,7 @@ public sealed class CallParticipant
     /// <summary>User ID of the participant.</summary>
     public Guid UserId { get; set; }
 
-    /// <summary>Role of the participant (Initiator or Participant).</summary>
+    /// <summary>Role of the participant (Host or Participant).</summary>
     public CallParticipantRole Role { get; set; } = CallParticipantRole.Participant;
 
     /// <summary>When the participant joined the call, UTC.</summary>

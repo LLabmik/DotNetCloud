@@ -17,6 +17,9 @@ public sealed class VideoCall
     /// <summary>User who initiated the call.</summary>
     public Guid InitiatorUserId { get; set; }
 
+    /// <summary>Current host of the call (has control authority). Initially set to the initiator.</summary>
+    public Guid HostUserId { get; set; }
+
     /// <summary>Current state of the call.</summary>
     public VideoCallState State { get; set; } = VideoCallState.Ringing;
 

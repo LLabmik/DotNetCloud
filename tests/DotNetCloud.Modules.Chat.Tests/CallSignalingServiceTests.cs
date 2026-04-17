@@ -61,11 +61,13 @@ public class CallSignalingServiceTests
 
     private void SeedActiveCall(Guid callId, Guid channelId, VideoCallState state, params (Guid userId, bool active)[] participants)
     {
+        var initiatorId = participants.Length > 0 ? participants[0].userId : Guid.NewGuid();
         _db.VideoCalls.Add(new VideoCall
         {
             Id = callId,
             ChannelId = channelId,
-            InitiatorUserId = participants.Length > 0 ? participants[0].userId : Guid.NewGuid(),
+            InitiatorUserId = initiatorId,
+            HostUserId = initiatorId,
             State = state,
             MediaType = CallMediaType.Video,
             MaxParticipants = participants.Length,
@@ -79,7 +81,7 @@ public class CallSignalingServiceTests
             {
                 VideoCallId = callId,
                 UserId = userId,
-                Role = userId == participants[0].userId ? CallParticipantRole.Initiator : CallParticipantRole.Participant,
+                Role = userId == participants[0].userId ? CallParticipantRole.Host : CallParticipantRole.Participant,
                 JoinedAtUtc = DateTime.UtcNow,
                 LeftAtUtc = active ? null : DateTime.UtcNow,
                 HasAudio = true,

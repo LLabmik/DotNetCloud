@@ -289,7 +289,7 @@ public class CallParticipantModelTests
         {
             VideoCallId = callId,
             UserId = userId,
-            Role = CallParticipantRole.Initiator,
+            Role = CallParticipantRole.Host,
             JoinedAtUtc = now,
             HasAudio = true,
             HasVideo = true,
@@ -298,7 +298,7 @@ public class CallParticipantModelTests
 
         Assert.AreEqual(callId, participant.VideoCallId);
         Assert.AreEqual(userId, participant.UserId);
-        Assert.AreEqual(CallParticipantRole.Initiator, participant.Role);
+        Assert.AreEqual(CallParticipantRole.Host, participant.Role);
         Assert.AreEqual(now, participant.JoinedAtUtc);
         Assert.IsTrue(participant.HasAudio);
         Assert.IsTrue(participant.HasVideo);
@@ -355,10 +355,12 @@ public class VideoCallDbTests
 
     private VideoCall CreateTestVideoCall(Guid channelId, Guid? initiatorId = null)
     {
+        var userId = initiatorId ?? Guid.NewGuid();
         var call = new VideoCall
         {
             ChannelId = channelId,
-            InitiatorUserId = initiatorId ?? Guid.NewGuid(),
+            InitiatorUserId = userId,
+            HostUserId = userId,
             State = VideoCallState.Ringing,
             MediaType = CallMediaType.Video
         };
@@ -477,7 +479,7 @@ public class VideoCallDbTests
         {
             VideoCallId = call.Id,
             UserId = userId,
-            Role = CallParticipantRole.Initiator,
+            Role = CallParticipantRole.Host,
             HasAudio = true,
             HasVideo = true
         };
@@ -488,7 +490,7 @@ public class VideoCallDbTests
         Assert.IsNotNull(retrieved);
         Assert.AreEqual(call.Id, retrieved.VideoCallId);
         Assert.AreEqual(userId, retrieved.UserId);
-        Assert.AreEqual(CallParticipantRole.Initiator, retrieved.Role);
+        Assert.AreEqual(CallParticipantRole.Host, retrieved.Role);
         Assert.IsTrue(retrieved.HasAudio);
         Assert.IsTrue(retrieved.HasVideo);
     }
@@ -503,7 +505,7 @@ public class VideoCallDbTests
         {
             VideoCallId = call.Id,
             UserId = Guid.NewGuid(),
-            Role = CallParticipantRole.Initiator,
+            Role = CallParticipantRole.Host,
             HasAudio = true,
             HasVideo = true
         };
@@ -534,7 +536,7 @@ public class VideoCallDbTests
         {
             VideoCallId = call.Id,
             UserId = Guid.NewGuid(),
-            Role = CallParticipantRole.Initiator
+            Role = CallParticipantRole.Host
         });
         _db.CallParticipants.Add(new CallParticipant
         {
@@ -549,7 +551,7 @@ public class VideoCallDbTests
             .FirstAsync(v => v.Id == call.Id);
 
         Assert.AreEqual(2, loaded.Participants.Count);
-        Assert.IsTrue(loaded.Participants.Any(p => p.Role == CallParticipantRole.Initiator));
+        Assert.IsTrue(loaded.Participants.Any(p => p.Role == CallParticipantRole.Host));
         Assert.IsTrue(loaded.Participants.Any(p => p.Role == CallParticipantRole.Participant));
     }
 
@@ -563,7 +565,7 @@ public class VideoCallDbTests
         {
             VideoCallId = call.Id,
             UserId = Guid.NewGuid(),
-            Role = CallParticipantRole.Initiator
+            Role = CallParticipantRole.Host
         };
         _db.CallParticipants.Add(participant);
         await _db.SaveChangesAsync();
@@ -586,7 +588,7 @@ public class VideoCallDbTests
         {
             VideoCallId = call.Id,
             UserId = Guid.NewGuid(),
-            Role = CallParticipantRole.Initiator
+            Role = CallParticipantRole.Host
         });
         _db.CallParticipants.Add(new CallParticipant
         {
@@ -704,7 +706,7 @@ public class VideoCallDbTests
         var otherUserId = Guid.NewGuid();
 
         _db.CallParticipants.AddRange(
-            new CallParticipant { VideoCallId = call1.Id, UserId = userId, Role = CallParticipantRole.Initiator },
+            new CallParticipant { VideoCallId = call1.Id, UserId = userId, Role = CallParticipantRole.Host },
             new CallParticipant { VideoCallId = call2.Id, UserId = userId, Role = CallParticipantRole.Participant },
             new CallParticipant { VideoCallId = call1.Id, UserId = otherUserId, Role = CallParticipantRole.Participant }
         );
@@ -852,7 +854,7 @@ public class VideoCallDbTests
         {
             VideoCallId = call.Id,
             UserId = Guid.NewGuid(),
-            Role = CallParticipantRole.Initiator,
+            Role = CallParticipantRole.Host,
             HasAudio = true,
             HasVideo = true,
             HasScreenShare = false

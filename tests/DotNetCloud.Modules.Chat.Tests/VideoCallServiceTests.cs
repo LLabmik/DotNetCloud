@@ -123,7 +123,7 @@ public class VideoCallServiceTests
         Assert.AreEqual(1, result.Participants.Count);
         var participant = result.Participants[0];
         Assert.AreEqual(_caller.UserId, participant.UserId);
-        Assert.AreEqual("Initiator", participant.Role);
+        Assert.AreEqual("Host", participant.Role);
         Assert.IsTrue(participant.HasAudio);
         Assert.IsTrue(participant.HasVideo); // Video call → video enabled
     }
@@ -791,6 +791,7 @@ public class VideoCallServiceTests
         {
             ChannelId = _channelId,
             InitiatorUserId = _caller.UserId,
+            HostUserId = _caller.UserId,
             State = VideoCallState.Missed,
             EndReason = VideoCallEndReason.Missed,
             CreatedAtUtc = DateTime.UtcNow.AddMinutes(-5),
@@ -873,6 +874,7 @@ public class VideoCallServiceTests
         {
             ChannelId = _channelId,
             InitiatorUserId = _caller.UserId,
+            HostUserId = _caller.UserId,
             State = VideoCallState.Ringing,
             CreatedAtUtc = DateTime.UtcNow.AddSeconds(-35) // Older than timeout
         };
@@ -880,7 +882,7 @@ public class VideoCallServiceTests
         {
             VideoCallId = call.Id,
             UserId = _caller.UserId,
-            Role = CallParticipantRole.Initiator
+            Role = CallParticipantRole.Host
         };
         _db.VideoCalls.Add(call);
         _db.CallParticipants.Add(participant);
@@ -912,6 +914,7 @@ public class VideoCallServiceTests
         {
             ChannelId = _channelId,
             InitiatorUserId = _caller.UserId,
+            HostUserId = _caller.UserId,
             State = VideoCallState.Ringing,
             CreatedAtUtc = DateTime.UtcNow.AddSeconds(-35)
         };
@@ -937,6 +940,7 @@ public class VideoCallServiceTests
         {
             ChannelId = _channelId,
             InitiatorUserId = _caller.UserId,
+            HostUserId = _caller.UserId,
             State = VideoCallState.Ringing,
             CreatedAtUtc = DateTime.UtcNow.AddSeconds(-35)
         };
@@ -944,7 +948,7 @@ public class VideoCallServiceTests
         {
             VideoCallId = call.Id,
             UserId = _caller.UserId,
-            Role = CallParticipantRole.Initiator
+            Role = CallParticipantRole.Host
         };
         _db.VideoCalls.Add(call);
         _db.CallParticipants.Add(participant);
@@ -961,10 +965,12 @@ public class VideoCallServiceTests
     {
         for (int i = 0; i < 3; i++)
         {
+            var initiatorId = Guid.NewGuid();
             _db.VideoCalls.Add(new VideoCall
             {
                 ChannelId = Guid.NewGuid(),
-                InitiatorUserId = Guid.NewGuid(),
+                InitiatorUserId = initiatorId,
+                HostUserId = initiatorId,
                 State = VideoCallState.Ringing,
                 CreatedAtUtc = DateTime.UtcNow.AddSeconds(-40)
             });

@@ -112,7 +112,8 @@ public class Program
                         await EnsureModuleTablesCreatedAsync(filesDbContext, "FileNodes", logger);
 
                         var chatDbContext = scope.ServiceProvider.GetRequiredService<ChatDbContext>();
-                        await EnsureModuleTablesCreatedAsync(chatDbContext, "Channels", logger);
+                        await chatDbContext.Database.MigrateAsync();
+                        logger.LogInformation("Chat module database migrated");
 
                         var contactsDbContext = scope.ServiceProvider.GetRequiredService<ContactsDbContext>();
                         await EnsureModuleTablesCreatedAsync(contactsDbContext, "Contacts", logger);
@@ -157,7 +158,8 @@ public class Program
                     await EnsureModuleTablesCreatedAsync(filesDbContext, "FileNodes", logger);
 
                     var chatDbContext = scope.ServiceProvider.GetRequiredService<ChatDbContext>();
-                    await EnsureModuleTablesCreatedAsync(chatDbContext, "Channels", logger);
+                    await chatDbContext.Database.MigrateAsync();
+                    logger.LogInformation("Chat module database migrated");
 
                     var contactsDbContext = scope.ServiceProvider.GetRequiredService<ContactsDbContext>();
                     await EnsureModuleTablesCreatedAsync(contactsDbContext, "Contacts", logger);

@@ -85,6 +85,7 @@ internal sealed class VideoCallService : IVideoCallService
         {
             ChannelId = channelId,
             InitiatorUserId = caller.UserId,
+            HostUserId = caller.UserId,
             State = VideoCallState.Ringing,
             MediaType = mediaType,
             IsGroupCall = isGroupCall,
@@ -96,7 +97,7 @@ internal sealed class VideoCallService : IVideoCallService
         {
             VideoCallId = call.Id,
             UserId = caller.UserId,
-            Role = CallParticipantRole.Initiator,
+            Role = CallParticipantRole.Host,
             JoinedAtUtc = DateTime.UtcNow,
             HasAudio = true,
             HasVideo = mediaType == CallMediaType.Video
@@ -670,6 +671,7 @@ internal sealed class VideoCallService : IVideoCallService
             ChannelId = call.ChannelId,
             InitiatorUserId = call.InitiatorUserId,
             InitiatorDisplayName = initiatorDisplayName,
+            HostUserId = call.HostUserId,
             State = call.State.ToString(),
             MediaType = call.MediaType.ToString(),
             IsGroupCall = call.IsGroupCall,

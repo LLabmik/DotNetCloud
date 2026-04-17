@@ -101,6 +101,9 @@
 | Phase 7 (Video Calling)     | 11      | 11        | 0           | 0       |
 | Phase 9                     | 7       | 5         | 0           | 2       |
 | Phase 11 (Auto-Updates)     | 16      | 7         | 0           | 9       |
+| DM & Host Calls — Phase A   | 3       | 3         | 0           | 0       |
+| DM & Host Calls — Phase B   | 2       | 0         | 0           | 2       |
+| DM & Host Calls — Phase C–G | 10      | 0         | 0           | 10      |
 | Infrastructure              | Summary | 0         | 0           | 1       |
 | Documentation               | Summary | 0         | 0           | 1       |
 
@@ -2728,3 +2731,94 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 - ✓ Verifies standard API envelope format (`{ success: true, data: {...} }`)
 
 **Notes:** Phase D complete. All documentation and integration tests in place. Remaining Phase 11 work: Phase C (Android).
+
+---
+
+## Direct Messaging, Direct Calls & Host-Based Call Management
+
+Reference plan: `docs/DIRECT_MESSAGING_AND_HOST_CALLS_PLAN.md`
+
+### Section: Phase A — Database & Model Changes
+
+#### Step: dm-host-A1 — Rename CallParticipantRole.Initiator → Host
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `CallParticipantRole.cs` — enum value renamed from `Initiator` to `Host`
+- ✓ `VideoCallService.cs` — all references updated
+- ✓ `ChatDtos.cs` — `CallParticipantDto.Role` comment updated
+- ✓ All test files updated (VideoCallServiceTests, CallSignalingServiceTests, VideoCallDataModelTests, VideoCallGrpcServiceTests)
+- ✓ EF migration data update: stored `"Initiator"` → `"Host"` in CallParticipants table
+
+**Notes:** Clean rename across 7 files. All 375+ chat tests pass.
+
+#### Step: dm-host-A2 — Add HostUserId to VideoCall Entity
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `VideoCall.cs` — `Guid HostUserId` property added
+- ✓ `VideoCallConfiguration.cs` — index `ix_chat_video_calls_host_user_id` added
+- ✓ `VideoCallDto` — `HostUserId` field added to DTO
+- ✓ `VideoCallService.cs` — `ToVideoCallDto` mapper includes `HostUserId`; `InitiateCallAsync` sets `HostUserId = caller.UserId`
+- ✓ EF migration `AddCallHostUserId` — adds column, backfills from `InitiatorUserId`
+
+**Notes:** HostUserId enables transferable call authority separate from the historical initiator.
+
+#### Step: dm-host-A3 — DM → Group Auto-Conversion
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `ChannelMemberService.AddMemberAsync` — detects 3rd member added to DirectMessage channel
+- ✓ Auto-converts `Channel.Type` from `DirectMessage` to `Group`
+- ✓ No schema change needed (existing `Type` column supports `Group`)
+
+**Notes:** Phase A complete. Foundation for Host role system and mid-call participant management. Next: Phase B (Direct DM & Call Initiation).
+
+### Section: Phase B — Service Layer: Direct DM & Call Initiation
+
+#### Step: dm-host-B1 — Wire Global User Search for DM Creation
+**Status:** pending
+**Deliverables:**
+- ☐ `ChatPageLayout.razor.cs` — `SearchUsersForDmAsync` method
+- ☐ `ChatPageLayout.razor` — integrate user picker dialog
+
+#### Step: dm-host-B2 — Direct Call Initiation by User ID
+**Status:** pending
+**Deliverables:**
+- ☐ `IVideoCallService.InitiateDirectCallAsync` interface method
+- ☐ `VideoCallService` implementation
+- ☐ `ChatController` — `POST /api/v1/chat/calls/direct/{targetUserId}` endpoint
+
+### Section: Phase C — Mid-Call Participant Addition
+
+#### Step: dm-host-C1 — InviteToCallAsync Service Method
+**Status:** pending
+
+#### Step: dm-host-C2 — SignalR Notification for Mid-Call Invite
+**Status:** pending
+
+### Section: Phase D — Host Transfer
+
+#### Step: dm-host-D1 — TransferHostAsync Service Method
+**Status:** pending
+
+#### Step: dm-host-D2 — Auto-Transfer Host on Leave
+**Status:** pending
+
+#### Step: dm-host-D3 — End-Call Permission Enforcement
+**Status:** pending
+
+#### Step: dm-host-D4 — CallHostTransferredEvent
+**Status:** pending
+
+### Section: Phase E — UI Integration
+
+#### Step: dm-host-E — UI Integration (6 sub-items)
+**Status:** pending
+
+### Section: Phase F — SignalR Hub Updates
+
+#### Step: dm-host-F — SignalR Hub Updates
+**Status:** pending
+
+### Section: Phase G — Tests
+
+#### Step: dm-host-G — Unit & Integration Tests
+**Status:** pending

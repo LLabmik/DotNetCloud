@@ -4453,3 +4453,59 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ End-to-end update check flow tests
 - ✓ Update releases endpoint integration tests
 - ✓ Backward compatibility tests (graceful degradation)
+
+---
+
+## Direct Messaging, Direct Calls & Host-Based Call Management
+
+### Phase A — Database & Model Changes
+
+#### A1. Rename `CallParticipantRole.Initiator` → `Host`
+- ✓ Rename enum value in `CallParticipantRole.cs`
+- ✓ Update all references in `VideoCallService.cs`
+- ✓ Update DTO comment in `ChatDtos.cs` (`CallParticipantDto.Role`)
+- ✓ Update all test files (`VideoCallServiceTests`, `CallSignalingServiceTests`, `VideoCallDataModelTests`, `VideoCallGrpcServiceTests`)
+- ✓ EF migration to update stored string values (`"Initiator"` → `"Host"`)
+
+#### A2. Add `HostUserId` to `VideoCall` Entity
+- ✓ Add `Guid HostUserId` property to `VideoCall.cs`
+- ✓ Configure index in `VideoCallConfiguration.cs`
+- ✓ Add `HostUserId` to `VideoCallDto`
+- ✓ Update `ToVideoCallDto` mapper in `VideoCallService.cs`
+- ✓ Set `HostUserId = caller.UserId` in `InitiateCallAsync`
+- ✓ EF migration `AddCallHostUserId` (column + data migration from `InitiatorUserId`)
+
+#### A3. DM → Group Auto-Conversion
+- ✓ In `ChannelMemberService.AddMemberAsync`, detect 3rd member added to `DirectMessage` channel
+- ✓ Auto-convert channel type to `ChannelType.Group`
+- ✓ No schema change needed (`Channel.Type` already supports `Group`)
+
+### Phase B — Service Layer: Direct DM & Call Initiation
+- ☐ B1. Wire Global User Search for DM Creation
+- ☐ B2. Direct Call Initiation by User ID (`InitiateDirectCallAsync`)
+
+### Phase C — Mid-Call Participant Addition
+- ☐ C1. `InviteToCallAsync` service method (Host-only validation)
+- ☐ C2. SignalR notification for mid-call invite
+
+### Phase D — Host Transfer
+- ☐ D1. `TransferHostAsync` service method
+- ☐ D2. Auto-transfer Host on leave
+- ☐ D3. End-call permission enforcement (Host only)
+- ☐ D4. `CallHostTransferredEvent` and SignalR broadcast
+
+### Phase E — UI Integration
+- ☐ E1. "New DM" user picker in sidebar
+- ☐ E2. "Call User" buttons
+- ☐ E3. "Add People" button in active call (Host only)
+- ☐ E4. "Transfer Host" in call participant list
+- ☐ E5. Updated incoming call notification (mid-call invite)
+- ☐ E6. "Add People" to group chat
+
+### Phase F — SignalR Hub Updates
+- ☐ F1. New hub methods (`InviteToCallAsync`, `TransferHostAsync`)
+- ☐ F2. New client-side event handlers (`HostTransferred`, `CallInviteReceived`)
+
+### Phase G — Tests
+- ☐ G1. Unit tests (Host transfer, mid-call invite, DM→Group, direct call, end-call permission)
+- ☐ G2. Integration / E2E tests

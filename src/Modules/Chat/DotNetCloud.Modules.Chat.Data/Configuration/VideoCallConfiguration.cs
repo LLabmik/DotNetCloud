@@ -51,6 +51,9 @@ public sealed class VideoCallConfiguration : IEntityTypeConfiguration<VideoCall>
         builder.HasIndex(v => v.InitiatorUserId)
             .HasDatabaseName("ix_chat_video_calls_initiator_user_id");
 
+        builder.HasIndex(v => v.HostUserId)
+            .HasDatabaseName("ix_chat_video_calls_host_user_id");
+
         builder.HasIndex(v => v.CreatedAtUtc)
             .HasDatabaseName("ix_chat_video_calls_created_at");
 
