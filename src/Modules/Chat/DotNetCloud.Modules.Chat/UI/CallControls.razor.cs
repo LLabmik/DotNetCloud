@@ -36,6 +36,10 @@ public partial class CallControls : ComponentBase
     [Parameter]
     public bool IsDisabled { get; set; }
 
+    /// <summary>Whether the hang-up button specifically is disabled (independent of media controls).</summary>
+    [Parameter]
+    public bool IsHangUpDisabled { get; set; }
+
     /// <summary>Callback when mute is toggled.</summary>
     [Parameter]
     public EventCallback<bool> OnToggleMute { get; set; }

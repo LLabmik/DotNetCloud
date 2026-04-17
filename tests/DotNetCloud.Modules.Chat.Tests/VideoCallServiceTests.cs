@@ -23,6 +23,7 @@ public class VideoCallServiceTests
     private ChatDbContext _db = null!;
     private Mock<IEventBus> _eventBusMock = null!;
     private Mock<IChatRealtimeService> _realtimeMock = null!;
+    private Mock<IChatMessageNotifier> _messageNotifierMock = null!;
     private Mock<ILiveKitService> _liveKitMock = null!;
     private VideoCallService _service = null!;
     private CallerContext _caller = null!;
@@ -38,11 +39,18 @@ public class VideoCallServiceTests
         _db = new ChatDbContext(options);
         _eventBusMock = new Mock<IEventBus>();
         _realtimeMock = new Mock<IChatRealtimeService>();
+        _messageNotifierMock = new Mock<IChatMessageNotifier>();
         _liveKitMock = new Mock<ILiveKitService>();
         _liveKitMock.Setup(x => x.IsAvailable).Returns(false);
         _liveKitMock.Setup(x => x.MaxP2PParticipants).Returns(3);
 
-        _service = new VideoCallService(_db, _eventBusMock.Object, NullLogger<VideoCallService>.Instance, _liveKitMock.Object, _realtimeMock.Object);
+        _service = new VideoCallService(
+            _db,
+            _eventBusMock.Object,
+            NullLogger<VideoCallService>.Instance,
+            _liveKitMock.Object,
+            _realtimeMock.Object,
+            _messageNotifierMock.Object);
 
         _caller = new CallerContext(Guid.NewGuid(), ["user"], CallerType.User);
         _channelId = Guid.NewGuid();
@@ -176,6 +184,20 @@ public class VideoCallServiceTests
                 e.MediaType == "Video"),
                 _caller,
                 It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public async Task InitiateCallAsync_NotifiesCallRingingViaMessageNotifier()
+    {
+        var result = await _service.InitiateCallAsync(_channelId, new StartCallRequest { MediaType = "Video" }, _caller);
+
+        _messageNotifierMock.Verify(
+            notifier => notifier.NotifyCallRinging(It.Is<CallRingingNotification>(n =>
+                n.CallId == result.Id
+                && n.ChannelId == _channelId
+                && n.InitiatorUserId == _caller.UserId
+                && n.MediaType == "Video")),
             Times.Once);
     }
 

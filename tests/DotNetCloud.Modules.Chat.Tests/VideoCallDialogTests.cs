@@ -235,6 +235,23 @@ public class VideoCallDialogTests
         Assert.AreEqual(expectedDisabled, dialog.TestAreControlsDisabled);
     }
 
+    [TestMethod]
+    [DataRow("Ringing", false)]
+    [DataRow("Connecting", false)]
+    [DataRow("Active", false)]
+    [DataRow("OnHold", false)]
+    [DataRow("Ended", true)]
+    [DataRow("Failed", true)]
+    [DataRow("Missed", true)]
+    [DataRow("Rejected", true)]
+    public void IsHangUpDisabled_ReflectsCallState(string state, bool expectedDisabled)
+    {
+        var dialog = new TestableVideoCallDialog();
+        dialog.SetCallState(state);
+
+        Assert.AreEqual(expectedDisabled, dialog.TestIsHangUpDisabled);
+    }
+
     // ── Event Callback Tests ────────────────────────────────────────
 
     [TestMethod]
@@ -365,6 +382,7 @@ public class VideoCallDialogTests
         public string TestGridLayoutName => GridLayoutName;
         public int TestTotalParticipantCount => TotalParticipantCount;
         public bool TestAreControlsDisabled => AreControlsDisabled;
+        public bool TestIsHangUpDisabled => IsHangUpDisabled;
 
         public void SetRemoteParticipants(IReadOnlyList<CallParticipantDto> participants)
         {

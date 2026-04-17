@@ -22,6 +22,7 @@ internal sealed class VideoCallService : IVideoCallService
     private readonly ChatDbContext _db;
     private readonly IEventBus _eventBus;
     private readonly IChatRealtimeService? _realtimeService;
+    private readonly IChatMessageNotifier? _messageNotifier;
     private readonly ILiveKitService _liveKitService;
     private readonly ILogger<VideoCallService> _logger;
 
@@ -30,11 +31,13 @@ internal sealed class VideoCallService : IVideoCallService
         IEventBus eventBus,
         ILogger<VideoCallService> logger,
         ILiveKitService liveKitService,
-        IChatRealtimeService? realtimeService = null)
+        IChatRealtimeService? realtimeService = null,
+        IChatMessageNotifier? messageNotifier = null)
     {
         _db = db;
         _eventBus = eventBus;
         _realtimeService = realtimeService;
+        _messageNotifier = messageNotifier;
         _liveKitService = liveKitService;
         _logger = logger;
     }
@@ -124,6 +127,13 @@ internal sealed class VideoCallService : IVideoCallService
                 },
                 cancellationToken);
         }
+
+        // Notify in-process Blazor circuits so members in this channel can render the incoming call UI.
+        _messageNotifier?.NotifyCallRinging(new CallRingingNotification(
+            CallId: call.Id,
+            ChannelId: channelId,
+            InitiatorUserId: caller.UserId,
+            MediaType: mediaType.ToString()));
 
         _logger.LogInformation(
             "Video call {CallId} initiated in channel {ChannelId} by user {UserId} (MediaType={MediaType}, IsGroup={IsGroup})",

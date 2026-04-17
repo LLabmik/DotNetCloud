@@ -104,10 +104,8 @@ public partial class ChatPageLayout : ComponentBase, IDisposable
     private string _incomingCallerName = string.Empty;
     private string _incomingCallChannelName = string.Empty;
     private string _incomingCallMediaType = "Audio";
-#pragma warning disable CS0649 // Assigned via real-time events (SignalR callbacks to be wired in Phase 7.9+)
     private int _incomingCallRemainingSeconds;
     private bool _isIncomingCallRinging;
-#pragma warning restore CS0649
     private List<CallHistoryDto> _callHistory = [];
 #pragma warning disable CS0649 // Assigned via real-time events (SignalR callbacks to be wired in Phase 7.9+)
     private bool _isLoadingCallHistory;
@@ -131,6 +129,7 @@ public partial class ChatPageLayout : ComponentBase, IDisposable
         ChatMessageNotifier.MessageReceived += OnRemoteMessageReceived;
         ChatMessageNotifier.MessageEdited += OnRemoteMessageEdited;
         ChatMessageNotifier.MessageDeleted += OnRemoteMessageDeleted;
+        ChatMessageNotifier.CallRinging += OnCallRinging;
 
         await LoadChannelsAsync();
         await LoadAnnouncementsAsync();
@@ -142,6 +141,7 @@ public partial class ChatPageLayout : ComponentBase, IDisposable
         ChatMessageNotifier.MessageReceived -= OnRemoteMessageReceived;
         ChatMessageNotifier.MessageEdited -= OnRemoteMessageEdited;
         ChatMessageNotifier.MessageDeleted -= OnRemoteMessageDeleted;
+        ChatMessageNotifier.CallRinging -= OnCallRinging;
     }
 
     private void OnRemoteMessageReceived(Guid channelId, MessageDto message)
@@ -1089,6 +1089,26 @@ public partial class ChatPageLayout : ComponentBase, IDisposable
     }
 
     // ── Video Call Operations ───────────────────────────────────────
+
+    private void OnCallRinging(CallRingingNotification notification)
+    {
+        // The initiator already has the call dialog open; skip notifying them
+        if (notification.InitiatorUserId == _currentUserId) return;
+
+        var channelName = _channels.FirstOrDefault(c => c.Id == notification.ChannelId)?.Name
+            ?? notification.ChannelId.ToString()[..8];
+        var callerName = _displayNameCache.GetValueOrDefault(notification.InitiatorUserId,
+            notification.InitiatorUserId.ToString()[..8]);
+
+        _showIncomingCall = true;
+        _isIncomingCallRinging = true;
+        _incomingCallerName = callerName;
+        _incomingCallChannelName = channelName;
+        _incomingCallMediaType = notification.MediaType;
+        _incomingCallRemainingSeconds = 30;
+
+        _ = InvokeAsync(StateHasChanged);
+    }
 
     private Task HandleStartAudioCall()
     {

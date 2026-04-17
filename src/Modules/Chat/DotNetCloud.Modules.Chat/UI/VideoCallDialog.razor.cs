@@ -79,6 +79,9 @@ public partial class VideoCallDialog : ComponentBase
     /// <summary>Whether call controls should be disabled.</summary>
     protected bool AreControlsDisabled => CallState is "Ringing" or "Ended" or "Failed" or "Missed" or "Rejected";
 
+    /// <summary>Whether the hang-up button should be disabled. Hang-up is allowed during Ringing to cancel the call.</summary>
+    protected bool IsHangUpDisabled => CallState is "Ended" or "Failed" or "Missed" or "Rejected";
+
     /// <summary>CSS class for dialog layout based on participant count.</summary>
     protected string LayoutClass => RemoteParticipants.Count switch
     {
