@@ -1183,6 +1183,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     private void OnCallSignalReceived(CallSignalNotification notification)
     {
         if (_currentCallId is null || notification.CallId != _currentCallId) return;
+        // Only process signals addressed to this user — ignore signals we sent ourselves
+        if (notification.ToUserId != _currentUserId) return;
         var peerId = notification.FromUserId.ToString();
 
         _ = InvokeAsync(async () =>
