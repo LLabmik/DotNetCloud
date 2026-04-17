@@ -261,7 +261,7 @@ window.dotnetcloudVideoCall = window.dotnetcloudVideoCall || (function () {
             if (stream) {
                 remoteStreams.set(peerId, stream);
                 if (dotNetRef) {
-                    dotNetRef.invokeMethodAsync("OnRemoteStream", peerId, stream.id);
+                    dotNetRef.invokeMethodAsync("OnRemoteStream", peerId, stream.id, event.track.kind);
                 }
 
                 // Track ended handler

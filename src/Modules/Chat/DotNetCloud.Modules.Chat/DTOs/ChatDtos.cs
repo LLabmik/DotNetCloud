@@ -554,13 +554,13 @@ public sealed record CallParticipantDto
     public DateTime? LeftAtUtc { get; init; }
 
     /// <summary>Whether the participant has audio enabled.</summary>
-    public bool HasAudio { get; init; }
+    public bool HasAudio { get; set; }
 
     /// <summary>Whether the participant has video enabled.</summary>
-    public bool HasVideo { get; init; }
+    public bool HasVideo { get; set; }
 
     /// <summary>Whether the participant is sharing their screen.</summary>
-    public bool HasScreenShare { get; init; }
+    public bool HasScreenShare { get; set; }
 }
 
 /// <summary>

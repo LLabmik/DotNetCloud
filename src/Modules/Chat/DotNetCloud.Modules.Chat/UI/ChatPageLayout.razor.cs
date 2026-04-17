@@ -1258,7 +1258,11 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                 var streamId = await WebRtcInterop.StartLocalMediaAsync();
                 if (streamId is not null)
                 {
-                    await WebRtcInterop.AttachStreamToElementAsync("local-video-main", "local");
+                    // Choose the correct video element based on current layout state
+                    var localVideoElementId = _remoteParticipants.Count > 0
+                        ? "local-video-pip"
+                        : "local-video-main";
+                    await WebRtcInterop.AttachStreamToElementAsync(localVideoElementId, "local");
                 }
             }
             catch (Exception mediaEx)
@@ -1335,8 +1339,21 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     /// <summary>Called by JS when a remote stream is received from a peer.</summary>
     [JSInvokable]
-    public async Task OnRemoteStream(string peerId, string streamId)
+    public async Task OnRemoteStream(string peerId, string streamId, string trackKind)
     {
+        // Update participant media flags based on actual tracks received
+        if (Guid.TryParse(peerId, out var peerUserId))
+        {
+            var participant = _remoteParticipants.FirstOrDefault(p => p.UserId == peerUserId);
+            if (participant is not null)
+            {
+                if (string.Equals(trackKind, "video", StringComparison.OrdinalIgnoreCase))
+                    participant.HasVideo = true;
+                else if (string.Equals(trackKind, "audio", StringComparison.OrdinalIgnoreCase))
+                    participant.HasAudio = true;
+            }
+        }
+
         // Ensure the DOM is up-to-date before attaching (element may not exist yet)
         await InvokeAsync(StateHasChanged);
 
