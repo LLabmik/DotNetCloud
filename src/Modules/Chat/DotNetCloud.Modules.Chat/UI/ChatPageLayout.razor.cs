@@ -1369,6 +1369,14 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     [JSInvokable]
     public async Task OnWebRtcError(string context, string message)
     {
+        // getUserMedia failures are non-fatal — the call continues without local media.
+        // Don't overwrite _messageErrorMessage (which hides the chat message list).
+        if (string.Equals(context, "getUserMedia", StringComparison.Ordinal))
+        {
+            Console.WriteLine($"[WebRTC] getUserMedia unavailable: {message}");
+            return;
+        }
+
         _messageErrorMessage = $"WebRTC error ({context}): {message}";
         await InvokeAsync(StateHasChanged);
     }
