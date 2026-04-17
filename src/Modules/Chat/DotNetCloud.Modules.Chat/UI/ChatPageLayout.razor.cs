@@ -120,6 +120,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     private bool _webRtcInitialized;
     private bool _initialNegotiationDone;
     private System.Timers.Timer? _callDurationTimer;
+    private readonly SemaphoreSlim _signalingLock = new(1, 1);
 
     // User state
     private Guid _currentUserId;
@@ -165,6 +166,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         }
 
         _dotNetRef?.Dispose();
+        _signalingLock.Dispose();
     }
 
     private void OnRemoteMessageReceived(Guid channelId, MessageDto message)
@@ -1160,26 +1162,32 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         {
             StateHasChanged();
             await StartWebRtcAsync();
-            var sdpOffer = await WebRtcInterop.CreateOfferAsync(notification.AcceptedByUserId.ToString());
-            if (sdpOffer is not null)
+            await _signalingLock.WaitAsync();
+            try
             {
-                var caller = await GetCallerContextAsync();
-                await CallSignalingService.SendOfferAsync(
-                    notification.CallId, notification.AcceptedByUserId, sdpOffer, caller);
+                var sdpOffer = await WebRtcInterop.CreateOfferAsync(notification.AcceptedByUserId.ToString());
+                if (sdpOffer is not null)
+                {
+                    var caller = await GetCallerContextAsync();
+                    await CallSignalingService.SendOfferAsync(
+                        notification.CallId, notification.AcceptedByUserId, sdpOffer, caller);
+                }
+            }
+            finally
+            {
+                _signalingLock.Release();
             }
         });
     }
 
     private void OnCallSignalReceived(CallSignalNotification notification)
     {
-        // Only process signals addressed to this user and for the active call
-        if (notification.ToUserId != _currentUserId) return;
-        if (_currentCallId is null || _currentCallId != notification.CallId) return;
-
+        if (_currentCallId is null || notification.CallId != _currentCallId) return;
         var peerId = notification.FromUserId.ToString();
 
         _ = InvokeAsync(async () =>
         {
+            await _signalingLock.WaitAsync();
             try
             {
                 // Ensure WebRTC is initialized before processing signals
@@ -1214,6 +1222,10 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                 _messageErrorMessage = $"WebRTC signal error: {ex.Message}";
                 StateHasChanged();
             }
+            finally
+            {
+                _signalingLock.Release();
+            }
         });
     }
 
@@ -1235,8 +1247,21 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             if (!initialized) return;
 
             _webRtcInitialized = true;
-            await WebRtcInterop.StartLocalMediaAsync();
-            await WebRtcInterop.AttachStreamToElementAsync("local-video-main", "local");
+
+            // StartLocalMediaAsync may fail if the device has no camera/mic — continue without local media
+            try
+            {
+                var streamId = await WebRtcInterop.StartLocalMediaAsync();
+                if (streamId is not null)
+                {
+                    await WebRtcInterop.AttachStreamToElementAsync("local-video-main", "local");
+                }
+            }
+            catch (Exception mediaEx)
+            {
+                _messageErrorMessage = $"No camera/mic available: {mediaEx.Message}";
+                // Continue — we can still receive remote media
+            }
 
             StartCallDurationTimer();
         }
@@ -1283,6 +1308,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     public async Task OnIceCandidate(string peerId, string candidateJson)
     {
         if (_currentCallId is null) return;
+        await _signalingLock.WaitAsync();
         try
         {
             var caller = await GetCallerContextAsync();
@@ -1296,6 +1322,10 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         {
             _messageErrorMessage = $"ICE candidate relay failed: {ex.Message}";
             await InvokeAsync(StateHasChanged);
+        }
+        finally
+        {
+            _signalingLock.Release();
         }
     }
 
@@ -1362,6 +1392,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             return;
         }
 
+        await _signalingLock.WaitAsync();
         try
         {
             var sdpOffer = await WebRtcInterop.CreateOfferAsync(peerId);
@@ -1376,6 +1407,10 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         {
             _messageErrorMessage = $"Re-negotiation failed: {ex.Message}";
             await InvokeAsync(StateHasChanged);
+        }
+        finally
+        {
+            _signalingLock.Release();
         }
     }
 
