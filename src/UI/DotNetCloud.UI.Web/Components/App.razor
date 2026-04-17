@@ -70,6 +70,22 @@
             get: () => window.localStorage['BlazorCulture'],
             set: (value) => window.localStorage['BlazorCulture'] = value
         };
+
+        // Reconnect modal state handler (required when using custom #components-reconnect-modal)
+        (function () {
+            const modal = document.getElementById('components-reconnect-modal');
+            if (!modal) return;
+            modal.addEventListener('components-reconnect-state-changed', function (e) {
+                const state = e.detail.state;
+                if (state === 'failed') {
+                    // All retries exhausted — try one more round
+                    Blazor.reconnect();
+                } else if (state === 'rejected') {
+                    // Server lost circuit state — must reload
+                    location.reload();
+                }
+            });
+        })();
     </script>
 </body>
 
