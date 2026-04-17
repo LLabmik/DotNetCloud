@@ -190,6 +190,60 @@
     </div>
 }
 
+@if (_showDmUserPicker)
+{
+    <div class="dialog-overlay" @onclick="HandleCloseDmUserPicker">
+        <div class="dialog dm-user-picker-dialog" @onclick:stopPropagation="true">
+            <div class="dialog-header">
+                <h2>New Direct Message</h2>
+                <button class="btn btn-sm" @onclick="HandleCloseDmUserPicker">✕</button>
+            </div>
+            <div class="dialog-body">
+                <div class="settings-section">
+                    <label>Search users</label>
+                    <input type="text"
+                           @bind="_dmSearchTerm"
+                           @bind:event="oninput"
+                           @bind:after="() => SearchUsersForDmAsync(_dmSearchTerm)"
+                           placeholder="Search by name or email..."
+                           class="search-input" />
+                </div>
+
+                @if (_isDmSearching)
+                {
+                    <div class="search-loading">Searching...</div>
+                }
+                else if (_dmSearchResults.Count > 0)
+                {
+                    <div class="dm-user-results">
+                        @foreach (var user in _dmSearchResults)
+                        {
+                            <div class="dm-user-result-item" @onclick="() => StartDmWithUserAsync(user.UserId)">
+                                <div class="dm-user-info">
+                                    <span class="dm-user-name">@user.DisplayName</span>
+                                    <span class="dm-user-email">@user.Email</span>
+                                </div>
+                                <div class="dm-user-actions">
+                                    <button class="btn btn-sm btn-icon" title="Audio call"
+                                            @onclick="@(() => CallUserDirectlyAsync(user.UserId, "Audio"))"
+                                            @onclick:stopPropagation="true">📞</button>
+                                    <button class="btn btn-sm btn-icon" title="Video call"
+                                            @onclick="@(() => CallUserDirectlyAsync(user.UserId, "Video"))"
+                                            @onclick:stopPropagation="true">📹</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else if (!string.IsNullOrWhiteSpace(_dmSearchTerm))
+                {
+                    <div class="search-empty">No users found.</div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
 <VideoCallDialog IsVisible="@_showVideoCallDialog"
                  ChannelName="@(_selectedChannel?.Name ?? "")"
                  CallState="@_currentCallState"

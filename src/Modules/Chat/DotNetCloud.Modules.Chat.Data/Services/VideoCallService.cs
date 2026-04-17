@@ -27,6 +27,7 @@ internal sealed class VideoCallService : IVideoCallService
     private readonly IChatMessageNotifier? _messageNotifier;
     private readonly ILiveKitService _liveKitService;
     private readonly IUserDirectory? _userDirectory;
+    private readonly IChannelService? _channelService;
     private readonly ILogger<VideoCallService> _logger;
 
     public VideoCallService(
@@ -36,7 +37,8 @@ internal sealed class VideoCallService : IVideoCallService
         ILiveKitService liveKitService,
         IChatRealtimeService? realtimeService = null,
         IChatMessageNotifier? messageNotifier = null,
-        IUserDirectory? userDirectory = null)
+        IUserDirectory? userDirectory = null,
+        IChannelService? channelService = null)
     {
         _db = db;
         _eventBus = eventBus;
@@ -44,6 +46,7 @@ internal sealed class VideoCallService : IVideoCallService
         _messageNotifier = messageNotifier;
         _liveKitService = liveKitService;
         _userDirectory = userDirectory;
+        _channelService = channelService;
         _logger = logger;
     }
 
@@ -529,6 +532,37 @@ internal sealed class VideoCallService : IVideoCallService
 
         var initiatorName = await ResolveDisplayNameAsync(call.InitiatorUserId, cancellationToken);
         return ToVideoCallDto(call, participants, initiatorName);
+    }
+
+    /// <inheritdoc />
+    public async Task<VideoCallDto> InitiateDirectCallAsync(
+        Guid targetUserId,
+        StartCallRequest request,
+        CallerContext caller,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(caller);
+
+        if (targetUserId == caller.UserId)
+        {
+            throw new ArgumentException("Cannot initiate a direct call to yourself.", nameof(targetUserId));
+        }
+
+        if (_channelService is null)
+        {
+            throw new InvalidOperationException("Channel service is not available. Cannot initiate direct calls.");
+        }
+
+        // Step 1: Get or create DM channel between caller and target
+        var dmChannel = await _channelService.GetOrCreateDirectMessageAsync(targetUserId, caller, cancellationToken);
+
+        _logger.LogInformation(
+            "Direct call: using DM channel {ChannelId} between user {CallerId} and {TargetId}",
+            dmChannel.Id, caller.UserId, targetUserId);
+
+        // Step 2: Initiate a call on that DM channel
+        return await InitiateCallAsync(dmChannel.Id, request, caller, cancellationToken);
     }
 
     /// <summary>

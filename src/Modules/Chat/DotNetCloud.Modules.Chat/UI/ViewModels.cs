@@ -209,3 +209,18 @@ public sealed class AnnouncementViewModel
     /// <summary>Author display name.</summary>
     public string AuthorName { get; init; } = string.Empty;
 }
+
+/// <summary>
+/// View model for a user search result in the DM user picker.
+/// </summary>
+public sealed class UserSearchResultViewModel
+{
+    /// <summary>User ID.</summary>
+    public Guid UserId { get; init; }
+
+    /// <summary>Display name.</summary>
+    public string DisplayName { get; init; } = string.Empty;
+
+    /// <summary>Email address.</summary>
+    public string Email { get; init; } = string.Empty;
+}

@@ -89,6 +89,12 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     private string? _inviteSuccessMessage;
     private bool _isInviting;
 
+    // DM user search state
+    private bool _showDmUserPicker;
+    private string _dmSearchTerm = string.Empty;
+    private List<UserSearchResultViewModel> _dmSearchResults = [];
+    private bool _isDmSearching;
+
     // Video call state
     private Guid? _currentCallId;
     private Guid? _incomingCallId;
@@ -1595,6 +1601,121 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         }
 
         await InvokeAsync(StateHasChanged);
+    }
+
+    // ── DM User Search & Direct Call ────────────────────────────────
+
+    /// <summary>
+    /// Searches for users to start a direct message conversation with.
+    /// Uses <see cref="IUserDirectory.SearchUsersAsync"/> for global user lookup.
+    /// </summary>
+    private async Task SearchUsersForDmAsync(string searchTerm)
+    {
+        if (string.IsNullOrWhiteSpace(searchTerm))
+        {
+            _dmSearchResults = [];
+            return;
+        }
+
+        _isDmSearching = true;
+        try
+        {
+            var results = await UserDirectory.SearchUsersAsync(searchTerm);
+            _dmSearchResults = results
+                .Where(r => r.Id != _currentUserId)
+                .Select(r => new UserSearchResultViewModel
+                {
+                    UserId = r.Id,
+                    DisplayName = r.DisplayName,
+                    Email = r.Email
+                })
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _messageErrorMessage = $"Failed to search users: {ex.Message}";
+            _dmSearchResults = [];
+        }
+        finally
+        {
+            _isDmSearching = false;
+        }
+    }
+
+    /// <summary>
+    /// Creates or navigates to a DM channel with the specified user.
+    /// </summary>
+    private async Task StartDmWithUserAsync(Guid targetUserId)
+    {
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            var dm = await ChannelService.GetOrCreateDirectMessageAsync(targetUserId, caller);
+
+            _showDmUserPicker = false;
+            _dmSearchTerm = string.Empty;
+            _dmSearchResults = [];
+
+            // Reload channels and select the DM
+            await LoadChannelsAsync();
+            var targetChannel = _channels.FirstOrDefault(c => c.Id == dm.Id);
+            if (targetChannel is not null)
+            {
+                await HandleChannelSelected(targetChannel);
+            }
+        }
+        catch (Exception ex)
+        {
+            _messageErrorMessage = $"Failed to start DM: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Initiates a direct call to a user by user ID. Creates/reuses DM channel and starts call.
+    /// </summary>
+    private async Task CallUserDirectlyAsync(Guid targetUserId, string mediaType = "Audio")
+    {
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            var result = await VideoCallService.InitiateDirectCallAsync(
+                targetUserId,
+                new StartCallRequest { MediaType = mediaType },
+                caller);
+
+            _currentCallId = result.Id;
+            _showVideoCallDialog = true;
+            _currentCallState = "Ringing";
+            _isCallCameraOff = mediaType != "Video";
+            _remoteParticipants = [];
+
+            // Navigate to the DM channel if not already selected
+            var targetChannel = _channels.FirstOrDefault(c => c.Id == result.ChannelId);
+            if (targetChannel is not null && (_selectedChannel is null || _selectedChannel.Id != result.ChannelId))
+            {
+                await HandleChannelSelected(targetChannel);
+            }
+        }
+        catch (Exception ex)
+        {
+            _messageErrorMessage = $"Failed to initiate direct call: {ex.Message}";
+        }
+    }
+
+    private Task HandleOpenDmUserPicker()
+    {
+        _showDmUserPicker = true;
+        _dmSearchTerm = string.Empty;
+        _dmSearchResults = [];
+        return Task.CompletedTask;
+    }
+
+    private Task HandleCloseDmUserPicker()
+    {
+        _showDmUserPicker = false;
+        _dmSearchTerm = string.Empty;
+        _dmSearchResults = [];
+        return Task.CompletedTask;
     }
 
     // ── Call UI Event Handlers ──────────────────────────────────────

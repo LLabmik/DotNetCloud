@@ -64,4 +64,15 @@ public interface IVideoCallService
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The video call, or null if not found.</returns>
     Task<VideoCallDto?> GetCallByIdAsync(Guid callId, CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Initiates a direct call to a target user. Creates or reuses the DM channel between
+    /// the caller and target, then starts a call on that channel. Single atomic operation.
+    /// </summary>
+    /// <param name="targetUserId">The user to call directly.</param>
+    /// <param name="request">Call initiation parameters (media type).</param>
+    /// <param name="caller">The caller context.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The created video call.</returns>
+    Task<VideoCallDto> InitiateDirectCallAsync(Guid targetUserId, StartCallRequest request, CallerContext caller, CancellationToken cancellationToken = default);
 }

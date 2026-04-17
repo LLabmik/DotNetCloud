@@ -941,6 +941,30 @@ public class ChatController : ChatControllerBase
         }
     }
 
+    /// <summary>Initiates a direct call to a specific user by creating/reusing a DM channel.</summary>
+    [HttpPost("calls/direct/{targetUserId:guid}")]
+    [EnableRateLimiting("module-video-call-initiate")]
+    public async Task<IActionResult> InitiateDirectCallAsync(Guid targetUserId, [FromBody] StartCallRequest request)
+    {
+        try
+        {
+            var call = await _videoCallService.InitiateDirectCallAsync(targetUserId, request, GetAuthenticatedCaller());
+            return CreatedAtAction("GetCall", new { callId = call.Id }, Envelope(call));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ErrorEnvelope("VALIDATION_ERROR", ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ErrorEnvelope("CALL_ALREADY_ACTIVE", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
     /// <summary>Joins an active video call.</summary>
     [HttpPost("calls/{callId:guid}/join")]
     public async Task<IActionResult> JoinCallAsync(Guid callId, [FromBody] JoinCallRequest request)
