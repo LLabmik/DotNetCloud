@@ -246,6 +246,9 @@ internal sealed class VideoCallService : IVideoCallService
                 ChannelId = call.ChannelId,
                 AnsweredByUserId = caller.UserId
             }, caller, cancellationToken);
+
+            _messageNotifier?.NotifyCallAccepted(new CallAcceptedNotification(
+                callId, call.ChannelId, caller.UserId, caller.UserId.ToString()));
         }
 
         await _eventBus.PublishAsync(new ParticipantJoinedCallEvent

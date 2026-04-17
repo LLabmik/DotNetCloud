@@ -6,6 +6,7 @@ using DotNetCloud.Modules.Chat.Models;
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.JSInterop;
 
 namespace DotNetCloud.Modules.Chat.UI;
 
@@ -14,7 +15,7 @@ namespace DotNetCloud.Modules.Chat.UI;
 /// Manages channel selection, message loading, message sending, reactions,
 /// member management, search, typing indicators, and announcements.
 /// </summary>
-public partial class ChatPageLayout : ComponentBase, IDisposable
+public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 {
     private const int MessagePageSize = 50;
     private const int SearchPageSize = 25;
@@ -29,6 +30,10 @@ public partial class ChatPageLayout : ComponentBase, IDisposable
     [Inject] private IUserDirectory UserDirectory { get; set; } = default!;
     [Inject] private IChatRealtimeService ChatRealtimeService { get; set; } = default!;
     [Inject] private IChatMessageNotifier ChatMessageNotifier { get; set; } = default!;
+    [Inject] private IVideoCallService VideoCallService { get; set; } = default!;
+    [Inject] private IWebRtcInteropService WebRtcInterop { get; set; } = default!;
+    [Inject] private ICallSignalingService CallSignalingService { get; set; } = default!;
+    [Inject] private IIceServerService IceServerService { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
 
     // Channel state
@@ -85,12 +90,12 @@ public partial class ChatPageLayout : ComponentBase, IDisposable
     private bool _isInviting;
 
     // Video call state
+    private Guid? _currentCallId;
+    private Guid? _incomingCallId;
     private bool _showVideoCallDialog;
     private bool _showIncomingCall;
     private bool _showCallHistoryPanel;
-#pragma warning disable CS0649 // Assigned via real-time events (SignalR callbacks to be wired in Phase 7.9+)
     private bool _hasActiveCall;
-#pragma warning restore CS0649
     private string _currentCallState = string.Empty;
     private string _currentUserDisplayName = string.Empty;
     private List<CallParticipantDto> _remoteParticipants = [];
@@ -98,20 +103,23 @@ public partial class ChatPageLayout : ComponentBase, IDisposable
     private bool _isCallCameraOff;
     private bool _isCallScreenSharing;
     private int _callDurationSeconds;
-#pragma warning disable CS0649 // Assigned via real-time events (SignalR callbacks to be wired in Phase 7.9+)
     private string? _callConnectionQuality;
-#pragma warning restore CS0649
     private string _incomingCallerName = string.Empty;
     private string _incomingCallChannelName = string.Empty;
     private string _incomingCallMediaType = "Audio";
     private int _incomingCallRemainingSeconds;
     private bool _isIncomingCallRinging;
     private List<CallHistoryDto> _callHistory = [];
-#pragma warning disable CS0649 // Assigned via real-time events (SignalR callbacks to be wired in Phase 7.9+)
+#pragma warning disable CS0649 // Will be assigned when call history loading is implemented
     private bool _isLoadingCallHistory;
     private bool _isLoadingMoreCallHistory;
     private bool _hasMoreCallHistory;
 #pragma warning restore CS0649
+    private DotNetObjectReference<ChatPageLayout>? _dotNetRef;
+    private Guid? _callPeerId;
+    private bool _webRtcInitialized;
+    private bool _initialNegotiationDone;
+    private System.Timers.Timer? _callDurationTimer;
 
     // User state
     private Guid _currentUserId;
@@ -125,23 +133,38 @@ public partial class ChatPageLayout : ComponentBase, IDisposable
     {
         var caller = await GetCallerContextAsync();
         _currentUserId = caller.UserId;
+        _dotNetRef = DotNetObjectReference.Create(this);
 
         ChatMessageNotifier.MessageReceived += OnRemoteMessageReceived;
         ChatMessageNotifier.MessageEdited += OnRemoteMessageEdited;
         ChatMessageNotifier.MessageDeleted += OnRemoteMessageDeleted;
         ChatMessageNotifier.CallRinging += OnCallRinging;
+        ChatMessageNotifier.CallAccepted += OnCallAccepted;
+        ChatMessageNotifier.CallSignalReceived += OnCallSignalReceived;
 
         await LoadChannelsAsync();
         await LoadAnnouncementsAsync();
     }
 
     /// <inheritdoc />
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         ChatMessageNotifier.MessageReceived -= OnRemoteMessageReceived;
         ChatMessageNotifier.MessageEdited -= OnRemoteMessageEdited;
         ChatMessageNotifier.MessageDeleted -= OnRemoteMessageDeleted;
         ChatMessageNotifier.CallRinging -= OnCallRinging;
+        ChatMessageNotifier.CallAccepted -= OnCallAccepted;
+        ChatMessageNotifier.CallSignalReceived -= OnCallSignalReceived;
+
+        _callDurationTimer?.Stop();
+        _callDurationTimer?.Dispose();
+
+        if (_webRtcInitialized)
+        {
+            try { await WebRtcInterop.HangupAsync(); } catch { /* best-effort cleanup */ }
+        }
+
+        _dotNetRef?.Dispose();
     }
 
     private void OnRemoteMessageReceived(Guid channelId, MessageDto message)
@@ -1100,6 +1123,7 @@ public partial class ChatPageLayout : ComponentBase, IDisposable
         var callerName = _displayNameCache.GetValueOrDefault(notification.InitiatorUserId,
             notification.InitiatorUserId.ToString()[..8]);
 
+        _incomingCallId = notification.CallId;
         _showIncomingCall = true;
         _isIncomingCallRinging = true;
         _incomingCallerName = callerName;
@@ -1110,22 +1134,328 @@ public partial class ChatPageLayout : ComponentBase, IDisposable
         _ = InvokeAsync(StateHasChanged);
     }
 
-    private Task HandleStartAudioCall()
+    private void OnCallAccepted(CallAcceptedNotification notification)
     {
-        _showVideoCallDialog = true;
-        _currentCallState = "Ringing";
-        _isCallCameraOff = true;
-        _remoteParticipants = [];
-        return Task.CompletedTask;
+        // Only the caller (who initiated this call) should react
+        if (_currentCallId is null || _currentCallId != notification.CallId) return;
+
+        _currentCallState = "Active";
+        _hasActiveCall = true;
+        _callPeerId = notification.AcceptedByUserId;
+
+        var displayName = _displayNameCache.GetValueOrDefault(notification.AcceptedByUserId,
+            notification.AcceptedByUserId.ToString()[..8]);
+        _remoteParticipants = [new CallParticipantDto
+        {
+            Id = Guid.NewGuid(),
+            UserId = notification.AcceptedByUserId,
+            DisplayName = displayName,
+            Role = "Participant",
+            HasAudio = true,
+            HasVideo = _incomingCallMediaType == "Video"
+        }];
+
+        // Caller initiates the WebRTC offer once the callee has accepted
+        _ = InvokeAsync(async () =>
+        {
+            StateHasChanged();
+            await StartWebRtcAsync();
+            var sdpOffer = await WebRtcInterop.CreateOfferAsync(notification.AcceptedByUserId.ToString());
+            if (sdpOffer is not null)
+            {
+                var caller = await GetCallerContextAsync();
+                await CallSignalingService.SendOfferAsync(
+                    notification.CallId, notification.AcceptedByUserId, sdpOffer, caller);
+            }
+        });
     }
 
-    private Task HandleStartVideoCall()
+    private void OnCallSignalReceived(CallSignalNotification notification)
     {
-        _showVideoCallDialog = true;
-        _currentCallState = "Ringing";
-        _isCallCameraOff = false;
-        _remoteParticipants = [];
-        return Task.CompletedTask;
+        // Only process signals addressed to this user and for the active call
+        if (notification.ToUserId != _currentUserId) return;
+        if (_currentCallId is null || _currentCallId != notification.CallId) return;
+
+        var peerId = notification.FromUserId.ToString();
+
+        _ = InvokeAsync(async () =>
+        {
+            try
+            {
+                // Ensure WebRTC is initialized before processing signals
+                if (!_webRtcInitialized)
+                {
+                    await StartWebRtcAsync();
+                }
+
+                if (!_webRtcInitialized) return; // Still failed, bail
+
+                switch (notification.Type)
+                {
+                    case "offer":
+                        var sdpAnswer = await WebRtcInterop.HandleOfferAsync(peerId, notification.Payload);
+                        if (sdpAnswer is not null)
+                        {
+                            var caller = await GetCallerContextAsync();
+                            await CallSignalingService.SendAnswerAsync(
+                                notification.CallId, notification.FromUserId, sdpAnswer, caller);
+                        }
+                        break;
+                    case "answer":
+                        await WebRtcInterop.HandleAnswerAsync(peerId, notification.Payload);
+                        break;
+                    case "ice-candidate":
+                        await WebRtcInterop.AddIceCandidateAsync(peerId, notification.Payload);
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                _messageErrorMessage = $"WebRTC signal error: {ex.Message}";
+                StateHasChanged();
+            }
+        });
+    }
+
+    private async Task StartWebRtcAsync()
+    {
+        if (_webRtcInitialized || _dotNetRef is null || _currentCallId is null) return;
+
+        try
+        {
+            var iceServers = IceServerService.GetIceServers();
+            var config = new WebRtcCallConfig
+            {
+                CallId = _currentCallId.Value.ToString(),
+                IceServers = iceServers,
+                IceTransportPolicy = IceServerService.IceTransportPolicy
+            };
+
+            var initialized = await WebRtcInterop.InitializeCallAsync(_dotNetRef, config);
+            if (!initialized) return;
+
+            _webRtcInitialized = true;
+            await WebRtcInterop.StartLocalMediaAsync();
+            await WebRtcInterop.AttachStreamToElementAsync("local-video-main", "local");
+
+            StartCallDurationTimer();
+        }
+        catch (Exception ex)
+        {
+            _messageErrorMessage = $"Failed to start media: {ex.Message}";
+            StateHasChanged();
+        }
+    }
+
+    private void StartCallDurationTimer()
+    {
+        _callDurationTimer?.Dispose();
+        _callDurationSeconds = 0;
+        _callDurationTimer = new System.Timers.Timer(1000);
+        _callDurationTimer.Elapsed += (_, _) =>
+        {
+            _callDurationSeconds++;
+            _ = InvokeAsync(StateHasChanged);
+        };
+        _callDurationTimer.Start();
+    }
+
+    private async Task StopWebRtcAsync()
+    {
+        _callDurationTimer?.Stop();
+        _callDurationTimer?.Dispose();
+        _callDurationTimer = null;
+
+        if (_webRtcInitialized)
+        {
+            try { await WebRtcInterop.HangupAsync(); } catch { /* best-effort */ }
+            _webRtcInitialized = false;
+        }
+
+        _callPeerId = null;
+        _initialNegotiationDone = false;
+    }
+
+    // ── JSInvokable Callbacks (called from video-call.js) ───────────
+
+    /// <summary>Called by JS when an ICE candidate is gathered for a peer.</summary>
+    [JSInvokable]
+    public async Task OnIceCandidate(string peerId, string candidateJson)
+    {
+        if (_currentCallId is null) return;
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            if (Guid.TryParse(peerId, out var targetUserId))
+            {
+                await CallSignalingService.SendIceCandidateAsync(
+                    _currentCallId.Value, targetUserId, candidateJson, caller);
+            }
+        }
+        catch (Exception ex)
+        {
+            _messageErrorMessage = $"ICE candidate relay failed: {ex.Message}";
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    /// <summary>Called by JS when a remote stream is received from a peer.</summary>
+    [JSInvokable]
+    public async Task OnRemoteStream(string peerId, string streamId)
+    {
+        try
+        {
+            // For remote streams, pass the peerId as streamType — JS looks up remoteStreams by key
+            await WebRtcInterop.AttachStreamToElementAsync($"remote-video-{peerId}", peerId);
+        }
+        catch
+        {
+            // Element may not be rendered yet; will attach on next render
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Called by JS when a peer connection state changes.</summary>
+    [JSInvokable]
+    public async Task OnConnectionStateChanged(string peerId, string state)
+    {
+        if (state == "connected")
+        {
+            _currentCallState = "Active";
+            _hasActiveCall = true;
+        }
+        else if (state is "disconnected" or "failed")
+        {
+            _currentCallState = "Reconnecting";
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Called by JS on WebRTC errors.</summary>
+    [JSInvokable]
+    public async Task OnWebRtcError(string context, string message)
+    {
+        _messageErrorMessage = $"WebRTC error ({context}): {message}";
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Called by JS when screen sharing state changes.</summary>
+    [JSInvokable]
+    public async Task OnScreenShareStateChanged(bool isSharing)
+    {
+        _isCallScreenSharing = isSharing;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Called by JS when re-negotiation is needed for a peer.</summary>
+    [JSInvokable]
+    public async Task OnNegotiationNeeded(string peerId)
+    {
+        if (_currentCallId is null) return;
+
+        // Skip the initial negotiation triggered by addTrack — it's handled explicitly
+        if (!_initialNegotiationDone)
+        {
+            _initialNegotiationDone = true;
+            return;
+        }
+
+        try
+        {
+            var sdpOffer = await WebRtcInterop.CreateOfferAsync(peerId);
+            if (sdpOffer is not null && Guid.TryParse(peerId, out var targetUserId))
+            {
+                var caller = await GetCallerContextAsync();
+                await CallSignalingService.SendOfferAsync(
+                    _currentCallId.Value, targetUserId, sdpOffer, caller);
+            }
+        }
+        catch (Exception ex)
+        {
+            _messageErrorMessage = $"Re-negotiation failed: {ex.Message}";
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    /// <summary>Called by JS when a peer disconnects.</summary>
+    [JSInvokable]
+    public async Task OnPeerDisconnected(string peerId, string state)
+    {
+        _remoteParticipants.RemoveAll(p => p.UserId.ToString() == peerId);
+        if (_remoteParticipants.Count == 0)
+        {
+            await HandleCallHangUp();
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Called by JS with connection quality metrics.</summary>
+    [JSInvokable]
+    public async Task OnConnectionQualityUpdate(string peerId, string quality,
+        double roundTripTime, double availableBandwidth)
+    {
+        _callConnectionQuality = quality;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Called by JS when a remote track ends.</summary>
+    [JSInvokable]
+    public async Task OnRemoteTrackEnded(string peerId, string kind)
+    {
+        var idx = _remoteParticipants.FindIndex(p => p.UserId.ToString() == peerId);
+        if (idx >= 0)
+        {
+            var p = _remoteParticipants[idx];
+            _remoteParticipants[idx] = new CallParticipantDto
+            {
+                Id = p.Id,
+                UserId = p.UserId,
+                DisplayName = p.DisplayName,
+                Role = p.Role,
+                HasAudio = kind == "audio" ? false : p.HasAudio,
+                HasVideo = kind == "video" ? false : p.HasVideo
+            };
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    // ── Call UI Event Handlers ──────────────────────────────────────
+
+    private async Task HandleStartAudioCall()
+    {
+        await InitiateCallAsync("Audio", cameraOff: true);
+    }
+
+    private async Task HandleStartVideoCall()
+    {
+        await InitiateCallAsync("Video", cameraOff: false);
+    }
+
+    private async Task InitiateCallAsync(string mediaType, bool cameraOff)
+    {
+        if (_selectedChannel is null) return;
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            var result = await VideoCallService.InitiateCallAsync(
+                _selectedChannel.Id,
+                new StartCallRequest { MediaType = mediaType },
+                caller);
+
+            _currentCallId = result.Id;
+            _showVideoCallDialog = true;
+            _currentCallState = "Ringing";
+            _isCallCameraOff = cameraOff;
+            _remoteParticipants = [];
+        }
+        catch (Exception ex)
+        {
+            _messageErrorMessage = $"Failed to start call: {ex.Message}";
+        }
     }
 
     private Task HandleJoinActiveCall()
@@ -1135,31 +1465,65 @@ public partial class ChatPageLayout : ComponentBase, IDisposable
         return Task.CompletedTask;
     }
 
-    private Task HandleCallToggleMute(bool muted)
+    private async Task HandleCallToggleMute(bool muted)
     {
         _isCallMuted = muted;
-        return Task.CompletedTask;
+        if (_webRtcInitialized)
+        {
+            await WebRtcInterop.ToggleAudioAsync(!muted);
+        }
     }
 
-    private Task HandleCallToggleCamera(bool cameraOff)
+    private async Task HandleCallToggleCamera(bool cameraOff)
     {
         _isCallCameraOff = cameraOff;
-        return Task.CompletedTask;
+        if (_webRtcInitialized)
+        {
+            await WebRtcInterop.ToggleVideoAsync(!cameraOff);
+        }
     }
 
-    private Task HandleCallToggleScreenShare(bool sharing)
+    private async Task HandleCallToggleScreenShare(bool sharing)
     {
-        _isCallScreenSharing = sharing;
-        return Task.CompletedTask;
+        if (!_webRtcInitialized) return;
+        if (sharing)
+        {
+            await WebRtcInterop.StartScreenShareAsync();
+        }
+        else
+        {
+            await WebRtcInterop.StopScreenShareAsync();
+        }
+        // _isCallScreenSharing is updated via OnScreenShareStateChanged JS callback
     }
 
-    private Task HandleCallHangUp()
+    private async Task HandleCallHangUp()
     {
+        await StopWebRtcAsync();
+
+        if (_currentCallId is not null)
+        {
+            try
+            {
+                var caller = await GetCallerContextAsync();
+                await VideoCallService.EndCallAsync(_currentCallId.Value, caller);
+            }
+            catch (Exception ex)
+            {
+                _messageErrorMessage = $"Failed to end call: {ex.Message}";
+            }
+        }
+
         _showVideoCallDialog = false;
         _currentCallState = "Ended";
+        _hasActiveCall = false;
+        _currentCallId = null;
         _remoteParticipants = [];
         _callDurationSeconds = 0;
-        return Task.CompletedTask;
+        _isCallMuted = false;
+        _isCallCameraOff = false;
+        _isCallScreenSharing = false;
+        _callConnectionQuality = null;
     }
 
     private Task HandleCallMinimize()
@@ -1173,28 +1537,62 @@ public partial class ChatPageLayout : ComponentBase, IDisposable
         return Task.CompletedTask;
     }
 
-    private Task HandleAcceptCallVideo()
+    private async Task HandleAcceptCallVideo()
     {
-        _showIncomingCall = false;
-        _showVideoCallDialog = true;
-        _currentCallState = "Connecting";
-        _isCallCameraOff = false;
-        return Task.CompletedTask;
+        await AcceptCallAsync(withVideo: true);
     }
 
-    private Task HandleAcceptCallAudio()
+    private async Task HandleAcceptCallAudio()
     {
-        _showIncomingCall = false;
-        _showVideoCallDialog = true;
-        _currentCallState = "Connecting";
-        _isCallCameraOff = true;
-        return Task.CompletedTask;
+        await AcceptCallAsync(withVideo: false);
     }
 
-    private Task HandleRejectCall()
+    private async Task AcceptCallAsync(bool withVideo)
     {
+        if (_incomingCallId is null) return;
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            var result = await VideoCallService.JoinCallAsync(
+                _incomingCallId.Value,
+                new JoinCallRequest { WithAudio = true, WithVideo = withVideo },
+                caller);
+
+            _currentCallId = result.Id;
+            _showIncomingCall = false;
+            _showVideoCallDialog = true;
+            _currentCallState = result.State;
+            _isCallCameraOff = !withVideo;
+            _incomingCallId = null;
+
+            // Callee starts WebRTC and waits for the caller's offer via OnCallSignalReceived
+            await StartWebRtcAsync();
+        }
+        catch (Exception ex)
+        {
+            _showIncomingCall = false;
+            _incomingCallId = null;
+            _messageErrorMessage = $"Failed to join call: {ex.Message}";
+        }
+    }
+
+    private async Task HandleRejectCall()
+    {
+        if (_incomingCallId is not null)
+        {
+            try
+            {
+                var caller = await GetCallerContextAsync();
+                await VideoCallService.RejectCallAsync(_incomingCallId.Value, caller);
+            }
+            catch
+            {
+                // Swallow — UI should still dismiss regardless
+            }
+        }
+
         _showIncomingCall = false;
-        return Task.CompletedTask;
+        _incomingCallId = null;
     }
 
     private Task HandleToggleCallHistory()

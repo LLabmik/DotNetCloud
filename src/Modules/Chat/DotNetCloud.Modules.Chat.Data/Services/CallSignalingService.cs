@@ -25,6 +25,7 @@ internal sealed class CallSignalingService : ICallSignalingService
 
     private readonly ChatDbContext _db;
     private readonly IRealtimeBroadcaster? _broadcaster;
+    private readonly IChatMessageNotifier? _messageNotifier;
     private readonly IEventBus _eventBus;
     private readonly ILogger<CallSignalingService> _logger;
 
@@ -32,12 +33,14 @@ internal sealed class CallSignalingService : ICallSignalingService
         ChatDbContext db,
         IEventBus eventBus,
         ILogger<CallSignalingService> logger,
-        IRealtimeBroadcaster? broadcaster = null)
+        IRealtimeBroadcaster? broadcaster = null,
+        IChatMessageNotifier? messageNotifier = null)
     {
         _db = db;
         _eventBus = eventBus;
         _logger = logger;
         _broadcaster = broadcaster;
+        _messageNotifier = messageNotifier;
     }
 
     /// <inheritdoc />
@@ -72,6 +75,9 @@ internal sealed class CallSignalingService : ICallSignalingService
                 },
                 cancellationToken);
         }
+
+        _messageNotifier?.NotifyCallSignal(new CallSignalNotification(
+            callId, caller.UserId, targetUserId, "offer", sdpOffer));
     }
 
     /// <inheritdoc />
@@ -106,6 +112,9 @@ internal sealed class CallSignalingService : ICallSignalingService
                 },
                 cancellationToken);
         }
+
+        _messageNotifier?.NotifyCallSignal(new CallSignalNotification(
+            callId, caller.UserId, targetUserId, "answer", sdpAnswer));
     }
 
     /// <inheritdoc />
@@ -140,6 +149,9 @@ internal sealed class CallSignalingService : ICallSignalingService
                 },
                 cancellationToken);
         }
+
+        _messageNotifier?.NotifyCallSignal(new CallSignalNotification(
+            callId, caller.UserId, targetUserId, "ice-candidate", iceCandidate));
     }
 
     /// <inheritdoc />

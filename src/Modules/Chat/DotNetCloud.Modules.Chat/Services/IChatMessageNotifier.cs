@@ -12,6 +12,25 @@ public sealed record CallRingingNotification(
     string MediaType);
 
 /// <summary>
+/// Payload for a call-accepted notification raised via <see cref="IChatMessageNotifier"/>.
+/// </summary>
+public sealed record CallAcceptedNotification(
+    Guid CallId,
+    Guid ChannelId,
+    Guid AcceptedByUserId,
+    string AcceptedByDisplayName);
+
+/// <summary>
+/// Payload for a WebRTC signaling message (offer, answer, or ICE candidate) relayed in-process.
+/// </summary>
+public sealed record CallSignalNotification(
+    Guid CallId,
+    Guid FromUserId,
+    Guid ToUserId,
+    string Type,
+    string Payload);
+
+/// <summary>
 /// In-process pub/sub for chat message events within the server process.
 /// Enables Blazor Server components to receive real-time message updates
 /// from any source (REST API, other Blazor circuits, SignalR hub).
@@ -30,6 +49,12 @@ public interface IChatMessageNotifier
     /// <summary>Raised when a call starts ringing in a channel.</summary>
     event Action<CallRingingNotification>? CallRinging;
 
+    /// <summary>Raised when a call is accepted by a participant.</summary>
+    event Action<CallAcceptedNotification>? CallAccepted;
+
+    /// <summary>Raised when a WebRTC signaling message is received (offer, answer, ICE candidate).</summary>
+    event Action<CallSignalNotification>? CallSignalReceived;
+
     /// <summary>Notifies all subscribers that a new message was sent.</summary>
     void NotifyMessageReceived(Guid channelId, MessageDto message);
 
@@ -41,6 +66,12 @@ public interface IChatMessageNotifier
 
     /// <summary>Notifies all subscribers that a call is ringing in a channel.</summary>
     void NotifyCallRinging(CallRingingNotification notification);
+
+    /// <summary>Notifies all subscribers that a call was accepted.</summary>
+    void NotifyCallAccepted(CallAcceptedNotification notification);
+
+    /// <summary>Notifies all subscribers of a WebRTC signaling message.</summary>
+    void NotifyCallSignal(CallSignalNotification notification);
 }
 
 /// <summary>
@@ -62,6 +93,12 @@ public sealed class InProcessChatMessageNotifier : IChatMessageNotifier
     public event Action<CallRingingNotification>? CallRinging;
 
     /// <inheritdoc />
+    public event Action<CallAcceptedNotification>? CallAccepted;
+
+    /// <inheritdoc />
+    public event Action<CallSignalNotification>? CallSignalReceived;
+
+    /// <inheritdoc />
     public void NotifyMessageReceived(Guid channelId, MessageDto message)
         => MessageReceived?.Invoke(channelId, message);
 
@@ -76,4 +113,12 @@ public sealed class InProcessChatMessageNotifier : IChatMessageNotifier
     /// <inheritdoc />
     public void NotifyCallRinging(CallRingingNotification notification)
         => CallRinging?.Invoke(notification);
+
+    /// <inheritdoc />
+    public void NotifyCallAccepted(CallAcceptedNotification notification)
+        => CallAccepted?.Invoke(notification);
+
+    /// <inheritdoc />
+    public void NotifyCallSignal(CallSignalNotification notification)
+        => CallSignalReceived?.Invoke(notification);
 }
