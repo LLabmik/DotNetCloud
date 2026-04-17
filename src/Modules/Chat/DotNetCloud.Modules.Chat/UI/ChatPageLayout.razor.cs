@@ -105,6 +105,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     private int _callDurationSeconds;
     private string? _callConnectionQuality;
     private string _incomingCallerName = string.Empty;
+    private Guid? _incomingCallInitiatorId;
     private string _incomingCallChannelName = string.Empty;
     private string _incomingCallMediaType = "Audio";
     private int _incomingCallRemainingSeconds;
@@ -1126,6 +1127,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             notification.InitiatorUserId.ToString()[..8]);
 
         _incomingCallId = notification.CallId;
+        _incomingCallInitiatorId = notification.InitiatorUserId;
         _showIncomingCall = true;
         _isIncomingCallRinging = true;
         _incomingCallerName = callerName;
@@ -1335,17 +1337,32 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     [JSInvokable]
     public async Task OnRemoteStream(string peerId, string streamId)
     {
+        // Ensure the DOM is up-to-date before attaching (element may not exist yet)
+        await InvokeAsync(StateHasChanged);
+
+        // Small delay to let Blazor flush the render batch so remote-video-{peerId} exists in the DOM
+        await Task.Delay(100);
+
         try
         {
             // For remote streams, pass the peerId as streamType — JS looks up remoteStreams by key
             await WebRtcInterop.AttachStreamToElementAsync($"remote-video-{peerId}", peerId);
+
+            // When remote participants appear, the layout switches from solo to PIP.
+            // Re-attach local stream to the PIP element (local-video-main is gone).
+            try
+            {
+                await WebRtcInterop.AttachStreamToElementAsync("local-video-pip", "local");
+            }
+            catch
+            {
+                // No local stream or PIP element not rendered — non-fatal
+            }
         }
         catch
         {
-            // Element may not be rendered yet; will attach on next render
+            // Element may not be rendered yet; will retry on next remote stream event
         }
-
-        await InvokeAsync(StateHasChanged);
     }
 
     /// <summary>Called by JS when a peer connection state changes.</summary>
@@ -1608,7 +1625,27 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             _showVideoCallDialog = true;
             _currentCallState = result.State;
             _isCallCameraOff = !withVideo;
+            _hasActiveCall = true;
+
+            // Set remote participants so the remote video element is rendered
+            if (_incomingCallInitiatorId is not null)
+            {
+                _callPeerId = _incomingCallInitiatorId;
+                var displayName = _displayNameCache.GetValueOrDefault(_incomingCallInitiatorId.Value,
+                    _incomingCallInitiatorId.Value.ToString()[..8]);
+                _remoteParticipants = [new CallParticipantDto
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = _incomingCallInitiatorId.Value,
+                    DisplayName = displayName,
+                    Role = "Participant",
+                    HasAudio = true,
+                    HasVideo = _incomingCallMediaType == "Video"
+                }];
+            }
+
             _incomingCallId = null;
+            _incomingCallInitiatorId = null;
 
             // Callee starts WebRTC and waits for the caller's offer via OnCallSignalReceived
             await StartWebRtcAsync();
@@ -1617,6 +1654,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         {
             _showIncomingCall = false;
             _incomingCallId = null;
+            _incomingCallInitiatorId = null;
             _messageErrorMessage = $"Failed to join call: {ex.Message}";
         }
     }
@@ -1638,6 +1676,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
         _showIncomingCall = false;
         _incomingCallId = null;
+        _incomingCallInitiatorId = null;
     }
 
     private Task HandleToggleCallHistory()
