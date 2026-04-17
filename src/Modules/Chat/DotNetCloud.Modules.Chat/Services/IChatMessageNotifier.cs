@@ -21,6 +21,15 @@ public sealed record CallAcceptedNotification(
     string AcceptedByDisplayName);
 
 /// <summary>
+/// Payload for a call-ended notification raised via <see cref="IChatMessageNotifier"/>.
+/// </summary>
+public sealed record CallEndedNotification(
+    Guid CallId,
+    Guid ChannelId,
+    string EndReason,
+    int? DurationSeconds);
+
+/// <summary>
 /// Payload for a WebRTC signaling message (offer, answer, or ICE candidate) relayed in-process.
 /// </summary>
 public sealed record CallSignalNotification(
@@ -52,6 +61,9 @@ public interface IChatMessageNotifier
     /// <summary>Raised when a call is accepted by a participant.</summary>
     event Action<CallAcceptedNotification>? CallAccepted;
 
+    /// <summary>Raised when a call ends (any reason: hangup, timeout, rejection, failure).</summary>
+    event Action<CallEndedNotification>? CallEnded;
+
     /// <summary>Raised when a WebRTC signaling message is received (offer, answer, ICE candidate).</summary>
     event Action<CallSignalNotification>? CallSignalReceived;
 
@@ -69,6 +81,9 @@ public interface IChatMessageNotifier
 
     /// <summary>Notifies all subscribers that a call was accepted.</summary>
     void NotifyCallAccepted(CallAcceptedNotification notification);
+
+    /// <summary>Notifies all subscribers that a call has ended.</summary>
+    void NotifyCallEnded(CallEndedNotification notification);
 
     /// <summary>Notifies all subscribers of a WebRTC signaling message.</summary>
     void NotifyCallSignal(CallSignalNotification notification);
@@ -96,6 +111,9 @@ public sealed class InProcessChatMessageNotifier : IChatMessageNotifier
     public event Action<CallAcceptedNotification>? CallAccepted;
 
     /// <inheritdoc />
+    public event Action<CallEndedNotification>? CallEnded;
+
+    /// <inheritdoc />
     public event Action<CallSignalNotification>? CallSignalReceived;
 
     /// <inheritdoc />
@@ -117,6 +135,10 @@ public sealed class InProcessChatMessageNotifier : IChatMessageNotifier
     /// <inheritdoc />
     public void NotifyCallAccepted(CallAcceptedNotification notification)
         => CallAccepted?.Invoke(notification);
+
+    /// <inheritdoc />
+    public void NotifyCallEnded(CallEndedNotification notification)
+        => CallEnded?.Invoke(notification);
 
     /// <inheritdoc />
     public void NotifyCallSignal(CallSignalNotification notification)

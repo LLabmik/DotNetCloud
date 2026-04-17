@@ -401,6 +401,10 @@ internal sealed class VideoCallService : IVideoCallService
                 DurationSeconds = null
             }, caller, cancellationToken);
 
+            // Notify in-process Blazor circuits so the caller sees rejection immediately
+            _messageNotifier?.NotifyCallEnded(new CallEndedNotification(
+                callId, call.ChannelId, VideoCallEndReason.Rejected.ToString(), null));
+
             _logger.LogInformation(
                 "Video call {CallId} rejected by user {UserId} (1:1 call ended)",
                 callId, caller.UserId);
@@ -567,6 +571,10 @@ internal sealed class VideoCallService : IVideoCallService
             _logger.LogInformation(
                 "Video call {CallId} in channel {ChannelId} timed out (missed after {TimeoutSeconds}s)",
                 call.Id, call.ChannelId, RingTimeoutSeconds);
+
+            // Notify in-process Blazor circuits so ringing UI is dismissed
+            _messageNotifier?.NotifyCallEnded(new CallEndedNotification(
+                call.Id, call.ChannelId, VideoCallEndReason.Missed.ToString(), null));
         }
 
         return timedOutCalls.Count;
@@ -613,6 +621,10 @@ internal sealed class VideoCallService : IVideoCallService
             EndReason = endReason.ToString(),
             DurationSeconds = CalculateDurationSeconds(call)
         }, caller, cancellationToken);
+
+        // Notify in-process Blazor circuits so all participants see the call end immediately
+        _messageNotifier?.NotifyCallEnded(new CallEndedNotification(
+            call.Id, call.ChannelId, endReason.ToString(), CalculateDurationSeconds(call)));
     }
 
     private static int? CalculateDurationSeconds(VideoCall call)

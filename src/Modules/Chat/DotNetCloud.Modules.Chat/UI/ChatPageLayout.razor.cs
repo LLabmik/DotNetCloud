@@ -137,12 +137,21 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         _currentUserId = caller.UserId;
         _dotNetRef = DotNetObjectReference.Create(this);
 
+        // Resolve the current user's display name for the video call solo view
+        var selfNames = await UserDirectory.GetDisplayNamesAsync([_currentUserId]);
+        if (selfNames.TryGetValue(_currentUserId, out var selfName))
+        {
+            _currentUserDisplayName = selfName;
+            _displayNameCache[_currentUserId] = selfName;
+        }
+
         ChatMessageNotifier.MessageReceived += OnRemoteMessageReceived;
         ChatMessageNotifier.MessageEdited += OnRemoteMessageEdited;
         ChatMessageNotifier.MessageDeleted += OnRemoteMessageDeleted;
         ChatMessageNotifier.CallRinging += OnCallRinging;
         ChatMessageNotifier.CallAccepted += OnCallAccepted;
         ChatMessageNotifier.CallSignalReceived += OnCallSignalReceived;
+        ChatMessageNotifier.CallEnded += OnCallEnded;
 
         await LoadChannelsAsync();
         await LoadAnnouncementsAsync();
@@ -157,6 +166,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         ChatMessageNotifier.CallRinging -= OnCallRinging;
         ChatMessageNotifier.CallAccepted -= OnCallAccepted;
         ChatMessageNotifier.CallSignalReceived -= OnCallSignalReceived;
+        ChatMessageNotifier.CallEnded -= OnCallEnded;
 
         _callDurationTimer?.Stop();
         _callDurationTimer?.Dispose();
@@ -1135,6 +1145,21 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         _incomingCallMediaType = notification.MediaType;
         _incomingCallRemainingSeconds = 30;
 
+        // Resolve caller display name asynchronously if not cached
+        if (!_displayNameCache.ContainsKey(notification.InitiatorUserId))
+        {
+            _ = InvokeAsync(async () =>
+            {
+                var names = await UserDirectory.GetDisplayNamesAsync([notification.InitiatorUserId]);
+                if (names.TryGetValue(notification.InitiatorUserId, out var resolvedName))
+                {
+                    _displayNameCache[notification.InitiatorUserId] = resolvedName;
+                    _incomingCallerName = resolvedName;
+                    StateHasChanged();
+                }
+            });
+        }
+
         _ = InvokeAsync(StateHasChanged);
     }
 
@@ -1162,6 +1187,31 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         // Caller initiates the WebRTC offer once the callee has accepted
         _ = InvokeAsync(async () =>
         {
+            // Resolve callee's display name if not cached
+            if (!_displayNameCache.ContainsKey(notification.AcceptedByUserId))
+            {
+                var names = await UserDirectory.GetDisplayNamesAsync([notification.AcceptedByUserId]);
+                if (names.TryGetValue(notification.AcceptedByUserId, out var resolvedName))
+                {
+                    _displayNameCache[notification.AcceptedByUserId] = resolvedName;
+                    var idx = _remoteParticipants.FindIndex(p => p.UserId == notification.AcceptedByUserId);
+                    if (idx >= 0)
+                    {
+                        var old = _remoteParticipants[idx];
+                        _remoteParticipants[idx] = new CallParticipantDto
+                        {
+                            Id = old.Id,
+                            UserId = old.UserId,
+                            DisplayName = resolvedName,
+                            Role = old.Role,
+                            HasAudio = old.HasAudio,
+                            HasVideo = old.HasVideo,
+                            HasScreenShare = old.HasScreenShare
+                        };
+                    }
+                }
+            }
+
             StateHasChanged();
             await StartWebRtcAsync();
             await _signalingLock.WaitAsync();
@@ -1180,6 +1230,51 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                 _signalingLock.Release();
             }
         });
+    }
+
+    private void OnCallEnded(CallEndedNotification notification)
+    {
+        // If we're in the call that just ended, clean up the UI
+        if (_currentCallId is not null && _currentCallId == notification.CallId)
+        {
+            _ = InvokeAsync(async () =>
+            {
+                await StopWebRtcAsync();
+
+                _showVideoCallDialog = false;
+                _currentCallState = "Ended";
+                _hasActiveCall = false;
+                _currentCallId = null;
+                _remoteParticipants = [];
+                _callDurationSeconds = 0;
+                _isCallMuted = false;
+                _isCallCameraOff = false;
+                _isCallScreenSharing = false;
+                _callConnectionQuality = null;
+
+                // Refresh call history if panel is visible
+                if (_showCallHistoryPanel && _selectedChannel is not null)
+                {
+                    await LoadCallHistoryAsync();
+                }
+
+                StateHasChanged();
+            });
+            return;
+        }
+
+        // If we have an incoming call that was ended (e.g. caller cancelled), dismiss it
+        if (_incomingCallId is not null && _incomingCallId == notification.CallId)
+        {
+            _ = InvokeAsync(() =>
+            {
+                _showIncomingCall = false;
+                _isIncomingCallRinging = false;
+                _incomingCallId = null;
+                _incomingCallInitiatorId = null;
+                StateHasChanged();
+            });
+        }
     }
 
     private void OnCallSignalReceived(CallSignalNotification notification)
@@ -1603,6 +1698,12 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         _isCallCameraOff = false;
         _isCallScreenSharing = false;
         _callConnectionQuality = null;
+
+        // Refresh call history so the ended call appears immediately
+        if (_showCallHistoryPanel && _selectedChannel is not null)
+        {
+            await LoadCallHistoryAsync();
+        }
     }
 
     private Task HandleCallMinimize()
@@ -1648,6 +1749,17 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             if (_incomingCallInitiatorId is not null)
             {
                 _callPeerId = _incomingCallInitiatorId;
+
+                // Resolve caller's display name if not already cached
+                if (!_displayNameCache.ContainsKey(_incomingCallInitiatorId.Value))
+                {
+                    var names = await UserDirectory.GetDisplayNamesAsync([_incomingCallInitiatorId.Value]);
+                    foreach (var (id, name) in names)
+                    {
+                        _displayNameCache[id] = name;
+                    }
+                }
+
                 var displayName = _displayNameCache.GetValueOrDefault(_incomingCallInitiatorId.Value,
                     _incomingCallInitiatorId.Value.ToString()[..8]);
                 _remoteParticipants = [new CallParticipantDto
@@ -1696,10 +1808,13 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         _incomingCallInitiatorId = null;
     }
 
-    private Task HandleToggleCallHistory()
+    private async Task HandleToggleCallHistory()
     {
         _showCallHistoryPanel = !_showCallHistoryPanel;
-        return Task.CompletedTask;
+        if (_showCallHistoryPanel && _selectedChannel is not null)
+        {
+            await LoadCallHistoryAsync();
+        }
     }
 
     private Task HandleCloseCallHistory()
@@ -1708,9 +1823,50 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         return Task.CompletedTask;
     }
 
-    private Task HandleLoadMoreCallHistory()
+    private async Task HandleLoadMoreCallHistory()
     {
-        return Task.CompletedTask;
+        if (_selectedChannel is null || _isLoadingMoreCallHistory || !_hasMoreCallHistory) return;
+
+        _isLoadingMoreCallHistory = true;
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            var more = await VideoCallService.GetCallHistoryAsync(
+                _selectedChannel.Id, _callHistory.Count, 20, caller);
+            _callHistory.AddRange(more);
+            _hasMoreCallHistory = more.Count >= 20;
+        }
+        catch (Exception ex)
+        {
+            _messageErrorMessage = $"Failed to load call history: {ex.Message}";
+        }
+        finally
+        {
+            _isLoadingMoreCallHistory = false;
+        }
+    }
+
+    private async Task LoadCallHistoryAsync()
+    {
+        if (_selectedChannel is null) return;
+
+        _isLoadingCallHistory = true;
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            var history = await VideoCallService.GetCallHistoryAsync(
+                _selectedChannel.Id, 0, 20, caller);
+            _callHistory = [.. history];
+            _hasMoreCallHistory = history.Count >= 20;
+        }
+        catch (Exception ex)
+        {
+            _messageErrorMessage = $"Failed to load call history: {ex.Message}";
+        }
+        finally
+        {
+            _isLoadingCallHistory = false;
+        }
     }
 
     private Task HandleCallBack(string mediaType)
