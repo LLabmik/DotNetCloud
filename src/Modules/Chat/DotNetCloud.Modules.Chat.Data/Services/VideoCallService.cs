@@ -7,6 +7,8 @@ using DotNetCloud.Modules.Chat.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
+using IUserDirectory = DotNetCloud.Core.Capabilities.IUserDirectory;
+
 namespace DotNetCloud.Modules.Chat.Data.Services;
 
 /// <summary>
@@ -24,6 +26,7 @@ internal sealed class VideoCallService : IVideoCallService
     private readonly IChatRealtimeService? _realtimeService;
     private readonly IChatMessageNotifier? _messageNotifier;
     private readonly ILiveKitService _liveKitService;
+    private readonly IUserDirectory? _userDirectory;
     private readonly ILogger<VideoCallService> _logger;
 
     public VideoCallService(
@@ -32,13 +35,15 @@ internal sealed class VideoCallService : IVideoCallService
         ILogger<VideoCallService> logger,
         ILiveKitService liveKitService,
         IChatRealtimeService? realtimeService = null,
-        IChatMessageNotifier? messageNotifier = null)
+        IChatMessageNotifier? messageNotifier = null,
+        IUserDirectory? userDirectory = null)
     {
         _db = db;
         _eventBus = eventBus;
         _realtimeService = realtimeService;
         _messageNotifier = messageNotifier;
         _liveKitService = liveKitService;
+        _userDirectory = userDirectory;
         _logger = logger;
     }
 
@@ -448,11 +453,18 @@ internal sealed class VideoCallService : IVideoCallService
             .Select(g => new { VideoCallId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.VideoCallId, x => x.Count, cancellationToken);
 
+        // Resolve initiator display names
+        var initiatorIds = calls.Select(c => c.InitiatorUserId).Distinct();
+        var displayNames = _userDirectory is not null
+            ? await _userDirectory.GetDisplayNamesAsync(initiatorIds, cancellationToken)
+            : new Dictionary<Guid, string>();
+
         return calls.Select(call => new CallHistoryDto
         {
             Id = call.Id,
             ChannelId = call.ChannelId,
             InitiatorUserId = call.InitiatorUserId,
+            InitiatorDisplayName = displayNames.GetValueOrDefault(call.InitiatorUserId),
             State = call.State.ToString(),
             MediaType = call.MediaType.ToString(),
             EndReason = call.EndReason?.ToString(),
@@ -488,7 +500,8 @@ internal sealed class VideoCallService : IVideoCallService
             .Where(cp => cp.VideoCallId == call.Id)
             .ToListAsync(cancellationToken);
 
-        return ToVideoCallDto(call, participants);
+        var initiatorName = await ResolveDisplayNameAsync(call.InitiatorUserId, cancellationToken);
+        return ToVideoCallDto(call, participants, initiatorName);
     }
 
     /// <inheritdoc />
@@ -513,7 +526,8 @@ internal sealed class VideoCallService : IVideoCallService
             .Where(cp => cp.VideoCallId == call.Id)
             .ToListAsync(cancellationToken);
 
-        return ToVideoCallDto(call, participants);
+        var initiatorName = await ResolveDisplayNameAsync(call.InitiatorUserId, cancellationToken);
+        return ToVideoCallDto(call, participants, initiatorName);
     }
 
     /// <summary>
@@ -637,13 +651,25 @@ internal sealed class VideoCallService : IVideoCallService
         return (int)(call.EndedAtUtc.Value - call.StartedAtUtc.Value).TotalSeconds;
     }
 
-    private static VideoCallDto ToVideoCallDto(VideoCall call, IEnumerable<CallParticipant> participants)
+    private async Task<string?> ResolveDisplayNameAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        if (_userDirectory is null)
+        {
+            return null;
+        }
+
+        var names = await _userDirectory.GetDisplayNamesAsync([userId], cancellationToken);
+        return names.GetValueOrDefault(userId);
+    }
+
+    private static VideoCallDto ToVideoCallDto(VideoCall call, IEnumerable<CallParticipant> participants, string? initiatorDisplayName = null)
     {
         return new VideoCallDto
         {
             Id = call.Id,
             ChannelId = call.ChannelId,
             InitiatorUserId = call.InitiatorUserId,
+            InitiatorDisplayName = initiatorDisplayName,
             State = call.State.ToString(),
             MediaType = call.MediaType.ToString(),
             IsGroupCall = call.IsGroupCall,
