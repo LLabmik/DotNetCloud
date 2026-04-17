@@ -1045,6 +1045,29 @@ public class ChatController : ChatControllerBase
         }
     }
 
+    /// <summary>Invites a user to join an active call. Only the call Host can invite participants.</summary>
+    [HttpPost("calls/{callId:guid}/invite")]
+    public async Task<IActionResult> InviteToCallAsync(Guid callId, [FromBody] InviteToCallRequest request)
+    {
+        try
+        {
+            await _videoCallService.InviteToCallAsync(callId, request.UserId, GetAuthenticatedCaller());
+            return Ok(Envelope(new { invited = true }));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ErrorEnvelope("VALIDATION_ERROR", ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ErrorEnvelope("INVITE_ERROR", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
     /// <summary>Gets paginated call history for a channel.</summary>
     [HttpGet("channels/{channelId:guid}/calls")]
     public async Task<IActionResult> GetCallHistoryAsync(

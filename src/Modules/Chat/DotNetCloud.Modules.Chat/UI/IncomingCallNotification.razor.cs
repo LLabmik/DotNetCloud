@@ -32,6 +32,14 @@ public partial class IncomingCallNotification : ComponentBase
     [Parameter]
     public bool IsRinging { get; set; } = true;
 
+    /// <summary>Whether this is a mid-call invite (joining an ongoing call) vs a fresh call.</summary>
+    [Parameter]
+    public bool IsMidCallInvite { get; set; }
+
+    /// <summary>Number of participants currently in the call (for mid-call invites).</summary>
+    [Parameter]
+    public int ParticipantCount { get; set; }
+
     /// <summary>Callback when the call is accepted with video.</summary>
     [Parameter]
     public EventCallback OnAcceptVideo { get; set; }

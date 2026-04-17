@@ -20,6 +20,12 @@ public sealed class CallParticipant
     /// <summary>Role of the participant (Host or Participant).</summary>
     public CallParticipantRole Role { get; set; } = CallParticipantRole.Participant;
 
+    /// <summary>Current state of the participant in the call lifecycle.</summary>
+    public ParticipantState State { get; set; } = ParticipantState.Joined;
+
+    /// <summary>When the participant was invited to the call, UTC. Null if they joined directly.</summary>
+    public DateTime? InvitedAtUtc { get; set; }
+
     /// <summary>When the participant joined the call, UTC.</summary>
     public DateTime JoinedAtUtc { get; set; } = DateTime.UtcNow;
 

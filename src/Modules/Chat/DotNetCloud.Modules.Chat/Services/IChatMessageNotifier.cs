@@ -30,6 +30,19 @@ public sealed record CallEndedNotification(
     int? DurationSeconds);
 
 /// <summary>
+/// Payload for a mid-call invite notification raised via <see cref="IChatMessageNotifier"/>.
+/// Notifies the target user that they have been invited to join an ongoing call.
+/// </summary>
+public sealed record CallInviteReceivedNotification(
+    Guid CallId,
+    Guid ChannelId,
+    Guid InvitedByUserId,
+    string? InvitedByDisplayName,
+    string MediaType,
+    bool IsMidCallInvite,
+    int ParticipantCount);
+
+/// <summary>
 /// Payload for a WebRTC signaling message (offer, answer, or ICE candidate) relayed in-process.
 /// </summary>
 public sealed record CallSignalNotification(
@@ -67,6 +80,9 @@ public interface IChatMessageNotifier
     /// <summary>Raised when a WebRTC signaling message is received (offer, answer, ICE candidate).</summary>
     event Action<CallSignalNotification>? CallSignalReceived;
 
+    /// <summary>Raised when a user is invited to join an ongoing call.</summary>
+    event Action<CallInviteReceivedNotification>? CallInviteReceived;
+
     /// <summary>Notifies all subscribers that a new message was sent.</summary>
     void NotifyMessageReceived(Guid channelId, MessageDto message);
 
@@ -87,6 +103,9 @@ public interface IChatMessageNotifier
 
     /// <summary>Notifies all subscribers of a WebRTC signaling message.</summary>
     void NotifyCallSignal(CallSignalNotification notification);
+
+    /// <summary>Notifies all subscribers that a user has been invited to join an ongoing call.</summary>
+    void NotifyCallInviteReceived(CallInviteReceivedNotification notification);
 }
 
 /// <summary>
@@ -117,6 +136,9 @@ public sealed class InProcessChatMessageNotifier : IChatMessageNotifier
     public event Action<CallSignalNotification>? CallSignalReceived;
 
     /// <inheritdoc />
+    public event Action<CallInviteReceivedNotification>? CallInviteReceived;
+
+    /// <inheritdoc />
     public void NotifyMessageReceived(Guid channelId, MessageDto message)
         => MessageReceived?.Invoke(channelId, message);
 
@@ -143,4 +165,8 @@ public sealed class InProcessChatMessageNotifier : IChatMessageNotifier
     /// <inheritdoc />
     public void NotifyCallSignal(CallSignalNotification notification)
         => CallSignalReceived?.Invoke(notification);
+
+    /// <inheritdoc />
+    public void NotifyCallInviteReceived(CallInviteReceivedNotification notification)
+        => CallInviteReceived?.Invoke(notification);
 }

@@ -42,6 +42,18 @@ public interface IChatRealtimeService
     /// <summary>Sends a channel invite notification to a specific user.</summary>
     Task SendInviteNotificationAsync(Guid userId, ChannelInviteDto invite, CancellationToken cancellationToken = default);
 
+    /// <summary>Sends a call invite notification to a specific user (mid-call or direct).</summary>
+    Task SendCallInviteAsync(
+        Guid targetUserId,
+        Guid callId,
+        Guid channelId,
+        Guid invitedByUserId,
+        string? invitedByDisplayName,
+        string mediaType,
+        bool isMidCallInvite,
+        int participantCount,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Adds a user to a channel's broadcast group.</summary>
     Task AddUserToChannelGroupAsync(Guid userId, Guid channelId, CancellationToken cancellationToken = default);
 
@@ -142,6 +154,31 @@ internal sealed class ChatRealtimeService : IChatRealtimeService
     {
         if (_broadcaster is null) return;
         await _broadcaster.SendToUserAsync(userId, "ChannelInviteReceived", invite, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task SendCallInviteAsync(
+        Guid targetUserId,
+        Guid callId,
+        Guid channelId,
+        Guid invitedByUserId,
+        string? invitedByDisplayName,
+        string mediaType,
+        bool isMidCallInvite,
+        int participantCount,
+        CancellationToken cancellationToken)
+    {
+        if (_broadcaster is null) return;
+        await _broadcaster.SendToUserAsync(targetUserId, "CallInviteReceived", new
+        {
+            callId,
+            channelId,
+            invitedByUserId,
+            invitedByDisplayName,
+            mediaType,
+            isMidCallInvite,
+            participantCount
+        }, cancellationToken);
     }
 
     /// <inheritdoc />

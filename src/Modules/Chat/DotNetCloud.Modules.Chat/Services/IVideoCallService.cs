@@ -75,4 +75,15 @@ public interface IVideoCallService
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The created video call.</returns>
     Task<VideoCallDto> InitiateDirectCallAsync(Guid targetUserId, StartCallRequest request, CallerContext caller, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Invites a user to join an active call. Only the call Host may invite participants.
+    /// If the target is not a channel member, they are auto-added to the channel (which may
+    /// trigger DM→Group conversion). Sends an incoming-call notification to the target user.
+    /// </summary>
+    /// <param name="callId">The active call to invite the user to.</param>
+    /// <param name="targetUserId">The user to invite.</param>
+    /// <param name="caller">The caller context (must be the call Host).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task InviteToCallAsync(Guid callId, Guid targetUserId, CallerContext caller, CancellationToken cancellationToken = default);
 }

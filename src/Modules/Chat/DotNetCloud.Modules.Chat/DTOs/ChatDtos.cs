@@ -643,3 +643,12 @@ public sealed record CallHistoryDto
     /// <summary>When the call was created (UTC).</summary>
     public DateTime CreatedAtUtc { get; init; }
 }
+
+/// <summary>
+/// Request DTO for inviting a user to an active call.
+/// </summary>
+public sealed record InviteToCallRequest
+{
+    /// <summary>The user ID to invite to the call.</summary>
+    public Guid UserId { get; init; }
+}

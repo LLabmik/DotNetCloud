@@ -28,6 +28,7 @@ internal sealed class VideoCallService : IVideoCallService
     private readonly ILiveKitService _liveKitService;
     private readonly IUserDirectory? _userDirectory;
     private readonly IChannelService? _channelService;
+    private readonly IChannelMemberService? _channelMemberService;
     private readonly ILogger<VideoCallService> _logger;
 
     public VideoCallService(
@@ -38,7 +39,8 @@ internal sealed class VideoCallService : IVideoCallService
         IChatRealtimeService? realtimeService = null,
         IChatMessageNotifier? messageNotifier = null,
         IUserDirectory? userDirectory = null,
-        IChannelService? channelService = null)
+        IChannelService? channelService = null,
+        IChannelMemberService? channelMemberService = null)
     {
         _db = db;
         _eventBus = eventBus;
@@ -47,6 +49,7 @@ internal sealed class VideoCallService : IVideoCallService
         _liveKitService = liveKitService;
         _userDirectory = userDirectory;
         _channelService = channelService;
+        _channelMemberService = channelMemberService;
         _logger = logger;
     }
 
@@ -174,14 +177,14 @@ internal sealed class VideoCallService : IVideoCallService
                 $"Cannot join call in state {call.State}. Call must be Ringing, Connecting, or Active.");
         }
 
-        // Prevent duplicate participants
-        var alreadyJoined = await _db.CallParticipants
-            .AnyAsync(cp => cp.VideoCallId == callId
+        // Check for existing participant record (not yet left)
+        var existingParticipant = await _db.CallParticipants
+            .FirstOrDefaultAsync(cp => cp.VideoCallId == callId
                 && cp.UserId == caller.UserId
                 && cp.LeftAtUtc == null,
                 cancellationToken);
 
-        if (alreadyJoined)
+        if (existingParticipant is not null && existingParticipant.State != ParticipantState.Invited)
         {
             throw new InvalidOperationException("User is already in this call.");
         }
@@ -210,17 +213,30 @@ internal sealed class VideoCallService : IVideoCallService
                 callId, roomName, newParticipantCount, _liveKitService.MaxP2PParticipants);
         }
 
-        var participant = new CallParticipant
+        CallParticipant participant;
+        if (existingParticipant is not null && existingParticipant.State == ParticipantState.Invited)
         {
-            VideoCallId = callId,
-            UserId = caller.UserId,
-            Role = CallParticipantRole.Participant,
-            JoinedAtUtc = DateTime.UtcNow,
-            HasAudio = request.WithAudio,
-            HasVideo = request.WithVideo
-        };
+            // Transition invited participant to joined
+            existingParticipant.State = ParticipantState.Joined;
+            existingParticipant.JoinedAtUtc = DateTime.UtcNow;
+            existingParticipant.HasAudio = request.WithAudio;
+            existingParticipant.HasVideo = request.WithVideo;
+            participant = existingParticipant;
+        }
+        else
+        {
+            participant = new CallParticipant
+            {
+                VideoCallId = callId,
+                UserId = caller.UserId,
+                Role = CallParticipantRole.Participant,
+                JoinedAtUtc = DateTime.UtcNow,
+                HasAudio = request.WithAudio,
+                HasVideo = request.WithVideo
+            };
 
-        _db.CallParticipants.Add(participant);
+            _db.CallParticipants.Add(participant);
+        }
 
         // Transition Ringing → Connecting on first answer (non-initiator)
         var isFirstAnswer = call.State == VideoCallState.Ringing;
@@ -563,6 +579,133 @@ internal sealed class VideoCallService : IVideoCallService
 
         // Step 2: Initiate a call on that DM channel
         return await InitiateCallAsync(dmChannel.Id, request, caller, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task InviteToCallAsync(
+        Guid callId,
+        Guid targetUserId,
+        CallerContext caller,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(caller);
+
+        var call = await _db.VideoCalls
+            .FirstOrDefaultAsync(vc => vc.Id == callId, cancellationToken)
+            ?? throw new InvalidOperationException($"Video call {callId} not found.");
+
+        // Only active or connecting calls can accept mid-call invites
+        if (call.State != VideoCallState.Active && call.State != VideoCallState.Connecting)
+        {
+            throw new InvalidOperationException(
+                $"Cannot invite participants to a call in state {call.State}. Call must be Active or Connecting.");
+        }
+
+        // Only the Host can invite participants
+        if (call.HostUserId != caller.UserId)
+        {
+            throw new UnauthorizedAccessException("Only the call Host can invite participants to the call.");
+        }
+
+        // Cannot invite yourself
+        if (targetUserId == caller.UserId)
+        {
+            throw new ArgumentException("Cannot invite yourself to the call.", nameof(targetUserId));
+        }
+
+        // Check if target is already an active participant
+        var alreadyActive = await _db.CallParticipants
+            .AnyAsync(cp => cp.VideoCallId == callId
+                && cp.UserId == targetUserId
+                && cp.LeftAtUtc == null,
+                cancellationToken);
+
+        if (alreadyActive)
+        {
+            throw new InvalidOperationException("User is already an active participant in this call.");
+        }
+
+        // If target is not a channel member, auto-add them (may trigger DM→Group conversion)
+        var isChannelMember = await _db.ChannelMembers
+            .AnyAsync(cm => cm.ChannelId == call.ChannelId && cm.UserId == targetUserId, cancellationToken);
+
+        if (!isChannelMember)
+        {
+            if (_channelMemberService is null)
+            {
+                throw new InvalidOperationException("Channel member service is not available. Cannot auto-add channel member.");
+            }
+
+            // Add the user to the channel on behalf of the host (may trigger DM→Group conversion)
+            await _channelMemberService.AddMemberAsync(call.ChannelId, targetUserId, caller, cancellationToken);
+
+            _logger.LogInformation(
+                "Auto-added user {UserId} to channel {ChannelId} as part of mid-call invite for call {CallId}",
+                targetUserId, call.ChannelId, callId);
+        }
+
+        // Add the invited participant record
+        var participant = new CallParticipant
+        {
+            VideoCallId = callId,
+            UserId = targetUserId,
+            Role = CallParticipantRole.Participant,
+            State = ParticipantState.Invited,
+            InvitedAtUtc = DateTime.UtcNow,
+            JoinedAtUtc = DateTime.UtcNow, // Will be updated on actual join
+            HasAudio = false,
+            HasVideo = false
+        };
+
+        _db.CallParticipants.Add(participant);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        // Resolve inviter display name
+        var inviterDisplayName = await ResolveDisplayNameAsync(caller.UserId, cancellationToken);
+
+        // Count active participants
+        var activeParticipantCount = await _db.CallParticipants
+            .CountAsync(cp => cp.VideoCallId == callId && cp.LeftAtUtc == null, cancellationToken);
+
+        // Publish domain event
+        await _eventBus.PublishAsync(new CallParticipantInvitedEvent
+        {
+            EventId = Guid.NewGuid(),
+            CreatedAt = DateTime.UtcNow,
+            CallId = callId,
+            ChannelId = call.ChannelId,
+            InvitedUserId = targetUserId,
+            InvitedByUserId = caller.UserId
+        }, caller, cancellationToken);
+
+        // Send real-time notification to the invited user via SignalR
+        if (_realtimeService is not null)
+        {
+            await _realtimeService.SendCallInviteAsync(
+                targetUserId,
+                callId,
+                call.ChannelId,
+                caller.UserId,
+                inviterDisplayName,
+                call.MediaType.ToString(),
+                isMidCallInvite: true,
+                activeParticipantCount,
+                cancellationToken);
+        }
+
+        // Notify in-process Blazor circuits
+        _messageNotifier?.NotifyCallInviteReceived(new CallInviteReceivedNotification(
+            CallId: callId,
+            ChannelId: call.ChannelId,
+            InvitedByUserId: caller.UserId,
+            InvitedByDisplayName: inviterDisplayName,
+            MediaType: call.MediaType.ToString(),
+            IsMidCallInvite: true,
+            ParticipantCount: activeParticipantCount));
+
+        _logger.LogInformation(
+            "User {InviterId} (Host) invited user {TargetId} to call {CallId} in channel {ChannelId}",
+            caller.UserId, targetUserId, callId, call.ChannelId);
     }
 
     /// <summary>
