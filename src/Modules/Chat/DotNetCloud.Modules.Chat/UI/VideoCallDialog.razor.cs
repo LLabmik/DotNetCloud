@@ -25,6 +25,14 @@ public partial class VideoCallDialog : ComponentBase
     [Parameter]
     public string LocalDisplayName { get; set; } = string.Empty;
 
+    /// <summary>Current user ID.</summary>
+    [Parameter]
+    public Guid CurrentUserId { get; set; }
+
+    /// <summary>Current call host user ID.</summary>
+    [Parameter]
+    public Guid HostUserId { get; set; }
+
     /// <summary>Remote participants in the call.</summary>
     [Parameter]
     public IReadOnlyList<CallParticipantDto> RemoteParticipants { get; set; } = [];
@@ -65,6 +73,42 @@ public partial class VideoCallDialog : ComponentBase
     [Parameter]
     public EventCallback OnHangUp { get; set; }
 
+    /// <summary>Callback when add people is clicked.</summary>
+    [Parameter]
+    public EventCallback OnAddPeople { get; set; }
+
+    /// <summary>Whether the add-people picker is currently visible.</summary>
+    [Parameter]
+    public bool ShowAddPeoplePicker { get; set; }
+
+    /// <summary>Current add-people search term.</summary>
+    [Parameter]
+    public string AddPeopleSearchTerm { get; set; } = string.Empty;
+
+    /// <summary>Whether add-people user search is in progress.</summary>
+    [Parameter]
+    public bool IsAddPeopleSearching { get; set; }
+
+    /// <summary>User search results for add-people picker.</summary>
+    [Parameter]
+    public IReadOnlyList<UserSearchResultViewModel> AddPeopleSearchResults { get; set; } = [];
+
+    /// <summary>Callback when add-people picker is closed.</summary>
+    [Parameter]
+    public EventCallback OnCloseAddPeoplePicker { get; set; }
+
+    /// <summary>Callback when add-people search term changes.</summary>
+    [Parameter]
+    public EventCallback<string> OnAddPeopleSearchChanged { get; set; }
+
+    /// <summary>Callback when a user is selected for call invitation.</summary>
+    [Parameter]
+    public EventCallback<Guid> OnInviteToCall { get; set; }
+
+    /// <summary>Callback when host transfer is requested.</summary>
+    [Parameter]
+    public EventCallback<Guid> OnTransferHost { get; set; }
+
     /// <summary>Callback when minimize is clicked.</summary>
     [Parameter]
     public EventCallback OnMinimize { get; set; }
@@ -75,6 +119,9 @@ public partial class VideoCallDialog : ComponentBase
 
     /// <summary>Total participant count including local user.</summary>
     protected int TotalParticipantCount => RemoteParticipants.Count + 1;
+
+    /// <summary>Whether the current user is the call host.</summary>
+    protected bool IsCurrentUserHost => CurrentUserId != Guid.Empty && HostUserId == CurrentUserId;
 
     /// <summary>Whether call controls should be disabled.</summary>
     protected bool AreControlsDisabled => CallState is "Ringing" or "Ended" or "Failed" or "Missed" or "Rejected";
@@ -169,6 +216,37 @@ public partial class VideoCallDialog : ComponentBase
     protected async Task HandleHangUp()
     {
         await OnHangUp.InvokeAsync();
+    }
+
+    /// <summary>Handles add people button click.</summary>
+    protected async Task HandleAddPeople()
+    {
+        await OnAddPeople.InvokeAsync();
+    }
+
+    /// <summary>Handles closing the add-people picker overlay.</summary>
+    protected async Task HandleCloseAddPeoplePicker()
+    {
+        await OnCloseAddPeoplePicker.InvokeAsync();
+    }
+
+    /// <summary>Handles add-people search input changes.</summary>
+    protected async Task HandleAddPeopleSearchInput(ChangeEventArgs args)
+    {
+        var term = args.Value?.ToString() ?? string.Empty;
+        await OnAddPeopleSearchChanged.InvokeAsync(term);
+    }
+
+    /// <summary>Handles selecting a user to invite to the active call.</summary>
+    protected async Task HandleInviteToCall(Guid userId)
+    {
+        await OnInviteToCall.InvokeAsync(userId);
+    }
+
+    /// <summary>Handles transfer host action for a selected participant.</summary>
+    protected async Task HandleTransferHost(Guid userId)
+    {
+        await OnTransferHost.InvokeAsync(userId);
     }
 
     /// <summary>Handles minimize button click.</summary>

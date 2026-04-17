@@ -40,6 +40,10 @@ public partial class CallControls : ComponentBase
     [Parameter]
     public bool IsHangUpDisabled { get; set; }
 
+    /// <summary>Whether the current user can add participants to the active call (host-only).</summary>
+    [Parameter]
+    public bool CanAddPeople { get; set; }
+
     /// <summary>Callback when mute is toggled.</summary>
     [Parameter]
     public EventCallback<bool> OnToggleMute { get; set; }
@@ -55,6 +59,10 @@ public partial class CallControls : ComponentBase
     /// <summary>Callback when hang up is clicked.</summary>
     [Parameter]
     public EventCallback OnHangUp { get; set; }
+
+    /// <summary>Callback when add people is clicked.</summary>
+    [Parameter]
+    public EventCallback OnAddPeople { get; set; }
 
     /// <summary>Formatted call duration string (MM:SS or H:MM:SS).</summary>
     protected string FormattedDuration => FormatDuration(DurationSeconds);
@@ -81,6 +89,12 @@ public partial class CallControls : ComponentBase
     protected async Task HandleHangUp()
     {
         await OnHangUp.InvokeAsync();
+    }
+
+    /// <summary>Handles add people button click.</summary>
+    protected async Task HandleAddPeople()
+    {
+        await OnAddPeople.InvokeAsync();
     }
 
     /// <summary>Gets the connection quality indicator emoji.</summary>

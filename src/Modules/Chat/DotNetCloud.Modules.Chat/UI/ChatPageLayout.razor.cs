@@ -95,6 +95,12 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     private List<UserSearchResultViewModel> _dmSearchResults = [];
     private bool _isDmSearching;
 
+    // Channel add-people state
+    private bool _showChannelAddPeoplePicker;
+    private string _channelAddPeopleSearchTerm = string.Empty;
+    private List<UserSearchResultViewModel> _channelAddPeopleResults = [];
+    private bool _isChannelAddPeopleSearching;
+
     // Video call state
     private Guid? _currentCallId;
     private Guid? _incomingCallId;
@@ -112,8 +118,16 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     private string? _callConnectionQuality;
     private string _incomingCallerName = string.Empty;
     private Guid? _incomingCallInitiatorId;
+    private Guid? _incomingCallChannelId;
     private string _incomingCallChannelName = string.Empty;
     private string _incomingCallMediaType = "Audio";
+    private bool _incomingIsMidCallInvite;
+    private int _incomingCallParticipantCount;
+    private Guid? _currentCallHostUserId;
+    private bool _showCallAddPeoplePicker;
+    private string _callAddPeopleSearchTerm = string.Empty;
+    private List<UserSearchResultViewModel> _callAddPeopleResults = [];
+    private bool _isCallAddPeopleSearching;
     private int _incomingCallRemainingSeconds;
     private bool _isIncomingCallRinging;
     private List<CallHistoryDto> _callHistory = [];
@@ -158,6 +172,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         ChatMessageNotifier.CallAccepted += OnCallAccepted;
         ChatMessageNotifier.CallSignalReceived += OnCallSignalReceived;
         ChatMessageNotifier.CallEnded += OnCallEnded;
+        ChatMessageNotifier.CallInviteReceived += OnCallInviteReceived;
+        ChatMessageNotifier.CallHostTransferred += OnCallHostTransferred;
 
         await LoadChannelsAsync();
         await LoadAnnouncementsAsync();
@@ -173,6 +189,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         ChatMessageNotifier.CallAccepted -= OnCallAccepted;
         ChatMessageNotifier.CallSignalReceived -= OnCallSignalReceived;
         ChatMessageNotifier.CallEnded -= OnCallEnded;
+        ChatMessageNotifier.CallInviteReceived -= OnCallInviteReceived;
+        ChatMessageNotifier.CallHostTransferred -= OnCallHostTransferred;
 
         _callDurationTimer?.Stop();
         _callDurationTimer?.Dispose();
@@ -1144,11 +1162,14 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
         _incomingCallId = notification.CallId;
         _incomingCallInitiatorId = notification.InitiatorUserId;
+        _incomingCallChannelId = notification.ChannelId;
         _showIncomingCall = true;
         _isIncomingCallRinging = true;
         _incomingCallerName = callerName;
         _incomingCallChannelName = channelName;
         _incomingCallMediaType = notification.MediaType;
+        _incomingIsMidCallInvite = false;
+        _incomingCallParticipantCount = 0;
         _incomingCallRemainingSeconds = 30;
 
         // Resolve caller display name asynchronously if not cached
@@ -1169,6 +1190,77 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         _ = InvokeAsync(StateHasChanged);
     }
 
+    private void OnCallInviteReceived(CallInviteReceivedNotification notification)
+    {
+        // Ignore invites if already in the target call.
+        if (_currentCallId == notification.CallId)
+        {
+            return;
+        }
+
+        var channelName = _channels.FirstOrDefault(c => c.Id == notification.ChannelId)?.Name
+            ?? notification.ChannelId.ToString()[..8];
+        var inviterName = notification.InvitedByDisplayName
+            ?? _displayNameCache.GetValueOrDefault(notification.InvitedByUserId, notification.InvitedByUserId.ToString()[..8]);
+
+        _incomingCallId = notification.CallId;
+        _incomingCallInitiatorId = notification.InvitedByUserId;
+        _incomingCallChannelId = notification.ChannelId;
+        _showIncomingCall = true;
+        _isIncomingCallRinging = true;
+        _incomingCallerName = inviterName;
+        _incomingCallChannelName = channelName;
+        _incomingCallMediaType = notification.MediaType;
+        _incomingIsMidCallInvite = notification.IsMidCallInvite;
+        _incomingCallParticipantCount = notification.ParticipantCount;
+        _incomingCallRemainingSeconds = 30;
+
+        if (!_displayNameCache.ContainsKey(notification.InvitedByUserId))
+        {
+            _ = InvokeAsync(async () =>
+            {
+                var names = await UserDirectory.GetDisplayNamesAsync([notification.InvitedByUserId]);
+                if (names.TryGetValue(notification.InvitedByUserId, out var resolvedName))
+                {
+                    _displayNameCache[notification.InvitedByUserId] = resolvedName;
+                    _incomingCallerName = resolvedName;
+                    StateHasChanged();
+                }
+            });
+        }
+
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void OnCallHostTransferred(CallHostTransferredNotification notification)
+    {
+        if (_currentCallId is null || _currentCallId != notification.CallId)
+        {
+            return;
+        }
+
+        _currentCallHostUserId = notification.NewHostUserId;
+
+        for (var i = 0; i < _remoteParticipants.Count; i++)
+        {
+            var participant = _remoteParticipants[i];
+            _remoteParticipants[i] = new CallParticipantDto
+            {
+                Id = participant.Id,
+                UserId = participant.UserId,
+                DisplayName = participant.DisplayName,
+                Role = participant.UserId == notification.NewHostUserId ? "Host" : "Participant",
+                JoinedAtUtc = participant.JoinedAtUtc,
+                LeftAtUtc = participant.LeftAtUtc,
+                HasAudio = participant.HasAudio,
+                HasVideo = participant.HasVideo,
+                HasScreenShare = participant.HasScreenShare
+            };
+        }
+
+        _ = InvokeAsync(StateHasChanged);
+    }
+
     private void OnCallAccepted(CallAcceptedNotification notification)
     {
         // Only the caller (who initiated this call) should react
@@ -1180,15 +1272,25 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
         var displayName = _displayNameCache.GetValueOrDefault(notification.AcceptedByUserId,
             notification.AcceptedByUserId.ToString()[..8]);
-        _remoteParticipants = [new CallParticipantDto
+        var existingIndex = _remoteParticipants.FindIndex(p => p.UserId == notification.AcceptedByUserId);
+        var acceptedParticipant = new CallParticipantDto
         {
-            Id = Guid.NewGuid(),
+            Id = existingIndex >= 0 ? _remoteParticipants[existingIndex].Id : Guid.NewGuid(),
             UserId = notification.AcceptedByUserId,
             DisplayName = displayName,
             Role = "Participant",
             HasAudio = true,
             HasVideo = _incomingCallMediaType == "Video"
-        }];
+        };
+
+        if (existingIndex >= 0)
+        {
+            _remoteParticipants[existingIndex] = acceptedParticipant;
+        }
+        else
+        {
+            _remoteParticipants.Add(acceptedParticipant);
+        }
 
         // Caller initiates the WebRTC offer once the callee has accepted
         _ = InvokeAsync(async () =>
@@ -1251,7 +1353,11 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                 _currentCallState = "Ended";
                 _hasActiveCall = false;
                 _currentCallId = null;
+                _currentCallHostUserId = null;
                 _remoteParticipants = [];
+                _showCallAddPeoplePicker = false;
+                _callAddPeopleSearchTerm = string.Empty;
+                _callAddPeopleResults = [];
                 _callDurationSeconds = 0;
                 _isCallMuted = false;
                 _isCallCameraOff = false;
@@ -1278,6 +1384,9 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                 _isIncomingCallRinging = false;
                 _incomingCallId = null;
                 _incomingCallInitiatorId = null;
+                _incomingCallChannelId = null;
+                _incomingIsMidCallInvite = false;
+                _incomingCallParticipantCount = 0;
                 StateHasChanged();
             });
         }
@@ -1684,10 +1793,11 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                 caller);
 
             _currentCallId = result.Id;
+            _currentCallHostUserId = result.HostUserId;
             _showVideoCallDialog = true;
-            _currentCallState = "Ringing";
+            _currentCallState = result.State;
             _isCallCameraOff = mediaType != "Video";
-            _remoteParticipants = [];
+            _remoteParticipants = await BuildRemoteParticipantsAsync(result.Participants);
 
             // Navigate to the DM channel if not already selected
             var targetChannel = _channels.FirstOrDefault(c => c.Id == result.ChannelId);
@@ -1702,12 +1812,221 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         }
     }
 
+    private Task HandleAudioCallUser(Guid userId)
+    {
+        return CallUserDirectlyAsync(userId, "Audio");
+    }
+
+    private Task HandleVideoCallUser(Guid userId)
+    {
+        return CallUserDirectlyAsync(userId, "Video");
+    }
+
     private Task HandleOpenDmUserPicker()
     {
         _showDmUserPicker = true;
         _dmSearchTerm = string.Empty;
         _dmSearchResults = [];
         return Task.CompletedTask;
+    }
+
+    private Task HandleOpenChannelAddPeoplePicker()
+    {
+        if (_selectedChannel is null || _selectedChannel.Type is not ("DirectMessage" or "Group"))
+        {
+            return Task.CompletedTask;
+        }
+
+        _showChannelAddPeoplePicker = true;
+        _channelAddPeopleSearchTerm = string.Empty;
+        _channelAddPeopleResults = [];
+        return Task.CompletedTask;
+    }
+
+    private Task HandleCloseChannelAddPeoplePicker()
+    {
+        _showChannelAddPeoplePicker = false;
+        _channelAddPeopleSearchTerm = string.Empty;
+        _channelAddPeopleResults = [];
+        return Task.CompletedTask;
+    }
+
+    private async Task SearchUsersForChannelAddAsync(string searchTerm)
+    {
+        if (string.IsNullOrWhiteSpace(searchTerm) || _selectedChannel is null)
+        {
+            _channelAddPeopleResults = [];
+            return;
+        }
+
+        _isChannelAddPeopleSearching = true;
+        try
+        {
+            var results = await UserDirectory.SearchUsersAsync(searchTerm);
+            var existingMemberIds = _members.Select(m => m.UserId).ToHashSet();
+
+            _channelAddPeopleResults = results
+                .Where(r => r.Id != _currentUserId)
+                .Where(r => !existingMemberIds.Contains(r.Id))
+                .Select(r => new UserSearchResultViewModel
+                {
+                    UserId = r.Id,
+                    DisplayName = r.DisplayName,
+                    Email = r.Email
+                })
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _messageErrorMessage = $"Failed to search users: {ex.Message}";
+            _channelAddPeopleResults = [];
+        }
+        finally
+        {
+            _isChannelAddPeopleSearching = false;
+        }
+    }
+
+    private async Task AddUserToCurrentChannelAsync(Guid userId)
+    {
+        if (_selectedChannel is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            await MemberService.AddMemberAsync(_selectedChannel.Id, userId, caller);
+
+            await LoadChannelsAsync();
+            var updatedChannel = _channels.FirstOrDefault(c => c.Id == _selectedChannel.Id);
+            if (updatedChannel is not null)
+            {
+                await HandleChannelSelected(updatedChannel);
+            }
+
+            _showChannelAddPeoplePicker = false;
+            _channelAddPeopleSearchTerm = string.Empty;
+            _channelAddPeopleResults = [];
+        }
+        catch (Exception ex)
+        {
+            _messageErrorMessage = $"Failed to add user: {ex.Message}";
+        }
+    }
+
+    private Task HandleOpenCallAddPeoplePicker()
+    {
+        if (_currentCallId is null || _currentCallHostUserId != _currentUserId)
+        {
+            return Task.CompletedTask;
+        }
+
+        _showCallAddPeoplePicker = true;
+        _callAddPeopleSearchTerm = string.Empty;
+        _callAddPeopleResults = [];
+        return Task.CompletedTask;
+    }
+
+    private Task HandleCloseCallAddPeoplePicker()
+    {
+        _showCallAddPeoplePicker = false;
+        _callAddPeopleSearchTerm = string.Empty;
+        _callAddPeopleResults = [];
+        return Task.CompletedTask;
+    }
+
+    private async Task SearchUsersForCallAddAsync(string searchTerm)
+    {
+        _callAddPeopleSearchTerm = searchTerm;
+
+        if (string.IsNullOrWhiteSpace(searchTerm))
+        {
+            _callAddPeopleResults = [];
+            return;
+        }
+
+        _isCallAddPeopleSearching = true;
+        try
+        {
+            var results = await UserDirectory.SearchUsersAsync(searchTerm);
+            var existingParticipantIds = _remoteParticipants.Select(p => p.UserId).Append(_currentUserId).ToHashSet();
+
+            _callAddPeopleResults = results
+                .Where(r => !existingParticipantIds.Contains(r.Id))
+                .Select(r => new UserSearchResultViewModel
+                {
+                    UserId = r.Id,
+                    DisplayName = r.DisplayName,
+                    Email = r.Email
+                })
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _messageErrorMessage = $"Failed to search users: {ex.Message}";
+            _callAddPeopleResults = [];
+        }
+        finally
+        {
+            _isCallAddPeopleSearching = false;
+        }
+    }
+
+    private async Task InviteUserToCurrentCallAsync(Guid userId)
+    {
+        if (_currentCallId is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            await VideoCallService.InviteToCallAsync(_currentCallId.Value, userId, caller);
+            await SearchUsersForCallAddAsync(_callAddPeopleSearchTerm);
+        }
+        catch (Exception ex)
+        {
+            _messageErrorMessage = $"Failed to invite user to call: {ex.Message}";
+        }
+    }
+
+    private async Task TransferHostAsync(Guid newHostUserId)
+    {
+        if (_currentCallId is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            await VideoCallService.TransferHostAsync(_currentCallId.Value, newHostUserId, caller);
+
+            _currentCallHostUserId = newHostUserId;
+            for (var i = 0; i < _remoteParticipants.Count; i++)
+            {
+                var participant = _remoteParticipants[i];
+                _remoteParticipants[i] = new CallParticipantDto
+                {
+                    Id = participant.Id,
+                    UserId = participant.UserId,
+                    DisplayName = participant.DisplayName,
+                    Role = participant.UserId == newHostUserId ? "Host" : "Participant",
+                    JoinedAtUtc = participant.JoinedAtUtc,
+                    LeftAtUtc = participant.LeftAtUtc,
+                    HasAudio = participant.HasAudio,
+                    HasVideo = participant.HasVideo,
+                    HasScreenShare = participant.HasScreenShare
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            _messageErrorMessage = $"Failed to transfer host: {ex.Message}";
+        }
     }
 
     private Task HandleCloseDmUserPicker()
@@ -1742,10 +2061,11 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                 caller);
 
             _currentCallId = result.Id;
+            _currentCallHostUserId = result.HostUserId;
             _showVideoCallDialog = true;
-            _currentCallState = "Ringing";
+            _currentCallState = result.State;
             _isCallCameraOff = cameraOff;
-            _remoteParticipants = [];
+            _remoteParticipants = await BuildRemoteParticipantsAsync(result.Participants);
         }
         catch (Exception ex)
         {
@@ -1756,7 +2076,10 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     private Task HandleJoinActiveCall()
     {
         _showVideoCallDialog = true;
-        _currentCallState = "Connecting";
+        if (string.IsNullOrWhiteSpace(_currentCallState) || _currentCallState == "Ringing")
+        {
+            _currentCallState = "Connecting";
+        }
         return Task.CompletedTask;
     }
 
@@ -1801,11 +2124,18 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             try
             {
                 var caller = await GetCallerContextAsync();
-                await VideoCallService.EndCallAsync(_currentCallId.Value, caller);
+                if (_currentCallHostUserId == _currentUserId)
+                {
+                    await VideoCallService.EndCallAsync(_currentCallId.Value, caller);
+                }
+                else
+                {
+                    await VideoCallService.LeaveCallAsync(_currentCallId.Value, caller);
+                }
             }
             catch (Exception ex)
             {
-                _messageErrorMessage = $"Failed to end call: {ex.Message}";
+                _messageErrorMessage = $"Failed to leave call: {ex.Message}";
             }
         }
 
@@ -1813,7 +2143,11 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         _currentCallState = "Ended";
         _hasActiveCall = false;
         _currentCallId = null;
+        _currentCallHostUserId = null;
         _remoteParticipants = [];
+        _showCallAddPeoplePicker = false;
+        _callAddPeopleSearchTerm = string.Empty;
+        _callAddPeopleResults = [];
         _callDurationSeconds = 0;
         _isCallMuted = false;
         _isCallCameraOff = false;
@@ -1860,42 +2194,33 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                 caller);
 
             _currentCallId = result.Id;
+            _currentCallHostUserId = result.HostUserId;
             _showIncomingCall = false;
             _showVideoCallDialog = true;
             _currentCallState = result.State;
             _isCallCameraOff = !withVideo;
             _hasActiveCall = true;
 
-            // Set remote participants so the remote video element is rendered
+            _remoteParticipants = await BuildRemoteParticipantsAsync(result.Participants);
             if (_incomingCallInitiatorId is not null)
             {
                 _callPeerId = _incomingCallInitiatorId;
+            }
 
-                // Resolve caller's display name if not already cached
-                if (!_displayNameCache.ContainsKey(_incomingCallInitiatorId.Value))
+            if (_incomingCallChannelId is not null && (_selectedChannel is null || _selectedChannel.Id != _incomingCallChannelId.Value))
+            {
+                var targetChannel = _channels.FirstOrDefault(c => c.Id == _incomingCallChannelId.Value);
+                if (targetChannel is not null)
                 {
-                    var names = await UserDirectory.GetDisplayNamesAsync([_incomingCallInitiatorId.Value]);
-                    foreach (var (id, name) in names)
-                    {
-                        _displayNameCache[id] = name;
-                    }
+                    await HandleChannelSelected(targetChannel);
                 }
-
-                var displayName = _displayNameCache.GetValueOrDefault(_incomingCallInitiatorId.Value,
-                    _incomingCallInitiatorId.Value.ToString()[..8]);
-                _remoteParticipants = [new CallParticipantDto
-                {
-                    Id = Guid.NewGuid(),
-                    UserId = _incomingCallInitiatorId.Value,
-                    DisplayName = displayName,
-                    Role = "Participant",
-                    HasAudio = true,
-                    HasVideo = _incomingCallMediaType == "Video"
-                }];
             }
 
             _incomingCallId = null;
             _incomingCallInitiatorId = null;
+            _incomingCallChannelId = null;
+            _incomingIsMidCallInvite = false;
+            _incomingCallParticipantCount = 0;
 
             // Callee starts WebRTC and waits for the caller's offer via OnCallSignalReceived
             await StartWebRtcAsync();
@@ -1905,6 +2230,9 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             _showIncomingCall = false;
             _incomingCallId = null;
             _incomingCallInitiatorId = null;
+            _incomingCallChannelId = null;
+            _incomingIsMidCallInvite = false;
+            _incomingCallParticipantCount = 0;
             _messageErrorMessage = $"Failed to join call: {ex.Message}";
         }
     }
@@ -1927,6 +2255,9 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         _showIncomingCall = false;
         _incomingCallId = null;
         _incomingCallInitiatorId = null;
+        _incomingCallChannelId = null;
+        _incomingIsMidCallInvite = false;
+        _incomingCallParticipantCount = 0;
     }
 
     private async Task HandleToggleCallHistory()
@@ -1998,6 +2329,63 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         }
 
         return HandleStartAudioCall();
+    }
+
+    private async Task<List<CallParticipantDto>> BuildRemoteParticipantsAsync(IReadOnlyList<CallParticipantDto> participants)
+    {
+        var remote = participants
+            .Where(p => p.UserId != _currentUserId)
+            .Select(p => new CallParticipantDto
+            {
+                Id = p.Id,
+                UserId = p.UserId,
+                DisplayName = p.DisplayName,
+                Role = p.Role,
+                JoinedAtUtc = p.JoinedAtUtc,
+                LeftAtUtc = p.LeftAtUtc,
+                HasAudio = p.HasAudio,
+                HasVideo = p.HasVideo,
+                HasScreenShare = p.HasScreenShare
+            })
+            .ToList();
+
+        var missingNames = remote
+            .Where(p => string.IsNullOrWhiteSpace(p.DisplayName))
+            .Select(p => p.UserId)
+            .Distinct()
+            .ToList();
+
+        if (missingNames.Count > 0)
+        {
+            var names = await UserDirectory.GetDisplayNamesAsync(missingNames);
+            for (var i = 0; i < remote.Count; i++)
+            {
+                var participant = remote[i];
+                if (!string.IsNullOrWhiteSpace(participant.DisplayName))
+                {
+                    continue;
+                }
+
+                if (names.TryGetValue(participant.UserId, out var resolvedName))
+                {
+                    _displayNameCache[participant.UserId] = resolvedName;
+                    remote[i] = new CallParticipantDto
+                    {
+                        Id = participant.Id,
+                        UserId = participant.UserId,
+                        DisplayName = resolvedName,
+                        Role = participant.Role,
+                        JoinedAtUtc = participant.JoinedAtUtc,
+                        LeftAtUtc = participant.LeftAtUtc,
+                        HasAudio = participant.HasAudio,
+                        HasVideo = participant.HasVideo,
+                        HasScreenShare = participant.HasScreenShare
+                    };
+                }
+            }
+        }
+
+        return remote;
     }
 
     private MessageViewModel ToMessageViewModel(MessageDto dto)

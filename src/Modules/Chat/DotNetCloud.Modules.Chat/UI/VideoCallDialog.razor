@@ -83,6 +83,33 @@
                         <span class="pip-label">You</span>
                     </div>
                 }
+
+                <div class="call-participant-panel">
+                    <div class="call-participant-panel-header">Participants (@TotalParticipantCount)</div>
+
+                    <div class="call-participant-row @(HostUserId == CurrentUserId ? "host" : string.Empty)">
+                        <div class="call-participant-name">@LocalDisplayName (You)</div>
+                        @if (HostUserId == CurrentUserId)
+                        {
+                            <span class="host-badge">Host</span>
+                        }
+                    </div>
+
+                    @foreach (var participant in RemoteParticipants)
+                    {
+                        <div class="call-participant-row @(participant.UserId == HostUserId ? "host" : string.Empty)">
+                            <div class="call-participant-name">@(participant.DisplayName ?? "Unknown")</div>
+                            @if (participant.UserId == HostUserId)
+                            {
+                                <span class="host-badge">Host</span>
+                            }
+                            else if (IsCurrentUserHost)
+                            {
+                                <button class="btn-transfer-host" @onclick="() => HandleTransferHost(participant.UserId)">Make Host</button>
+                            }
+                        </div>
+                    }
+                </div>
             </div>
 
             <CallControls IsMuted="@IsMuted"
@@ -93,10 +120,50 @@
                           ConnectionQuality="@ConnectionQuality"
                           IsDisabled="@AreControlsDisabled"
                           IsHangUpDisabled="@IsHangUpDisabled"
+                          CanAddPeople="@IsCurrentUserHost"
                           OnToggleMute="@HandleToggleMute"
                           OnToggleCamera="@HandleToggleCamera"
                           OnToggleScreenShare="@HandleToggleScreenShare"
+                          OnAddPeople="@HandleAddPeople"
                           OnHangUp="@HandleHangUp" />
         </div>
+
+        @if (ShowAddPeoplePicker)
+        {
+            <div class="call-add-people-overlay" @onclick="HandleCloseAddPeoplePicker">
+                <div class="call-add-people-dialog" @onclick:stopPropagation="true">
+                    <div class="call-add-people-header">
+                        <h3>Add People to Call</h3>
+                        <button class="btn btn-sm" @onclick="HandleCloseAddPeoplePicker">✕</button>
+                    </div>
+                    <input class="call-add-people-input"
+                           value="@AddPeopleSearchTerm"
+                           @oninput="HandleAddPeopleSearchInput"
+                           placeholder="Search users by name or email..." />
+
+                    @if (IsAddPeopleSearching)
+                    {
+                        <div class="call-add-people-empty">Searching...</div>
+                    }
+                    else if (AddPeopleSearchResults.Count > 0)
+                    {
+                        <div class="call-add-people-results">
+                            @foreach (var user in AddPeopleSearchResults)
+                            {
+                                <button class="call-add-people-result"
+                                        @onclick="() => HandleInviteToCall(user.UserId)">
+                                    <span class="call-add-people-name">@user.DisplayName</span>
+                                    <span class="call-add-people-email">@user.Email</span>
+                                </button>
+                            }
+                        </div>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(AddPeopleSearchTerm))
+                    {
+                        <div class="call-add-people-empty">No users found.</div>
+                    }
+                </div>
+            </div>
+        }
     </div>
 }

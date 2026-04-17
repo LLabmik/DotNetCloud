@@ -36,6 +36,17 @@
             <span class="control-label">@(IsScreenSharing ? "Stop Share" : "Share Screen")</span>
         </button>
 
+        @if (CanAddPeople)
+        {
+            <button class="control-btn"
+                    @onclick="HandleAddPeople"
+                    title="Invite more people to this call"
+                    disabled="@IsDisabled">
+                <span class="control-icon">👥</span>
+                <span class="control-label">Add People</span>
+            </button>
+        }
+
         <button class="control-btn control-hangup"
                 @onclick="HandleHangUp"
                 title="Leave call"

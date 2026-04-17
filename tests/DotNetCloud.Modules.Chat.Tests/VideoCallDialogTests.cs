@@ -332,6 +332,94 @@ public class VideoCallDialogTests
         Assert.IsTrue(invoked);
     }
 
+    [TestMethod]
+    public void IsCurrentUserHost_WhenHostMatchesCurrentUser_ReturnsTrue()
+    {
+        var dialog = new TestableVideoCallDialog();
+        var userId = Guid.NewGuid();
+
+        dialog.SetCurrentUserAndHost(userId, userId);
+
+        Assert.IsTrue(dialog.TestIsCurrentUserHost);
+    }
+
+    [TestMethod]
+    public void IsCurrentUserHost_WhenHostDiffersFromCurrentUser_ReturnsFalse()
+    {
+        var dialog = new TestableVideoCallDialog();
+
+        dialog.SetCurrentUserAndHost(Guid.NewGuid(), Guid.NewGuid());
+
+        Assert.IsFalse(dialog.TestIsCurrentUserHost);
+    }
+
+    [TestMethod]
+    public async Task HandleAddPeople_InvokesOnAddPeopleCallback()
+    {
+        var dialog = new TestableVideoCallDialog();
+        var invoked = false;
+        var receiver = new object();
+        dialog.OnAddPeople = EventCallback.Factory.Create(receiver, () => invoked = true);
+
+        await dialog.InvokeAddPeople();
+
+        Assert.IsTrue(invoked);
+    }
+
+    [TestMethod]
+    public async Task HandleTransferHost_InvokesOnTransferHostWithTargetUserId()
+    {
+        var dialog = new TestableVideoCallDialog();
+        var targetUserId = Guid.NewGuid();
+        Guid? receivedUserId = null;
+        var receiver = new object();
+        dialog.OnTransferHost = EventCallback.Factory.Create<Guid>(receiver, id => receivedUserId = id);
+
+        await dialog.InvokeTransferHost(targetUserId);
+
+        Assert.AreEqual(targetUserId, receivedUserId);
+    }
+
+    [TestMethod]
+    public async Task HandleInviteToCall_InvokesOnInviteToCallWithTargetUserId()
+    {
+        var dialog = new TestableVideoCallDialog();
+        var targetUserId = Guid.NewGuid();
+        Guid? receivedUserId = null;
+        var receiver = new object();
+        dialog.OnInviteToCall = EventCallback.Factory.Create<Guid>(receiver, id => receivedUserId = id);
+
+        await dialog.InvokeInviteToCall(targetUserId);
+
+        Assert.AreEqual(targetUserId, receivedUserId);
+    }
+
+    [TestMethod]
+    public async Task HandleCloseAddPeoplePicker_InvokesOnCloseAddPeoplePickerCallback()
+    {
+        var dialog = new TestableVideoCallDialog();
+        var invoked = false;
+        var receiver = new object();
+        dialog.OnCloseAddPeoplePicker = EventCallback.Factory.Create(receiver, () => invoked = true);
+
+        await dialog.InvokeCloseAddPeoplePicker();
+
+        Assert.IsTrue(invoked);
+    }
+
+    [TestMethod]
+    public async Task HandleAddPeopleSearchInput_InvokesOnAddPeopleSearchChangedWithInputValue()
+    {
+        var dialog = new TestableVideoCallDialog();
+        string? receivedSearchTerm = null;
+        var receiver = new object();
+        dialog.OnAddPeopleSearchChanged = EventCallback.Factory.Create<string>(receiver, term => receivedSearchTerm = term);
+
+        await dialog.InvokeAddPeopleSearchInput("alice");
+
+        Assert.AreEqual("alice", receivedSearchTerm);
+    }
+
     // ── Waiting Message Tests ───────────────────────────────────────
 
     [TestMethod]
@@ -383,6 +471,7 @@ public class VideoCallDialogTests
         public int TestTotalParticipantCount => TotalParticipantCount;
         public bool TestAreControlsDisabled => AreControlsDisabled;
         public bool TestIsHangUpDisabled => IsHangUpDisabled;
+        public bool TestIsCurrentUserHost => IsCurrentUserHost;
 
         public void SetRemoteParticipants(IReadOnlyList<CallParticipantDto> participants)
         {
@@ -394,12 +483,23 @@ public class VideoCallDialogTests
             CallState = state;
         }
 
+        public void SetCurrentUserAndHost(Guid currentUserId, Guid hostUserId)
+        {
+            CurrentUserId = currentUserId;
+            HostUserId = hostUserId;
+        }
+
         public string TestGetWaitingMessage() => GetWaitingMessage();
 
         public Task InvokeHangUp() => HandleHangUp();
         public Task InvokeToggleMute(bool val) => HandleToggleMute(val);
         public Task InvokeToggleCamera(bool val) => HandleToggleCamera(val);
         public Task InvokeToggleScreenShare(bool val) => HandleToggleScreenShare(val);
+        public Task InvokeAddPeople() => HandleAddPeople();
+        public Task InvokeInviteToCall(Guid userId) => HandleInviteToCall(userId);
+        public Task InvokeTransferHost(Guid userId) => HandleTransferHost(userId);
+        public Task InvokeCloseAddPeoplePicker() => HandleCloseAddPeoplePicker();
+        public Task InvokeAddPeopleSearchInput(string term) => HandleAddPeopleSearchInput(new ChangeEventArgs { Value = term });
         public Task InvokeMinimize() => HandleMinimize();
         public Task InvokePipClick() => HandlePipClick();
     }

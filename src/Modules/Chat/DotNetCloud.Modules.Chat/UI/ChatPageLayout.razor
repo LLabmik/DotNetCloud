@@ -14,7 +14,8 @@
                      ErrorMessage="@_channelErrorMessage"
                      OnChannelSelected="@HandleChannelSelected"
                      OnCreateChannel="@HandleCreateChannel"
-                     OnChannelReordered="@HandleChannelReordered" />
+                     OnChannelReordered="@HandleChannelReordered"
+                     OnNewDm="@HandleOpenDmUserPicker" />
     </div>
 
     <div class="chat-main">
@@ -36,6 +37,7 @@
                        OnToggleMemberList="@HandleToggleMemberList"
                        OnSearch="@HandleSearch"
                        OnInvite="@HandleOpenInviteDialog"
+                       OnAddPeople="@HandleOpenChannelAddPeoplePicker"
                        OnAudioCall="@HandleStartAudioCall"
                        OnVideoCall="@HandleStartVideoCall"
                        OnJoinCall="@HandleJoinActiveCall"
@@ -108,10 +110,14 @@
             {
                 <MemberListPanel Members="@_members"
                                  CanManageMembers="@_currentUserIsAdminOrOwner"
+                                 CurrentUserId="@_currentUserId"
                                  OnClose="@HandleCloseMemberPanel"
                                  OnPromoteMember="@HandlePromoteMember"
                                  OnDemoteMember="@HandleDemoteMember"
-                                 OnRemoveMember="@HandleRemoveMember" />
+                                 OnRemoveMember="@HandleRemoveMember"
+                                 OnAddPeople="@HandleOpenChannelAddPeoplePicker"
+                                 OnAudioCallUser="@HandleAudioCallUser"
+                                 OnVideoCallUser="@HandleVideoCallUser" />
             }
 
             @if (_showCallHistoryPanel)
@@ -244,19 +250,79 @@
     </div>
 }
 
+@if (_showChannelAddPeoplePicker && _selectedChannel is not null)
+{
+    <div class="dialog-overlay" @onclick="HandleCloseChannelAddPeoplePicker">
+        <div class="dialog dm-user-picker-dialog" @onclick:stopPropagation="true">
+            <div class="dialog-header">
+                <h2>Add People to @_selectedChannel.Name</h2>
+                <button class="btn btn-sm" @onclick="HandleCloseChannelAddPeoplePicker">✕</button>
+            </div>
+            <div class="dialog-body">
+                <div class="settings-section">
+                    <label>Search users</label>
+                    <input type="text"
+                           @bind="_channelAddPeopleSearchTerm"
+                           @bind:event="oninput"
+                           @bind:after="() => SearchUsersForChannelAddAsync(_channelAddPeopleSearchTerm)"
+                           placeholder="Search by name or email..."
+                           class="search-input" />
+                </div>
+
+                @if (_isChannelAddPeopleSearching)
+                {
+                    <div class="search-loading">Searching...</div>
+                }
+                else if (_channelAddPeopleResults.Count > 0)
+                {
+                    <div class="dm-user-results">
+                        @foreach (var user in _channelAddPeopleResults)
+                        {
+                            <div class="dm-user-result-item" @onclick="() => AddUserToCurrentChannelAsync(user.UserId)">
+                                <div class="dm-user-info">
+                                    <span class="dm-user-name">@user.DisplayName</span>
+                                    <span class="dm-user-email">@user.Email</span>
+                                </div>
+                                <div class="dm-user-actions">
+                                    <button class="btn btn-sm btn-primary">Add</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else if (!string.IsNullOrWhiteSpace(_channelAddPeopleSearchTerm))
+                {
+                    <div class="search-empty">No matching users to add.</div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
 <VideoCallDialog IsVisible="@_showVideoCallDialog"
                  ChannelName="@(_selectedChannel?.Name ?? "")"
                  CallState="@_currentCallState"
                  LocalDisplayName="@_currentUserDisplayName"
+                 CurrentUserId="@_currentUserId"
+                 HostUserId="@(_currentCallHostUserId ?? Guid.Empty)"
                  RemoteParticipants="@_remoteParticipants"
                  IsMuted="@_isCallMuted"
                  IsCameraOff="@_isCallCameraOff"
                  IsScreenSharing="@_isCallScreenSharing"
                  DurationSeconds="@_callDurationSeconds"
                  ConnectionQuality="@_callConnectionQuality"
+                 ShowAddPeoplePicker="@_showCallAddPeoplePicker"
+                 AddPeopleSearchTerm="@_callAddPeopleSearchTerm"
+                 IsAddPeopleSearching="@_isCallAddPeopleSearching"
+                 AddPeopleSearchResults="@_callAddPeopleResults"
                  OnToggleMute="@HandleCallToggleMute"
                  OnToggleCamera="@HandleCallToggleCamera"
                  OnToggleScreenShare="@HandleCallToggleScreenShare"
+                 OnAddPeople="@HandleOpenCallAddPeoplePicker"
+                 OnCloseAddPeoplePicker="@HandleCloseCallAddPeoplePicker"
+                 OnAddPeopleSearchChanged="@SearchUsersForCallAddAsync"
+                 OnInviteToCall="@InviteUserToCurrentCallAsync"
+                 OnTransferHost="@TransferHostAsync"
                  OnHangUp="@HandleCallHangUp"
                  OnMinimize="@HandleCallMinimize"
                  OnPipClick="@HandleCallPipClick" />
@@ -267,6 +333,8 @@
                           MediaType="@_incomingCallMediaType"
                           RemainingSeconds="@_incomingCallRemainingSeconds"
                           IsRinging="@_isIncomingCallRinging"
+                          IsMidCallInvite="@_incomingIsMidCallInvite"
+                          ParticipantCount="@_incomingCallParticipantCount"
                           OnAcceptVideo="@HandleAcceptCallVideo"
                           OnAcceptAudio="@HandleAcceptCallAudio"
                           OnReject="@HandleRejectCall" />

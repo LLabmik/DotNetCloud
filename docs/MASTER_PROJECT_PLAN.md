@@ -103,7 +103,7 @@
 | Phase 11 (Auto-Updates)     | 16      | 7         | 0           | 9       |
 | DM & Host Calls — Phase A   | 3       | 3         | 0           | 0       |
 | DM & Host Calls — Phase B   | 2       | 0         | 0           | 2       |
-| DM & Host Calls — Phase C–G | 10      | 0         | 0           | 10      |
+| DM & Host Calls — Phase C–G | 10      | 1         | 1           | 8       |
 | Infrastructure              | Summary | 0         | 0           | 1       |
 | Documentation               | Summary | 0         | 0           | 1       |
 
@@ -2811,7 +2811,17 @@ Reference plan: `docs/DIRECT_MESSAGING_AND_HOST_CALLS_PLAN.md`
 ### Section: Phase E — UI Integration
 
 #### Step: dm-host-E — UI Integration (6 sub-items)
-**Status:** pending
+**Status:** completed ✅
+**Deliverables:**
+- ✓ `ChannelList.razor(.cs/.css)` — Direct Messages header now has a dedicated "+" action wired to `OnNewDm` and the DM user picker flow
+- ✓ `ChatPageLayout.razor(.cs/.css)` — wired New DM, channel add-people picker, call add-people picker, direct member call actions, and host/invite state tracking
+- ✓ `MemberListPanel.razor(.cs/.css)` — per-member audio/video call actions plus channel-level add-people action in panel header
+- ✓ `ChannelHeader.razor(.cs)` — added "Add People" action for DM/Group channels
+- ✓ `CallControls.razor(.cs)` — host-only "Add People" call control
+- ✓ `VideoCallDialog.razor(.cs/.css)` — participant panel with Host badge, transfer-host actions, and add-people invite picker overlay
+- ✓ `IncomingCallNotification` integration in `ChatPageLayout.razor` now passes mid-call invite fields (`IsMidCallInvite`, `ParticipantCount`)
+
+**Notes:** Phase E UI behavior is now fully wired for DM creation, direct calls, call host controls, and DM/group member expansion workflows.
 
 ### Section: Phase F — SignalR Hub Updates
 
@@ -2821,4 +2831,16 @@ Reference plan: `docs/DIRECT_MESSAGING_AND_HOST_CALLS_PLAN.md`
 ### Section: Phase G — Tests
 
 #### Step: dm-host-G — Unit & Integration Tests
-**Status:** pending
+**Status:** in-progress
+**Deliverables:**
+- ✓ Added/expanded unit coverage for new Phase E behavior:
+- ✓ `ChannelListTests.cs` — New DM callback path
+- ✓ `ChannelHeaderCallButtonTests.cs` — Add People callback path
+- ✓ `MemberListPanelTests.cs` — add-people/member action callbacks and profile behavior
+- ✓ `CallControlsTests.cs` — host add-people control callback
+- ✓ `VideoCallDialogTests.cs` — host-state detection and add-people/transfer-host/invite callbacks
+- ✓ `IncomingCallNotificationTests.cs` — mid-call invite parameter coverage
+- ✓ Full Chat test suite executed: `dotnet test tests/DotNetCloud.Modules.Chat.Tests/DotNetCloud.Modules.Chat.Tests.csproj --no-restore` (1176 passed, 0 failed)
+- ☐ Integration / E2E scenarios for invite + host transfer lifecycle remain pending
+
+**Notes:** Unit-level validation is comprehensive for the Phase E UI additions. Next step is dedicated end-to-end flow verification for multi-user call lifecycles.

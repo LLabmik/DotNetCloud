@@ -124,6 +124,33 @@ public class IncomingCallNotificationTests
         Assert.AreEqual("Video", notification.TestMediaType);
     }
 
+    [TestMethod]
+    public void IsMidCallInvite_DefaultIsFalse()
+    {
+        var notification = new TestableIncomingCallNotification();
+
+        Assert.IsFalse(notification.TestIsMidCallInvite);
+    }
+
+    [TestMethod]
+    public void ParticipantCount_DefaultIsZero()
+    {
+        var notification = new TestableIncomingCallNotification();
+
+        Assert.AreEqual(0, notification.TestParticipantCount);
+    }
+
+    [TestMethod]
+    public void MidCallInviteParameters_WhenSet_AreAccessible()
+    {
+        var notification = new TestableIncomingCallNotification();
+        notification.SetIsMidCallInvite(true);
+        notification.SetParticipantCount(4);
+
+        Assert.IsTrue(notification.TestIsMidCallInvite);
+        Assert.AreEqual(4, notification.TestParticipantCount);
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────
 
     private sealed class TestableIncomingCallNotification : IncomingCallNotification
@@ -133,11 +160,15 @@ public class IncomingCallNotificationTests
         public int TestRemainingSeconds => RemainingSeconds;
         public string TestCallerName => CallerName;
         public string TestChannelName => ChannelName;
+        public bool TestIsMidCallInvite => IsMidCallInvite;
+        public int TestParticipantCount => ParticipantCount;
 
         public void SetRemainingSeconds(int seconds) => RemainingSeconds = seconds;
         public void SetCallerName(string name) => CallerName = name;
         public void SetChannelName(string name) => ChannelName = name;
         public void SetMediaType(string type) => MediaType = type;
+        public void SetIsMidCallInvite(bool value) => IsMidCallInvite = value;
+        public void SetParticipantCount(int count) => ParticipantCount = count;
 
         public Task InvokeAcceptVideo() => HandleAcceptVideo();
         public Task InvokeAcceptAudio() => HandleAcceptAudio();

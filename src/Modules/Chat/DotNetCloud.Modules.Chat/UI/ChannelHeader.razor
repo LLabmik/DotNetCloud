@@ -37,6 +37,12 @@
                     ➕ Invite
                 </button>
             }
+            @if (Channel!.Type is "DirectMessage" or "Group")
+            {
+                <button class="btn btn-sm" @onclick="OnAddPeopleClick" title="Add people to this conversation">
+                    👥 Add People
+                </button>
+            }
             <button class="btn btn-sm btn-call" @onclick="OnAudioCallClick" title="Start audio call">
                 📞 Call
             </button>
@@ -82,6 +88,8 @@
                             <dd>Change the channel name, topic, and settings.</dd>
                             <dt>🔍 Search</dt>
                             <dd>Search through messages in this channel.</dd>
+                            <dt>👥 Add People</dt>
+                            <dd>Add more users to a DM or group conversation.</dd>
                             <dt>� Call / 📹 Video</dt>
                             <dd>Start an audio or video call with channel members.</dd>
                             <dt>📋 Calls</dt>

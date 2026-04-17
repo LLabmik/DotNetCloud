@@ -299,6 +299,174 @@
     pointer-events: none;
 }
 
+/* --- Participant Panel --- */
+
+.call-participant-panel {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 240px;
+    max-height: 48%;
+    overflow-y: auto;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 10px;
+    background: rgba(8, 8, 22, 0.86);
+    backdrop-filter: blur(4px);
+    z-index: 11;
+}
+
+.call-participant-panel-header {
+    padding: 10px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    color: rgba(255, 255, 255, 0.9);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.call-participant-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 9px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.call-participant-row:last-child {
+    border-bottom: 0;
+}
+
+.call-participant-row.host {
+    background: rgba(245, 158, 11, 0.12);
+}
+
+.call-participant-name {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.92);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.host-badge {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: #fbbf24;
+    border: 1px solid rgba(251, 191, 36, 0.35);
+    border-radius: 999px;
+    padding: 2px 8px;
+}
+
+.btn-transfer-host {
+    border: 1px solid rgba(96, 165, 250, 0.45);
+    background: rgba(59, 130, 246, 0.14);
+    color: #93c5fd;
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.btn-transfer-host:hover {
+    background: rgba(59, 130, 246, 0.24);
+}
+
+/* --- Add People Picker --- */
+
+.call-add-people-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 1050;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.call-add-people-dialog {
+    width: min(460px, calc(100vw - 24px));
+    max-height: min(70vh, 560px);
+    overflow: hidden;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: #13132a;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+}
+
+.call-add-people-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.call-add-people-header h3 {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.94);
+    font-size: 16px;
+}
+
+.call-add-people-input {
+    width: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.95);
+    padding: 9px 11px;
+    font-size: 13px;
+    outline: none;
+}
+
+.call-add-people-input:focus {
+    border-color: rgba(96, 165, 250, 0.9);
+}
+
+.call-add-people-results {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.call-add-people-result {
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 9px 10px;
+    color: rgba(255, 255, 255, 0.95);
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.call-add-people-result:hover {
+    border-color: rgba(96, 165, 250, 0.62);
+    background: rgba(59, 130, 246, 0.12);
+}
+
+.call-add-people-name {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.call-add-people-email {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.66);
+}
+
+.call-add-people-empty {
+    padding: 10px 2px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
 /* --- Responsive --- */
 
 @media (max-width: 768px) {

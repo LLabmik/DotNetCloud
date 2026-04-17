@@ -34,6 +34,22 @@ public partial class MemberListPanel : ComponentBase
     [Parameter]
     public EventCallback<Guid> OnRemoveMember { get; set; }
 
+    /// <summary>Callback to open add-people flow for the current channel.</summary>
+    [Parameter]
+    public EventCallback OnAddPeople { get; set; }
+
+    /// <summary>Callback to initiate an audio call to a specific member.</summary>
+    [Parameter]
+    public EventCallback<Guid> OnAudioCallUser { get; set; }
+
+    /// <summary>Callback to initiate a video call to a specific member.</summary>
+    [Parameter]
+    public EventCallback<Guid> OnVideoCallUser { get; set; }
+
+    /// <summary>The current user's ID, used to hide call buttons for self.</summary>
+    [Parameter]
+    public Guid CurrentUserId { get; set; }
+
     /// <summary>Currently selected member profile.</summary>
     protected MemberViewModel? SelectedMember => _selectedMember;
 
@@ -78,5 +94,11 @@ public partial class MemberListPanel : ComponentBase
     protected async Task Remove(MemberViewModel member)
     {
         await OnRemoveMember.InvokeAsync(member.UserId);
+    }
+
+    /// <summary>Opens the add-people picker for this channel.</summary>
+    protected async Task AddPeople()
+    {
+        await OnAddPeople.InvokeAsync();
     }
 }

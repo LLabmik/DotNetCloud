@@ -103,6 +103,29 @@
     margin: 0;
 }
 
+.channel-group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.btn-new-dm {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    border: 1px solid var(--color-border, #e2e8f0);
+    background: var(--color-surface, #ffffff);
+    color: var(--color-text-secondary, #64748b);
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.btn-new-dm:hover {
+    border-color: var(--color-primary, #3b82f6);
+    color: var(--color-primary, #3b82f6);
+}
+
 /* --- Channel Items --- */
 
 .channel-item {

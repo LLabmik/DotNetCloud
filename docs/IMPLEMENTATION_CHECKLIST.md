@@ -4495,17 +4495,17 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ☐ D4. `CallHostTransferredEvent` and SignalR broadcast
 
 ### Phase E — UI Integration
-- ☐ E1. "New DM" user picker in sidebar
-- ☐ E2. "Call User" buttons
-- ☐ E3. "Add People" button in active call (Host only)
-- ☐ E4. "Transfer Host" in call participant list
-- ☐ E5. Updated incoming call notification (mid-call invite)
-- ☐ E6. "Add People" to group chat
+- ✓ E1. "New DM" user picker in sidebar
+- ✓ E2. "Call User" buttons
+- ✓ E3. "Add People" button in active call (Host only)
+- ✓ E4. "Transfer Host" in call participant list
+- ✓ E5. Updated incoming call notification (mid-call invite)
+- ✓ E6. "Add People" to group chat
 
 ### Phase F — SignalR Hub Updates
 - ☐ F1. New hub methods (`InviteToCallAsync`, `TransferHostAsync`)
 - ☐ F2. New client-side event handlers (`HostTransferred`, `CallInviteReceived`)
 
 ### Phase G — Tests
-- ☐ G1. Unit tests (Host transfer, mid-call invite, DM→Group, direct call, end-call permission)
+- ✓ G1. Unit tests (Host transfer, mid-call invite, DM→Group, direct call, end-call permission)
 - ☐ G2. Integration / E2E tests

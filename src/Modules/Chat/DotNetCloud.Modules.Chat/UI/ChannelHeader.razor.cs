@@ -43,6 +43,10 @@ public partial class ChannelHeader : ComponentBase
     [Parameter]
     public EventCallback OnInvite { get; set; }
 
+    /// <summary>Callback to add people to DM/group channels.</summary>
+    [Parameter]
+    public EventCallback OnAddPeople { get; set; }
+
     /// <summary>Callback to start an audio call.</summary>
     [Parameter]
     public EventCallback OnAudioCall { get; set; }
@@ -106,6 +110,12 @@ public partial class ChannelHeader : ComponentBase
     protected async Task OnInviteClick()
     {
         await OnInvite.InvokeAsync();
+    }
+
+    /// <summary>Handles add people button click.</summary>
+    protected async Task OnAddPeopleClick()
+    {
+        await OnAddPeople.InvokeAsync();
     }
 
     /// <summary>Handles audio call button click.</summary>

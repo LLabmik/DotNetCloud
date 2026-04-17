@@ -62,6 +62,19 @@ public class ChannelHeaderCallButtonTests
     }
 
     [TestMethod]
+    public async Task OnAddPeopleClick_InvokesOnAddPeopleCallback()
+    {
+        var header = new TestableChannelHeader();
+        var invoked = false;
+        var receiver = new object();
+        header.OnAddPeople = EventCallback.Factory.Create(receiver, () => invoked = true);
+
+        await header.InvokeAddPeopleClick();
+
+        Assert.IsTrue(invoked);
+    }
+
+    [TestMethod]
     public void HasActiveCall_DefaultIsFalse()
     {
         var header = new TestableChannelHeader();
@@ -88,5 +101,6 @@ public class ChannelHeaderCallButtonTests
         public Task InvokeVideoCallClick() => OnVideoCallClick();
         public Task InvokeJoinCallClick() => OnJoinCallClick();
         public Task InvokeCallHistoryClick() => OnCallHistoryClick();
+        public Task InvokeAddPeopleClick() => OnAddPeopleClick();
     }
 }

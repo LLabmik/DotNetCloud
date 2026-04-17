@@ -49,6 +49,10 @@ public partial class ChannelList : ComponentBase
     [Parameter]
     public EventCallback<IReadOnlyList<Guid>> OnChannelReordered { get; set; }
 
+    /// <summary>Event callback when the user wants to start a new direct message.</summary>
+    [Parameter]
+    public EventCallback OnNewDm { get; set; }
+
     /// <summary>Whether channels are currently loading.</summary>
     [Parameter]
     public bool IsLoading { get; set; }
@@ -127,6 +131,12 @@ public partial class ChannelList : ComponentBase
     protected void HideCreateChannel()
     {
         _isShowCreateChannel = false;
+    }
+
+    /// <summary>Handles the "+" button click in the Direct Messages section to open the DM user picker.</summary>
+    protected async Task HandleNewDmClick()
+    {
+        await OnNewDm.InvokeAsync();
     }
 
     /// <summary>Creates a new channel via callback.</summary>

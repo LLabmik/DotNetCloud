@@ -228,6 +228,19 @@ public class CallControlsTests
         Assert.IsTrue(invoked);
     }
 
+    [TestMethod]
+    public async Task HandleAddPeople_InvokesOnAddPeopleCallback()
+    {
+        var controls = new TestableCallControls();
+        var invoked = false;
+        var receiver = new object();
+        controls.OnAddPeople = EventCallback.Factory.Create(receiver, () => invoked = true);
+
+        await controls.InvokeAddPeople();
+
+        Assert.IsTrue(invoked);
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────
 
     private sealed class TestableCallControls : CallControls
@@ -245,5 +258,6 @@ public class CallControlsTests
         public Task InvokeToggleCamera() => HandleToggleCamera();
         public Task InvokeToggleScreenShare() => HandleToggleScreenShare();
         public Task InvokeHangUp() => HandleHangUp();
+        public Task InvokeAddPeople() => HandleAddPeople();
     }
 }
