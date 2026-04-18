@@ -53,6 +53,13 @@ public sealed record CallHostTransferredNotification(
     Guid NewHostUserId);
 
 /// <summary>
+/// Payload for a user presence change notification raised via <see cref="IChatMessageNotifier"/>.
+/// </summary>
+public sealed record UserPresenceChangedNotification(
+    Guid UserId,
+    bool IsOnline);
+
+/// <summary>
 /// Payload for a WebRTC signaling message (offer, answer, or ICE candidate) relayed in-process.
 /// </summary>
 public sealed record CallSignalNotification(
@@ -96,6 +103,9 @@ public interface IChatMessageNotifier
     /// <summary>Raised when the host of a call is transferred to another participant.</summary>
     event Action<CallHostTransferredNotification>? CallHostTransferred;
 
+    /// <summary>Raised when a user comes online or goes offline.</summary>
+    event Action<UserPresenceChangedNotification>? UserPresenceChanged;
+
     /// <summary>Notifies all subscribers that a new message was sent.</summary>
     void NotifyMessageReceived(Guid channelId, MessageDto message);
 
@@ -122,6 +132,9 @@ public interface IChatMessageNotifier
 
     /// <summary>Notifies all subscribers that the host of a call has been transferred.</summary>
     void NotifyCallHostTransferred(CallHostTransferredNotification notification);
+
+    /// <summary>Notifies all subscribers that a user's presence has changed.</summary>
+    void NotifyUserPresenceChanged(UserPresenceChangedNotification notification);
 }
 
 /// <summary>
@@ -158,6 +171,9 @@ public sealed class InProcessChatMessageNotifier : IChatMessageNotifier
     public event Action<CallHostTransferredNotification>? CallHostTransferred;
 
     /// <inheritdoc />
+    public event Action<UserPresenceChangedNotification>? UserPresenceChanged;
+
+    /// <inheritdoc />
     public void NotifyMessageReceived(Guid channelId, MessageDto message)
         => MessageReceived?.Invoke(channelId, message);
 
@@ -192,4 +208,8 @@ public sealed class InProcessChatMessageNotifier : IChatMessageNotifier
     /// <inheritdoc />
     public void NotifyCallHostTransferred(CallHostTransferredNotification notification)
         => CallHostTransferred?.Invoke(notification);
+
+    /// <inheritdoc />
+    public void NotifyUserPresenceChanged(UserPresenceChangedNotification notification)
+        => UserPresenceChanged?.Invoke(notification);
 }

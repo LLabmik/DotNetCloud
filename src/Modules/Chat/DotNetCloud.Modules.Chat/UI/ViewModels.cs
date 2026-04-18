@@ -160,7 +160,7 @@ public sealed class MemberViewModel
     public string Role { get; init; } = "Member";
 
     /// <summary>Presence status.</summary>
-    public string Status { get; init; } = "Offline";
+    public string Status { get; set; } = "Offline";
 
     /// <summary>Optional user handle.</summary>
     public string? Username { get; init; }

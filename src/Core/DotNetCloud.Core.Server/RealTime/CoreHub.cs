@@ -31,6 +31,7 @@ internal sealed class CoreHub : Hub
     private readonly ICallSignalingService? _callSignalingService;
     private readonly IVideoCallService? _videoCallService;
     private readonly IEventBus? _eventBus;
+    private readonly IChatMessageNotifier? _chatMessageNotifier;
     private readonly ILogger<CoreHub> _logger;
 
     public CoreHub(
@@ -44,7 +45,8 @@ internal sealed class CoreHub : Hub
         ILogger<CoreHub> logger,
         ICallSignalingService? callSignalingService = null,
         IVideoCallService? videoCallService = null,
-        IEventBus? eventBus = null)
+        IEventBus? eventBus = null,
+        IChatMessageNotifier? chatMessageNotifier = null)
     {
         _connectionTracker = connectionTracker;
         _presenceService = presenceService;
@@ -56,6 +58,7 @@ internal sealed class CoreHub : Hub
         _callSignalingService = callSignalingService;
         _videoCallService = videoCallService;
         _eventBus = eventBus;
+        _chatMessageNotifier = chatMessageNotifier;
         _logger = logger;
     }
 
@@ -87,6 +90,10 @@ internal sealed class CoreHub : Hub
 
             // Notify other clients that this user is now online
             await Clients.Others.SendAsync("UserOnline", new { UserId = userId, Timestamp = DateTime.UtcNow });
+
+            // Notify in-process subscribers (Blazor circuits)
+            _chatMessageNotifier?.NotifyUserPresenceChanged(
+                new UserPresenceChangedNotification(userId, IsOnline: true));
         }
 
         await base.OnConnectedAsync();
@@ -112,6 +119,10 @@ internal sealed class CoreHub : Hub
 
                 // Notify other clients that this user is now offline
                 await Clients.Others.SendAsync("UserOffline", new { UserId = userId, Timestamp = DateTime.UtcNow });
+
+                // Notify in-process subscribers (Blazor circuits)
+                _chatMessageNotifier?.NotifyUserPresenceChanged(
+                    new UserPresenceChangedNotification(userId, IsOnline: false));
             }
         }
 

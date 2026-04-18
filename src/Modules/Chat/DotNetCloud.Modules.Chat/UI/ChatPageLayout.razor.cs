@@ -34,6 +34,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     [Inject] private IWebRtcInteropService WebRtcInterop { get; set; } = default!;
     [Inject] private ICallSignalingService CallSignalingService { get; set; } = default!;
     [Inject] private IIceServerService IceServerService { get; set; } = default!;
+    [Inject] private IPresenceTracker PresenceTracker { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
 
     // Channel state
@@ -149,6 +150,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     private bool _currentUserIsAdminOrOwner;
     private readonly Dictionary<Guid, string> _displayNameCache = [];
     private readonly Dictionary<Guid, string> _avatarUrlCache = [];
+    private readonly Dictionary<Guid, Guid> _dmChannelToOtherUser = [];
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
@@ -180,6 +182,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         ChatMessageNotifier.CallEnded += OnCallEnded;
         ChatMessageNotifier.CallInviteReceived += OnCallInviteReceived;
         ChatMessageNotifier.CallHostTransferred += OnCallHostTransferred;
+        ChatMessageNotifier.UserPresenceChanged += OnUserPresenceChanged;
 
         await LoadChannelsAsync();
         await LoadAnnouncementsAsync();
@@ -197,6 +200,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         ChatMessageNotifier.CallEnded -= OnCallEnded;
         ChatMessageNotifier.CallInviteReceived -= OnCallInviteReceived;
         ChatMessageNotifier.CallHostTransferred -= OnCallHostTransferred;
+        ChatMessageNotifier.UserPresenceChanged -= OnUserPresenceChanged;
 
         _callDurationTimer?.Stop();
         _callDurationTimer?.Dispose();
@@ -244,6 +248,41 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         InvokeAsync(() =>
         {
             if (_messages.RemoveAll(m => m.Id == messageId) > 0)
+            {
+                StateHasChanged();
+            }
+        });
+    }
+
+    private void OnUserPresenceChanged(UserPresenceChangedNotification notification)
+    {
+        InvokeAsync(() =>
+        {
+            var changed = false;
+
+            // Update member list
+            var member = _members.FirstOrDefault(m => m.UserId == notification.UserId);
+            if (member is not null)
+            {
+                member.Status = notification.IsOnline ? "Online" : "Offline";
+                changed = true;
+            }
+
+            // Update DM channel presence dots
+            foreach (var (channelId, otherUserId) in _dmChannelToOtherUser)
+            {
+                if (otherUserId == notification.UserId)
+                {
+                    var channel = _channels.FirstOrDefault(c => c.Id == channelId);
+                    if (channel is not null)
+                    {
+                        channel.PresenceStatus = notification.IsOnline ? "Online" : "Offline";
+                        changed = true;
+                    }
+                }
+            }
+
+            if (changed)
             {
                 StateHasChanged();
             }
@@ -716,6 +755,18 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             }
 
             _members = members.Select(ToMemberViewModel).ToList();
+
+            // Query actual presence status for all members
+            var memberIds = _members.Select(m => m.UserId).ToList();
+            var onlineStatus = await PresenceTracker.GetOnlineStatusAsync(memberIds);
+            foreach (var member in _members)
+            {
+                if (onlineStatus.TryGetValue(member.UserId, out var isOnline) && isOnline)
+                {
+                    member.Status = "Online";
+                }
+            }
+
             _memberSuggestions = _members;
 
             // Derive the current user's role in this channel
@@ -1189,6 +1240,23 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             if (dmToOtherUser.TryGetValue(dm.Id, out var otherUserId))
             {
                 dm.Name = _displayNameCache.GetValueOrDefault(otherUserId, otherUserId.ToString()[..8]);
+                _dmChannelToOtherUser[dm.Id] = otherUserId;
+            }
+        }
+
+        // Query presence for DM peers
+        var peerIds = dmToOtherUser.Values.Distinct().ToList();
+        if (peerIds.Count > 0)
+        {
+            var onlineStatus = await PresenceTracker.GetOnlineStatusAsync(peerIds);
+            foreach (var dm in dmChannels)
+            {
+                if (dmToOtherUser.TryGetValue(dm.Id, out var peerId)
+                    && onlineStatus.TryGetValue(peerId, out var isOnline)
+                    && isOnline)
+                {
+                    dm.PresenceStatus = "Online";
+                }
             }
         }
     }

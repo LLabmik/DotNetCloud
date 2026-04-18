@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Server.Configuration;
 using DotNetCloud.Core.Server.RealTime;
+using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.AspNetCore.Http.Connections;
 
 namespace DotNetCloud.Core.Server.Extensions;
@@ -46,6 +47,9 @@ internal static class SignalRServiceExtensions
         // Register broadcaster (singleton, uses IHubContext which is also singleton)
         services.AddSingleton<RealtimeBroadcasterService>();
         services.AddSingleton<IRealtimeBroadcaster>(sp => sp.GetRequiredService<RealtimeBroadcasterService>());
+
+        // Register Blazor circuit handler for presence tracking (scoped — one per circuit)
+        services.AddScoped<CircuitHandler, PresenceCircuitHandler>();
 
         return services;
     }
