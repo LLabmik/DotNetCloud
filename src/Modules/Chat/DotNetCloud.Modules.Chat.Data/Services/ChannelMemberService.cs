@@ -212,6 +212,22 @@ internal sealed class ChannelMemberService : IChannelMemberService
     }
 
     /// <inheritdoc />
+    public async Task SetMuteAsync(Guid channelId, bool muted, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        await EnsureChannelExistsAsync(channelId, cancellationToken);
+
+        var membership = await _db.ChannelMembers
+            .FirstOrDefaultAsync(m => m.ChannelId == channelId && m.UserId == caller.UserId, cancellationToken)
+            ?? throw new InvalidOperationException($"User {caller.UserId} is not a member of channel {channelId}.");
+
+        membership.IsMuted = muted;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("User {UserId} {Action} channel {ChannelId}",
+            caller.UserId, muted ? "muted" : "unmuted", channelId);
+    }
+
+    /// <inheritdoc />
     public async Task MarkAsReadAsync(Guid channelId, Guid messageId, CallerContext caller, CancellationToken cancellationToken = default)
     {
         await EnsureChannelExistsAsync(channelId, cancellationToken);
@@ -275,7 +291,9 @@ internal sealed class ChannelMemberService : IChannelMemberService
             {
                 ChannelId = membership.ChannelId,
                 UnreadCount = unreadCount,
-                MentionCount = mentionCount
+                MentionCount = mentionCount,
+                IsMuted = membership.IsMuted,
+                IsPinned = membership.IsPinned
             });
         }
 

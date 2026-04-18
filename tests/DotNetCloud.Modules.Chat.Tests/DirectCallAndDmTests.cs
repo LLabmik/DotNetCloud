@@ -628,6 +628,7 @@ public class DirectCallControllerTests
     private Mock<INotificationPreferenceStore> _notificationPreferenceStore = null!;
     private Mock<IIceServerService> _iceServerService = null!;
     private Mock<IVideoCallService> _videoCallService = null!;
+    private Mock<IUserBlockService> _userBlockService = null!;
     private ChatController _controller = null!;
     private Guid _userId;
 
@@ -650,6 +651,7 @@ public class DirectCallControllerTests
         _notificationPreferenceStore = new Mock<INotificationPreferenceStore>();
         _iceServerService = new Mock<IIceServerService>();
         _videoCallService = new Mock<IVideoCallService>();
+        _userBlockService = new Mock<IUserBlockService>();
 
         _notificationPreferenceStore
             .Setup(s => s.Get(It.IsAny<Guid>()))
@@ -676,6 +678,7 @@ public class DirectCallControllerTests
             _notificationPreferenceStore.Object,
             _iceServerService.Object,
             _videoCallService.Object,
+            _userBlockService.Object,
             NullLogger<ChatController>.Instance)
         {
             ControllerContext = new ControllerContext

@@ -39,6 +39,10 @@ public partial class ChannelHeader : ComponentBase
     [Parameter]
     public EventCallback<(Guid ChannelId, bool IsPinned)> OnPinChanged { get; set; }
 
+    /// <summary>Callback when channel mute state changes.</summary>
+    [Parameter]
+    public EventCallback<(Guid ChannelId, bool IsMuted)> OnMuteChanged { get; set; }
+
     /// <summary>Callback to open the invite dialog.</summary>
     [Parameter]
     public EventCallback OnInvite { get; set; }
@@ -160,5 +164,17 @@ public partial class ChannelHeader : ComponentBase
 
         Channel.IsPinned = !Channel.IsPinned;
         await OnPinChanged.InvokeAsync((Channel.Id, Channel.IsPinned));
+    }
+
+    /// <summary>Toggles mute state and raises callback.</summary>
+    protected async Task OnToggleMuteClick()
+    {
+        if (Channel is null)
+        {
+            return;
+        }
+
+        Channel.IsMuted = !Channel.IsMuted;
+        await OnMuteChanged.InvokeAsync((Channel.Id, Channel.IsMuted));
     }
 }

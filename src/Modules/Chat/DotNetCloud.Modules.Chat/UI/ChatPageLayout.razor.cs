@@ -35,6 +35,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     [Inject] private ICallSignalingService CallSignalingService { get; set; } = default!;
     [Inject] private IIceServerService IceServerService { get; set; } = default!;
     [Inject] private IPresenceTracker PresenceTracker { get; set; } = default!;
+    [Inject] private IUserBlockService UserBlockService { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private GlobalChatNotificationState GlobalNotificationState { get; set; } = default!;
 
@@ -144,6 +145,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     private readonly Dictionary<Guid, string> _displayNameCache = [];
     private readonly Dictionary<Guid, string> _avatarUrlCache = [];
     private readonly Dictionary<Guid, Guid> _dmChannelToOtherUser = [];
+    private HashSet<Guid> _blockedUserIds = [];  // Users blocked by current user
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
@@ -179,6 +181,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         GlobalNotificationState.OnCallAccepted += OnGlobalCallAccepted;
 
         await LoadChannelsAsync();
+        await LoadBlockedUsersAsync();
         await LoadAnnouncementsAsync();
 
         // Check if a call was accepted from the global notification overlay before navigation
@@ -366,6 +369,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                 {
                     channel.UnreadCount = count.UnreadCount;
                     channel.MentionCount = count.MentionCount;
+                    channel.IsMuted = count.IsMuted;
+                    channel.IsPinned = count.IsPinned;
                 }
             }
         }
@@ -429,6 +434,66 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             channel.IsPinned = args.IsPinned;
         }
         return Task.CompletedTask;
+    }
+
+    /// <summary>Handles mute state changes from the header.</summary>
+    protected async Task HandleMuteChanged((Guid ChannelId, bool IsMuted) args)
+    {
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            await MemberService.SetMuteAsync(args.ChannelId, args.IsMuted, caller);
+            var channel = _channels.FirstOrDefault(c => c.Id == args.ChannelId);
+            if (channel is not null)
+            {
+                channel.IsMuted = args.IsMuted;
+            }
+        }
+        catch (Exception ex)
+        {
+            _channelErrorMessage = ex.Message;
+        }
+    }
+
+    /// <summary>Loads all users blocked by the current user.</summary>
+    private async Task LoadBlockedUsersAsync()
+    {
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            var blockedList = await UserBlockService.GetBlockedUsersAsync(caller);
+            _blockedUserIds = new HashSet<Guid>(blockedList.Select(b => b.BlockedUserId));
+        }
+        catch
+        {
+            // Non-critical: blocking list is a nice-to-have
+            _blockedUserIds = [];
+        }
+    }
+
+    /// <summary>Handles block/unblock toggle for a user.</summary>
+    protected async Task HandleToggleBlockUser(Guid userId)
+    {
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            if (_blockedUserIds.Contains(userId))
+            {
+                // Unblock
+                await UserBlockService.UnblockUserAsync(userId, caller);
+                _blockedUserIds.Remove(userId);
+            }
+            else
+            {
+                // Block
+                await UserBlockService.BlockUserAsync(userId, caller);
+                _blockedUserIds.Add(userId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _channelErrorMessage = ex.Message;
+        }
     }
 
     /// <summary>Handles channel reorder from drag-and-drop.</summary>

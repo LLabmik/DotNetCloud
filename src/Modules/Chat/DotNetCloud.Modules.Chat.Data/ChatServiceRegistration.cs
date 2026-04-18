@@ -66,6 +66,7 @@ public static class ChatServiceRegistration
         services.AddScoped<ICallSignalingService, CallSignalingService>();
         services.AddScoped<ICallNotificationHandler, CallNotificationEventHandler>();
         services.AddScoped<IWebRtcInteropService, WebRtcInteropService>();
+        services.AddScoped<IUserBlockService, UserBlockService>();
 
         // ICE server configuration (built-in STUN + optional TURN)
         services.Configure<IceServerOptions>(configuration.GetSection(IceServerOptions.SectionName));

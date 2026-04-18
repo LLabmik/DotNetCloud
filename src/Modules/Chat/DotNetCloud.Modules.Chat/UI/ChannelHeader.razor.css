@@ -218,3 +218,14 @@
     margin: 2px 0 0 0;
     color: var(--color-text-secondary, #64748b);
 }
+
+/* --- Mute Button --- */
+
+.btn-muted {
+    background: var(--color-muted-bg, #f1f5f9);
+    color: var(--color-muted-text, #64748b);
+}
+
+.btn-muted:hover {
+    background: var(--color-muted-bg-hover, #e2e8f0);
+}

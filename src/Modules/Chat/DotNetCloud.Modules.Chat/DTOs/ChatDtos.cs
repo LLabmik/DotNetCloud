@@ -304,6 +304,12 @@ public sealed record UnreadCountDto
 
     /// <summary>Number of unread @mentions.</summary>
     public int MentionCount { get; init; }
+
+    /// <summary>Whether the caller has muted this channel.</summary>
+    public bool IsMuted { get; init; }
+
+    /// <summary>Whether the caller has pinned this channel.</summary>
+    public bool IsPinned { get; init; }
 }
 
 /// <summary>

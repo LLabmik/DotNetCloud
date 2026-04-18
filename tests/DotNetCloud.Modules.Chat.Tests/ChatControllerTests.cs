@@ -52,6 +52,7 @@ public class ChatControllerTests
         _notificationPreferenceStore = new Mock<INotificationPreferenceStore>();
         var iceServerService = new Mock<IIceServerService>();
         var videoCallService = new Mock<IVideoCallService>();
+        var userBlockService = new Mock<IUserBlockService>();
 
         _notificationPreferenceStore
             .Setup(s => s.Get(It.IsAny<Guid>()))
@@ -78,6 +79,7 @@ public class ChatControllerTests
             _notificationPreferenceStore.Object,
             iceServerService.Object,
             videoCallService.Object,
+            userBlockService.Object,
             NullLogger<ChatController>.Instance)
         {
             ControllerContext = new ControllerContext

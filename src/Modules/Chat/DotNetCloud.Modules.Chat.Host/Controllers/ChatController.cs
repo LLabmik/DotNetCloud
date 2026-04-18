@@ -33,6 +33,7 @@ public class ChatController : ChatControllerBase
     private readonly INotificationPreferenceStore _notificationPreferenceStore;
     private readonly IIceServerService _iceServerService;
     private readonly IVideoCallService _videoCallService;
+    private readonly IUserBlockService _userBlockService;
     private readonly ILogger<ChatController> _logger;
     private readonly ISearchFtsClient? _searchFtsClient;
 
@@ -55,6 +56,7 @@ public class ChatController : ChatControllerBase
         INotificationPreferenceStore notificationPreferenceStore,
         IIceServerService iceServerService,
         IVideoCallService videoCallService,
+        IUserBlockService userBlockService,
         ILogger<ChatController> logger,
         ISearchFtsClient? searchFtsClient = null)
     {
@@ -73,6 +75,7 @@ public class ChatController : ChatControllerBase
         _notificationPreferenceStore = notificationPreferenceStore;
         _iceServerService = iceServerService;
         _videoCallService = videoCallService;
+        _userBlockService = userBlockService;
         _logger = logger;
         _searchFtsClient = searchFtsClient;
     }
@@ -280,6 +283,25 @@ public class ChatController : ChatControllerBase
         {
             await _memberService.UpdateNotificationPreferenceAsync(channelId, pref, GetAuthenticatedCaller());
             return Ok(Envelope(new { updated = true }));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ErrorEnvelope("CHAT_MEMBER_NOT_FOUND", ex.Message));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>Sets the mute state for the caller's membership in a channel.</summary>
+    [HttpPut("channels/{channelId:guid}/mute")]
+    public async Task<IActionResult> SetChannelMuteAsync(Guid channelId, [FromBody] SetMuteDto dto)
+    {
+        try
+        {
+            await _memberService.SetMuteAsync(channelId, dto.Muted, GetAuthenticatedCaller());
+            return Ok(Envelope(new { muted = dto.Muted }));
         }
         catch (InvalidOperationException ex)
         {
@@ -915,6 +937,39 @@ public class ChatController : ChatControllerBase
         return Ok(Envelope(new { updated = true }));
     }
 
+    // ── User Block Endpoints (Call Blocking) ─────────────────────
+
+    /// <summary>Blocks a user from calling the authenticated user. Calls from blocked users are silently rejected.</summary>
+    [HttpPost("users/{userId:guid}/block")]
+    public async Task<IActionResult> BlockUserAsync(Guid userId)
+    {
+        try
+        {
+            await _userBlockService.BlockUserAsync(userId, GetAuthenticatedCaller());
+            return Ok(Envelope(new { blocked = true }));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ErrorEnvelope("BLOCK_ERROR", ex.Message));
+        }
+    }
+
+    /// <summary>Unblocks a previously blocked user.</summary>
+    [HttpDelete("users/{userId:guid}/block")]
+    public async Task<IActionResult> UnblockUserAsync(Guid userId)
+    {
+        await _userBlockService.UnblockUserAsync(userId, GetAuthenticatedCaller());
+        return Ok(Envelope(new { unblocked = true }));
+    }
+
+    /// <summary>Gets all users blocked by the authenticated user.</summary>
+    [HttpGet("users/blocked")]
+    public async Task<IActionResult> GetBlockedUsersAsync()
+    {
+        var blocked = await _userBlockService.GetBlockedUsersAsync(GetAuthenticatedCaller());
+        return Ok(Envelope(blocked));
+    }
+
     // ── Video Call Endpoints ──────────────────────────────────────
 
     /// <summary>Initiates a new video call in a channel.</summary>
@@ -1185,6 +1240,13 @@ public sealed record UpdateNotificationPrefDto
 {
     /// <summary>The preference: "All", "Mentions", or "None".</summary>
     public required string Preference { get; init; }
+}
+
+/// <summary>DTO for setting channel mute state.</summary>
+public sealed record SetMuteDto
+{
+    /// <summary>Whether the channel should be muted.</summary>
+    public bool Muted { get; init; }
 }
 
 /// <summary>DTO for marking a channel as read.</summary>

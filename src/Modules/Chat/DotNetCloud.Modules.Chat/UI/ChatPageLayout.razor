@@ -31,6 +31,7 @@
                        IsAdminOrOwner="@_currentUserIsAdminOrOwner"
                        HasActiveCall="@_hasActiveCall"
                        OnPinChanged="@HandlePinChanged"
+                       OnMuteChanged="@HandleMuteChanged"
                        OnEditChannel="@HandleEditChannel"
                        OnArchiveChannel="@HandleArchiveChannel"
                        OnLeaveChannel="@HandleLeaveChannel"
@@ -112,13 +113,15 @@
                 <MemberListPanel Members="@_members"
                                  CanManageMembers="@_currentUserIsAdminOrOwner"
                                  CurrentUserId="@_currentUserId"
+                                 BlockedUserIds="@_blockedUserIds"
                                  OnClose="@HandleCloseMemberPanel"
                                  OnPromoteMember="@HandlePromoteMember"
                                  OnDemoteMember="@HandleDemoteMember"
                                  OnRemoveMember="@HandleRemoveMember"
                                  OnAddPeople="@HandleOpenChannelAddPeoplePicker"
                                  OnAudioCallUser="@HandleAudioCallUser"
-                                 OnVideoCallUser="@HandleVideoCallUser" />
+                                 OnVideoCallUser="@HandleVideoCallUser"
+                                 OnToggleBlockUser="@HandleToggleBlockUser" />
             }
 
             @if (_showCallHistoryPanel)

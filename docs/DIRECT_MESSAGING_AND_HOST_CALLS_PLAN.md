@@ -9,6 +9,9 @@ Currently all chats and calls are channel-based — users must navigate to a cha
 3. **Mid-call participant addition** with full incoming-call ring
 4. **"Host" role** for calls with transferable ownership and permission control
 5. **DM → Group in-place conversion** when a 3rd person is added to a 1:1 conversation
+6. **Channel muting** — suppress toast notifications per channel; unmuted channels produce toast alerts for new messages
+7. **User call blocking** — block incoming calls from specific users
+8. **Do Not Disturb (DND) mode** — global toggle that suppresses all incoming call rings and chat message toast notifications
 
 The existing infrastructure (`ChannelType.DirectMessage`, `DirectMessageView` component, `IUserDirectory.SearchUsersAsync`) provides strong foundations. The work is primarily wiring, new service methods, UI integration, and the Host role system.
 
@@ -24,6 +27,9 @@ The existing infrastructure (`ChannelType.DirectMessage`, `DirectMessageView` co
 | Call control role name | **Host** (replaces "Initiator") | More intuitive. "Initiator" implies a historical fact; "Host" implies current authority. |
 | Host auto-transfer | Longest-active participant | If Host leaves without explicit transfer, the participant with the earliest `JoinedAtUtc` inherits. Deterministic and fair. |
 | Direct call mechanics | Auto-creates DM channel | A direct call to a user creates (or reuses) the DM channel, then initiates a call on it. No orphan calls without a channel. |
+| Channel mute storage | Per-user per-channel flag | Stored in `ChannelMember.IsMuted`. Server checks flag before dispatching toast notifications. Muted channels still accumulate unread counts but don't trigger toasts. |
+| Call blocking | Per-user blocked-users list | A `BlockedUser` entity with `(UserId, BlockedUserId)`. Calls from blocked users are silently rejected (caller sees "unavailable"). Blocked users can still send chat messages — blocking only affects calls. |
+| Do Not Disturb | User-level status flag | Stored in `UserPresence.Status` as a `PresenceStatus.DoNotDisturb` enum value. When DND is active, the server suppresses ALL incoming-call rings and ALL chat toast notifications. Messages/calls still arrive — they just don't produce client-side alerts. DND is visible to other users so they know you won't respond immediately. |
 
 ---
 
@@ -271,6 +277,109 @@ New SignalR events for clients to handle:
 
 ---
 
+## Phase H — Channel Muting, Call Blocking & Do Not Disturb *(parallel with E/F)*
+
+### H1. Channel Mute — Model & Service
+
+Add an `IsMuted` boolean to the `ChannelMember` join entity. When a channel is muted, the server skips sending toast-style notifications to that user for new messages in the channel. The channel still appears in the sidebar with an unread badge — it simply doesn't produce intrusive toasts.
+
+**Database:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Models/ChannelMember.cs` — Add `bool IsMuted { get; set; }` (default `false`)
+- New EF migration: `AddChannelMemberIsMuted`
+
+**Service:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/IChannelMemberService.cs` — Add `Task SetMuteAsync(Guid channelId, bool muted, CallerContext caller, CancellationToken ct)`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/ChannelMemberService.cs` — Implement: update `IsMuted` on the caller's `ChannelMember` row
+
+**Notification gating:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/ChatRealtimeService.cs` — When broadcasting a new message, check `IsMuted` for each channel member. If muted, send the message payload (so the channel updates) but do NOT send the toast notification event.
+
+**API:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Controllers/ChatController.cs` — New endpoint: `PUT /api/v1/chat/channels/{channelId}/mute` with body `{ "muted": true|false }`
+
+### H2. Channel Mute — UI
+
+Users can mute/unmute a channel from the channel header or the channel list context menu. Muted channels show a muted icon (🔇) in the sidebar.
+
+**Files:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelList.razor` — Show mute icon next to muted channels; right-click context menu with Mute/Unmute option
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelHeader.razor` — Mute/Unmute toggle button (bell icon with slash when muted)
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChatPageLayout.razor.cs` — `ToggleChannelMuteAsync(Guid channelId)` method
+
+### H3. Toast Notifications for Unmuted Channels
+
+When a new message arrives in a channel the user has NOT muted (and the user is NOT viewing that channel), display a toast notification with the sender name, channel name, and a message preview.
+
+**Files:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChatPageLayout.razor.cs` — Handle `"NewMessageToast"` SignalR event; suppress if channel is muted or user has DND active
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/Components/ChatToastNotification.razor` — New component: toast UI with sender avatar, channel name, message preview, and click-to-navigate
+- CSS for toast notification styling (slide-in from top-right, auto-dismiss after 5s)
+
+### H4. Call Blocking — Model & Service
+
+A user can block another user from calling them. Blocked calls are silently rejected — the caller sees "User unavailable" rather than being told they are blocked.
+
+**Database:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Models/BlockedUser.cs` — New entity: `Guid Id`, `Guid UserId`, `Guid BlockedUserId`, `DateTime BlockedAtUtc`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Configuration/BlockedUserConfiguration.cs` — Unique index on `(UserId, BlockedUserId)`
+- New EF migration: `AddBlockedUser`
+
+**Service:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/IUserBlockService.cs` — New interface:
+  ```csharp
+  Task BlockUserAsync(Guid targetUserId, CallerContext caller, CancellationToken ct);
+  Task UnblockUserAsync(Guid targetUserId, CallerContext caller, CancellationToken ct);
+  Task<bool> IsBlockedAsync(Guid callerId, Guid targetUserId, CancellationToken ct);
+  Task<List<BlockedUserDto>> GetBlockedUsersAsync(CallerContext caller, CancellationToken ct);
+  ```
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/UserBlockService.cs` — Implementation
+
+**Call integration:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/VideoCallService.cs` — In `InitiateCallAsync` and `InitiateDirectCallAsync`, before sending the ring notification, check `IUserBlockService.IsBlockedAsync(caller.UserId, targetUserId)`. If blocked, do NOT ring the target — return a response that doesn't reveal the block ("User unavailable").
+
+**API:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Controllers/ChatController.cs` — New endpoints:
+  - `POST /api/v1/chat/users/{userId}/block`
+  - `DELETE /api/v1/chat/users/{userId}/block`
+  - `GET /api/v1/chat/users/blocked`
+
+### H5. Call Blocking — UI
+
+Block/unblock actions are available from user profile popups and the member list panel.
+
+**Files:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MemberListPanel.razor` — Context menu: "Block calls from this user" / "Unblock"
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/Components/UserProfilePopup.razor` — Block/Unblock button
+- Settings page section: `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/Pages/ChatSettingsPage.razor` — "Blocked Users" list with unblock buttons
+
+### H6. Do Not Disturb — Model & Service
+
+DND is a user presence status. When active, the server suppresses ALL incoming-call ring notifications and ALL chat toast notifications for that user. Messages and calls still come through — they simply don't trigger intrusive client-side alerts. Other users see a DND indicator (🔴 with minus) on the user's avatar.
+
+**Model:**
+- `src/Core/DotNetCloud.Core/Models/PresenceStatus.cs` — Add `DoNotDisturb` to the `PresenceStatus` enum (alongside `Online`, `Away`, `Offline`, etc.)
+- User presence is already tracked; this adds a new enum value.
+
+**Service gating:**
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/ChatRealtimeService.cs` — Before dispatching toast or ring notifications, check the target user's presence status. If `DoNotDisturb`, skip the notification dispatch.
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/VideoCallService.cs` — In call initiation, if the target user is DND, still allow the call to be created (so it appears in call history) but do NOT ring the user. Caller sees "User is in Do Not Disturb mode" alongside the ringing state.
+
+**API:**
+- Presence status is set via the existing presence endpoints. No new endpoint needed if `PATCH /api/v1/users/me/presence` with `{ "status": "DoNotDisturb" }` already works. Otherwise:
+  - `src/Core/DotNetCloud.Core.Server/Controllers/UsersController.cs` — Ensure presence update supports `DoNotDisturb`
+
+### H7. Do Not Disturb — UI
+
+Users toggle DND from their avatar/status menu in the top-left of the UI. DND shows a distinctive badge.
+
+**Files:**
+- `src/UI/DotNetCloud.UI/Components/UserStatusMenu.razor` — Add "Do Not Disturb" option to the status dropdown
+- `src/UI/DotNetCloud.UI/Components/AvatarBadge.razor` — Render DND indicator (red circle with minus) when status is `DoNotDisturb`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChatPageLayout.razor.cs` — When DND is active, suppress local toast rendering as a client-side safeguard (in addition to server-side gating)
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MemberListPanel.razor` — Show DND badge next to users who are in DND mode
+
+---
+
 ## Phase G — Tests *(after all above)*
 
 ### G1. Unit Tests
@@ -282,8 +391,9 @@ New SignalR events for clients to handle:
 | DM → Group | Add 3rd member to DM changes type to Group, existing members unaffected |
 | Direct call | Creates DM channel + call in one operation, reuses existing DM |
 | End-call permission | Only Host can end, non-host gets error |
-| Host leave | Auto-transfers to longest-active, broadcasts to all |
-
+| Host leave | Auto-transfers to longest-active, broadcasts to all || Channel mute | Mute channel → no toast on new message; unmute → toast resumes; muted channel still shows unread count |
+| Call blocking | Block user → their calls silently rejected ("unavailable"); unblock → calls ring normally; blocking is asymmetric (A blocks B, B can still message A) |
+| Do Not Disturb | DND active → no toast notifications, no call rings; DND inactive → normal behavior; DND visible to other users; calls from any user suppressed during DND |
 **Files:**
 - `tests/DotNetCloud.Modules.Chat.Tests/` — New test classes for Host and invite features
 - Existing `VideoCallService` test files — extend with Host scenarios
@@ -304,33 +414,45 @@ New SignalR events for clients to handle:
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Models/VideoCall.cs` — Add `HostUserId`
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Models/CallParticipant.cs` — Add `InvitedAtUtc`, consider `ParticipantState` enum
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Models/CallParticipantRole.cs` — Rename `Initiator` → `Host`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Models/ChannelMember.cs` — Add `IsMuted` flag
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Models/BlockedUser.cs` — New entity for per-user call blocking
+- `src/Core/DotNetCloud.Core/Models/PresenceStatus.cs` — Add `DoNotDisturb` enum value
 
 ### Services
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/IVideoCallService.cs` — 3 new methods (`InitiateDirectCallAsync`, `InviteToCallAsync`, `TransferHostAsync`)
-- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/VideoCallService.cs` — Implement all + Host enforcement in `EndCallAsync` and `LeaveCallAsync`
-- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/ChannelMemberService.cs` — DM→Group auto-conversion
-- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/ChatRealtimeService.cs` — New broadcast methods
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/VideoCallService.cs` — Implement all + Host enforcement in `EndCallAsync` and `LeaveCallAsync` + call-block check
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/ChannelMemberService.cs` — DM→Group auto-conversion + `SetMuteAsync`
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/ChatRealtimeService.cs` — New broadcast methods + mute/DND notification gating
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/Services/IUserBlockService.cs` — New interface for call blocking
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Data/Services/UserBlockService.cs` — Call-block implementation
 
 ### API
-- `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Controllers/ChatController.cs` — 3 new endpoints
+- `src/Modules/Chat/DotNetCloud.Modules.Chat.Host/Controllers/ChatController.cs` — 3 new endpoints (host/invite) + mute endpoint + block/unblock endpoints
 
 ### SignalR
 - `src/Core/DotNetCloud.Core.Server/RealTime/CoreHub.cs` — 2 new hub methods
 
 ### UI
-- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChatPageLayout.razor(.cs)` — DM search, direct call, event handlers
-- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelList.razor` — "New DM" button
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChatPageLayout.razor(.cs)` — DM search, direct call, event handlers, mute toggle, DND-aware toast suppression
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelList.razor` — "New DM" button, mute icon + context menu
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelHeader.razor` — "Add people" to chat, call buttons, mute/unmute toggle
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/VideoCallDialog.razor(.cs)` — Add people, Host transfer, Host badge
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/CallControls.razor` — "Add people" button (Host only)
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/IncomingCallNotification.razor(.cs)` — Mid-call invite text
-- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/ChannelHeader.razor` — "Add people" to chat, call buttons
-- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MemberListPanel.razor` — Per-user call icon, invite
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/MemberListPanel.razor` — Per-user call icon, invite, block/unblock context menu, DND badge
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/Components/ChatToastNotification.razor` — New toast notification component
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/Components/UserProfilePopup.razor` — Block/unblock button
+- `src/Modules/Chat/DotNetCloud.Modules.Chat/UI/Pages/ChatSettingsPage.razor` — Blocked users list
+- `src/UI/DotNetCloud.UI/Components/UserStatusMenu.razor` — DND toggle in status dropdown
+- `src/UI/DotNetCloud.UI/Components/AvatarBadge.razor` — DND indicator rendering
 
 ### Events
 - `src/Modules/Chat/DotNetCloud.Modules.Chat/Events/` — New `CallHostTransferredEvent`
 
 ### Migrations
 - New EF migration for `HostUserId` column + `CallParticipantRole` rename (if string-stored) + any `CallParticipant` state fields
+- New EF migration: `AddChannelMemberIsMuted`
+- New EF migration: `AddBlockedUser`
 
 ---
 
@@ -345,6 +467,10 @@ New SignalR events for clients to handle:
 - ☐ Manual: Add 3rd person to DM → converts to Group → new member sees history
 - ☐ Manual: Non-host tries add people or end call → action blocked
 - ☐ Manual: Host leaves without transferring → auto-transfers to longest-active participant
+- ☐ Manual: Mute a channel → receive message → no toast → unmute → receive message → toast appears
+- ☐ Manual: Block a user → they call you → they see "unavailable" → unblock → call rings normally
+- ☐ Manual: Enable DND → receive message and call → no toasts, no ring → disable DND → toasts and rings resume
+- ☐ Manual: Other users see DND badge on your avatar
 
 ---
 
@@ -358,9 +484,14 @@ New SignalR events for clients to handle:
 - DM → Group in-place conversion
 - Auto-host-transfer on Host leave
 - End-call restricted to Host only
+- Per-channel muting with toast notification suppression
+- Per-user call blocking (calls only; chat unaffected)
+- Do Not Disturb global status (suppresses all toasts and call rings)
 
 **Excluded (future work):**
 - Multi-select user picker for creating group chats from scratch
 - Call recording
 - Scheduled/planned calls
 - "Ring all channel members" feature for group channels
+- Chat message blocking (currently only calls are blocked per-user)
+- Scheduled DND (auto-enable DND on a time schedule)

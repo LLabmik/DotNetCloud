@@ -27,6 +27,9 @@ public interface IChannelMemberService
     /// <summary>Updates the caller's notification preference for a channel.</summary>
     Task UpdateNotificationPreferenceAsync(Guid channelId, NotificationPreference pref, CallerContext caller, CancellationToken cancellationToken = default);
 
+    /// <summary>Sets the mute state for the caller's membership in a channel.</summary>
+    Task SetMuteAsync(Guid channelId, bool muted, CallerContext caller, CancellationToken cancellationToken = default);
+
     /// <summary>Marks a channel as read up to a specific message.</summary>
     Task MarkAsReadAsync(Guid channelId, Guid messageId, CallerContext caller, CancellationToken cancellationToken = default);
 

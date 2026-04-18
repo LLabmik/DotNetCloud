@@ -22,6 +22,9 @@
             <button class="btn btn-sm" @onclick="OnTogglePinClick" title="@(Channel.IsPinned ? "Unpin this channel from the top of the sidebar" : "Pin this channel to the top of the sidebar")">
                 @(Channel.IsPinned ? "📌 Unpin" : "📌 Pin")
             </button>
+            <button class="btn btn-sm @(Channel.IsMuted ? "btn-muted" : "")" @onclick="OnToggleMuteClick" title="@(Channel.IsMuted ? "Unmute notifications for this channel" : "Mute notifications for this channel")">
+                @(Channel.IsMuted ? "🔇 Muted" : "🔔 Mute")
+            </button>
             @if (IsAdminOrOwner)
             {
                 <button class="btn btn-sm" @onclick="OnArchiveClick" title="Archive this channel — hides it from the sidebar (can be restored later)">
@@ -85,6 +88,8 @@
                         <dl class="help-list">
                             <dt>📌 Pin / Unpin</dt>
                             <dd>Pin this channel to the top of your sidebar for quick access.</dd>
+                            <dt>🔔 Mute / 🔇 Muted</dt>
+                            <dd>Mute or unmute notifications for this channel. Muted channels won't show toast notifications.</dd>
                             <dt>🗄️ Archive</dt>
                             <dd>Hide this channel from the sidebar. Messages are preserved and it can be restored later.</dd>
                             <dt>✏️ Edit</dt>

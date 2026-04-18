@@ -246,3 +246,18 @@
     margin-bottom: 4px;
     line-height: 1.4;
 }
+
+/* --- Block Call Button --- */
+
+.btn-block-call {
+    background: transparent;
+    border: 1px solid var(--color-border-muted, #475569);
+    color: var(--color-text-secondary, #cbd5e1);
+    padding: 4px 6px;
+}
+
+.btn-block-call:hover {
+    background: var(--color-surface-hover, #0f172a);
+    border-color: var(--color-border, #64748b);
+    color: var(--color-text, #e2e8f0);
+}

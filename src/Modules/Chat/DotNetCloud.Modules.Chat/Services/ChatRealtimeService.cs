@@ -67,6 +67,18 @@ public interface IChatRealtimeService
 
     /// <summary>Removes a user from a channel's broadcast group.</summary>
     Task RemoveUserFromChannelGroupAsync(Guid userId, Guid channelId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sends a new-message toast notification to a specific user.
+    /// Used for per-user delivery after mute/DND filtering.
+    /// </summary>
+    Task SendNewMessageToastAsync(
+        Guid userId,
+        Guid channelId,
+        string channelName,
+        string senderName,
+        string messagePreview,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -218,5 +230,24 @@ internal sealed class ChatRealtimeService : IChatRealtimeService
     {
         if (_broadcaster is null) return;
         await _broadcaster.RemoveFromGroupAsync(userId, ChannelGroup(channelId), cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task SendNewMessageToastAsync(
+        Guid userId,
+        Guid channelId,
+        string channelName,
+        string senderName,
+        string messagePreview,
+        CancellationToken cancellationToken)
+    {
+        if (_broadcaster is null) return;
+        await _broadcaster.SendToUserAsync(userId, "NewMessageToast", new
+        {
+            channelId,
+            channelName,
+            senderName,
+            messagePreview
+        }, cancellationToken);
     }
 }

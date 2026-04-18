@@ -50,8 +50,25 @@ public partial class MemberListPanel : ComponentBase
     [Parameter]
     public Guid CurrentUserId { get; set; }
 
+    /// <summary>Set of user IDs that the current user has blocked.</summary>
+    [Parameter]
+    public HashSet<Guid> BlockedUserIds { get; set; } = [];
+
+    /// <summary>Callback when user toggles block/unblock on another user.</summary>
+    [Parameter]
+    public EventCallback<Guid> OnToggleBlockUser { get; set; }
+
     /// <summary>Currently selected member profile.</summary>
     protected MemberViewModel? SelectedMember => _selectedMember;
+
+    /// <summary>Returns whether a user is blocked by the current user.</summary>
+    protected bool IsUserBlocked(Guid userId) => BlockedUserIds.Contains(userId);
+
+    /// <summary>Toggles block state for a user and raises callback.</summary>
+    protected async Task ToggleBlockUser(Guid userId)
+    {
+        await OnToggleBlockUser.InvokeAsync(userId);
+    }
 
     /// <summary>Gets initials from a display name.</summary>
     protected static string GetInitials(string name)

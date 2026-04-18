@@ -65,6 +65,9 @@ public class ChatDbContext : DbContext
     /// <summary>Participants in video/audio calls.</summary>
     public DbSet<CallParticipant> CallParticipants => Set<CallParticipant>();
 
+    /// <summary>Per-user call blocking records.</summary>
+    public DbSet<BlockedUser> BlockedUsers => Set<BlockedUser>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -82,5 +85,6 @@ public class ChatDbContext : DbContext
         modelBuilder.ApplyConfiguration(new ChannelInviteConfiguration());
         modelBuilder.ApplyConfiguration(new VideoCallConfiguration());
         modelBuilder.ApplyConfiguration(new CallParticipantConfiguration());
+        modelBuilder.ApplyConfiguration(new BlockedUserConfiguration());
     }
 }

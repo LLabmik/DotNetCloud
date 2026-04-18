@@ -29,6 +29,7 @@ internal sealed class VideoCallService : IVideoCallService
     private readonly IUserDirectory? _userDirectory;
     private readonly IChannelService? _channelService;
     private readonly IChannelMemberService? _channelMemberService;
+    private readonly IUserBlockService? _userBlockService;
     private readonly ILogger<VideoCallService> _logger;
 
     public VideoCallService(
@@ -40,7 +41,8 @@ internal sealed class VideoCallService : IVideoCallService
         IChatMessageNotifier? messageNotifier = null,
         IUserDirectory? userDirectory = null,
         IChannelService? channelService = null,
-        IChannelMemberService? channelMemberService = null)
+        IChannelMemberService? channelMemberService = null,
+        IUserBlockService? userBlockService = null)
     {
         _db = db;
         _eventBus = eventBus;
@@ -50,6 +52,7 @@ internal sealed class VideoCallService : IVideoCallService
         _userDirectory = userDirectory;
         _channelService = channelService;
         _channelMemberService = channelMemberService;
+        _userBlockService = userBlockService;
         _logger = logger;
     }
 
@@ -142,10 +145,23 @@ internal sealed class VideoCallService : IVideoCallService
 
         // Notify in-process Blazor circuits so members in this channel can render the incoming call UI.
         // Only target channel members (excluding the initiator) to prevent notification leaking to unrelated users.
+        // Also exclude members who have blocked the caller — they won't see the ring.
         var targetMemberIds = await _db.ChannelMembers
             .Where(cm => cm.ChannelId == channelId && cm.UserId != caller.UserId)
             .Select(cm => cm.UserId)
             .ToListAsync(cancellationToken);
+
+        if (_userBlockService is not null)
+        {
+            var nonBlockedTargets = new List<Guid>(targetMemberIds.Count);
+            foreach (var targetId in targetMemberIds)
+            {
+                var blocked = await _userBlockService.IsBlockedAsync(
+                    caller.UserId, targetId, cancellationToken);
+                if (!blocked) nonBlockedTargets.Add(targetId);
+            }
+            targetMemberIds = nonBlockedTargets;
+        }
 
         _messageNotifier?.NotifyCallRinging(new CallRingingNotification(
             CallId: call.Id,
@@ -585,6 +601,19 @@ internal sealed class VideoCallService : IVideoCallService
         if (targetUserId == caller.UserId)
         {
             throw new ArgumentException("Cannot initiate a direct call to yourself.", nameof(targetUserId));
+        }
+
+        // Check if the target user has blocked the caller — silently reject
+        if (_userBlockService is not null)
+        {
+            var isBlocked = await _userBlockService.IsBlockedAsync(caller.UserId, targetUserId, cancellationToken);
+            if (isBlocked)
+            {
+                _logger.LogInformation(
+                    "Direct call from {CallerId} to {TargetId} silently rejected: caller is blocked by target.",
+                    caller.UserId, targetUserId);
+                throw new InvalidOperationException("User is currently unavailable.");
+            }
         }
 
         if (_channelService is null)

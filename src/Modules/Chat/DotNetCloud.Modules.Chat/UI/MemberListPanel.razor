@@ -50,6 +50,9 @@
                             <div class="member-call-actions">
                                 <button class="btn btn-sm btn-icon" @onclick="() => OnAudioCallUser.InvokeAsync(member.UserId)" title="Audio call @member.DisplayName">📞</button>
                                 <button class="btn btn-sm btn-icon" @onclick="() => OnVideoCallUser.InvokeAsync(member.UserId)" title="Video call @member.DisplayName">📹</button>
+                                <button class="btn btn-sm btn-icon btn-block-call" @onclick="() => ToggleBlockUser(member.UserId)" title="@(IsUserBlocked(member.UserId) ? "Unblock calls from this user" : "Block calls from this user")">
+                                    @(IsUserBlocked(member.UserId) ? "🚫" : "🔇")
+                                </button>
                             </div>
                         }
 
@@ -98,6 +101,9 @@
                             <div class="member-call-actions">
                                 <button class="btn btn-sm btn-icon" @onclick="() => OnAudioCallUser.InvokeAsync(member.UserId)" title="Audio call @member.DisplayName">📞</button>
                                 <button class="btn btn-sm btn-icon" @onclick="() => OnVideoCallUser.InvokeAsync(member.UserId)" title="Video call @member.DisplayName">📹</button>
+                                <button class="btn btn-sm btn-icon btn-block-call" @onclick="() => ToggleBlockUser(member.UserId)" title="@(IsUserBlocked(member.UserId) ? "Unblock calls from this user" : "Block calls from this user")">
+                                    @(IsUserBlocked(member.UserId) ? "🚫" : "🔇")
+                                </button>
                             </div>
                         }
 

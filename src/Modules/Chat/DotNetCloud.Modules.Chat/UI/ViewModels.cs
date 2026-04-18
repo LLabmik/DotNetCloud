@@ -36,6 +36,12 @@ public sealed class ChannelViewModel
     /// </summary>
     public bool IsPinned { get; set; }
 
+    /// <summary>
+    /// Whether the channel is muted by the current user.
+    /// Muted channels still show unread counts but don't produce toast notifications.
+    /// </summary>
+    public bool IsMuted { get; set; }
+
     /// <summary>Last activity timestamp.</summary>
     public DateTime? LastActivityAt { get; init; }
 

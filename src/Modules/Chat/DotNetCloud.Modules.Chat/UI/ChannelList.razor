@@ -84,6 +84,10 @@
                          @onclick="() => SelectChannel(channel)">
                         <span class="channel-icon">📌</span>
                         <span class="channel-name">@channel.Name</span>
+                        @if (channel.IsMuted)
+                        {
+                            <span class="channel-muted-icon" title="Muted">🔇</span>
+                        }
                         @if (channel.UnreadCount > 0)
                         {
                             <span class="badge @(channel.MentionCount > 0 ? "badge-mention" : "badge-unread")">
@@ -107,6 +111,10 @@
                      @onclick="() => SelectChannel(channel)">
                     <span class="channel-icon">@(channel.Type == "Private" ? "🔒" : "#")</span>
                     <span class="channel-name">@channel.Name</span>
+                    @if (channel.IsMuted)
+                    {
+                        <span class="channel-muted-icon" title="Muted">🔇</span>
+                    }
                     @if (channel.UnreadCount > 0)
                     {
                         <span class="badge @(channel.MentionCount > 0 ? "badge-mention" : "badge-unread")">
@@ -135,6 +143,10 @@
                         <span class="channel-icon">💬</span>
                         <span class="presence-dot @GetPresenceClass(channel)" title="@channel.PresenceStatus"></span>
                         <span class="channel-name">@channel.Name</span>
+                        @if (channel.IsMuted)
+                        {
+                            <span class="channel-muted-icon" title="Muted">🔇</span>
+                        }
                         @if (channel.UnreadCount > 0)
                         {
                             <span class="badge badge-unread">@channel.UnreadCount</span>
