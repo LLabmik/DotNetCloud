@@ -10,10 +10,11 @@
         @{ 
             var user = authContext.User;
             var roleClaims = user.FindAll(ClaimTypes.Role).Select(c => c.Value).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var accountName = user.Identity?.Name ?? "Unknown";
             var displayName = user.FindFirst("name")?.Value
                 ?? user.FindFirst(ClaimTypes.GivenName)?.Value
-                ?? user.Identity?.Name
-                ?? "there";
+                ?? user.FindFirst("display_name")?.Value
+                ?? accountName;
         }
 
         <div class="page-header dashboard-header">
@@ -31,7 +32,7 @@
                 <div class="card-icon">👤</div>
                 <div class="card-content">
                     <h3>Account</h3>
-                    <p class="card-value card-value-small">@displayName</p>
+                    <p class="card-value card-value-small">@accountName</p>
                     @if (roleClaims.Count > 0)
                     {
                         <div class="role-badges">

@@ -83,6 +83,12 @@ public sealed class DotNetCloudClaimsTransformation : IClaimsTransformation
         var roles = await _userManager.GetRolesAsync(user);
         claims.AddRange(roles.Select(r => new Claim(ClaimTypes.Role, r)));
 
+        // Add display name so Blazor pages can resolve it from the principal
+        if (!string.IsNullOrWhiteSpace(user.DisplayName))
+        {
+            claims.Add(new Claim("name", user.DisplayName));
+        }
+
         // Add DotNetCloud-specific claims
         claims.Add(new Claim("dnc:locale", user.Locale));
         claims.Add(new Claim("dnc:tz", user.Timezone));
