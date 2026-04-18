@@ -56,7 +56,7 @@ html, body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-size: 14px;
     line-height: 1.5;
-    color: var(--color-text);
+    color: #1e293b; /* Always dark — Blazor's Shadow DOM reconnect UI inherits from body */
     background: var(--color-bg);
 }
 
@@ -68,6 +68,7 @@ a:hover { text-decoration: underline; }
     display: flex;
     height: 100vh;
     overflow: hidden;
+    color: var(--color-text);
 }
 
 /* --- Sidebar --- */
@@ -2203,6 +2204,7 @@ textarea.input { resize: vertical; min-height: 60px; }
     display: flex;
     align-items: center;
     justify-content: center;
+    color: var(--color-text);
 }
 .auth-container { width: 100%; max-width: 420px; padding: 20px; }
 .auth-card {
@@ -6073,215 +6075,3 @@ textarea.form-control {
     background: #e2e8f0;
 }
 
-/* ============================================================
-   Reconnect Modal (Blazor SignalR circuit reconnection)
-   ============================================================ */
-
-/* Hidden by default */
-.dnc-reconnect-modal {
-    display: none;
-}
-
-/* Show state — Blazor adds this class when connection drops */
-.dnc-reconnect-modal.components-reconnect-show,
-.dnc-reconnect-modal.components-reconnect-retrying,
-.dnc-reconnect-modal.components-reconnect-failed,
-.dnc-reconnect-modal.components-reconnect-rejected {
-    display: block;
-}
-
-/* Overlay backdrop */
-.dnc-reconnect-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(2px);
-    z-index: 99999;
-}
-
-/* Dialog card */
-.dnc-reconnect-dialog {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 100000;
-    background: #ffffff;
-    color: #1e293b;
-    border-radius: 12px;
-    padding: 2rem 2.5rem;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    text-align: center;
-    min-width: 320px;
-    max-width: 400px;
-    animation: dnc-reconnect-fadeIn 0.3s ease-out;
-}
-
-@keyframes dnc-reconnect-fadeIn {
-    from { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
-    to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-}
-
-/* Spinner (ripple rings) */
-.dnc-reconnect-spinner {
-    position: relative;
-    width: 64px;
-    height: 64px;
-    margin: 0 auto 1.25rem;
-}
-
-.dnc-reconnect-spinner div {
-    position: absolute;
-    border: 3px solid var(--color-primary, #3b82f6);
-    opacity: 1;
-    border-radius: 50%;
-    animation: dnc-reconnect-ripple 1.5s cubic-bezier(0, 0.2, 0.8, 1) infinite;
-}
-
-.dnc-reconnect-spinner div:nth-child(2) {
-    animation-delay: -0.5s;
-}
-
-@keyframes dnc-reconnect-ripple {
-    0%   { top: 32px; left: 32px; width: 0; height: 0; opacity: 0; }
-    5%   { top: 32px; left: 32px; width: 0; height: 0; opacity: 1; }
-    100% { top: 0; left: 0; width: 64px; height: 64px; opacity: 0; }
-}
-
-/* Status text */
-.dnc-reconnect-status {
-    font-size: 1rem;
-    font-weight: 600;
-    margin: 0 0 0.25rem;
-    color: #1e293b;
-}
-
-/* Animated ellipsis */
-.dnc-reconnect-dots::after {
-    content: '';
-    animation: dnc-dots 1.5s steps(4, end) infinite;
-}
-
-@keyframes dnc-dots {
-    0%  { content: ''; }
-    25% { content: '.'; }
-    50% { content: '..'; }
-    75% { content: '...'; }
-}
-
-/* Attempt counter */
-.dnc-reconnect-attempt {
-    font-size: 0.8125rem;
-    color: #64748b;
-    margin: 0.25rem 0 0;
-}
-
-/* Countdown */
-.dnc-reconnect-countdown {
-    font-size: 0.8125rem;
-    color: #64748b;
-    margin: 0.25rem 0 0;
-}
-
-/* Failed message — hidden unless in failed/rejected state */
-.dnc-reconnect-failed-msg {
-    display: none;
-    font-size: 0.875rem;
-    color: #ef4444;
-    font-weight: 500;
-    margin: 0.5rem 0 0;
-}
-
-/* Buttons — hidden by default, shown per-state */
-.dnc-reconnect-retry,
-.dnc-reconnect-reload {
-    display: none;
-    margin: 1rem auto 0;
-    padding: 0.5rem 1.5rem;
-    border: none;
-    border-radius: 6px;
-    font-size: 0.875rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s ease;
-}
-
-.dnc-reconnect-retry {
-    background: var(--color-primary, #3b82f6);
-    color: #ffffff;
-}
-
-.dnc-reconnect-retry:hover {
-    background: var(--color-primary-hover, #2563eb);
-}
-
-.dnc-reconnect-reload {
-    background: var(--color-danger, #ef4444);
-    color: #ffffff;
-}
-
-.dnc-reconnect-reload:hover {
-    background: var(--color-danger-hover, #dc2626);
-}
-
-/* --- State: reconnecting (show/retrying) --- */
-.dnc-reconnect-modal.components-reconnect-show .dnc-reconnect-spinner,
-.dnc-reconnect-modal.components-reconnect-retrying .dnc-reconnect-spinner,
-.dnc-reconnect-modal.components-reconnect-show .dnc-reconnect-status,
-.dnc-reconnect-modal.components-reconnect-retrying .dnc-reconnect-status,
-.dnc-reconnect-modal.components-reconnect-show .dnc-reconnect-attempt,
-.dnc-reconnect-modal.components-reconnect-retrying .dnc-reconnect-attempt,
-.dnc-reconnect-modal.components-reconnect-show .dnc-reconnect-countdown,
-.dnc-reconnect-modal.components-reconnect-retrying .dnc-reconnect-countdown {
-    display: block;
-}
-
-/* Hide spinner & attempt info in failed/rejected states */
-.dnc-reconnect-modal.components-reconnect-failed .dnc-reconnect-spinner,
-.dnc-reconnect-modal.components-reconnect-rejected .dnc-reconnect-spinner,
-.dnc-reconnect-modal.components-reconnect-failed .dnc-reconnect-attempt,
-.dnc-reconnect-modal.components-reconnect-rejected .dnc-reconnect-attempt,
-.dnc-reconnect-modal.components-reconnect-failed .dnc-reconnect-countdown,
-.dnc-reconnect-modal.components-reconnect-rejected .dnc-reconnect-countdown {
-    display: none;
-}
-
-/* Hide reconnecting status in failed/rejected states */
-.dnc-reconnect-modal.components-reconnect-failed .dnc-reconnect-status,
-.dnc-reconnect-modal.components-reconnect-rejected .dnc-reconnect-status {
-    display: none;
-}
-
-/* Show failed message & buttons in failed state */
-.dnc-reconnect-modal.components-reconnect-failed .dnc-reconnect-failed-msg,
-.dnc-reconnect-modal.components-reconnect-rejected .dnc-reconnect-failed-msg {
-    display: block;
-}
-
-.dnc-reconnect-modal.components-reconnect-failed .dnc-reconnect-retry {
-    display: inline-block;
-}
-
-.dnc-reconnect-modal.components-reconnect-rejected .dnc-reconnect-reload {
-    display: inline-block;
-}
-
-/* --- Dark mode --- */
-.dark-mode .dnc-reconnect-dialog {
-    background: #1e293b;
-    color: #f1f5f9;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
-}
-
-.dark-mode .dnc-reconnect-status {
-    color: #f1f5f9;
-}
-
-.dark-mode .dnc-reconnect-attempt,
-.dark-mode .dnc-reconnect-countdown {
-    color: #94a3b8;
-}
-
-.dark-mode .dnc-reconnect-overlay {
-    background: rgba(0, 0, 0, 0.7);
-}
