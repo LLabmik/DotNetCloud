@@ -1,5 +1,7 @@
 using DotNetCloud.Modules.Chat.UI;
 using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
+using Moq;
 
 namespace DotNetCloud.Modules.Chat.Tests;
 
@@ -155,6 +157,14 @@ public class IncomingCallNotificationTests
 
     private sealed class TestableIncomingCallNotification : IncomingCallNotification
     {
+        public TestableIncomingCallNotification()
+        {
+            // Inject a mock IJSRuntime so StopRingtoneAsync doesn't throw
+            var jsProp = typeof(IncomingCallNotification)
+                .GetProperty("JS", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+            jsProp.SetValue(this, new Mock<IJSRuntime>().Object);
+        }
+
         public string TestMediaType => MediaType;
         public bool TestIsRinging => IsRinging;
         public int TestRemainingSeconds => RemainingSeconds;

@@ -1,0 +1,27 @@
+@namespace DotNetCloud.UI.Web.Components.Shared
+
+@using DotNetCloud.Modules.Chat.UI
+@using DotNetCloud.Modules.Chat.Services
+
+@*
+    Global chat notification overlay — rendered in MainLayout so incoming calls
+    and chat notifications are visible regardless of which module the user is in.
+    Code-behind: GlobalChatNotifications.razor.cs
+*@
+
+<AuthorizeView>
+    <Authorized>
+        <IncomingCallNotification IsVisible="@NotificationState.ShowIncomingCall"
+                                  CallerName="@NotificationState.CallerName"
+                                  CallerAvatarUrl="@NotificationState.CallerAvatarUrl"
+                                  ChannelName="@NotificationState.ChannelName"
+                                  MediaType="@NotificationState.MediaType"
+                                  RemainingSeconds="@NotificationState.RemainingSeconds"
+                                  IsRinging="@NotificationState.IsRinging"
+                                  IsMidCallInvite="@NotificationState.IsMidCallInvite"
+                                  ParticipantCount="@NotificationState.ParticipantCount"
+                                  OnAcceptVideo="@HandleAcceptVideo"
+                                  OnAcceptAudio="@HandleAcceptAudio"
+                                  OnReject="@HandleReject" />
+    </Authorized>
+</AuthorizeView>

@@ -30,6 +30,7 @@ public static class ChatServiceRegistration
         services.AddSingleton<ITypingIndicatorService, TypingIndicatorService>();
         services.AddSingleton<IChatRealtimeService, ChatRealtimeService>();
         services.AddSingleton<IChatMessageNotifier, InProcessChatMessageNotifier>();
+        services.AddScoped<GlobalChatNotificationState>();
         services.AddScoped<IAnnouncementService, AnnouncementService>();
         services.AddScoped<IChannelInviteService, ChannelInviteService>();
         services.AddScoped<IMentionNotificationService, MentionNotificationService>();

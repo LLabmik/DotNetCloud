@@ -151,6 +151,9 @@ public partial class VideoCallDialog : ComponentBase
         _ => "2x2"
     };
 
+    /// <summary>Whether the call is in a terminal state (ended, rejected, etc.).</summary>
+    protected bool IsTerminalState => CallState is "Ended" or "Rejected" or "Cancelled" or "Missed" or "Failed";
+
     /// <summary>Formats call state for display.</summary>
     internal static string FormatCallState(string state)
     {
@@ -194,6 +197,11 @@ public partial class VideoCallDialog : ComponentBase
         {
             "Ringing" => "Waiting for others to join...",
             "Connecting" => "Establishing connection...",
+            "Rejected" => "Call was declined",
+            "Cancelled" => "Call was cancelled",
+            "Missed" => "No answer",
+            "Ended" => "Call ended",
+            "Failed" => "Call failed",
             _ => string.Empty
         };
     }

@@ -37,7 +37,7 @@
                                 <div class="placeholder-avatar">@GetInitials(LocalDisplayName)</div>
                             }
                             <span class="placeholder-name">@LocalDisplayName</span>
-                            <span class="placeholder-status">@GetWaitingMessage()</span>
+                            <span class="placeholder-status @(IsTerminalState ? "placeholder-status-ended" : "")">@GetWaitingMessage()</span>
                         </div>
                         <video id="local-video-main" class="video-element video-local-main" autoplay muted playsinline></video>
                     </div>

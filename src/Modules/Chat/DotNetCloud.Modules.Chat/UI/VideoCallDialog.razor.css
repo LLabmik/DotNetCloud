@@ -320,6 +320,13 @@
     color: rgba(255, 255, 255, 0.5);
 }
 
+.placeholder-status-ended {
+    font-size: 18px;
+    font-weight: 600;
+    color: #f87171;
+    margin-top: 4px;
+}
+
 /* --- Picture-in-Picture (local video inset) --- */
 
 .video-pip {

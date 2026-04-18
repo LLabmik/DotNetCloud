@@ -328,16 +328,3 @@
                  OnHangUp="@HandleCallHangUp"
                  OnMinimize="@HandleCallMinimize"
                  OnPipClick="@HandleCallPipClick" />
-
-<IncomingCallNotification IsVisible="@_showIncomingCall"
-                          CallerName="@_incomingCallerName"
-                          CallerAvatarUrl="@(_incomingCallInitiatorId.HasValue ? _avatarUrlCache.GetValueOrDefault(_incomingCallInitiatorId.Value) : null)"
-                          ChannelName="@_incomingCallChannelName"
-                          MediaType="@_incomingCallMediaType"
-                          RemainingSeconds="@_incomingCallRemainingSeconds"
-                          IsRinging="@_isIncomingCallRinging"
-                          IsMidCallInvite="@_incomingIsMidCallInvite"
-                          ParticipantCount="@_incomingCallParticipantCount"
-                          OnAcceptVideo="@HandleAcceptCallVideo"
-                          OnAcceptAudio="@HandleAcceptCallAudio"
-                          OnReject="@HandleRejectCall" />
