@@ -257,6 +257,9 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             var channels = await ChannelService.ListChannelsAsync(caller);
             _channels = channels.Select(ToChannelViewModel).ToList();
 
+            // Resolve display names for DM channels (replace raw "DM-{guid}-{guid}" with the other user's name)
+            await ResolveDmChannelNamesAsync();
+
             // Load unread counts and apply to channel view models
             await LoadUnreadCountsAsync(caller);
 
@@ -1123,6 +1126,65 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             MentionCount = 0,
             IsActive = false
         };
+    }
+
+    /// <summary>
+    /// Resolves the display name for DM channels by parsing the raw "DM-{guid1}-{guid2}" name,
+    /// finding the other participant, and replacing the name with their display name.
+    /// </summary>
+    private async Task ResolveDmChannelNamesAsync()
+    {
+        var dmChannels = _channels.Where(c => c.Type == "DirectMessage").ToList();
+        if (dmChannels.Count == 0) return;
+
+        var dmToOtherUser = new Dictionary<Guid, Guid>();
+
+        foreach (var dm in dmChannels)
+        {
+            // DM name format: "DM-{guid1}-{guid2}" — each GUID is 36 chars, total 76
+            if (dm.Name.StartsWith("DM-", StringComparison.Ordinal) && dm.Name.Length == 76)
+            {
+                var guid1Str = dm.Name.Substring(3, 36);
+                var guid2Str = dm.Name.Substring(40, 36);
+
+                if (Guid.TryParse(guid1Str, out var guid1) && Guid.TryParse(guid2Str, out var guid2))
+                {
+                    dmToOtherUser[dm.Id] = guid1 == _currentUserId ? guid2 : guid1;
+                }
+            }
+        }
+
+        if (dmToOtherUser.Count == 0) return;
+
+        // Batch-resolve unknown display names
+        var unknownIds = dmToOtherUser.Values
+            .Where(id => !_displayNameCache.ContainsKey(id))
+            .Distinct()
+            .ToList();
+
+        if (unknownIds.Count > 0)
+        {
+            var names = await UserDirectory.GetDisplayNamesAsync(unknownIds);
+            foreach (var (id, name) in names)
+            {
+                _displayNameCache[id] = name;
+            }
+
+            var avatarUrls = await UserDirectory.GetAvatarUrlsAsync(unknownIds);
+            foreach (var (id, url) in avatarUrls)
+            {
+                _avatarUrlCache[id] = url;
+            }
+        }
+
+        // Replace raw DM names with resolved display names
+        foreach (var dm in dmChannels)
+        {
+            if (dmToOtherUser.TryGetValue(dm.Id, out var otherUserId))
+            {
+                dm.Name = _displayNameCache.GetValueOrDefault(otherUserId, otherUserId.ToString()[..8]);
+            }
+        }
     }
 
     private async Task ResolveDisplayNamesAsync(IReadOnlyList<MessageDto> messages)

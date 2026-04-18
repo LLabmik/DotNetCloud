@@ -94,6 +94,7 @@
                 @if (_selectedChannel is not null)
                 {
                     <MessageComposer ChannelName="@_selectedChannel.Name"
+                                     ChannelType="@_selectedChannel.Type"
                                      ReplyToMessage="@_replyToMessage"
                                      EditingMessage="@_editingMessage"
                                      MentionSuggestions="@_memberSuggestions"
