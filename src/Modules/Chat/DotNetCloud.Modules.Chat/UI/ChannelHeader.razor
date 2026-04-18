@@ -64,9 +64,12 @@
             <button class="btn btn-sm" @onclick="ToggleMemberList" title="View and manage channel members">
                 👤 Members
             </button>
-            <button class="btn btn-sm btn-danger" @onclick="OnLeaveClick" title="Leave this channel">
-                Leave
-            </button>
+            @if (!string.Equals(Channel!.Name, "Public", StringComparison.OrdinalIgnoreCase))
+            {
+                <button class="btn btn-sm btn-danger" @onclick="OnLeaveClick" title="Leave this channel">
+                    Leave
+                </button>
+            }
 
             <div class="help-wrapper">
                 <button class="btn btn-sm btn-help" @onclick="ToggleHelp" title="What do these buttons do?">

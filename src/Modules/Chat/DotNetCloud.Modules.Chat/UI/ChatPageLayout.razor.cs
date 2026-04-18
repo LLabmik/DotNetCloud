@@ -165,6 +165,12 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             _displayNameCache[_currentUserId] = selfName;
         }
 
+        var selfAvatars = await UserDirectory.GetAvatarUrlsAsync([_currentUserId]);
+        if (selfAvatars.TryGetValue(_currentUserId, out var selfAvatar))
+        {
+            _avatarUrlCache[_currentUserId] = selfAvatar;
+        }
+
         ChatMessageNotifier.MessageReceived += OnRemoteMessageReceived;
         ChatMessageNotifier.MessageEdited += OnRemoteMessageEdited;
         ChatMessageNotifier.MessageDeleted += OnRemoteMessageDeleted;
