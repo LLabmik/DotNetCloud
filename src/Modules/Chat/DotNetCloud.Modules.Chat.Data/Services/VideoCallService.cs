@@ -329,6 +329,10 @@ internal sealed class VideoCallService : IVideoCallService
 
         _logger.LogInformation("User {UserId} left video call {CallId}", caller.UserId, callId);
 
+        // Notify remaining participants in-process (Blazor circuits)
+        _messageNotifier?.NotifyCallParticipantLeft(new CallParticipantLeftNotification(
+            callId, call.ChannelId, caller.UserId));
+
         // Auto-end if no active participants remain
         var remainingActive = await _db.CallParticipants
             .CountAsync(cp => cp.VideoCallId == callId && cp.LeftAtUtc == null, cancellationToken);

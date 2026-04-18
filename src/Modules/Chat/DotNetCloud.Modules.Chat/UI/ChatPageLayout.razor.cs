@@ -183,6 +183,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         ChatMessageNotifier.CallInviteReceived += OnCallInviteReceived;
         ChatMessageNotifier.CallHostTransferred += OnCallHostTransferred;
         ChatMessageNotifier.UserPresenceChanged += OnUserPresenceChanged;
+        ChatMessageNotifier.MediaStateChanged += OnMediaStateChanged;
+        ChatMessageNotifier.CallParticipantLeft += OnCallParticipantLeft;
 
         await LoadChannelsAsync();
         await LoadAnnouncementsAsync();
@@ -201,6 +203,8 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         ChatMessageNotifier.CallInviteReceived -= OnCallInviteReceived;
         ChatMessageNotifier.CallHostTransferred -= OnCallHostTransferred;
         ChatMessageNotifier.UserPresenceChanged -= OnUserPresenceChanged;
+        ChatMessageNotifier.MediaStateChanged -= OnMediaStateChanged;
+        ChatMessageNotifier.CallParticipantLeft -= OnCallParticipantLeft;
 
         _callDurationTimer?.Stop();
         _callDurationTimer?.Dispose();
@@ -286,6 +290,34 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             {
                 StateHasChanged();
             }
+        });
+    }
+
+    private void OnMediaStateChanged(MediaStateChangedNotification notification)
+    {
+        // Ignore our own media state changes — we already know our own state
+        if (notification.UserId == _currentUserId) return;
+        if (_currentCallId is null || notification.CallId != _currentCallId) return;
+
+        InvokeAsync(() =>
+        {
+            var participant = _remoteParticipants.FirstOrDefault(p => p.UserId == notification.UserId);
+            if (participant is null) return;
+
+            switch (notification.MediaType)
+            {
+                case "Audio":
+                    participant.HasAudio = notification.Enabled;
+                    break;
+                case "Video":
+                    participant.HasVideo = notification.Enabled;
+                    break;
+                case "ScreenShare":
+                    participant.HasScreenShare = notification.Enabled;
+                    break;
+            }
+
+            StateHasChanged();
         });
     }
 
@@ -1476,6 +1508,42 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         });
     }
 
+    private void OnCallParticipantLeft(CallParticipantLeftNotification notification)
+    {
+        if (_currentCallId is null || _currentCallId != notification.CallId)
+            return;
+
+        // Don't process our own leave
+        if (notification.UserId == _currentUserId)
+            return;
+
+        _ = InvokeAsync(async () =>
+        {
+            _remoteParticipants.RemoveAll(p => p.UserId == notification.UserId);
+
+            // Clean up the WebRTC peer connection for the departed user
+            if (_webRtcInitialized)
+            {
+                try
+                {
+                    await WebRtcInterop.ClosePeerConnectionAsync(notification.UserId.ToString());
+                }
+                catch (Exception)
+                {
+                    // Best-effort cleanup for departed peer
+                }
+            }
+
+            // If no remote participants left, hang up our side too
+            if (_remoteParticipants.Count == 0)
+            {
+                await HandleCallHangUp();
+            }
+
+            StateHasChanged();
+        });
+    }
+
     private void OnCallEnded(CallEndedNotification notification)
     {
         // If we're in the call that just ended, clean up the UI
@@ -1610,10 +1678,18 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
                         : "local-video-main";
                     await WebRtcInterop.AttachStreamToElementAsync(localVideoElementId, "local");
                 }
+                else
+                {
+                    // No local media — mark initial negotiation as done so that
+                    // future addTrack (e.g. screen share) renegotiation isn't skipped.
+                    _initialNegotiationDone = true;
+                }
             }
             catch (Exception mediaEx)
             {
                 _messageErrorMessage = $"No camera/mic available: {mediaEx.Message}";
+                // No local media — mark initial negotiation as done (same reason as above)
+                _initialNegotiationDone = true;
                 // Continue — we can still receive remote media
             }
 
@@ -1766,6 +1842,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
     public async Task OnScreenShareStateChanged(bool isSharing)
     {
         _isCallScreenSharing = isSharing;
+        await SendMediaStateChangeAsync("ScreenShare", isSharing);
         await InvokeAsync(StateHasChanged);
     }
 
@@ -2226,6 +2303,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         {
             await WebRtcInterop.ToggleAudioAsync(!muted);
         }
+        await SendMediaStateChangeAsync("Audio", !muted);
     }
 
     private async Task HandleCallToggleCamera(bool cameraOff)
@@ -2235,6 +2313,7 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
         {
             await WebRtcInterop.ToggleVideoAsync(!cameraOff);
         }
+        await SendMediaStateChangeAsync("Video", !cameraOff);
     }
 
     private async Task HandleCallToggleScreenShare(bool sharing)
@@ -2249,6 +2328,21 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
             await WebRtcInterop.StopScreenShareAsync();
         }
         // _isCallScreenSharing is updated via OnScreenShareStateChanged JS callback
+    }
+
+    private async Task SendMediaStateChangeAsync(string mediaType, bool enabled)
+    {
+        if (_currentCallId is null) return;
+        try
+        {
+            var caller = await GetCallerContextAsync();
+            await CallSignalingService.SendMediaStateChangeAsync(
+                _currentCallId.Value, mediaType, enabled, caller);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Call] Failed to send media state change: {ex.Message}");
+        }
     }
 
     private async Task HandleCallHangUp()

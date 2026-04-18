@@ -33,6 +33,7 @@ window.dotnetcloudVideoCall = window.dotnetcloudVideoCall || (function () {
     /** @type {string|null} */
     let currentCallId = null;
     let isScreenSharing = false;
+    let screenShareWasAdded = false; // true if screen track was added (not replaced)
     let isInitialized = false;
 
     // ── Initialization ─────────────────────────────────────────
@@ -120,12 +121,17 @@ window.dotnetcloudVideoCall = window.dotnetcloudVideoCall || (function () {
                 });
             }
 
-            // Replace video track in all peer connections
-            if (localStream) {
-                var cameraTrack = localStream.getVideoTracks()[0];
-                var screenTrack = screenStream.getVideoTracks()[0];
-                if (screenTrack) {
+            // Replace video track in all peer connections, or add if no camera track exists
+            var screenTrack = screenStream.getVideoTracks()[0];
+            if (screenTrack) {
+                var cameraTrack = localStream ? localStream.getVideoTracks()[0] : null;
+                if (cameraTrack) {
                     replaceTrackInAllPeers(cameraTrack, screenTrack);
+                    screenShareWasAdded = false;
+                } else {
+                    // No camera track — add screen track directly to all peers
+                    addTrackToAllPeers(screenTrack, screenStream);
+                    screenShareWasAdded = true;
                 }
             }
 
@@ -154,8 +160,13 @@ window.dotnetcloudVideoCall = window.dotnetcloudVideoCall || (function () {
         var screenTrack = screenStream.getVideoTracks()[0];
         var cameraTrack = localStream ? localStream.getVideoTracks()[0] : null;
 
-        // Replace screen track with camera track in all peers
-        if (cameraTrack && screenTrack) {
+        if (screenShareWasAdded) {
+            // Screen track was added directly — remove it from all peers
+            if (screenTrack) {
+                removeTrackFromAllPeers(screenTrack);
+            }
+        } else if (cameraTrack && screenTrack) {
+            // Screen track replaced camera — swap back
             replaceTrackInAllPeers(screenTrack, cameraTrack);
         }
 
@@ -163,6 +174,7 @@ window.dotnetcloudVideoCall = window.dotnetcloudVideoCall || (function () {
         screenStream.getTracks().forEach(function (t) { t.stop(); });
         screenStream = null;
         isScreenSharing = false;
+        screenShareWasAdded = false;
 
         console.log("[VideoCall] Screen share stopped");
         if (dotNetRef) {
@@ -176,7 +188,11 @@ window.dotnetcloudVideoCall = window.dotnetcloudVideoCall || (function () {
         var cameraTrack = localStream ? localStream.getVideoTracks()[0] : null;
         var screenTrack = screenStream ? screenStream.getVideoTracks()[0] : null;
 
-        if (cameraTrack && screenTrack) {
+        if (screenShareWasAdded) {
+            if (screenTrack) {
+                removeTrackFromAllPeers(screenTrack);
+            }
+        } else if (cameraTrack && screenTrack) {
             replaceTrackInAllPeers(screenTrack, cameraTrack);
         }
 
@@ -185,6 +201,7 @@ window.dotnetcloudVideoCall = window.dotnetcloudVideoCall || (function () {
         }
         screenStream = null;
         isScreenSharing = false;
+        screenShareWasAdded = false;
 
         if (dotNetRef) {
             dotNetRef.invokeMethodAsync("OnScreenShareStateChanged", false);
@@ -572,6 +589,45 @@ window.dotnetcloudVideoCall = window.dotnetcloudVideoCall || (function () {
                     senders[i].replaceTrack(newTrack).catch(function (e) {
                         console.error("[VideoCall] replaceTrack failed for peer:", peerId, e.message);
                     });
+                    break;
+                }
+            }
+        });
+    }
+
+    /**
+     * Add a track to all peer connections (triggers renegotiation).
+     * Used when there's no existing track to replace (e.g., screen share without camera).
+     * @param {MediaStreamTrack} track
+     * @param {MediaStream} stream
+     */
+    function addTrackToAllPeers(track, stream) {
+        peerConnections.forEach(function (pc, peerId) {
+            try {
+                pc.addTrack(track, stream);
+                console.log("[VideoCall] Added track to peer:", peerId, "kind:", track.kind);
+            } catch (e) {
+                console.error("[VideoCall] addTrack failed for peer:", peerId, e.message);
+            }
+        });
+    }
+
+    /**
+     * Remove a track from all peer connections (triggers renegotiation).
+     * Used when stopping screen share that was added (not replaced).
+     * @param {MediaStreamTrack} track
+     */
+    function removeTrackFromAllPeers(track) {
+        peerConnections.forEach(function (pc, peerId) {
+            var senders = pc.getSenders();
+            for (var i = 0; i < senders.length; i++) {
+                if (senders[i].track && senders[i].track.id === track.id) {
+                    try {
+                        pc.removeTrack(senders[i]);
+                        console.log("[VideoCall] Removed track from peer:", peerId, "kind:", track.kind);
+                    } catch (e) {
+                        console.error("[VideoCall] removeTrack failed for peer:", peerId, e.message);
+                    }
                     break;
                 }
             }

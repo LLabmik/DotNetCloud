@@ -223,6 +223,10 @@ internal sealed class CallSignalingService : ICallSignalingService
                 cancellationToken);
         }
 
+        // Notify in-process Blazor components about the media state change
+        _messageNotifier?.NotifyMediaStateChanged(new MediaStateChangedNotification(
+            callId, caller.UserId, mediaType, enabled));
+
         // Publish screen share events if applicable
         if (parsedMediaType == CallMediaType.ScreenShare)
         {

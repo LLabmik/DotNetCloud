@@ -53,6 +53,25 @@ public sealed record CallHostTransferredNotification(
     Guid NewHostUserId);
 
 /// <summary>
+/// Payload for a media state change notification raised via <see cref="IChatMessageNotifier"/>.
+/// Notifies all call participants that a peer's media state (audio, video, screen share) changed.
+/// </summary>
+public sealed record MediaStateChangedNotification(
+    Guid CallId,
+    Guid UserId,
+    string MediaType,
+    bool Enabled);
+
+/// <summary>
+/// Payload for a participant-left notification raised via <see cref="IChatMessageNotifier"/>.
+/// Notifies remaining call participants that a peer has left the call.
+/// </summary>
+public sealed record CallParticipantLeftNotification(
+    Guid CallId,
+    Guid ChannelId,
+    Guid UserId);
+
+/// <summary>
 /// Payload for a user presence change notification raised via <see cref="IChatMessageNotifier"/>.
 /// </summary>
 public sealed record UserPresenceChangedNotification(
@@ -106,6 +125,12 @@ public interface IChatMessageNotifier
     /// <summary>Raised when a user comes online or goes offline.</summary>
     event Action<UserPresenceChangedNotification>? UserPresenceChanged;
 
+    /// <summary>Raised when a call participant's media state changes (audio, video, screen share).</summary>
+    event Action<MediaStateChangedNotification>? MediaStateChanged;
+
+    /// <summary>Raised when a participant leaves an active call.</summary>
+    event Action<CallParticipantLeftNotification>? CallParticipantLeft;
+
     /// <summary>Notifies all subscribers that a new message was sent.</summary>
     void NotifyMessageReceived(Guid channelId, MessageDto message);
 
@@ -135,6 +160,12 @@ public interface IChatMessageNotifier
 
     /// <summary>Notifies all subscribers that a user's presence has changed.</summary>
     void NotifyUserPresenceChanged(UserPresenceChangedNotification notification);
+
+    /// <summary>Notifies all subscribers that a participant's media state changed.</summary>
+    void NotifyMediaStateChanged(MediaStateChangedNotification notification);
+
+    /// <summary>Notifies all subscribers that a participant has left a call.</summary>
+    void NotifyCallParticipantLeft(CallParticipantLeftNotification notification);
 }
 
 /// <summary>
@@ -212,4 +243,18 @@ public sealed class InProcessChatMessageNotifier : IChatMessageNotifier
     /// <inheritdoc />
     public void NotifyUserPresenceChanged(UserPresenceChangedNotification notification)
         => UserPresenceChanged?.Invoke(notification);
+
+    /// <inheritdoc />
+    public event Action<MediaStateChangedNotification>? MediaStateChanged;
+
+    /// <inheritdoc />
+    public event Action<CallParticipantLeftNotification>? CallParticipantLeft;
+
+    /// <inheritdoc />
+    public void NotifyMediaStateChanged(MediaStateChangedNotification notification)
+        => MediaStateChanged?.Invoke(notification);
+
+    /// <inheritdoc />
+    public void NotifyCallParticipantLeft(CallParticipantLeftNotification notification)
+        => CallParticipantLeft?.Invoke(notification);
 }
