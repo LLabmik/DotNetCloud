@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 
 namespace DotNetCloud.Modules.Chat.UI;
 
@@ -8,6 +9,10 @@ namespace DotNetCloud.Modules.Chat.UI;
 /// </summary>
 public partial class IncomingCallNotification : ComponentBase
 {
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
+    private bool _ringtoneActive;
+
     /// <summary>Whether the notification is visible.</summary>
     [Parameter]
     public bool IsVisible { get; set; }
@@ -58,21 +63,53 @@ public partial class IncomingCallNotification : ComponentBase
         return VideoCallDialog.GetInitials(name);
     }
 
+    /// <inheritdoc />
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsVisible && !_ringtoneActive)
+        {
+            _ringtoneActive = true;
+            try
+            {
+                await JS.InvokeVoidAsync("dotnetcloudRingtone.play", "sounds/computer-ambience.mp3", 0.6);
+            }
+            catch (JSDisconnectedException) { /* circuit gone */ }
+        }
+        else if (!IsVisible && _ringtoneActive)
+        {
+            _ringtoneActive = false;
+            await StopRingtoneAsync();
+        }
+    }
+
     /// <summary>Handles accept with video button click.</summary>
     protected async Task HandleAcceptVideo()
     {
+        await StopRingtoneAsync();
         await OnAcceptVideo.InvokeAsync();
     }
 
     /// <summary>Handles accept with audio only button click.</summary>
     protected async Task HandleAcceptAudio()
     {
+        await StopRingtoneAsync();
         await OnAcceptAudio.InvokeAsync();
     }
 
     /// <summary>Handles reject button click.</summary>
     protected async Task HandleReject()
     {
+        await StopRingtoneAsync();
         await OnReject.InvokeAsync();
+    }
+
+    private async Task StopRingtoneAsync()
+    {
+        _ringtoneActive = false;
+        try
+        {
+            await JS.InvokeVoidAsync("dotnetcloudRingtone.stop");
+        }
+        catch (JSDisconnectedException) { /* circuit gone */ }
     }
 }
